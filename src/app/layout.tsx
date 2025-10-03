@@ -1,13 +1,15 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import Header from "@/components/Header"; // 1. IMPORT our new component
+// src/app/layout.tsx
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import Header from '@/components/Header';
+import AuthProvider from '@/components/AuthProvider'; // 1. Import AuthProvider
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "SAIL DSP Intranet",
-  description: "Durgapur Steel Plant Intranet Portal",
+  title: 'DSP Intranet',
+  description: 'Durgapur Steel Plant Intranet Portal',
 };
 
 export default function RootLayout({
@@ -18,8 +20,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <Header />
-        {children}
+        <AuthProvider> {/* 2. Wrap everything inside AuthProvider */}
+          <Header />
+          {children}
+        </AuthProvider> {/* 3. Close the provider */}
       </body>
     </html>
   );

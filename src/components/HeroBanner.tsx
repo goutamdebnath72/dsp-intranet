@@ -7,8 +7,8 @@ const HeroBanner: React.FC = () => {
             <Image
                 src="/hero-banner.jpg"
                 alt="DSP Banner"
-                layout="fill"
-                objectFit="cover"
+                fill // The 'fill' prop replaces 'layout="fill"'
+                className="object-cover" // This class replaces 'objectFit="cover"'
                 quality={80}
                 priority
             />
