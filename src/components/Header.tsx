@@ -1,17 +1,42 @@
 import React from 'react';
-import { LogIn } from 'lucide-react'; // 1. Import the icon we want
+import Image from 'next/image'; // Import the Next.js Image component
+import { Search, LogIn } from 'lucide-react';
+import SearchBar from './SearchBar'; // Import our new SearchBar
 
 const Header: React.FC = () => {
   return (
-    <header className="w-full h-16 bg-blue-800 text-white flex items-center justify-between px-8 shadow-md">
+    <header className="
+      w-full h-20 bg-white text-gray-800 
+      flex items-center justify-between 
+      px-4 sm:px-8 shadow-md border-b
+    ">
       {/* Left side: Logo and Title */}
-      <div className="flex items-center">
-        <h1 className="text-xl font-bold">Durgapur Steel Plant Intranet</h1>
+      <div className="flex items-center gap-3">
+        <Image
+          src="/logo.svg" 
+          alt="SAIL Logo"          
+          width={345}
+          height={360}
+          className="h-14 w-auto"
+        />
+        <div>
+          <h1 className="text-base font-bold text-blue-800">
+            Durgapur Steel Plant
+          </h1>
+          <p className="text-xs text-gray-600">
+            स्टील अथॉरिटी ऑफ इंडिया लिमिटेड
+          </p>
+        </div>
       </div>
 
-      {/* Right side: The new "Wow Factor" Login Button */}
+      {/* Middle: Search Bar */}
+      <div className="hidden lg:flex flex-grow justify-center px-8">
+        <SearchBar />
+      </div>
+
+      {/* Right side: Login Button */}
       <div>
-        <button 
+        <button
           className="
             flex items-center gap-2
             bg-gradient-to-r from-cyan-500 to-blue-500 
@@ -23,8 +48,8 @@ const Header: React.FC = () => {
             active:scale-95
           "
         >
-          <LogIn size={18} /> {/* 2. Add the icon to the button */}
-          <span>Login</span>
+          <LogIn size={18} />
+          <span className="hidden sm:inline">Login</span>
         </button>
       </div>
     </header>

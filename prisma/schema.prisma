@@ -1,0 +1,30 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// Blueprint for our Links (Quick Links, Department Sites, etc.)
+model Link {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  name      String
+  href      String
+  icon      String? // The '?' makes the icon name optional
+  category  String   // e.g., "quicklink", "department"
+}
+
+// Blueprint for our Announcements
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  title     String
+  date      DateTime
+}

@@ -1,16 +1,27 @@
-// src/app/page.tsx
+import QuickLinks from '@/components/QuickLinks';
+import Announcements from '@/components/Announcements';
+import DepartmentSites from '@/components/DepartmentSites';
+import HeroBanner from '@/components/HeroBanner';
 
 export default function Home() {
   return (
-    // We'll use a main tag for our primary page content.
-    // The Tailwind classes add some padding for spacing.
-    <main className="p-8">
-      <h1 className="text-2xl font-bold">
-        Welcome to the Intranet Portal
-      </h1>
-      <p className="mt-4">
-        This is the main content area. We will build our components here.
-      </p>
-    </main>
+    // We'll wrap the content in a single div to manage layout
+    <div className="p-4 sm:p-6 lg:p-8 bg-slate-50 min-h-screen">
+
+      {/* 2. Add the Hero Banner here */}
+      <HeroBanner />
+
+      <div className="flex flex-col lg:flex-row gap-8">
+        <main className="w-full lg:w-2/3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          <div className="space-y-8">
+            <Announcements />
+            <DepartmentSites />
+          </div>
+        </main>
+        <aside className="w-full lg:w-1/3 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+          <QuickLinks />
+        </aside>
+      </div>
+    </div>
   );
 }

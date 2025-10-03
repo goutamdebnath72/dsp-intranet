@@ -18,8 +18,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <Header /> {/* 2. ADD the component here */}
-        <main>{children}</main> {/* This is where page content will go */}
+        <Header />
+        {children}
       </body>
     </html>
   );
