@@ -8,7 +8,6 @@ datasource db {
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
-// Blueprint for our Links (Quick Links, Department Sites, etc.)
 model Link {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
@@ -18,12 +17,13 @@ model Link {
   category  String
 }
 
-// Blueprint for our Announcements
 model Announcement {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   title     String
+  content   String?  @db.Text
   date      DateTime
+  readByUsers AnnouncementReadStatus[] // Relation to read statuses
 }
 
 // MODELS REQUIRED BY NEXT-AUTH
@@ -54,13 +54,14 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
+  id                String    @id @default(cuid())
+  name              String?
+  email             String?   @unique
+  emailVerified     DateTime?
+  image             String?
+  accounts          Account[]
+  sessions          Session[]
+  readAnnouncements AnnouncementReadStatus[] // Relation to read statuses
 }
 
 model VerificationToken {
@@ -69,4 +70,16 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// NEW MODEL FOR TRACKING READ ANNOUNCEMENTS
+model AnnouncementReadStatus {
+  id             String       @id @default(cuid())
+  userId         String
+  announcementId Int
+  readAt         DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, announcementId])
 }
