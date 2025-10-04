@@ -4,10 +4,10 @@ import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 
 export async function POST(
-  request: Request, // The 'request' object is kept here
-  { params }: { params: { id: string } }
+  request: Request,
+  // The signature of the second argument is changed to be more explicit
+  context: { params: { id: string } }
 ) {
-  // This line forces the request to be processed, which resolves the warning.
   await request.text();
 
   const session = await getServerSession(authOptions);
@@ -23,7 +23,8 @@ export async function POST(
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  const announcementId = parseInt(params.id, 10);
+  // We now get the 'id' from the context object
+  const announcementId = parseInt(context.params.id, 10);
 
   try {
     await prisma.announcementReadStatus.upsert({
