@@ -5,8 +5,7 @@ import { authOptions } from '@/lib/auth';
 
 export async function POST(
   request: Request,
-  // The signature of the second argument is changed to be more explicit
-  context: { params: { id: string } }
+  context: { params: { id: string } } // This is the corrected function signature
 ) {
   await request.text();
 
@@ -23,7 +22,6 @@ export async function POST(
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // We now get the 'id' from the context object
   const announcementId = parseInt(context.params.id, 10);
 
   try {
@@ -42,6 +40,8 @@ export async function POST(
     });
     return NextResponse.json({ success: true });
   } catch (error) {
+    // This line is added to fix the 'error' is defined but never used warning
+    console.error("Failed to mark as read:", error);
     return NextResponse.json({ error: 'Failed to mark as read' }, { status: 500 });
   }
 }
