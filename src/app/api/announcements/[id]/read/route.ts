@@ -5,18 +5,9 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 
-// Define a lightweight context type that matches Next.js runtime shape
-interface RouteContext {
-  params: {
-    id: string;
-  };
-}
-
-export async function POST(
-  request: NextRequest,
-  context: RouteContext // ✅ No 'any', ESLint-safe
-) {
-  const { params } = context;
+export async function POST(request: NextRequest, context: unknown) {
+  // Safely extract typed params from context
+  const params = (context as { params: { id: string } }).params;
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
