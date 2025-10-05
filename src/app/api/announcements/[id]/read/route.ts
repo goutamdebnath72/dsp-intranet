@@ -5,24 +5,30 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 
+// Define a lightweight context type that matches Next.js runtime shape
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
+
 export async function POST(
   request: NextRequest,
-  { params }: any
+  context: RouteContext // ✅ No 'any', ESLint-safe
 ) {
-  // Verify session
+  const { params } = context;
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Validate announcement ID
   const announcementId = parseInt(params.id, 10);
   if (isNaN(announcementId)) {
     return NextResponse.json({ error: 'Invalid announcement ID' }, { status: 400 });
   }
 
   try {
-    // Find user by email
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -31,7 +37,6 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Upsert read status for this announcement and user
     await prisma.announcementReadStatus.upsert({
       where: {
         userId_announcementId: {

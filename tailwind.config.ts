@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import forms from "@tailwindcss/forms"; // ✅ use ESM import instead of require()
 
 const config: Config = {
     content: [
@@ -8,7 +9,6 @@ const config: Config = {
     ],
     theme: {
         extend: {
-            // Add the font family configuration here
             fontFamily: {
                 sans: ['var(--font-inter)'],
             },
@@ -34,8 +34,7 @@ const config: Config = {
             },
         },
     },
-    plugins: [
-        require('@tailwindcss/forms'),
-    ],
+    plugins: [forms], // ✅ no require()
 };
+
 export default config;
