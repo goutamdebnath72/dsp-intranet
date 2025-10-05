@@ -1,12 +1,14 @@
 // src/app/api/announcements/[id]/read/route.ts
 
+// 1. Import 'NextRequest' alongside 'NextResponse'
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 
 export async function POST(
-  request: Request,
+  // 2. Use 'NextRequest' as the type for the first argument
+  request: NextRequest,
   context: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions);
@@ -14,14 +16,10 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // --- FIX 1: Validate the incoming ID parameter ---
   const announcementId = parseInt(context.params.id, 10);
   if (isNaN(announcementId)) {
     return NextResponse.json({ error: 'Invalid announcement ID' }, { status: 400 });
   }
-  // --- END FIX 1 ---
-
-  // Note: The redundant 'await request.text();' has been removed.
 
   try {
     const user = await prisma.user.findUnique({
@@ -32,12 +30,11 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Use the validated announcementId in the database query
     await prisma.announcementReadStatus.upsert({
       where: {
         userId_announcementId: {
           userId: user.id,
-          announcementId, // This is now guaranteed to be a number
+          announcementId,
         },
       },
       update: {},
