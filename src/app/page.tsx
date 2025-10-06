@@ -1,25 +1,42 @@
+// In src/app/page.tsx
+
 import QuickLinks from '@/components/QuickLinks';
 import Announcements from '@/components/Announcements';
 import DepartmentSites from '@/components/DepartmentSites';
 import HeroBanner from '@/components/HeroBanner';
+import prisma from '@/lib/prisma'; // 1. Import prisma
 
-export default function Home() {
+// 2. Make the component async to allow for data fetching
+export default async function Home() {
+  
+  // 3. Fetch data for both components on the server
+  const quickLinksData = await prisma.link.findMany({
+    where: { category: 'quicklink' },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const departmentData = await prisma.link.findMany({
+    where: { category: 'department' },
+    orderBy: { name: 'asc' },
+  });
+
   return (
-    // We'll wrap the content in a single div to manage layout
-    <div className="p-4 sm:p-6 lg:p-8 bg-slate-50 min-h-screen">
-
-      {/* 2. Add the Hero Banner here */}
+    <div className="p-4 sm:p-6 lg:p-8 bg-neutral-50 min-h-screen">
       <HeroBanner />
-
-      <div className="flex flex-col lg:flex-row gap-8">
-        <main className="w-full lg:w-2/3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-          <div className="space-y-8">
-            <Announcements />
-            <DepartmentSites />
-          </div>
+      
+      {/* 4. We'll use a more robust CSS Grid for the layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+        {/* Main content spans 2 columns on large screens */}
+        <main className="lg:col-span-2 space-y-8">
+          <Announcements />
+          {/* 5. Pass the fetched data as props */}
+          <DepartmentSites departmentData={departmentData} />
         </main>
-        <aside className="w-full lg:w-1/3 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-          <QuickLinks />
+
+        {/* Aside content spans 1 column */}
+        <aside>
+          {/* 5. Pass the fetched data as props */}
+          <QuickLinks quickLinksData={quickLinksData} />
         </aside>
       </div>
     </div>
