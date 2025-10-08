@@ -4,11 +4,13 @@
 import React from 'react';
 import Image from 'next/image';
 import { Search, LogIn, LogOut } from 'lucide-react';
-import { useSession, signIn, signOut } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { motion } from 'framer-motion';
+import { useModal } from '@/context/ModalContext';
 
 const Header: React.FC = () => {
   const { data: session, status } = useSession();
+  const { openModal } = useModal();
 
   return (
     <header className="w-full bg-neutral-50 text-neutral-800 flex items-center justify-between px-4 sm:px-8 py-3 shadow-sm border-b border-neutral-200 sticky top-0 z-50">
@@ -32,6 +34,7 @@ const Header: React.FC = () => {
       </div>
 
       <div className="relative flex-grow mx-4 sm:mx-8 max-w-lg">
+        {/* 👇 THIS CLASS IS NOW CORRECTLY CENTERING THE ICON 👇 */}
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 h-5 w-5" />
         <input
           type="text"
@@ -61,10 +64,9 @@ const Header: React.FC = () => {
             </button>
           </div>
         ) : (
-          // 👇 APPLIED THE SAME PADDING AND FONT-WEIGHT AS THE LOGOUT BUTTON 👇
           <motion.button
-            onClick={() => signIn('github')}
-            className="relative inline-flex items-center gap-2 overflow-hidden rounded-full py-2 px-4 font-semibold text-xl text-primary-700 focus:outline-none"
+            onClick={openModal}
+            className="relative inline-flex items-center gap-2 overflow-hidden rounded-full py-2 px-4 font-semibold text-xl text-primary-800 focus:outline-none"
             whileHover="hover"
             transition={{ duration: 1.2, ease: "circOut" }}
           >

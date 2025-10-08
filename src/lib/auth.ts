@@ -2,9 +2,10 @@
 
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import prisma from '@/lib/prisma';
-import { AuthOptions } from 'next-auth';
+import { AuthOptions, User } from 'next-auth';
 import GitHubProvider from 'next-auth/providers/github';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import bcrypt from 'bcryptjs';
 
 export const authOptions: AuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -16,30 +17,58 @@ export const authOptions: AuthOptions = {
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        email: { label: 'Email', type: 'text' },
-        password: { label: 'Password', type: 'password' },
+        ticketNo: { label: "Ticket Number", type: "text" },
+        password: { label: "SAIL Personal No.", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) {
+        if (!credentials?.ticketNo || !credentials.password) {
           return null;
         }
 
-        // TODO: Replace this with a real database lookup
-        const user = { id: '1', name: 'Mock User', email: credentials.email };
+        const user = await prisma.user.findUnique({
+          where: {
+            ticketNo: credentials.ticketNo,
+          },
+        });
 
-        if (user) {
+        if (!user || !user.password) {
+          return null;
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+
+        if (isPasswordValid) {
           return user;
         }
+
         return null;
       },
     }),
   ],
-
-  // CRITICAL CHANGE HERE
   session: {
-    strategy: 'database', // Use 'database' strategy with PrismaAdapter
+    strategy: 'jwt',
   },
   pages: {
     signIn: '/login',
+  },
+
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+      }
+      return session;
+    },
   },
 };

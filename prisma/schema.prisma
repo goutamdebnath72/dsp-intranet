@@ -1,5 +1,5 @@
 generator client {
-  provider  = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -18,15 +18,23 @@ model Link {
 }
 
 model Announcement {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  title     String
-  content   String?  @db.Text
-  date      DateTime
-  readByUsers AnnouncementReadStatus[] // Relation to read statuses
+  id          Int                      @id @default(autoincrement())
+  createdAt   DateTime                 @default(now())
+  title       String
+  content     String?                  @db.Text
+  date        DateTime
+  readByUsers AnnouncementReadStatus[]
 }
 
-// MODELS REQUIRED BY NEXT-AUTH
+model Department {
+  id    String @id @default(cuid())
+  code  Int    @unique
+  name  String
+  users User[]
+
+  @@map("departments")
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -61,7 +69,17 @@ model User {
   image             String?
   accounts          Account[]
   sessions          Session[]
-  readAnnouncements AnnouncementReadStatus[] // Relation to read statuses
+  readAnnouncements AnnouncementReadStatus[]
+
+  // --- CUSTOM FIELDS FOR DSP INTRANET ---
+  password          String?
+  role              String    @default("standard")
+  ticketNo          String    @unique
+  designation       String?
+  contactNo         String?
+  sailPNo           String?
+  department        Department? @relation(fields: [departmentId], references: [id])
+  departmentId      String?
 }
 
 model VerificationToken {
@@ -72,7 +90,6 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// NEW MODEL FOR TRACKING READ ANNOUNCEMENTS
 model AnnouncementReadStatus {
   id             String       @id @default(cuid())
   userId         String

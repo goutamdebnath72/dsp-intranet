@@ -3,8 +3,7 @@
 import QuickLinks from '@/components/QuickLinks';
 import Announcements from '@/components/Announcements';
 import DepartmentSites from '@/components/DepartmentSites';
-import HeroBanner from '@/components/HeroBanner';
-import prisma from '@/lib/prisma'; // 1. Import prisma
+import prisma from '@/lib/prisma'; 
 
 // 2. Make the component async to allow for data fetching
 export default async function Home() {
@@ -21,8 +20,7 @@ export default async function Home() {
   });
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 bg-neutral-50 min-h-screen">
-      <HeroBanner />
+    <div className="p-4 sm:p-6 lg:p-8 bg-neutral-50 min-h-screen">     
       
       {/* 4. We'll use a more robust CSS Grid for the layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">

@@ -2,11 +2,11 @@
 'use client'; // 1. Convert to a Client Component
 
 import React from 'react';
-import { BookUser, Fingerprint, Mail, ShieldAlert, Users, Search } from 'lucide-react';
+import { BookUser, Fingerprint, Mail, ShieldAlert, Users, Search, Siren } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const iconMap: { [key: string]: React.ElementType } = {
-    BookUser, Fingerprint, Mail, ShieldAlert, Users, Search,
+    BookUser, Fingerprint, Mail, ShieldAlert, Users, Search, Siren
 };
 
 // 2. Define the type for the props we're receiving
