@@ -1,5 +1,4 @@
-// In src/components/QuickLinks.tsx
-"use client"; // 1. Convert to a Client Component
+"use client";
 
 import React from "react";
 import {
@@ -23,7 +22,6 @@ const iconMap: { [key: string]: React.ElementType } = {
   Siren,
 };
 
-// 2. Define the type for the props we're receiving
 type QuickLinksProps = {
   quickLinksData: {
     id: number;
@@ -33,11 +31,10 @@ type QuickLinksProps = {
   }[];
 };
 
-// 3. Accept the 'quickLinksData' as a prop
 const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData }) => {
   return (
     <motion.div
-      className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[50vh]"
+      className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[55vh] flex flex-col"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2 }}
@@ -45,8 +42,9 @@ const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData }) => {
       <h2 className="text-xl font-bold font-heading text-neutral-800 mb-4">
         Quick Links
       </h2>
-      <nav>
-        <ul className="space-y-2 h-[calc(100%-2.5rem)] overflow-y-auto group scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent group-hover:scrollbar-thumb-neutral-400/50">
+
+      <nav className="flex-1 overflow-y-auto group scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent hover:scrollbar-thumb-neutral-400/50 scroll-smooth">
+        <ul className="space-y-2 pb-2">
           {quickLinksData.map((link) => {
             const IconComponent = link.icon ? iconMap[link.icon] : null;
             return (

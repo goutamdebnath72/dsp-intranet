@@ -13,7 +13,8 @@ const Header: React.FC = () => {
   const { openModal } = useModal();
 
   return (
-    <header className="w-full bg-neutral-50 text-neutral-800 flex items-center justify-between px-4 sm:px-8 py-3 shadow-sm border-b border-neutral-200 sticky top-0 z-50">
+    // The new classes have been added here
+    <header className="w-full min-[1500px]:w-[80%] min-[1800px]:w-[72%] mx-auto bg-neutral-50 text-neutral-800 flex items-center justify-between px-4 sm:px-8 py-3 shadow-sm border-b border-neutral-200 sticky top-0 z-50">
       <div className="flex items-center gap-3">
         <Image
           src="/logo.svg"
@@ -33,8 +34,7 @@ const Header: React.FC = () => {
         </div>
       </div>
 
-      <div className="relative flex-grow mx-4 sm:mx-8 max-w-lg">
-        {/* 👇 THIS CLASS IS NOW CORRECTLY CENTERING THE ICON 👇 */}
+      <div className="relative flex-grow mx-6 sm:mx-10 max-w-lg">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 h-5 w-5" />
         <input
           type="text"
@@ -66,7 +66,7 @@ const Header: React.FC = () => {
         ) : (
           <motion.button
             onClick={openModal}
-            className="relative inline-flex items-center gap-2 overflow-hidden rounded-full py-2 px-4 font-semibold text-xl text-primary-800 focus:outline-none"
+            className="relative inline-flex items-center gap-2 overflow-hidden rounded-full py-2 px-4 font-semibold text-xl text-primary-500 focus:outline-none"
             whileHover="hover"
             transition={{ duration: 1.2, ease: "circOut" }}
           >

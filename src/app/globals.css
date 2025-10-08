@@ -28,7 +28,7 @@
   --color-neutral-900: #0f172a;
   --color-neutral-950: #020617;
 
-  --color-link-blue: #0000FF;
+  --color-link-blue: #0000ff;
 }
 
 a:hover,
@@ -36,3 +36,49 @@ button:hover,
 .hover-accent:hover {
   color: var(--color-primary-500) !important;
 }
+
+/* ===== Exception: Modal close button hover ===== */
+button.modal-close:hover,
+.modal-close:hover,
+button.modal-close:hover svg,
+.modal-close:hover svg {
+  color: #ff0000 !important;
+  stroke: #ff0000 !important;
+}
+
+/* ===== Global Scrollbar Styling (Fixed visibility) ===== */
+
+/* Chrome, Edge, Safari */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+
+/* Show thumb when hovered — parent or self */
+.group:hover .scrollbar-thin::-webkit-scrollbar-thumb,
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.4); /* neutral-400/50 */
+}
+
+/* Firefox */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.group:hover .scrollbar-thin,
+.scrollbar-thin:hover {
+  scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+}
+
+

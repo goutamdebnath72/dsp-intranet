@@ -35,7 +35,7 @@ export default function Announcements() {
   return (
     <>
       <motion.div
-        className="relative group h-[50vh] rounded-lg shadow-lg p-6 flex flex-col
+        className="relative group h-[55vh] rounded-lg shadow-lg p-6 flex flex-col
                    before:absolute before:inset-0 before:bg-white/30 before:backdrop-blur-lg before:rounded-lg before:border before:border-white/20"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -43,48 +43,65 @@ export default function Announcements() {
       >
         <div className="relative z-10 flex flex-col h-full">
           <h2 className="text-xl font-bold font-heading text-neutral-800 mb-4 flex-shrink-0">
-            Announcements & Happenings
+            Announcements &amp; Happenings
           </h2>
 
+          {/* Scrollable content area */}
           <div
-            className="space-y-4 flex-grow overflow-y-auto"
+            className="flex-grow overflow-y-auto group scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent scroll-smooth"
             onMouseEnter={() => setIsHovering(true)}
             onMouseLeave={() => setIsHovering(false)}
             style={{
               scrollbarWidth: 'thin',
-              scrollbarColor: isHovering ? 'rgba(71, 85, 105, 0.5) transparent' : 'transparent transparent'
+              scrollbarColor: isHovering
+                ? 'rgba(100, 116, 139, 0.4) transparent'
+                : 'transparent transparent',
             }}
           >
-            {isLoading && <div className="flex justify-center items-center p-4"><Loader className="animate-spin text-primary-700" /></div>}
-            {error && <div className="text-red-500">Failed to load announcements.</div>}
-            {announcementsData && announcementsData.map((item) => {
-              const hasContent = !!item.content;
-              const itemDate = DateTime.fromISO(item.date as unknown as string);
-              const isRecent = DateTime.now().diff(itemDate, 'hours').hours <= 24;
-              const showNewChip = session ? (isRecent && !item.isRead) : isRecent;
+            {isLoading && (
+              <div className="flex justify-center items-center p-4">
+                <Loader className="animate-spin text-primary-700" />
+              </div>
+            )}
+            {error && (
+              <div className="text-red-500">Failed to load announcements.</div>
+            )}
+            {announcementsData &&
+              announcementsData.map((item) => {
+                const hasContent = !!item.content;
+                const itemDate = DateTime.fromISO(item.date as unknown as string);
+                const isRecent = DateTime.now().diff(itemDate, 'hours').hours <= 24;
+                const showNewChip = session ? (isRecent && !item.isRead) : isRecent;
 
-              return (
-                <div key={item.id} className="border-b border-neutral-200/50 last:border-b-0 pb-4 last:pb-0">
-                  <div className="flex items-center justify-between">
-                    {hasContent ? (
-                      <button
-                        onClick={() => handleAnnouncementClick(item)}
-                        className="text-left font-medium text-blue-600 hover:underline flex items-center gap-2"
-                      >
-                        <MessageSquareText size={16} className="opacity-70" />
-                        {item.title}
-                      </button>
-                    ) : (
-                      <h3 className="font-medium text-neutral-600">{item.title}</h3>
-                    )}
-                    {showNewChip && <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">New</span>}
+                return (
+                  <div
+                    key={item.id}
+                    className="border-b border-neutral-200/50 last:border-b-0 pb-4 last:pb-0"
+                  >
+                    <div className="flex items-center justify-between">
+                      {hasContent ? (
+                        <button
+                          onClick={() => handleAnnouncementClick(item)}
+                          className="text-left font-medium text-blue-600 hover:underline flex items-center gap-2"
+                        >
+                          <MessageSquareText size={16} className="opacity-70" />
+                          {item.title}
+                        </button>
+                      ) : (
+                        <h3 className="font-medium text-neutral-600">{item.title}</h3>
+                      )}
+                      {showNewChip && (
+                        <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                          New
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-neutral-600 mt-1">
+                      {itemDate.toFormat('dd LLL yyyy')}
+                    </p>
                   </div>
-                  <p className="text-sm text-neutral-600 mt-1">
-                    {itemDate.toFormat('dd LLL yyyy')}
-                  </p>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
       </motion.div>
