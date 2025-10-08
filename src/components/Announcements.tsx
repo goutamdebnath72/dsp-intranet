@@ -69,7 +69,7 @@ export default function Announcements() {
                     {hasContent ? (
                       <button
                         onClick={() => handleAnnouncementClick(item)}
-                        className="text-left font-medium text-blue-600 hover:text-primary-800 hover:underline flex items-center gap-2"
+                        className="text-left font-medium text-blue-600 hover:underline flex items-center gap-2"
                       >
                         <MessageSquareText size={16} className="opacity-70" />
                         {item.title}

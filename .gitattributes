@@ -1,0 +1,7 @@
+tailwind.config.js     merge=ours
+postcss.config.js      merge=ours
+next.config.js         merge=ours
+tsconfig.json          merge=ours
+package.json           merge=ours
+package-lock.json      merge=ours
+src/app/globals.css    merge=ours

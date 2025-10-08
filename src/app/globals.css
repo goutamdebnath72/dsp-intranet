@@ -30,3 +30,9 @@
 
   --color-link-blue: #0000FF;
 }
+
+a:hover,
+button:hover,
+.hover-accent:hover {
+  color: var(--color-primary-500) !important;
+}
