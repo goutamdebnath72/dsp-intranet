@@ -59,7 +59,10 @@ async function main() {
     const passwordPlain = String(u.sailPNo ?? u.ticketNo);
     const hashedPassword = await bcrypt.hash(passwordPlain, SALT_ROUNDS);
 
-    const role = u.role === "sys_admin" ? "admin" : "standard";
+    // Role is now based on BOTH ticket number and department code
+    const role = String(u.ticketNo).startsWith('4') && u.departmentCode === 98500
+      ? "admin"
+      : "standard";
 
     const email = (u.emailSail && u.emailSail !== "NOT AVAILABLE")
       ? u.emailSail

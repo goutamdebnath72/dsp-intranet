@@ -34,7 +34,7 @@ type QuickLinksProps = {
 const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData }) => {
   return (
     <motion.div
-      className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[55vh] flex flex-col"
+      className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[45vh] flex flex-col"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2 }}

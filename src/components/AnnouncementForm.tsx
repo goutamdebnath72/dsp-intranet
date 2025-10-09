@@ -1,44 +1,45 @@
-"use client";
+'use client';
 
-import React, { useState, useTransition } from "react";
-import { mutate } from "swr";
+import React, { useState, useTransition } from 'react';
+import { mutate } from 'swr';
 
 export default function AnnouncementForm() {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [message, setMessage] = useState("");
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  // The date is still in state, but we won't provide a way to change it
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [message, setMessage] = useState('');
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setMessage("");
-
+    setMessage('');
     startTransition(async () => {
-      const response = await fetch("/api/announcements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content }),
+      const response = await fetch('/api/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // The current date from state is sent automatically
+        body: JSON.stringify({ title, content, date }),
       });
 
       if (response.ok) {
-        setMessage("Announcement created successfully!");
-        setTitle("");
-        setContent("");
-        mutate("/api/announcements"); // Tell SWR to refetch the announcements
+        setMessage('Announcement created successfully!');
+        setTitle('');
+        setContent('');
+        // We don't need to reset the date, it will always be today
+        mutate('/api/announcements');
       } else {
         const error = await response.json();
-        setMessage(`Error: ${error.error || "Failed to create announcement."}`);
+        setMessage(`Error: ${error.error || 'Failed to create announcement.'}`);
       }
     });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    // Set a max-width on the form itself to control its size
+    <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-2xl">
       <div>
-        <label
-          htmlFor="title"
-          className="block text-sm font-medium leading-6 text-gray-900"
-        >
+        <label htmlFor="title" className="block text-sm font-medium leading-6 text-gray-900">
           Title / Headline
         </label>
         <div className="mt-2">
@@ -53,10 +54,7 @@ export default function AnnouncementForm() {
         </div>
       </div>
       <div>
-        <label
-          htmlFor="content"
-          className="block text-sm font-medium leading-6 text-gray-900"
-        >
+        <label htmlFor="content" className="block text-sm font-medium leading-6 text-gray-900">
           Content (Optional)
         </label>
         <div className="mt-2">
@@ -69,6 +67,23 @@ export default function AnnouncementForm() {
           />
         </div>
       </div>
+
+      {/* The date field is now read-only */}
+      <div>
+        <label htmlFor="date" className="block text-sm font-medium leading-6 text-gray-900">
+          Date
+        </label>
+        <div className="mt-2">
+          <input
+            type="date"
+            id="date"
+            value={date}
+            readOnly // This prevents the admin from changing the date
+            className="block w-full rounded-md py-2 px-3 text-slate-500 bg-slate-100 font-medium shadow-md ring-1 ring-inset ring-slate-500 cursor-not-allowed"
+          />
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <button
           type="submit"

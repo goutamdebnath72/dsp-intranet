@@ -6,7 +6,6 @@ import AuthProvider from '@/components/AuthProvider';
 import { ModalProvider } from '@/context/ModalContext';
 import LoginModal from '@/components/LoginModal';
 
-
 const poppins = Poppins({
   subsets: ['latin'],
   display: 'swap',
@@ -29,11 +28,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${poppins.variable} ${sourceSans.variable}`}>
-      <body>
+      <body className="bg-neutral-100">
         <AuthProvider>
           <ModalProvider>
-            <Header />
-            <main>{children}</main>
+            <div className="w-full lg-custom:w-[80%] xl-custom:w-[70%] mx-auto bg-neutral-50 min-h-screen shadow-lg">
+              <Header />
+              <main>{children}</main>
+            </div>
             <LoginModal />
           </ModalProvider>
         </AuthProvider>

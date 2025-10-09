@@ -1,26 +1,23 @@
-// src/app/admin/page.tsx
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import AnnouncementForm from '@/components/AnnouncementForm';
-import { authOptions } from '@/lib/auth'; // 1. Import the shared options
 
 export default async function AdminPage() {
-    // 2. Pass the options to getServerSession
-    const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
 
-    if (!session) {
-        redirect('/');
-    }
+  if (session?.user?.role !== 'admin') {
+    redirect('/');
+  }
 
-    return (
-        <div className="p-4 sm:p-6 lg:p-8 bg-slate-50 min-h-screen">
-            <div className="max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold text-gray-800 mb-6">Admin Dashboard</h1>
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                    <h2 className="text-xl font-semibold text-gray-700 mb-4">Create New Announcement</h2>
-                    <AnnouncementForm />
-                </div>
-            </div>
-        </div>
-    );
+  return (
+    <div className="container mx-auto p-8">
+      <h1 className="text-3xl font-bold font-heading mb-2 text-center">Admin Dashboard</h1>
+      <p className="mb-8 text-neutral-600 text-center">Create a new announcement.</p>
+
+      <div className="flex justify-center">
+        <AnnouncementForm />
+      </div>
+    </div>
+  );
 }
