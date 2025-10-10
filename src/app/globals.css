@@ -31,6 +31,10 @@
   --color-link-blue: #0000ff;
 }
 
+html {
+  overflow-y: scroll;
+}
+
 a:hover,
 button:hover,
 .hover-accent:hover {
