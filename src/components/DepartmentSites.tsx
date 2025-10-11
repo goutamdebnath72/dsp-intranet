@@ -6,9 +6,11 @@ import {
   ChevronLeft, ChevronRight, Laptop, Signal, HeartPulse, Landmark, Shield,
   Flame, Wrench, Building, Factory, Settings, School, DraftingCompass,
   CircuitBoard, Users, Gauge, Cable, Tractor, Microscope,
-  Languages, Cylinder, Train, Disc3, Waves, Building2, Cog, Presentation, GanttChartSquare, UserCog, Eye
+  Languages, Cylinder, Train, Disc3, Waves, Building2, Cog, Presentation,
+  GanttChartSquare, UserCog, Eye, Globe, Network, Briefcase, Ship, Server,
+  Library, Link as LinkIcon
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { Tooltip } from './Tooltip';
 
@@ -16,8 +18,33 @@ const iconMap: { [key: string]: React.ElementType } = {
   Laptop, Signal, HeartPulse, Landmark, Shield, Flame, Wrench, Building,
   Factory, Settings, School, DraftingCompass, CircuitBoard, Users,
   Gauge, Cable, Tractor, Microscope, Languages, Cylinder,
-  Train, Disc3, Waves, Building2, Cog, Presentation, GanttChartSquare, UserCog, Eye
+  Train, Disc3, Waves, Building2, Cog, Presentation, GanttChartSquare,
+  UserCog, Eye, Globe, Network, Briefcase, Ship, Server, Library, LinkIcon
 };
+
+const sailSitesData = [
+  { name: 'ASP', href: '#', icon: 'Factory' },
+  { name: 'BSP CHRD', href: '#', icon: 'Users' },
+  { name: 'BSL', href: '#', icon: 'Building' },
+  { name: 'CET', href: '#', icon: 'School' },
+  { name: 'CMO UCS', href: '#', icon: 'Ship' },
+  { name: 'CMMG', href: '#', icon: 'GanttChartSquare' },
+  { name: 'Corporate Office', href: '#', icon: 'Briefcase' },
+  { name: 'ISP', href: '#', icon: 'Cog' },
+  { name: 'Kolkata Ispat Bhavan', href: '#', icon: 'Landmark' },
+  { name: 'MTI', href: '#', icon: 'Library' },
+  { name: 'RDCIS', href: '#', icon: 'Microscope' },
+  { name: 'RMD', href: '#', icon: 'Tractor' },
+  { name: 'RSP', href: '#', icon: 'Settings' },
+  { name: 'SDC Hyd', href: '#', icon: 'Server' },
+  { name: 'SRM Dgp', href: '#', icon: 'CircuitBoard' },
+  { name: 'Utkarsh', href: '#', icon: 'Presentation' },
+  { name: 'iConnekt', href: '#', icon: 'Network' },
+  { name: 'SSO', href: '#', icon: 'Shield' },
+  { name: 'IPSS', href: '#', icon: 'UserCog' },
+  { name: 'SAIL SERVICE PORTAL', href: '#', icon: 'Globe' },
+  { name: 'INDUSTRY 4.0', href: '#', icon: 'Signal' },
+].sort((a, b) => a.name.localeCompare(b.name));
 
 type DepartmentSitesProps = {
   departmentData: {
@@ -41,6 +68,7 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const isXlScreen = useBreakpoint(1800);
+  const [activeTab, setActiveTab] = useState('dspSites');
 
   const checkScrollability = () => {
     const el = scrollContainerRef.current;
@@ -57,10 +85,8 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
       const cardWidth = 128;
       const gapWidth = 16;
       const columnWidth = cardWidth + gapWidth;
-
       const columnsToScroll = isXlScreen ? 5 : 4;
       const scrollAmount = columnWidth * columnsToScroll;
-
       if (direction === 'right') {
         const newScrollLeft = el.scrollLeft + scrollAmount;
         const maxScrollLeft = el.scrollWidth - el.clientWidth;
@@ -73,27 +99,37 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => checkScrollability(), 100);
-    window.addEventListener('resize', checkScrollability);
+    if (activeTab === 'dspSites') {
+      const timer = setTimeout(() => checkScrollability(), 100);
+      window.addEventListener('resize', checkScrollability);
 
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', checkScrollability);
-    };
-  }, [departmentData, isXlScreen]);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', checkScrollability);
+      };
+    }
+  }, [departmentData, isXlScreen, activeTab]);
 
   const departmentColumns = createColumns(departmentData);
-
   const largeIcons = [
-    '/blast-furnace.webp',
-    '/cem.png',
-    '/conveyorbelt.webp',
-    '/joist-icon.jpg',
-    '/wheel-axle-icon.jpg',
-    '/hindi.svg',
-    '/wagon-icon.jpg',
-    '/tmt-bar.webp'
+    '/blast-furnace.png', '/cem.png', '/conveyorbelt.png', '/joist-icon.png',
+    '/wheel-axle-icon.png', '/hindi.svg', '/wagon-icon.png', '/tmt-bar.png'
   ];
+
+  const tabContainerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05,
+      },
+    },
+  };
+
+  const tabItemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1 },
+  };
 
   return (
     <motion.div
@@ -102,81 +138,134 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.3 }}
     >
-      <h2 className="text-xl font-bold font-heading text-neutral-800 mb-4 flex-shrink-0">
-        Department & Utility Sites
-      </h2>
-
-      <div className="relative flex-grow flex items-center min-h-0">
-        {canScrollLeft && (
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 -ml-4">
-            <Tooltip content="Departments are sorted alphabetically">
-              <button
-                onClick={() => handleScroll('left')}
-                className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all"
-              >
-                <ChevronLeft className="h-6 w-6 text-neutral-700" />
-              </button>
-            </Tooltip>
-          </div>
-        )}
-
-        <div
-          ref={scrollContainerRef}
-          onScroll={checkScrollability}
-          className="flex space-x-4 overflow-x-auto scroll-smooth py-2 px-1 scrollbar-hide"
-        >
-          {departmentColumns.map((column, colIndex) => (
-            <div key={colIndex} className="flex flex-col space-y-4">
-              {column.map((dept) => {
-                const isImagePath = typeof dept.icon === 'string' && dept.icon.startsWith('/');
-                const IconComponent = !isImagePath && dept.icon ? iconMap[dept.icon] : null;
-
-                const isLargeIcon = largeIcons.includes(dept.icon || '');
-                const size = isLargeIcon ? 64 : 32;
-
-                return (
-                  <motion.a
-                    key={dept.id}
-                    href={dept.href}
-                    className="flex flex-col items-center justify-center p-4 w-32 h-32 border border-transparent rounded-lg text-center text-neutral-700 font-medium transition-colors duration-200 hover:bg-primary-100/50"
-                    whileHover={{ scale: 1.05, y: -5, boxShadow: "0px 10px 20px rgba(0,0,0,0.1)" }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <div className="h-16 w-16 mb-2 flex items-center justify-center">
-                      {isImagePath ? (
-                        <Image
-                          src={dept.icon!}
-                          alt={dept.name}
-                          width={size}
-                          height={size}
-                          className={`object-contain ${dept.icon === '/wheel-axle-icon.jpg' ? 'grayscale' : ''}`}
-                        />
-                      ) : IconComponent ? (
-                        <IconComponent size={32} />
-                      ) : (
-                        <Building2 size={32} className="text-neutral-400" />
-                      )}
-                    </div>
-                    <span className="text-sm text-wrap">{dept.name}</span>
-                  </motion.a>
-                );
-              })}
-            </div>
+      <div className="flex-shrink-0">
+        <div className="flex border-b border-white/30 mb-4">
+          {['dspSites', 'sailSites'].map((tabId) => (
+            <button
+              key={tabId}
+              onClick={() => setActiveTab(tabId)}
+              className={`relative px-4 py-2 text-sm font-bold transition-colors ${activeTab === tabId ? 'text-primary-700' : 'text-neutral-600 hover:text-primary-700'
+                }`}
+            >
+              {tabId === 'dspSites' ? 'Department & Utility Sites' : 'SAIL Intranet Sites'}
+              {activeTab === tabId && (
+                <motion.div
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600"
+                  layoutId="underline"
+                />
+              )}
+            </button>
           ))}
         </div>
+      </div>
 
-        {canScrollRight && (
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 -mr-4">
-            <Tooltip content="Departments are sorted alphabetically">
-              <button
-                onClick={() => handleScroll('right')}
-                className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all"
-              >
-                <ChevronRight className="h-6 w-6 text-neutral-700" />
-              </button>
-            </Tooltip>
-          </div>
-        )}
+      <div className="relative flex-grow flex items-center min-h-0">
+        <AnimatePresence mode="wait">
+          {activeTab === 'dspSites' && (
+            <motion.div
+              key="dspSitesContent"
+              className="w-full h-full"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="relative w-full h-full flex items-center">
+                {canScrollLeft && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 -ml-4">
+                    <Tooltip content="Departments are sorted alphabetically">
+                      <button
+                        onClick={() => handleScroll('left')}
+                        className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all"
+                      >
+                        <ChevronLeft className="h-6 w-6 text-neutral-700" />
+                      </button>
+                    </Tooltip>
+                  </div>
+                )}
+                <div
+                  ref={scrollContainerRef}
+                  onScroll={checkScrollability}
+                  className="flex space-x-4 overflow-x-auto scroll-smooth py-2 px-1 scrollbar-hide"
+                >
+                  {departmentColumns.map((column, colIndex) => (
+                    <div key={colIndex} className="flex flex-col space-y-4">
+                      {column.map((dept) => {
+                        const isImagePath = typeof dept.icon === 'string' && dept.icon.startsWith('/');
+                        const IconComponent = !isImagePath && dept.icon ? iconMap[dept.icon] : null;
+                        const isLargeIcon = largeIcons.includes(dept.icon || '');
+                        const size = isLargeIcon ? 64 : 32;
+                        return (
+                          <motion.a
+                            key={dept.id}
+                            href={dept.href}
+                            className="group flex flex-col items-center justify-center p-4 w-32 h-32 border border-transparent rounded-lg text-center text-neutral-700 font-medium transition-colors duration-200 hover:bg-primary-100/50"
+                            whileHover={{ scale: 1.05, y: -5, boxShadow: "0px 10px 20px rgba(0,0,0,0.1)" }}
+                            transition={{ type: "spring", stiffness: 300 }}
+                          >
+                            <div className="h-16 w-16 mb-2 flex items-center justify-center">
+                              {isImagePath ? (
+                                <Image src={dept.icon!} alt={dept.name} width={size} height={size}
+                                  className="object-contain transition-all duration-300 filter grayscale group-hover:grayscale-0 group-hover:brightness-100 group-hover:[filter:invert(39%)_sepia(98%)_saturate(1469%)_hue-rotate(193deg)_brightness(96%)_contrast(88%)]" />
+                              ) : IconComponent ? (
+                                <IconComponent size={32} />
+                              ) : (
+                                <Building2 size={32} className="text-neutral-400" />
+                              )}
+                            </div>
+                            <span className="text-sm text-wrap">{dept.name}</span>
+                          </motion.a>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                {canScrollRight && (
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 -mr-4">
+                    <Tooltip content="Departments are sorted alphabetically">
+                      <button
+                        onClick={() => handleScroll('right')}
+                        className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all"
+                      >
+                        <ChevronRight className="h-6 w-6 text-neutral-700" />
+                      </button>
+                    </Tooltip>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+          {activeTab === 'sailSites' && (
+            <motion.div
+              key="sailSitesContent"
+              className="w-full h-full overflow-y-auto scrollbar-hide"
+              initial="hidden"
+              animate="visible"
+              exit="hidden"
+              variants={tabContainerVariants}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="columns-2 sm:columns-3 lg-custom:columns-4 gap-x-6">
+                {sailSitesData.map((site) => {
+                  const IconComponent = iconMap[site.icon] || LinkIcon;
+                  return (
+                    <motion.a
+                      key={site.name}
+                      href={site.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      variants={tabItemVariants}
+                      className="flex items-center space-x-3 p-2 rounded-md transition-colors duration-200 hover:bg-primary-100/50 text-neutral-700 mb-2"
+                    >
+                      <IconComponent className="h-5 w-5 text-primary-600 flex-shrink-0" />
+                      <span className="text-sm font-medium">{site.name}</span>
+                    </motion.a>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );

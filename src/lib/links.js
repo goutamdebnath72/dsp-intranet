@@ -33,7 +33,7 @@ export const links = [
   {
     name: "Blast Furnace",
     href: "#",
-    icon: "/blast-furnace.webp",
+    icon: "/blast-furnace.png",
     category: "department",
   },
   { name: "C & IT", href: "#", icon: "Laptop", category: "department" },
@@ -63,7 +63,7 @@ export const links = [
   {
     name: "Merchant Mill",
     href: "#",
-    icon: "/tmt-bar.webp",
+    icon: "/tmt-bar.png",
     category: "department",
   },
   { name: "MM & MKTG", href: "#", icon: "Building2", category: "department" },
@@ -81,7 +81,7 @@ export const links = [
   {
     name: "RMHP",
     href: "#",
-    icon: "/conveyorbelt.webp",
+    icon: "/conveyorbelt.png",
     category: "department",
   },
   { name: "राजभाषा", href: "#", icon: "/hindi.svg", category: "department" },
@@ -90,7 +90,7 @@ export const links = [
   {
     name: "Section Mill",
     href: "#",
-    icon: "/joist-icon.jpg",
+    icon: "/joist-icon.png",
     category: "department",
   },
   { name: "SIGS", href: "#", icon: "Building2", category: "department" },
@@ -108,14 +108,14 @@ export const links = [
   {
     name: "Wheel & Axle",
     href: "#",
-    icon: "/wheel-axle-icon.jpg",
+    icon: "/wheel-axle-icon.png",
     category: "department",
   },
   { name: "Water Mgmt", href: "#", icon: "Waves", category: "department" },
   {
     name: "Wagon Repair",
     href: "#",
-    icon: "/wagon-icon.jpg",
+    icon: "/wagon-icon.png",
     category: "department",
   },
 ];
