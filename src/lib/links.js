@@ -1,10 +1,70 @@
 // src/lib/links.js
 export const links = [
-  // Quick Links
+  // Quick Links (Alphabetically Sorted)
+  {
+    name: "BAMS (Attendance)",
+    href: "#",
+    icon: "Fingerprint",
+    category: "quicklink",
+  },
+  {
+    name: "DCIS",
+    href: "#",
+    icon: "Database",
+    category: "quicklink",
+  },
+  {
+    name: "DSP Online",
+    href: "#",
+    icon: "Globe",
+    category: "quicklink",
+  },
+  {
+    name: "e-Slr/e-Std/File",
+    href: "#",
+    icon: "FileText",
+    category: "quicklink",
+  },
+  {
+    name: "ECS",
+    href: "#",
+    icon: "Wallet",
+    category: "quicklink",
+  },
+  {
+    name: "Employee Corner",
+    href: "#",
+    icon: "Users",
+    category: "quicklink"
+  },
+  {
+    name: "ERP Portal",
+    href: "#",
+    icon: "Network",
+    category: "quicklink",
+  },
   {
     name: "ESS (Employee Self Service)",
     href: "#",
     icon: "BookUser",
+    category: "quicklink",
+  },
+  {
+    name: "Find People",
+    href: "#",
+    icon: "Search",
+    category: "quicklink"
+  },
+  {
+    name: "HRIS-EX",
+    href: "#",
+    icon: "UserCog",
+    category: "quicklink",
+  },
+  {
+    name: "ICS",
+    href: "#",
+    icon: "Warehouse",
     category: "quicklink",
   },
   {
@@ -14,9 +74,57 @@ export const links = [
     category: "quicklink",
   },
   {
-    name: "BAMS (Attendance)",
+    name: "IRM",
     href: "#",
-    icon: "Fingerprint",
+    icon: "ShieldCheck",
+    category: "quicklink",
+  },
+  {
+    name: "IspatCreditSoc.In",
+    href: "#",
+    icon: "Banknote",
+    category: "quicklink",
+  },
+  {
+    name: "LIS",
+    href: "#",
+    icon: "Library",
+    category: "quicklink",
+  },
+  {
+    name: "Mob. Search",
+    href: "#",
+    icon: "Smartphone",
+    category: "quicklink",
+  },
+  {
+    name: "New PHS",
+    href: "#",
+    icon: "FilePlus2",
+    category: "quicklink",
+  },
+  {
+    name: "PDS Search",
+    href: "#",
+    icon: "PackageSearch",
+    category: "quicklink",
+  },
+  {
+    name: "PHS",
+    href: "#",
+    icon: "File",
+    category: "quicklink",
+  },
+  {
+    name: "QCIS",
+    href: "#",
+    icon: "ClipboardCheck",
+    category: "quicklink",
+  },
+  {
+    name: "RACE",
+    href: "#",
+    icon: "Truck",
     category: "quicklink",
   },
   {
@@ -25,8 +133,31 @@ export const links = [
     icon: "Mail",
     category: "quicklink",
   },
-  { name: "Employee Corner", href: "#", icon: "Users", category: "quicklink" },
-  { name: "Find People", href: "#", icon: "Search", category: "quicklink" },
+  {
+    name: "SI STOCK",
+    href: "#",
+    icon: "Boxes",
+    category: "quicklink",
+  },
+  {
+    name: "Vistex",
+    href: "#",
+    icon: "BarChart3",
+    category: "quicklink",
+  },
+  {
+    name: "VRS Online",
+    href: "#",
+    icon: "UserCheck",
+    category: "quicklink",
+  },
+  {
+    name: "Webmail",
+    href: "#",
+    icon: "Mails",
+    category: "quicklink",
+  },
+
 
   // Department Sites (Alphabetically Sorted with Final Icons)
   { name: "B.E. Deptt", href: "#", icon: "Building2", category: "department" },
@@ -40,7 +171,7 @@ export const links = [
   { name: "CCM", href: "#", icon: "Building2", category: "department" },
   { name: "CEM", href: "#", icon: "/cem.png", category: "department" },
   { name: "CHRD", href: "#", icon: "UserCog", category: "department" },
-  { name: "CO & CC", href: "#", icon: "Factory", category: "department" },
+  { name: "CO & CC", href: "#", icon: "/coke-oven-batteries-preview.png", category: "department" },
   { name: "CSR", href: "#", icon: "Building2", category: "department" },
   {
     name: "Design Deptt",
@@ -108,7 +239,7 @@ export const links = [
   {
     name: "Wheel & Axle",
     href: "#",
-    icon: "/wheel-axle-icon.png",
+    icon: "/wheel-axle-icon-modified.png",
     category: "department",
   },
   { name: "Water Mgmt", href: "#", icon: "Waves", category: "department" },
@@ -119,3 +250,4 @@ export const links = [
     category: "department",
   },
 ];
+

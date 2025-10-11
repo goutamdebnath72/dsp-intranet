@@ -206,13 +206,11 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
                         const IconComponent = !isImagePath && dept.icon ? iconMap[dept.icon] : null;
 
                         let iconContainerClass = 'h-14 w-14'; // Default size: 56px
-                        // --- FIX IS HERE ---
                         if (typeof dept.icon === 'string' && dept.icon.startsWith('/')) {
-                          // This block is now guaranteed to have a string `dept.icon`
                           if (iconSizeConfig.large.includes(dept.icon)) {
                             iconContainerClass = 'h-16 w-16'; // Large size: 64px
                           } else if (iconSizeConfig.small.includes(dept.icon)) {
-                            iconContainerClass = 'h-10 w-10'; // Small size: 48px
+                            iconContainerClass = 'h-10 w-10'; // Small size: 40px
                           }
                         }
 
@@ -224,17 +222,35 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
                             whileHover={{ scale: 1.05, y: -5, boxShadow: "0px 10px 20px rgba(0,0,0,0.1)" }}
                             transition={{ type: "spring", stiffness: 300 }}
                           >
-                            <div className={`mb-2 flex items-center justify-center ${iconContainerClass}`}>
+                            <div className={`relative mb-2 flex items-center justify-center ${iconContainerClass}`}>
                               {isImagePath ? (
-                                <div
-                                  className={`h-full w-full bg-neutral-700 group-hover:bg-primary-600 transition-colors duration-300`}
-                                  style={{
-                                    maskImage: `url(${dept.icon})`, maskSize: 'contain', maskPosition: 'center', maskRepeat: 'no-repeat',
-                                    WebkitMaskImage: `url(${dept.icon})`, WebkitMaskSize: 'contain', WebkitMaskPosition: 'center', WebkitMaskRepeat: 'no-repeat',
-                                  }}
-                                />
+                                <>
+                                  {/* The B&W image, visible by default */}
+                                  <Image
+                                    src={dept.icon!}
+                                    alt=""
+                                    width={64}
+                                    height={64}
+                                    className="h-full w-full object-contain transition-opacity duration-300 group-hover:opacity-0" aria-hidden="true"
+                                  />
+                                  {/* The blue version, hidden by default, visible on hover */}
+                                  <div
+                                    className="absolute inset-0 h-full w-full bg-primary-600 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                                    style={{
+                                      maskImage: `url(${dept.icon})`,
+                                      maskSize: 'contain',
+                                      maskPosition: 'center',
+                                      maskRepeat: 'no-repeat',
+                                      WebkitMaskImage: `url(${dept.icon})`,
+                                      WebkitMaskSize: 'contain',
+                                      WebkitMaskPosition: 'center',
+                                      WebkitMaskRepeat: 'no-repeat',
+                                    }}
+                                    aria-hidden="true"
+                                  />
+                                </>
                               ) : IconComponent ? (
-                                <IconComponent className="w-8 h-8" />
+                                <IconComponent className="w-8 h-8 text-neutral-700 group-hover:text-primary-600 transition-colors" />
                               ) : (
                                 <Building2 className="w-8 h-8 text-neutral-400" />
                               )}

@@ -2,24 +2,18 @@
 
 import React from "react";
 import {
-  BookUser,
-  Fingerprint,
-  Mail,
-  ShieldAlert,
-  Users,
-  Search,
-  Siren,
+  BookUser, Fingerprint, Mail, ShieldAlert, Users, Search, Siren,
+  Truck, PackageSearch, Globe, UserCheck, BarChart3, Banknote, Network,
+  Wallet, FileText, ShieldCheck, Smartphone, UserCog, FilePlus2, File,
+  ClipboardCheck, Database, Library, Warehouse, Boxes, Mails
 } from "lucide-react";
 import { motion } from "framer-motion";
 
 const iconMap: { [key: string]: React.ElementType } = {
-  BookUser,
-  Fingerprint,
-  Mail,
-  ShieldAlert,
-  Users,
-  Search,
-  Siren,
+  BookUser, Fingerprint, Mail, ShieldAlert, Users, Search, Siren,
+  Truck, PackageSearch, Globe, UserCheck, BarChart3, Banknote, Network,
+  Wallet, FileText, ShieldCheck, Smartphone, UserCog, FilePlus2, File,
+  ClipboardCheck, Database, Library, Warehouse, Boxes, Mails
 };
 
 type QuickLinksProps = {
