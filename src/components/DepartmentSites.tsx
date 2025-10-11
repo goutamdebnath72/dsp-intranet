@@ -22,6 +22,18 @@ const iconMap: { [key: string]: React.ElementType } = {
   UserCog, Eye, Globe, Network, Briefcase, Ship, Server, Library, LinkIcon
 };
 
+const iconSizeConfig = {
+  large: [
+    '/blast-furnace.png',
+    '/conveyorbelt.png',
+  ],
+  small: [
+    '/hindi.svg',
+    '/train.png',
+    '/dumper-icon.png',
+  ],
+};
+
 const sailSitesData = [
   { name: 'ASP', href: '#', icon: 'Factory' },
   { name: 'BSP CHRD', href: '#', icon: 'Users' },
@@ -65,12 +77,13 @@ const createColumns = (items: DepartmentSitesProps['departmentData']) => {
 
 const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef(0);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const isXlScreen = useBreakpoint(1800);
   const [activeTab, setActiveTab] = useState('dspSites');
 
-  const checkScrollability = () => {
+  const updateButtonStates = () => {
     const el = scrollContainerRef.current;
     if (el) {
       const isScrollable = el.scrollWidth > el.clientWidth;
@@ -79,7 +92,15 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
     }
   };
 
-  const handleScroll = (direction: 'left' | 'right') => {
+  const handleOnScroll = () => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      scrollPositionRef.current = el.scrollLeft;
+      updateButtonStates();
+    }
+  };
+
+  const handleScrollClick = (direction: 'left' | 'right') => {
     const el = scrollContainerRef.current;
     if (el) {
       const cardWidth = 128;
@@ -100,30 +121,29 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
 
   useEffect(() => {
     if (activeTab === 'dspSites') {
-      const timer = setTimeout(() => checkScrollability(), 100);
-      window.addEventListener('resize', checkScrollability);
+      const restoreState = () => {
+        const container = scrollContainerRef.current;
+        if (container) {
+          container.scrollLeft = scrollPositionRef.current;
+          updateButtonStates();
+        }
+      };
 
+      const timer = setTimeout(restoreState, 350);
+
+      window.addEventListener('resize', updateButtonStates);
       return () => {
         clearTimeout(timer);
-        window.removeEventListener('resize', checkScrollability);
+        window.removeEventListener('resize', updateButtonStates);
       };
     }
-  }, [departmentData, isXlScreen, activeTab]);
+  }, [activeTab]);
 
   const departmentColumns = createColumns(departmentData);
-  const largeIcons = [
-    '/blast-furnace.png', '/cem.png', '/conveyorbelt.png', '/joist-icon.png',
-    '/wheel-axle-icon.png', '/hindi.svg', '/wagon-icon.png', '/tmt-bar.png'
-  ];
 
   const tabContainerVariants = {
     hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.05,
-      },
-    },
+    visible: { opacity: 1, transition: { staggerChildren: 0.05 } },
   };
 
   const tabItemVariants = {
@@ -144,16 +164,10 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
             <button
               key={tabId}
               onClick={() => setActiveTab(tabId)}
-              className={`relative px-4 py-2 text-sm font-bold transition-colors ${activeTab === tabId ? 'text-primary-700' : 'text-neutral-600 hover:text-primary-700'
-                }`}
+              className={`relative px-4 py-2 text-sm font-bold transition-colors ${activeTab === tabId ? 'text-primary-700' : 'text-neutral-600 hover:text-primary-700'}`}
             >
               {tabId === 'dspSites' ? 'Department & Utility Sites' : 'SAIL Intranet Sites'}
-              {activeTab === tabId && (
-                <motion.div
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600"
-                  layoutId="underline"
-                />
-              )}
+              {activeTab === tabId && <motion.div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600" layoutId="underline" />}
             </button>
           ))}
         </div>
@@ -174,10 +188,7 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
                 {canScrollLeft && (
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 -ml-4">
                     <Tooltip content="Departments are sorted alphabetically">
-                      <button
-                        onClick={() => handleScroll('left')}
-                        className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all"
-                      >
+                      <button onClick={() => handleScrollClick('left')} className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all">
                         <ChevronLeft className="h-6 w-6 text-neutral-700" />
                       </button>
                     </Tooltip>
@@ -185,7 +196,7 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
                 )}
                 <div
                   ref={scrollContainerRef}
-                  onScroll={checkScrollability}
+                  onScroll={handleOnScroll}
                   className="flex space-x-4 overflow-x-auto scroll-smooth py-2 px-1 scrollbar-hide"
                 >
                   {departmentColumns.map((column, colIndex) => (
@@ -193,8 +204,18 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
                       {column.map((dept) => {
                         const isImagePath = typeof dept.icon === 'string' && dept.icon.startsWith('/');
                         const IconComponent = !isImagePath && dept.icon ? iconMap[dept.icon] : null;
-                        const isLargeIcon = largeIcons.includes(dept.icon || '');
-                        const size = isLargeIcon ? 64 : 32;
+
+                        let iconContainerClass = 'h-14 w-14'; // Default size: 56px
+                        // --- FIX IS HERE ---
+                        if (typeof dept.icon === 'string' && dept.icon.startsWith('/')) {
+                          // This block is now guaranteed to have a string `dept.icon`
+                          if (iconSizeConfig.large.includes(dept.icon)) {
+                            iconContainerClass = 'h-16 w-16'; // Large size: 64px
+                          } else if (iconSizeConfig.small.includes(dept.icon)) {
+                            iconContainerClass = 'h-10 w-10'; // Small size: 48px
+                          }
+                        }
+
                         return (
                           <motion.a
                             key={dept.id}
@@ -203,14 +224,19 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
                             whileHover={{ scale: 1.05, y: -5, boxShadow: "0px 10px 20px rgba(0,0,0,0.1)" }}
                             transition={{ type: "spring", stiffness: 300 }}
                           >
-                            <div className="h-16 w-16 mb-2 flex items-center justify-center">
+                            <div className={`mb-2 flex items-center justify-center ${iconContainerClass}`}>
                               {isImagePath ? (
-                                <Image src={dept.icon!} alt={dept.name} width={size} height={size}
-                                  className="object-contain transition-all duration-300 filter grayscale group-hover:grayscale-0 group-hover:brightness-100 group-hover:[filter:invert(39%)_sepia(98%)_saturate(1469%)_hue-rotate(193deg)_brightness(96%)_contrast(88%)]" />
+                                <div
+                                  className={`h-full w-full bg-neutral-700 group-hover:bg-primary-600 transition-colors duration-300`}
+                                  style={{
+                                    maskImage: `url(${dept.icon})`, maskSize: 'contain', maskPosition: 'center', maskRepeat: 'no-repeat',
+                                    WebkitMaskImage: `url(${dept.icon})`, WebkitMaskSize: 'contain', WebkitMaskPosition: 'center', WebkitMaskRepeat: 'no-repeat',
+                                  }}
+                                />
                               ) : IconComponent ? (
-                                <IconComponent size={32} />
+                                <IconComponent className="w-8 h-8" />
                               ) : (
-                                <Building2 size={32} className="text-neutral-400" />
+                                <Building2 className="w-8 h-8 text-neutral-400" />
                               )}
                             </div>
                             <span className="text-sm text-wrap">{dept.name}</span>
@@ -223,10 +249,7 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
                 {canScrollRight && (
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 -mr-4">
                     <Tooltip content="Departments are sorted alphabetically">
-                      <button
-                        onClick={() => handleScroll('right')}
-                        className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all"
-                      >
+                      <button onClick={() => handleScrollClick('right')} className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all">
                         <ChevronRight className="h-6 w-6 text-neutral-700" />
                       </button>
                     </Tooltip>
@@ -272,3 +295,4 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
 };
 
 export default DepartmentSites;
+
