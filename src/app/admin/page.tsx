@@ -13,7 +13,7 @@ export default async function AdminPage() {
   return (
     <div className="container mx-auto p-8">
       <h1 className="text-3xl font-bold font-heading mb-2 text-center">Admin Dashboard</h1>
-      <p className="mb-8 text-neutral-600 text-center">Create a new announcement.</p>
+      <p className="mb-8 text-neutral-600 text-center">Create a new announcement</p>
 
       <div className="flex justify-center">
         <AnnouncementForm />

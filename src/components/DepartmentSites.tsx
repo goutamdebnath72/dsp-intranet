@@ -8,7 +8,8 @@ import {
   CircuitBoard, Users, Gauge, Cable, Tractor, Microscope,
   Languages, Cylinder, Train, Disc3, Waves, Building2, Cog, Presentation,
   GanttChartSquare, UserCog, Eye, Globe, Network, Briefcase, Ship, Server,
-  Library, Link as LinkIcon
+  Library, Link as LinkIcon, Award, Construction, HeartHandshake, Leaf,
+  Zap, Receipt, Ruler, Package, Lightbulb, ClipboardList, Map
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
@@ -19,7 +20,9 @@ const iconMap: { [key: string]: React.ElementType } = {
   Factory, Settings, School, DraftingCompass, CircuitBoard, Users,
   Gauge, Cable, Tractor, Microscope, Languages, Cylinder,
   Train, Disc3, Waves, Building2, Cog, Presentation, GanttChartSquare,
-  UserCog, Eye, Globe, Network, Briefcase, Ship, Server, Library, LinkIcon
+  UserCog, Eye, Globe, Network, Briefcase, Ship, Server, Library, LinkIcon,
+  Award, Construction, HeartHandshake, Leaf, Zap, Receipt, Ruler, Package,
+  Lightbulb, ClipboardList, Map
 };
 
 const iconSizeConfig = {
@@ -40,7 +43,7 @@ const sailSitesData = [
   { name: 'BSL', href: '#', icon: 'Building' },
   { name: 'CET', href: '#', icon: 'School' },
   { name: 'CMO UCS', href: '#', icon: 'Ship' },
-  { name: 'CMMG', href: '#', icon: 'GanttChartSquare' },
+  { name: "CMMG", href: "#", icon: "GanttChartSquare" },
   { name: 'Corporate Office', href: '#', icon: 'Briefcase' },
   { name: 'ISP', href: '#', icon: 'Cog' },
   { name: 'Kolkata Ispat Bhavan', href: '#', icon: 'Landmark' },
@@ -231,7 +234,8 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
                                     alt=""
                                     width={64}
                                     height={64}
-                                    className="h-full w-full object-contain transition-opacity duration-300 group-hover:opacity-0" aria-hidden="true"
+                                    className="h-full w-full object-contain transition-opacity duration-300 group-hover:opacity-0"
+                                    aria-hidden="true"
                                   />
                                   {/* The blue version, hidden by default, visible on hover */}
                                   <div
