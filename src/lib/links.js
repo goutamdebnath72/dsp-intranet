@@ -8,7 +8,7 @@ export const links = [
     category: "quicklink",
   },
   {
-    name: "Circulars",
+    name: "Circulars (Personnel)",
     href: "#",
     icon: "ScrollText",
     category: "quicklink",

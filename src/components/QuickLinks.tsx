@@ -44,7 +44,7 @@ const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData, onCircularsClic
             const IconComponent = link.icon ? iconMap[link.icon] : null;
             
             // If the link is "Circulars", render a button to open the modal
-            if (link.name === "Circulars") {
+            if (link.name === "Circulars (Personnel)") {
               return (
                 <li key={link.id}>
                   <button
