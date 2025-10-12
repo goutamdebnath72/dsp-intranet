@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-neutral-100">
         <AuthProvider>
           <ModalProvider>
-            <div className="w-full lg-custom:w-[80%] xl-custom:w-[70%] mx-auto bg-neutral-50 min-h-screen shadow-lg">
+            <div className="w-full lg-custom:w-[75%] xl-custom:w-[70%] mx-auto bg-neutral-50 min-h-screen shadow-lg">
               <Header />
               <main>{children}</main>
             </div>
