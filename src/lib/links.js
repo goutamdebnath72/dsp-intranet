@@ -8,6 +8,12 @@ export const links = [
     category: "quicklink",
   },
   {
+    name: "Circulars",
+    href: "#",
+    icon: "ScrollText",
+    category: "quicklink",
+  },
+  {
     name: "DCIS",
     href: "#",
     icon: "Database",

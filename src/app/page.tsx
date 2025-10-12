@@ -1,32 +1,31 @@
-import HeroBanner from '@/components/HeroBanner';
-import QuickLinks from '@/components/QuickLinks';
-import Announcements from '@/components/Announcements';
-import DepartmentSites from '@/components/DepartmentSites';
 import prisma from '@/lib/prisma';
+import HomePageClient from '@/components/HomePageClient';
 
+// This remains a fast, async Server Component
 export default async function Home() {
-  const quickLinksData = await prisma.link.findMany({
+  // Fetch data exactly as you had it
+  const quickLinksFromDb = await prisma.link.findMany({
     where: { category: 'quicklink' },
-    orderBy: { createdAt: 'asc' },
   });
 
-  const departmentData = await prisma.link.findMany({
+  const departmentDataFromDb = await prisma.link.findMany({
     where: { category: 'department' },
-    orderBy: { name: 'asc' },
   });
 
+  const quickLinksData = quickLinksFromDb.sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
+
+  const departmentData = departmentDataFromDb.sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
+
+  // Pass the fetched data to the new Client Component
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <HeroBanner />
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 mt-8">
-        <main className="lg:col-span-3 space-y-8">
-          <Announcements />
-          <DepartmentSites departmentData={departmentData} />
-        </main>
-        <aside className="lg:col-span-2">
-          <QuickLinks quickLinksData={quickLinksData} />
-        </aside>
-      </div>
-    </div>
+    <HomePageClient
+      quickLinksData={quickLinksData}
+      departmentData={departmentData}
+    />
   );
 }
+

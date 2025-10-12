@@ -38,7 +38,7 @@ export default function AnnouncementModal({ announcement, onClose }: Props) {
       >
         <button
           onClick={onClose}
-          className="modal-close absolute top-4 right-4 text-gray-400 transition-colors z-10"
+          className="modal-close-button"
         >
           <X size={24} />
         </button>

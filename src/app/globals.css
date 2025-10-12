@@ -95,3 +95,28 @@ button.modal-close:hover svg,
     scrollbar-width: none;  /* Firefox */
 }
 
+/* Animation utilities for modals */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+/* --- NEW: Centralized Modal Close Button Style --- */
+@layer components {
+  .modal-close-button {
+    @apply absolute top-3 right-3 z-10 p-1.5 rounded-full text-neutral-500 bg-transparent transition-all duration-200 ease-in-out;
+  }
+  .modal-close-button:hover {
+    @apply bg-red-100 text-red-600 scale-110;
+  }
+}
