@@ -21,7 +21,7 @@ model Announcement {
   id          Int                      @id @default(autoincrement())
   createdAt   DateTime                 @default(now())
   title       String
-  content     String?                  @db.Text
+  content     String?
   date        DateTime
   readByUsers AnnouncementReadStatus[]
 }
@@ -41,12 +41,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db..Text
+  id_token          String?
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -99,4 +99,14 @@ model AnnouncementReadStatus {
   announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
 
   @@unique([userId, announcementId])
+}
+
+// --- NEW MODEL FOR CIRCULARS ---
+model Circular {
+  id          Int      @id @default(autoincrement())
+  headline    String
+  fileUrl     String?
+  publishedAt DateTime @default(now())
+
+  @@map("circulars")
 }
