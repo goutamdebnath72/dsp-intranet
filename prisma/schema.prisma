@@ -100,13 +100,3 @@ model AnnouncementReadStatus {
 
   @@unique([userId, announcementId])
 }
-
-// --- NEW MODEL FOR CIRCULARS ---
-model Circular {
-  id          Int      @id @default(autoincrement())
-  headline    String
-  fileUrl     String?
-  publishedAt DateTime @default(now())
-
-  @@map("circulars")
-}
