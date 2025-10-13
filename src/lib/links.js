@@ -75,7 +75,7 @@ export const links = [
   },
   {
     name: "IMS (Incident Management System)",
-    href: "#",
+    href: "https://ims-revamp.vercel.app/login",
     icon: "Siren",
     category: "quicklink",
   },

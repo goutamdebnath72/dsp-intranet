@@ -46,7 +46,7 @@ model Account {
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String? @db..Text
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -62,9 +62,9 @@ model Session {
 }
 
 model User {
-  id                String    @id @default(cuid())
+  id                String                   @id @default(cuid())
   name              String?
-  email             String?   @unique
+  email             String?                  @unique
   emailVerified     DateTime?
   image             String?
   accounts          Account[]
@@ -73,12 +73,12 @@ model User {
 
   // --- CUSTOM FIELDS FOR DSP INTRANET ---
   password          String?
-  role              String    @default("standard")
-  ticketNo          String    @unique
+  role              String                   @default("standard")
+  ticketNo          String                   @unique
   designation       String?
   contactNo         String?
   sailPNo           String?
-  department        Department? @relation(fields: [departmentId], references: [id])
+  department        Department?              @relation(fields: [departmentId], references: [id])
   departmentId      String?
 }
 
@@ -99,4 +99,14 @@ model AnnouncementReadStatus {
   announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
 
   @@unique([userId, announcementId])
+}
+
+// --- NEW MODEL FOR CIRCULARS ---
+model Circular {
+  id          Int      @id @default(autoincrement())
+  headline    String
+  fileUrl     String?
+  publishedAt DateTime @default(now())
+
+  @@map("circulars")
 }
