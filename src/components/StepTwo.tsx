@@ -22,7 +22,7 @@ export const StepTwo = ({ ticketNo, password, setPassword, onSubmit, error, isLo
           id="ticketNoDisplay"
           label="Ticket Number"
           value={ticketNo}
-          isReadOnly={true}
+          disabled={true}
         />
         <AnimatedInput
           id="password"

@@ -3,25 +3,25 @@
 import React from 'react';
 
 type AnimatedInputProps = {
-  id: string;
-  label: string;
-  value: string | number;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  type?: 'text' | 'password' | 'email' | 'number';
-  disabled?: boolean; // Changed from isReadOnly
-  autoFocus?: boolean;
+    id: string;
+    label: string;
+    value: string | number;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+    type?: 'text' | 'password' | 'email' | 'number';
+    disabled?: boolean; // Changed from isReadOnly
+    autoFocus?: boolean;
 };
 
-export const AnimatedInput = ({ 
-  id, 
-  label, 
-  value, 
-  onChange, 
-  onKeyDown, 
-  type = "text", 
-  disabled = false, // Changed from isReadOnly
-  autoFocus = false 
+export const AnimatedInput = ({
+    id,
+    label,
+    value,
+    onChange,
+    onKeyDown,
+    type = "text",
+    disabled = false, // Changed from isReadOnly
+    autoFocus = false
 }: AnimatedInputProps) => {
     return (
         <div className="relative pt-4">
