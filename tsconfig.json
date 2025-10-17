@@ -32,8 +32,11 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    ".next/types/**/*.ts,next-env.d.ts",
+    "pdfjs.d.ts",
+    "next.config.js",
     ".next/types/**/*.ts"
-, "next.config.js"  ],
+  ],
   "exclude": [
     "node_modules"
   ]

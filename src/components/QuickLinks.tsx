@@ -29,7 +29,8 @@ type QuickLinksProps = {
 const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData, onCircularsClick }) => {
   return (
     <motion.div
-      className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[45vh] flex flex-col"
+      // THIS IS THE LINE TO CHANGE ↓
+      className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[370px] flex flex-col"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2 }}
@@ -42,8 +43,7 @@ const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData, onCircularsClic
         <ul className="space-y-2 pb-2">
           {quickLinksData.map((link) => {
             const IconComponent = link.icon ? iconMap[link.icon] : null;
-            
-            // If the link is "Circulars", render a button to open the modal
+
             if (link.name === "Circulars (Personnel)") {
               return (
                 <li key={link.id}>
@@ -58,7 +58,6 @@ const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData, onCircularsClic
               );
             }
 
-            // Otherwise, render a normal link
             return (
               <li key={link.id}>
                 <a
@@ -80,4 +79,3 @@ const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData, onCircularsClic
 };
 
 export default QuickLinks;
-

@@ -35,7 +35,8 @@ export default function Announcements() {
   return (
     <>
       <motion.div
-        className="relative group h-[45vh] rounded-lg shadow-lg p-6 flex flex-col
+        // THIS IS THE LINE TO CHANGE ↓
+        className="relative group h-[370px] rounded-lg shadow-lg p-6 flex flex-col
                    before:absolute before:inset-0 before:bg-white/30 before:backdrop-blur-lg before:rounded-lg before:border before:border-white/20"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

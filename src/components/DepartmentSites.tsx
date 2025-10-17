@@ -78,6 +78,16 @@ const createColumns = (items: DepartmentSitesProps['departmentData']) => {
   return columns;
 };
 
+// -- ADDED FOR TAB 2 --
+// New helper function to create columns for the SAIL Sites tab
+const createSailColumns = (items: typeof sailSitesData, itemsPerColumn: number) => {
+  const columns = [];
+  for (let i = 0; i < items.length; i += itemsPerColumn) {
+    columns.push(items.slice(i, i + itemsPerColumn));
+  }
+  return columns;
+};
+
 const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef(0);
@@ -85,6 +95,53 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
   const [canScrollRight, setCanScrollRight] = useState(false);
   const isXlScreen = useBreakpoint(1800);
   const [activeTab, setActiveTab] = useState('dspSites');
+
+  // -- ADDED FOR TAB 2 --
+  // All refs, state, and functions purely for the 'sailSites' tab
+  const sailScrollContainerRef = useRef<HTMLDivElement>(null);
+  const sailScrollPositionRef = useRef(0);
+  const [sailCanScrollLeft, setSailCanScrollLeft] = useState(false);
+  const [sailCanScrollRight, setSailCanScrollRight] = useState(false);
+
+  const sailUpdateButtonStates = () => {
+    const el = sailScrollContainerRef.current;
+    if (el) {
+      const isScrollable = el.scrollWidth > el.clientWidth;
+      setSailCanScrollLeft(el.scrollLeft > 5);
+      setSailCanScrollRight(isScrollable && el.scrollLeft < el.scrollWidth - el.clientWidth - 5);
+    }
+  };
+
+  const sailHandleOnScroll = () => {
+    const el = sailScrollContainerRef.current;
+    if (el) {
+      sailScrollPositionRef.current = el.scrollLeft;
+      sailUpdateButtonStates();
+    }
+  };
+
+  const sailHandleScrollClick = (direction: 'left' | 'right') => {
+    const el = sailScrollContainerRef.current;
+    if (el) {
+      // Note: This scroll logic is based on Tab 1's card size.
+      // We'll adjust it if needed, but it should work fine.
+      const cardWidth = 128; // Approx width of a SAIL column
+      const gapWidth = 16;
+      const columnWidth = cardWidth + gapWidth;
+      const columnsToScroll = isXlScreen ? 5 : 4;
+      const scrollAmount = columnWidth * columnsToScroll;
+
+      if (direction === 'right') {
+        const newScrollLeft = el.scrollLeft + scrollAmount;
+        const maxScrollLeft = el.scrollWidth - el.clientWidth;
+        el.scrollTo({ left: Math.min(newScrollLeft, maxScrollLeft), behavior: 'smooth' });
+      } else {
+        const newScrollLeft = el.scrollLeft - scrollAmount;
+        el.scrollTo({ left: Math.max(0, newScrollLeft), behavior: 'smooth' });
+      }
+    }
+  };
+  // -- END OF ADDED CODE FOR TAB 2 --
 
   const updateButtonStates = () => {
     const el = scrollContainerRef.current;
@@ -142,7 +199,35 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
     }
   }, [activeTab]);
 
+  // -- ADDED FOR TAB 2 --
+  // This effect runs ONLY for the sailSites tab
+  useEffect(() => {
+    if (activeTab === 'sailSites') {
+      const restoreState = () => {
+        const container = sailScrollContainerRef.current;
+        if (container) {
+          container.scrollLeft = sailScrollPositionRef.current;
+          sailUpdateButtonStates();
+        }
+      };
+
+      // Timer to allow layout to settle
+      const timer = setTimeout(restoreState, 350);
+
+      window.addEventListener('resize', sailUpdateButtonStates);
+
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', sailUpdateButtonStates);
+      };
+    }
+  }, [activeTab]);
+
   const departmentColumns = createColumns(departmentData);
+
+  // -- ADDED FOR TAB 2 --
+  // Create 3 columns of 7 items each for SAIL Sites (21 total)
+  const sailColumns = createSailColumns(sailSitesData, 5);
 
   const tabContainerVariants = {
     hidden: { opacity: 0 },
@@ -156,7 +241,7 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
 
   return (
     <motion.div
-      className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[40vh] flex flex-col"
+      className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[370px] flex flex-col"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.3 }}
@@ -281,30 +366,58 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
           {activeTab === 'sailSites' && (
             <motion.div
               key="sailSitesContent"
-              className="w-full h-full overflow-y-auto scrollbar-hide"
+              className="w-full h-full" // Removed overflow-y-auto
               initial="hidden"
               animate="visible"
               exit="hidden"
-              variants={tabContainerVariants}
+              variants={tabContainerVariants} // Preserved original animation
               transition={{ duration: 0.3 }}
             >
-              <div className="columns-2 sm:columns-3 lg-custom:columns-4 gap-x-6">
-                {sailSitesData.map((site) => {
-                  const IconComponent = iconMap[site.icon] || LinkIcon;
-                  return (
-                    <motion.a
-                      key={site.name}
-                      href={site.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      variants={tabItemVariants}
-                      className="flex items-center space-x-3 p-2 rounded-md transition-colors duration-200 hover:bg-primary-100/50 text-neutral-700 mb-2"
-                    >
-                      <IconComponent className="h-5 w-5 text-primary-600 flex-shrink-0" />
-                      <span className="text-sm font-medium">{site.name}</span>
-                    </motion.a>
-                  );
-                })}
+              {/* -- This structure is copied from Tab 1 but uses TAB 2 logic -- */}
+              <div className="relative w-full h-full flex items-center">
+                {sailCanScrollLeft && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 -ml-4">
+                    <button onClick={() => sailHandleScrollClick('left')} className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all">
+                      <ChevronLeft className="h-6 w-6 text-neutral-700" />
+                    </button>
+                  </div>
+                )}
+
+                <div
+                  ref={sailScrollContainerRef} // Using TAB 2 ref
+                  onScroll={sailHandleOnScroll} // Using TAB 2 handler
+                  className="flex space-x-4 overflow-x-auto scroll-smooth py-2 px-1 scrollbar-hide"
+                >
+                  {/* Loop over the new 'sailColumns' */}
+                  {sailColumns.map((column, colIndex) => (
+                    <div key={colIndex} className="flex flex-col space-y-2" style={{ width: '200px' }}> {/* Fixed width column */}
+                      {column.map((site) => {
+                        const IconComponent = iconMap[site.icon] || LinkIcon;
+                        return (
+                          <motion.a
+                            key={site.name}
+                            href={site.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            variants={tabItemVariants} // Preserved original item animation
+                            className="flex items-center space-x-3 p-2 rounded-md transition-colors duration-200 hover:bg-primary-100/50 text-neutral-700"
+                          >
+                            <IconComponent className="h-5 w-5 text-primary-600 flex-shrink-0" />
+                            <span className="text-sm font-medium whitespace-nowrap">{site.name}</span>
+                          </motion.a>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+
+                {sailCanScrollRight && (
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 -mr-4">
+                    <button onClick={() => sailHandleScrollClick('right')} className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all">
+                      <ChevronRight className="h-6 w-6 text-neutral-700" />
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -315,4 +428,3 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
 };
 
 export default DepartmentSites;
-

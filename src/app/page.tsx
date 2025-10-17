@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import HomePageClient from '@/components/HomePageClient';
 
 // This remains a fast, async Server Component

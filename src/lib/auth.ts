@@ -1,7 +1,7 @@
 // src/lib/auth.ts
 
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { AuthOptions, User } from 'next-auth';
 import GitHubProvider from 'next-auth/providers/github';
 import CredentialsProvider from 'next-auth/providers/credentials';

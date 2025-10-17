@@ -103,10 +103,10 @@ model AnnouncementReadStatus {
 
 // --- NEW MODEL FOR CIRCULARS ---
 model Circular {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   headline    String
-  fileUrl     String?
-  publishedAt DateTime @default(now())
+  fileUrls    String[]  // ✅ replaces fileUrl with array of URLs
+  publishedAt DateTime  @default(now())
 
   @@map("circulars")
 }

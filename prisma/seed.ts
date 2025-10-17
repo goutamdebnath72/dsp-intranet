@@ -1,12 +1,15 @@
 // prisma/seed.ts
 
-import { PrismaClient } from "@prisma/client";
+import { prisma } from '../src/lib/prisma';
 import bcrypt from "bcryptjs";
 import { citusers } from "../src/lib/citusers";
 import { departments } from "../src/lib/departments";
 import { links } from "../src/lib/links";
+import { circularsByYear } from '../src/lib/circulars';
+import { put } from '@vercel/blob';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const prisma = new PrismaClient();
 const SALT_ROUNDS = 10;
 
 type Department = {
@@ -31,26 +34,22 @@ type CitUser = {
 async function main() {
   console.log("🌱 Starting intranet seed process...");
 
-  // Delete existing link and department data to prevent duplicates
-  console.log("Deleting old link and department data...");
+  console.log("Deleting old data...");
   await prisma.link.deleteMany({});
   await prisma.department.deleteMany({});
+  await prisma.circular.deleteMany({});
 
-  // 1. Seed Departments
   console.log("Seeding Departments...");
   await prisma.department.createMany({
     data: departments.map((d: Department) => ({ code: d.code, name: d.name })),
     skipDuplicates: true,
   });
-
   const allDepartments = await prisma.department.findMany();
   const departmentMap = new Map(allDepartments.map((d: { code: number; id: string }) => [d.code, d.id]));
 
-  // 2. Seed Users
   console.log(`Upserting users...`);
   for (const u of Object.values(citusers) as CitUser[]) {
     const departmentId = departmentMap.get(u.departmentCode);
-
     if (!departmentId) {
       console.warn(`---> Skipping user '${u.name}': Department code ${u.departmentCode} not found.`);
       continue;
@@ -59,7 +58,6 @@ async function main() {
     const passwordPlain = String(u.sailPNo ?? u.ticketNo);
     const hashedPassword = await bcrypt.hash(passwordPlain, SALT_ROUNDS);
 
-    // Role is now based on BOTH ticket number and department code
     const role = String(u.ticketNo).startsWith('4') && u.departmentCode === 98500
       ? "admin"
       : "standard";
@@ -79,7 +77,6 @@ async function main() {
       password: hashedPassword,
       departmentId: departmentId,
     };
-
     await prisma.user.upsert({
       where: { ticketNo: String(u.ticketNo) },
       update: userData,
@@ -87,12 +84,46 @@ async function main() {
     });
   }
 
-  // 3. Seed Links
   console.log("Seeding Links...");
   await prisma.link.createMany({
     data: links,
     skipDuplicates: true,
   });
+
+  console.log("Seeding Circulars...");
+  const allCirculars = Object.values(circularsByYear).flat();
+
+  for (const [index, circular] of allCirculars.entries()) {
+    let fileUrl = null;
+
+    if (index < 5) {
+      console.log(` -> Uploading placeholder for: "${circular.headline}"`);
+      const filePath = path.join(process.cwd(), 'prisma/seed-assets/placeholder.pdf');
+      
+      try {
+        const fileBuffer = fs.readFileSync(filePath);
+        
+        const blob = await put(`circulars/placeholder_${circular.id}.pdf`, fileBuffer, {
+          access: 'public',
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+          allowOverwrite: process.env.OVERWRITE_FILES === 'true', 
+        });
+        fileUrl = blob.url;
+        console.log(`   -> Upload successful: ${fileUrl}`);
+      } catch (error) {
+        console.error(`   -> Upload failed for placeholder_${circular.id}.pdf:`, (error as Error).message);
+      }
+    }
+    
+    await prisma.circular.create({
+      data: {
+        headline: circular.headline,
+        publishedAt: new Date(circular.date), 
+        fileUrls: fileUrl ? [fileUrl] : [],
+
+      },
+    });
+  }
 
   console.log("✅ Seeding complete.");
 }

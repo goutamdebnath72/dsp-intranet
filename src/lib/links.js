@@ -135,7 +135,7 @@ export const links = [
   },
   {
     name: "SAIL Mail (mail.sail.in)",
-    href: "#",
+    href: "https://email.sail.in/",
     icon: "Mail",
     category: "quicklink",
   },
