@@ -32,7 +32,7 @@
 }
 
 html {
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 
 a:hover,
@@ -119,4 +119,71 @@ button.modal-close:hover svg,
   .modal-close-button:hover {
     @apply bg-red-100 text-red-600 scale-110;
   }
+}
+/*
+  Style for active (selected) Quill toolbar buttons
+  (Bold, Italic, Underline) to mimic the Gmail UI.
+*/
+.ql-toolbar .ql-active {
+  background-color: #e8f0fe !important; /* A light blue, like Google's */
+  border-radius: 4px !important;
+  color: #1b66c9 !important; /* Darker blue icon for contrast */
+}
+
+/* Also style the SVG icon inside the active button */
+.ql-toolbar .ql-active svg {
+  stroke: #1b66c9 !important; /* Make the icon itself blue */
+}
+
+/*
+  Robust CSS structure for ReactQuill wrapper:
+  1. Uses the wrapper div's border as the *only* external border.
+  2. Re-establishes the internal separator line under the toolbar.
+*/
+.ql-toolbar {
+  border: none !important; /* Removes the external border */
+  border-bottom: 1px solid #ccc !important; /* This is the separator line */
+}
+
+.ql-container {
+  border: none !important; /* Removes the editor's main border */
+}
+
+/*
+  Use Tailwind's @apply to restore the original font styles
+  from the old <textarea> to the ReactQuill editor.
+  This block replaces all the old, redundant .ql-editor rules.
+*/
+.quill-editor-wrapper .ql-editor {
+  /*
+    1. Apply the styles from the old <textarea>:
+       (text-slate-800, font-medium, and a standard text-base size)
+  */
+  @apply text-slate-800 font-medium text-base;
+  
+  /* 2. Force it to use your app's main font-family */
+  font-family: inherit;
+  
+  /* 3. Set a more readable line height */
+  line-height: 1.6;
+}
+
+/* Style the placeholder to match */
+.quill-editor-wrapper .ql-editor.ql-blank::before {
+  @apply text-slate-400 font-medium not-italic;
+  font-family: inherit;
+}
+
+/* Fix bullet and number sizing */
+.quill-editor-wrapper .ql-editor ol li,
+.quill-editor-wrapper .ql-editor ul li {
+  @apply text-base;
+  line-height: 1.6;
+}
+
+/* Style the bullet/number markers themselves */
+.quill-editor-wrapper .ql-editor ol li:not(.ql-direction-rtl)::before,
+.quill-editor-wrapper .ql-editor ul li:not(.ql-direction-rtl)::before {
+  /* Match the text color, font, and size */
+  @apply text-slate-800 font-medium text-base;
 }

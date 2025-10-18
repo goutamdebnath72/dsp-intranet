@@ -377,9 +377,11 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
               <div className="relative w-full h-full flex items-center">
                 {sailCanScrollLeft && (
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 -ml-4">
-                    <button onClick={() => sailHandleScrollClick('left')} className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all">
-                      <ChevronLeft className="h-6 w-6 text-neutral-700" />
-                    </button>
+                    <Tooltip content="Sites are sorted alphabetically">
+                      <button onClick={() => sailHandleScrollClick('left')} className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all">
+                        <ChevronLeft className="h-6 w-6 text-neutral-700" />
+                      </button>
+                    </Tooltip>
                   </div>
                 )}
 
@@ -413,9 +415,11 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({ departmentData }) => 
 
                 {sailCanScrollRight && (
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 -mr-4">
-                    <button onClick={() => sailHandleScrollClick('right')} className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all">
-                      <ChevronRight className="h-6 w-6 text-neutral-700" />
-                    </button>
+                    <Tooltip content="Sites are sorted alphabetically">
+                      <button onClick={() => sailHandleScrollClick('right')} className="bg-white/50 hover:bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-md transition-all">
+                        <ChevronRight className="h-6 w-6 text-neutral-700" />
+                      </button>
+                    </Tooltip>
                   </div>
                 )}
               </div>
