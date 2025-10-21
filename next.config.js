@@ -2,6 +2,7 @@
 const nextConfig = {
   images: {
     remotePatterns: [
+      // Your existing domains
       {
         protocol: "https",
         hostname: "ui-avatars.com",
@@ -10,15 +11,17 @@ const nextConfig = {
         protocol: "https",
         hostname: "avatars.githubusercontent.com",
       },
+      // --- ADDED: The new domain for placeholders ---
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+      },
     ],
   },
-  // --- NEW CONFIGURATION ---
-  // This tells Next.js to not bundle these packages and instead
-  // treat them as external dependencies at runtime, which resolves the build errors.
+  // Your existing experimental configuration
   experimental: {
     serverComponentsExternalPackages: ["canvas", "pdfjs-dist"],
   },
-  // --- END NEW CONFIGURATION ---
 };
 
 module.exports = nextConfig;

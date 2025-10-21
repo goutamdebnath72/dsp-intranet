@@ -1,26 +1,28 @@
 // src/components/Header.tsx
 
-import React from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { ChevronDown } from 'lucide-react'; // 1. IMPORTED THE ICON
+"use client"; // --- ADDED: This is the one-line fix ---
 
-// 2. MENU FIXED: Using "THE HUB" menu items
+import React, { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { ChevronDown } from "lucide-react";
+import { LogoViewerModal } from "./LogoViewerModal";
+
 const MainMenu: React.FC = () => {
   const menuItems = [
-    'People',
-    'Policies',
-    'Publications',
-    'Downloads',
+    "People",
+    "Policies",
+    "Publications",
+    "Downloads",
     "Letters from Hon'ble PM",
-    'Licensing',
-    'About Us',
+    "Licensing",
+    "About Us",
   ];
 
   return (
     <nav className="flex items-center gap-6">
       {menuItems.map((item) => {
-        if (item === 'Home') {
+        if (item === "Home") {
           return (
             <Link
               key={item}
@@ -31,7 +33,6 @@ const MainMenu: React.FC = () => {
             </Link>
           );
         }
-        // 3. ARROWS ADDED: All other items get the arrow
         return (
           <button
             key={item}
@@ -48,32 +49,40 @@ const MainMenu: React.FC = () => {
 
 // This is the main Header component
 export default function Header() {
-  return (
-    // 4. BORDER REMOVED: Outer wrapper is full-width, no border-b
-    <header className="w-full bg-neutral-50 text-neutral-800">
-      {/* This inner wrapper is "BOXED" to align the content */}
-      <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto flex items-center justify-start px-4 sm:px-8 py-3">
-        {/* 5. SPACING FIXED: Grouped logo and menu with a gap-8 */}
-        <div className="flex items-center gap-8">
-          {/* Left Side: Vibrant Logo and "DSP Intranet" text */}
-          <div className="flex items-center gap-4">
-            <Image
-              src="/vibrant-logo.png"
-              alt="DSP Intranet Logo"
-              width={1024}
-              height={1024}
-              className="h-10 w-auto"
-            />
-            {/* 6. TEXT COLOR FIXED: Changed to neutral-800 */}
-            <span className="font-semibold text-base font-heading text-primary-700">
-              DSP Intranet
-            </span>
-          </div>
+  const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
 
-          {/* Right Side: The new menu */}
-          <MainMenu />
+  return (
+    <>
+      <header className="w-full bg-neutral-50 text-neutral-800">
+        <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto flex items-center justify-start px-4 sm:px-8 py-3">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsLogoModalOpen(true)}
+                className="transition-transform duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-md"
+                aria-label="View larger logo"
+              >
+                <Image
+                  src="/vibrant-logo.png"
+                  alt="DSP Intranet Logo"
+                  width={1024}
+                  height={1024}
+                  className="h-10 w-auto"
+                />
+              </button>
+              <span className="font-semibold text-base font-heading text-primary-700">
+                DSP Intranet
+              </span>
+            </div>
+            <MainMenu />
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      <LogoViewerModal
+        isOpen={isLogoModalOpen}
+        onClose={() => setIsLogoModalOpen(false)}
+      />
+    </>
   );
 }

@@ -8,7 +8,10 @@ import { redirect } from "next/navigation";
 import AnnouncementForm from "@/components/AnnouncementForm";
 import { CircularUploadModal } from "@/components/CircularUploadModal";
 import { Loader2 } from "lucide-react";
-import OldHeader from "@/components/OldHeader"; // <-- 1. IMPORTED
+import { ACTIVE_UI_DESIGN } from "@/lib/config";
+import { TopBar } from "@/components/TopBar";
+import Header from "@/components/Header";
+import OldHeader from "@/components/OldHeader";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -38,10 +41,18 @@ export default function AdminPage() {
 
   return (
     <>
-      <OldHeader /> {/* <-- 2. ADDED THE HEADER */}
-      {/* <-- 3. ADDED THE "BOXED" LAYOUT WRAPPER --> */}
+      {ACTIVE_UI_DESIGN === "new" ? (
+        <>
+          <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto">
+            <TopBar />
+          </div>
+          <Header />
+        </>
+      ) : (
+        <OldHeader />
+      )}
+
       <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto shadow-lg">
-        {/* This is your original page content, now inside the wrapper */}
         <div className="min-h-screen bg-gray-200 w-full">
           <div className="container mx-auto p-8">
             <h1 className="text-3xl font-bold font-heading mb-8 text-center text-neutral-800">
@@ -49,8 +60,8 @@ export default function AdminPage() {
             </h1>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              {/* Section 1: Create Announcement */}
-              <div className="rounded-lg p-6 bg-white/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+              {/* --- 👇 MODIFIED: Upgraded hover shadow animation --- */}
+              <div className="rounded-lg p-6 bg-white/50 shadow-lg hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-all duration-300">
                 <h2 className="text-2xl font-bold font-heading mb-2 text-center">
                   Announcements
                 </h2>
@@ -62,8 +73,8 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Section 2: Post New Circular */}
-              <div className="rounded-lg p-6 bg-white/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-center items-center">
+              {/* --- 👇 MODIFIED: Upgraded hover shadow animation --- */}
+              <div className="rounded-lg p-6 bg-white/50 shadow-lg hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-all duration-300 flex flex-col justify-center items-center">
                 <h2 className="text-2xl font-bold font-heading mb-2 text-center">
                   Circulars
                 </h2>
@@ -72,7 +83,7 @@ export default function AdminPage() {
                 </p>
                 <button
                   onClick={() => setIsCircularModalOpen(true)}
-                  className="px-6 py-3 font-semibold text-white bg-primary-600 rounded-md hover:bg-primary-700 transition-all shadow-lg hover:shadow-primary-300 transform hover:-translate-y-0.5"
+                  className="rounded-md bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-bold text-white tracking-wide shadow-lg transform transition-all duration-300 ease-in-out hover:scale-105 hover:-translate-y-px hover:shadow-xl hover:shadow-blue-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 active:scale-95 disabled:scale-100 disabled:-translate-y-0 disabled:shadow-lg disabled:bg-gradient-to-r disabled:from-blue-400 disabled:to-blue-500"
                 >
                   Post New Circular
                 </button>
