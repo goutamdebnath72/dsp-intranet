@@ -141,7 +141,7 @@ export const links = [
     href: "https://email.sail.in/",
     icon: "Mail",
     category: "quicklink",
-  },   
+  },
   {
     title: "SI STOCK",
     href: "#",
@@ -162,9 +162,9 @@ export const links = [
   },
   {
     title: "Webmail",
-    href: "#",
+    href: "https://mail.saildsp.co.in/src/login.php",
     icon: "Mails",
-    category: "quicklink"
+    category: "quicklink",
   },
 
   // Department Sites (Alphabetically Sorted with Final Icons)
@@ -194,7 +194,12 @@ export const links = [
   },
   { title: "ECD", href: "#", icon: "Leaf", category: "department" },
   { title: "EMD", href: "#", icon: "Zap", category: "department" },
-  { title: "Elec. Repair Shop", href: "#", icon: "Cog", category: "department" },
+  {
+    title: "Elec. Repair Shop",
+    href: "#",
+    icon: "Cog",
+    category: "department",
+  },
   { title: "ETL", href: "#", icon: "CircuitBoard", category: "department" },
   { title: "Finance", href: "#", icon: "Landmark", category: "department" },
   { title: "Fire Service", href: "#", icon: "Flame", category: "department" },
@@ -202,7 +207,12 @@ export const links = [
   { title: "HR-OD", href: "#", icon: "Users", category: "department" },
   { title: "IAD", href: "#", icon: "Receipt", category: "department" },
   { title: "IED", href: "#", icon: "Ruler", category: "department" },
-  { title: "Instrumentation", href: "#", icon: "Gauge", category: "department" },
+  {
+    title: "Instrumentation",
+    href: "#",
+    icon: "Gauge",
+    category: "department",
+  },
   { title: "M & HS", href: "#", icon: "HeartPulse", category: "department" },
   {
     title: "Merchant Mill",
@@ -267,4 +277,28 @@ export const links = [
     icon: "/wagon-icon.png",
     category: "department",
   },
+
+  // --- NEW: SAIL INTRANET SITES ---
+  // (Copied from DepartmentSites.tsx and sorted)
+  { name: "ASP", href: "#", icon: "Factory", category: "sail" },
+  { name: "BSL", href: "#", icon: "Building", category: "sail" },
+  { name: "BSP CHRD", href: "#", icon: "Users", category: "sail" },
+  { name: "CET", href: "#", icon: "School", category: "sail" },
+  { name: "CMMG", href: "#", icon: "GanttChartSquare", category: "sail" },
+  { name: "CMO UCS", href: "#", icon: "Ship", category: "sail" },
+  { name: "Corporate Office", href: "#", icon: "Briefcase", category: "sail" },
+  { name: "iConnekt", href: "#", icon: "Network", category: "sail" },
+  { name: "INDUSTRY 4.0", href: "#", icon: "Signal", category: "sail" },
+  { name: "IPSS", href: "#", icon: "UserCog", category: "sail" },
+  { name: "ISP", href: "#", icon: "Cog", category: "sail" },
+  { name: "Kolkata Ispat Bhavan", href: "#", icon: "Landmark", category: "sail" },
+  { name: "MTI", href: "#", icon: "Library", category: "sail" },
+  { name: "RDCIS", href: "#", icon: "Microscope", category: "sail" },
+  { name: "RMD", href: "#", icon: "Tractor", category: "sail" },
+  { name: "RSP", href: "#", icon: "Settings", category: "sail" },
+  { name: "SAIL SERVICE PORTAL", href: "#", icon: "Globe", category: "sail" },
+  { name: "SDC Hyd", href: "#", icon: "Server", category: "sail" },
+  { name: "SRM Dgp", href: "https://srm.saildsp.co.in/irj/portal", icon: "CircuitBoard", category: "sail" },
+  { name: "SSO", href: "#", icon: "Shield", category: "sail" },
+  { name: "Utkarsh", href: "#", icon: "Presentation", category: "sail" },
 ];

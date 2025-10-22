@@ -2,16 +2,17 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-// --- MODIFIED: Added Circular type ---
 import type { Link, Circular } from "@prisma/client";
 import Image from "next/image";
 import { PlayCircle, ArrowRight, PauseCircle } from "lucide-react";
 import { TopBar } from "./TopBar";
 import Header from "@/components/Header";
-// --- ADDED: Imports for new components ---
 import { QuickAccessBar } from "./QuickAccessBar";
 import { CircularsModal } from "./CircularsModal";
-import {CircularViewerLightbox} from "./CircularViewerLightbox";
+import { CircularViewerLightbox } from "./CircularViewerLightbox";
+import { AppDrawer } from "./AppDrawer";
+import { TopResources } from "./TopResources";
+import { AnnouncementsFeed } from "./AnnouncementsFeed";
 
 interface HomepageProps {
   quickLinksData: Link[];
@@ -19,7 +20,6 @@ interface HomepageProps {
   userName: string;
 }
 
-// --- MODIFIED: Swapped first and second items for better color contrast ---
 const newsItems = [
   {
     id: 2,
@@ -40,6 +40,7 @@ const newsItems = [
     imageUrl: "https://placehold.co/80x80/10B981/FFFFFF?text=EVENT",
   },
 ];
+
 export function HomepageNew({
   quickLinksData,
   departmentData,
@@ -50,21 +51,22 @@ export function HomepageNew({
   const [isHovering, setIsHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // --- ADDED: State and handlers for Circulars ---
+  // Circulars modal state
   const [isCircularModalOpen, setIsCircularModalOpen] = useState(false);
   const handleCircularsClick = () => setIsCircularModalOpen(true);
-  const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
-    null
-  );
+  const [selectedCircularId, setSelectedCircularId] = useState<number | null>(null);
   const handleCircularSelect = (id: number) => {
     setSelectedCircularId(id);
-    setIsCircularModalOpen(false); // Close the modal
+    setIsCircularModalOpen(false);
   };
-  const handleCloseLightbox = () => {
-    setSelectedCircularId(null);
-  };
-  // --- END: Added State ---
+  const handleCloseLightbox = () => setSelectedCircularId(null);
 
+  // App drawer state
+  const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
+  const handleMoreAppsClick = () => setIsAppDrawerOpen(true);
+  const handleAppDrawerClose = () => setIsAppDrawerOpen(false);
+
+  // Video controls
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (isPaused) {
@@ -76,33 +78,32 @@ export function HomepageNew({
       }
     }
   };
+
   return (
     <>
+      {/* --- Top Bar --- */}
       <div className="relative z-50 w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto">
         <TopBar />
       </div>
       <Header />
 
+      {/* --- Hero Section --- */}
       <div
         className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto bg-cover bg-center relative h-[455px]"
         style={{ backgroundImage: "url('/steel-plant1.png')" }}
       >
         <div className="absolute inset-0 bg-black/30" />
-
         <div
           className="absolute bottom-0 left-0 right-0 h-4 z-10"
           style={{
             background: "linear-gradient(to top, rgba(0,0,0,0.1), transparent)",
           }}
         />
-
         <main className="flex-1 relative z-20 px-4 sm:px-6 lg:px-8 pt-28 pb-12 h-full">
           <div className="w-11/12 mx-auto mb-8">
-            <div>
-              <h1 className="font-black text-5xl tracking-tight text-white">
-                Welcome, {firstName}!
-              </h1>
-            </div>
+            <h1 className="font-black text-5xl tracking-tight text-white">
+              Welcome, {firstName}!
+            </h1>
           </div>
 
           <div className="w-11/12 mx-auto relative h-full">
@@ -113,18 +114,16 @@ export function HomepageNew({
                   "linear-gradient(to bottom, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 1.0) 40%)",
               }}
             />
-
             <div className="absolute inset-0 p-8 flex gap-8">
-              {/* Col 1: Message from DIC */}
-              {/* --- MODIFIED: Added pb-3 to nudge content down by 12px --- */}
+              {/* --- Col 1: Message from DIC --- */}
               <div className="w-[25%] flex flex-col justify-end text-neutral-800 relative">
                 <div>
                   <h2 className="text-2xl font-bold mb-3">
                     A Message from the DIC
                   </h2>
                   <p className="text-base text-neutral-600 mb-6 font-serif italic">
-                    "We wouldn't be where we are today without each and every
-                    one of you. Thank you for making us successful!"
+                    "We wouldn't be where we are today without each and every one
+                    of you. Thank you for making us successful!"
                   </p>
                   <button className="w-fit bg-neutral-800 text-white font-semibold py-2 px-5 rounded-md hover:bg-neutral-700 transition-colors">
                     Learn More
@@ -132,12 +131,11 @@ export function HomepageNew({
                 </div>
               </div>
 
-              {/* Col 2: Video Player */}
+              {/* --- Col 2: Video Player --- */}
               <div className="w-[41.66%] relative">
-                {/* --- MODIFIED: Dynamic Video Player --- */}
                 <div className="absolute inset-0 top-[-20px] bottom-[-20px] rounded-b-none overflow-hidden shadow-lg">
                   <video
-                    ref={videoRef} // <-- ADDED: Ref to control video
+                    ref={videoRef}
                     src="/Steel_Plant_Video.mp4"
                     autoPlay
                     loop
@@ -145,23 +143,19 @@ export function HomepageNew({
                     playsInline
                     className="w-full h-full object-cover"
                   />
-
-                  {/* --- MODIFIED: This is the dynamic icon overlay --- */}
                   <div
-                    className="absolute inset-0 bg-black/20 flex items-center justify-center cursor-pointer" // <-- REMOVED: pointer-events-none
+                    className="absolute inset-0 bg-black/20 flex items-center justify-center cursor-pointer"
                     onClick={handlePlayPause}
                     onMouseEnter={() => setIsHovering(true)}
                     onMouseLeave={() => setIsHovering(false)}
                   >
                     {isPaused ? (
-                      // --- Paused State: Always show Play button ---
                       <PlayCircle
                         size={64}
                         className="text-white/80 transition-opacity duration-300 opacity-100"
                         strokeWidth={1}
                       />
                     ) : (
-                      // --- Playing State: Only show Pause button on hover ---
                       <PauseCircle
                         size={64}
                         className={`text-white/80 transition-opacity duration-300 ${
@@ -171,19 +165,17 @@ export function HomepageNew({
                       />
                     )}
                   </div>
-                  {/* --- END: Dynamic Video Player --- */}
                 </div>
               </div>
 
-              {/* Col 3: News & Updates */}
+              {/* --- Col 3: News & Updates --- */}
               <div className="w-[33.33%] relative">
                 <div className="absolute inset-0 top-[-25px] bottom-[-20px] flex flex-col justify-between">
                   <div className="flex flex-col space-y-1.5 h-full">
-                    {newsItems.map((item, index) => (
+                    {newsItems.map((item) => (
                       <a
                         key={item.id}
                         href="#"
-                        // --- MODIFIED: Conditionally uplift the first two items ---
                         className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 transition-colors group h-[90px]"
                       >
                         <Image
@@ -218,14 +210,79 @@ export function HomepageNew({
         </main>
       </div>
 
-      {/* --- ADDED: Quick Access Bar --- */}
-      <QuickAccessBar onCircularsClick={handleCircularsClick} />
+      {/* --- Quick Access --- */}
+      <QuickAccessBar
+        onCircularsClick={handleCircularsClick}
+        onMoreAppsClick={handleMoreAppsClick}
+      />
 
-      <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto rounded-b-lg bg-white p-4 sm:p-6 lg:p-8">
-        {/* Future content will go here */}
+      {/* --- SECTION 3: Fixed-Height, Scrollable 3-Column Layout --- */}
+      <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto bg-white rounded-lg">
+        {/* Outer flex container constrains height */}
+        <div className="flex flex-col p-4 sm:p-6 lg:p-8 h-[460px]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 min-h-0">
+            {/* Col 1: Top Resources */}
+            <div className="flex flex-col min-h-0">
+              <h2 className="text-xl font-bold font-heading text-neutral-800 mb-4 flex-shrink-0">
+                Top Resources
+              </h2>
+
+              {/* group wrapper (so hover shows thumb via .group:hover .scrollbar-thin) */}
+              <div className="flex-1 min-h-0 group">
+                <div
+                  className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin pr-2 w-full box-border"
+                  aria-label="Top Resources scroll area"
+                >
+                  {/* Ensure internal content doesn't exceed width */}
+                  <div className="w-full">
+                    <TopResources />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Col 2: Announcements */}
+            <div className="flex flex-col min-h-0">
+              <h2 className="text-xl font-bold font-heading text-neutral-800 mb-4 flex-shrink-0">
+                Announcements & Happenings
+              </h2>
+
+              <div className="flex-1 min-h-0 group">
+                <div
+                  className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin pr-2 w-full box-border"
+                  aria-label="Announcements scroll area"
+                >
+                  <div className="w-full">
+                    <AnnouncementsFeed />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Col 3: Calendar */}
+            <div className="flex flex-col min-h-0">
+              <h2 className="text-xl font-bold font-heading text-neutral-800 mb-4 flex-shrink-0">
+                Calendar
+              </h2>
+
+              <div className="flex-1 min-h-0 group">
+                <div
+                  className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin pr-2 w-full box-border"
+                  aria-label="Calendar scroll area"
+                >
+                  <div className="w-full p-0">
+                    <div className="p-4 bg-gray-100 rounded-lg border h-full">
+                      {/* Future Component: <CalendarWidget /> */}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* --- ADDED: Modals --- */}
+      {/* --- Modals --- */}
       <CircularsModal
         isOpen={isCircularModalOpen}
         onClose={() => setIsCircularModalOpen(false)}
@@ -237,6 +294,9 @@ export function HomepageNew({
           onClose={handleCloseLightbox}
         />
       )}
+
+      {/* --- App Drawer --- */}
+      <AppDrawer isOpen={isAppDrawerOpen} onClose={handleAppDrawerClose} />
     </>
   );
 }
