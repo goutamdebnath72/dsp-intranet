@@ -2,11 +2,16 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import type { Link } from "@prisma/client";
+// --- MODIFIED: Added Circular type ---
+import type { Link, Circular } from "@prisma/client";
 import Image from "next/image";
 import { PlayCircle, ArrowRight, PauseCircle } from "lucide-react";
 import { TopBar } from "./TopBar";
 import Header from "@/components/Header";
+// --- ADDED: Imports for new components ---
+import { QuickAccessBar } from "./QuickAccessBar";
+import { CircularsModal } from "./CircularsModal";
+import {CircularViewerLightbox} from "./CircularViewerLightbox";
 
 interface HomepageProps {
   quickLinksData: Link[];
@@ -35,17 +40,30 @@ const newsItems = [
     imageUrl: "https://placehold.co/80x80/10B981/FFFFFF?text=EVENT",
   },
 ];
-
 export function HomepageNew({
   quickLinksData,
   departmentData,
   userName,
 }: HomepageProps) {
   const firstName = userName.split(" ")[0];
-
   const [isPaused, setIsPaused] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // --- ADDED: State and handlers for Circulars ---
+  const [isCircularModalOpen, setIsCircularModalOpen] = useState(false);
+  const handleCircularsClick = () => setIsCircularModalOpen(true);
+  const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
+    null
+  );
+  const handleCircularSelect = (id: number) => {
+    setSelectedCircularId(id);
+    setIsCircularModalOpen(false); // Close the modal
+  };
+  const handleCloseLightbox = () => {
+    setSelectedCircularId(null);
+  };
+  // --- END: Added State ---
 
   const handlePlayPause = () => {
     if (videoRef.current) {
@@ -58,7 +76,6 @@ export function HomepageNew({
       }
     }
   };
-
   return (
     <>
       <div className="relative z-50 w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto">
@@ -201,9 +218,25 @@ export function HomepageNew({
         </main>
       </div>
 
+      {/* --- ADDED: Quick Access Bar --- */}
+      <QuickAccessBar onCircularsClick={handleCircularsClick} />
+
       <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto rounded-b-lg bg-white p-4 sm:p-6 lg:p-8">
         {/* Future content will go here */}
       </div>
+
+      {/* --- ADDED: Modals --- */}
+      <CircularsModal
+        isOpen={isCircularModalOpen}
+        onClose={() => setIsCircularModalOpen(false)}
+        onCircularClick={handleCircularSelect}
+      />
+      {selectedCircularId && (
+        <CircularViewerLightbox
+          circularId={selectedCircularId}
+          onClose={handleCloseLightbox}
+        />
+      )}
     </>
   );
 }
