@@ -11,7 +11,8 @@ datasource db {
 model Link {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
-  name      String
+  title     String
+  subtitle  String?
   href      String
   icon      String?
   category  String
