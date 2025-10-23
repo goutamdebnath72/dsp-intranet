@@ -20,10 +20,10 @@ export default async function Home() {
   });
 
   const quickLinksData = quickLinksFromDb.sort((a: Link, b: Link) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
   );
   const departmentData = departmentDataFromDb.sort((a: Link, b: Link) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
   );
 
   // --- 👇 NEW: Get the user's session on the server ---
