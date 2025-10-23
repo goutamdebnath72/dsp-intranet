@@ -223,7 +223,7 @@ export function HomepageNew({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 min-h-0">
             {/* Col 1: Top Resources */}
             <div className="flex flex-col min-h-0">
-              <h2 className="text-xl font-bold font-heading text-neutral-800 mb-4 flex-shrink-0">
+              <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
                 Top Resources
               </h2>
 
@@ -243,7 +243,7 @@ export function HomepageNew({
 
             {/* Col 2: Announcements */}
             <div className="flex flex-col min-h-0">
-              <h2 className="text-xl font-bold font-heading text-neutral-800 mb-4 flex-shrink-0">
+              <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
                 Announcements & Happenings
               </h2>
 
@@ -261,7 +261,7 @@ export function HomepageNew({
 
             {/* Col 3: Calendar */}
             <div className="flex flex-col min-h-0">
-              <h2 className="text-xl font-bold font-heading text-neutral-800 mb-4 flex-shrink-0">
+              <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
                 Calendar
               </h2>
 

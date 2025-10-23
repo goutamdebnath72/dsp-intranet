@@ -4,7 +4,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { links } from "@/lib/links";
-import Image from "next/image"; // Import Next.js Image
+import Image from "next/image";
 
 // --- Import all possible icons from links.js ---
 import {
@@ -147,11 +147,12 @@ const iconMap: { [key: string]: React.ElementType } = {
 };
 
 // --- Data for the component ---
-// It now reads from your centralized links.js
-const departmentSites = links.filter((link) => link.category === "department");
+const departmentSites = links
+  .filter((link) => link.category === "department")
+  .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  
 const sailSites = links
   .filter((link) => link.category === "sail")
-  // --- FIX 1: Provide fallback for sort ---
   .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
 
 const tabs = [
@@ -183,32 +184,44 @@ const ResourceLink: React.FC<{ link: (typeof links)[0]; color: string }> = ({
   const IconComponent = !isImagePath ? iconMap[link.icon as string] : null;
 
   return (
-    <a
+    // --- Reverted: Removed ml-1 ---
+    <motion.a
       href={link.href}
       target="_blank"
       rel="noopener noreferrer"
-      className={`flex items-center gap-3 p-3 rounded-lg text-white font-medium shadow-md transition-all duration-300 transform hover:scale-105 hover:shadow-lg ${color}`}
+      className={`group flex items-center gap-3 px-2 py-3 rounded-lg text-white font-medium shadow-md transition-shadow duration-300 hover:shadow-lg hover:text-white!important w-[95%] mx-auto ${color}`}
+      whileHover={{ scale: 1.05 }} // Framer Motion handles scale and lift
+      transition={{ type: "spring", stiffness: 300 }} // Make animation bouncy
     >
-      <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
+      {/* --- MODIFIED: Conditionally size the icon container --- */}
+      <div
+        className={`flex-shrink-0 ${
+          link.icon === "/blast-furnace.png" ? "w-8 h-8" : "w-8 h-6"
+        } flex items-center justify-center`}
+      >
         {isImagePath ? (
           <Image
             src={link.icon}
-            // --- FIX 2: Provide fallback for alt text ---
             alt={link.title || "Icon"}
-            width={24}
-            height={24}
+            // --- MODIFIED: Conditionally set image dimensions ---
+            width={link.icon === "/blast-furnace.png" ? 32 : 24}
+            height={link.icon === "/blast-furnace.png" ? 32 : 24}
             className="w-full h-full object-contain"
-            // This filter makes your PNGs white to match the design
             style={{ filter: "brightness(0) invert(1)" }}
           />
         ) : IconComponent ? (
-          <IconComponent className="w-6 h-6" />
+          // --- UNCHANGED: Other icons remain w-6 h-6 ---
+          <IconComponent className="w-6 h-6 text-white group-hover:text-white!important" />
         ) : (
-          <Building2 className="w-6 h-6" /> // Default fallback icon
+          // --- UNCHANGED: Fallback remains w-6 h-6 ---
+          <Building2 className="w-6 h-6 text-white group-hover:text-white!important" />
         )}
       </div>
-      <span className="text-sm truncate">{link.title}</span>
-    </a>
+      {/* --- Ensured color fix remains --- */}
+      <span className="text-sm truncate text-white group-hover:text-white!important">
+        {link.title}
+      </span>
+    </motion.a>
   );
 };
 
@@ -238,14 +251,15 @@ export function TopResources() {
       </div>
 
       {/* 2. Tab Content */}
-      <div className="flex-1 overflow-y-auto pt-4 pr-2 -mr-2 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400">
+      {/* --- MODIFIED: Added px-2 for internal padding --- */}
+      <div className="flex-1 overflow-y-auto pt-4 px-2 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400">
         <div className="grid grid-cols-1 gap-3">
           {tabs.map((tab) =>
             activeTab === tab.name ? (
               <motion.div
                 key={tab.name}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 transition={{ duration: 0.3 }}
                 className="grid grid-cols-1 gap-3"
               >
