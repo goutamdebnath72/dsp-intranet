@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import type { Link, Circular } from "@prisma/client";
+import type { Link, Circular } from "@prisma/client"; // <-- 1. IMPORTED LINK
 import Image from "next/image";
 import { PlayCircle, ArrowRight, PauseCircle } from "lucide-react";
 import { TopBar } from "./TopBar";
@@ -14,9 +14,11 @@ import { AppDrawer } from "./AppDrawer";
 import { TopResources } from "./TopResources";
 import { AnnouncementsFeed } from "./AnnouncementsFeed";
 
+// --- 2. MODIFIED: Added sailSitesData ---
 interface HomepageProps {
   quickLinksData: Link[];
   departmentData: Link[];
+  sailSitesData: Link[]; // <-- ADDED
   userName: string;
 }
 
@@ -41,20 +43,23 @@ const newsItems = [
   },
 ];
 
+// --- 3. MODIFIED: Added sailSitesData ---
 export function HomepageNew({
   quickLinksData,
   departmentData,
+  sailSitesData, // <-- ADDED
   userName,
 }: HomepageProps) {
   const firstName = userName.split(" ")[0];
   const [isPaused, setIsPaused] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-
   // Circulars modal state
   const [isCircularModalOpen, setIsCircularModalOpen] = useState(false);
   const handleCircularsClick = () => setIsCircularModalOpen(true);
-  const [selectedCircularId, setSelectedCircularId] = useState<number | null>(null);
+  const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
+    null
+  );
   const handleCircularSelect = (id: number) => {
     setSelectedCircularId(id);
     setIsCircularModalOpen(false);
@@ -65,7 +70,6 @@ export function HomepageNew({
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
   const handleMoreAppsClick = () => setIsAppDrawerOpen(true);
   const handleAppDrawerClose = () => setIsAppDrawerOpen(false);
-
   // Video controls
   const handlePlayPause = () => {
     if (videoRef.current) {
@@ -78,7 +82,6 @@ export function HomepageNew({
       }
     }
   };
-
   return (
     <>
       {/* --- Top Bar --- */}
@@ -122,8 +125,8 @@ export function HomepageNew({
                     A Message from the DIC
                   </h2>
                   <p className="text-base text-neutral-600 mb-6 font-serif italic">
-                    "We wouldn't be where we are today without each and every one
-                    of you. Thank you for making us successful!"
+                    "We wouldn't be where we are today without each and every
+                    one of you. Thank you for making us successful!"
                   </p>
                   <button className="w-fit bg-neutral-800 text-white font-semibold py-2 px-5 rounded-md hover:bg-neutral-700 transition-colors">
                     Learn More

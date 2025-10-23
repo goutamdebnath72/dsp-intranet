@@ -6,8 +6,6 @@ import { Link } from "@prisma/client";
 import { ACTIVE_UI_DESIGN } from "@/lib/config";
 import HomePageClient from "@/components/HomePageClient";
 import { HomepageNew } from "@/components/HomepageNew";
-
-// --- 👇 NEW: Import NextAuth functions to get the session ---
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
@@ -19,6 +17,11 @@ export default async function Home() {
     where: { category: "department" },
   });
 
+  // --- 1. ADDED: Fetch SAIL sites ---
+  const sailSitesDataFromDb = await prisma.link.findMany({
+    where: { category: "sail" },
+  });
+
   const quickLinksData = quickLinksFromDb.sort((a: Link, b: Link) =>
     a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
   );
@@ -26,7 +29,11 @@ export default async function Home() {
     a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
   );
 
-  // --- 👇 NEW: Get the user's session on the server ---
+  // --- 2. ADDED: Sort SAIL sites ---
+  const sailSitesData = sailSitesDataFromDb.sort((a: Link, b: Link) =>
+    a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
+  );
+
   const session = await getServerSession(authOptions);
 
   // The Switch Logic
@@ -35,18 +42,18 @@ export default async function Home() {
       <HomepageNew
         quickLinksData={quickLinksData}
         departmentData={departmentData}
-        // --- 👇 MODIFIED: Pass the user's name (or "Guest") to the new homepage ---
+        sailSitesData={sailSitesData} // <-- 3. PASSED PROP
         userName={session?.user?.name ?? "Guest"}
       />
     );
   }
 
-  // By default, show the current design. This part is UNCHANGED.
+  // By default, show the current design.
   return (
     <HomePageClient
       quickLinksData={quickLinksData}
       departmentData={departmentData}
+      sailSitesData={sailSitesData} // <-- 4. PASSED PROP
     />
   );
 }
-

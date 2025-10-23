@@ -8,6 +8,7 @@ import {
   ClipboardCheck, Database, Library, Warehouse, Boxes, Mails, ScrollText
 } from "lucide-react";
 import { motion } from "framer-motion";
+import type { Link } from "@prisma/client"; // <-- 1. IMPORT LINK TYPE
 
 const iconMap: { [key: string]: React.ElementType } = {
   BookUser, Fingerprint, Mail, ShieldAlert, Users, Search, Siren,
@@ -16,20 +17,15 @@ const iconMap: { [key: string]: React.ElementType } = {
   ClipboardCheck, Database, Library, Warehouse, Boxes, Mails, ScrollText
 };
 
+// --- 2. MODIFIED: Use Link[] for props ---
 type QuickLinksProps = {
-  quickLinksData: {
-    id: number;
-    href: string;
-    name: string;
-    icon: string | null;
-  }[];
+  quickLinksData: Link[];
   onCircularsClick: () => void; // Function to open the modal
 };
 
 const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData, onCircularsClick }) => {
   return (
     <motion.div
-      // THIS IS THE LINE TO CHANGE ↓
       className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[370px] flex flex-col"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -44,7 +40,8 @@ const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData, onCircularsClic
           {quickLinksData.map((link) => {
             const IconComponent = link.icon ? iconMap[link.icon] : null;
 
-            if (link.name === "Circulars (Personnel)") {
+            // --- 3. MODIFIED: Check link.title ---
+            if (link.title === "Circular") {
               return (
                 <li key={link.id}>
                   <button
@@ -52,7 +49,11 @@ const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData, onCircularsClic
                     className="w-full flex items-center gap-3 p-2 rounded-md text-neutral-700 font-medium transition-colors duration-200 hover:bg-primary-100/50 text-left"
                   >
                     {IconComponent && <IconComponent className="h-5 w-5" />}
-                    <span>{link.name}</span>
+                    {/* --- 4. MODIFIED: Render title and subtitle --- */}
+                    <span>
+                      {link.title}
+                      {link.subtitle && <span className="text-xs text-neutral-500 ml-1">{link.subtitle}</span>}
+                    </span>
                   </button>
                 </li>
               );
@@ -67,7 +68,11 @@ const QuickLinks: React.FC<QuickLinksProps> = ({ quickLinksData, onCircularsClic
                   className="flex items-center gap-3 p-2 rounded-md text-neutral-700 font-medium transition-colors duration-200 hover:bg-primary-100/50"
                 >
                   {IconComponent && <IconComponent className="h-5 w-5" />}
-                  <span>{link.name}</span>
+                  {/* --- 5. MODIFIED: Render title and subtitle --- */}
+                  <span>
+                    {link.title}
+                    {link.subtitle && <span className="text-xs text-neutral-500 ml-1">{link.subtitle}</span>}
+                  </span>
                 </a>
               </li>
             );
