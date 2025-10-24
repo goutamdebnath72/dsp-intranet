@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import type { Link, Circular } from "@prisma/client"; // <-- 1. IMPORTED LINK
+import type { Link } from "@prisma/client";
 import Image from "next/image";
 import { PlayCircle, ArrowRight, PauseCircle } from "lucide-react";
 import { TopBar } from "./TopBar";
@@ -14,11 +14,10 @@ import { AppDrawer } from "./AppDrawer";
 import { TopResources } from "./TopResources";
 import { AnnouncementsFeed } from "./AnnouncementsFeed";
 
-// --- 2. MODIFIED: Added sailSitesData ---
 interface HomepageProps {
   quickLinksData: Link[];
   departmentData: Link[];
-  sailSitesData: Link[]; // <-- ADDED
+  sailSitesData: Link[];
   userName: string;
 }
 
@@ -43,33 +42,22 @@ const newsItems = [
   },
 ];
 
-// --- 3. MODIFIED: Added sailSitesData ---
 export function HomepageNew({
   quickLinksData,
   departmentData,
-  sailSitesData, // <-- ADDED
+  sailSitesData,
   userName,
 }: HomepageProps) {
   const firstName = userName.split(" ")[0];
   const [isPaused, setIsPaused] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  // Circulars modal state
   const [isCircularModalOpen, setIsCircularModalOpen] = useState(false);
-  const handleCircularsClick = () => setIsCircularModalOpen(true);
   const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
     null
   );
-  const handleCircularSelect = (id: number) => {
-    setSelectedCircularId(id);    
-  };
-  const handleCloseLightbox = () => setSelectedCircularId(null);
-
-  // App drawer state
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
-  const handleMoreAppsClick = () => setIsAppDrawerOpen(true);
-  const handleAppDrawerClose = () => setIsAppDrawerOpen(false);
-  // Video controls
+
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (isPaused) {
@@ -81,6 +69,7 @@ export function HomepageNew({
       }
     }
   };
+
   return (
     <>
       {/* --- Top Bar --- */}
@@ -214,71 +203,33 @@ export function HomepageNew({
 
       {/* --- Quick Access --- */}
       <QuickAccessBar
-        onCircularsClick={handleCircularsClick}
-        onMoreAppsClick={handleMoreAppsClick}
+        onCircularsClick={() => setIsCircularModalOpen(true)}
+        onMoreAppsClick={() => setIsAppDrawerOpen(true)}
       />
 
-      {/* --- SECTION 3: Fixed-Height, Scrollable 3-Column Layout --- */}
+      {/* --- FIX: Removed outer scroll wrappers around TopResources & AnnouncementsFeed --- */}
       <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto bg-white rounded-lg">
-        {/* Outer flex container constrains height */}
         <div className="flex flex-col p-4 sm:p-6 lg:p-8 h-[460px]">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 min-h-0">
-            {/* Col 1: Top Resources */}
             <div className="flex flex-col min-h-0">
               <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
                 Top Resources
               </h2>
-
-              {/* group wrapper (so hover shows thumb via .group:hover .scrollbar-thin) */}
-              <div className="flex-1 min-h-0 group">
-                <div
-                  className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin pr-2 w-full box-border"
-                  aria-label="Top Resources scroll area"
-                >
-                  {/* Ensure internal content doesn't exceed width */}
-                  <div className="w-full">
-                    <TopResources />
-                  </div>
-                </div>
-              </div>
+              <TopResources />
             </div>
 
-            {/* Col 2: Announcements */}
             <div className="flex flex-col min-h-0">
               <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
                 Announcements & Happenings
               </h2>
-
-              <div className="flex-1 min-h-0 group">
-                <div
-                  className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin pr-2 w-full box-border"
-                  aria-label="Announcements scroll area"
-                >
-                  <div className="w-full">
-                    <AnnouncementsFeed />
-                  </div>
-                </div>
-              </div>
+              <AnnouncementsFeed />
             </div>
 
-            {/* Col 3: Calendar */}
             <div className="flex flex-col min-h-0">
               <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
                 Calendar
               </h2>
-
-              <div className="flex-1 min-h-0 group">
-                <div
-                  className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin pr-2 w-full box-border"
-                  aria-label="Calendar scroll area"
-                >
-                  <div className="w-full p-0">
-                    <div className="p-4 bg-gray-100 rounded-lg border h-full">
-                      {/* Future Component: <CalendarWidget /> */}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <div className="flex-1 bg-gray-100 rounded-lg border p-4" />
             </div>
           </div>
         </div>
@@ -288,17 +239,19 @@ export function HomepageNew({
       <CircularsModal
         isOpen={isCircularModalOpen}
         onClose={() => setIsCircularModalOpen(false)}
-        onCircularClick={handleCircularSelect}
+        onCircularClick={(id) => setSelectedCircularId(id)}
       />
       {selectedCircularId && (
         <CircularViewerLightbox
           circularId={selectedCircularId}
-          onClose={handleCloseLightbox}
+          onClose={() => setSelectedCircularId(null)}
         />
       )}
 
-      {/* --- App Drawer --- */}
-      <AppDrawer isOpen={isAppDrawerOpen} onClose={handleAppDrawerClose} />
+      <AppDrawer
+        isOpen={isAppDrawerOpen}
+        onClose={() => setIsAppDrawerOpen(false)}
+      />
     </>
   );
 }
