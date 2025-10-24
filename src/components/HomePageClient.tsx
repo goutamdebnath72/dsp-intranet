@@ -54,8 +54,7 @@ export default function HomePageClient({
   const openCircularsModal = () => setCircularsModalOpen(true);
   const closeCircularsModal = () => setCircularsModalOpen(false);
 
-  const handleViewCircular = (id: number) => {
-    closeCircularsModal();
+  const handleViewCircular = (id: number) => {    
     setViewingCircularId(id);
   };
 

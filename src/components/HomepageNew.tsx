@@ -61,8 +61,7 @@ export function HomepageNew({
     null
   );
   const handleCircularSelect = (id: number) => {
-    setSelectedCircularId(id);
-    setIsCircularModalOpen(false);
+    setSelectedCircularId(id);    
   };
   const handleCloseLightbox = () => setSelectedCircularId(null);
 

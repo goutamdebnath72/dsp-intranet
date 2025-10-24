@@ -84,7 +84,7 @@ export function CircularUploadModal({ isOpen, onClose, onUploadSuccess }: Props)
             setTimeout(() => {
                 onClose();
                 resetState();
-            }, 2000);
+            }, 5000);
 
         } catch (err: any) {
             console.error(err);
