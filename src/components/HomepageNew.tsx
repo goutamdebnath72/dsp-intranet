@@ -13,6 +13,8 @@ import { CircularViewerLightbox } from "./CircularViewerLightbox";
 import { AppDrawer } from "./AppDrawer";
 import { TopResources } from "./TopResources";
 import { AnnouncementsFeed } from "./AnnouncementsFeed";
+import { PeopleAndEvents } from "./PeopleAndEvents"; // <-- Keep this import
+import { motion } from "framer-motion"; // <-- Keep this import
 
 interface HomepageProps {
   quickLinksData: Link[];
@@ -42,10 +44,12 @@ const newsItems = [
   },
 ];
 
+// --- REMOVED: PEOPLE_EVENTS_TABS constant (managed within PeopleAndEvents) ---
+
 export function HomepageNew({
   quickLinksData,
   departmentData,
-  sailSitesData,
+  sailSitesData, // Keep receiving this prop, even if not used directly here
   userName,
 }: HomepageProps) {
   const firstName = userName.split(" ")[0];
@@ -58,6 +62,14 @@ export function HomepageNew({
   );
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
 
+  // --- Handlers (Keep all handlers) ---
+  const handleCircularsClick = () => setIsCircularModalOpen(true);
+  const handleCircularSelect = (id: number) => {
+    setSelectedCircularId(id);
+  };
+  const handleCloseLightbox = () => setSelectedCircularId(null);
+  const handleMoreAppsClick = () => setIsAppDrawerOpen(true);
+  const handleAppDrawerClose = () => setIsAppDrawerOpen(false);
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (isPaused) {
@@ -70,19 +82,21 @@ export function HomepageNew({
     }
   };
 
+  // --- REMOVED: peopleEventsTab state ---
+
   return (
     <>
-      {/* --- Top Bar --- */}
+      {/* --- Top Bar / Header / Hero / Quick Access (Keep all) --- */}
       <div className="relative z-50 w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto">
-        <TopBar />
+        {" "}
+        <TopBar />{" "}
       </div>
       <Header />
-
-      {/* --- Hero Section --- */}
       <div
         className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto bg-cover bg-center relative h-[455px]"
         style={{ backgroundImage: "url('/steel-plant1.png')" }}
       >
+        {/* --- Hero content --- */}
         <div className="absolute inset-0 bg-black/30" />
         <div
           className="absolute bottom-0 left-0 right-0 h-4 z-10"
@@ -92,11 +106,12 @@ export function HomepageNew({
         />
         <main className="flex-1 relative z-20 px-4 sm:px-6 lg:px-8 pt-28 pb-12 h-full">
           <div className="w-11/12 mx-auto mb-8">
+            {" "}
             <h1 className="font-black text-5xl tracking-tight text-white">
-              Welcome, {firstName}!
-            </h1>
+              {" "}
+              Welcome, {firstName}!{" "}
+            </h1>{" "}
           </div>
-
           <div className="w-11/12 mx-auto relative h-full">
             <div
               className="absolute inset-0 rounded-t-2xl"
@@ -106,7 +121,7 @@ export function HomepageNew({
               }}
             />
             <div className="absolute inset-0 p-8 flex gap-8">
-              {/* --- Col 1: Message from DIC --- */}
+              {/* Col 1: Message */}
               <div className="w-[25%] flex flex-col justify-end text-neutral-800 relative">
                 <div>
                   <h2 className="text-2xl font-bold mb-3">
@@ -121,8 +136,7 @@ export function HomepageNew({
                   </button>
                 </div>
               </div>
-
-              {/* --- Col 2: Video Player --- */}
+              {/* Col 2: Video */}
               <div className="w-[41.66%] relative">
                 <div className="absolute inset-0 top-[-20px] bottom-[-20px] rounded-b-none overflow-hidden shadow-lg">
                   <video
@@ -158,8 +172,7 @@ export function HomepageNew({
                   </div>
                 </div>
               </div>
-
-              {/* --- Col 3: News & Updates --- */}
+              {/* Col 3: News Items */}
               <div className="w-[33.33%] relative">
                 <div className="absolute inset-0 top-[-25px] bottom-[-20px] flex flex-col justify-between">
                   <div className="flex flex-col space-y-1.5 h-full">
@@ -179,10 +192,12 @@ export function HomepageNew({
                         />
                         <div>
                           <h3 className="font-bold text-neutral-800 text-sm leading-tight group-hover:text-primary-700">
-                            {item.title}
+                            {" "}
+                            {item.title}{" "}
                           </h3>
                           <p className="text-xs text-neutral-600 mt-1">
-                            {item.summary}
+                            {" "}
+                            {item.summary}{" "}
                           </p>
                         </div>
                       </a>
@@ -190,8 +205,7 @@ export function HomepageNew({
                   </div>
                   <div className="text-right absolute -bottom-10 right-0">
                     <button className="text-xs font-semibold text-neutral-700 bg-neutral-200/80 hover:bg-neutral-300 py-1.5 px-3 rounded-md transition-colors flex items-center gap-1 ml-auto">
-                      <span>View More</span>
-                      <ArrowRight size={12} />
+                      <span>View More</span> <ArrowRight size={12} />
                     </button>
                   </div>
                 </div>
@@ -200,58 +214,61 @@ export function HomepageNew({
           </div>
         </main>
       </div>
-
-      {/* --- Quick Access --- */}
       <QuickAccessBar
-        onCircularsClick={() => setIsCircularModalOpen(true)}
-        onMoreAppsClick={() => setIsAppDrawerOpen(true)}
+        onCircularsClick={handleCircularsClick}
+        onMoreAppsClick={handleMoreAppsClick}
       />
 
-      {/* --- FIX: Removed outer scroll wrappers around TopResources & AnnouncementsFeed --- */}
+      {/* --- SECTION 3: Fixed-Height, Scrollable 3-Column Layout --- */}
       <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto bg-white rounded-lg">
         <div className="flex flex-col p-4 sm:p-6 lg:p-8 h-[460px]">
+          {" "}
+          {/* Height set here */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 min-h-0">
+            {/* Col 1: Top Resources */}
             <div className="flex flex-col min-h-0">
               <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
                 Top Resources
               </h2>
+              {/* Component fills remaining space and handles its own scroll */}
               <TopResources />
             </div>
 
+            {/* Col 2: Announcements */}
             <div className="flex flex-col min-h-0">
               <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
                 Announcements & Happenings
               </h2>
+              {/* Component fills remaining space and handles its own scroll */}
               <AnnouncementsFeed />
             </div>
 
+            {/* --- Col 3 Structure (Reverted) --- */}
             <div className="flex flex-col min-h-0">
               <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
-                Calendar
+                People & Events
               </h2>
-              <div className="flex-1 bg-gray-100 rounded-lg border p-4" />
+              {/* Component now fills the space and handles its own tabs/scrolling */}
+              <PeopleAndEvents />
             </div>
+            {/* --- End of Col 3 --- */}
           </div>
         </div>
       </div>
 
-      {/* --- Modals --- */}
+      {/* --- Modals / Drawer (Keep all) --- */}
       <CircularsModal
         isOpen={isCircularModalOpen}
         onClose={() => setIsCircularModalOpen(false)}
-        onCircularClick={(id) => setSelectedCircularId(id)}
+        onCircularClick={handleCircularSelect}
       />
       {selectedCircularId && (
         <CircularViewerLightbox
           circularId={selectedCircularId}
-          onClose={() => setSelectedCircularId(null)}
+          onClose={handleCloseLightbox}
         />
       )}
-
-      <AppDrawer
-        isOpen={isAppDrawerOpen}
-        onClose={() => setIsAppDrawerOpen(false)}
-      />
+      <AppDrawer isOpen={isAppDrawerOpen} onClose={handleAppDrawerClose} />
     </>
   );
 }

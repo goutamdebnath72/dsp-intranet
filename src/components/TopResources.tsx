@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { links } from "@/lib/links";
 import Image from "next/image";
 import { SCROLL_CONFIG, DIRECTION } from "@/lib/SCROLL_CONFIG";
+// --- Icon Imports ---
 import {
   BookUser,
   Fingerprint,
@@ -75,6 +76,7 @@ import {
   Briefcase,
 } from "lucide-react";
 
+// --- iconMap ---
 const iconMap: { [key: string]: React.ElementType } = {
   BookUser,
   Fingerprint,
@@ -144,18 +146,17 @@ const iconMap: { [key: string]: React.ElementType } = {
   Briefcase,
 };
 
+// --- Data ---
 const departmentSites = links
   .filter((link) => link.category === "department")
   .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
 const sailSites = links
   .filter((link) => link.category === "sail")
   .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-
 const tabs = [
   { name: "Department Sites", data: departmentSites },
   { name: "SAIL Sites", data: sailSites },
 ];
-
 const bgColors = [
   "bg-green-600",
   "bg-blue-600",
@@ -169,6 +170,7 @@ const bgColors = [
   "bg-cyan-600",
 ];
 
+// --- ResourceLink Component ---
 const ResourceLink: React.FC<{ link: (typeof links)[0]; color: string }> = ({
   link,
   color,
@@ -211,6 +213,7 @@ const ResourceLink: React.FC<{ link: (typeof links)[0]; color: string }> = ({
   );
 };
 
+// --- Main Component ---
 export function TopResources() {
   const [activeTab, setActiveTab] = useState(tabs[0].name);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -221,22 +224,35 @@ export function TopResources() {
   const direction = SCROLL_CONFIG.topResourcesDirection;
   const speedPxPerSec = SCROLL_CONFIG.speedPxPerSec;
 
+  // Effect to update list height
   useEffect(() => {
     const onResize = () => {
-      const listEl = listRef.current;
-      if (listEl) listHeightRef.current = listEl.scrollHeight / 2;
+      setTimeout(() => {
+        const listEl = listRef.current;
+        if (listEl) listHeightRef.current = listEl.scrollHeight / 2;
+      }, 50);
     };
-    window.addEventListener("resize", onResize);
+    let resizeTimeout: NodeJS.Timeout;
+    const debouncedResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(onResize, 100);
+    };
+    window.addEventListener("resize", debouncedResize);
     onResize();
-    return () => window.removeEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", debouncedResize);
   }, [activeTab]);
 
+  // Seamless auto-scroll effect using rAF
   useEffect(() => {
     const scrollEl = scrollRef.current;
-    const listEl = listRef.current;
-    if (!scrollEl || !listEl) return;
+    if (!scrollEl) return;
 
-    listHeightRef.current = listEl.scrollHeight / 2;
+    setTimeout(() => {
+      const listEl = listRef.current;
+      if (listEl) listHeightRef.current = listEl.scrollHeight / 2;
+      scrollEl.scrollTop = 0;
+    }, 50);
+
     let rafId: number | null = null;
     let lastTs = performance.now();
     let accumulated = scrollEl.scrollTop;
@@ -250,8 +266,9 @@ export function TopResources() {
         const h = listHeightRef.current;
         if (h > 0 && scrollEl.scrollHeight > scrollEl.clientHeight) {
           accumulated += (speedPxPerSec * dt * direction) / 1000;
-          if (accumulated >= h && direction === 1) accumulated -= h;
-          else if (accumulated <= 0 && direction === -1) accumulated += h;
+          if (accumulated >= h && direction === DIRECTION.UP) accumulated -= h;
+          else if (accumulated < 0 && direction === DIRECTION.DOWN)
+            accumulated += h;
           scrollEl.scrollTop = accumulated;
         }
       }
@@ -270,8 +287,10 @@ export function TopResources() {
   }, [activeTab, direction, speedPxPerSec]);
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex border-b border-neutral-300 flex-shrink-0">
+    // MODIFIED: Outer container now has bg-gray-100, border, rounded-lg
+    <div className="flex flex-col h-full bg-gray-100 rounded-lg border">
+      {/* 1. Tab Navigation - Sticky inside the grey container */}
+      <div className="flex border-b border-neutral-300 flex-shrink-0 sticky top-0 bg-gray-100 z-10">
         {tabs.map((tab) => (
           <button
             key={tab.name}
@@ -287,29 +306,42 @@ export function TopResources() {
         ))}
       </div>
 
+      {/* 2. Scrollable Content Area - Takes remaining space */}
       <div
         ref={scrollRef}
         onMouseEnter={() => (isHoveringRef.current = true)}
         onMouseLeave={() => (isHoveringRef.current = false)}
-        className="flex-1 overflow-y-auto pt-4 px-2 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
+        // MODIFIED: Added flex-1 and min-h-0
+        className="flex-1 min-h-0 overflow-y-auto px-2 pt-4 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
         style={{ overflowAnchor: "none" }}
       >
+        {/* Inner list container */}
         <div ref={listRef} className="flex flex-col">
-          {[
-            ...tabs.find((t) => t.name === activeTab)!.data,
-            ...tabs.find((t) => t.name === activeTab)!.data,
-          ].map((link, index) => {
-            const color = bgColors[index % bgColors.length];
-            return (
-              <React.Fragment key={`${link.title}-${index}`}>
-                <ResourceLink link={link} color={color} />
-                <div
-                  style={{ height: SCROLL_CONFIG.gapHeight }}
-                  aria-hidden="true"
-                />
-              </React.Fragment>
-            );
-          })}
+          {(() => {
+            const currentTabData = tabs.find((t) => t.name === activeTab)?.data;
+            if (!currentTabData || currentTabData.length === 0) {
+              return (
+                <p className="text-sm text-neutral-500 p-4 text-center">
+                  {" "}
+                  No links available for this category yet.{" "}
+                </p>
+              );
+            }
+            const duplicatedData = [...currentTabData, ...currentTabData];
+            return duplicatedData.map((link, index) => {
+              const color = bgColors[index % bgColors.length];
+              const uniqueKey = `${link.title}-${index}`;
+              return (
+                <React.Fragment key={uniqueKey}>
+                  <ResourceLink link={link} color={color} />
+                  <div
+                    style={{ height: SCROLL_CONFIG.gapHeight }}
+                    aria-hidden="true"
+                  />
+                </React.Fragment>
+              );
+            });
+          })()}
         </div>
       </div>
     </div>
