@@ -75,7 +75,6 @@ import {
   Settings,
   Briefcase,
 } from "lucide-react";
-
 // --- iconMap ---
 const iconMap: { [key: string]: React.ElementType } = {
   BookUser,
@@ -145,7 +144,6 @@ const iconMap: { [key: string]: React.ElementType } = {
   Settings,
   Briefcase,
 };
-
 // --- Data ---
 const departmentSites = links
   .filter((link) => link.category === "department")
@@ -169,7 +167,6 @@ const bgColors = [
   "bg-teal-600",
   "bg-cyan-600",
 ];
-
 // --- ResourceLink Component ---
 const ResourceLink: React.FC<{ link: (typeof links)[0]; color: string }> = ({
   link,
@@ -178,7 +175,6 @@ const ResourceLink: React.FC<{ link: (typeof links)[0]; color: string }> = ({
   const isImagePath =
     typeof link.icon === "string" && link.icon.startsWith("/");
   const IconComponent = !isImagePath ? iconMap[link.icon as string] : null;
-
   return (
     <motion.a
       href={link.href}
@@ -223,7 +219,6 @@ export function TopResources() {
 
   const direction = SCROLL_CONFIG.topResourcesDirection;
   const speedPxPerSec = SCROLL_CONFIG.speedPxPerSec;
-
   // Effect to update list height
   useEffect(() => {
     const onResize = () => {
@@ -237,11 +232,11 @@ export function TopResources() {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(onResize, 100);
     };
+
     window.addEventListener("resize", debouncedResize);
     onResize();
     return () => window.removeEventListener("resize", debouncedResize);
   }, [activeTab]);
-
   // Seamless auto-scroll effect using rAF
   useEffect(() => {
     const scrollEl = scrollRef.current;
@@ -279,16 +274,14 @@ export function TopResources() {
       lastTs = performance.now();
       rafId = requestAnimationFrame(tick);
     }, 700);
-
     return () => {
       clearTimeout(startup);
       if (rafId) cancelAnimationFrame(rafId);
     };
   }, [activeTab, direction, speedPxPerSec]);
-
   return (
-    // MODIFIED: Outer container now has bg-gray-100, border, rounded-lg
-    <div className="flex flex-col h-full bg-gray-100 rounded-lg border">
+    // MODIFIED: Replaced h-full with flex-1 min-h-0
+    <div className="flex flex-col flex-1 min-h-0 bg-gray-100 rounded-lg border">
       {/* 1. Tab Navigation - Sticky inside the grey container */}
       <div className="flex border-b border-neutral-300 flex-shrink-0 sticky top-0 bg-gray-100 z-10">
         {tabs.map((tab) => (
@@ -311,7 +304,7 @@ export function TopResources() {
         ref={scrollRef}
         onMouseEnter={() => (isHoveringRef.current = true)}
         onMouseLeave={() => (isHoveringRef.current = false)}
-        // MODIFIED: Added flex-1 and min-h-0
+        // MODIFIED: Added flex-1 and min-h-0 (already present, but good)
         className="flex-1 min-h-0 overflow-y-auto px-2 pt-4 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
         style={{ overflowAnchor: "none" }}
       >

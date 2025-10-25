@@ -16,10 +16,8 @@ import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { Tooltip } from "./Tooltip";
 import { SCROLL_CONFIG } from "@/lib/SCROLL_CONFIG";
-
 type AnnouncementWithReadStatus = Announcement & { isRead: boolean };
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
 export function AnnouncementsFeed() {
   const { data: session } = useSession();
   const {
@@ -27,7 +25,6 @@ export function AnnouncementsFeed() {
     error,
     isLoading,
   } = useSWR<AnnouncementWithReadStatus[]>("/api/announcements", fetcher);
-
   const [selectedAnnouncement, setSelectedAnnouncement] =
     useState<Announcement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -37,7 +34,6 @@ export function AnnouncementsFeed() {
 
   const direction = SCROLL_CONFIG.announcementsDirection;
   const speedPxPerSec = SCROLL_CONFIG.speedPxPerSec;
-
   // --- Smooth auto-scroll (rAF + seamless wrap) ---
   useEffect(() => {
     const scrollEl = scrollRef.current;
@@ -112,7 +108,6 @@ export function AnnouncementsFeed() {
           <Loader2 className="animate-spin" size={24} />
         </div>
       );
-
     if (error)
       return (
         <div className="flex flex-col items-center justify-center h-full text-red-500">
@@ -120,14 +115,12 @@ export function AnnouncementsFeed() {
           <p className="text-sm mt-2">Failed to load announcements.</p>
         </div>
       );
-
     if (!announcementsData || announcementsData.length === 0)
       return (
         <div className="flex items-center justify-center h-full text-neutral-500">
           <p className="text-sm">No announcements right now.</p>
         </div>
       );
-
     const sortedData = announcementsData
       .slice()
       .sort(
@@ -135,7 +128,6 @@ export function AnnouncementsFeed() {
           DateTime.fromISO(b.date as any).toMillis() -
           DateTime.fromISO(a.date as any).toMillis()
       );
-
     const duplicatedData = [...sortedData, ...sortedData];
 
     const renderItem = (item: AnnouncementWithReadStatus, index: number) => {
@@ -144,13 +136,11 @@ export function AnnouncementsFeed() {
       const isRecent = DateTime.now().diff(itemDate, "hours").hours <= 24;
       const showNewChip = session ? isRecent && !item.isRead : isRecent;
       const isClickableToMarkRead = !hasContent && showNewChip && session;
-
       const WrapperComponent: React.ElementType = hasContent
         ? "button"
         : isClickableToMarkRead
         ? "button"
         : "div";
-
       const wrapperProps = {
         onClick: hasContent
           ? () => handleAnnouncementClick(item)
@@ -163,7 +153,6 @@ export function AnnouncementsFeed() {
             : ""
         }`,
       };
-
       const uniqueKey = `${item.id}-${index}`;
 
       return (
@@ -222,7 +211,8 @@ export function AnnouncementsFeed() {
 
   return (
     <>
-      <div className="flex flex-col h-full bg-gray-100 rounded-lg border">
+      {/* MODIFIED: Replaced h-full with flex-1 min-h-0 */}
+      <div className="flex flex-col flex-1 min-h-0 bg-gray-100 rounded-lg border">
         <div
           ref={scrollRef}
           onMouseEnter={() => (isHoveringRef.current = true)}

@@ -1,22 +1,22 @@
 // src/components/PeopleAndEvents.tsx
 "use client";
 
-import React, { useState } from "react"; // <-- Added useState back
+import React, { useState } from "react";
+// <-- Added useState back
 import { motion, AnimatePresence } from "framer-motion";
-
 // --- ADDED: Define TABS ---
 const TABS = ["Birthdays", "Calendar", "Retirements"];
-
 // --- REMOVED: Props interface (no longer needed) ---
 
 // --- MODIFIED: Component no longer takes props ---
 export function PeopleAndEvents() {
   // --- ADDED: Internal activeTab state ---
-  const [activeTab, setActiveTab] = useState(TABS[0]); // Default to Birthdays
+  const [activeTab, setActiveTab] = useState(TABS[0]);
+  // Default to Birthdays
 
   return (
-    // Main container now takes full height and adds the gray background + border
-    <div className="flex flex-col h-full bg-gray-100 rounded-lg border">
+    // MODIFIED: Replaced h-full with flex-1 min-h-0
+    <div className="flex flex-col flex-1 min-h-0 bg-gray-100 rounded-lg border">
       {/* --- ADDED: Tab Navigation (Sticky inside grey area) --- */}
       <div className="flex border-b border-neutral-300 flex-shrink-0 sticky top-0 bg-gray-100 z-10 px-1 pt-1">
         {TABS.map((tab) => (
