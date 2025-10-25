@@ -4,7 +4,7 @@
 import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-// --- MODIFIED: Import all 9 icons ---
+// --- MODIFIED: Updated icon imports ---
 import {
   Fingerprint,
   FileText,
@@ -13,8 +13,9 @@ import {
   UserCheck,
   Database,
   AppWindow,
-  Siren,
   Mail,
+  Handshake, // Added Handshake for SRM
+  Users2, // Added Users2 as requested
 } from "lucide-react";
 // --- ADDED: Import the central links data ---
 import { links } from "@/lib/links";
@@ -28,10 +29,13 @@ const iconMap: { [key: string]: React.ElementType } = {
   UserCheck,
   Database,
   AppWindow,
-  Siren,
   Mail,
+  Handshake, // Added Handshake
+  Users2, // Added Users2
+  // Siren removed
 };
-// --- MODIFIED: Define only the 8 priority links to pull ---
+
+// --- MODIFIED: Define the 8 priority links to pull ---
 const priorityLinkTitles = [
   "BAMS",
   "Circular",
@@ -39,12 +43,15 @@ const priorityLinkTitles = [
   "ERP Portal",
   "ESS",
   "IMS",
-  "RACE",
+  "SRM", // Replaced RACE with SRM
   "SAIL Mail",
 ];
+
 // --- MODIFIED: Build the list of 8 links ---
 const priorityLinks = priorityLinkTitles
-  .map((title) => links.find((link) => link.title === title))
+  .map((title) =>
+    links.find((link) => link.title === title && link.category === "quicklink")
+  ) // Ensure category is quicklink
   .filter((link): link is (typeof links)[0] => !!link); // Filter out any undefined
 
 // --- ADDED: Manually create the "More Apps" button data ---
@@ -53,13 +60,16 @@ const moreAppsLink = {
   href: "#",
   icon: "AppWindow", // This must be a string
   subtitle: undefined, // Ensure it has the same shape
+  category: "internal", // Add category for filtering if needed elsewhere, though not strictly necessary here
+  id: -1, // Add a dummy id
 };
+
 // --- MODIFIED: Combine the 8 dynamic links + 1 manual button ---
 const quickLinks = [...priorityLinks, moreAppsLink];
+
 // 2. Define the props for the main component
 interface QuickAccessBarProps {
   onCircularsClick: () => void;
-  // --- ADDED: New prop for the App Drawer ---
   onMoreAppsClick: () => void;
 }
 
@@ -67,19 +77,26 @@ interface QuickAccessBarProps {
 const AccessButton: React.FC<{
   link: (typeof quickLinks)[0]; // Use the new combined type
   onCircularsClick: () => void;
-  // --- ADDED: New prop ---
   onMoreAppsClick: () => void;
 }> = ({ link, onCircularsClick, onMoreAppsClick }) => {
   // --- MODIFIED: Get icon from the map ---
-  const Icon = iconMap[link.icon as string];
+  // Ensure link.icon is treated as a key of iconMap
+  const Icon = iconMap[link.icon as keyof typeof iconMap];
   if (!Icon) {
     console.warn(`Icon not found for: ${link.icon}`);
-    return null; // Don't render if icon is missing
+    // Optionally render a default icon or null
+    // For now, let's render a placeholder to avoid breaking layout
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 p-4 h-24 w-full bg-[#333333] text-neutral-400 rounded-lg shadow-md italic text-xs">
+        Icon Missing
+      </div>
+    );
   }
 
   // Shared styles for both button and link
   const className =
     "flex flex-col items-center justify-center gap-2 p-4 h-24 w-full bg-[#333333] text-neutral-200 rounded-lg shadow-md group transition-colors duration-300 hover:bg-primary-700 hover:text-white";
+
   // --- SPECIAL CASE 1: "Circular" button ---
   if (link.title === "Circular") {
     return (
@@ -91,9 +108,7 @@ const AccessButton: React.FC<{
       >
         <Icon
           size={28}
-          className="transition-transform duration-300 
- 
- group-hover:scale-110"
+          className="transition-transform duration-300 group-hover:scale-110"
         />
         <span className="text-xs font-semibold text-center leading-tight">
           {link.title}
@@ -108,11 +123,10 @@ const AccessButton: React.FC<{
     );
   }
 
-  // --- ADDED: SPECIAL CASE 2: "More Apps" button ---
+  // --- SPECIAL CASE 2: "More Apps" button ---
   if (link.title === "More Apps") {
     return (
       <motion.button
-        // --- ADDED: onClick handler ---
         onClick={onMoreAppsClick}
         className={className}
         whileHover={{ y: -5 }}
@@ -129,11 +143,12 @@ const AccessButton: React.FC<{
     );
   }
 
-  // Default: Render as a link (BAMS, DSP Online, SAIL Mail, etc.)
+  // Default: Render as a link (BAMS, DSP Online, SRM, etc.)
   return (
     <motion.a
       href={link.href}
-      target="_blank"
+      // Only open in new tab if it's an external link
+      target={link.href.startsWith("http") ? "_blank" : "_self"}
       rel="noopener noreferrer"
       className={className}
       whileHover={{ y: -5 }}
@@ -143,7 +158,6 @@ const AccessButton: React.FC<{
         size={28}
         className="transition-transform duration-300 group-hover:scale-110"
       />
-      {/* --- MODIFIED: Generalized subtitle logic --- */}
       <span className="text-xs font-semibold text-center leading-tight">
         {link.title}
         {link.subtitle && (
@@ -163,20 +177,21 @@ export function QuickAccessBar({
   onMoreAppsClick,
 }: QuickAccessBarProps) {
   return (
-    // --- MODIFIED: Removed 'bg-white' from this outer div ---
     <div className="mt-16">
-      {/* --- MODIFIED: Added 'bg-white' and 'rounded-lg' to this inner div --- */}
       <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto p-4 sm:p-6 lg:p-8 bg-white rounded-lg">
         <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-4">
-          {quickLinks.map((link) => (
-            <AccessButton
-              key={link.title}
-              link={link}
-              onCircularsClick={onCircularsClick}
-              // --- ADDED: Pass prop down ---
-              onMoreAppsClick={onMoreAppsClick}
-            />
-          ))}
+          {quickLinks.map(
+            (link) =>
+              // Ensure link is defined before rendering AccessButton
+              link ? (
+                <AccessButton
+                  key={link.title} // Use title or id as key
+                  link={link}
+                  onCircularsClick={onCircularsClick}
+                  onMoreAppsClick={onMoreAppsClick}
+                />
+              ) : null // Don't render if link is somehow undefined
+          )}
         </div>
       </div>
     </div>

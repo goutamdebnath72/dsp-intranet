@@ -5,169 +5,176 @@ export const links = [
     title: "BAMS",
     subtitle: "(Attendance)",
     href: "#",
-    icon: "Fingerprint",
+    icon: "Fingerprint", // Keep
     category: "quicklink",
   },
   {
     title: "Circular",
     subtitle: "(Personnel)",
-    href: "#",
-    icon: "FileText",
+    href: "#", // Keep triggering modal
+    icon: "FileText", // Keep
     category: "quicklink",
   },
   {
     title: "DCIS",
     href: "#",
-    icon: "Database",
+    icon: "Database", // Keep
     category: "quicklink",
   },
   {
     title: "DSP Online",
     href: "#",
-    icon: "MonitorSmartphone",
+    icon: "MonitorSmartphone", // Keep
     category: "quicklink",
   },
   {
     title: "e-Slr/e-Std/File",
     href: "#",
-    icon: "FileText",
+    icon: "FileText", // Keep
     category: "quicklink",
   },
   {
     title: "ECS",
     href: "#",
-    icon: "Wallet",
+    icon: "Wallet", // Keep
     category: "quicklink",
   },
   {
     title: "Employee Corner",
     href: "#",
-    icon: "Users",
+    icon: "Users", // Keep
     category: "quicklink",
   },
   {
     title: "ERP Portal",
     href: "#",
-    icon: "Network",
+    icon: "Network", // Keep
     category: "quicklink",
   },
   {
     title: "ESS",
     href: "#",
-    icon: "UserCheck",
+    icon: "UserCheck", // Keep
     category: "quicklink",
   },
   {
     title: "Find People",
     href: "#",
-    icon: "Search",
+    icon: "Search", // Keep
     category: "quicklink",
   },
   {
     title: "HRIS-EX",
     href: "#",
-    icon: "UserCog",
+    icon: "UserCog", // Keep
     category: "quicklink",
   },
   {
     title: "ICS",
     href: "#",
-    icon: "Warehouse",
+    icon: "Warehouse", // Keep
     category: "quicklink",
   },
   {
     title: "IMS",
-    href: "https://ims-revamp.vercel.app/login",
-    icon: "Database",
+    href: "https://ims-revamp.vercel.app/login", // Keep link
+    icon: "Database", // Keep
     category: "quicklink",
   },
   {
     title: "IRM",
     href: "#",
-    icon: "ShieldCheck",
+    icon: "ShieldCheck", // Keep
     category: "quicklink",
   },
   {
     title: "IspatCreditSoc.In",
     href: "#",
-    icon: "Banknote",
+    icon: "Banknote", // Keep
     category: "quicklink",
   },
   {
     title: "LIS",
     href: "#",
-    icon: "Library",
+    icon: "Library", // Keep
     category: "quicklink",
   },
   {
     title: "Mob. Search",
     href: "#",
-    icon: "Smartphone",
+    icon: "Smartphone", // Keep
     category: "quicklink",
   },
   {
     title: "New PHS",
     href: "#",
-    icon: "FilePlus2",
+    icon: "FilePlus2", // Keep
     category: "quicklink",
   },
   {
     title: "PDS Search",
     href: "#",
-    icon: "PackageSearch",
+    icon: "PackageSearch", // Keep
     category: "quicklink",
   },
   {
     title: "PHS",
     href: "#",
-    icon: "File",
+    icon: "File", // Keep
     category: "quicklink",
   },
   {
     title: "QCIS",
     href: "#",
-    icon: "ClipboardCheck",
+    icon: "ClipboardCheck", // Keep
     category: "quicklink",
   },
   {
-    title: "RACE",
+    title: "RACE", // Keep RACE entry
     href: "#",
-    icon: "Siren",
-    category: "quicklink",
+    icon: "Siren", // Keep Siren icon
+    category: "quicklink", // Keep category
   },
   {
     title: "SAIL Mail",
     subtitle: "(mail.sail.in)",
-    href: "https://email.sail.in/",
-    icon: "Mail",
+    href: "https://email.sail.in/", // Keep link
+    icon: "Mail", // Keep
     category: "quicklink",
   },
   {
     title: "SI STOCK",
     href: "#",
-    icon: "Boxes",
+    icon: "Boxes", // Keep
     category: "quicklink",
+  },
+  {
+    // MODIFIED: Changed SRM Dgp to SRM, category to quicklink, icon to Handshake
+    title: "SRM", // Changed title
+    href: "https://srm.saildsp.co.in/irj/portal", // Kept specific link
+    icon: "Handshake", // Changed icon
+    category: "quicklink", // Changed category
   },
   {
     title: "Vistex",
     href: "#",
-    icon: "BarChart3",
+    icon: "BarChart3", // Keep
     category: "quicklink",
   },
   {
     title: "VRS Online",
     href: "#",
-    icon: "UserCheck",
+    icon: "UserCheck", // Keep
     category: "quicklink",
   },
   {
     title: "Webmail",
-    href: "https://mail.saildsp.co.in/src/login.php",
-    icon: "Mails",
+    href: "https://mail.saildsp.co.in/src/login.php", // Keep link
+    icon: "Mails", // Keep
     category: "quicklink",
   },
 
-  // Department Sites (Alphabetically Sorted with Final Icons)
+  // Department Sites (Keep as is)
   { title: "B.E. Deptt", href: "#", icon: "Award", category: "department" },
   {
     title: "Blast Furnace",
@@ -278,8 +285,7 @@ export const links = [
     category: "department",
   },
 
-  // --- NEW: SAIL INTRANET SITES ---
-  // (Copied from DepartmentSites.tsx and sorted)
+  // SAIL INTRANET SITES (Keep as is, SRM Dgp was moved above)
   { title: "ASP", href: "#", icon: "Factory", category: "sail" },
   { title: "BSL", href: "#", icon: "Building", category: "sail" },
   { title: "BSP CHRD", href: "#", icon: "Users", category: "sail" },
@@ -291,14 +297,19 @@ export const links = [
   { title: "INDUSTRY 4.0", href: "#", icon: "Signal", category: "sail" },
   { title: "IPSS", href: "#", icon: "UserCog", category: "sail" },
   { title: "ISP", href: "#", icon: "Cog", category: "sail" },
-  { title: "Kolkata Ispat Bhavan", href: "#", icon: "Landmark", category: "sail" },
+  {
+    title: "Kolkata Ispat Bhavan",
+    href: "#",
+    icon: "Landmark",
+    category: "sail",
+  },
   { title: "MTI", href: "#", icon: "Library", category: "sail" },
   { title: "RDCIS", href: "#", icon: "Microscope", category: "sail" },
   { title: "RMD", href: "#", icon: "Tractor", category: "sail" },
   { title: "RSP", href: "#", icon: "Settings", category: "sail" },
   { title: "SAIL SERVICE PORTAL", href: "#", icon: "Globe", category: "sail" },
   { title: "SDC Hyd", href: "#", icon: "Server", category: "sail" },
-  { title: "SRM Dgp", href: "https://srm.saildsp.co.in/irj/portal", icon: "CircuitBoard", category: "sail" },
+  // { title: "SRM Dgp", href: "https://srm.saildsp.co.in/irj/portal", icon: "CircuitBoard", category: "sail" }, // Removed from here
   { title: "SSO", href: "#", icon: "Shield", category: "sail" },
   { title: "Utkarsh", href: "#", icon: "Presentation", category: "sail" },
 ];

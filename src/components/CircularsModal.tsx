@@ -105,7 +105,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
         <button onClick={onClose} className="modal-close-button"><X size={28} /></button>
         <header className="p-6 border-b border-neutral-200/80 flex-shrink-0">
           <h2 className="text-2xl font-bold text-neutral-800">Circulars Archive</h2>
-          <p className="text-neutral-500 mt-1">Browse circulars by year.</p>
+          <p className="text-neutral-500 mt-1">Browse circulars by year</p>
         </header>
         <nav className="p-4 border-b border-neutral-200/80 flex-shrink-0">
           {/* Nav content is unchanged... */}

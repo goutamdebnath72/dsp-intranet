@@ -6,75 +6,28 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { links } from "@/lib/links";
 
-// --- Import all possible icons from links.js ---
+// --- Import all possible icons needed for the DRAWER ---
+// (Includes Siren for RACE, excludes Handshake/Users2 if not used by other drawer items)
 import {
-  BookUser,
-  Fingerprint,
-  Mail,
-  ShieldAlert,
-  Users,
-  Search,
-  Siren,
-  Truck,
-  PackageSearch,
-  Globe,
-  UserCheck,
-  BarChart3,
-  Banknote,
-  Network,
-  Wallet,
-  FileText,
-  ShieldCheck,
-  Smartphone,
-  UserCog,
-  FilePlus2,
-  File,
-  ClipboardCheck,
-  Database,
-  Library,
-  Warehouse,
-  Boxes,
-  Mails,
-  ScrollText,
-  MonitorSmartphone,
-  AppWindow,
+  BookUser, Fingerprint, Mail, ShieldAlert, Users, Search, Siren, // Keep Siren
+  Truck, PackageSearch, Globe, UserCheck, BarChart3, Banknote, Network,
+  Wallet, FileText, ShieldCheck, Smartphone, UserCog, FilePlus2, File,
+  ClipboardCheck, Database, Library, Warehouse, Boxes, Mails, ScrollText,
+  MonitorSmartphone, AppWindow, Users2, // Keep Users2 imported just in case
+  // Handshake likely removed if SRM is the only item using it and SRM is not in drawer
 } from "lucide-react";
 
-// --- Map string names from links.js to icon components ---
+// --- Map string names from links.js to icon components needed for the DRAWER ---
 const iconMap: { [key: string]: React.ElementType } = {
-  BookUser,
-  Fingerprint,
-  Mail,
-  ShieldAlert,
-  Users,
-  Search,
-  Siren,
-  Truck,
-  PackageSearch,
-  Globe,
-  UserCheck,
-  BarChart3,
-  Banknote,
-  Network,
-  Wallet,
-  FileText,
-  ShieldCheck,
-  Smartphone,
-  UserCog,
-  FilePlus2,
-  File,
-  ClipboardCheck,
-  Database,
-  Library,
-  Warehouse,
-  Boxes,
-  Mails,
-  ScrollText,
-  MonitorSmartphone,
-  AppWindow,
+  BookUser, Fingerprint, Mail, ShieldAlert, Users, Search, Siren, // Keep Siren
+  Truck, PackageSearch, Globe, UserCheck, BarChart3, Banknote, Network,
+  Wallet, FileText, ShieldCheck, Smartphone, UserCog, FilePlus2, File,
+  ClipboardCheck, Database, Library, Warehouse, Boxes, Mails, ScrollText,
+  MonitorSmartphone, AppWindow, Users2 // Keep Users2 mapped
+  // Handshake likely removed
 };
 
-// --- List of links to EXCLUDE (they are already on the bar) ---
+// --- MODIFIED: List of links to EXCLUDE (they are on the main bar) ---
 const priorityLinkTitles = [
   "BAMS",
   "Circular",
@@ -82,15 +35,15 @@ const priorityLinkTitles = [
   "ERP Portal",
   "ESS",
   "IMS",
-  "RACE",
+  "SRM", // SRM is now excluded
   "SAIL Mail",
-  "More Apps",
+  "More Apps", // Exclude the button itself
 ];
 
 // Filter links to get only "quicklink" category
 const allQuickLinks = links.filter((link) => link.category === "quicklink");
 
-// Filter again to get *only* the links for the drawer
+// Filter again to get *only* the links for the drawer (excluding those on the bar)
 const drawerLinks = allQuickLinks.filter(
   (link) => !priorityLinkTitles.includes(link.title)
 );
@@ -147,21 +100,26 @@ export function AppDrawer({ isOpen, onClose }: AppDrawerProps) {
             {/* 2b. Drawer Content (Scrollable List) */}
             <nav className="flex-1 overflow-y-auto p-4 space-y-2">
               {drawerLinks.map((link) => {
-                const IconComponent = iconMap[link.icon as string];
+                // Ensure link.icon is treated as a key of iconMap
+                const IconComponent = iconMap[link.icon as keyof typeof iconMap];
                 return (
                   <a
-                    key={link.title}
+                    key={link.title} // Title is unique within the drawer list
                     href={link.href}
-                    target="_blank"
+                    target={link.href.startsWith("http") ? "_blank" : "_self"}
                     rel="noopener noreferrer"
                     className="flex items-center gap-3 p-3 rounded-lg text-neutral-700 font-medium transition-colors duration-200 hover:bg-primary-50 hover:text-primary-600 group"
                   >
                     {IconComponent ? (
                       <IconComponent className="h-5 w-5 text-neutral-500 group-hover:text-primary-600" />
                     ) : (
-                      <div className="w-5 h-5" /> // Placeholder if icon is missing
+                      <div className="w-5 h-5 italic text-xs text-neutral-400">?</div> // Placeholder if icon is missing
                     )}
-                    <span>{link.title}</span>
+                    {/* Display title and subtitle if present */}
+                    <span>
+                      {link.title}
+                      {link.subtitle && <span className="text-xs text-neutral-500 ml-1">{link.subtitle}</span>}
+                     </span>
                   </a>
                 );
               })}
