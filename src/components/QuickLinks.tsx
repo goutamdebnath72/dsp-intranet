@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-// --- MODIFIED: Ensure all relevant icons are imported ---
+// --- Ensure all relevant icons are imported ---
 import {
   BookUser,
   Fingerprint,
@@ -9,7 +9,7 @@ import {
   ShieldAlert,
   Users,
   Search,
-  Siren, // Keep Siren
+  Siren,
   Truck,
   PackageSearch,
   Globe,
@@ -31,18 +31,26 @@ import {
   Boxes,
   Mails,
   ScrollText,
-  Handshake, // Add Handshake
-  Users2, // Add Users2
-  MonitorSmartphone, // Ensure MonitorSmartphone is present
+  Handshake,
+  Users2,
+  MonitorSmartphone,
 } from "lucide-react";
 import { motion } from "framer-motion";
-// --- MODIFIED: Import the data array, not a type ---
-import { links } from "@/lib/links";
+// --- REMOVE: No longer importing from links.js ---
+// import { links } from "@/lib/links";
 
-// --- MODIFIED: Infer the type from the imported data ---
-type LinkType = (typeof links)[number];
+// --- MODIFIED: Define the LinkType based on the error message (Prisma type) ---
+type LinkType = {
+  id: number;
+  createdAt: Date; // Keep or remove based on whether you actually use it
+  title: string;
+  subtitle: string | null; // Allow null
+  href: string;
+  icon: string | null; // Allow null
+  category: string;
+};
 
-// --- MODIFIED: Update iconMap ---
+// --- Update iconMap ---
 const iconMap: { [key: string]: React.ElementType } = {
   BookUser,
   Fingerprint,
@@ -50,7 +58,7 @@ const iconMap: { [key: string]: React.ElementType } = {
   ShieldAlert,
   Users,
   Search,
-  Siren, // Keep Siren
+  Siren,
   Truck,
   PackageSearch,
   Globe,
@@ -72,13 +80,13 @@ const iconMap: { [key: string]: React.ElementType } = {
   Boxes,
   Mails,
   ScrollText,
-  Handshake, // Add Handshake
-  Users2, // Add Users2
-  MonitorSmartphone, // Ensure MonitorSmartphone is mapped
+  Handshake,
+  Users2,
+  MonitorSmartphone,
 };
 
 type QuickLinksProps = {
-  // Use the inferred LinkType
+  // Use the explicitly defined LinkType
   quickLinksData: LinkType[];
   onCircularsClick: () => void; // Function to open the modal
 };
@@ -108,7 +116,7 @@ const QuickLinks: React.FC<QuickLinksProps> = ({
         {/* Added pr-2 */}
         <ul className="space-y-2 pb-2">
           {filteredLinks.map((link) => {
-            // Ensure link.icon is treated as a key of iconMap
+            // --- MODIFIED: Handle potentially null icon ---
             const IconComponent = link.icon
               ? iconMap[link.icon as keyof typeof iconMap]
               : null;
@@ -116,9 +124,8 @@ const QuickLinks: React.FC<QuickLinksProps> = ({
             // Special handling for the "Circular" button
             if (link.title === "Circular") {
               return (
+                // Use title as key since ID might not be unique if data source changes
                 <li key={link.title}>
-                  {" "}
-                  {/* Use title as key */}
                   <button
                     onClick={onCircularsClick}
                     className="w-full flex items-center gap-3 p-2 rounded-md text-neutral-700 font-medium transition-colors duration-200 hover:bg-primary-100/50 text-left group"
@@ -132,6 +139,7 @@ const QuickLinks: React.FC<QuickLinksProps> = ({
                     )}
                     <span>
                       {link.title}
+                      {/* Check if subtitle is not null before rendering */}
                       {link.subtitle && (
                         <span className="text-xs text-neutral-500 ml-1">
                           {link.subtitle}
@@ -163,6 +171,7 @@ const QuickLinks: React.FC<QuickLinksProps> = ({
                   )}
                   <span>
                     {link.title}
+                    {/* Check if subtitle is not null before rendering */}
                     {link.subtitle && (
                       <span className="text-xs text-neutral-500 ml-1">
                         {link.subtitle}
