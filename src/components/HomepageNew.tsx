@@ -13,8 +13,9 @@ import { CircularViewerLightbox } from "./CircularViewerLightbox";
 import { AppDrawer } from "./AppDrawer";
 import { TopResources } from "./TopResources";
 import { AnnouncementsFeed } from "./AnnouncementsFeed";
-import { PeopleAndEvents } from "./PeopleAndEvents"; // <-- Keep this import
-import { motion } from "framer-motion"; // <-- Keep this import
+import { PeopleAndEvents } from "./PeopleAndEvents";
+import { ProductionDashboard } from "./ProductionDashboard"; // <-- 1. IMPORT
+import { motion } from "framer-motion";
 
 interface HomepageProps {
   quickLinksData: Link[];
@@ -44,8 +45,6 @@ const newsItems = [
   },
 ];
 
-// --- REMOVED: PEOPLE_EVENTS_TABS constant (managed within PeopleAndEvents) ---
-
 export function HomepageNew({
   quickLinksData,
   departmentData,
@@ -70,6 +69,7 @@ export function HomepageNew({
   const handleCloseLightbox = () => setSelectedCircularId(null);
   const handleMoreAppsClick = () => setIsAppDrawerOpen(true);
   const handleAppDrawerClose = () => setIsAppDrawerOpen(false);
+
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (isPaused) {
@@ -82,18 +82,16 @@ export function HomepageNew({
     }
   };
 
-  // --- REMOVED: peopleEventsTab state ---
-
   return (
     <>
       {/* --- Top Bar / Header / Hero / Quick Access (Keep all) --- */}
-      <div className="relative z-50 w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto">
+      <div className="relative z-50 w-full lg-custom:w-[72%] xl-custom:w-[72%] mx-auto">
         {" "}
         <TopBar />{" "}
       </div>
       <Header />
       <div
-        className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto bg-cover bg-center relative h-[455px]"
+        className="w-full lg-custom:w-[72%] xl-custom:w-[72%] mx-auto bg-cover bg-center relative h-[455px]"
         style={{ backgroundImage: "url('/steel-plant1.png')" }}
       >
         {/* --- Hero content --- */}
@@ -219,8 +217,11 @@ export function HomepageNew({
         onMoreAppsClick={handleMoreAppsClick}
       />
 
+      {/* --- 2. ADD THE NEW DASHBOARD HERE --- */}
+      <ProductionDashboard />
+
       {/* --- SECTION 3: Fixed-Height, Scrollable 3-Column Layout --- */}
-      <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto bg-white rounded-lg">
+      <div className="w-full lg-custom:w-[72%] xl-custom:w-[72%] mx-auto bg-white rounded-lg mt-8">
         <div className="flex flex-col p-4 sm:p-6 lg:p-8 h-[460px]">
           {" "}
           {/* Height set here */}

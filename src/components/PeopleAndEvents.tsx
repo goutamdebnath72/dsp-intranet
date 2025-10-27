@@ -3,14 +3,12 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
+// import Image from "next/image"; // Removed - No longer directly used here
 
-// Import birthday and retirement data/components
-import {
-  mockBirthdays,
-  BirthdayScrollList,
-} from "@/components/BirthdayScrollList";
-import { RetirementScrollList } from "@/components/RetirementScrollList";
+// Import child components
+import { BirthdayScrollList } from "./BirthdayScrollList"; // Adjusted path if necessary
+import { RetirementScrollList } from "./RetirementScrollList"; // Adjusted path if necessary
+import { EventCalendar } from "./EventCalendar"; // <-- Import EventCalendar
 
 const TABS = ["Birthdays", "Calendar", "Retirements"];
 
@@ -34,7 +32,7 @@ export function PeopleAndEvents() {
             {activeTab === tab && (
               <motion.div
                 className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-primary-600"
-                layoutId="people-events-underline"
+                layoutId="people-events-underline" // Keep existing layoutId if it works
                 transition={{ type: "spring", stiffness: 300, damping: 25 }}
               />
             )}
@@ -44,7 +42,8 @@ export function PeopleAndEvents() {
       </div>
 
       {/* === Content Area === */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400">
+      {/* Added padding here for the content */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -52,24 +51,18 @@ export function PeopleAndEvents() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
+            className="h-full" // Ensure motion div takes full height
           >
             {/* === Birthdays Tab === */}
             {activeTab === "Birthdays" && <BirthdayScrollList />}
 
             {/* === Calendar Tab === */}
-            {activeTab === "Calendar" && (
-              <div className="text-center text-neutral-500 py-6">
-                Calendar Content Here
-              </div>
-            )}
+            {/* --- MODIFIED: Replace placeholder with EventCalendar --- */}
+            {activeTab === "Calendar" && <EventCalendar />}
 
             {/* === Retirements Tab === */}
-            {activeTab === "Retirements" && (
-              <div className="flex flex-col min-h-[300px]">
-                {/* ✅ Insert your working auto-scroll component */}
-                <RetirementScrollList />
-              </div>
-            )}
+            {/* Removed extra div wrapper */}
+            {activeTab === "Retirements" && <RetirementScrollList />}
           </motion.div>
         </AnimatePresence>
       </div>
