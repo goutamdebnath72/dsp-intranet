@@ -14,7 +14,7 @@ import { AppDrawer } from "./AppDrawer";
 import { TopResources } from "./TopResources";
 import { AnnouncementsFeed } from "./AnnouncementsFeed";
 import { PeopleAndEvents } from "./PeopleAndEvents";
-import { ProductionDashboard } from "./ProductionDashboard"; // <-- 1. IMPORT
+import { ProductionDashboard, dashboardContainerVariants } from "./ProductionDashboard"; // <-- Correct import
 import { motion } from "framer-motion";
 
 interface HomepageProps {
@@ -24,6 +24,7 @@ interface HomepageProps {
   userName: string;
 }
 
+// Complete newsItems array
 const newsItems = [
   {
     id: 2,
@@ -45,10 +46,11 @@ const newsItems = [
   },
 ];
 
+// Named export
 export function HomepageNew({
   quickLinksData,
   departmentData,
-  sailSitesData, // Keep receiving this prop, even if not used directly here
+  sailSitesData,
   userName,
 }: HomepageProps) {
   const firstName = userName.split(" ")[0];
@@ -56,20 +58,15 @@ export function HomepageNew({
   const [isHovering, setIsHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCircularModalOpen, setIsCircularModalOpen] = useState(false);
-  const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
-    null
-  );
+  const [selectedCircularId, setSelectedCircularId] = useState<number | null>(null);
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
 
-  // --- Handlers (Keep all handlers) ---
+  // --- Handlers ---
   const handleCircularsClick = () => setIsCircularModalOpen(true);
-  const handleCircularSelect = (id: number) => {
-    setSelectedCircularId(id);
-  };
+  const handleCircularSelect = (id: number) => setSelectedCircularId(id);
   const handleCloseLightbox = () => setSelectedCircularId(null);
   const handleMoreAppsClick = () => setIsAppDrawerOpen(true);
   const handleAppDrawerClose = () => setIsAppDrawerOpen(false);
-
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (isPaused) {
@@ -80,22 +77,23 @@ export function HomepageNew({
         setIsPaused(true);
       }
     }
-  };
+   };
 
   return (
     <>
-      {/* --- Top Bar / Header / Hero / Quick Access (Keep all) --- */}
-      <div className="relative z-50 w-full lg-custom:w-[72%] xl-custom:w-[72%] mx-auto">
-        {" "}
-        <TopBar />{" "}
+      {/* --- Top Bar / Header --- */}
+      <div className="relative z-50 w-full lg-custom:w-[72%] mx-auto">
+        <TopBar />
       </div>
       <Header />
+
+      {/* --- Hero Section --- */}
       <div
-        className="w-full lg-custom:w-[72%] xl-custom:w-[72%] mx-auto bg-cover bg-center relative h-[455px]"
+        className="w-full lg-custom:w-[72%] mx-auto bg-cover bg-center relative h-[455px]"
         style={{ backgroundImage: "url('/steel-plant1.png')" }}
       >
         {/* --- Hero content --- */}
-        <div className="absolute inset-0 bg-black/30" />
+         <div className="absolute inset-0 bg-black/30" />
         <div
           className="absolute bottom-0 left-0 right-0 h-4 z-10"
           style={{
@@ -104,11 +102,9 @@ export function HomepageNew({
         />
         <main className="flex-1 relative z-20 px-4 sm:px-6 lg:px-8 pt-28 pb-12 h-full">
           <div className="w-11/12 mx-auto mb-8">
-            {" "}
             <h1 className="font-black text-5xl tracking-tight text-white">
-              {" "}
-              Welcome, {firstName}!{" "}
-            </h1>{" "}
+              Welcome, {firstName}!
+            </h1>
           </div>
           <div className="w-11/12 mx-auto relative h-full">
             <div
@@ -152,21 +148,7 @@ export function HomepageNew({
                     onMouseEnter={() => setIsHovering(true)}
                     onMouseLeave={() => setIsHovering(false)}
                   >
-                    {isPaused ? (
-                      <PlayCircle
-                        size={64}
-                        className="text-white/80 transition-opacity duration-300 opacity-100"
-                        strokeWidth={1}
-                      />
-                    ) : (
-                      <PauseCircle
-                        size={64}
-                        className={`text-white/80 transition-opacity duration-300 ${
-                          isHovering ? "opacity-100" : "opacity-0"
-                        }`}
-                        strokeWidth={1}
-                      />
-                    )}
+                    {isPaused ? ( <PlayCircle size={64} className="text-white/80 transition-opacity duration-300 opacity-100" strokeWidth={1}/> ) : ( <PauseCircle size={64} className={`text-white/80 transition-opacity duration-300 ${ isHovering ? "opacity-100" : "opacity-0" }`} strokeWidth={1}/> )}
                   </div>
                 </div>
               </div>
@@ -175,35 +157,18 @@ export function HomepageNew({
                 <div className="absolute inset-0 top-[-25px] bottom-[-20px] flex flex-col justify-between">
                   <div className="flex flex-col space-y-1.5 h-full">
                     {newsItems.map((item) => (
-                      <a
-                        key={item.id}
-                        href="#"
-                        className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 transition-colors group h-[90px]"
-                      >
-                        <Image
-                          src={item.imageUrl}
-                          alt={item.title}
-                          width={80}
-                          height={80}
-                          className="rounded-md w-20 h-20 object-cover flex-shrink-0"
-                          unoptimized
-                        />
+                      <a key={item.id} href="#" className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 transition-colors group h-[90px]">
+                        <Image src={item.imageUrl} alt={item.title} width={80} height={80} className="rounded-md w-20 h-20 object-cover flex-shrink-0" unoptimized/>
                         <div>
-                          <h3 className="font-bold text-neutral-800 text-sm leading-tight group-hover:text-primary-700">
-                            {" "}
-                            {item.title}{" "}
-                          </h3>
-                          <p className="text-xs text-neutral-600 mt-1">
-                            {" "}
-                            {item.summary}{" "}
-                          </p>
+                          <h3 className="font-bold text-neutral-800 text-sm leading-tight group-hover:text-primary-700">{item.title}</h3>
+                          <p className="text-xs text-neutral-600 mt-1">{item.summary}</p>
                         </div>
                       </a>
                     ))}
                   </div>
                   <div className="text-right absolute -bottom-10 right-0">
-                    <button className="text-xs font-semibold text-neutral-700 bg-neutral-200/80 hover:bg-neutral-300 py-1.5 px-3 rounded-md transition-colors flex items-center gap-1 ml-auto">
-                      <span>View More</span> <ArrowRight size={12} />
+                    <button className="text-base font-semibold text-neutral-700 bg-neutral-200/80 hover:bg-neutral-300 py-1.5 px-3 rounded-md transition-colors flex items-center gap-1 ml-auto">
+                      <span>View More</span> <ArrowRight size={16} />
                     </button>
                   </div>
                 </div>
@@ -212,52 +177,38 @@ export function HomepageNew({
           </div>
         </main>
       </div>
-      <QuickAccessBar
-        onCircularsClick={handleCircularsClick}
-        onMoreAppsClick={handleMoreAppsClick}
-      />
 
-      {/* --- 2. ADD THE NEW DASHBOARD HERE --- */}
-      <ProductionDashboard />
+      {/* --- Quick Access Bar Wrapper --- */}
+      <div className="w-full lg-custom:w-[72%] mx-auto bg-white pt-20 sm:pt-24 lg:pt-24 pb-8 px-4 sm:px-6 lg:px-8">
+        <QuickAccessBar
+          onCircularsClick={handleCircularsClick}
+          onMoreAppsClick={handleMoreAppsClick}
+        />
+      </div>
 
-      {/* --- SECTION 3: Fixed-Height, Scrollable 3-Column Layout --- */}
-      <div className="w-full lg-custom:w-[72%] xl-custom:w-[72%] mx-auto bg-white rounded-lg mt-8">
-        <div className="flex flex-col p-4 sm:p-6 lg:p-8 h-[460px]">
-          {" "}
-          {/* Height set here */}
+      {/* --- Production Dashboard Wrapper --- */}
+      <motion.div
+         className="w-full lg-custom:w-[72%] mx-auto bg-white py-12 sm:py-16 lg:py-16"
+         variants={dashboardContainerVariants}
+         initial="hidden"
+         animate="visible"
+         >
+        <ProductionDashboard />
+      </motion.div>
+
+      {/* --- SECTION 3: 3-Column Layout Wrapper --- */}
+      <div className="w-full lg-custom:w-[72%] mx-auto bg-white rounded-lg py-4 sm:py-6 lg:py-8 mb-8">
+        <div className="flex flex-col h-[460px] px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 min-h-0">
-            {/* Col 1: Top Resources */}
-            <div className="flex flex-col min-h-0">
-              <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
-                Top Resources
-              </h2>
-              {/* Component fills remaining space and handles its own scroll */}
-              <TopResources />
-            </div>
-
-            {/* Col 2: Announcements */}
-            <div className="flex flex-col min-h-0">
-              <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
-                Announcements & Happenings
-              </h2>
-              {/* Component fills remaining space and handles its own scroll */}
-              <AnnouncementsFeed />
-            </div>
-
-            {/* --- Col 3 Structure (Reverted) --- */}
-            <div className="flex flex-col min-h-0">
-              <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
-                People & Events
-              </h2>
-              {/* Component now fills the space and handles its own tabs/scrolling */}
-              <PeopleAndEvents />
-            </div>
-            {/* --- End of Col 3 --- */}
+            {/* Col 1, 2, 3 */}
+            <div className="flex flex-col min-h-0"><h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">Top Resources</h2><TopResources /></div>
+            <div className="flex flex-col min-h-0"><h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">Announcements & Happenings</h2><AnnouncementsFeed /></div>
+            <div className="flex flex-col min-h-0"><h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">People & Events</h2><PeopleAndEvents /></div>
           </div>
         </div>
       </div>
 
-      {/* --- Modals / Drawer (Keep all) --- */}
+      {/* --- Modals / Drawer --- */}
       <CircularsModal
         isOpen={isCircularModalOpen}
         onClose={() => setIsCircularModalOpen(false)}

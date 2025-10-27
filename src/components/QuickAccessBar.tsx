@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 // --- ADDED: Import the central links data ---
 import { links } from "@/lib/links";
-
 // --- ADDED: Map string names from links.js to icon components ---
 const iconMap: { [key: string]: React.ElementType } = {
   Fingerprint,
@@ -34,7 +33,6 @@ const iconMap: { [key: string]: React.ElementType } = {
   Users2, // Added Users2
   // Siren removed
 };
-
 // --- MODIFIED: Define the 8 priority links to pull ---
 const priorityLinkTitles = [
   "BAMS",
@@ -46,13 +44,13 @@ const priorityLinkTitles = [
   "SRM", // Replaced RACE with SRM
   "SAIL Mail",
 ];
-
 // --- MODIFIED: Build the list of 8 links ---
 const priorityLinks = priorityLinkTitles
   .map((title) =>
     links.find((link) => link.title === title && link.category === "quicklink")
   ) // Ensure category is quicklink
-  .filter((link): link is (typeof links)[0] => !!link); // Filter out any undefined
+  .filter((link): link is (typeof links)[0] => !!link);
+// Filter out any undefined
 
 // --- ADDED: Manually create the "More Apps" button data ---
 const moreAppsLink = {
@@ -63,10 +61,8 @@ const moreAppsLink = {
   category: "internal", // Add category for filtering if needed elsewhere, though not strictly necessary here
   id: -1, // Add a dummy id
 };
-
 // --- MODIFIED: Combine the 8 dynamic links + 1 manual button ---
 const quickLinks = [...priorityLinks, moreAppsLink];
-
 // 2. Define the props for the main component
 interface QuickAccessBarProps {
   onCircularsClick: () => void;
@@ -75,7 +71,8 @@ interface QuickAccessBarProps {
 
 // 3. This is the individual button component
 const AccessButton: React.FC<{
-  link: (typeof quickLinks)[0]; // Use the new combined type
+  link: (typeof quickLinks)[0];
+  // Use the new combined type
   onCircularsClick: () => void;
   onMoreAppsClick: () => void;
 }> = ({ link, onCircularsClick, onMoreAppsClick }) => {
@@ -95,8 +92,7 @@ const AccessButton: React.FC<{
 
   // Shared styles for both button and link
   const className =
-    "flex flex-col items-center justify-center gap-2 p-4 h-24 w-full bg-[#333333] text-neutral-200 rounded-lg shadow-md group transition-colors duration-300 hover:bg-primary-700 hover:text-white";
-
+    "flex flex-col items-center justify-center gap-2 p-4 h-26 w-full bg-[#333333] text-neutral-200 rounded-lg shadow-md group transition-colors duration-300 hover:bg-primary-700 hover:text-white";
   // --- SPECIAL CASE 1: "Circular" button ---
   if (link.title === "Circular") {
     return (
@@ -108,7 +104,8 @@ const AccessButton: React.FC<{
       >
         <Icon
           size={28}
-          className="transition-transform duration-300 group-hover:scale-110"
+          className="transition-transform duration-300 
+group-hover:scale-110"
         />
         <span className="text-xs font-semibold text-center leading-tight">
           {link.title}
@@ -167,7 +164,7 @@ const AccessButton: React.FC<{
           </>
         )}
       </span>
-    </motion.a>
+    </motion.a >
   );
 };
 
@@ -177,23 +174,19 @@ export function QuickAccessBar({
   onMoreAppsClick,
 }: QuickAccessBarProps) {
   return (
-    <div className="mt-16">
-      <div className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto p-4 sm:p-6 lg:p-8 bg-white rounded-lg">
-        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-4">
-          {quickLinks.map(
-            (link) =>
-              // Ensure link is defined before rendering AccessButton
-              link ? (
-                <AccessButton
-                  key={link.title} // Use title or id as key
-                  link={link}
-                  onCircularsClick={onCircularsClick}
-                  onMoreAppsClick={onMoreAppsClick}
-                />
-              ) : null // Don't render if link is somehow undefined
-          )}
-        </div>
-      </div>
+    <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-4">
+      {quickLinks.map(
+        (link) =>
+          // Ensure link is defined before rendering AccessButton
+          link ? (
+            <AccessButton
+              key={link.title} // Use title or id as key
+              link={link}
+              onCircularsClick={onCircularsClick}
+              onMoreAppsClick={onMoreAppsClick}
+            />
+          ) : null // Don't render if link is somehow undefined
+      )}
     </div>
   );
 }

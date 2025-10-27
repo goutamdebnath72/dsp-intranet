@@ -43,7 +43,7 @@ export function ProductionGauge({
   // 3. Animation Effect
   useEffect(() => {
     // Animate the needle
-    const needleAnimation = animate(angle, value, {
+    const needleAnimation = animate(angle, value, { // Use raw value for target angle calc? Let's check transform logic. UseTransform handles mapping.
       type: "spring",
       stiffness: 100,
       damping: 20,
@@ -64,7 +64,7 @@ export function ProductionGauge({
       needleAnimation.stop();
       numberAnimation.stop();
     };
-  }, [value, max, angle, animatedValue]);
+  }, [value, max, angle, animatedValue]); // Angle depends on useMotionValue(0), value, max - should be fine.
 
   return (
     <motion.div
@@ -82,12 +82,10 @@ export function ProductionGauge({
           style={{
             background:
               "conic-gradient(from -135deg, #22c55e 0%, #facc15 50%, #ef4444 100%)",
-            // This mask "cuts out" the arc shape
             maskImage:
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
             WebkitMaskImage:
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
-            // Clip the bottom 90 degrees
             clipPath: "polygon(0% 0%, 100% 0%, 100% 75%, 50% 75%, 0% 75%)",
           }}
         />
@@ -109,11 +107,11 @@ export function ProductionGauge({
 
         {/* 3. The Needle */}
         <motion.div className="absolute inset-0 z-10" style={{ rotate: angle }}>
-          {/* The needle itself, rotated to point "up" at 0 degrees */}
+          {/* The needle itself, adjusted length */}
           <div
             className="absolute left-1/2 top-1/2 w-1.5 h-[35%] bg-neutral-700 rounded-t-full"
             style={{
-              transform: "translate(-50%, -90%)",
+              transform: "translate(-50%, -90%)", // Adjusted translation
               transformOrigin: "bottom center",
             }}
           />
@@ -124,7 +122,7 @@ export function ProductionGauge({
           />
         </motion.div>
 
-        {/* 4. The Digital Readout */}
+        {/* 4. The Digital Readout (Figure only, raised) */}
         <div
           className={`absolute left-1/2 top-[40%] flex -translate-x-1/2 -translate-y-1/2 ${firaCode.className}`}
         >
@@ -134,7 +132,7 @@ export function ProductionGauge({
         </div>
       </div>
 
-      {/* --- The Label --- */}
+      {/* --- The Label (Title + Unit) --- */}
       <div className="flex flex-col items-center text-center mt-2 h-12">
         <h3 className="text-xs sm:text-sm font-semibold text-neutral-700 line-clamp-2">
           {label}
