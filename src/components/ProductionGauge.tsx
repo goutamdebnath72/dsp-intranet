@@ -86,7 +86,7 @@ export function ProductionGauge({
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
             WebkitMaskImage:
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
-            clipPath: "polygon(0% 0%, 100% 0%, 100% 90%, 50% 90%, 0% 90%)",
+            clipPath: "polygon(0% 0%, 100% 0%, 100% 85%, 50% 85%, 0% 85%)",
           }}
         />
 
@@ -100,7 +100,7 @@ export function ProductionGauge({
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
             WebkitMaskImage:
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
-            clipPath: "polygon(0% 0%, 100% 0%, 100% 90%, 50% 90%, 0% 90%)",
+            clipPath: "polygon(0% 0%, 100% 0%, 100% 85%, 50% 85%, 0% 85%)",
             zIndex: -1,
           }}
         />
@@ -111,7 +111,7 @@ export function ProductionGauge({
           <div
             className="absolute left-1/2 top-1/2 w-1.5 h-[35%] bg-neutral-700 rounded-t-full"
             style={{
-              transform: "translate(-50%, -90%)", // Adjusted translation
+              transform: "translate(-50%, -85%)", // Adjusted translation
               transformOrigin: "bottom center",
             }}
           />
