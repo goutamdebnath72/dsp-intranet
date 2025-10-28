@@ -61,7 +61,7 @@ export default function HomePageClient({
   return (
     <>
       <OldHeader />
-      <div className="w-full lg-custom:w-[85%] xl-custom:w-[70%] mx-auto shadow-lg">
+      <div className="w-full lg-custom:w-[87%] xl-custom:w-[70%] mx-auto shadow-lg">
         <div className="p-4 sm:p-6 lg:p-8">
           <HeroBanner />
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 mt-8">
