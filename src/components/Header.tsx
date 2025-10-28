@@ -57,9 +57,9 @@ export default function Header() {
         {/*
           CHANGE 1:
           Changed 'justify-start' to 'justify-between'.
-          The 80%/70% width classes and 'mx-auto' are kept.
+          The 90%/70% width classes and 'mx-auto' are kept.
         */}
-        <div className="w-full lg-custom:w-[80%] xl-custom:w-[70%] mx-auto flex items-center justify-between px-2 sm:px-6 py-2">
+        <div className="w-full lg-custom:w-[90%] xl-custom:w-[70%] mx-auto flex items-center justify-between px-2 sm:px-6 py-2">
           
           {/*
             CHANGE 2:

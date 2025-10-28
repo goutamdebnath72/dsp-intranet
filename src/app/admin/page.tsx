@@ -43,7 +43,7 @@ export default function AdminPage() {
     <>
       {ACTIVE_UI_DESIGN === "new" ? (
         <>
-          <div className="w-full lg-custom:w-[80%] xl-custom:w-[70%] mx-auto">
+          <div className="w-full lg-custom:w-[90%] xl-custom:w-[70%] mx-auto">
             <TopBar />
           </div>
           <Header />
@@ -52,7 +52,7 @@ export default function AdminPage() {
         <OldHeader />
       )}
 
-      <div className="w-full lg-custom:w-[80%] xl-custom:w-[70%] mx-auto shadow-lg">
+      <div className="w-full lg-custom:w-[90%] xl-custom:w-[70%] mx-auto shadow-lg">
         <div className="min-h-screen bg-gray-200 w-full">
           <div className="container mx-auto p-8">
             <h1 className="text-3xl font-bold font-heading mb-8 text-center text-neutral-800">

@@ -86,7 +86,7 @@ export function ProductionGauge({
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
             WebkitMaskImage:
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
-            clipPath: "polygon(0% 0%, 100% 0%, 100% 80%, 50% 80%, 0% 80%)",
+            clipPath: "polygon(0% 0%, 100% 0%, 100% 90%, 50% 90%, 0% 90%)",
           }}
         />
 
@@ -100,7 +100,7 @@ export function ProductionGauge({
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
             WebkitMaskImage:
               "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
-            clipPath: "polygon(0% 0%, 100% 0%, 100% 80%, 50% 80%, 0% 80%)",
+            clipPath: "polygon(0% 0%, 100% 0%, 100% 90%, 50% 90%, 0% 90%)",
             zIndex: -1,
           }}
         />
