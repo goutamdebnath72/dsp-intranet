@@ -8,7 +8,8 @@ import type { CaptionLabelProps as BaseCaptionLabelProps } from "react-day-picke
 import { DateTime } from "luxon";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { YearCalendarModal } from "./YearCalendarModal";
-import { Tooltip } from "./Tooltip"; // --- 2. Import Tooltip ---
+import { Tooltip } from "./Tooltip";
+// --- 2. Import Tooltip ---
 
 // Define a local fixed type with displayMonth restored
 interface FixedCaptionLabelProps extends BaseCaptionLabelProps {
@@ -20,55 +21,164 @@ interface FixedCaptionLabelProps extends BaseCaptionLabelProps {
 // type: "Restricted" = Restricted Holiday (Gray)
 const holidaysData = [
   // --- Closed/Public Holidays (for All) ---
-  { date: DateTime.local(2025, 1, 24), title: "SAIL Foundation Day", type: "Closed" },
-  { date: DateTime.local(2025, 1, 26), title: "Republic Day", type: "Closed" },
+  {
+    date: DateTime.local(2025, 1, 24),
+    title: "SAIL Foundation Day",
+    type: "Closed",
+  },
+  {
+    date: DateTime.local(2025, 1, 26),
+    title: "Republic Day",
+    type: "Closed",
+  },
   { date: DateTime.local(2025, 5, 1), title: "May Day", type: "Closed" },
-  { date: DateTime.local(2025, 8, 15), title: "Independence Day", type: "Closed" },
-  { date: DateTime.local(2025, 10, 2), title: "Mahatma Gandhi's Birthday", type: "Closed" },
+  {
+    date: DateTime.local(2025, 8, 15),
+    title: "Independence Day",
+    type: "Closed",
+  },
+  {
+    date: DateTime.local(2025, 10, 2),
+    title: "Mahatma Gandhi's Birthday",
+    type: "Closed",
+  },
 
   // --- Festival Holidays (Cat A & B) ---
-  { date: DateTime.local(2025, 2, 26), title: "Maha Shivaratri", type: "Festival" },
-  { date: DateTime.local(2025, 3, 14), title: "Doljatra / Holi", type: "Festival" },
+  {
+    date: DateTime.local(2025, 2, 26),
+    title: "Maha Shivaratri",
+    type: "Festival",
+  },
+  {
+    date: DateTime.local(2025, 3, 14),
+    title: "Doljatra / Holi",
+    type: "Festival",
+  },
   { date: DateTime.local(2025, 3, 31), title: "Id-ul-Fitr", type: "Festival" },
   { date: DateTime.local(2025, 4, 18), title: "Good Friday", type: "Festival" },
-  { date: DateTime.local(2025, 5, 12), title: "Buddha Purnima", type: "Festival" },
-  { date: DateTime.local(2025, 6, 7), title: "Id-Ud-Zoha (Bakrid)", type: "Festival" },
+  {
+    date: DateTime.local(2025, 5, 12),
+    title: "Buddha Purnima",
+    type: "Festival",
+  },
+  {
+    date: DateTime.local(2025, 6, 7),
+    title: "Id-Ud-Zoha (Bakrid)",
+    type: "Festival",
+  },
   { date: DateTime.local(2025, 8, 16), title: "Janmasthami", type: "Festival" },
-  { date: DateTime.local(2025, 9, 30), title: "Durgapuja - Maha Ashtami", type: "Festival" },
-  { date: DateTime.local(2025, 10, 1), title: "Durgapuja - Maha Navami", type: "Festival" },
+  {
+    date: DateTime.local(2025, 9, 30),
+    title: "Durgapuja - Maha Ashtami",
+    type: "Festival",
+  },
+  {
+    date: DateTime.local(2025, 10, 1),
+    title: "Durgapuja - Maha Navami",
+    type: "Festival",
+  },
   { date: DateTime.local(2025, 10, 6), title: "Lakshmi Puja", type: "Festival" },
-  { date: DateTime.local(2025, 10, 20), title: "Diwali (Deepavali) / Kali Puja", type: "Festival" },
-  { date: DateTime.local(2025, 11, 5), title: "Birth Day of Guru Nanak", type: "Festival" },
+  {
+    date: DateTime.local(2025, 10, 20),
+    title: "Diwali (Deepavali) / Kali Puja",
+    type: "Festival",
+  },
+  {
+    date: DateTime.local(2025, 11, 5),
+    title: "Birth Day of Guru Nanak",
+    type: "Festival",
+  },
   { date: DateTime.local(2025, 12, 25), title: "Christmas Day", type: "Festival" },
   // Additional Festival Holiday for Cat B
-  { date: DateTime.local(2025, 10, 23), title: "Bhatridwitiya (Addl. FH for Cat B)", type: "Festival" },
+  {
+    date: DateTime.local(2025, 10, 23),
+    title: "Bhatridwitiya (Addl. FH for Cat B)",
+    type: "Festival",
+  },
 
   // --- Restricted Holidays (RH) List ---
-  { date: DateTime.local(2025, 1, 1), title: "New Year's Day", type: "Restricted" },
-  { date: DateTime.local(2025, 1, 6), title: "Guru Govind Singh's Birthday", type: "Restricted" },
-  { date: DateTime.local(2025, 1, 14), title: "Makar Sankranti / Magha Bihu / Pongol", type: "Restricted" },
-  { date: DateTime.local(2025, 1, 23), title: "Netaji's Birth Day", type: "Restricted" },
-  { date: DateTime.local(2025, 2, 2), title: "Basanta Panchami / Sri Panchami", type: "Restricted" },
-  { date: DateTime.local(2025, 3, 28), title: "Jamat- UI-Vida", type: "Restricted" },
+  {
+    date: DateTime.local(2025, 1, 1),
+    title: "New Year's Day",
+    type: "Restricted",
+  },
+  {
+    date: DateTime.local(2025, 1, 6),
+    title: "Guru Govind Singh's Birthday",
+    type: "Restricted",
+  },
+  {
+    date: DateTime.local(2025, 1, 14),
+    title: "Makar Sankranti / Magha Bihu / Pongol",
+    type: "Restricted",
+  },
+  {
+    date: DateTime.local(2025, 1, 23),
+    title: "Netaji's Birth Day",
+    type: "Restricted",
+  },
+  {
+    date: DateTime.local(2025, 2, 2),
+    title: "Basanta Panchami / Sri Panchami",
+    type: "Restricted",
+  },
+  {
+    date: DateTime.local(2025, 3, 28),
+    title: "Jamat- UI-Vida",
+    type: "Restricted",
+  },
   { date: DateTime.local(2025, 4, 6), title: "Ram Navami", type: "Restricted" },
-  { date: DateTime.local(2025, 4, 10), title: "Mahavir Jayanti", type: "Restricted" },
-  { date: DateTime.local(2025, 4, 15), title: "Bengali New Year's day", type: "Restricted" },
-  { date: DateTime.local(2025, 5, 9), title: "Birthday of Rabindranath Tagore", type: "Restricted" },
+  {
+    date: DateTime.local(2025, 4, 10),
+    title: "Mahavir Jayanti",
+    type: "Restricted",
+  },
+  {
+    date: DateTime.local(2025, 4, 15),
+    title: "Bengali New Year's day",
+    type: "Restricted",
+  },
+  {
+    date: DateTime.local(2025, 5, 9),
+    title: "Birthday of Rabindranath Tagore",
+    type: "Restricted",
+  },
   { date: DateTime.local(2025, 6, 27), title: "Rath Yatra", type: "Restricted" },
   { date: DateTime.local(2025, 7, 6), title: "Muharram", type: "Restricted" },
-  { date: DateTime.local(2025, 8, 9), title: "Raksha Bandhan", type: "Restricted" },
-  { date: DateTime.local(2025, 9, 5), title: "Milad-Un-Nabi / Id-E-Milad", type: "Restricted" },
+  {
+    date: DateTime.local(2025, 8, 9),
+    title: "Raksha Bandhan",
+    type: "Restricted",
+  },
+  {
+    date: DateTime.local(2025, 9, 5),
+    title: "Milad-Un-Nabi / Id-E-Milad",
+    type: "Restricted",
+  },
   { date: DateTime.local(2025, 9, 21), title: "Mahalaya", type: "Restricted" },
-  { date: DateTime.local(2025, 9, 29), title: "Durgapuja - Maha Saptami", type: "Restricted" },
+  {
+    date: DateTime.local(2025, 9, 29),
+    title: "Durgapuja - Maha Saptami",
+    type: "Restricted",
+  },
   { date: DateTime.local(2025, 10, 27), title: "Chhat Puja", type: "Restricted" },
-  { date: DateTime.local(2025, 11, 24), title: "Guru Teg Bahadur's Martyrdom Day", type: "Restricted" },
-  { date: DateTime.local(2025, 12, 24), title: "Christmas Eve", type: "Restricted" },
+  {
+    date: DateTime.local(2025, 11, 24),
+    title: "Guru Teg Bahadur's Martyrdom Day",
+    type: "Restricted",
+  },
+  {
+    date: DateTime.local(2025, 12, 24),
+    title: "Christmas Eve",
+    type: "Restricted",
+  },
 ].map((h) => ({ ...h, dateObj: h.date.toJSDate() }));
 
+// --- 1. CHANGED THIS COLOR MAP ---
 const holidayColorMap: { [key: string]: { dot: string; text: string } } = {
   Closed: { dot: "holiday-dot-closed", text: "text-red-600" },
   Festival: { dot: "holiday-dot-festival", text: "text-blue-600" },
-  Restricted: { dot: "holiday-dot-restricted", text: "text-amber-600" },
+  Restricted: { dot: "holiday-dot-restricted", text: "text-purple-600" }, // <-- CHANGED
 };
 
 // --- 3. Add map for tooltip content ---
@@ -153,6 +263,7 @@ export function EventCalendar() {
     day_hidden: "invisible",
   };
 
+  // --- 2. CHANGED THE STYLES FOR RESTRICTED ---
   const holidayDotStyle = `
     .rdp-day_today.holiday-dot-closed,
     .rdp-day_today.holiday-dot-festival,
@@ -161,19 +272,24 @@ export function EventCalendar() {
       position: relative;
     }
     .holiday-dot-closed:not(.rdp-day_outside)::after {
-      content: ''; position: absolute; bottom: 4px; left: 50%;
+      content: ''; position: absolute; bottom: 4px;
+      left: 50%;
       transform: translateX(-50%); width: 5px; height: 5px;
       border-radius: 50%; background-color: #ef4444; /* Red */
     }
     .holiday-dot-festival:not(.rdp-day_outside)::after {
-      content: ''; position: absolute; bottom: 4px; left: 50%;
+      content: '';
+      position: absolute; bottom: 4px; left: 50%;
       transform: translateX(-50%); width: 5px; height: 5px;
       border-radius: 50%; background-color: #3b82f6; /* Blue */
     }
     .holiday-dot-restricted:not(.rdp-day_outside)::after {
-      content: ''; position: absolute; bottom: 4px; left: 50%;
+      content: '';
+      position: absolute; bottom: 4px; left: 50%;
       transform: translateX(-50%); width: 5px; height: 5px;
-      border-radius: 50%; background-color: #f59e0b; /* Gray */
+      border-radius: 50%; 
+      background-color: #9333ea; /* <-- CHANGED (Pink-600) */
+      /* Was: #16a34a (Green) */
     }
     
     /* White dot for today */

@@ -20,11 +20,11 @@ const holidayTypeMap: { [key: string]: string } = {
   Restricted: "RH",
 };
 
-// --- 1. ADD THIS COLOR MAP ---
+// --- 1. CHANGED THIS COLOR MAP ---
 const holidayColorMap: { [key: string]: string } = {
   Closed: "text-red-600",
   Festival: "text-blue-600",
-  Restricted: "text-amber-600",
+  Restricted: "text-purple-600", // <-- CHANGED (was text-green-600)
 };
 
 interface YearCalendarModalProps {
@@ -83,6 +83,7 @@ export function YearCalendarModal({
       "space-y-2 border border-neutral-200 rounded-md px-11 py-3 bg-white shadow-sm", // Your px-8 width
   };
 
+  // --- 2. CHANGED THE STYLES FOR RESTRICTED ---
   const modalHolidayDotStyle = `
     .modal-holiday-dot-closed:not(.rdp-day_outside)::after {
       content: '';
@@ -115,7 +116,8 @@ export function YearCalendarModal({
       width: 4px;
       height: 4px;
       border-radius: 50%;
-      background-color: #f59e0b; /* Amber */
+      background-color: #9333ea; /* <-- CHANGED (Pink-600) */
+      /* Was: #16a34a (Green) */
     }
 
     /* Style for dot on 'today' (make it white) */
@@ -179,7 +181,7 @@ export function YearCalendarModal({
               <style>{modalHolidayDotStyle}</style>
               <button
                 onClick={onClose}
-                className="absolute top-4 right-4 p-1.5 rounded-full text-neutral-500 bg-transparent transition-all hover:bg-neutral-100 hover:text-neutral-800 z-[95]"
+                className="modal-close-button top-4 right-4 z-[95]"
                 aria-label="Close"
               >
                 <X size={24} />
@@ -220,7 +222,7 @@ export function YearCalendarModal({
                             {holiday.title}
                           </span>
 
-                          {/* --- 2. APPLY DYNAMIC COLOR CLASS HERE --- */}
+                          {/* --- 3. THIS WILL NOW APPLY 'text-pink-600' --- */}
                           <span
                             className={`flex-shrink-0 font-medium ${holidayColorMap[holiday.type] || "text-neutral-500"
                               }`}

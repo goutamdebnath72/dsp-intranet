@@ -33,14 +33,14 @@ const DspLogoVibrant: React.FC<{ onClick: () => void }> = ({ onClick }) => {
         width={878}
         height={861}
         // --- MODIFIED: Added transition and group-hover:scale ---
-        className="h-10 w-auto transition-transform duration-200 group-hover:scale-110" // <-- Added effect here
+        className="h-12 w-auto transition-transform duration-200 group-hover:scale-110" // <-- Added effect here
         priority
       />
       <div>
-        <h1 className="text-base font-bold font-heading text-neutral-100">
+        <h1 className="text-lg font-bold font-heading text-neutral-100">
           Durgapur Steel Plant
         </h1>
-        <p className="text-xs text-neutral-300">
+        <p className="text-sm text-neutral-300">
           स्टील अथॉरिटी ऑफ इंडिया लिमिटेड
         </p>
       </div>
@@ -56,7 +56,7 @@ const TopBarSearch: React.FC = () => {
       <input
         type="text"
         placeholder="Search for links, circulars, or people..."
-        className="w-full pl-12 pr-4 py-1.5 rounded-full border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-gray-600 transition-colors duration-300"
+        className="w-full pl-14 pr-4 py-1.5 rounded-full border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-gray-600 transition-colors duration-300"
       />
     </div>
   );
@@ -90,7 +90,7 @@ export function TopBar() {
 
   return (
     <>
-      <div className="bg-[#1a1a1a] text-white px-4 sm:px-8 h-14 flex items-center justify-between gap-4">
+      <div className="bg-[#1a1a1a] text-white px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
         {/* Left Side: The vibrant DSP Logo */}
         <div className="flex-shrink-0">
           <DspLogoVibrant onClick={openLogoModal} />
@@ -109,13 +109,13 @@ export function TopBar() {
             className="p-1 hover:bg-gray-700 rounded-full"
             aria-label="Settings"
           >
-            <Settings size={20} />
+            <Settings size={22} />
           </button>
           <button
             className="p-1 hover:bg-gray-700 rounded-full"
             aria-label="Help"
           >
-            <HelpCircle size={20} />
+            <HelpCircle size={22} />
           </button>
 
           {/* Auth Logic Block */}
@@ -123,7 +123,7 @@ export function TopBar() {
             <div ref={dropdownRef} className="relative">
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="relative w-8 h-8 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500"
+                className="relative w-10 h-10 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500"
               >
                 {session.user.image ? (
                   <Image
@@ -134,7 +134,7 @@ export function TopBar() {
                   />
                 ) : (
                   <div className="w-full h-full rounded-full bg-blue-600 flex items-center justify-center">
-                    <span className="font-medium text-white text-xs">
+                    <span className="font-medium text-white text-base">
                       {session.user.name
                         ?.split(" ")
                         .map((n) => n[0])
@@ -198,9 +198,9 @@ export function TopBar() {
           ) : (
             <button
               onClick={() => openModal()}
-              className="flex items-center gap-1.5 text-sm font-medium hover:text-gray-300"
+              className="flex items-center gap-1.5 text-base font-medium hover:text-gray-300"
             >
-              <LogIn size={16} />
+              <LogIn size={18} />
               Login
             </button>
           )}

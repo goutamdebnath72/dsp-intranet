@@ -58,7 +58,6 @@ export function RetirementScrollList() {
   const direction = DIRECTION.DOWN;
   const speedPxPerSec = SCROLL_CONFIG.speedPxPerSec;
   const gapHeight = SCROLL_CONFIG.gapHeight;
-
   // === Effect to measure height on resize (robust method) ===
   useEffect(() => {
     const onResize = () => {
@@ -79,7 +78,6 @@ export function RetirementScrollList() {
     onResize(); // Initial measure
     return () => window.removeEventListener("resize", debouncedResize);
   }, []);
-
   // === Auto-scroll logic (robust method) ===
   useEffect(() => {
     const scrollEl = scrollContainerRef.current;
@@ -120,12 +118,10 @@ export function RetirementScrollList() {
       }
       rafId = requestAnimationFrame(tick);
     };
-
     const startup = setTimeout(() => {
       lastTs = performance.now();
       rafId = requestAnimationFrame(tick);
     }, 700);
-
     return () => {
       clearTimeout(startup);
       if (rafId !== null) {
@@ -141,9 +137,10 @@ export function RetirementScrollList() {
       ref={scrollContainerRef}
       onMouseEnter={() => (isHoveringRef.current = true)}
       onMouseLeave={() => (isHoveringRef.current = false)}
-      className="overflow-y-auto px-2 pt-3 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
+      // --- ✅ CHANGED THIS LINE ---
+      className="h-full overflow-y-auto px-2 pt-3 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
       style={{
-        height: "280px", // ✅ defines visible scroll area
+        // height: "280px", // ❌ REMOVED
         overflowAnchor: "none",
       }}
     >
@@ -152,7 +149,7 @@ export function RetirementScrollList() {
           <React.Fragment key={`${person.id}-${index}`}>
             <div
               className="flex items-center gap-3 p-2 bg-white rounded-md border border-neutral-200/80 shadow-sm"
-              // ✅ No margin needed, spacer div handles it
+            // ✅ No margin needed, spacer div handles it
             >
               <img
                 src={person.imageUrl}
