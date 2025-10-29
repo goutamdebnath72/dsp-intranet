@@ -54,7 +54,7 @@ export default function AdminPage() {
 
       <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto shadow-lg">
         <div className="bg-gray-200 w-full">
-          <div className="container mx-auto pt-8 px-8">
+          <div className="container mx-auto pt-8 px-8 pb-5">
             <h1 className="text-3xl font-bold font-heading mb-8 text-center text-neutral-800">
               Admin Dashboard
             </h1>
