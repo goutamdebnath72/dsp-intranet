@@ -33,7 +33,7 @@ const OldHeader: React.FC = () => {
 
   return (
     // 👇 ADDED: The "boxed" layout classes are now here
-    <header className="w-full lg-custom:w-[72%] xl-custom:w-[70%] mx-auto bg-neutral-50 text-neutral-800 flex items-center justify-between px-4 sm:px-8 py-3 shadow-sm border-b border-neutral-200 sticky top-0 z-50">
+    <header className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-neutral-50 text-neutral-800 flex items-center justify-between px-4 sm:px-8 py-3 shadow-sm border-b border-neutral-200 sticky top-0 z-50">
       <div className="flex items-center gap-3">
         <Image
           src="/logo.svg"

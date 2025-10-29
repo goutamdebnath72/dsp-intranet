@@ -14,7 +14,7 @@ import { AppDrawer } from "./AppDrawer";
 import { TopResources } from "./TopResources";
 import { AnnouncementsFeed } from "./AnnouncementsFeed";
 import { PeopleAndEvents } from "./PeopleAndEvents";
-import { ProductionDashboard, dashboardContainerVariants } from "./ProductionDashboard"; // <-- Correct import
+import { ProductionDashboard, dashboardContainerVariants } from "./ProductionDashboard";
 import { motion } from "framer-motion";
 
 interface HomepageProps {
@@ -77,23 +77,23 @@ export function HomepageNew({
         setIsPaused(true);
       }
     }
-   };
+  };
 
   return (
     <>
       {/* --- Top Bar / Header --- */}
-      <div className="relative z-50 w-full lg-custom:w-[87%] xl-custom:w-[70%] mx-auto">
+      <div className="relative z-50 w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto">
         <TopBar />
       </div>
       <Header />
 
       {/* --- Hero Section --- */}
       <div
-        className="w-full lg-custom:w-[87%] xl-custom:w-[70%] mx-auto bg-cover bg-center relative h-[455px]"
+        className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-cover bg-center relative h-[455px]"
         style={{ backgroundImage: "url('/steel-plant1.png')" }}
       >
         {/* --- Hero content --- */}
-         <div className="absolute inset-0 bg-black/30" />
+        <div className="absolute inset-0 bg-black/30" />
         <div
           className="absolute bottom-0 left-0 right-0 h-4 z-10"
           style={{
@@ -148,7 +148,7 @@ export function HomepageNew({
                     onMouseEnter={() => setIsHovering(true)}
                     onMouseLeave={() => setIsHovering(false)}
                   >
-                    {isPaused ? ( <PlayCircle size={64} className="text-white/80 transition-opacity duration-300 opacity-100" strokeWidth={1}/> ) : ( <PauseCircle size={64} className={`text-white/80 transition-opacity duration-300 ${ isHovering ? "opacity-100" : "opacity-0" }`} strokeWidth={1}/> )}
+                    {isPaused ? (<PlayCircle size={64} className="text-white/80 transition-opacity duration-300 opacity-100" strokeWidth={1} />) : (<PauseCircle size={64} className={`text-white/80 transition-opacity duration-300 ${isHovering ? "opacity-100" : "opacity-0"}`} strokeWidth={1} />)}
                   </div>
                 </div>
               </div>
@@ -158,7 +158,7 @@ export function HomepageNew({
                   <div className="flex flex-col space-y-1.5 h-full">
                     {newsItems.map((item) => (
                       <a key={item.id} href="#" className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 transition-colors group h-[90px]">
-                        <Image src={item.imageUrl} alt={item.title} width={80} height={80} className="rounded-md w-20 h-20 object-cover flex-shrink-0" unoptimized/>
+                        <Image src={item.imageUrl} alt={item.title} width={80} height={80} className="rounded-md w-20 h-20 object-cover flex-shrink-0" unoptimized />
                         <div>
                           <h3 className="font-bold text-neutral-800 text-sm leading-tight group-hover:text-primary-700">{item.title}</h3>
                           <p className="text-xs text-neutral-600 mt-1">{item.summary}</p>
@@ -179,7 +179,7 @@ export function HomepageNew({
       </div>
 
       {/* --- Quick Access Bar Wrapper --- */}
-      <div className="w-full lg-custom:w-[87%] xl-custom:w-[70%] mx-auto bg-white pt-20 sm:pt-24 lg:pt-24 pb-8 px-4 sm:px-6 lg:px-8">
+      <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-white pt-20 sm:pt-24 lg:pt-24 pb-8 px-4 sm:px-6 lg:px-8">
         <QuickAccessBar
           onCircularsClick={handleCircularsClick}
           onMoreAppsClick={handleMoreAppsClick}
@@ -188,16 +188,16 @@ export function HomepageNew({
 
       {/* --- Production Dashboard Wrapper --- */}
       <motion.div
-         className="w-full lg-custom:w-[87%] xl-custom:w-[70%] mx-auto bg-white py-12 sm:py-16 lg:py-16"
-         variants={dashboardContainerVariants}
-         initial="hidden"
-         animate="visible"
-         >
+        className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-white pt-8 sm:pt-10 lg:pt-10 pb-4 sm:pb-6 lg:pb-8"
+        variants={dashboardContainerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         <ProductionDashboard />
       </motion.div>
 
       {/* --- SECTION 3: 3-Column Layout Wrapper --- */}
-      <div className="w-full lg-custom:w-[87%] xl-custom:w-[70%] mx-auto bg-white rounded-lg py-4 sm:py-6 lg:py-8 mb-8">
+      <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-white rounded-lg py-4 sm:py-6 lg:py-8 mb-8">
         <div className="flex flex-col h-[460px] px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 min-h-0">
             {/* Col 1, 2, 3 */}

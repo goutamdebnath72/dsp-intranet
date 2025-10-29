@@ -3,14 +3,12 @@
 
 import React, { useEffect } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
-import { Fira_Code } from "next/font/google"; // A nice monospace font for numbers
+import { Fira_Code } from "next/font/google";
 
-// Optional: Monospace font for a "digital" feel
 const firaCode = Fira_Code({
   subsets: ["latin"],
   weight: ["500", "700"],
 });
-
 interface ProductionGaugeProps {
   value: number;
   max: number;
@@ -18,124 +16,170 @@ interface ProductionGaugeProps {
   unit: string;
 }
 
-// 270 degrees total, starting at -135deg (7 o'clock) and ending at 135deg (5 o'clock)
-const START_ANGLE = -135;
-const END_ANGLE = 135;
-const ANGLE_RANGE = END_ANGLE - START_ANGLE;
+/**
+ * === Tangent-corrected geometry (pure semicircle) ===
+ * W = 200 → perfect bounding box
+ * Outer radius = 0.92 × (W/2) = 92
+ * Center X = 100
+ * Center Y = 100 + (100 - 92) = 108
+ * Top touches y=0, sides tangent to x=0, x=200
+ */
+export function ProductionGauge({ value, max, label, unit }: ProductionGaugeProps) {
+  const progress = Math.min(Math.max(value / Math.max(max, 1), 0), 1);
+  // === Geometry ===
+  const W = 200;
+  const cx = W / 2;
+  const outerR = 0.92 * (W / 2);
+  const cy = W / 2 + (W / 2 - outerR);
+  const strokeWidth = outerR * 0.10;
+  // const arcLength = Math.PI * outerR; // No longer needed
 
-export function ProductionGauge({
-  value,
-  max,
-  label,
-  unit,
-}: ProductionGaugeProps) {
-  // 1. Value-to-Angle Mapping
-  const angle = useTransform(
-    useMotionValue(0), // Start at 0 for animation
-    [0, max],
-    [START_ANGLE, END_ANGLE]
-  );
+  const startX = cx - outerR;
+  const startY = cy;
+  const endX = cx + outerR;
+  const endY = cy;
+  const arcPath = `M ${startX} ${startY} A ${outerR} ${outerR} 0 0 1 ${endX} ${endY}`;
+  // === Motion values ===
+  const numberMV = useMotionValue(0);
+  const roundedNumber = useTransform(numberMV, Math.round);
+  const needleMV = useMotionValue(-90); // Needle range is -90deg to +90deg
 
-  // 2. Animated Number Count-up
-  const animatedValue = useMotionValue(0);
-  const roundedValue = useTransform(animatedValue, (v) => v.toFixed(0));
-
-  // 3. Animation Effect
+  // Corrected useEffect dependency array
   useEffect(() => {
-    // Animate the needle
-    const needleAnimation = animate(angle, value, { // Use raw value for target angle calc? Let's check transform logic. UseTransform handles mapping.
+    const nAnim = animate(numberMV, value, {
+      type: "spring",
+      stiffness: 100,
+      damping: 24,
+      mass: 0.7,
+    });
+
+    const targetNeedle = -90 + progress * 180;
+    const needleAnim = animate(needleMV, targetNeedle, {
       type: "spring",
       stiffness: 100,
       damping: 20,
-      mass: 0.5,
-      delay: 0.2,
-    });
-
-    // Animate the number count-up
-    const numberAnimation = animate(animatedValue, value, {
-      type: "spring",
-      stiffness: 100,
-      damping: 25,
-      mass: 0.8,
-      delay: 0.2,
+      mass: 0.6,
     });
 
     return () => {
-      needleAnimation.stop();
-      numberAnimation.stop();
+      nAnim.stop();
+      needleAnim.stop();
     };
-  }, [value, max, angle, animatedValue]); // Angle depends on useMotionValue(0), value, max - should be fine.
+  }, [value, progress]); // Corrected dependency array
 
   return (
     <motion.div
       className="flex flex-col items-center"
+      initial="hidden"
+      animate="visible"
       variants={{
-        hidden: { opacity: 0, scale: 0.8 },
+        hidden: { opacity: 0, scale: 0.98 },
         visible: { opacity: 1, scale: 1 },
       }}
+      style={{ width: "100%" }}
     >
-      {/* --- The Gauge --- */}
-      <div className="relative w-full aspect-square max-w-[200px]">
-        {/* 1. The Gradient Arc (270 degrees) */}
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background:
-              "conic-gradient(from -135deg, #22c55e 0%, #facc15 50%, #ef4444 100%)",
-            maskImage:
-              "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
-            WebkitMaskImage:
-              "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
-            clipPath: "polygon(0% 0%, 100% 0%, 100% 85%, 50% 85%, 0% 85%)",
-          }}
-        />
-
-        {/* 2. The Gray Track (The "empty" part of the arc) */}
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background:
-              "conic-gradient(from -135deg, #e5e7eb 0deg, #e5e7eb 270deg)",
-            maskImage:
-              "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
-            WebkitMaskImage:
-              "radial-gradient(transparent 65%, black 66%, black 85%, transparent 86%)",
-            clipPath: "polygon(0% 0%, 100% 0%, 100% 85%, 50% 85%, 0% 85%)",
-            zIndex: -1,
-          }}
-        />
-
-        {/* 3. The Needle */}
-        <motion.div className="absolute inset-0 z-10" style={{ rotate: angle }}>
-          {/* The needle itself, adjusted length */}
-          <div
-            className="absolute left-1/2 top-1/2 w-1.5 h-[35%] bg-neutral-700 rounded-t-full"
-            style={{
-              transform: "translate(-50%, -85%)", // Adjusted translation
-              transformOrigin: "bottom center",
-            }}
-          />
-          {/* The center hub */}
-          <div
-            className="absolute left-1/2 top-1/2 w-4 h-4 bg-neutral-800 rounded-full border-2 border-white shadow-md"
-            style={{ transform: "translate(-50%, -50%)" }}
-          />
-        </motion.div>
-
-        {/* 4. The Digital Readout (Figure only, raised) */}
-        <div
-          className={`absolute left-1/2 top-[40%] flex -translate-x-1/2 -translate-y-1/2 ${firaCode.className}`}
+      {/* === Gauge container === */}
+      <div
+        className="relative"
+        style={{
+          width: "min(14.5vw, 220px)",
+          height: "calc(min(14.5vw, 220px) * 0.55)",
+        }}
+      >
+        <svg
+          viewBox={`0 0 ${W} ${W / 2 + 20}`}
+          preserveAspectRatio="xMidYMid meet"
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-full h-full block"
         >
-          <motion.span className="text-xl sm:text-2xl md:text-3xl font-bold text-neutral-800">
-            {roundedValue}
-          </motion.span>
-        </div>
+          <defs>
+            {/* Gradient restored to Green -> Yellow -> Red */}
+            <linearGradient id="gaugeGradient" x1="0%" x2="100%">
+              <stop offset="0%" stopColor="#22c55e" />
+              <stop offset="50%" stopColor="#facc15" />
+              <stop offset="100%" stopColor="#ef4444" />
+            </linearGradient>
+          </defs>
+
+          {/* === Foreground progress arc === */}
+          <path
+            d={arcPath}
+            fill="none"
+            stroke="url(#gaugeGradient)"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+
+          {/* --- THIS IS THE FIX --- */}
+          {/* <foreignObject> renders on top of the <path> */}
+          <foreignObject
+            x="0"
+            y="0"
+            width={W}
+            height={W / 2 + 20}
+          // We remove pointerEvents: "none" because the needle *is* the pointer now
+          >
+            {/* This div becomes the new relative container for HTML elements */}
+            <div
+              {...{ xmlns: "http://www.w3.org/1999/xhtml" }}
+              className="w-full h-full relative" // Use SVG's aspect ratio
+            >
+              {/* 1. The Text (z-0) */}
+              {/* Positioned lower, at 75% from the top of the *viewBox* */}
+              <div
+                className={`absolute left-1/2 top-[50%] flex -translate-x-1/2 -translate-y-1/2 ${firaCode.className}`}
+                style={{ pointerEvents: "none" }} // Text shouldn't block
+              >
+                <motion.span className="text-xl sm:text-2xl md:text-3xl font-bold text-neutral-800 tracking-normal">
+                  {roundedNumber}
+                </motion.span>
+              </div>
+
+              {/* 2. The Needle (z-10) */}
+              {/* This is the HTML needle from your old file, adapted to the new logic */}
+              <motion.div
+                className="absolute inset-0 z-10"
+                // We use the new 180-degree motion value
+                style={{
+                  rotate: needleMV,
+                  // We must redefine the pivot point for the HTML div
+                  // It's not (cx, cy) but the center of the viewBox
+                  transformOrigin: `${W / 2}px ${cy}px`,
+                }}
+              >
+                {/* The needle shaft */}
+                <div
+                  className="absolute left-1/2 w-1 bg-neutral-700 rounded-t-full"
+                  style={{
+                    // Position relative to the new pivot point
+                    top: `${cy}px`,
+                    height: `${outerR * 0.85}px`, // 35% was for a different container
+                    transform: "translate(-50%, -100%)", // Move up from pivot
+                    transformOrigin: "bottom center",
+                  }}
+                />
+                {/* The center hub */}
+                <div
+                  className="absolute left-1/2 w-3 h-3 bg-neutral-800 rounded-full border-2 border-white shadow-md"
+                  style={{
+                    top: `${cy}px`, // Place at the pivot
+                    transform: "translate(-50%, -50%)", // Center it
+                  }}
+                />
+              </motion.div>
+            </div>
+          </foreignObject>
+          {/* --- END OF FIX --- */}
+
+          {/* The SVG needle <motion.g> is now GONE */}
+        </svg>
       </div>
 
-      {/* --- The Label (Title + Unit) --- */}
-      <div className="flex flex-col items-center text-center mt-2 h-12">
+      {/* === Label === */}
+      <div className="flex flex-col items-center text-center mt-6 h-12">
         <h3 className="text-xs sm:text-sm font-semibold text-neutral-700 line-clamp-2">
-          {label}
+          {label.trim()}
         </h3>
         <span className="text-xs text-neutral-500">({unit})</span>
       </div>
