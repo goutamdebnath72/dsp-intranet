@@ -93,7 +93,7 @@ export default function AnnouncementForm() {
             id="content"
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            style={{ height: "25vh" }}
+            style={{ height: "20vh" }}
             className="block w-full rounded-md py-2 px-3 text-slate-800 font-medium shadow-md ring-1 ring-inset ring-slate-500 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-500"
           />
         </div>

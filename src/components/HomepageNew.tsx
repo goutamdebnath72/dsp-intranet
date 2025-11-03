@@ -14,7 +14,10 @@ import { AppDrawer } from "./AppDrawer";
 import { TopResources } from "./TopResources";
 import { AnnouncementsFeed } from "./AnnouncementsFeed";
 import { PeopleAndEvents } from "./PeopleAndEvents";
-import { ProductionDashboard, dashboardContainerVariants } from "./ProductionDashboard";
+import {
+  ProductionDashboard,
+  dashboardContainerVariants,
+} from "./ProductionDashboard";
 import { motion } from "framer-motion";
 
 interface HomepageProps {
@@ -58,7 +61,9 @@ export function HomepageNew({
   const [isHovering, setIsHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCircularModalOpen, setIsCircularModalOpen] = useState(false);
-  const [selectedCircularId, setSelectedCircularId] = useState<number | null>(null);
+  const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
+    null
+  );
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
 
   // --- Handlers ---
@@ -148,7 +153,21 @@ export function HomepageNew({
                     onMouseEnter={() => setIsHovering(true)}
                     onMouseLeave={() => setIsHovering(false)}
                   >
-                    {isPaused ? (<PlayCircle size={64} className="text-white/80 transition-opacity duration-300 opacity-100" strokeWidth={1} />) : (<PauseCircle size={64} className={`text-white/80 transition-opacity duration-300 ${isHovering ? "opacity-100" : "opacity-0"}`} strokeWidth={1} />)}
+                    {isPaused ? (
+                      <PlayCircle
+                        size={64}
+                        className="text-white/80 transition-opacity duration-300 opacity-100"
+                        strokeWidth={1}
+                      />
+                    ) : (
+                      <PauseCircle
+                        size={64}
+                        className={`text-white/80 transition-opacity duration-300 ${
+                          isHovering ? "opacity-100" : "opacity-0"
+                        }`}
+                        strokeWidth={1}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -157,11 +176,26 @@ export function HomepageNew({
                 <div className="absolute inset-0 top-[-25px] bottom-[-20px] flex flex-col justify-between">
                   <div className="flex flex-col space-y-1.5 h-full">
                     {newsItems.map((item) => (
-                      <a key={item.id} href="#" className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 transition-colors group h-[90px]">
-                        <Image src={item.imageUrl} alt={item.title} width={80} height={80} className="rounded-md w-20 h-20 object-cover flex-shrink-0" unoptimized />
+                      <a
+                        key={item.id}
+                        href="#"
+                        className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 transition-colors group h-[90px]"
+                      >
+                        <Image
+                          src={item.imageUrl}
+                          alt={item.title}
+                          width={80}
+                          height={80}
+                          className="rounded-md w-20 h-20 object-cover flex-shrink-0"
+                          unoptimized
+                        />
                         <div>
-                          <h3 className="font-bold text-neutral-800 text-sm leading-tight group-hover:text-primary-700">{item.title}</h3>
-                          <p className="text-xs text-neutral-600 mt-1">{item.summary}</p>
+                          <h3 className="font-bold text-neutral-800 text-sm leading-tight group-hover:text-primary-700">
+                            {item.title}
+                          </h3>
+                          <p className="text-xs text-neutral-600 mt-1">
+                            {item.summary}
+                          </p>
                         </div>
                       </a>
                     ))}
@@ -201,9 +235,24 @@ export function HomepageNew({
         <div className="flex flex-col h-[460px] px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 min-h-0">
             {/* Col 1, 2, 3 */}
-            <div className="flex flex-col min-h-0"><h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">Top Resources</h2><TopResources /></div>
-            <div className="flex flex-col min-h-0"><h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">Announcements & Happenings</h2><AnnouncementsFeed /></div>
-            <div className="flex flex-col min-h-0"><h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">People & Events</h2><PeopleAndEvents /></div>
+            <div className="flex flex-col min-h-0">
+              <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
+                Top Resources
+              </h2>
+              <TopResources />
+            </div>
+            <div className="flex flex-col min-h-0">
+              <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
+                Announcements & Happenings
+              </h2>
+              <AnnouncementsFeed />
+            </div>
+            <div className="flex flex-col min-h-0">
+              <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
+                People & Events
+              </h2>
+              <PeopleAndEvents />
+            </div>
           </div>
         </div>
       </div>

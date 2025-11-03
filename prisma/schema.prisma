@@ -111,3 +111,29 @@ model Circular {
 
   @@map("circulars")
 }
+
+// --- HOLIDAY MODELS ---
+enum HolidayType {
+  CH  // Closed / Public Holiday
+  FH  // Festival Holiday
+  RH  // Restricted Holiday
+}
+
+model HolidayMaster {
+  id    Int          @id @default(autoincrement())
+  name  String       @unique
+  type  HolidayType
+  years HolidayYear[]
+}
+
+model HolidayYear {
+  id              Int          @id @default(autoincrement())
+  date            DateTime
+  year            Int
+  holidayType     HolidayType
+  holidayMaster   HolidayMaster @relation(fields: [holidayMasterId], references: [id], onDelete: Cascade)
+  holidayMasterId Int
+
+  @@index([year])  
+}
+

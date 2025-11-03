@@ -1,0 +1,257 @@
+[
+  {
+    "title": "SAIL Foundation Day",
+    "date": "2025-01-24",
+    "type": "CH"
+  },
+  {
+    "title": "Republic Day",
+    "date": "2025-01-26",
+    "type": "CH"
+  },
+  {
+    "title": "May Day",
+    "date": "2025-05-01",
+    "type": "CH"
+  },
+  {
+    "title": "Independence Day",
+    "date": "2025-08-15",
+    "type": "CH"
+  },
+  {
+    "title": "Mahatma Gandhi's Birthday",
+    "date": "2025-10-02",
+    "type": "CH"
+  },
+  {
+    "title": "Maha Shivaratri",
+    "date": "2025-02-26",
+    "type": "FH"
+  },
+  {
+    "title": "Doljatra / Holi",
+    "date": "2025-03-14",
+    "type": "FH"
+  },
+  {
+    "title": "Id-ul-Fitr",
+    "date": "2025-03-31",
+    "type": "FH"
+  },
+  {
+    "title": "Good Friday",
+    "date": "2025-04-18",
+    "type": "FH"
+  },
+  {
+    "title": "Buddha Purnima",
+    "date": "2025-05-12",
+    "type": "FH"
+  },
+  {
+    "title": "Id-Ud-Zoha (Bakrid)",
+    "date": "2025-06-07",
+    "type": "FH"
+  },
+  {
+    "title": "Janmasthami",
+    "date": "2025-08-16",
+    "type": "FH"
+  },
+  {
+    "title": "Durgapuja - Maha Ashtami",
+    "date": "2025-09-30",
+    "type": "FH"
+  },
+  {
+    "title": "Durgapuja - Maha Navami",
+    "date": "2025-10-01",
+    "type": "FH"
+  },
+  {
+    "title": "Lakshmi Puja",
+    "date": "2025-10-06",
+    "type": "FH"
+  },
+  {
+    "title": "Diwali (Deepavali) / Kali Puja",
+    "date": "2025-10-20",
+    "type": "FH"
+  },
+  {
+    "title": "Birth Day of Guru Nanak",
+    "date": "2025-11-05",
+    "type": "FH"
+  },
+  {
+    "title": "Christmas Day",
+    "date": "2025-12-25",
+    "type": "FH"
+  },
+  {
+    "title": "New Year's Day",
+    "date": "2025-01-01",
+    "type": "RH"
+  },
+  {
+    "title": "Guru Govind Singh's Birthday",
+    "date": "2025-01-06",
+    "type": "RH"
+  },
+  {
+    "title": "Makar Sankranti / Magha Bihu / Pongol",
+    "date": "2025-01-14",
+    "type": "RH"
+  },
+  {
+    "title": "Netaji's Birth Day",
+    "date": "2025-01-23",
+    "type": "RH"
+  },
+  {
+    "title": "Basanta Panchami / Sri Panchami",
+    "date": "2025-02-02",
+    "type": "RH"
+  },
+  {
+    "title": "Maha Shivaratri",
+    "date": "2025-02-26",
+    "type": "RH"
+  },
+  {
+    "title": "Doljatra / Holi",
+    "date": "2025-03-14",
+    "type": "RH"
+  },
+  {
+    "title": "Jamat- UI-Vida",
+    "date": "2025-03-28",
+    "type": "RH"
+  },
+  {
+    "title": "Id-ul-Fitr",
+    "date": "2025-03-31",
+    "type": "RH"
+  },
+  {
+    "title": "Ram Navami",
+    "date": "2025-04-06",
+    "type": "RH"
+  },
+  {
+    "title": "Mahavir Jayanti",
+    "date": "2025-04-10",
+    "type": "RH"
+  },
+  {
+    "title": "Bengali New Year's day",
+    "date": "2025-04-15",
+    "type": "RH"
+  },
+  {
+    "title": "Good Friday",
+    "date": "2025-04-18",
+    "type": "RH"
+  },
+  {
+    "title": "Birthday of Rabindranath Tagore",
+    "date": "2025-05-09",
+    "type": "RH"
+  },
+  {
+    "title": "Buddha Purnima",
+    "date": "2025-05-12",
+    "type": "RH"
+  },
+  {
+    "title": "Id-ul-Zuha (Bakrid)",
+    "date": "2025-06-07",
+    "type": "RH"
+  },
+  {
+    "title": "Rath Yatra",
+    "date": "2025-06-27",
+    "type": "RH"
+  },
+  {
+    "title": "Muharram",
+    "date": "2025-07-06",
+    "type": "RH"
+  },
+  {
+    "title": "Raksha Bandhan",
+    "date": "2025-08-09",
+    "type": "RH"
+  },
+  {
+    "title": "Janmasthami",
+    "date": "2025-08-16",
+    "type": "RH"
+  },
+  {
+    "title": "Milad-Un-Nabi / Id-E-Milad",
+    "date": "2025-09-05",
+    "type": "RH"
+  },
+  {
+    "title": "Mahalaya",
+    "date": "2025-09-21",
+    "type": "RH"
+  },
+  {
+    "title": "Durgapuja - Maha Saptami",
+    "date": "2025-09-29",
+    "type": "RH"
+  },
+  {
+    "title": "Durgapuja - Maha Ashtami",
+    "date": "2025-09-30",
+    "type": "RH"
+  },
+  {
+    "title": "Durgapuja - Maha Navami",
+    "date": "2025-10-01",
+    "type": "RH"
+  },
+  {
+    "title": "Lakshmi Puja",
+    "date": "2025-10-06",
+    "type": "RH"
+  },
+  {
+    "title": "Kali Puja / Diwali / Dipawali",
+    "date": "2025-10-20",
+    "type": "RH"
+  },
+  {
+    "title": "Bhatridwitiya",
+    "date": "2025-10-23",
+    "type": "RH"
+  },
+  {
+    "title": "Chhat Puja",
+    "date": "2025-10-27",
+    "type": "RH"
+  },
+  {
+    "title": "Guru Nanak's Birthday",
+    "date": "2025-11-05",
+    "type": "RH"
+  },
+  {
+    "title": "Guru Teg Bahadur's Martyrdom Day",
+    "date": "2025-11-24",
+    "type": "RH"
+  },
+  {
+    "title": "Christmas Eve",
+    "date": "2025-12-24",
+    "type": "RH"
+  },
+  {
+    "title": "Christmas Day",
+    "date": "2025-12-25",
+    "type": "RH"
+  }
+]

@@ -12,6 +12,10 @@ import { ACTIVE_UI_DESIGN } from "@/lib/config";
 import { TopBar } from "@/components/TopBar";
 import Header from "@/components/Header";
 import OldHeader from "@/components/OldHeader";
+// --- 1. IMPORT THE NEW DASHBOARD COMPONENT ---
+import { HolidayDashboard } from "@/components/admin/HolidayDashboard";
+// --- 1. IMPORT TOASTER ---
+import { Toaster, toast } from "react-hot-toast";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -26,9 +30,12 @@ export default function AdminPage() {
     }
   }, [session, status]);
 
+  // --- 2. UPDATE THE SUCCESS HANDLER ---
   const handleUploadSuccess = (newCircular: any) => {
     console.log("New circular added:", newCircular);
-    // Future: Add logic for a success toast notification.
+    toast.success("Circular uploaded successfully!");
+    // Close the modal on success
+    setIsCircularModalOpen(false);
   };
 
   if (status === "loading") {
@@ -41,6 +48,9 @@ export default function AdminPage() {
 
   return (
     <>
+      {/* --- 3. ADD THE TOASTER COMPONENT --- */}
+      <Toaster position="top-center" reverseOrder={false} />
+
       {ACTIVE_UI_DESIGN === "new" ? (
         <>
           <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto">
@@ -59,8 +69,9 @@ export default function AdminPage() {
               Admin Dashboard
             </h1>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              {/* --- 👇 MODIFIED: Upgraded hover shadow animation --- */}
+            {/* --- 2. UPDATED GRID LAYOUT --- */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {/* Card 1: Announcements (Existing) */}
               <div className="rounded-lg p-6 bg-white/50 shadow-lg hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-all duration-300">
                 <h2 className="text-2xl font-bold font-heading mb-2 text-center">
                   Announcements
@@ -73,7 +84,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* --- 👇 MODIFIED: Upgraded hover shadow animation --- */}
+              {/* Card 2: Circulars (Existing) */}
               <div className="rounded-lg p-6 bg-white/50 shadow-lg hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-all duration-300 flex flex-col justify-center items-center">
                 <h2 className="text-2xl font-bold font-heading mb-2 text-center">
                   Circulars
@@ -87,6 +98,13 @@ export default function AdminPage() {
                 >
                   Post New Circular
                 </button>
+              </div>
+
+              {/* --- 3. ADDED NEW HOLIDAY CARD --- */}
+              <div className="rounded-lg p-6 bg-white/50 shadow-lg hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-all duration-300">
+                {/* This component contains all its own logic,
+                    including the modal and toast notifications */}
+                <HolidayDashboard />
               </div>
             </div>
 

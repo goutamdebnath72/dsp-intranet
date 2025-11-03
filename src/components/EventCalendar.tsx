@@ -2,226 +2,94 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-// --- 1. Import Day and DayProps ---
 import { DayPicker, Day, DayProps } from "react-day-picker";
 import type { CaptionLabelProps as BaseCaptionLabelProps } from "react-day-picker";
 import { DateTime } from "luxon";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { YearCalendarModal } from "./YearCalendarModal";
 import { Tooltip } from "./Tooltip";
-// --- 2. Import Tooltip ---
+import type { FetchedHoliday } from "./PeopleAndEvents";
 
 // Define a local fixed type with displayMonth restored
 interface FixedCaptionLabelProps extends BaseCaptionLabelProps {
   displayMonth: Date;
 }
 
-// type: "Closed" = Public Holiday (Red)
-// type: "Festival" = Festival Holiday (Blue)
-// type: "Restricted" = Restricted Holiday (Gray)
-const holidaysData = [
-  // --- Closed/Public Holidays (for All) ---
-  {
-    date: DateTime.local(2025, 1, 24),
-    title: "SAIL Foundation Day",
-    type: "Closed",
-  },
-  {
-    date: DateTime.local(2025, 1, 26),
-    title: "Republic Day",
-    type: "Closed",
-  },
-  { date: DateTime.local(2025, 5, 1), title: "May Day", type: "Closed" },
-  {
-    date: DateTime.local(2025, 8, 15),
-    title: "Independence Day",
-    type: "Closed",
-  },
-  {
-    date: DateTime.local(2025, 10, 2),
-    title: "Mahatma Gandhi's Birthday",
-    type: "Closed",
-  },
+interface EventCalendarProps {
+  holidays: FetchedHoliday[];
+  isLoading: boolean;
+}
 
-  // --- Festival Holidays (Cat A & B) ---
-  {
-    date: DateTime.local(2025, 2, 26),
-    title: "Maha Shivaratri",
-    type: "Festival",
-  },
-  {
-    date: DateTime.local(2025, 3, 14),
-    title: "Doljatra / Holi",
-    type: "Festival",
-  },
-  { date: DateTime.local(2025, 3, 31), title: "Id-ul-Fitr", type: "Festival" },
-  { date: DateTime.local(2025, 4, 18), title: "Good Friday", type: "Festival" },
-  {
-    date: DateTime.local(2025, 5, 12),
-    title: "Buddha Purnima",
-    type: "Festival",
-  },
-  {
-    date: DateTime.local(2025, 6, 7),
-    title: "Id-Ud-Zoha (Bakrid)",
-    type: "Festival",
-  },
-  { date: DateTime.local(2025, 8, 16), title: "Janmasthami", type: "Festival" },
-  {
-    date: DateTime.local(2025, 9, 30),
-    title: "Durgapuja - Maha Ashtami",
-    type: "Festival",
-  },
-  {
-    date: DateTime.local(2025, 10, 1),
-    title: "Durgapuja - Maha Navami",
-    type: "Festival",
-  },
-  { date: DateTime.local(2025, 10, 6), title: "Lakshmi Puja", type: "Festival" },
-  {
-    date: DateTime.local(2025, 10, 20),
-    title: "Diwali (Deepavali) / Kali Puja",
-    type: "Festival",
-  },
-  {
-    date: DateTime.local(2025, 11, 5),
-    title: "Birth Day of Guru Nanak",
-    type: "Festival",
-  },
-  { date: DateTime.local(2025, 12, 25), title: "Christmas Day", type: "Festival" },
-  // Additional Festival Holiday for Cat B
-  {
-    date: DateTime.local(2025, 10, 23),
-    title: "Bhatridwitiya (Addl. FH for Cat B)",
-    type: "Festival",
-  },
+// This hook correctly parses API strings into the types we need
+function useFormattedHolidays(holidays: FetchedHoliday[]) {
+  return useMemo(() => {
+    // Cast 'h' to 'any' to handle the 'name' prop from the API
+    return holidays.map((h: any) => {
+      // h.date is a UTC string like "2025-01-24T00:00:00.000Z"
+      const dateString = h.date.split("T")[0];
 
-  // --- Restricted Holidays (RH) List ---
-  {
-    date: DateTime.local(2025, 1, 1),
-    title: "New Year's Day",
-    type: "Restricted",
-  },
-  {
-    date: DateTime.local(2025, 1, 6),
-    title: "Guru Govind Singh's Birthday",
-    type: "Restricted",
-  },
-  {
-    date: DateTime.local(2025, 1, 14),
-    title: "Makar Sankranti / Magha Bihu / Pongol",
-    type: "Restricted",
-  },
-  {
-    date: DateTime.local(2025, 1, 23),
-    title: "Netaji's Birth Day",
-    type: "Restricted",
-  },
-  {
-    date: DateTime.local(2025, 2, 2),
-    title: "Basanta Panchami / Sri Panchami",
-    type: "Restricted",
-  },
-  {
-    date: DateTime.local(2025, 3, 28),
-    title: "Jamat- UI-Vida",
-    type: "Restricted",
-  },
-  { date: DateTime.local(2025, 4, 6), title: "Ram Navami", type: "Restricted" },
-  {
-    date: DateTime.local(2025, 4, 10),
-    title: "Mahavir Jayanti",
-    type: "Restricted",
-  },
-  {
-    date: DateTime.local(2025, 4, 15),
-    title: "Bengali New Year's day",
-    type: "Restricted",
-  },
-  {
-    date: DateTime.local(2025, 5, 9),
-    title: "Birthday of Rabindranath Tagore",
-    type: "Restricted",
-  },
-  { date: DateTime.local(2025, 6, 27), title: "Rath Yatra", type: "Restricted" },
-  { date: DateTime.local(2025, 7, 6), title: "Muharram", type: "Restricted" },
-  {
-    date: DateTime.local(2025, 8, 9),
-    title: "Raksha Bandhan",
-    type: "Restricted",
-  },
-  {
-    date: DateTime.local(2025, 9, 5),
-    title: "Milad-Un-Nabi / Id-E-Milad",
-    type: "Restricted",
-  },
-  { date: DateTime.local(2025, 9, 21), title: "Mahalaya", type: "Restricted" },
-  {
-    date: DateTime.local(2025, 9, 29),
-    title: "Durgapuja - Maha Saptami",
-    type: "Restricted",
-  },
-  { date: DateTime.local(2025, 10, 27), title: "Chhat Puja", type: "Restricted" },
-  {
-    date: DateTime.local(2025, 11, 24),
-    title: "Guru Teg Bahadur's Martyrdom Day",
-    type: "Restricted",
-  },
-  {
-    date: DateTime.local(2025, 12, 24),
-    title: "Christmas Eve",
-    type: "Restricted",
-  },
-].map((h) => ({ ...h, dateObj: h.date.toJSDate() }));
+      // Create a new DateTime object from *only* the date part.
+      // This forces it to be at midnight in the user's LOCAL timezone.
+      const dt = DateTime.fromISO(dateString);
 
-// --- 1. CHANGED THIS COLOR MAP ---
+      return {
+        // --- FIX: Map API data to component props ---
+        title: h.name, // Map API's 'name' to 'title'
+        type: h.type, // Pass through the type (CH, FH, RH)
+        // --- END FIX ---
+        date: dt, // The local DateTime object
+        dateObj: dt.toJSDate(), // The JS Date object (for react-day-picker)
+      };
+    });
+  }, [holidays]);
+}
+
+// --- FIX: Updated Color Map to use API types (CH, FH, RH) ---
 const holidayColorMap: { [key: string]: { dot: string; text: string } } = {
-  Closed: { dot: "holiday-dot-closed", text: "text-red-600" },
-  Festival: { dot: "holiday-dot-festival", text: "text-blue-600" },
-  Restricted: { dot: "holiday-dot-restricted", text: "text-purple-600" }, // <-- CHANGED
+  CH: { dot: "holiday-dot-closed", text: "text-red-600" }, // Was "Closed"
+  FH: { dot: "holiday-dot-festival", text: "text-blue-600" }, // Was "Festival"
+  RH: { dot: "holiday-dot-restricted", text: "text-purple-600" }, // Was "Restricted"
 };
 
-// --- 3. Add map for tooltip content ---
-const holidayTypeMap: { [key: string]: string } = {
-  Closed: "CH",
-  Festival: "FH",
-  Restricted: "RH",
-};
-
-// --- Component ---
-export function EventCalendar() {
+export function EventCalendar({ holidays, isLoading }: EventCalendarProps) {
+  // State is kept as a Luxon object
   const [currentMonth, setCurrentMonth] = useState<DateTime>(DateTime.local());
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
+  const formattedHolidays = useFormattedHolidays(holidays);
 
   const selectedMonthHolidays = useMemo(() => {
-    return holidaysData
+    return formattedHolidays
       .filter((h) => h.date.hasSame(currentMonth, "month"))
       .sort((a, b) => a.date.day - b.date.day);
-  }, [currentMonth]);
+  }, [currentMonth, formattedHolidays]);
 
   const modifiers = {
-    isClosed: holidaysData
-      .filter((h) => h.type === "Closed")
+    // --- FIX: Use API types (CH, FH, RH) ---
+    isClosed: formattedHolidays
+      .filter((h) => h.type === "CH") // Was "Closed"
       .map((h) => h.dateObj),
-    isFestival: holidaysData
-      .filter((h) => h.type === "Festival")
+    isFestival: formattedHolidays
+      .filter((h) => h.type === "FH") // Was "Festival"
       .map((h) => h.dateObj),
-    isRestricted: holidaysData
-      .filter((h) => h.type === "Restricted")
+    isRestricted: formattedHolidays
+      .filter((h) => h.type === "RH") // Was "Restricted"
       .map((h) => h.dateObj),
-    today: new Date(),
+    // --- END FIX ---
+    
+    today: DateTime.local().toJSDate(),
   };
-
+  
   const modifiersClassNames = {
     isClosed: "relative holiday-dot-closed",
     isFestival: "relative holiday-dot-festival",
     isRestricted: "relative holiday-dot-restricted",
     today: "bg-primary-500 text-white rounded-full font-bold",
   };
-
+  
   const CustomCaptionLabel: React.FC<FixedCaptionLabelProps> = ({
     displayMonth,
   }) => {
+    // Convert picker's JS Date back to Luxon for formatting
     const monthLabel = DateTime.fromJSDate(displayMonth).toFormat("LLLL yyyy");
     return (
       <div className="flex items-center justify-center gap-2 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
@@ -262,8 +130,7 @@ export function EventCalendar() {
     day_range_middle: "text-primary-600 bg-primary-50 rounded-none",
     day_hidden: "invisible",
   };
-
-  // --- 2. CHANGED THE STYLES FOR RESTRICTED ---
+  
   const holidayDotStyle = `
     .rdp-day_today.holiday-dot-closed,
     .rdp-day_today.holiday-dot-festival,
@@ -272,24 +139,20 @@ export function EventCalendar() {
       position: relative;
     }
     .holiday-dot-closed:not(.rdp-day_outside)::after {
-      content: ''; position: absolute; bottom: 4px;
-      left: 50%;
+      content: ''; position: absolute; bottom: 4px; left: 50%;
       transform: translateX(-50%); width: 5px; height: 5px;
       border-radius: 50%; background-color: #ef4444; /* Red */
     }
     .holiday-dot-festival:not(.rdp-day_outside)::after {
-      content: '';
-      position: absolute; bottom: 4px; left: 50%;
+      content: ''; position: absolute; bottom: 4px; left: 50%;
       transform: translateX(-50%); width: 5px; height: 5px;
       border-radius: 50%; background-color: #3b82f6; /* Blue */
     }
     .holiday-dot-restricted:not(.rdp-day_outside)::after {
-      content: '';
-      position: absolute; bottom: 4px; left: 50%;
+      content: ''; position: absolute; bottom: 4px; left: 50%;
       transform: translateX(-50%); width: 5px; height: 5px;
       border-radius: 50%; 
-      background-color: #9333ea; /* <-- CHANGED (Pink-600) */
-      /* Was: #16a34a (Green) */
+      background-color: #9333ea; /* Purple */
     }
     
     /* White dot for today */
@@ -300,35 +163,33 @@ export function EventCalendar() {
     }
   `;
 
-  // --- 4. Custom Day Component with Tooltip ---
+  // --- FIX: Use holiday.type directly for Tooltip ---
   function CustomDay(props: DayProps & { modifiers?: { outside?: boolean } }) {
-    // Find the holiday for this specific day
-    const holiday = holidaysData.find(
-      (h) => h.date.toJSDate().toDateString() === props.date.toDateString()
+    // Convert picker's JS Date prop back to Luxon
+    const dayAsLuxon = DateTime.fromJSDate(props.date);
+    // Find the holiday by comparing Luxon objects
+    const holiday = formattedHolidays.find((h) =>
+      h.date.hasSame(dayAsLuxon, "day")
     );
-
-    // Don't show tooltips for days outside the current month
     if (holiday && !props.modifiers?.outside) {
-      const shortType = holidayTypeMap[holiday.type] || "??";
+      const shortType = holiday.type; // The type IS the short type (e.g., "CH")
       return (
         <Tooltip content={shortType}>
           <Day {...props} />
         </Tooltip>
       );
     }
-
-    // Render a normal day
     return <Day {...props} />;
   }
+  // --- END OF CHANGE ---
 
-  // --- 5. Components object to pass to DayPicker ---
   const components: any = {
     CaptionLabel: CustomCaptionLabel,
     IconLeft: () => <ChevronLeft className="h-5 w-5" />,
     IconRight: () => <ChevronRight className="h-5 w-5" />,
-    Day: CustomDay, // <-- Add this line
+    Day: CustomDay,
   };
-
+  
   return (
     <>
       <div className="flex flex-col h-full">
@@ -338,11 +199,13 @@ export function EventCalendar() {
           showOutsideDays
           fixedWeeks
           mode="single"
+          // Convert Luxon state to JS Date at the boundary
           month={currentMonth.toJSDate()}
+          // Convert picker's JS Date back to Luxon state at the boundary
           onMonthChange={(month) => setCurrentMonth(DateTime.fromJSDate(month))}
           modifiers={modifiers}
           classNames={classNames}
-          components={components} // <-- Pass the components prop
+          components={components}
           modifiersClassNames={modifiersClassNames}
           weekStartsOn={0}
         />
@@ -360,13 +223,15 @@ export function EventCalendar() {
                   className="flex items-center gap-2 text-xs p-1.5 bg-white rounded border border-neutral-200/60 shadow-sm"
                 >
                   <span
-                    className={`font-semibold w-8 text-center flex-shrink-0 ${holidayColorMap[holiday.type]?.text || "text-neutral-500"
-                      }`}
+                    className={`font-semibold w-8 text-center flex-shrink-0 ${
+                      holidayColorMap[holiday.type]?.text || // <-- This now works (e.g., holidayColorMap["CH"])
+                      "text-neutral-500"
+                    }`}
                   >
                     {holiday.date.toFormat("dd")}
                   </span>
                   <span className="text-neutral-700 truncate">
-                    {holiday.title}
+                    {holiday.title} {/* <-- This now works (reads from h.name) */}
                   </span>
                 </div>
               ))
@@ -383,8 +248,8 @@ export function EventCalendar() {
       <YearCalendarModal
         isOpen={isYearModalOpen}
         onClose={() => setIsYearModalOpen(false)}
-        year={currentMonth.year}
-        holidays={holidaysData}
+        year={currentMonth.year} // Pass the primitive number
+        holidays={formattedHolidays} // Pass the fully formatted data
       />
     </>
   );
