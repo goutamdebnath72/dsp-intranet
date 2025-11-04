@@ -8,6 +8,8 @@ import { authOptions } from "@/lib/auth";
 import { put } from "@vercel/blob";
 import { DateTime } from "luxon";
 import { fromBuffer } from "pdf2pic";
+// --- 1. IMPORT SHARP ---
+import sharp from "sharp";
 
 // --- Detect file type helper ---
 async function getFileType(buffer: Buffer) {
@@ -33,7 +35,7 @@ export async function GET() {
   }
 }
 
-// --- POST route: Upload new circular (secure PDF sanitization) ---
+// --- POST route: Upload new circular (secure PDF & Image sanitization) ---
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -66,10 +68,10 @@ export async function POST(request: Request) {
     const uploadedUrls: string[] = [];
 
     // --- PDF Sanitization (convert pages to images) ---
+    // (This block is untouched and remains the same)
     if (type?.mime === "application/pdf") {
       console.log("Sanitizing PDF securely via pdf2pic...");
 
-      // --- FIX: Add Homebrew paths for BOTH Apple Silicon and Intel Macs ---
       const homebrewAppleSiliconPath = "/opt/homebrew/bin";
       const homebrewIntelPath = "/usr/local/bin";
       let path = process.env.PATH || "";
@@ -85,18 +87,15 @@ export async function POST(request: Request) {
         console.log("Added Intel Mac Homebrew path (/usr/local/bin) to PATH.");
       }
       process.env.PATH = path;
-      // --- END FIX ---
 
       try {
-        // Create pdf2pic converter
         const converter = fromBuffer(fileBuffer, {
-          density: 150, // DPI resolution
+          density: 150,
           format: "png",
           width: 1200,
           height: 1600,
         });
 
-        // Convert all pages to base64 images
         const pages = await converter.bulk(-1, { responseType: "base64" });
 
         if (!pages || !Array.isArray(pages) || pages.length === 0) {
@@ -105,7 +104,6 @@ export async function POST(request: Request) {
 
         console.log(`PDF contains ${pages.length} page(s)`);
 
-        // Upload all pages as sanitized PNGs
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i];
 
@@ -128,9 +126,6 @@ export async function POST(request: Request) {
         console.log("✅ PDF sanitized successfully.");
       } catch (err: any) {
         console.error("⚠️ PDF sanitization failed:", err.message);
-
-        // --- FIX: Do NOT upload the raw PDF. This is a security risk. ---
-        // Instead, return a proper error to the client.
         return NextResponse.json(
           {
             error:
@@ -138,15 +133,22 @@ export async function POST(request: Request) {
           },
           { status: 500 }
         );
-        // --- END FIX ---
       }
     }
 
-    // --- Direct Image Upload (no sanitization needed) ---
+    // --- 2. IMAGE SANITIZATION (JPG, PNG) ---
     else if (type?.mime === "image/jpeg" || type?.mime === "image/png") {
-      console.log("Uploading image circular...");
+      console.log(`Sanitizing ${type.mime} securely via sharp...`);
+
+      // Re-encode the image to strip malicious metadata
+      const sanitizedBuffer = await sharp(fileBuffer).toBuffer(); // This re-builds the image, leaving junk behind
+
+      console.log("✅ Image sanitized successfully.");
+
       const filename = `circular_${timestamp}.${type.ext}`;
-      const blob = await put(filename, fileBuffer, {
+
+      const blob = await put(filename, sanitizedBuffer, {
+        // Upload the new buffer
         access: "public",
         contentType: type.mime,
         token: process.env.BLOB_READ_WRITE_TOKEN,
