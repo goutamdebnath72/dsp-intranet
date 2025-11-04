@@ -16,15 +16,24 @@ import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { Tooltip } from "./Tooltip";
 import { SCROLL_CONFIG } from "@/lib/SCROLL_CONFIG";
+
 type AnnouncementWithReadStatus = Announcement & { isRead: boolean };
+
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
 export function AnnouncementsFeed() {
   const { data: session } = useSession();
   const {
     data: announcementsData,
     error,
     isLoading,
-  } = useSWR<AnnouncementWithReadStatus[]>("/api/announcements", fetcher);
+  } = useSWR<AnnouncementWithReadStatus[]>("/api/announcements", fetcher, {
+    // --- FIX 1: Add this option. ---
+    // This stops the list from disappearing and resetting the scroll
+    // position to 0 during automatic SWR revalidations.
+    keepPreviousData: true,
+  });
+
   const [selectedAnnouncement, setSelectedAnnouncement] =
     useState<Announcement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -32,10 +41,48 @@ export function AnnouncementsFeed() {
   const isHoveringRef = useRef(false);
   const listHeightRef = useRef(0);
 
+  // --- FIX 2 (Step A): Add state to track if content is overflowing ---
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
   const direction = SCROLL_CONFIG.announcementsDirection;
   const speedPxPerSec = SCROLL_CONFIG.speedPxPerSec;
+
+  // --- FIX 2 (Step B): New effect to measure content height ---
+  // This effect checks if the list is taller than its container.
+  // It runs when data loads or when 'isOverflowing' itself changes.
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    const listEl = listRef.current;
+
+    if (scrollEl && listEl && announcementsData) {
+      if (isOverflowing) {
+        // We are currently duplicating. Check if we should STOP.
+        // We get the single list height by dividing the duplicated list height by 2.
+        const singleListHeight = listEl.scrollHeight / 2;
+        if (singleListHeight <= scrollEl.clientHeight) {
+          setIsOverflowing(false); // Stop duplicating
+        }
+      } else {
+        // We are NOT duplicating. Check if we should START.
+        // listEl.scrollHeight is currently the single list height.
+        if (listEl.scrollHeight > scrollEl.clientHeight) {
+          setIsOverflowing(true); // Start duplicating
+        }
+      }
+    } else if (!announcementsData && isOverflowing) {
+      setIsOverflowing(false); // Reset on error or no data
+    }
+  }, [announcementsData, isOverflowing]);
+
   // --- Smooth auto-scroll (rAF + seamless wrap) ---
   useEffect(() => {
+    // --- FIX 2 (Step C): Only run scroll logic if we are overflowing ---
+    if (!isOverflowing) {
+      // If not overflowing, ensure scroll is at the top and stop
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
+      return;
+    }
+
     const scrollEl = scrollRef.current;
     const listEl = listRef.current;
     if (!scrollEl || !listEl) return;
@@ -50,6 +97,7 @@ export function AnnouncementsFeed() {
       const dt = Math.min(40, ts - lastTs);
       lastTs = ts;
 
+      // Note: `isLoading` check now works correctly with `keepPreviousData`
       if (!isHoveringRef.current && !isLoading && announcementsData) {
         const h = listHeightRef.current;
         if (h > 0 && scrollEl.scrollHeight > scrollEl.clientHeight) {
@@ -74,7 +122,8 @@ export function AnnouncementsFeed() {
       clearTimeout(startup);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [isLoading, announcementsData, direction, speedPxPerSec]);
+    // --- FIX 2 (Step D): Add 'isOverflowing' to dependency array ---
+  }, [isLoading, announcementsData, direction, speedPxPerSec, isOverflowing]);
 
   // --- Handlers for reading / opening ---
   const handleAnnouncementClick = async (item: AnnouncementWithReadStatus) => {
@@ -102,7 +151,9 @@ export function AnnouncementsFeed() {
 
   // --- Render content ---
   const renderContent = () => {
-    if (isLoading)
+    // This 'isLoading' check is now only for the *initial* load,
+    // thanks to 'keepPreviousData: true'.
+    if (isLoading && !announcementsData)
       return (
         <div className="flex items-center justify-center h-full text-neutral-500">
           <Loader2 className="animate-spin" size={24} />
@@ -121,6 +172,7 @@ export function AnnouncementsFeed() {
           <p className="text-sm">No announcements right now.</p>
         </div>
       );
+
     const sortedData = announcementsData
       .slice()
       .sort(
@@ -128,7 +180,12 @@ export function AnnouncementsFeed() {
           DateTime.fromISO(b.date as any).toMillis() -
           DateTime.fromISO(a.date as any).toMillis()
       );
-    const duplicatedData = [...sortedData, ...sortedData];
+
+    // --- FIX 2 (Step E): Conditionally duplicate the data ---
+    // Only duplicate if 'isOverflowing' is true.
+    const dataToRender = isOverflowing
+      ? [...sortedData, ...sortedData]
+      : sortedData;
 
     const renderItem = (item: AnnouncementWithReadStatus, index: number) => {
       const hasContent = !!item.content;
@@ -204,7 +261,8 @@ export function AnnouncementsFeed() {
 
     return (
       <div ref={listRef} className="flex flex-col">
-        {duplicatedData.map((item, index) => renderItem(item, index))}
+        {/* --- FIX 2 (Step F): Use the new 'dataToRender' variable --- */}
+        {dataToRender.map((item, index) => renderItem(item, index))}
       </div>
     );
   };
