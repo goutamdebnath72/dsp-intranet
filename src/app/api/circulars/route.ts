@@ -10,6 +10,7 @@ import { DateTime } from "luxon";
 import { fromBuffer } from "pdf2pic";
 // --- 1. IMPORT SHARP ---
 import sharp from "sharp";
+import { generateAndSaveEmbedding } from "@/lib/ai/embedding.service";
 
 // --- Detect file type helper ---
 async function getFileType(buffer: Buffer) {
@@ -173,6 +174,22 @@ export async function POST(request: Request) {
         publishedAt: new Date(),
       },
     });
+
+    // --- AI EMBEDDING (NEW) ---
+    // This runs *after* the circular is created, so if AI fails,
+    // the upload is still successful.
+    if (type?.mime === "application/pdf") {
+      try {
+        // We call our new, separate function.
+        // We pass it the buffer we already have in memory.
+        await generateAndSaveEmbedding(prisma, newCircular.id, fileBuffer, headline);
+        console.log(`✅ AI embedding generated for: ${newCircular.id}`);
+      } catch (aiError) {
+        // Log the error but DO NOT block the response.
+        console.error(`⚠️ AI embedding failed for ${newCircular.id}:`, aiError);
+      }
+    }
+    // --- END AI EMBEDDING ---
 
     console.log("✅ Circular record created:", newCircular.id);
     return NextResponse.json(newCircular, { status: 201 });

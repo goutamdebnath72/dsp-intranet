@@ -1,65 +1,28 @@
 // prisma/seed.ts
-/**
- * Updated seed (typed) — Supabase-ready.
- * Replaces previous prisma/seed.ts. Preserves existing logic, adds CitUser typing.
- */
 
 import { prisma } from "../src/lib/prisma";
 import bcrypt from "bcryptjs";
-// citusers is a JS file in your repo (you uploaded it as .js). Import as usual:
 import { citusers } from "../src/lib/citusers";
 import { departments } from "../src/lib/departments";
 import { links } from "../src/lib/links";
 import { circularsByYear } from "../src/lib/circulars";
-
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs";
 import * as path from "path";
 
 const SALT_ROUNDS = 10;
 
-/**
- * Define the TypeScript shape of entries in citusers.
- * Matches the structure in src/lib/citusers.js (the one you uploaded).
- * Add additional fields here if your citusers file contains more properties.
- */
-type CitUser = {
-  name: string;
-  ticketNo: string | number;
-  sailPNo?: string | null;
-  password?: string;
-  designation?: string | null;
-  departmentCode: number;
-  department?: string;
-  address?: string;
-  mobileNo?: string | null;
-  emailNic?: string | null;
-  emailSail?: string | null;
-  role?: string | null;
-  [k: string]: any;
-};
-
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-  console.warn(
-    "[seed] SUPABASE_URL or SUPABASE_SERVICE_KEY not set - file uploads will be skipped."
-  );
-}
-
-const supabase =
-  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-    : null;
+// Initialize Supabase client (for file storage)
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+);
 
 async function uploadFileToSupabase(localPath: string, destPath: string) {
-  if (!supabase) return null;
-
   try {
     const fileBuffer = fs.readFileSync(localPath);
-    const bucket = process.env.SUPABASE_BUCKET;
-    if (!bucket) throw new Error("SUPABASE_BUCKET not configured in .env");
-
     const { data, error } = await supabase.storage
-      .from(bucket)
+      .from(process.env.SUPABASE_BUCKET!)
       .upload(destPath, fileBuffer, {
         upsert: true,
         contentType: "application/pdf",
@@ -67,23 +30,21 @@ async function uploadFileToSupabase(localPath: string, destPath: string) {
 
     if (error) throw error;
 
-    const publicObj = supabase.storage.from(bucket).getPublicUrl(destPath);
-    if (!publicObj || !publicObj.data) {
-      throw new Error("Unable to get public URL after upload");
-    }
+    // Construct the public URL
+    const { data: publicUrl } = supabase.storage
+      .from(process.env.SUPABASE_BUCKET!)
+      .getPublicUrl(destPath);
 
-    console.log(`   -> Uploaded: ${publicObj.data.publicUrl}`);
-    return publicObj.data.publicUrl;
+    console.log(`   -> Uploaded: ${publicUrl.publicUrl}`);
+    return publicUrl.publicUrl;
   } catch (err: any) {
-    console.error(
-      `   -> Upload failed for ${destPath}: ${err?.message || err}`
-    );
+    console.error(`   -> Upload failed for ${destPath}:`, err.message);
     return null;
   }
 }
 
 async function main() {
-  console.log("🌱 Starting intranet seed process (typed, Supabase-ready)...");
+  console.log("🌱 Starting intranet seed process (Supabase Edition)...");
 
   console.log("🧹 Deleting old data...");
   await prisma.holidayYear.deleteMany({});
@@ -94,34 +55,30 @@ async function main() {
 
   console.log("🏢 Seeding Departments...");
   await prisma.department.createMany({
-    data: Array.isArray(departments)
-      ? departments.map((d) => ({ code: d.code, name: d.name }))
-      : [],
+    data: departments.map((d) => ({ code: d.code, name: d.name })),
     skipDuplicates: true,
   });
 
   const allDepartments = await prisma.department.findMany();
-  const departmentMap = new Map(allDepartments.map((d) => [d.code, d.id]));
+  const departmentMap = new Map(
+    allDepartments.map((d) => [d.code, d.id])
+  );
 
   console.log("👥 Upserting Users...");
-  const citUsersArr = Object.values(citusers) as CitUser[];
-
-  for (const u of citUsersArr) {
+  for (const u of Object.values(citusers)) {
     const departmentId = departmentMap.get(u.departmentCode);
     if (!departmentId) {
-      console.warn(
-        `[seed] Skipping user '${u.name}' – unknown dept ${u.departmentCode}`
-      );
+      console.warn(`Skipping user '${u.name}' – unknown dept ${u.departmentCode}`);
       continue;
     }
 
-    const passwordPlain = String(u.sailPNo ?? u.ticketNo ?? u.password ?? "");
+    const passwordPlain = String(u.sailPNo ?? u.ticketNo);
     const hashedPassword = await bcrypt.hash(passwordPlain, SALT_ROUNDS);
 
     const role =
       String(u.ticketNo).startsWith("4") && u.departmentCode === 98500
         ? "admin"
-        : u.role ?? "standard";
+        : "standard";
 
     const email =
       u.emailSail && u.emailSail !== "NOT AVAILABLE"
@@ -130,15 +87,7 @@ async function main() {
 
     await prisma.user.upsert({
       where: { ticketNo: String(u.ticketNo) },
-      update: {
-        name: u.name,
-        designation: u.designation ?? null,
-        contactNo: u.mobileNo ?? null,
-        sailPNo: u.sailPNo ?? null,
-        email,
-        role,
-        departmentId,
-      },
+      update: {},
       create: {
         name: u.name,
         ticketNo: String(u.ticketNo),
@@ -154,34 +103,19 @@ async function main() {
   }
 
   console.log("🔗 Seeding Links...");
-  if (Array.isArray(links)) {
-    await prisma.link.createMany({ data: links, skipDuplicates: true });
-  }
+  await prisma.link.createMany({ data: links, skipDuplicates: true });
 
-  console.log("📄 Seeding Circulars (with optional Supabase uploads)...");
-  const allCirculars = Array.isArray(circularsByYear)
-    ? circularsByYear
-    : Object.values(circularsByYear).flat();
+  console.log("📄 Seeding Circulars (with Supabase uploads)...");
+  const allCirculars = Object.values(circularsByYear).flat();
 
   for (const [index, circular] of allCirculars.entries()) {
     let fileUrl: string | null = null;
 
-    if (supabase) {
-      try {
-        const filePath = path.join(
-          process.cwd(),
-          "prisma/seed-assets/placeholder.pdf"
-        );
-        const destPath = `circulars/placeholder_${index}_${Date.now()}.pdf`;
-
-        if (fs.existsSync(filePath)) {
-          fileUrl = await uploadFileToSupabase(filePath, destPath);
-        } else {
-          console.warn(`[seed] placeholder file not found: ${filePath}`);
-        }
-      } catch (err) {
-        console.warn("[seed] Supabase upload skipped due to error:", err);
-      }
+    if (index < 5) {
+      console.log(` -> Uploading placeholder for: "${circular.headline}"`);
+      const filePath = path.join(process.cwd(), "prisma/seed-assets/placeholder.pdf");
+      const destPath = `circulars/placeholder_${circular.id}.pdf`;
+      fileUrl = await uploadFileToSupabase(filePath, destPath);
     }
 
     await prisma.circular.create({
@@ -238,7 +172,7 @@ async function main() {
     skipDuplicates: true,
   });
 
-  console.log("✅ Seeding complete (typed, Supabase Edition).");
+  console.log("✅ Seeding complete (Supabase Edition).");
 }
 
 main()

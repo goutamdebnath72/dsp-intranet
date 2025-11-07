@@ -1,12 +1,20 @@
+// ==========================================
+// PRISMA CONFIGURATION
+// ==========================================
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_DATABASE_URL")
+  url        = env("DIRECT_DATABASE_URL")
+  directUrl  = env("DIRECT_DATABASE_URL")
 }
+
+// ==========================================
+// MODELS
+// ==========================================
 
 model Link {
   id        Int      @id @default(autoincrement())
@@ -16,6 +24,8 @@ model Link {
   href      String
   icon      String?
   category  String
+
+  @@map("link")
 }
 
 model Announcement {
@@ -25,6 +35,8 @@ model Announcement {
   content     String?
   date        DateTime
   readByUsers AnnouncementReadStatus[]
+
+  @@map("announcement")
 }
 
 model Department {
@@ -52,6 +64,7 @@ model Account {
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@map("account")
 }
 
 model Session {
@@ -60,6 +73,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
 }
 
 model User {
@@ -72,7 +87,7 @@ model User {
   sessions          Session[]
   readAnnouncements AnnouncementReadStatus[]
 
-  // --- CUSTOM FIELDS FOR DSP INTRANET ---
+  // --- CUSTOM FIELDS ---
   password          String?
   role              String                   @default("standard")
   ticketNo          String                   @unique
@@ -81,6 +96,8 @@ model User {
   sailPNo           String?
   department        Department?              @relation(fields: [departmentId], references: [id])
   departmentId      String?
+
+  @@map("user")
 }
 
 model VerificationToken {
@@ -89,6 +106,7 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@map("verificationtoken")
 }
 
 model AnnouncementReadStatus {
@@ -100,40 +118,52 @@ model AnnouncementReadStatus {
   announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
 
   @@unique([userId, announcementId])
+  @@map("announcementreadstatus")
 }
 
-// --- NEW MODEL FOR CIRCULARS ---
+// ==========================================
+// CIRCULARS (WITH VECTOR EMBEDDING)
+// ==========================================
+
 model Circular {
   id          Int       @id @default(autoincrement())
   headline    String
-  fileUrls    String[]  // ✅ replaces fileUrl with array of URLs
+  fileUrls    String[]
   publishedAt DateTime  @default(now())
+
+  // embedding vector (for AI search)
+  embedding   Unsupported("vector(768)")?
 
   @@map("circulars")
 }
 
-// --- HOLIDAY MODELS ---
+// ==========================================
+// HOLIDAY MODELS
+// ==========================================
+
 enum HolidayType {
-  CH  // Closed / Public Holiday
-  FH  // Festival Holiday
-  RH  // Restricted Holiday
+  CH // Closed / Public Holiday
+  FH // Festival Holiday
+  RH // Restricted Holiday
 }
 
 model HolidayMaster {
-  id    Int          @id @default(autoincrement())
-  name  String       @unique
+  id    Int           @id @default(autoincrement())
+  name  String        @unique
   type  HolidayType
   years HolidayYear[]
+
+  @@map("holidaymaster")
 }
 
 model HolidayYear {
-  id              Int          @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
   date            DateTime
   year            Int
   holidayType     HolidayType
-  holidayMaster   HolidayMaster @relation(fields: [holidayMasterId], references: [id], onDelete: Cascade)
   holidayMasterId Int
+  holidayMaster   HolidayMaster @relation(fields: [holidayMasterId], references: [id], onDelete: Cascade)
 
-  @@index([year])  
+  @@index([year])
+  @@map("holidayyear")
 }
-
