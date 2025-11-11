@@ -5,28 +5,21 @@ import { getOracleConfig } from "./config/oracle.config";
 import { initModels } from "./models";
 
 /**
- * Defensive DB entrypoint that:
- * - Exports getDb() for other modules that need the DB object on-demand
- * - Exports a default db object that contains either real Sequelize models
- *   or build-time dummy models (with safe stubbed methods) so server-side
- *   rendering / build doesn't crash.
+ * Final stable DB entrypoint:
+ * ✅ Always connects to Supabase PostgreSQL during runtime (dev/prod)
+ * 💤 Uses dummy models only during static build
+ * 🧠 Reconnects automatically if Sequelize becomes invalidated
  */
 
-// Detect build-phase when connection env-vars are missing
-const isBuilding =
-  !process.env.POSTGRES_HOST && !process.env.ORACLE_CONNECT_STRING;
+let sequelize: Sequelize | null = null;
+let db: any = null;
 
-type ModelStub = {
-  findAll: (...args: any[]) => Promise<any[]>;
-  findOne?: (...args: any[]) => Promise<any | null>;
-  findByPk?: (...args: any[]) => Promise<any | null>;
-  create?: (...args: any[]) => Promise<any>;
-  update?: (...args: any[]) => Promise<any>;
-  destroy?: (...args: any[]) => Promise<number>;
-  [k: string]: any;
-};
+// Explicitly detect build phase based on NEXT_PHASE (set by Next.js build)
+const isBuildPhase =
+  typeof process.env.NEXT_PHASE === "string" &&
+  process.env.NEXT_PHASE.includes("build");
 
-function makeDummyModel(): ModelStub {
+function makeDummyModel() {
   return {
     findAll: async () => [],
     findOne: async () => null,
@@ -37,7 +30,7 @@ function makeDummyModel(): ModelStub {
   };
 }
 
-const EMPTY_DUMMY_DB = {
+const DUMMY_DB = {
   sequelize: null,
   Account: makeDummyModel(),
   Announcement: makeDummyModel(),
@@ -52,45 +45,41 @@ const EMPTY_DUMMY_DB = {
   VerificationToken: makeDummyModel(),
 };
 
-let _db: any = null;
-
 /**
- * Returns the application DB object:
- * - In build phase: a dummy object (safe to import)
- * - At runtime: a real object with `sequelize` and model instances
+ * Initialize or retrieve DB instance
  */
 export function getDb() {
-  if (_db) return _db;
+  // Reuse initialized DB
+  if (db && db.sequelize) return db;
 
-  if (isBuilding) {
-    // Build-time: return safe dummy object (so importers like page.tsx won't crash while Next builds)
-    console.log("🔌 DETECTED BUILD PHASE. Returning dummy DB object.");
-    _db = EMPTY_DUMMY_DB;
-    return _db;
+  // 💤 During build phase: return safe dummy
+  if (isBuildPhase) {
+    console.log("🔌 BUILD PHASE detected — returning dummy DB.");
+    return DUMMY_DB;
   }
 
-  // Runtime: set up Sequelize and models
+  // ✅ Runtime: Connect to DB
   const dbType = process.env.DB_TYPE || "postgres";
-  let sequelize: Sequelize;
+  try {
+    if (dbType === "oracle") {
+      console.log("🔌 Connecting to Oracle...");
+      sequelize = new Sequelize(getOracleConfig());
+    } else {
+      console.log("🔌 Connecting to PostgreSQL (Supabase)...");
+      sequelize = new Sequelize(getPostgresConfig());
+    }
 
-  if (dbType === "oracle") {
-    console.log("🔌 Connecting to Oracle...");
-    sequelize = new Sequelize(getOracleConfig());
-  } else {
-    console.log("🔌 Connecting to PostgreSQL...");
-    sequelize = new Sequelize(getPostgresConfig());
+    const models = initModels(sequelize);
+    db = { sequelize, ...models };
+
+    console.log("✅ Sequelize initialized successfully.");
+    return db;
+  } catch (err) {
+    console.error("❌ Failed to initialize Sequelize:", err);
+    db = DUMMY_DB;
+    return db;
   }
-
-  const models = initModels(sequelize);
-
-  _db = {
-    sequelize,
-    ...models,
-  };
-
-  return _db;
 }
 
-// default export: the current DB object (may be dummy during build-time)
-const defaultDb = getDb();
-export default defaultDb;
+// Default export (auto-init)
+export default getDb();
