@@ -1,10 +1,12 @@
+// src/app/api/holidays/get-by-year/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getDb } from "@/lib/db";
 
-// ✅ Tell Next.js this route is always dynamic
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const db = await getDb();
+
   try {
     const { searchParams } = new URL(req.url);
     const year = parseInt(searchParams.get("year") || "");
@@ -13,24 +15,25 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Invalid year" }, { status: 400 });
     }
 
-    // ✅ Fetch all holidays for this year, including the linked master info
-    const rows = await prisma.holidayYear.findMany({
+    const rows = await db.HolidayYear.findAll({
       where: { year },
-      include: { holidayMaster: true },
-      orderBy: { date: "asc" },
+      include: {
+        model: db.HolidayMaster,
+        as: "HolidayMaster",
+      },
+      order: [["date", "ASC"]],
     });
 
-    // ✅ Map to a cleaner frontend-friendly format
     const data = rows.map((r: any) => ({
       id: r.id,
-      name: r.holidayMaster.name,
+      name: r.HolidayMaster?.name || "Unknown",
       date: r.date,
       type: r.holidayType,
     }));
 
     return NextResponse.json({ year, holidays: data });
   } catch (err: any) {
-    console.error("Error fetching holidays:", err);
+    console.error("❌ Error fetching holidays:", err);
     return NextResponse.json(
       { error: err.message || "Internal server error" },
       { status: 500 }

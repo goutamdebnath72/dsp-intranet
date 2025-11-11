@@ -1,12 +1,26 @@
 // src/app/api/ai-search/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import db from "@/lib/db";
+import { generateEmbedding } from "@/lib/ai/embedding.service";
+import { QueryTypes, Sequelize } from "sequelize"; // <-- 1. IMPORT SEQUELIZE
 
-export const runtime = "nodejs";  // Use Node.js runtime (embedding library may not run on edge)
+export const runtime = "nodejs";
+
+type SearchResultRow = {
+  id: number;
+  headline: string;
+  url: string;
+  publishedAt: Date;
+  similarity: number;
+};
 
 export async function GET(request: Request) {
   try {
+    if (!db.sequelize) {
+      console.log("Build-time: skipping AI search");
+      return NextResponse.json([]);
+    }
+
     const url = new URL(request.url);
     const q = url.searchParams.get("q")?.trim();
     if (!q) {
@@ -15,54 +29,38 @@ export async function GET(request: Request) {
         { status: 400 }
       );
     }
-    if (!process.env.GOOGLE_AI_API_KEY) {
-      console.error("Missing GOOGLE_AI_API_KEY env var");
-      return NextResponse.json(
-        { error: "Server misconfiguration: missing AI API key." },
-        { status: 500 }
-      );
-    }
 
-    // 1. Generate embedding for the query text using Google Generative AI (Gemini) API.
-    //    We use the text-embedding-004 model which returns a 768-dimensional vector:contentReference[oaicite:1]{index=1}.
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
-    const embedResult = await model.embedContent(q);
-    const embedding: number[] = embedResult.embedding.values;
-    // Convert array to PostgreSQL vector literal (e.g. "[0.1, 0.2, ...]")
+    const embedding = await generateEmbedding(q);
     const vectorString = `[${embedding.join(",")}]`;
 
-    // 2. Perform vector similarity search with raw SQL.
-    //    Prisma does not support `vector(768)` columns directly:contentReference[oaicite:2]{index=2},
-    //    so we use $queryRaw and cast the parameter to vector(768).
-    //    We compute `embedding <-> query_vector` as "similarity" (cosine distance).
-    //    Order by similarity ASC (lower distance = more similar), then by publishedAt DESC.
-    const rows: Array<{
-      id: number;
-      headline: string;
-      url: string;
-      publishedAt: Date;
-      similarity: number;
-    }> = await prisma.$queryRaw`
+    // --- 2. CAST db.sequelize to Sequelize ---
+    const rows = await (db.sequelize as Sequelize).query<SearchResultRow>(
+      `
       SELECT
         id,
         headline,
-        file_urls[1] AS url,
-        published_at AS "publishedAt",
-        (embedding <-> ${vectorString}::public.vector(768)) AS similarity
+        "fileUrls"[1] AS url,
+        "publishedAt",
+        (embedding <-> :vector::public.vector(1536)) AS similarity
       FROM circulars
-      ORDER BY similarity ASC, published_at DESC
+      ORDER BY similarity ASC, "publishedAt" DESC
       LIMIT 5;
-    `;
+    `,
+      {
+        replacements: { vector: vectorString },
+        type: QueryTypes.SELECT,
+      }
+    );
 
-    // 3. Format and return results (ISO date and 3-decimal similarity).
-    const results = rows.map((row) => ({
-      id: row.id,
-      headline: row.headline,
-      url: row.url,
-      publishedAt: new Date(row.publishedAt).toISOString(),
-      similarity: Number(row.similarity.toFixed(3)),
+    // --- 3. ADDED TYPE for 'r' (fixes second error) ---
+    const results = rows.map((r: SearchResultRow) => ({
+      id: r.id,
+      headline: r.headline,
+      url: r.url,
+      publishedAt: new Date(r.publishedAt).toISOString(),
+      similarity: Number(r.similarity.toFixed(3)),
     }));
+
     return NextResponse.json(results);
   } catch (error) {
     console.error("Semantic search error:", error);

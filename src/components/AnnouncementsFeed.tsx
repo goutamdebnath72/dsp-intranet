@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Announcement } from "@prisma/client";
 import AnnouncementModal from "./AnnouncementModal";
 import {
   MessageSquareText,
@@ -17,6 +16,18 @@ import { useSession } from "next-auth/react";
 import { Tooltip } from "./Tooltip";
 import { SCROLL_CONFIG } from "@/lib/SCROLL_CONFIG";
 
+// --- 2. ADDED NEW ANNOUNCEMENT TYPE ---
+// This type matches the data our API now sends
+type Announcement = {
+  id: number;
+  createdAt: string; // Dates are strings after JSON serialization
+  title: string;
+  content: string | null;
+  date: string; // Dates are strings after JSON serialization
+  isRead?: boolean;
+};
+// ------------------------------------
+
 type AnnouncementWithReadStatus = Announcement & { isRead: boolean };
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -28,43 +39,29 @@ export function AnnouncementsFeed() {
     error,
     isLoading,
   } = useSWR<AnnouncementWithReadStatus[]>("/api/announcements", fetcher, {
-    // --- FIX 1: Add this option. ---
-    // This stops the list from disappearing and resetting the scroll
-    // position to 0 during automatic SWR revalidations.
     keepPreviousData: true,
   });
-
   const [selectedAnnouncement, setSelectedAnnouncement] =
     useState<Announcement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const isHoveringRef = useRef(false);
   const listHeightRef = useRef(0);
-
-  // --- FIX 2 (Step A): Add state to track if content is overflowing ---
   const [isOverflowing, setIsOverflowing] = useState(false);
-
   const direction = SCROLL_CONFIG.announcementsDirection;
   const speedPxPerSec = SCROLL_CONFIG.speedPxPerSec;
 
-  // --- FIX 2 (Step B): New effect to measure content height ---
-  // This effect checks if the list is taller than its container.
-  // It runs when data loads or when 'isOverflowing' itself changes.
   useEffect(() => {
     const scrollEl = scrollRef.current;
     const listEl = listRef.current;
 
     if (scrollEl && listEl && announcementsData) {
       if (isOverflowing) {
-        // We are currently duplicating. Check if we should STOP.
-        // We get the single list height by dividing the duplicated list height by 2.
         const singleListHeight = listEl.scrollHeight / 2;
         if (singleListHeight <= scrollEl.clientHeight) {
           setIsOverflowing(false); // Stop duplicating
         }
       } else {
-        // We are NOT duplicating. Check if we should START.
-        // listEl.scrollHeight is currently the single list height.
         if (listEl.scrollHeight > scrollEl.clientHeight) {
           setIsOverflowing(true); // Start duplicating
         }
@@ -74,11 +71,8 @@ export function AnnouncementsFeed() {
     }
   }, [announcementsData, isOverflowing]);
 
-  // --- Smooth auto-scroll (rAF + seamless wrap) ---
   useEffect(() => {
-    // --- FIX 2 (Step C): Only run scroll logic if we are overflowing ---
     if (!isOverflowing) {
-      // If not overflowing, ensure scroll is at the top and stop
       if (scrollRef.current) scrollRef.current.scrollTop = 0;
       return;
     }
@@ -97,12 +91,10 @@ export function AnnouncementsFeed() {
       const dt = Math.min(40, ts - lastTs);
       lastTs = ts;
 
-      // Note: `isLoading` check now works correctly with `keepPreviousData`
       if (!isHoveringRef.current && !isLoading && announcementsData) {
         const h = listHeightRef.current;
         if (h > 0 && scrollEl.scrollHeight > scrollEl.clientHeight) {
           accumulated += (speedPxPerSec * dt * direction) / 1000;
-
           if (accumulated >= h && direction === 1) accumulated -= h;
           else if (accumulated <= 0 && direction === -1) accumulated += h;
 
@@ -112,20 +104,16 @@ export function AnnouncementsFeed() {
 
       rafId = requestAnimationFrame(tick);
     };
-
     const startup = setTimeout(() => {
       lastTs = performance.now();
       rafId = requestAnimationFrame(tick);
     }, 700);
-
     return () => {
       clearTimeout(startup);
       if (rafId) cancelAnimationFrame(rafId);
     };
-    // --- FIX 2 (Step D): Add 'isOverflowing' to dependency array ---
   }, [isLoading, announcementsData, direction, speedPxPerSec, isOverflowing]);
 
-  // --- Handlers for reading / opening ---
   const handleAnnouncementClick = async (item: AnnouncementWithReadStatus) => {
     setSelectedAnnouncement(item);
     if (!item.isRead && session) {
@@ -149,10 +137,7 @@ export function AnnouncementsFeed() {
     }
   };
 
-  // --- Render content ---
   const renderContent = () => {
-    // This 'isLoading' check is now only for the *initial* load,
-    // thanks to 'keepPreviousData: true'.
     if (isLoading && !announcementsData)
       return (
         <div className="flex items-center justify-center h-full text-neutral-500">
@@ -172,7 +157,6 @@ export function AnnouncementsFeed() {
           <p className="text-sm">No announcements right now.</p>
         </div>
       );
-
     const sortedData = announcementsData
       .slice()
       .sort(
@@ -180,13 +164,9 @@ export function AnnouncementsFeed() {
           DateTime.fromISO(b.date as any).toMillis() -
           DateTime.fromISO(a.date as any).toMillis()
       );
-
-    // --- FIX 2 (Step E): Conditionally duplicate the data ---
-    // Only duplicate if 'isOverflowing' is true.
     const dataToRender = isOverflowing
       ? [...sortedData, ...sortedData]
       : sortedData;
-
     const renderItem = (item: AnnouncementWithReadStatus, index: number) => {
       const hasContent = !!item.content;
       const itemDate = DateTime.fromISO(item.date as any);
@@ -254,14 +234,16 @@ export function AnnouncementsFeed() {
           </motion.div>
 
           {/* spacer for visible consistent gap */}
-          <div style={{ height: SCROLL_CONFIG.gapHeight }} aria-hidden="true" />
+          <div
+            style={{ height: SCROLL_CONFIG.gapHeight }}
+            aria-hidden="true"
+          />
         </React.Fragment>
       );
     };
 
     return (
       <div ref={listRef} className="flex flex-col">
-        {/* --- FIX 2 (Step F): Use the new 'dataToRender' variable --- */}
         {dataToRender.map((item, index) => renderItem(item, index))}
       </div>
     );
@@ -269,7 +251,6 @@ export function AnnouncementsFeed() {
 
   return (
     <>
-      {/* MODIFIED: Replaced h-full with flex-1 min-h-0 */}
       <div className="flex flex-col flex-1 min-h-0 bg-gray-100 rounded-lg border">
         <div
           ref={scrollRef}

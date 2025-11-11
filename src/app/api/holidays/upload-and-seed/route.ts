@@ -1,9 +1,13 @@
+// src/app/api/holidays/upload-and-seed-route.ts
+
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import db from "@/lib/db";
 import fs from "fs/promises";
 import path from "path";
 
 export const dynamic = "force-dynamic";
+
+// --- All file helpers below are 100% UNTOUCHED ---
 
 /** 🔹 Ensure upload directory exists */
 async function ensureUploadDir() {
@@ -25,7 +29,6 @@ async function saveUploadedFile(file: File, dir: string) {
 function extractPureJsonText(raw: string): string {
   // Remove any BOM and invisible characters
   let clean = raw.replace(/^\uFEFF/, "").trim();
-
   // Remove control or RTF-like characters
   clean = clean.replace(/[^\x20-\x7E\n\r\[\]\{\}:,"'A-Za-z0-9_.\- ]+/g, "");
 
@@ -63,7 +66,6 @@ async function parseJsonOrTxt(buffer: Buffer) {
         date: new Date(h.date),
         type: String(h.type).toUpperCase() as "CH" | "FH" | "RH",
       }));
-
     if (holidays.length === 0)
       throw new Error("No valid holiday records found in file");
 
@@ -74,13 +76,14 @@ async function parseJsonOrTxt(buffer: Buffer) {
   }
 }
 
+// --- End of file helpers ---
+
 /** 🔹 Main upload handler */
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const year = Number(formData.get("year"));
-
     if (!file || isNaN(year)) {
       return NextResponse.json(
         { error: "Missing file or invalid year" },
@@ -90,37 +93,48 @@ export async function POST(req: NextRequest) {
 
     const dir = await ensureUploadDir();
     const { buffer } = await saveUploadedFile(file, dir);
-
     console.log(`📂 Received file: ${file.name}, ${buffer.length} bytes`);
 
     // Parse JSON/TXT file (clean + read into memory)
     const holidays = await parseJsonOrTxt(buffer);
 
+    // ------------------------------------
+    // --- DATABASE REFACTOR STARTS HERE ---
+    // ------------------------------------
+
     // 🧹 Always start fresh
-    console.log("🧹 Clearing existing holiday tables...");
-    await prisma.holidayYear.deleteMany({});
-    await prisma.holidayMaster.deleteMany({});
+    console.log("🧹 Clearing existing holiday tables...");    
+    // We delete from HolidayYear first due to foreign key constraints
+    await db.HolidayYear.destroy({ where: {}, truncate: true, cascade: false });
+    await db.HolidayMaster.destroy({
+      where: {},
+      truncate: true,
+      cascade: false,
+    });
 
     // 🌱 Seed new data
     console.log("🌱 Seeding holidays...");
-    for (const h of holidays) {
-      // Use upsert to find-or-create the master holiday by its unique name
-      const master = await prisma.holidayMaster.upsert({
+    for (const h of holidays) {      
+      // This finds a master holiday by name or creates it
+      const [master] = await db.HolidayMaster.findOrCreate({
         where: { name: h.title },
-        update: {}, // If found, do nothing (the 'type' in HolidayYear is what matters)
-        create: { name: h.title, type: h.type }, // If not found, create it with the first type encountered
-      });
-
-      // This part was already correct and creates the yearly entry
-      await prisma.holidayYear.create({
-        data: {
-          date: h.date,
-          year,
-          holidayType: h.type,
-          holidayMasterId: master.id,
+        defaults: {
+          name: h.title,
+          type: h.type,
         },
       });
+      
+      // This creates the new yearly entry and links it to the master
+      await db.HolidayYear.create({
+        date: h.date,
+        year,
+        holidayType: h.type,
+        holidayMasterId: master.id,
+      });
     }
+    // ----------------------------------
+    // --- DATABASE REFACTOR ENDS HERE ---
+    // ----------------------------------
 
     return NextResponse.json({
       message: `✅ ${holidays.length} holidays seeded successfully for ${year}. Database refreshed.`,

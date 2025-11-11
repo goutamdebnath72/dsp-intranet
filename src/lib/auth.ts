@@ -1,72 +1,98 @@
 // src/lib/auth.ts
+import { AuthOptions } from "next-auth";
+import GitHubProvider from "next-auth/providers/github";
+import CredentialsProvider from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import SequelizeAdapter from "@next-auth/sequelize-adapter";
+import { getDb } from "@/lib/db";
 
-import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import { prisma } from '@/lib/prisma';
-import { AuthOptions, User } from 'next-auth';
-import GitHubProvider from 'next-auth/providers/github';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
+let adapterInstance: ReturnType<typeof SequelizeAdapter> | undefined =
+  undefined;
+
+// Lazily initialize DB + adapter once
+async function initAdapter() {
+  try {
+    const db = await getDb();
+    if (db?.sequelize) {
+      if (!adapterInstance) {
+        adapterInstance = SequelizeAdapter(db.sequelize);
+        console.log("✅ SequelizeAdapter initialized");
+      }
+    } else {
+      console.warn("⚠️ Sequelize not initialized yet");
+    }
+  } catch (err) {
+    console.error("❌ Failed to initialize SequelizeAdapter:", err);
+  }
+}
+
+void initAdapter();
 
 export const authOptions: AuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: adapterInstance,
+  session: { strategy: "jwt" },
+  pages: { signIn: "/login" },
+
   providers: [
     GitHubProvider({
       clientId: process.env.GITHUB_ID as string,
       clientSecret: process.env.GITHUB_SECRET as string,
     }),
+
     CredentialsProvider({
-      name: 'Credentials',
+      name: "Credentials",
       credentials: {
         ticketNo: { label: "Ticket Number", type: "text" },
         password: { label: "SAIL Personal No.", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.ticketNo || !credentials.password) {
+        const db = await getDb();
+        const User = db?.User;
+
+        if (!User) {
+          console.error("❌ Auth failed: DB not connected");
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: {
-            ticketNo: credentials.ticketNo,
-          },
+        if (!credentials?.ticketNo || !credentials.password) return null;
+
+        const user = await User.findOne({
+          where: { ticketNo: credentials.ticketNo },
+          raw: true,
         });
 
-        if (!user || !user.password) {
-          return null;
-        }
+        if (!user || !user.password) return null;
 
-        const isPasswordValid = await bcrypt.compare(
+        const isValid = await bcrypt.compare(
           credentials.password,
           user.password
         );
 
-        if (isPasswordValid) {
-          return user;
-        }
+        if (!isValid) return null;
 
-        return null;
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          role: user.role,
+        };
       },
     }),
   ],
-  session: {
-    strategy: 'jwt',
-  },
-  pages: {
-    signIn: '/login',
-  },
 
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
+        token.id = (user as any).id;
+        token.role = (user as any).role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
+        (session.user as any).id = token.id;
+        (session.user as any).role = token.role;
       }
       return session;
     },

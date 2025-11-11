@@ -10,9 +10,21 @@ import Announcements from "@/components/Announcements";
 import DepartmentSites from "@/components/DepartmentSites";
 import { CircularsModal } from "@/components/CircularsModal";
 import { CircularViewerLightbox } from "./CircularViewerLightbox";
-import type { Link } from "@prisma/client"; // <-- 1. IMPORTED LINK
 
-// --- 2. MODIFIED: Added sailSitesData ---
+// --- 2. ADDED NEW LINK TYPE ---
+// This type matches the data we cleaned in page.tsx (undefined -> null)
+type Link = {
+  id: number;
+  category: string;
+  createdAt: Date;
+  title: string;
+  subtitle: string | null;
+  href: string;
+  icon: string | null;
+};
+// ----------------------------
+
+// --- 3. MODIFIED: Added sailSitesData ---
 type HomePageClientProps = {
   quickLinksData: Link[];
   departmentData: Link[];
@@ -22,7 +34,7 @@ type HomePageClientProps = {
 export default function HomePageClient({
   quickLinksData,
   departmentData,
-  sailSitesData, // <-- 3. ADDED
+  sailSitesData, // <-- 4. ADDED
 }: HomePageClientProps) {
   const [isCircularsModalOpen, setCircularsModalOpen] = useState(false);
   const [viewingCircularId, setViewingCircularId] = useState<number | null>(
@@ -53,8 +65,7 @@ export default function HomePageClient({
 
   const openCircularsModal = () => setCircularsModalOpen(true);
   const closeCircularsModal = () => setCircularsModalOpen(false);
-
-  const handleViewCircular = (id: number) => {    
+  const handleViewCircular = (id: number) => {
     setViewingCircularId(id);
   };
 
@@ -67,7 +78,8 @@ export default function HomePageClient({
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 mt-8">
             <main className="lg:col-span-3 space-y-8">
               <Announcements />
-              {/* --- 4. MODIFIED: Passed sailSitesData prop --- */}
+
+              {/* --- 5. MODIFIED: Passed sailSitesData prop --- */}
               <DepartmentSites
                 departmentData={departmentData}
                 sailSitesData={sailSitesData} // <-- ADDED
@@ -82,6 +94,7 @@ export default function HomePageClient({
           </div>
         </div>
       </div>
+
       <CircularsModal
         isOpen={isCircularsModalOpen}
         onClose={closeCircularsModal}

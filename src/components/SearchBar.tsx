@@ -1,68 +1,51 @@
-// src/components/SearchBar.tsx
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Loader2, FileText } from "lucide-react";
 import { useSession } from "next-auth/react";
-import useSWR from "swr"; // We just installed this
-import { DateTime } from "luxon"; // You already have this
+import useSWR from "swr";
+import { DateTime } from "luxon";
 
-// --- Helper Hook for Debouncing ---
-// This prevents API calls on every keystroke
 function useDebounce(value: string, delay: number) {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => {
-      clearTimeout(handler);
-    };
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
   }, [value, delay]);
   return debouncedValue;
 }
 
-// --- Define the shape of our AI Search Result ---
 interface AISearchResult {
   id: number;
   headline: string;
   url: string;
-  publishedAt: string; // Will be a string from JSON
+  publishedAt: string;
   similarity: number;
 }
 
-// --- SWR Fetcher Function ---
-// This is the function SWR will use to fetch data
-// @ts-ignore
-const fetcher = (...args) => fetch(...args).then((res) => res.json());
+const fetcher = (...args: Parameters<typeof fetch>) =>
+  fetch(...args).then((res) => res.json());
 
 const SearchBar: React.FC = () => {
   const { data: session, status } = useSession();
   const [query, setQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const debouncedQuery = useDebounce(query, 300);
 
-  // --- Use our Debounce Hook ---
-  const debouncedQuery = useDebounce(query, 300); // 300ms delay
-
-  // --- SWR Data Fetching ---
-  // It will automatically fetch when debouncedQuery changes
   const { data: results, error } = useSWR<AISearchResult[]>(
-    // Only fetch if query is > 2 chars and user is logged in
     debouncedQuery.length > 2 && status === "authenticated"
       ? `/api/ai-search?q=${debouncedQuery}`
-      : null, // Pass null to SWR to prevent fetching
+      : null,
     fetcher
   );
 
-  // Determine the loading state
   const isLoading =
     debouncedQuery.length > 2 &&
     !results &&
     !error &&
     status === "authenticated";
 
-  // --- Click Away to Close Popover ---
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -73,16 +56,12 @@ const SearchBar: React.FC = () => {
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [searchRef]);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  // Logic to decide when to show the results popover
   const showPopover =
     isFocused && debouncedQuery.length > 2 && status === "authenticated";
 
-  // --- Helper function to render the results ---
   const renderResults = () => {
     if (isLoading) {
       return (
@@ -108,11 +87,11 @@ const SearchBar: React.FC = () => {
           {results.map((result) => (
             <a
               key={result.id}
-              href={result.url} // This is the URL to the sanitized image
+              href={result.url}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-100"
-              onClick={() => setIsFocused(false)} // Close popover on click
+              onClick={() => setIsFocused(false)}
             >
               <FileText className="h-5 w-5 text-blue-600 flex-shrink-0 mt-1" />
               <div className="flex-1">
@@ -140,24 +119,15 @@ const SearchBar: React.FC = () => {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setIsFocused(true)}
-        // Disable search bar if user is not logged in
         disabled={status === "loading" || status === "unauthenticated"}
         placeholder={
           status === "authenticated"
             ? "Search circulars, people, and more..."
-            : // (original placeholder)
-              "Please log in to use search"
+            : "Please log in to use search"
         }
-        className="
-          w-full pl-10 pr-4 py-2 
-          border border-slate-400 rounded-full 
-          text-gray-900 
-          bg-gray-50 
-          focus:outline-none focus:ring-2 focus:ring-blue-500
-          disabled:bg-gray-200"
+        className="w-full pl-10 pr-4 py-2 border border-slate-400 rounded-full text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-200"
       />
       <div className="absolute left-3 top-1/2 -translate-y-1/2">
-        {/* Show loader in the icon spot */}
         {isLoading ? (
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
         ) : (
@@ -165,7 +135,6 @@ const SearchBar: React.FC = () => {
         )}
       </div>
 
-      {/* --- RESULTS POPOVER --- */}
       {showPopover && (
         <div className="absolute top-12 left-0 w-full bg-white border border-gray-200 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto">
           {renderResults()}

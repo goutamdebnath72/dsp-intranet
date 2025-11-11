@@ -2,17 +2,16 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import db from "@/lib/db";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { put } from "@vercel/blob";
 import { DateTime } from "luxon";
 import { fromBuffer } from "pdf2pic";
-// --- 1. IMPORT SHARP ---
-import sharp from "sharp";
+import sharp from "sharp"; // <-- Kept your sharp import
 import { generateAndSaveEmbedding } from "@/lib/ai/embedding.service";
 
-// --- Detect file type helper ---
+// --- Detect file type helper (LOGIC 100% UNTOUCHED) ---
 async function getFileType(buffer: Buffer) {
   const { fileTypeFromBuffer } = await (eval('import("file-type")') as Promise<
     typeof import("file-type")
@@ -23,8 +22,10 @@ async function getFileType(buffer: Buffer) {
 // --- GET route: Fetch all circulars ---
 export async function GET() {
   try {
-    const circulars = await prisma.circular.findMany({
-      orderBy: { publishedAt: "desc" },
+    // --- 2. REPLACED PRISMA WITH SEQUELIZE ---
+    const circulars = await db.Circular.findAll({
+      order: [["publishedAt", "DESC"]],
+      raw: true, // Get plain JSON objects
     });
     return NextResponse.json(circulars);
   } catch (error) {
@@ -36,7 +37,7 @@ export async function GET() {
   }
 }
 
-// --- POST route: Upload new circular (secure PDF & Image sanitization) ---
+// --- POST route: Upload new circular ---
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -68,15 +69,12 @@ export async function POST(request: Request) {
     const timestamp = DateTime.now().toMillis();
     const uploadedUrls: string[] = [];
 
-    // --- PDF Sanitization (convert pages to images) ---
-    // (This block is untouched and remains the same)
+    // --- PDF Sanitization (LOGIC 100% UNTOUCHED) ---
     if (type?.mime === "application/pdf") {
       console.log("Sanitizing PDF securely via pdf2pic...");
-
       const homebrewAppleSiliconPath = "/opt/homebrew/bin";
       const homebrewIntelPath = "/usr/local/bin";
       let path = process.env.PATH || "";
-
       if (!path.includes(homebrewAppleSiliconPath)) {
         path = `${homebrewAppleSiliconPath}:${path}`;
         console.log(
@@ -88,7 +86,6 @@ export async function POST(request: Request) {
         console.log("Added Intel Mac Homebrew path (/usr/local/bin) to PATH.");
       }
       process.env.PATH = path;
-
       try {
         const converter = fromBuffer(fileBuffer, {
           density: 150,
@@ -96,7 +93,6 @@ export async function POST(request: Request) {
           width: 1200,
           height: 1600,
         });
-
         const pages = await converter.bulk(-1, { responseType: "base64" });
 
         if (!pages || !Array.isArray(pages) || pages.length === 0) {
@@ -104,10 +100,8 @@ export async function POST(request: Request) {
         }
 
         console.log(`PDF contains ${pages.length} page(s)`);
-
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i];
-
           if (!page.base64) {
             console.warn(`Could not convert page ${i + 1}`);
             continue;
@@ -136,28 +130,21 @@ export async function POST(request: Request) {
         );
       }
     }
-
-    // --- 2. IMAGE SANITIZATION (JPG, PNG) ---
+    // --- IMAGE SANITIZATION (LOGIC 100% UNTOUCHED) ---
     else if (type?.mime === "image/jpeg" || type?.mime === "image/png") {
       console.log(`Sanitizing ${type.mime} securely via sharp...`);
-
-      // Re-encode the image to strip malicious metadata
-      const sanitizedBuffer = await sharp(fileBuffer).toBuffer(); // This re-builds the image, leaving junk behind
-
+      const sanitizedBuffer = await sharp(fileBuffer).toBuffer();
       console.log("✅ Image sanitized successfully.");
-
       const filename = `circular_${timestamp}.${type.ext}`;
 
       const blob = await put(filename, sanitizedBuffer, {
-        // Upload the new buffer
         access: "public",
         contentType: type.mime,
         token: process.env.BLOB_READ_WRITE_TOKEN,
       });
       uploadedUrls.push(blob.url);
     }
-
-    // --- Unsupported File Type ---
+    // --- Unsupported File Type (LOGIC 100% UNTOUCHED) ---
     else {
       console.error(`Unsupported file type: ${type?.mime || "unknown"}`);
       return NextResponse.json(
@@ -166,23 +153,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- Save to Database ---
-    const newCircular = await prisma.circular.create({
-      data: {
-        headline,
-        fileUrls: uploadedUrls,
-        publishedAt: new Date(),
-      },
+    // --- 3. REPLACED PRISMA WITH SEQUELIZE ---
+    const newCircular = await db.Circular.create({
+      headline,
+      fileUrls: uploadedUrls,
+      publishedAt: new Date(),
     });
 
     // --- AI EMBEDDING (NEW) ---
-    // This runs *after* the circular is created, so if AI fails,
-    // the upload is still successful.
     if (type?.mime === "application/pdf") {
-      try {
-        // We call our new, separate function.
-        // We pass it the buffer we already have in memory.
-        await generateAndSaveEmbedding(prisma, newCircular.id, fileBuffer, headline);
+      try {        
+        // This is the only change in this block
+        await generateAndSaveEmbedding(newCircular.id, fileBuffer, headline);
         console.log(`✅ AI embedding generated for: ${newCircular.id}`);
       } catch (aiError) {
         // Log the error but DO NOT block the response.

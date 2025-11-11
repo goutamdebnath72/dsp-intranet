@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import type { Link } from "@prisma/client";
 import Image from "next/image";
 import { PlayCircle, ArrowRight, PauseCircle } from "lucide-react";
 import { TopBar } from "./TopBar";
@@ -19,6 +18,19 @@ import {
   dashboardContainerVariants,
 } from "./ProductionDashboard";
 import { motion } from "framer-motion";
+
+// --- 2. ADDED NEW LINK TYPE ---
+// This type matches the data we cleaned in page.tsx (undefined -> null)
+type Link = {
+  id: number;
+  category: string;
+  createdAt: Date;
+  title: string;
+  subtitle: string | null;
+  href: string;
+  icon: string | null;
+};
+// ----------------------------
 
 interface HomepageProps {
   quickLinksData: Link[];
@@ -65,7 +77,6 @@ export function HomepageNew({
     null
   );
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
-
   // --- Handlers ---
   const handleCircularsClick = () => setIsCircularModalOpen(true);
   const handleCircularSelect = (id: number) => setSelectedCircularId(id);
@@ -83,7 +94,6 @@ export function HomepageNew({
       }
     }
   };
-
   return (
     <>
       {/* --- Top Bar / Header --- */}

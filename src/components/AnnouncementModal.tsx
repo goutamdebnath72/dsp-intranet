@@ -1,10 +1,21 @@
-'use client';
+"use client";
 
-import React, { useRef, useEffect } from 'react'; // 1. Import useRef and useEffect
-import { X } from 'lucide-react';
-import { useTypewriter } from '@/hooks/useTypewriter';
-import { Announcement } from '@prisma/client';
-import { DateTime } from 'luxon';
+import React, { useRef, useEffect } from "react";
+import { X } from "lucide-react";
+import { useTypewriter } from "@/hooks/useTypewriter";
+import { DateTime } from "luxon";
+
+// --- 2. ADDED NEW ANNOUNCEMENT TYPE ---
+// This type matches the data our API now sends
+type Announcement = {
+  id: number;
+  createdAt: string; // Dates are strings after JSON serialization
+  title: string;
+  content: string | null;
+  date: string; // Dates are strings after JSON serialization
+  isRead?: boolean;
+};
+// ---------------------------------
 
 type Props = {
   announcement: Announcement;
@@ -12,20 +23,17 @@ type Props = {
 };
 
 export default function AnnouncementModal({ announcement, onClose }: Props) {
-  const typedContent = useTypewriter(announcement.content || '', 20);
-  const announcementDate = DateTime.fromISO(announcement.date as unknown as string);
+  const typedContent = useTypewriter(announcement.content || "", 20);
+  // This line is correct because the date is a string from the API
+  const announcementDate = DateTime.fromISO(announcement.date);
 
-  // 2. Create a ref to hold a reference to the scrolling div
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // 3. This effect runs every time the 'typedContent' changes
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (container) {
-      // 4. This line keeps the container scrolled to the bottom
       container.scrollTop = container.scrollHeight;
     }
-  }, [typedContent]); // The dependency array ensures this runs on every text update
+  }, [typedContent]);
 
   return (
     <div
@@ -36,21 +44,19 @@ export default function AnnouncementModal({ announcement, onClose }: Props) {
         className="bg-white rounded-lg shadow-2xl w-full max-w-2xl relative animate-fade-in-up max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          onClick={onClose}
-          className="modal-close-button"
-        >
+        <button onClick={onClose} className="modal-close-button">
           <X size={24} />
         </button>
 
         <div className="p-6 border-b flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-800">{announcement.title}</h2>
+          <h2 className="text-xl font-semibold text-gray-800">
+            {announcement.title}
+          </h2>
           <p className="text-sm text-gray-500 mt-1">
-            {announcementDate.toFormat('dd LLL yyyy')}
+            {announcementDate.toFormat("dd LLL yyyy")}
           </p>
         </div>
 
-        {/* 5. Attach the ref to the scrolling div */}
         <div ref={scrollContainerRef} className="p-6 overflow-y-auto">
           <p className="text-base text-gray-700 whitespace-pre-wrap">
             {typedContent}

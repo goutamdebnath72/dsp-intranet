@@ -56,7 +56,19 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { Tooltip } from "./Tooltip";
-import type { Link } from "@prisma/client"; // <-- ADDED: Import Link type
+
+// --- ADDED NEW LINK TYPE ---
+// This type matches the data we cleaned in page.tsx (undefined -> null)
+type Link = {
+  id: number;
+  category: string;
+  createdAt: Date;
+  title: string;
+  subtitle: string | null;
+  href: string;
+  icon: string | null;
+};
+// ----------------------------
 
 const iconMap: { [key: string]: React.ElementType } = {
   Laptop,
@@ -113,8 +125,6 @@ const iconSizeConfig = {
   small: ["/hindi.svg", "/train.png", "/dumper-icon.png"],
 };
 
-// --- REMOVED: Hardcoded sailSitesData array ---
-
 // --- MODIFIED: Updated props to accept Link[] type ---
 type DepartmentSitesProps = {
   departmentData: Link[];
@@ -156,7 +166,6 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
   const sailScrollPositionRef = useRef(0);
   const [sailCanScrollLeft, setSailCanScrollLeft] = useState(false);
   const [sailCanScrollRight, setSailCanScrollRight] = useState(false);
-
   const sailUpdateButtonStates = () => {
     const el = sailScrollContainerRef.current;
     if (el) {
@@ -175,7 +184,6 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
       sailUpdateButtonStates();
     }
   };
-
   const sailHandleScrollClick = (direction: "left" | "right") => {
     const el = sailScrollContainerRef.current;
     if (el) {
@@ -197,7 +205,6 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
       }
     }
   };
-
   const updateButtonStates = () => {
     const el = scrollContainerRef.current;
     if (el) {
@@ -216,7 +223,6 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
       updateButtonStates();
     }
   };
-
   const handleScrollClick = (direction: "left" | "right") => {
     const el = scrollContainerRef.current;
     if (el) {
@@ -238,7 +244,6 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
       }
     }
   };
-
   useEffect(() => {
     if (activeTab === "dspSites") {
       const restoreState = () => {
@@ -250,13 +255,13 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
       };
       const timer = setTimeout(restoreState, 350);
       window.addEventListener("resize", updateButtonStates);
+
       return () => {
         clearTimeout(timer);
         window.removeEventListener("resize", updateButtonStates);
       };
     }
   }, [activeTab]);
-
   useEffect(() => {
     if (activeTab === "sailSites") {
       const restoreState = () => {
@@ -268,28 +273,25 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
       };
       const timer = setTimeout(restoreState, 350);
       window.addEventListener("resize", sailUpdateButtonStates);
+
       return () => {
         clearTimeout(timer);
         window.removeEventListener("resize", sailUpdateButtonStates);
       };
     }
   }, [activeTab]);
-
   const departmentColumns = createColumns(departmentData);
 
   // --- MODIFIED: This now uses the 'sailSitesData' prop ---
   const sailColumns = createSailColumns(sailSitesData, 5);
-
   const tabContainerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.05 } },
   };
-
   const tabItemVariants = {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 },
   };
-
   return (
     <motion.div
       className="bg-white/30 backdrop-blur-lg p-6 rounded-lg shadow-lg border border-white/20 h-[370px] flex flex-col"
