@@ -1,4 +1,4 @@
-import { Sequelize, DataTypes, Model } from 'sequelize';
+import { Sequelize, DataTypes, Model } from "sequelize";
 
 export class Circular extends Model {
   public id!: number;
@@ -17,29 +17,29 @@ export function initCircularModel(sequelize: Sequelize) {
         primaryKey: true,
       },
       headline: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT, // ✅ Changed from STRING → TEXT
         allowNull: false,
       },
       fileUrls: {
-        // This will be stored as a 'text[]' in Postgres
-        type: DataTypes.ARRAY(DataTypes.STRING),
+        type: DataTypes.ARRAY(DataTypes.TEXT), // ✅ Matches text[] column
+        allowNull: true,
+        defaultValue: [],
       },
       publishedAt: {
         type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
+        allowNull: true,
       },
       embedding: {
-        // JSONB is the best way to store a vector array in Postgres
-        // Sequelize will map this to CLOB/BLOB in Oracle
         type: DataTypes.JSONB,
         allowNull: true,
       },
     },
     {
       sequelize,
-      tableName: 'circulars',
-      timestamps: false, // We're not using createdAt/updatedAt
+      tableName: "circulars",
+      timestamps: false,
     }
   );
+
   return Circular;
 }
