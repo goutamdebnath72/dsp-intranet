@@ -1,8 +1,11 @@
-import db from "@/lib/db"; // <-- 1. IMPORT SEQUELIZE
-import { QueryTypes } from "sequelize"; // <-- 2. IMPORT QUERYTYPES
+// src/lib/ai/embedding.service.ts
+import db from "@/lib/db";
+import { QueryTypes } from "sequelize";
 import { TDocument } from "pdf-to-text";
 
-// This function calls local Ollama (LOGIC UNTOUCHED)
+/**
+ * Calls local Ollama to generate an embedding for given text.
+ */
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
     const response = await fetch("http://localhost:11434/api/embeddings", {
@@ -20,28 +23,39 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     }
 
     const data = await response.json();
-    return data.embedding;
+    return data.embedding as number[];
   } catch (error) {
     console.error("Failed to generate local embedding:", error);
     throw new Error("Local embedding generation failed.");
   }
 }
 
-// Helper function to extract text (LOGIC UNTOUCHED)
+/**
+ * Extracts text from a PDF buffer (using pdf-to-text).
+ */
 async function extractTextFromPDF(fileBuffer: Buffer): Promise<string> {
   const { pdf } = await (eval('import("pdf-to-text")') as Promise<{
     pdf: (buffer: Buffer, options?: any) => Promise<TDocument>;
   }>);
 
-  console.log("Sanitizing PDF securely for embedding...");
   const data = await pdf(fileBuffer);
   const text = (Array.isArray(data) ? data.join(" ") : data) as string;
-  console.log("PDF text extracted for embedding.");
   return text.replace(/\s+/g, " ").trim();
 }
 
-// --- 3. FUNCTION SIGNATURE UPDATED ---
-// It no longer receives 'prismaClient'
+/**
+ * Normalize an embedding vector to unit length.
+ */
+function normalizeVector(vec: number[]): number[] {
+  const sumSquares = vec.reduce((s, v) => s + v * v, 0);
+  const norm = Math.sqrt(sumSquares) || 1;
+  return vec.map((v) => v / norm);
+}
+
+/**
+ * Generates embedding for a circular and stores it in DB.
+ * This function normalizes the vector (unit length) before updating DB.
+ */
 export async function generateAndSaveEmbedding(
   circularId: number,
   fileBuffer: Buffer,
@@ -50,17 +64,21 @@ export async function generateAndSaveEmbedding(
   try {
     const pdfText = await extractTextFromPDF(fileBuffer);
     const fullText = `Headline: ${headline}\n\nContent: ${pdfText}`;
-    const embedding = await generateEmbedding(fullText);
+    const rawEmbedding = await generateEmbedding(fullText);
 
-    // --- 4. REPLACED PRISMA WITH SEQUELIZE RAW QUERY ---
-    // This is the safest way to update a vector with Sequelize
-    const vectorString = `[${embedding.join(",")}]`;
+    // Normalize for consistent similarity computations
+    const normalized = normalizeVector(rawEmbedding);
+
+    // Convert to Postgres vector literal string like: [0.12,-0.45,...]
+    const vectorString = `[${normalized.join(",")}]`;
+
+    // Use a raw query to update the vector column (works when column is pgvector)
     await db.sequelize.query(
       `UPDATE "circulars" SET embedding = :vector WHERE id = :circularId`,
       {
         replacements: {
           vector: vectorString,
-          circularId: circularId,
+          circularId,
         },
         type: QueryTypes.UPDATE,
       }
@@ -68,10 +86,10 @@ export async function generateAndSaveEmbedding(
 
     console.log(`✅ AI embedding generated and saved for: ${circularId}`);
   } catch (error: any) {
-    // Log error but don't throw, as per original logic
+    // Do not block the upload on AI failure — just log it.
     console.error(
       `⚠️ AI embedding failed for ${circularId}:`,
-      error.message || error
+      error?.message ?? error
     );
   }
 }

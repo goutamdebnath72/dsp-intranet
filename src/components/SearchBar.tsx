@@ -18,9 +18,9 @@ function useDebounce(value: string, delay: number) {
 interface AISearchResult {
   id: number;
   headline: string;
-  url: string;
-  publishedAt: string;
-  similarity: number;
+  url: string | null;
+  publishedAt: string | null;
+  similarity: number | null;
 }
 
 const fetcher = (...args: Parameters<typeof fetch>) =>
@@ -33,18 +33,17 @@ const SearchBar: React.FC = () => {
   const searchRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(query, 300);
 
+  // Allow search for all users (public access)
+  const shouldFetch = debouncedQuery.length > 2;
+
   const { data: results, error } = useSWR<AISearchResult[]>(
-    debouncedQuery.length > 2 && status === "authenticated"
-      ? `/api/ai-search?q=${debouncedQuery}`
+    shouldFetch
+      ? `/api/ai-search?q=${encodeURIComponent(debouncedQuery)}`
       : null,
     fetcher
   );
 
-  const isLoading =
-    debouncedQuery.length > 2 &&
-    !results &&
-    !error &&
-    status === "authenticated";
+  const isLoading = shouldFetch && !results && !error;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -59,8 +58,7 @@ const SearchBar: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const showPopover =
-    isFocused && debouncedQuery.length > 2 && status === "authenticated";
+  const showPopover = isFocused && shouldFetch;
 
   const renderResults = () => {
     if (isLoading) {
@@ -72,7 +70,9 @@ const SearchBar: React.FC = () => {
     }
     if (error) {
       return (
-        <div className="p-4 text-sm text-red-600">Error fetching results.</div>
+        <div className="p-4 text-sm text-red-600">
+          Error fetching results. Please try again.
+        </div>
       );
     }
     if (results && results.length === 0) {
@@ -87,7 +87,7 @@ const SearchBar: React.FC = () => {
           {results.map((result) => (
             <a
               key={result.id}
-              href={result.url}
+              href={result.url ?? "#"}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-100"
@@ -99,9 +99,11 @@ const SearchBar: React.FC = () => {
                   {result.headline}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {DateTime.fromISO(result.publishedAt).toLocaleString(
-                    DateTime.DATE_MED
-                  )}
+                  {result.publishedAt
+                    ? DateTime.fromISO(result.publishedAt).toLocaleString(
+                        DateTime.DATE_MED
+                      )
+                    : ""}
                 </p>
               </div>
             </a>
@@ -119,13 +121,12 @@ const SearchBar: React.FC = () => {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setIsFocused(true)}
-        disabled={status === "loading" || status === "unauthenticated"}
         placeholder={
           status === "authenticated"
             ? "Search circulars, people, and more..."
-            : "Please log in to use search"
+            : "Search circulars (public) — try 'holiday' or 'leave'"
         }
-        className="w-full pl-10 pr-4 py-2 border border-slate-400 rounded-full text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-200"
+        className="w-full pl-10 pr-4 py-2 border border-slate-400 rounded-full text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <div className="absolute left-3 top-1/2 -translate-y-1/2">
         {isLoading ? (

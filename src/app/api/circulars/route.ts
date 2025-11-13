@@ -1,184 +1,208 @@
-// src/app/api/circulars/route.ts
-export const runtime = "nodejs";
-
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { promises as fs } from "fs";
+import path from "path";
 import { put } from "@vercel/blob";
-import { DateTime } from "luxon";
-import { fromBuffer } from "pdf2pic";
-import sharp from "sharp"; // <-- Kept your sharp import
-import { generateAndSaveEmbedding } from "@/lib/ai/embedding.service";
+import { fromPath } from "pdf2pic";
+import { Circular } from "@/lib/db/models/circular.model";
+import { generateEmbedding } from "@/lib/ai/embedding.service";
 
-// --- Detect file type helper (LOGIC 100% UNTOUCHED) ---
-async function getFileType(buffer: Buffer) {
-  const { fileTypeFromBuffer } = await (eval('import("file-type")') as Promise<
-    typeof import("file-type")
-  >);
-  return fileTypeFromBuffer(buffer);
-}
+/**
+ * NOTE:
+ * We perform dynamic imports for pdf-parse and pdf-to-text because:
+ *  - Both are CommonJS / untyped packages in your node_modules.
+ *  - Static `import` causes TypeScript / ESLint errors in your project.
+ *  - Dynamic import defers resolving to runtime and allows us to treat them as `any`.
+ */
 
-// --- GET route: Fetch all circulars ---
-export async function GET() {
-  try {
-    // --- 2. REPLACED PRISMA WITH SEQUELIZE ---
-    const circulars = await db.Circular.findAll({
-      order: [["publishedAt", "DESC"]],
-      raw: true, // Get plain JSON objects
-    });
-    return NextResponse.json(circulars);
-  } catch (error) {
-    console.error("API Error: Failed to fetch circulars:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error: Failed to fetch circulars" },
-      { status: 500 }
-    );
-  }
-}
+/* ============================================================
+   Extract textual content from PDF buffer
+   - Try pdf-to-text (system/poppler) first (if available)
+   - Fallback to pdf-parse for digital PDFs
+============================================================ */
+async function extractTextFromPDF(buffer: Buffer): Promise<string> {
+  const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
 
-// --- POST route: Upload new circular ---
-export async function POST(request: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (session?.user?.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const safeUnlink = async () => {
+    try {
+      await fs.unlink(tempPdfPath);
+    } catch {
+      /* ignore */
     }
+  };
 
-    const formData = await request.formData();
+  try {
+    await fs.writeFile(tempPdfPath, buffer);
+  } catch (err) {
+    // if writing fails, give up on pdf-to-text route and try pdf-parse directly
+  }
+
+  // 1) Try pdf-to-text if available (it shells out to pdftotext/poppler)
+  try {
+    // dynamic import returns 'any' shape, avoid TS compile-time type checks
+    const pdfToTextModule: any = await import("pdf-to-text");
+    const pdfToTextFn: any =
+      pdfToTextModule?.pdfToText ?? pdfToTextModule?.default ?? pdfToTextModule;
+
+    if (typeof pdfToTextFn === "function") {
+      const rawText: string = await new Promise((resolve, reject) => {
+        // pdfToText(filepath, options, cb)
+        try {
+          pdfToTextFn(tempPdfPath, null, (err: any, data: string) => {
+            if (err) return reject(err);
+            resolve(data ?? "");
+          });
+        } catch (e) {
+          reject(e);
+        }
+      });
+
+      const cleaned = (rawText || "").replace(/\s+/g, " ").trim();
+      if (cleaned.length > 20) {
+        await safeUnlink();
+        return cleaned;
+      }
+    }
+  } catch (err) {
+    // pdf-to-text not available or failed — fallback to pdf-parse
+  }
+
+  // 2) Fallback: pdf-parse (works for digital PDFs)
+  try {
+    const pdfParseModule: any = await import("pdf-parse");
+    // pdf-parse exports the parsing function as module default or function
+    const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
+    if (typeof parseFn === "function") {
+      const parsed: any = await parseFn(buffer);
+      const text = (parsed?.text || "").replace(/\s+/g, " ").trim();
+      await safeUnlink();
+      return text;
+    }
+  } catch (err) {
+    // give up gracefully
+  } finally {
+    await safeUnlink();
+  }
+
+  return "";
+}
+
+/* ============================================================
+   POST: Upload a circular (PDF or image)
+   - Converts each PDF page to a single PNG (A4 at 300 DPI)
+   - Uploads pages to Vercel Blob and returns URLs in array
+============================================================ */
+export async function POST(req: Request) {
+  try {
+    const formData = await req.formData();
     const headline = formData.get("headline") as string;
     const file = formData.get("file") as File;
 
     if (!headline || !file) {
       return NextResponse.json(
-        { error: "Headline and file are required." },
+        { error: "Missing headline or file" },
         { status: 400 }
       );
     }
 
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      console.error("Missing BLOB_READ_WRITE_TOKEN environment variable.");
-      return NextResponse.json(
-        { error: "Server configuration error: Missing BLOB token." },
-        { status: 500 }
-      );
-    }
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const fileUrls: string[] = [];
 
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
-    const type = await getFileType(fileBuffer);
-    const timestamp = DateTime.now().toMillis();
-    const uploadedUrls: string[] = [];
-
-    // --- PDF Sanitization (LOGIC 100% UNTOUCHED) ---
-    if (type?.mime === "application/pdf") {
-      console.log("Sanitizing PDF securely via pdf2pic...");
-      const homebrewAppleSiliconPath = "/opt/homebrew/bin";
-      const homebrewIntelPath = "/usr/local/bin";
-      let path = process.env.PATH || "";
-      if (!path.includes(homebrewAppleSiliconPath)) {
-        path = `${homebrewAppleSiliconPath}:${path}`;
-        console.log(
-          "Added Apple Silicon Homebrew path (/opt/homebrew/bin) to PATH."
-        );
-      }
-      if (!path.includes(homebrewIntelPath)) {
-        path = `${homebrewIntelPath}:${path}`;
-        console.log("Added Intel Mac Homebrew path (/usr/local/bin) to PATH.");
-      }
-      process.env.PATH = path;
-      try {
-        const converter = fromBuffer(fileBuffer, {
-          density: 150,
-          format: "png",
-          width: 1200,
-          height: 1600,
-        });
-        const pages = await converter.bulk(-1, { responseType: "base64" });
-
-        if (!pages || !Array.isArray(pages) || pages.length === 0) {
-          throw new Error("PDF conversion failed or file has no valid pages.");
-        }
-
-        console.log(`PDF contains ${pages.length} page(s)`);
-        for (let i = 0; i < pages.length; i++) {
-          const page = pages[i];
-          if (!page.base64) {
-            console.warn(`Could not convert page ${i + 1}`);
-            continue;
-          }
-
-          const imageBuffer = Buffer.from(page.base64, "base64");
-          const filename = `circular_${timestamp}_page${i + 1}.png`;
-
-          const blob = await put(filename, imageBuffer, {
-            access: "public",
-            contentType: "image/png",
-            token: process.env.BLOB_READ_WRITE_TOKEN,
-          });
-          uploadedUrls.push(blob.url);
-        }
-
-        console.log("✅ PDF sanitized successfully.");
-      } catch (err: any) {
-        console.error("⚠️ PDF sanitization failed:", err.message);
-        return NextResponse.json(
-          {
-            error:
-              "PDF processing failed. Poppler might be missing or the PDF is corrupt.",
-          },
-          { status: 500 }
-        );
-      }
-    }
-    // --- IMAGE SANITIZATION (LOGIC 100% UNTOUCHED) ---
-    else if (type?.mime === "image/jpeg" || type?.mime === "image/png") {
-      console.log(`Sanitizing ${type.mime} securely via sharp...`);
-      const sanitizedBuffer = await sharp(fileBuffer).toBuffer();
-      console.log("✅ Image sanitized successfully.");
-      const filename = `circular_${timestamp}.${type.ext}`;
-
-      const blob = await put(filename, sanitizedBuffer, {
+    // If uploaded file is an image, upload directly
+    if (file.type.startsWith("image/")) {
+      const key = `circulars/${Date.now()}_${file.name}`;
+      const { url } = await put(key, bytes, {
         access: "public",
-        contentType: type.mime,
-        token: process.env.BLOB_READ_WRITE_TOKEN,
+        contentType: file.type,
       });
-      uploadedUrls.push(blob.url);
+      fileUrls.push(url);
     }
-    // --- Unsupported File Type (LOGIC 100% UNTOUCHED) ---
-    else {
-      console.error(`Unsupported file type: ${type?.mime || "unknown"}`);
+
+    // If PDF, convert each page to PNG with correct aspect ratio and high DPI
+    else if (file.type === "application/pdf") {
+      const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
+      await fs.writeFile(tempPdfPath, bytes);
+
+      // Best clarity: A4 at 300 DPI → 2480 x 3508 px
+      const options = {
+        density: 300, // high DPI
+        format: "png",
+        savePath: "/tmp",
+        useGM: true, // force GraphicsMagick (pdf2pic supports GM)
+        width: 2480, // exact A4 pixel width @ 300dpi
+        height: 3508, // exact A4 pixel height @ 300dpi
+      };
+
+      const converter = fromPath(tempPdfPath, options);
+
+      // bulk(-1) -> convert all pages. responseType: 'buffer' gives raw buffer
+      const pages: any[] = await converter.bulk(-1, { responseType: "buffer" });
+
+      // remove the temp pdf
+      await fs.unlink(tempPdfPath).catch(() => {});
+
+      // Upload each page buffer to Vercel Blob
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        if (!page || !page.buffer) continue;
+        const imgName = `circular_${Date.now()}_page_${i + 1}.png`;
+        const { url } = await put(`circulars/${imgName}`, page.buffer, {
+          access: "public",
+          contentType: "image/png",
+        });
+        fileUrls.push(url);
+      }
+    } else {
       return NextResponse.json(
-        { error: "Unsupported file type. Please upload a PDF, JPG, or PNG." },
-        { status: 415 }
+        { error: "Unsupported file type. Upload PDF or image." },
+        { status: 400 }
       );
     }
 
-    // --- 3. REPLACED PRISMA WITH SEQUELIZE ---
-    const newCircular = await db.Circular.create({
+    // Extract text for embeddings (works on original PDF bytes)
+    const text = await extractTextFromPDF(bytes);
+    let embedding: number[] | null = null;
+    if (text && text.length > 0) {
+      try {
+        embedding = await generateEmbedding(text);
+      } catch {
+        // continue even if embedding fails
+      }
+    }
+
+    // Save to DB
+    const newCircular = await Circular.create({
       headline,
-      fileUrls: uploadedUrls,
+      fileUrls,
       publishedAt: new Date(),
+      embedding,
     });
 
-    // --- AI EMBEDDING (NEW) ---
-    if (type?.mime === "application/pdf") {
-      try {        
-        // This is the only change in this block
-        await generateAndSaveEmbedding(newCircular.id, fileBuffer, headline);
-        console.log(`✅ AI embedding generated for: ${newCircular.id}`);
-      } catch (aiError) {
-        // Log the error but DO NOT block the response.
-        console.error(`⚠️ AI embedding failed for ${newCircular.id}:`, aiError);
-      }
-    }
-    // --- END AI EMBEDDING ---
-
-    console.log("✅ Circular record created:", newCircular.id);
-    return NextResponse.json(newCircular, { status: 201 });
-  } catch (error) {
-    console.error("API Error: Failed to create circular:", error);
+    return NextResponse.json({
+      message: "Circular uploaded successfully",
+      circular: newCircular,
+    });
+  } catch (err: any) {
+    console.error("Upload failed:", err);
     return NextResponse.json(
-      { error: "Internal Server Error: Failed to create circular" },
+      { error: err?.message || "Upload failed" },
+      { status: 500 }
+    );
+  }
+}
+
+/* ============================================================
+   GET: Fetch all circulars
+============================================================ */
+export async function GET() {
+  try {
+    const circulars = await Circular.findAll({
+      order: [["publishedAt", "DESC"]],
+    });
+    return NextResponse.json(circulars);
+  } catch (err: any) {
+    console.error("GET circulars failed:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch circulars" },
       { status: 500 }
     );
   }

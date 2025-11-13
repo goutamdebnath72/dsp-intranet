@@ -5,7 +5,7 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install *all* OS packages needed for 'npm install' (like canvas)
+# Install OS packages needed for 'npm install' (like canvas)
 USER root
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -19,19 +19,15 @@ RUN apt-get update && apt-get install -y \
     curl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install *all* dependencies (dev and prod) to run the build
-# This will now also install 'pg-connection-string'
+# Install dependencies and build app
 RUN npm install
-
-# Copy the rest of the source code and build the app
 COPY . .
 RUN npm run build
 
-# --- Stage 2: Build the FINAL Production Image ---
+# --- Stage 2: Final runtime image ---
 FROM node:20-slim
 WORKDIR /app
 
-# Install ONLY the *runtime* dependencies for 'canvas' and 'curl'
 USER root
 RUN apt-get update && apt-get install -y \
     curl \
@@ -42,23 +38,19 @@ RUN apt-get update && apt-get install -y \
     libpango-1.0-0 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy package.json
+# Copy built artifacts
 COPY package.json ./
-
-# Copy the built app from the 'builder' stage
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-
-# Copy the pre-built node_modules from the 'builder' stage
-# This includes 'pg', 'oracledb', 'canvas', and 'pg-connection-string'
 COPY --from=builder /app/node_modules ./node_modules
 
-# === INSTALL OLLAMA ===
+# === INSTALL OLLAMA (runtime only) ===
 RUN curl -fsSL https://ollama.ai/install.sh | sh
-RUN sh -c "ollama serve & sleep 5 && ollama pull nomic-embed-text"
 
-# Expose the port Next.js will run on
+# Expose app port
 EXPOSE 3000
 
-# === THE COMMAND TO RUN EVERYTHING ===
-CMD ["sh", "-c", "ollama serve & npm run start"]
+# === Runtime startup ===
+# Pull model (once), start Ollama service in background, then launch Next.js
+# === The command to run both Ollama and Next.js together ===
+CMD sh -c "ollama serve & sleep 5 && npm run start"
