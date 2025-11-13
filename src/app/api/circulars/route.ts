@@ -127,7 +127,7 @@ export async function POST(req: Request) {
         density: 300, // high DPI
         format: "png",
         savePath: "/tmp",
-        useGM: true, // force GraphicsMagick (pdf2pic supports GM)
+        //useGM: true, // force GraphicsMagick (pdf2pic supports GM)
         width: 2480, // exact A4 pixel width @ 300dpi
         height: 3508, // exact A4 pixel height @ 300dpi
       };
