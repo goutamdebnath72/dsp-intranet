@@ -1,4 +1,5 @@
 // src/lib/db/index.ts
+import "pg";
 import { Sequelize } from "sequelize";
 import { getPostgresConfig } from "./config/postgres.config";
 import { getOracleConfig } from "./config/oracle.config";
