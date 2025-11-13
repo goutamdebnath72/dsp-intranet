@@ -3,7 +3,22 @@ import "pg";
 import { Sequelize } from "sequelize";
 import { getPostgresConfig } from "./config/postgres.config";
 import { getOracleConfig } from "./config/oracle.config";
-import { initModels } from "./models";
+
+// --- ADD ALL MODEL IMPORTS HERE ---
+import "./models/account.model";
+import "./models/announcement-read-status.model";
+import "./models/announcement.model";
+import "./models/circular.model";
+import "./models/department.model";
+import "./models/holiday-master.model";
+import "./models/holiday-year.model";
+import "./models/link.model";
+import "./models/session.model";
+import "./models/user.model";
+import "./models/verification-token.model";
+// --- END OF MODEL IMPORTS ---
+
+import { initModels } from "./models"; // This line was already correct
 
 /**
  * Final stable DB entrypoint:
