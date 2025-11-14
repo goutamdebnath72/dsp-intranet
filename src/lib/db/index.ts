@@ -1,10 +1,12 @@
 // src/lib/db/index.ts
-import "pg";
+import "pg"; // For Vercel bundler
 import { Sequelize } from "sequelize";
-import { getPostgresConfig } from "./config/postgres.config";
 import { getOracleConfig } from "./config/oracle.config";
+// ✅ CHANGED: Import the *function* that creates the connection
+import { getSequelize } from "./postgres.runtime";
 
-// --- ADD ALL MODEL IMPORTS HERE ---
+// --- MODEL IMPORTS ---
+// (These are correct and necessary for Vercel's bundler)
 import "./models/account.model";
 import "./models/announcement-read-status.model";
 import "./models/announcement.model";
@@ -18,23 +20,24 @@ import "./models/user.model";
 import "./models/verification-token.model";
 // --- END OF MODEL IMPORTS ---
 
-import { initModels } from "./models"; // This line was already correct
+import { initModels } from "./models";
 
 /**
- * Final stable DB entrypoint:
- * ✅ Always connects to Supabase PostgreSQL during runtime (dev/prod)
- * 💤 Uses dummy models only during static build
- * 🧠 Reconnects automatically if Sequelize becomes invalidated
+ * 💡 This is the "top-positioned file" you requested.
+ * It manages a single, cached database connection.
+ * All other files MUST import 'getDb' from this file.
  */
 
+// These 'let' variables will be cached across serverless function invocations
 let sequelize: Sequelize | null = null;
 let db: any = null;
 
-// Explicitly detect build phase based on NEXT_PHASE (set by Next.js build)
+// Detects if we are in a Vercel build phase
 const isBuildPhase =
   typeof process.env.NEXT_PHASE === "string" &&
   process.env.NEXT_PHASE.includes("build");
 
+// --- DUMMY DB for build phase (no changes) ---
 function makeDummyModel() {
   return {
     findAll: async () => [],
@@ -45,7 +48,6 @@ function makeDummyModel() {
     destroy: async () => 0,
   };
 }
-
 const DUMMY_DB = {
   sequelize: null,
   Account: makeDummyModel(),
@@ -60,42 +62,61 @@ const DUMMY_DB = {
   User: makeDummyModel(),
   VerificationToken: makeDummyModel(),
 };
+// --- End of DUMMY DB ---
 
 /**
- * Initialize or retrieve DB instance
+ * ✅ THE NEW CONNECTION MANAGER
+ * This is now an ASYNC function that manages the single connection.
  */
-export function getDb() {
-  // Reuse initialized DB
-  if (db && db.sequelize) return db;
+export async function getDb() {
+  // 1. ✅ Return the cached connection if it exists
+  if (db && db.sequelize) {
+    // console.log("🔌 Using cached DB connection.");
+    return db;
+  }
 
-  // 💤 During build phase: return safe dummy
+  // 2. 💤 Return dummy DB during build
   if (isBuildPhase) {
     console.log("🔌 BUILD PHASE detected — returning dummy DB.");
     return DUMMY_DB;
   }
 
-  // ✅ Runtime: Connect to DB
+  // 3. 🚀 Create new connection (this will only run once)
   const dbType = process.env.DB_TYPE || "postgres";
+
   try {
-    if (dbType === "oracle") {
-      console.log("🔌 Connecting to Oracle...");
-      sequelize = new Sequelize(getOracleConfig());
-    } else {
-      console.log("🔌 Connecting to PostgreSQL (Supabase)...");
-      sequelize = new Sequelize(getPostgresConfig());
+    // 'sequelize' is the global variable
+    if (!sequelize) {
+      console.log("🔌 No cached sequelize, creating new connection...");
+      if (dbType === "oracle") {
+        console.log("🔌 Connecting to Oracle...");
+        sequelize = new Sequelize(getOracleConfig());
+        await sequelize.authenticate();
+      } else {
+        console.log("🔌 Connecting to PostgreSQL (Supabase) via runtime...");
+        // Call the function from postgres.runtime.ts
+        sequelize = await getSequelize();
+      }
+      console.log("✅ Sequelize authenticated successfully.");
     }
 
-    const models = initModels(sequelize);
-    db = { sequelize, ...models };
+    // 'db' is the global variable
+    if (!db) {
+      console.log("📚 Initializing models...");
+      const models = initModels(sequelize!);
+      db = { sequelize: sequelize!, ...models }; // Cache the connection and models
+      console.log("✅ Sequelize models initialized successfully.");
+    }
 
-    console.log("✅ Sequelize initialized successfully.");
-    return db;
+    return db; // Return the new, cached connection
   } catch (err) {
     console.error("❌ Failed to initialize Sequelize:", err);
-    db = DUMMY_DB;
-    return db;
+    // Invalidate cache on error to force retry on next request
+    sequelize = null;
+    db = null;
+    throw err;
   }
 }
 
-// Default export (auto-init)
-export default getDb();
+// ⛔️ REMOVED: export default getDb();
+// This was creating a new connection on every file import.

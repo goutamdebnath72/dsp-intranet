@@ -2,13 +2,18 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+// ⛔️ REMOVED: import { authOptions } from "@/lib/auth";
+// ✅ ADDED: Import the new async auth function
+import { getAuthOptions } from "@/lib/auth";
 
 export async function GET() {
   const db = await getDb();
+  // ✅ CHANGED: Call the new async function
+  const authOptions = await getAuthOptions();
   const session = await getServerSession(authOptions);
 
   try {
+    // (Your existing logic is unchanged, it now uses the correct 'db')
     const announcements = await db.Announcement.findAll({
       order: [["date", "DESC"]],
       raw: true,
@@ -20,7 +25,7 @@ export async function GET() {
     }
 
     const readStatuses = await db.AnnouncementReadStatus.findAll({
-      where: { userId: session.user.id },
+      where: { userId: (session.user as any).id }, // More specific user ID
       raw: true,
     });
 
@@ -43,13 +48,16 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const db = await getDb();
+  // ✅ CHANGED: Call the new async function
+  const authOptions = await getAuthOptions();
   const session = await getServerSession(authOptions);
 
-  if (session?.user?.role !== "admin") {
+  if ((session?.user as any)?.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   try {
+    // (Your existing logic is unchanged, it now uses the correct 'db')
     const { title, content, date } = await request.json();
     if (!title || !date) {
       return NextResponse.json(

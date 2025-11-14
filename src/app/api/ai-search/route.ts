@@ -1,11 +1,14 @@
 // src/app/api/ai-search/route.ts
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+// ⛔️ REMOVED: import db from "@/lib/db";
+// ✅ ADDED: Import the single connection function
+import { getDb } from "@/lib/db";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
 import { QueryTypes, Sequelize, Op } from "sequelize";
 
 export const runtime = "nodejs";
 
+// (Your SearchResultRow type, unchanged)
 type SearchResultRow = {
   id: number;
   headline: string;
@@ -14,6 +17,7 @@ type SearchResultRow = {
   similarity?: number | null;
 };
 
+// (Your normalizeVector function, unchanged)
 function normalizeVector(vec: number[]): number[] {
   const sumSquares = vec.reduce((s, v) => s + v * v, 0);
   const norm = Math.sqrt(sumSquares) || 1;
@@ -21,12 +25,17 @@ function normalizeVector(vec: number[]): number[] {
 }
 
 export async function GET(request: Request) {
+  // ✅ ADDED: Get the shared DB connection
+  const db = await getDb();
+
   try {
+    // (Your build-time check, unchanged)
     if (!db || !db.sequelize) {
       console.log("Build-time or DB not initialized: skipping AI search");
       return NextResponse.json([]);
     }
 
+    // (Your query parameter logic, unchanged)
     const url = new URL(request.url);
     const q = url.searchParams.get("q")?.trim();
     if (!q) {
@@ -36,7 +45,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // 1) Generate and normalize the query embedding
+    // 1) Generate and normalize the query embedding (Your code, unchanged)
     let queryEmbedding: number[];
     try {
       const raw = await generateEmbedding(q);
@@ -46,7 +55,7 @@ export async function GET(request: Request) {
         "Embedding generation failed for query, falling back:",
         err
       );
-      // If embedding fails, perform a pure keyword fallback
+      // (Your embedding fallback logic, unchanged)
       const fallbackRows = await db.Circular.findAll({
         where: {
           headline: { [Op.iLike]: `%${q}%` },
@@ -70,7 +79,7 @@ export async function GET(request: Request) {
 
     const vectorString = `[${queryEmbedding.join(",")}]`;
 
-    // 2) Try the vector similarity query when embedding column is a pgvector
+    // 2) Try the vector similarity query (Your code, unchanged)
     try {
       const rows = await (db.sequelize as Sequelize).query<SearchResultRow>(
         `
@@ -106,7 +115,7 @@ export async function GET(request: Request) {
         }));
         return NextResponse.json(results);
       }
-      // If no rows returned (maybe no embeddings present), fallthrough to keyword fallback below
+      // If no rows returned, fallthrough to keyword fallback
     } catch (vectorErr) {
       console.warn(
         "Vector similarity query failed — falling back to keyword search.",
@@ -115,7 +124,7 @@ export async function GET(request: Request) {
       // fall through to keyword fallback
     }
 
-    // 3) Fallback keyword search (headline ilike)
+    // 3) Fallback keyword search (Your code, unchanged)
     const fallbackRows = await db.Circular.findAll({
       where: {
         headline: { [Op.iLike]: `%${q}%` },

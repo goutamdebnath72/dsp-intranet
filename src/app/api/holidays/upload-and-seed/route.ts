@@ -1,13 +1,15 @@
 // src/app/api/holidays/upload-and-seed-route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/lib/db";
+// ⛔️ REMOVED: import db from "@/lib/db";
+// ✅ ADDED: Import the single connection function
+import { getDb } from "@/lib/db";
 import fs from "fs/promises";
 import path from "path";
 
 export const dynamic = "force-dynamic";
 
-// --- All file helpers below are 100% UNTOUCHED ---
+// --- All file helpers below are 100% UNTOUCHED (Your code) ---
 
 /** 🔹 Ensure upload directory exists */
 async function ensureUploadDir() {
@@ -80,6 +82,10 @@ async function parseJsonOrTxt(buffer: Buffer) {
 
 /** 🔹 Main upload handler */
 export async function POST(req: NextRequest) {
+  // ✅ ADDED: Get the shared DB connection
+  // This is the only line of code added to this function.
+  const db = await getDb();
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
@@ -100,10 +106,11 @@ export async function POST(req: NextRequest) {
 
     // ------------------------------------
     // --- DATABASE REFACTOR STARTS HERE ---
+    // (Your existing code now works because 'db' is correctly initialized)
     // ------------------------------------
 
     // 🧹 Always start fresh
-    console.log("🧹 Clearing existing holiday tables...");    
+    console.log("🧹 Clearing existing holiday tables...");
     // We delete from HolidayYear first due to foreign key constraints
     await db.HolidayYear.destroy({ where: {}, truncate: true, cascade: false });
     await db.HolidayMaster.destroy({
@@ -114,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     // 🌱 Seed new data
     console.log("🌱 Seeding holidays...");
-    for (const h of holidays) {      
+    for (const h of holidays) {
       // This finds a master holiday by name or creates it
       const [master] = await db.HolidayMaster.findOrCreate({
         where: { name: h.title },
@@ -123,7 +130,7 @@ export async function POST(req: NextRequest) {
           type: h.type,
         },
       });
-      
+
       // This creates the new yearly entry and links it to the master
       await db.HolidayYear.create({
         date: h.date,

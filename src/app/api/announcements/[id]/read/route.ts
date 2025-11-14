@@ -2,8 +2,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import db from "@/lib/db"; 
-import { authOptions } from "@/lib/auth";
+// ⛔️ REMOVED: import db from "@/lib/db";
+// ✅ ADDED: Import the single connection function
+import { getDb } from "@/lib/db";
+// ✅ CHANGED: Import the new async auth function
+import { getAuthOptions } from "@/lib/auth";
 
 type RouteContext = {
   params: {
@@ -12,6 +15,11 @@ type RouteContext = {
 };
 
 export async function POST(request: NextRequest, context: RouteContext) {
+  // ✅ ADDED: Get the shared DB connection
+  const db = await getDb();
+  // ✅ ADDED: Get the auth options
+  const authOptions = await getAuthOptions();
+
   const { params } = context;
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -26,7 +34,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
-  try {    
+  try {
+    // (Your existing logic is unchanged, it now uses the correct 'db')
     const user = await db.User.findOne({
       where: { email: session.user.email },
     });
@@ -35,7 +44,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    
     // This will create a new entry only if one doesn't already exist
     await db.AnnouncementReadStatus.findOrCreate({
       where: {

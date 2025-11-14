@@ -1,23 +1,23 @@
+// src/app/api/circulars/route.ts
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
 import { put } from "@vercel/blob";
 import { fromPath } from "pdf2pic";
-import { Circular } from "@/lib/db/models/circular.model";
+// ⛔️ REMOVED: Direct model import
+// import { Circular } from "@/lib/db/models/circular.model";
+// ✅ ADDED: Import the single connection function
+import { getDb } from "@/lib/db";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
 
 /**
  * NOTE:
- * We perform dynamic imports for pdf-parse and pdf-to-text because:
- *  - Both are CommonJS / untyped packages in your node_modules.
- *  - Static `import` causes TypeScript / ESLint errors in your project.
- *  - Dynamic import defers resolving to runtime and allows us to treat them as `any`.
+ * (Your code, unchanged)
  */
 
 /* ============================================================
    Extract textual content from PDF buffer
-   - Try pdf-to-text (system/poppler) first (if available)
-   - Fallback to pdf-parse for digital PDFs
+   (Your code, unchanged)
 ============================================================ */
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
@@ -36,16 +36,14 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     // if writing fails, give up on pdf-to-text route and try pdf-parse directly
   }
 
-  // 1) Try pdf-to-text if available (it shells out to pdftotext/poppler)
+  // 1) Try pdf-to-text (Your code, unchanged)
   try {
-    // dynamic import returns 'any' shape, avoid TS compile-time type checks
     const pdfToTextModule: any = await import("pdf-to-text");
     const pdfToTextFn: any =
       pdfToTextModule?.pdfToText ?? pdfToTextModule?.default ?? pdfToTextModule;
 
     if (typeof pdfToTextFn === "function") {
       const rawText: string = await new Promise((resolve, reject) => {
-        // pdfToText(filepath, options, cb)
         try {
           pdfToTextFn(tempPdfPath, null, (err: any, data: string) => {
             if (err) return reject(err);
@@ -63,13 +61,12 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
       }
     }
   } catch (err) {
-    // pdf-to-text not available or failed — fallback to pdf-parse
+    // pdf-to-text not available or failed
   }
 
-  // 2) Fallback: pdf-parse (works for digital PDFs)
+  // 2) Fallback: pdf-parse (Your code, unchanged)
   try {
     const pdfParseModule: any = await import("pdf-parse");
-    // pdf-parse exports the parsing function as module default or function
     const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
     if (typeof parseFn === "function") {
       const parsed: any = await parseFn(buffer);
@@ -88,10 +85,11 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 
 /* ============================================================
    POST: Upload a circular (PDF or image)
-   - Converts each PDF page to a single PNG (A4 at 300 DPI)
-   - Uploads pages to Vercel Blob and returns URLs in array
 ============================================================ */
 export async function POST(req: Request) {
+  // ✅ ADDED: Get the shared DB connection
+  const db = await getDb();
+
   try {
     const formData = await req.formData();
     const headline = formData.get("headline") as string;
@@ -107,7 +105,7 @@ export async function POST(req: Request) {
     const bytes = Buffer.from(await file.arrayBuffer());
     const fileUrls: string[] = [];
 
-    // If uploaded file is an image, upload directly
+    // (Your image upload logic, unchanged)
     if (file.type.startsWith("image/")) {
       const key = `circulars/${Date.now()}_${file.name}`;
       const { url } = await put(key, bytes, {
@@ -116,31 +114,24 @@ export async function POST(req: Request) {
       });
       fileUrls.push(url);
     }
-
-    // If PDF, convert each page to PNG with correct aspect ratio and high DPI
+    // (Your PDF conversion logic, unchanged)
     else if (file.type === "application/pdf") {
       const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
       await fs.writeFile(tempPdfPath, bytes);
 
-      // Best clarity: A4 at 300 DPI → 2480 x 3508 px
       const options = {
-        density: 300, // high DPI
+        density: 300,
         format: "png",
         savePath: "/tmp",
-        useGM: false, // force GraphicsMagick (pdf2pic supports GM)
-        width: 2480, // exact A4 pixel width @ 300dpi
-        height: 3508, // exact A4 pixel height @ 300dpi
+        useGM: false, // ✅ This is your correct fix from before
+        width: 2480,
+        height: 3508,
       };
 
       const converter = fromPath(tempPdfPath, options);
-
-      // bulk(-1) -> convert all pages. responseType: 'buffer' gives raw buffer
       const pages: any[] = await converter.bulk(-1, { responseType: "buffer" });
-
-      // remove the temp pdf
       await fs.unlink(tempPdfPath).catch(() => {});
 
-      // Upload each page buffer to Vercel Blob
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i];
         if (!page || !page.buffer) continue;
@@ -158,7 +149,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Extract text for embeddings (works on original PDF bytes)
+    // (Your embedding logic, unchanged)
     const text = await extractTextFromPDF(bytes);
     let embedding: number[] | null = null;
     if (text && text.length > 0) {
@@ -170,7 +161,8 @@ export async function POST(req: Request) {
     }
 
     // Save to DB
-    const newCircular = await Circular.create({
+    // ✅ CHANGED: Use the shared db.Circular model
+    const newCircular = await db.Circular.create({
       headline,
       fileUrls,
       publishedAt: new Date(),
@@ -194,8 +186,12 @@ export async function POST(req: Request) {
    GET: Fetch all circulars
 ============================================================ */
 export async function GET() {
+  // ✅ ADDED: Get the shared DB connection
+  const db = await getDb();
+
   try {
-    const circulars = await Circular.findAll({
+    // ✅ CHANGED: Use the shared db.Circular model
+    const circulars = await db.Circular.findAll({
       order: [["publishedAt", "DESC"]],
     });
     return NextResponse.json(circulars);

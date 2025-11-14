@@ -12,7 +12,7 @@ export const mockRetirements = [
     name: "Matthias Schmidt",
     designation: "Executive Director",
     department: "Quality Control",
-    retirementDate: "2025-10-31",
+    retirementDate: "2025-11-30",
     imageUrl: "/Matthias_Schmidt.jpeg",
   },
   {
@@ -20,7 +20,7 @@ export const mockRetirements = [
     name: "Antoine Leclerc",
     designation: "Dy. General Manager",
     department: "Logistics",
-    retirementDate: "2025-10-31",
+    retirementDate: "2025-11-30",
     imageUrl: "/Antoine_Leclerc.jpeg",
   },
   {
@@ -28,7 +28,7 @@ export const mockRetirements = [
     name: "Ingrid Bergman",
     designation: "Director(M-HS)",
     department: "Safety & Health",
-    retirementDate: "2025-10-31",
+    retirementDate: "2025-11-30",
     imageUrl: "/Ingrid_Bergman.jpeg",
   },
   {
@@ -36,7 +36,7 @@ export const mockRetirements = [
     name: "Natalia Petrova",
     designation: "Manager",
     department: "Security",
-    retirementDate: "2025-10-31",
+    retirementDate: "2025-11-30",
     imageUrl: "/Natalia_Petrova.jpeg",
   },
   {
@@ -44,7 +44,7 @@ export const mockRetirements = [
     name: "Sofia Karlsson",
     designation: "Asst. General Manager",
     department: "Public Relations",
-    retirementDate: "2025-10-31",
+    retirementDate: "2025-11-30",
     imageUrl: "/Sofia_Karlsson.jpeg",
   },
 ];

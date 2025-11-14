@@ -1,10 +1,13 @@
 // src/lib/ai/embedding.service.ts
-import db from "@/lib/db";
+// ⛔️ REMOVED: import db from "@/lib/db";
+// ✅ ADDED: Import the single connection function
+import { getDb } from "@/lib/db";
 import { QueryTypes } from "sequelize";
 import { TDocument } from "pdf-to-text";
 
 /**
  * Calls local Ollama to generate an embedding for given text.
+ * (Your code, unchanged)
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
@@ -32,6 +35,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
 /**
  * Extracts text from a PDF buffer (using pdf-to-text).
+ * (Your code, unchanged)
  */
 async function extractTextFromPDF(fileBuffer: Buffer): Promise<string> {
   const { pdf } = await (eval('import("pdf-to-text")') as Promise<{
@@ -45,6 +49,7 @@ async function extractTextFromPDF(fileBuffer: Buffer): Promise<string> {
 
 /**
  * Normalize an embedding vector to unit length.
+ * (Your code, unchanged)
  */
 function normalizeVector(vec: number[]): number[] {
   const sumSquares = vec.reduce((s, v) => s + v * v, 0);
@@ -61,7 +66,11 @@ export async function generateAndSaveEmbedding(
   fileBuffer: Buffer,
   headline: string
 ) {
+  // ✅ ADDED: Get the shared DB connection
+  const db = await getDb();
+
   try {
+    // (Your existing logic is unchanged, it now uses the correct 'db')
     const pdfText = await extractTextFromPDF(fileBuffer);
     const fullText = `Headline: ${headline}\n\nContent: ${pdfText}`;
     const rawEmbedding = await generateEmbedding(fullText);
@@ -72,7 +81,7 @@ export async function generateAndSaveEmbedding(
     // Convert to Postgres vector literal string like: [0.12,-0.45,...]
     const vectorString = `[${normalized.join(",")}]`;
 
-    // Use a raw query to update the vector column (works when column is pgvector)
+    // Use a raw query to update the vector column
     await db.sequelize.query(
       `UPDATE "circulars" SET embedding = :vector WHERE id = :circularId`,
       {
