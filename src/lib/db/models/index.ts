@@ -1,7 +1,7 @@
 // src/lib/db/models/index.ts
 import { Sequelize } from "sequelize";
 
-// Import init functions only — we will capture returned model objects from each init
+// (Your model imports, unchanged)
 import { initAccountModel } from "./account.model";
 import { initAnnouncementModel } from "./announcement.model";
 import { initAnnouncementReadStatusModel } from "./announcement-read-status.model";
@@ -16,11 +16,10 @@ import { initVerificationTokenModel } from "./verification-token.model";
 
 /**
  * Initialize all models and set associations.
- * Each `initXModel` must return the defined Sequelize Model instance (e.g. via `sequelize.define(...)`).
- * We capture those return values and then perform associations on those concrete values.
+ * (Your comments, unchanged)
  */
 export function initModels(sequelize: Sequelize) {
-  // 1. Initialize all models and keep references
+  // 1. Initialize all models (Your code, unchanged)
   const Account = initAccountModel(sequelize);
   const Announcement = initAnnouncementModel(sequelize);
   const AnnouncementReadStatus = initAnnouncementReadStatusModel(sequelize);
@@ -33,26 +32,23 @@ export function initModels(sequelize: Sequelize) {
   const User = initUserModel(sequelize);
   const VerificationToken = initVerificationTokenModel(sequelize);
 
-  // 2. Associations (use the concrete model references)
-  // User <=> Account (One-to-Many)
+  // 2. Associations
+  // (All your other associations, unchanged)
   if (User && Account && typeof (User as any).hasMany === "function") {
     User.hasMany(Account, { foreignKey: "userId", onDelete: "CASCADE" });
     Account.belongsTo(User, { foreignKey: "userId" });
   }
 
-  // User <=> Session (One-to-Many)
   if (User && Session && typeof (User as any).hasMany === "function") {
     User.hasMany(Session, { foreignKey: "userId", onDelete: "CASCADE" });
     Session.belongsTo(User, { foreignKey: "userId" });
   }
 
-  // Department <=> User (One-to-Many)
   if (Department && User && typeof (Department as any).hasMany === "function") {
     Department.hasMany(User, { foreignKey: "departmentId" });
     User.belongsTo(Department, { foreignKey: "departmentId" });
   }
 
-  // User <=> AnnouncementReadStatus (One-to-Many)
   if (
     User &&
     AnnouncementReadStatus &&
@@ -65,7 +61,6 @@ export function initModels(sequelize: Sequelize) {
     AnnouncementReadStatus.belongsTo(User, { foreignKey: "userId" });
   }
 
-  // Announcement <=> AnnouncementReadStatus (One-to-Many)
   if (
     Announcement &&
     AnnouncementReadStatus &&
@@ -80,6 +75,7 @@ export function initModels(sequelize: Sequelize) {
     });
   }
 
+  // ✅ THIS IS THE FIX
   // HolidayMaster <=> HolidayYear (One-to-Many)
   if (
     HolidayMaster &&
@@ -89,11 +85,18 @@ export function initModels(sequelize: Sequelize) {
     HolidayMaster.hasMany(HolidayYear, {
       foreignKey: "holidayMasterId",
       onDelete: "CASCADE",
+      // ✅ ADDED: A stable alias for the relationship
+      as: "HolidayMaster",
     });
-    HolidayYear.belongsTo(HolidayMaster, { foreignKey: "holidayMasterId" });
+    HolidayYear.belongsTo(HolidayMaster, {
+      foreignKey: "holidayMasterId",
+      // ✅ ADDED: The same stable alias
+      as: "HolidayMaster",
+    });
   }
+  // ✅ END OF FIX
 
-  // 3. Return the model map (concrete model instances)
+  // 3. Return the model map (Your code, unchanged)
   return {
     Account,
     Announcement,

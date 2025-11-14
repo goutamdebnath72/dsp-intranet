@@ -4,16 +4,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import { put } from "@vercel/blob";
 import { fromPath } from "pdf2pic";
-// ⛔️ REMOVED: Direct model import
-// import { Circular } from "@/lib/db/models/circular.model";
-// ✅ ADDED: Import the single connection function
 import { getDb } from "@/lib/db";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
-
-/**
- * NOTE:
- * (Your code, unchanged)
- */
 
 /* ============================================================
    Extract textual content from PDF buffer
@@ -85,9 +77,9 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 
 /* ============================================================
    POST: Upload a circular (PDF or image)
+   (Your code, unchanged)
 ============================================================ */
 export async function POST(req: Request) {
-  // ✅ ADDED: Get the shared DB connection
   const db = await getDb();
 
   try {
@@ -123,7 +115,7 @@ export async function POST(req: Request) {
         density: 300,
         format: "png",
         savePath: "/tmp",
-        useGM: false, // ✅ This is your correct fix from before
+        useGM: false,
         width: 2480,
         height: 3508,
       };
@@ -160,8 +152,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Save to DB
-    // ✅ CHANGED: Use the shared db.Circular model
+    // (Your database create logic, unchanged)
     const newCircular = await db.Circular.create({
       headline,
       fileUrls,
@@ -186,12 +177,14 @@ export async function POST(req: Request) {
    GET: Fetch all circulars
 ============================================================ */
 export async function GET() {
-  // ✅ ADDED: Get the shared DB connection
   const db = await getDb();
 
   try {
-    // ✅ CHANGED: Use the shared db.Circular model
+    // ✅ THIS IS THE FIX:
+    // We 'exclude' the 'embedding' column from the query.
+    // This will make the JSON response small and fix the 413 error.
     const circulars = await db.Circular.findAll({
+      attributes: { exclude: ["embedding"] },
       order: [["publishedAt", "DESC"]],
     });
     return NextResponse.json(circulars);
