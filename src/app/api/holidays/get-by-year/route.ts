@@ -19,7 +19,7 @@ export async function GET(req: Request) {
       where: { year },
       include: {
         model: db.HolidayMaster,
-        as: "HolidayMaster",
+        as: "y",
       },
       order: [["date", "ASC"]],
     });
