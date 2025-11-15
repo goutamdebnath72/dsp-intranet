@@ -8,12 +8,11 @@ import { getDb } from "@/lib/db";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
 
 // 👇 +++ ADDED: New imports for pdfjs-dist and canvas
-import * as pdfjsLib from "pdfjs-dist";
-import { createCanvas, Image } from "canvas";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs"; // Using legacy build to fix Vercel warning
+import { createCanvas } from "canvas";
 
 /* ============================================================
    NEW HELPER: Allows pdf.js to use node-canvas
-   (This is standard boilerplate for using pdfjs-dist in Node)
 ============================================================ */
 class NodeCanvasFactory {
   create(width: number, height: number) {
@@ -158,7 +157,8 @@ export async function POST(req: Request) {
           canvasContext: canvasAndContext.context,
           viewport: viewport,
           canvasFactory: canvasFactory,
-        } as any; // 👈 Adding this type assertion
+        } as any;
+        // 👈 Fix for ts(2345) type mismatch
 
         await page.render(renderContext).promise;
 
