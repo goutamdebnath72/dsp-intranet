@@ -27,8 +27,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "pdfjs.d.ts",
-    "pdf-shims.d.ts",   // REQUIRED
+    "types/**/*.d.ts", // 👈 This is the corrected line
     "next.config.js"
   ],
   "exclude": ["node_modules"]
