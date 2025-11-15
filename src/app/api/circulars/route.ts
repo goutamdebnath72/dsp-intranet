@@ -2,12 +2,13 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import { put } from "@vercel/blob";
-import { fromPath } from "pdf2pic";
 import { getDb } from "@/lib/db";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
 
+import { fromPath } from "pdf2pic";
+
 /* ============================================================
-   Extract textual content from PDF buffer  (UNCHANGED)
+   Extract textual content from PDF buffer (unchanged)
 ============================================================ */
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
@@ -22,6 +23,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     await fs.writeFile(tempPdfPath, buffer);
   } catch {}
 
+  // try pdf-to-text
   try {
     const pdfToTextModule: any = await import("pdf-to-text");
     const pdfToTextFn: any =
@@ -29,14 +31,10 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 
     if (typeof pdfToTextFn === "function") {
       const rawText: string = await new Promise((resolve, reject) => {
-        try {
-          pdfToTextFn(tempPdfPath, null, (err: any, data: string) => {
-            if (err) return reject(err);
-            resolve(data ?? "");
-          });
-        } catch (e) {
-          reject(e);
-        }
+        pdfToTextFn(tempPdfPath, null, (err: any, data: string) => {
+          if (err) return reject(err);
+          resolve(data ?? "");
+        });
       });
 
       const cleaned = (rawText || "").replace(/\s+/g, " ").trim();
@@ -47,6 +45,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     }
   } catch {}
 
+  // fallback: pdf-parse
   try {
     const pdfParseModule: any = await import("pdf-parse");
     const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
@@ -61,7 +60,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 }
 
 /* ============================================================
-   POST: Upload a circular (WORKING PDF2PIC VERSION)
+   POST: Upload circular (pdf2pic stable version)
 ============================================================ */
 export async function POST(req: Request) {
   const db = await getDb();
@@ -78,89 +77,89 @@ export async function POST(req: Request) {
       );
     }
 
-    const bytes = Buffer.from(await file.arrayBuffer());
+    const buffer = Buffer.from(await file.arrayBuffer());
     const fileUrls: string[] = [];
 
-    /* ============================
-       IMAGE UPLOAD (UNCHANGED)
-    ============================ */
+    // IMAGE upload (unchanged)
     if (file.type.startsWith("image/")) {
       const key = `circulars/${Date.now()}_${file.name}`;
-      const { url } = await put(key, bytes, {
+      const { url } = await put(key, buffer, {
         access: "public",
         contentType: file.type,
       });
       fileUrls.push(url);
-    } else if (file.type === "application/pdf") {
-      /* ============================
-       PDF UPLOAD (RESTORED WORKING VERSION)
-       ⭐ NO COMPRESSION — EXACT BEHAVIOR RESTORED ⭐
-    ============================ */
-      const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
-      await fs.writeFile(tempPdfPath, bytes);
+    }
+
+    // PDF upload (pdf2pic - restored)
+    else if (file.type === "application/pdf") {
+      const tempPdf = `/tmp/pdf_${Date.now()}.pdf`;
+      await fs.writeFile(tempPdf, buffer);
 
       const options = {
         density: 300,
         format: "png",
         savePath: "/tmp",
-        useGM: false,
-        width: 2480, // ⭐ EXACTLY FROM YOUR STABLE FILE
-        height: 3508, // ⭐ EXACTLY FROM YOUR STABLE FILE
+        width: 2480, // A4 ratio (your stable working values)
+        height: 3508,
       };
 
-      const converter = fromPath(tempPdfPath, options);
+      const convert = fromPath(tempPdf, options);
 
-      // ⭐ BULK conversion (this prevents compression)
-      const pages: any[] = await converter.bulk(-1, { responseType: "buffer" });
+      // get page count using pdf-parse
+      const pdfParseModule: any = await import("pdf-parse");
+      const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
+      const parsed: any = await parseFn(buffer);
+      const numPages = parsed.numpages || 1;
 
-      await fs.unlink(tempPdfPath).catch(() => {});
+      for (let page = 1; page <= numPages; page++) {
+        const output = await convert(page);
+        const pngPath: string | undefined = output?.path;
 
-      for (let i = 0; i < pages.length; i++) {
-        const page = pages[i];
-        if (!page || !page.buffer) continue;
+        if (!pngPath) {
+          console.warn(`Skipping page ${page}: undefined path`);
+          continue;
+        }
 
-        const imgName = `circular_${Date.now()}_page_${i + 1}.png`;
+        const pngBuffer = await fs.readFile(pngPath);
 
-        const { url } = await put(`circulars/${imgName}`, page.buffer, {
+        const key = `circulars/${Date.now()}_pg_${page}.png`;
+        const uploaded = await put(key, pngBuffer, {
           access: "public",
           contentType: "image/png",
         });
 
-        fileUrls.push(url);
+        fileUrls.push(uploaded.url);
+        await fs.unlink(pngPath);
       }
+
+      await fs.unlink(tempPdf);
     } else {
       return NextResponse.json(
-        { error: "Unsupported file type. Upload PDF or image." },
+        { error: "Unsupported file format" },
         { status: 400 }
       );
     }
 
-    /* ============================
-       TEXT + EMBEDDING (UNCHANGED)
-    ============================ */
-    const extractedText = await extractTextFromPDF(bytes);
-
+    // extract text + embedding (unchanged)
+    const extractedText = await extractTextFromPDF(buffer);
     let embedding: number[] | null = null;
 
-    if (extractedText && extractedText.length > 0) {
+    if (extractedText && extractedText.length > 20) {
       try {
         embedding = await generateEmbedding(extractedText);
       } catch {}
     }
 
-    /* ============================
-       DB SAVE (UNCHANGED)
-    ============================ */
-    const newCircular = await db.Circular.create({
+    const circular = await db.Circular.create({
       headline,
       fileUrls,
-      publishedAt: new Date(),
       embedding,
+      publishedAt: new Date(),
     });
 
     return NextResponse.json({
       message: "Circular uploaded successfully",
-      circular: newCircular,
+      circular,
     });
   } catch (err: any) {
     console.error("Upload failed:", err);
@@ -172,7 +171,7 @@ export async function POST(req: Request) {
 }
 
 /* ============================================================
-   GET: Fetch all circulars (UNCHANGED)
+   GET: fetch circulars (unchanged)
 ============================================================ */
 export async function GET() {
   const db = await getDb();
