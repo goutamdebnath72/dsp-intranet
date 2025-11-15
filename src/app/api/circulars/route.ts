@@ -1,7 +1,6 @@
 // src/app/api/circulars/route.ts
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import path from "path";
 import { put } from "@vercel/blob";
 // import { fromPath } from "pdf2pic"; // 👈 --- REMOVED
 import { getDb } from "@/lib/db";
@@ -104,7 +103,6 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 
 /* ============================================================
    POST: Upload a circular (PDF or image)
-   (POST handler unchanged, except for the PDF logic block)
 ============================================================ */
 export async function POST(req: Request) {
   const db = await getDb();
@@ -120,35 +118,33 @@ export async function POST(req: Request) {
       );
     }
 
-    const bytes = Buffer.from(await file.arrayBuffer());
+    // Get ArrayBuffer for @vercel/blob
+    const fileArrayBuffer = await file.arrayBuffer();
+    // Create Buffer for pdfjs-dist and text extraction
+    const bytes = Buffer.from(fileArrayBuffer);
     const fileUrls: string[] = [];
-    // (Image upload logic, unchanged)
+
+    // Image upload
     if (file.type.startsWith("image/")) {
       const key = `circulars/${Date.now()}_${file.name}`;
-      const { url } = await put(key, bytes, {
+      // Pass the ArrayBuffer (this part was correct)
+      const { url } = await put(key, fileArrayBuffer, {
         access: "public",
         contentType: file.type,
       });
       fileUrls.push(url);
     }
     //
-    // 👇 === THIS BLOCK IS THE REPLACEMENT === 👇
+    // PDF conversion logic (unchanged)
     //
     else if (file.type === "application/pdf") {
-      // 1. Load the PDF document from the buffer
       const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
-
-      // 2. This is the array your old code used. We will fill it.
       const pages: { buffer: Buffer }[] = [];
       const canvasFactory = new NodeCanvasFactory();
-
-      // 3. Loop through each page
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
-        // We use a scale of 2.0 to match your old high-density setting
         const viewport = page.getViewport({ scale: 2.0 });
 
-        // 4. Create a canvas and render the page
         const canvasAndContext = canvasFactory.create(
           viewport.width,
           viewport.height
@@ -161,28 +157,36 @@ export async function POST(req: Request) {
         // 👈 Fix for ts(2345) type mismatch
 
         await page.render(renderContext).promise;
-
-        // 5. Convert the canvas to a PNG buffer
+        // page.buffer is a Node.js Buffer
         const buffer = canvasAndContext.canvas.toBuffer("image/png");
         pages.push({ buffer });
-
-        // 6. Clean up
         page.cleanup();
         canvasFactory.destroy(canvasAndContext);
       }
 
-      // 👇 === REPLACEMENT ENDS HERE === 👆
-      //
-      // (Your existing loop for uploading buffers, unchanged)
-      // This works perfectly with the new `pages` array.
+      // Loop for uploading PDF pages
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i];
+        // page.buffer is a Node.js Buffer
         if (!page || !page.buffer) continue;
         const imgName = `circular_${Date.now()}_page_${i + 1}.png`;
-        const { url } = await put(`circulars/${imgName}`, page.buffer, {
-          access: "public",
-          contentType: "image/png",
-        });
+
+        //
+        // 👇 --- THIS IS THE FINAL FIX --- 👇
+        //
+        // 1. Create the Uint8Array the RUNTIME error asked for.
+        const pageUint8Array = new Uint8Array(page.buffer);
+
+        // 2. Pass it to put() and use 'as any' to bypass the
+        //    mismatched TYPE error from the library.
+        const { url } = await put(
+          `circulars/${imgName}`,
+          pageUint8Array as any,
+          {
+            access: "public",
+            contentType: "image/png",
+          }
+        );
         fileUrls.push(url);
       }
     } else {
