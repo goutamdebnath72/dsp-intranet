@@ -1,0 +1,262 @@
+[
+  {
+    "title": "SAIL Foundation Day",
+    "date": "2026-01-24",
+    "type": "CH"
+  },
+  {
+    "title": "Republic Day",
+    "date": "2026-01-26",
+    "type": "CH"
+  },
+  {
+    "title": "May Day",
+    "date": "2026-05-01",
+    "type": "CH"
+  },
+  {
+    "title": "Independence Day",
+    "date": "2026-08-15",
+    "type": "CH"
+  },
+  {
+    "title": "Mahatma Gandhi's Birthday",
+    "date": "2026-10-02",
+    "type": "CH"
+  },
+  {
+    "title": "Saraswati Puja/ Basant Panchami/ Netaji's Birth Day",
+    "date": "2026-01-23",
+    "type": "FH"
+  },
+  {
+    "title": "Doljatra",
+    "date": "2026-03-03",
+    "type": "FH"
+  },
+  {
+    "title": "Id-ul-Fitr",
+    "date": "2026-03-21",
+    "type": "FH"
+  },
+  {
+    "title": "Good Friday",
+    "date": "2026-04-03",
+    "type": "FH"
+  },
+  {
+    "title": "Id-Ud-Zoha (Bakrid)",
+    "date": "2026-05-27",
+    "type": "FH"
+  },
+  {
+    "title": "Rath Yatra",
+    "date": "2026-07-16",
+    "type": "FH"
+  },
+  {
+    "title": "Janmasthami",
+    "date": "2026-09-04",
+    "type": "FH"
+  },
+  {
+    "title": "Durgapuja - Maha Ashtami",
+    "date": "2026-10-19",
+    "type": "FH"
+  },
+  {
+    "title": "Durgapuja - Maha Navami",
+    "date": "2026-10-20",
+    "type": "FH"
+  },
+  {
+    "title": "Durgapuja Maha Dasami",
+    "date": "2026-10-21",
+    "type": "FH"
+  },
+  {
+    "title": "Bhatridwitiya",
+    "date": "2026-11-11",
+    "type": "FH"
+  },
+  {
+    "title": "Birth Day of Guru Nanak",
+    "date": "2026-11-24",
+    "type": "FH"
+  },
+  {
+    "title": "Christmas Day",
+    "date": "2026-12-25",
+    "type": "FH"
+  },
+  {
+    "title": "New Year's Day",
+    "date": "2026-01-01",
+    "type": "RH"
+  },
+  {
+    "title": "Hazrat Ali's Birthday",
+    "date": "2026-01-03",
+    "type": "RH"
+  },
+  {
+    "title": "Makar Sankranti / Magha Bihu / Pongol",
+    "date": "2026-01-14",
+    "type": "RH"
+  },
+  {
+    "title": "Saraswati Puja/ Basant Panchami/ Netaji's Birth Day",
+    "date": "2026-01-23",
+    "type": "RH"
+  },
+  {
+    "title": "Guru Ravi Das's Birthday",
+    "date": "2026-02-01",
+    "type": "RH"
+  },
+  {
+    "title": "Maha Shivaratri",
+    "date": "2026-02-15",
+    "type": "RH"
+  },
+  {
+    "title": "Dol Yatra",
+    "date": "2026-03-03",
+    "type": "RH"
+  },
+  {
+    "title": "Holi",
+    "date": "2026-03-04",
+    "type": "RH"
+  },
+  {
+    "title": "Jamat-Ul-Vida",
+    "date": "2026-03-20",
+    "type": "RH"
+  },
+  {
+    "title": "id-ul-Fitr",
+    "date": "2026-03-21",
+    "type": "RH"
+  },
+  {
+    "title": "Ram Navami",
+    "date": "2026-03-26",
+    "type": "RH"
+  },
+  {
+    "title": "Mahavir Jayanti",
+    "date": "2026-03-31",
+    "type": "RH"
+  },
+  {
+    "title": "Good Friday",
+    "date": "2026-04-03",
+    "type": "RH"
+  },
+  {
+    "title": "Bengali New Year's Day",
+    "date": "2026-04-15",
+    "type": "RH"
+  },
+  {
+    "title": "Birthday of Rabindranath Tagore",
+    "date": "2026-05-09",
+    "type": "RH"
+  },
+  {
+    "title": "Id-ul-Zuha (Bakrid)",
+    "date": "2026-05-27",
+    "type": "RH"
+  },
+  {
+    "title": "Muharram",
+    "date": "2026-06-26",
+    "type": "RH"
+  },
+  {
+    "title": "Rath Yatra",
+    "date": "2026-07-16",
+    "type": "RH"
+  },
+  {
+    "title": "Milad-Un-Nabi / Id-E-Milad / Onam",
+    "date": "2026-08-26",
+    "type": "RH"
+  },
+  {
+    "title": "Raksha Bandhan",
+    "date": "2026-08-28",
+    "type": "RH"
+  },
+  {
+    "title": "Janmasthami",
+    "date": "2026-09-04",
+    "type": "RH"
+  },
+  {
+    "title": "Ganesh Chaturthi/ Vinayak Chaturthi",
+    "date": "2026-09-14",
+    "type": "RH"
+  },
+  {
+    "title": "Mahalaya",
+    "date": "2026-10-10",
+    "type": "RH"
+  },
+  {
+    "title": "Durgapuja -- Maha Saptami",
+    "date": "2026-10-18",
+    "type": "RH"
+  },
+  {
+    "title": "Durgapuja - Maha Ashtami",
+    "date": "2026-10-19",
+    "type": "RH"
+  },
+  {
+    "title": "Durgapuja Maha Nabami",
+    "date": "2026-10-20",
+    "type": "RH"
+  },
+  {
+    "title": "Durgapuja Maha Dasami",
+    "date": "2026-10-21",
+    "type": "RH"
+  },
+  {
+    "title": "Lakshmi Puja",
+    "date": "2026-10-25",
+    "type": "RH"
+  },
+  {
+    "title": "Diwali (Deepavali) / Kali Puja",
+    "date": "2026-11-08",
+    "type": "RH"
+  },
+  {
+    "title": "Bhatridwitiya / Bhai Duj",
+    "date": "2026-11-11",
+    "type": "RH"
+  },
+  {
+    "title": "Chhat Puja",
+    "date": "2026-11-15",
+    "type": "RH"
+  },
+  {
+    "title": "Guru Nanak's Birthday / Guru Teg Bahadur's Martyrdom",
+    "date": "2026-11-24",
+    "type": "RH"
+  },
+  {
+    "title": "Christmas Eve",
+    "date": "2026-12-24",
+    "type": "RH"
+  },
+  {
+    "title": "Christmas Day",
+    "date": "2026-12-25",
+    "type": "RH"
+  }
+]

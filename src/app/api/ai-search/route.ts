@@ -45,11 +45,21 @@ export async function GET(request: Request) {
       );
     }
 
+    // Enforce minimum query length (avoid 1–2 character embeddings)
+    if (q.length < 3) {
+      return NextResponse.json({
+        message: "Query too short for semantic search.",
+        results: [],
+      });
+    }
+
     // 1) Generate and normalize the query embedding (Your code, unchanged)
     let queryEmbedding: number[];
     try {
       const raw = await generateEmbedding(q);
       queryEmbedding = normalizeVector(raw);
+      // DEBUG: print embedding dimension
+      console.log("DEBUG query embedding length:", queryEmbedding.length);
     } catch (err) {
       console.error(
         "Embedding generation failed for query, falling back:",
@@ -88,7 +98,7 @@ export async function GET(request: Request) {
           headline,
           "fileUrls"[1] AS url,
           "publishedAt",
-          (embedding <-> :vector::public.vector(1536)) AS similarity
+          (embedding <-> :vector::public.vector(768)) AS similarity
         FROM circulars
         WHERE embedding IS NOT NULL
         ORDER BY similarity ASC, "publishedAt" DESC
