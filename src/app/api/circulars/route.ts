@@ -8,7 +8,7 @@ import { saveEmbeddingToVectorTable } from "@/lib/ai/saveEmbedding";
 import { fromPath } from "pdf2pic";
 import { chunkTextByWords } from "@/lib/ai/chunkText";
 import * as db from "@/lib/db";
-import CircularChunk from "@/lib/db/models/circularChunk.model"; // you will create this file later
+//import CircularChunk from "@/lib/db/models/circularChunk.model"; // I will create this file later
 
 /* ============================================================
    Extract textual content from PDF buffer (original logic)
