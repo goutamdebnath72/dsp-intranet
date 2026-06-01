@@ -54,15 +54,15 @@ export function YearCalendarModal({
         .map((h) => h.dateObj),
       // --- END FIX ---
     }),
-    [holidays]
+    [holidays],
   );
-  
+
   const modalModifiersClassNames = {
     isClosed: "relative modal-holiday-dot-closed",
     isFestival: "relative modal-holiday-dot-festival",
     isRestricted: "relative modal-holiday-dot-restricted",
   };
-  
+
   const modalClassNames: React.ComponentProps<typeof DayPicker>["classNames"] =
     {
       root: "bg-transparent w-full",
@@ -85,7 +85,7 @@ export function YearCalendarModal({
       month:
         "space-y-2 border border-neutral-200 rounded-md px-11 py-3 bg-white shadow-sm",
     };
-    
+
   const modalHolidayDotStyle = `
     .modal-holiday-dot-closed:not(.rdp-day_outside)::after {
       content: ''; position: absolute;
@@ -118,18 +118,19 @@ export function YearCalendarModal({
     }
   `;
 
-  // --- FIX: Use holiday.type directly for Tooltip ---
+  // --- FIX: Handle multiple holidays for Tooltip ---
   function CustomDay(props: DayProps & { modifiers?: { outside?: boolean } }) {
-    // Convert picker's JS Date prop back to Luxon
     const dayAsLuxon = DateTime.fromJSDate(props.date);
-    // Find the holiday by comparing Luxon objects
-    const holiday = holidays.find((h) =>
-      h.date.hasSame(dayAsLuxon, "day")
+
+    // In the Modal, we specifically use 'holidays'
+    const matchingHolidays = holidays.filter((h) =>
+      h.date.hasSame(dayAsLuxon, "day"),
     );
-    if (holiday && !props.modifiers?.outside) {
-      const shortType = holiday.type; // The type IS the short type (e.g., "CH")
+
+    if (matchingHolidays.length > 0 && !props.modifiers?.outside) {
+      const combinedTypes = matchingHolidays.map((h) => h.type).join(" | ");
       return (
-        <Tooltip content={shortType}>
+        <Tooltip content={combinedTypes}>
           <Day {...props} />
         </Tooltip>
       );
@@ -141,12 +142,44 @@ export function YearCalendarModal({
   const components = {
     Day: CustomDay,
   };
-  
-  // This sort is correct, as it uses Luxon's .toMillis()
-  const sortedHolidays = [...holidays].sort(
-    (a, b) => a.date.toMillis() - b.date.toMillis()
+
+  // 1. Sort the holidays first
+  const rawSortedHolidays = [...holidays].sort(
+    (a, b) => a.date.toMillis() - b.date.toMillis(),
   );
-  
+
+  // 2. Group duplicates by exact date string
+  const groupedHolidays = Object.values(
+    rawSortedHolidays.reduce(
+      (acc, current) => {
+        const dateKey = current.date.toISODate(); // e.g., "2025-10-19"
+        if (!dateKey) return acc;
+
+        if (!acc[dateKey]) {
+          // First time seeing this date, create a new entry with arrays
+          acc[dateKey] = {
+            date: current.date,
+            titles: [current.title],
+            types: [current.type],
+          };
+        } else {
+          // Date exists, merge the new data if it's not a strict duplicate
+          if (!acc[dateKey].titles.includes(current.title)) {
+            acc[dateKey].titles.push(current.title);
+          }
+          if (!acc[dateKey].types.includes(current.type)) {
+            acc[dateKey].types.push(current.type);
+          }
+        }
+        return acc;
+      },
+      {} as Record<
+        string,
+        { date: DateTime; titles: string[]; types: string[] }
+      >,
+    ),
+  );
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -206,24 +239,36 @@ export function YearCalendarModal({
                 <h3 className="text-lg font-semibold text-neutral-700 font-heading mb-4 text-center">
                   {year} Holiday List
                 </h3>
-                {sortedHolidays.length > 0 ? (
+                {groupedHolidays.length > 0 ? (
                   <div className="max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 pr-2">
                     <div className="text-sm sm:columns-2 md:columns-3 sm:gap-x-4">
-                      {sortedHolidays.map((holiday) => (
+                      {/* CHANGE: Map over the new grouped array */}
+                      {groupedHolidays.map((holiday) => (
                         <div
-                          key={holiday.title + holiday.date.toISO()}
-                          className="flex justify-between py-1 border-b border-neutral-100 break-inside-avoid"
+                          key={holiday.date.toISO()}
+                          className="flex justify-between items-center py-1.5 border-b border-neutral-100 break-inside-avoid"
                         >
-                          <span className="text-neutral-800 font-medium">
-                            {holiday.title} {/* <-- This now works (reads from h.name) */}
-                          </span>
-                          <span
-                            className={`flex-shrink-0 font-medium ${
-                              holidayColorMap[holiday.type] || // <-- This now works (e.g., holidayColorMap["CH"])
-                              "text-neutral-500"
-                            }`}
-                          >
-                            {/* This formatting is correct (uses Luxon) */}
+                          <div className="flex flex-col pr-2">
+                            {/* Join multiple titles with a slash */}
+                            <span className="text-neutral-800 font-medium leading-tight">
+                              {holiday.titles.join(" / ")}
+                            </span>
+
+                            {/* Render small colored pill badges for the types */}
+                            <div className="flex gap-1 mt-0.5">
+                              {holiday.types.map((type) => (
+                                <span
+                                  key={type}
+                                  className={`text-[0.65rem] px-1.5 py-0.5 rounded font-bold bg-neutral-100 ${holidayColorMap[type] || "text-neutral-500"}`}
+                                >
+                                  {type}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Keep the date a clean, neutral color */}
+                          <span className="flex-shrink-0 font-semibold text-neutral-600">
                             {holiday.date.toFormat("LLL dd")}
                           </span>
                         </div>

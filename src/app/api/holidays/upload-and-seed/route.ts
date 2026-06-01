@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     if (!file || isNaN(year)) {
       return NextResponse.json(
         { error: "Missing file or invalid year" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -106,18 +106,18 @@ export async function POST(req: NextRequest) {
 
     // ------------------------------------
     // --- DATABASE REFACTOR STARTS HERE ---
-    // (Your existing code now works because 'db' is correctly initialized)
+    // (Existing code now works because 'db' is correctly initialized)
     // ------------------------------------
 
-    // 🧹 Always start fresh
-    console.log("🧹 Clearing existing holiday tables...");
-    // We delete from HolidayYear first due to foreign key constraints
-    await db.HolidayYear.destroy({ where: {}, truncate: true, cascade: false });
-    await db.HolidayMaster.destroy({
-      where: {},
-      truncate: true,
+    // 🧹 Clear ONLY the target year, leave other years intact
+    console.log(`🧹 Clearing existing holiday records for ${year}...`);
+    // Delete only the records for the year being uploaded to prevent duplicates
+    await db.HolidayYear.destroy({
+      where: { year },
       cascade: false,
     });
+    // 🛑 We DO NOT truncate HolidayMaster anymore.
+    // It remains intact to serve as a shared dictionary across all years.
 
     // 🌱 Seed new data
     console.log("🌱 Seeding holidays...");
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
     console.error("❌ Upload/Seed error:", error);
     return NextResponse.json(
       { error: error.message || "Failed to upload or seed holidays" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

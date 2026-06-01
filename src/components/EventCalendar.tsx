@@ -25,12 +25,11 @@ function useFormattedHolidays(holidays: FetchedHoliday[]) {
   return useMemo(() => {
     // Cast 'h' to 'any' to handle the 'name' prop from the API
     return holidays.map((h: any) => {
-      // h.date is a UTC string like "2025-01-24T00:00:00.000Z"
-      const dateString = h.date.split("T")[0];
-
-      // Create a new DateTime object from *only* the date part.
-      // This forces it to be at midnight in the user's LOCAL timezone.
-      const dt = DateTime.fromISO(dateString);
+      // --- FOOLPROOF TIMEZONE FIX ---
+      // Let Luxon parse the full ISO timestamp from the API.
+      // It will automatically translate UTC back into your local timezone,
+      // correctly shifting December 31, 18:30 UTC back to January 1, 00:00.
+      const dt = DateTime.fromISO(h.date).startOf("day");
 
       return {
         // --- FIX: Map API data to component props ---
@@ -51,17 +50,65 @@ const holidayColorMap: { [key: string]: { dot: string; text: string } } = {
   RH: { dot: "holiday-dot-restricted", text: "text-purple-600" }, // Was "Restricted"
 };
 
-export function EventCalendar({ holidays, isLoading }: EventCalendarProps) {
-  // State is kept as a Luxon object
+export function EventCalendar({
+  holidays: initialHolidays,
+  isLoading: initialLoading,
+}: EventCalendarProps) {
+  // 1. Keep track of the currently viewed month
   const [currentMonth, setCurrentMonth] = useState<DateTime>(DateTime.local());
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
-  const formattedHolidays = useFormattedHolidays(holidays);
+
+  // 2. Create a local cache to hold all fetched holidays across multiple years
+  const [allHolidays, setAllHolidays] =
+    useState<FetchedHoliday[]>(initialHolidays);
+
+  // 3. Keep track of which years we have already fetched to prevent duplicate API calls
+  const [fetchedYears, setFetchedYears] = useState<number[]>([
+    DateTime.local().year,
+  ]);
+
+  // 4. Dynamic Data Fetcher: Watch the current year and fetch if missing
+  React.useEffect(() => {
+    const targetYear = currentMonth.year;
+
+    if (!fetchedYears.includes(targetYear)) {
+      const fetchMissingYear = async () => {
+        try {
+          const response = await fetch(
+            `/api/holidays/get-by-year?year=${targetYear}`,
+          );
+          if (response.ok) {
+            const responseData = await response.json();
+
+            // Safely extract the array, handling whether the API wrapped it in an object or not
+            const newHolidays = Array.isArray(responseData)
+              ? responseData
+              : responseData.holidays || responseData.data || [];
+
+            // Append the new year's data to our existing cache
+            setAllHolidays((prev) => [...prev, ...newHolidays]);
+            // Mark this year as fetched
+            setFetchedYears((prev) => [...prev, targetYear]);
+          }
+        } catch (error) {
+          console.error(`Failed to fetch holidays for ${targetYear}:`, error);
+        }
+      };
+
+      fetchMissingYear();
+    }
+  }, [currentMonth.year, fetchedYears]);
+
+  // 5. Pass the dynamic cache (allHolidays) into your formatter instead of the static props
+  const formattedHolidays = useFormattedHolidays(allHolidays);
 
   const selectedMonthHolidays = useMemo(() => {
     return formattedHolidays
       .filter((h) => h.date.hasSame(currentMonth, "month"))
       .sort((a, b) => a.date.day - b.date.day);
   }, [currentMonth, formattedHolidays]);
+
+  // ... (Keep the rest of your component exactly the same from modifiers onwards)
 
   const modifiers = {
     // --- FIX: Use API types (CH, FH, RH) ---
@@ -75,17 +122,17 @@ export function EventCalendar({ holidays, isLoading }: EventCalendarProps) {
       .filter((h) => h.type === "RH") // Was "Restricted"
       .map((h) => h.dateObj),
     // --- END FIX ---
-    
+
     today: DateTime.local().toJSDate(),
   };
-  
+
   const modifiersClassNames = {
     isClosed: "relative holiday-dot-closed",
     isFestival: "relative holiday-dot-festival",
     isRestricted: "relative holiday-dot-restricted",
     today: "bg-primary-500 text-white rounded-full font-bold",
   };
-  
+
   const CustomCaptionLabel: React.FC<FixedCaptionLabelProps> = ({
     displayMonth,
   }) => {
@@ -130,7 +177,7 @@ export function EventCalendar({ holidays, isLoading }: EventCalendarProps) {
     day_range_middle: "text-primary-600 bg-primary-50 rounded-none",
     day_hidden: "invisible",
   };
-  
+
   const holidayDotStyle = `
     .rdp-day_today.holiday-dot-closed,
     .rdp-day_today.holiday-dot-festival,
@@ -163,18 +210,19 @@ export function EventCalendar({ holidays, isLoading }: EventCalendarProps) {
     }
   `;
 
-  // --- FIX: Use holiday.type directly for Tooltip ---
+// --- FIX: Handle multiple holidays for Tooltip ---
   function CustomDay(props: DayProps & { modifiers?: { outside?: boolean } }) {
-    // Convert picker's JS Date prop back to Luxon
     const dayAsLuxon = DateTime.fromJSDate(props.date);
-    // Find the holiday by comparing Luxon objects
-    const holiday = formattedHolidays.find((h) =>
+    
+    // In EventCalendar, we specifically use 'formattedHolidays'
+    const matchingHolidays = formattedHolidays.filter((h) =>
       h.date.hasSame(dayAsLuxon, "day")
     );
-    if (holiday && !props.modifiers?.outside) {
-      const shortType = holiday.type; // The type IS the short type (e.g., "CH")
+
+    if (matchingHolidays.length > 0 && !props.modifiers?.outside) {
+      const combinedTypes = matchingHolidays.map(h => h.type).join(" | ");
       return (
-        <Tooltip content={shortType}>
+        <Tooltip content={combinedTypes}>
           <Day {...props} />
         </Tooltip>
       );
@@ -189,7 +237,7 @@ export function EventCalendar({ holidays, isLoading }: EventCalendarProps) {
     IconRight: () => <ChevronRight className="h-5 w-5" />,
     Day: CustomDay,
   };
-  
+
   return (
     <>
       <div className="flex flex-col h-full">
@@ -224,14 +272,14 @@ export function EventCalendar({ holidays, isLoading }: EventCalendarProps) {
                 >
                   <span
                     className={`font-semibold w-8 text-center flex-shrink-0 ${
-                      holidayColorMap[holiday.type]?.text || // <-- This now works (e.g., holidayColorMap["CH"])
-                      "text-neutral-500"
+                      holidayColorMap[holiday.type]?.text || "text-neutral-500" // <-- This now works (e.g., holidayColorMap["CH"])
                     }`}
                   >
                     {holiday.date.toFormat("dd")}
                   </span>
                   <span className="text-neutral-700 truncate">
-                    {holiday.title} {/* <-- This now works (reads from h.name) */}
+                    {holiday.title}{" "}
+                    {/* <-- This now works (reads from h.name) */}
                   </span>
                 </div>
               ))

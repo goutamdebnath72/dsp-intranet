@@ -5,14 +5,15 @@ import React, { useRef, useEffect, useState } from "react";
 import { SCROLL_CONFIG, DIRECTION } from "@/lib/SCROLL_CONFIG";
 import { DateTime } from "luxon";
 
+// 1. Dynamically calculate the exact last day of the current month (e.g., "YYYY-MM-DD")
+const currentMonthEnd = DateTime.local().endOf("month").toISODate() as string;
 // --- Mock Retirement Data with Designation ---
-export const mockRetirements = [
+const baseRetirements = [
   {
     id: 1,
     name: "Matthias Schmidt",
     designation: "Executive Director",
     department: "Quality Control",
-    retirementDate: "2026-06-30",
     imageUrl: "/Matthias_Schmidt.jpeg",
   },
   {
@@ -20,7 +21,6 @@ export const mockRetirements = [
     name: "Antoine Leclerc",
     designation: "Dy. General Manager",
     department: "Logistics",
-    retirementDate: "2026-06-30",
     imageUrl: "/Antoine_Leclerc.jpeg",
   },
   {
@@ -28,7 +28,6 @@ export const mockRetirements = [
     name: "Ingrid Bergman",
     designation: "Director(M-HS)",
     department: "Safety & Health",
-    retirementDate: "2026-06-30",
     imageUrl: "/Ingrid_Bergman.jpeg",
   },
   {
@@ -36,7 +35,6 @@ export const mockRetirements = [
     name: "Natalia Petrova",
     designation: "Manager",
     department: "Security",
-    retirementDate: "2026-06-30",
     imageUrl: "/Natalia_Petrova.jpeg",
   },
   {
@@ -44,10 +42,15 @@ export const mockRetirements = [
     name: "Sofia Karlsson",
     designation: "Asst. General Manager",
     department: "Public Relations",
-    retirementDate: "2026-06-30",
     imageUrl: "/Sofia_Karlsson.jpeg",
   },
 ];
+
+// 3. Automatically append the dynamic retirement date to every person
+export const mockRetirements = baseRetirements.map((person) => ({
+  ...person,
+  retirementDate: currentMonthEnd,
+}));
 
 export function RetirementScrollList() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -149,7 +152,7 @@ export function RetirementScrollList() {
           <React.Fragment key={`${person.id}-${index}`}>
             <div
               className="flex items-center gap-3 p-2 bg-white rounded-md border border-neutral-200/80 shadow-sm"
-            // ✅ No margin needed, spacer div handles it
+              // ✅ No margin needed, spacer div handles it
             >
               <img
                 src={person.imageUrl}
@@ -175,7 +178,7 @@ export function RetirementScrollList() {
                 <p className="text-xs text-red-500 font-medium">
                   Retiring:{" "}
                   {DateTime.fromISO(person.retirementDate).toFormat(
-                    "LLL dd, yyyy"
+                    "LLL dd, yyyy",
                   )}
                 </p>
               </div>
