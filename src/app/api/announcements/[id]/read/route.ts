@@ -1,3 +1,4 @@
+// src/app/api/announcements/[id]/read/route.ts
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
@@ -35,13 +36,10 @@ export async function POST(
   try {
     const dataSource = await getDb();
 
-    // Using string token lookups to prevent Next.js HMR metadata reference drops
-    const announcementRepo =
-      dataSource.getRepository<Announcement>("Announcement");
-    const userRepo = dataSource.getRepository<User>("User");
-    const readStatusRepo = dataSource.getRepository<AnnouncementReadStatus>(
-      "AnnouncementReadStatus",
-    );
+    // Use class constructor references to avoid production minification problems
+    const announcementRepo = dataSource.getRepository(Announcement);
+    const userRepo = dataSource.getRepository(User);
+    const readStatusRepo = dataSource.getRepository(AnnouncementReadStatus);
 
     // 1. Verify that the target announcement exists
     const announcementExists = await announcementRepo.findOne({
@@ -75,7 +73,7 @@ export async function POST(
 
     if (!status) {
       status = readStatusRepo.create({
-        id: crypto.randomUUID(), // ✅ Generates the required non-null string id
+        id: crypto.randomUUID(),
         userId,
         announcementId,
         readAt: DateTime.now(),

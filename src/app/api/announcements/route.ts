@@ -1,3 +1,4 @@
+// src/app/api/announcements/route.ts
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
@@ -6,7 +7,7 @@ import { Announcement, AnnouncementReadStatus } from "@/lib/db/models";
 import { DateTime } from "luxon";
 
 // 🚨 MAXIMUM CACHE DESTRUCTION:
-// Force Next.js to completely disable Full Route Cache and Data Cache for this endpoint
+// Force Next.js to completely disable Full Route Cache and Data Cache for this endpoint.
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
@@ -21,8 +22,8 @@ export async function GET(request: Request) {
   try {
     const dataSource = await getDb();
 
-    const announcementRepo =
-      dataSource.getRepository<Announcement>("Announcement");
+    // Class constructor references prevent production minification issues
+    const announcementRepo = dataSource.getRepository(Announcement);
     const announcements = await announcementRepo.find({
       order: { date: "DESC" },
     });
@@ -32,14 +33,12 @@ export async function GET(request: Request) {
 
     // Fetch precise reading history if the user is authenticated
     if (session?.user) {
-      const activeUserId = (session.user as any).id; // ✅ Local guaranteed string constant
+      const activeUserId = (session.user as any).id;
       userId = activeUserId;
 
-      const readStatusRepo = dataSource.getRepository<AnnouncementReadStatus>(
-        "AnnouncementReadStatus",
-      );
+      const readStatusRepo = dataSource.getRepository(AnnouncementReadStatus);
       const readStatuses = await readStatusRepo.find({
-        where: { userId: activeUserId }, // ✅ Fixed TS error by passing a guaranteed non-null string
+        where: { userId: activeUserId },
       });
       readIds = new Set(readStatuses.map((r) => r.announcementId));
     }
@@ -114,8 +113,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const announcementRepo =
-      dataSource.getRepository<Announcement>("Announcement");
+    const announcementRepo = dataSource.getRepository(Announcement);
 
     const newAnnouncement = announcementRepo.create({
       title,

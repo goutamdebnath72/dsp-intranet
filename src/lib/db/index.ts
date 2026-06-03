@@ -16,7 +16,7 @@ import { Session } from "./models/session.model";
 import { User } from "./models/user.model";
 import { VerificationToken } from "./models/verification-token.model";
 
-// Consolidation array of all active structural database entities
+// Consolidation array of all active structural database entities (All 11 Preserved!)
 const entities = [
   Account,
   AnnouncementReadStatus,
@@ -73,15 +73,37 @@ const DUMMY_DATA_SOURCE = {
 
 /**
  * Centralized High-Performance Database Connection Manager Factory.
- * Manages pool recycling and dynamically switches enterprise infrastructure drivers.
+ * Manages pool recycling, handles Next.js dev HMR reloads safely, and dynamically switches drivers.
  */
 export async function getDb(): Promise<DataSource> {
-  // 1. Return globally cached DataSource instance if already connected and initialized
+  // 1. Manage globally cached DataSource instance if already connected and initialized
   if (
     global.cachedTypeORMDataSource &&
     global.cachedTypeORMDataSource.isInitialized
   ) {
-    return global.cachedTypeORMDataSource;
+    // 💡 HMR Safety: In local development, check if modules/classes have reloaded in memory.
+    // If a class reference has changed, we must safely close the old pool and instantiate a fresh one.
+    if (process.env.NODE_ENV === "development") {
+      const isHmrReloaded = entities.some((entity) => {
+        try {
+          return !global.cachedTypeORMDataSource!.hasMetadata(entity);
+        } catch {
+          return true;
+        }
+      });
+
+      if (isHmrReloaded) {
+        console.log(
+          "🔄 Next.js HMR reload detected. Re-initializing TypeORM DataSource pool...",
+        );
+        await global.cachedTypeORMDataSource.destroy();
+        global.cachedTypeORMDataSource = null;
+      } else {
+        return global.cachedTypeORMDataSource;
+      }
+    } else {
+      return global.cachedTypeORMDataSource;
+    }
   }
 
   // 2. Safely step around live connection routines during a production compilation lifecycle
@@ -110,7 +132,7 @@ export async function getDb(): Promise<DataSource> {
       sid: oracleConfig.sid,
       database: oracleConfig.database,
       serviceName: oracleConfig.serviceName,
-      logging: false, // ✅ Turned off verbose query printing
+      logging: false,
       synchronize: false, // Schema mutations are isolated safely away from active runtime execution paths
       entities: entities,
       extra: {
@@ -125,14 +147,14 @@ export async function getDb(): Promise<DataSource> {
     );
     dataSourceOptions = {
       type: "postgres",
-      url: process.env.DATABASE_URL, // Directly utilizes connection-string formatting natively optimized for Supabase connection pools
-      logging: false, // ✅ Turned off verbose query printing
+      url: process.env.DATABASE_URL, // Directly utilizes Supabase optimized pool connection strings
+      logging: false,
       synchronize: false, // Multi-tenant environment schema safety protection switch locked on
       entities: entities,
       extra: {
-        max: 5, // ✅ Decreased to match your legacy safety limit and protect Supabase slots
-        idleTimeoutMillis: 10000, // ✅ Decreased to 10 seconds to instantly evict inactive connections
-        connectionTimeoutMillis: 5000, // ✅ Increased to 5 seconds to give slow handshakes room to stabilize
+        max: 5, // Safety connection ceiling limits to protect Supabase transaction slots
+        idleTimeoutMillis: 10000, // Instantly evict inactive connections
+        connectionTimeoutMillis: 5000, // Ensure slow Handshakes have room to stabilize
       },
     };
   }
@@ -158,7 +180,7 @@ export async function getDb(): Promise<DataSource> {
       "❌ Fatal validation crash processing current TypeORM runtime DataSource matrix configuration initialization:",
       err,
     );
-    global.cachedTypeORMDataSource = null; // Purge pool allocations to guarantee zero dead states on sub-sequential request loops
+    global.cachedTypeORMDataSource = null; // Purge pool allocations to guarantee zero dead states on subsequent request loops
     throw err;
   }
 }
