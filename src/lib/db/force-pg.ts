@@ -1,9 +1,6 @@
 // src/lib/db/force-pg.ts
-// ✅ Force the pg driver to load before Sequelize initializes
-import pg from "pg";
-import { Sequelize } from "sequelize";
+// Stubbed out after TypeORM migration to prevent build compile failures.
 
-// Attach pg explicitly so Sequelize doesn't fail dynamic import
-(Sequelize as any).postgres = pg;
-
-export { pg };
+export const forcePg = () => {
+  // No longer needed under the TypeORM client configuration
+};
