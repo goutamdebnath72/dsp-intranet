@@ -35,7 +35,6 @@ export async function POST(
   try {
     const dataSource = await getDb();
 
-    // Using string token lookups to prevent Next.js HMR metadata reference drops
     const announcementRepo =
       dataSource.getRepository<Announcement>("Announcement");
     const userRepo = dataSource.getRepository<User>("User");
@@ -75,7 +74,7 @@ export async function POST(
 
     if (!status) {
       status = readStatusRepo.create({
-        id: crypto.randomUUID(), // ✅ Uses the standard global Web Crypto API (Homogeneous JS)
+        id: crypto.randomUUID(),
         userId,
         announcementId,
         readAt: DateTime.now(),

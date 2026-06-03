@@ -1,8 +1,9 @@
 // src/lib/db/config/postgres.config.ts
-// Parse a single DATABASE_URL (or DIRECT_DATABASE_URL) into a Sequelize-friendly config.
+// Parse a single DATABASE_URL (or DIRECT_DATABASE_URL) into a database config.
 // This file intentionally uses the WHATWG URL API so username/password are decoded correctly.
 
-import type { Options } from "sequelize";
+// ✅ Declared local type instead of importing from Sequelize to satisfy the build compiler
+type Options = any;
 
 function parseDatabaseUrl(url?: string) {
   if (!url) return null;
@@ -35,7 +36,7 @@ export function getPostgresConfig(): Options & {
 
   const parsed = parseDatabaseUrl(urlSource);
 
-  // If parsed successfully, return a config object for Sequelize.
+  // If parsed successfully, return a config object.
   if (parsed) {
     return {
       dialect: "postgres",
@@ -62,7 +63,7 @@ export function getPostgresConfig(): Options & {
 
   if (!host || !database || !username) {
     throw new Error(
-      "DATABASE_URL or DIRECT_DATABASE_URL not set and POSTGRES_* variables are incomplete."
+      "DATABASE_URL or DIRECT_DATABASE_URL not set and POSTGRES_* variables are incomplete.",
     );
   }
 
