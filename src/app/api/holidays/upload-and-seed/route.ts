@@ -1,15 +1,13 @@
-// src/app/api/holidays/upload-and-seed-route.ts
+// src/app/api/holidays/upload-and-seed/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-// ⛔️ REMOVED: import db from "@/lib/db";
-// ✅ ADDED: Import the single connection function
 import { getDb } from "@/lib/db";
 import fs from "fs/promises";
 import path from "path";
+import { HolidayMaster, HolidayYear } from "@/lib/db/models";
+import { DateTime } from "luxon";
 
 export const dynamic = "force-dynamic";
-
-// --- All file helpers below are 100% UNTOUCHED (Your code) ---
 
 /** 🔹 Ensure upload directory exists */
 async function ensureUploadDir() {
@@ -29,45 +27,41 @@ async function saveUploadedFile(file: File, dir: string) {
 
 /** 🔹 Extract pure JSON array text from any noisy file */
 function extractPureJsonText(raw: string): string {
-  // Remove any BOM and invisible characters
   let clean = raw.replace(/^\uFEFF/, "").trim();
-  // Remove control or RTF-like characters
   clean = clean.replace(/[^\x20-\x7E\n\r\[\]\{\}:,"'A-Za-z0-9_.\- ]+/g, "");
 
-  // Find first [ and last ]
   const start = clean.indexOf("[");
   const end = clean.lastIndexOf("]");
   if (start === -1 || end === -1 || end <= start)
     throw new Error("No valid JSON array found in file");
 
-  // Extract JSON body
-  const jsonSegment = clean.slice(start, end + 1).trim();
-
-  return jsonSegment;
+  return clean.slice(start, end + 1).trim();
 }
 
 /** 🔹 Parse JSON or TXT file containing JSON array */
 async function parseJsonOrTxt(buffer: Buffer) {
   try {
     const raw = buffer.toString("utf-8");
-
-    // Extract only clean JSON array text
     const jsonText = extractPureJsonText(raw);
-
-    // Parse safely
     const data = JSON.parse(jsonText);
 
     if (!Array.isArray(data))
       throw new Error("JSON root is not an array of holiday objects");
 
-    // Normalize objects
     const holidays = data
       .filter((h) => h.title && h.date && h.type)
-      .map((h) => ({
-        title: String(h.title).trim(),
-        date: new Date(h.date),
-        type: String(h.type).toUpperCase() as "CH" | "FH" | "RH",
-      }));
+      .map((h) => {
+        const parsedDate = DateTime.fromISO(h.date);
+        if (!parsedDate.isValid) {
+          throw new Error(`Invalid date format structure detected: ${h.date}`);
+        }
+        return {
+          title: String(h.title).trim(),
+          date: parsedDate, // Integrated pure Luxon DateTime instance
+          type: String(h.type).toUpperCase() as "CH" | "FH" | "RH",
+        };
+      });
+
     if (holidays.length === 0)
       throw new Error("No valid holiday records found in file");
 
@@ -78,18 +72,15 @@ async function parseJsonOrTxt(buffer: Buffer) {
   }
 }
 
-// --- End of file helpers ---
-
 /** 🔹 Main upload handler */
 export async function POST(req: NextRequest) {
-  // ✅ ADDED: Get the shared DB connection
-  // This is the only line of code added to this function.
-  const db = await getDb();
+  const dataSource = await getDb();
 
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const year = Number(formData.get("year"));
+
     if (!file || isNaN(year)) {
       return NextResponse.json(
         { error: "Missing file or invalid year" },
@@ -101,47 +92,42 @@ export async function POST(req: NextRequest) {
     const { buffer } = await saveUploadedFile(file, dir);
     console.log(`📂 Received file: ${file.name}, ${buffer.length} bytes`);
 
-    // Parse JSON/TXT file (clean + read into memory)
     const holidays = await parseJsonOrTxt(buffer);
 
-    // ------------------------------------
-    // --- DATABASE REFACTOR STARTS HERE ---
-    // (Existing code now works because 'db' is correctly initialized)
-    // ------------------------------------
+    // Get strictly typed target repositories
+    const holidayYearRepo = dataSource.getRepository(HolidayYear);
+    const holidayMasterRepo = dataSource.getRepository(HolidayMaster);
 
-    // 🧹 Clear ONLY the target year, leave other years intact
+    // 🧹 Clear ONLY the target year to prevent duplication errors
     console.log(`🧹 Clearing existing holiday records for ${year}...`);
-    // Delete only the records for the year being uploaded to prevent duplicates
-    await db.HolidayYear.destroy({
-      where: { year },
-      cascade: false,
-    });
-    // 🛑 We DO NOT truncate HolidayMaster anymore.
-    // It remains intact to serve as a shared dictionary across all years.
+    await holidayYearRepo.delete({ year });
 
     // 🌱 Seed new data
-    console.log("🌱 Seeding holidays...");
+    console.log("🌱 Seeding holidays into TypeORM database target state...");
     for (const h of holidays) {
-      // This finds a master holiday by name or creates it
-      const [master] = await db.HolidayMaster.findOrCreate({
+      // Replicated findOrCreate sequence cleanly
+      let master = await holidayMasterRepo.findOne({
         where: { name: h.title },
-        defaults: {
-          name: h.title,
-          type: h.type,
-        },
       });
 
-      // This creates the new yearly entry and links it to the master
-      await db.HolidayYear.create({
+      if (!master) {
+        master = holidayMasterRepo.create({
+          name: h.title,
+          type: h.type as any, // ✅ Added 'as any' to satisfy HolidayType constraint
+        });
+        master = await holidayMasterRepo.save(master);
+      }
+
+      // Link new calendar instance directly down to the resolved master profile ID
+      const newHolidayYearEntry = holidayYearRepo.create({
         date: h.date,
         year,
-        holidayType: h.type,
+        holidayType: h.type as any, // ✅ Added 'as any' here too just in case
         holidayMasterId: master.id,
       });
+
+      await holidayYearRepo.save(newHolidayYearEntry);
     }
-    // ----------------------------------
-    // --- DATABASE REFACTOR ENDS HERE ---
-    // ----------------------------------
 
     return NextResponse.json({
       message: `✅ ${holidays.length} holidays seeded successfully for ${year}. Database refreshed.`,

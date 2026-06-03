@@ -1,41 +1,21 @@
-import { Sequelize, DataTypes, Model } from "sequelize";
+// src/lib/db/models/department.model.ts
+import { Entity, PrimaryColumn, Column, OneToMany } from "typeorm";
 
-export class Department extends Model {
-  public id!: string;
-  public code!: number;
-  public name!: string;
+@Entity({ name: "departments" })
+export class Department {
+  @PrimaryColumn({ type: "varchar" })
+  id!: string;
 
-  // This will be populated by Sequelize
-  // after we define associations
-  public readonly users?: any[];
-}
+  @Column({ type: "integer", unique: true, nullable: false })
+  code!: number;
 
-export function initDepartmentModel(sequelize: Sequelize) {
-  Department.init(
-    {
-      id: {
-        // We'll use STRING to match Prisma's cuid()
-        type: DataTypes.STRING,
-        primaryKey: true,
-        // We can't auto-generate cuid() easily here,
-        // so we'll set it manually in the app logic or use UUID
-        // For now, let's keep it simple.
-      },
-      code: {
-        type: DataTypes.INTEGER,
-        unique: true,
-        allowNull: false,
-      },
-      name: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-    },
-    {
-      sequelize,
-      tableName: "departments",
-      timestamps: false,
-    }
-  );
-  return Department;
+  @Column({ type: "varchar", nullable: false })
+  name!: string;
+
+  // ==========================================
+  //               RELATIONSHIPS
+  // ==========================================
+
+  @OneToMany("User", "department")
+  users?: any[];
 }

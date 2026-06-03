@@ -18,9 +18,9 @@ import {
   dashboardContainerVariants,
 } from "./ProductionDashboard";
 import { motion } from "framer-motion";
+import { getFriendlyFirstName } from "@/lib/utils/nameHelper"; // ✅ Imported our smart name helper
 
 // --- 2. ADDED NEW LINK TYPE ---
-// This type matches the data we cleaned in page.tsx (undefined -> null)
 type Link = {
   id: number;
   category: string;
@@ -30,7 +30,6 @@ type Link = {
   href: string;
   icon: string | null;
 };
-// ----------------------------
 
 interface HomepageProps {
   quickLinksData: Link[];
@@ -39,7 +38,6 @@ interface HomepageProps {
   userName: string;
 }
 
-// Complete newsItems array
 const newsItems = [
   {
     id: 2,
@@ -61,23 +59,24 @@ const newsItems = [
   },
 ];
 
-// Named export
 export function HomepageNew({
   quickLinksData,
   departmentData,
   sailSitesData,
   userName,
 }: HomepageProps) {
-  const firstName = userName.split(" ")[0];
+  // ✅ REPLACED legacy splitting logic with our smart, prefix-aware name parser
+  const firstName = getFriendlyFirstName(userName);
+
   const [isPaused, setIsPaused] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCircularModalOpen, setIsCircularModalOpen] = useState(false);
   const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
-    null
+    null,
   );
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
-  // --- Handlers ---
+
   const handleCircularsClick = () => setIsCircularModalOpen(true);
   const handleCircularSelect = (id: number) => setSelectedCircularId(id);
   const handleCloseLightbox = () => setSelectedCircularId(null);
@@ -94,6 +93,7 @@ export function HomepageNew({
       }
     }
   };
+
   return (
     <>
       {/* --- Top Bar / Header --- */}
@@ -107,7 +107,6 @@ export function HomepageNew({
         className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-cover bg-center relative h-[455px]"
         style={{ backgroundImage: "url('/steel-plant1.png')" }}
       >
-        {/* --- Hero content --- */}
         <div className="absolute inset-0 bg-black/30" />
         <div
           className="absolute bottom-0 left-0 right-0 h-4 z-10"
@@ -244,7 +243,6 @@ export function HomepageNew({
       <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-white rounded-lg py-4 sm:py-6 lg:py-8 mb-8">
         <div className="flex flex-col h-[460px] px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 min-h-0">
-            {/* Col 1, 2, 3 */}
             <div className="flex flex-col min-h-0">
               <h2 className="text-lg font-semibold font-heading text-neutral-800 mb-4 flex-shrink-0">
                 Top Resources

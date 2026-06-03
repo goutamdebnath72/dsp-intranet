@@ -1,16 +1,21 @@
 // src/app/api/circulars/[id]/route.ts
-
 import { NextResponse } from "next/server";
-// ⛔️ REMOVED: import db from '@/lib/db';
-// ✅ ADDED: Import the single connection function
 import { getDb } from "@/lib/db";
+import { Circular } from "@/lib/db/models/circular.model";
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  // ✅ ADDED: Get the shared DB connection
-  const db = await getDb();
+type RouteContext = {
+  params: {
+    id: string;
+  };
+};
+
+/**
+ * GET: Fetch a single circular by its primary key ID
+ * Replaces legacy Sequelize findByPk with TypeORM findOne repository pattern.
+ */
+export async function GET(request: Request, context: RouteContext) {
+  const dataSource = await getDb();
+  const { params } = context;
 
   try {
     const id = Number(params.id);
@@ -18,14 +23,16 @@ export async function GET(
       return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
     }
 
-    // 'findByPk' means "Find by Primary Key"
-    // ✅ CHANGED: Use the shared db.Circular model
-    const circular = await db.Circular.findByPk(id);
+    // Target the strictly typed TypeORM circular entity repository
+    const circularRepository = dataSource.getRepository<Circular>("Circular");
+    const circular = await circularRepository.findOne({
+      where: { id },
+    });
 
     if (!circular) {
       return NextResponse.json(
         { error: "Circular not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -34,7 +41,7 @@ export async function GET(
     console.error(`API Error fetching circular ${params.id}:`, error);
     return NextResponse.json(
       { error: "Internal Server Error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

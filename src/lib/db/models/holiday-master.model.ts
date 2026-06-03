@@ -1,46 +1,36 @@
-import { Sequelize, DataTypes, Model } from "sequelize";
+// src/lib/db/models/holiday-master.model.ts
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
 
-// Define the enum for HolidayType, just as in Prisma
+// Define the enum for HolidayType exactly matching your application and database specifications
 export enum HolidayType {
-  CH = "CH",
-  FH = "FH",
-  RH = "RH",
+  CH = "CH", // Compensated Holiday
+  FH = "FH", // Festival Holiday
+  RH = "RH", // Restricted Holiday
 }
 
-export class HolidayMaster extends Model {
-  public id!: number;
-  public name!: string;
-  public type!: HolidayType;
+@Entity({ name: "holidaymaster" })
+export class HolidayMaster {
+  @PrimaryGeneratedColumn({ type: "integer" })
+  id!: number;
 
-  // This will be populated by Sequelize
-  // after we define associations
-  public readonly years?: any[];
-}
+  @Column({ type: "varchar", unique: true, nullable: false })
+  name!: string;
 
-export function initHolidayMasterModel(sequelize: Sequelize) {
-  HolidayMaster.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true,
-      },
-      name: {
-        type: DataTypes.STRING,
-        unique: true,
-        allowNull: false,
-      },
-      type: {
-        // We use DataTypes.ENUM to enforce the allowed values
-        type: DataTypes.ENUM(HolidayType.CH, HolidayType.FH, HolidayType.RH),
-        allowNull: false,
-      },
-    },
-    {
-      sequelize,
-      tableName: "holidaymaster",
-      timestamps: false,
-    }
-  );
-  return HolidayMaster;
+  @Column({
+    type: "enum",
+    enum: HolidayType,
+    nullable: false,
+  })
+  type!: HolidayType;
+
+  // ==========================================
+  //               RELATIONSHIPS
+  // ==========================================
+
+  /**
+   * One HolidayMaster definition maps to many calendar year entries (HolidayYear)
+   * Handles Cascade deletions safely if a master definition is pruned
+   */
+  @OneToMany("HolidayYear", "holidayMaster")
+  years?: any[];
 }

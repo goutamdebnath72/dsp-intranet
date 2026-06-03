@@ -3,48 +3,27 @@ import { AuthOptions } from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import SequelizeAdapter from "@next-auth/sequelize-adapter";
-// ✅ CHANGED: We now only import 'getDb'
+import { TypeORMAdapter } from "@auth/typeorm-adapter";
 import { getDb } from "@/lib/db";
-
-// ⛔️ REMOVED: All the old, broken adapter logic
-// let adapterInstance: ReturnType<typeof SequelizeAdapter> | undefined =
-//   undefined;
-// async function initAdapter() { ... }
-// void initAdapter();
+import { User } from "@/lib/db/models";
 
 /**
- * ✅ NEW: Async function to build AuthOptions
- * This function is now the "child" that calls your "top-positioned"
- * getDb() function, ensuring the shared connection is used.
- * This fixes the root cause of the MaxClients crash.
+ * Async function to build AuthOptions matching TypeORM connection states.
+ * Connects directly to the globally cached DataSource factory to ensure zero pool leaks.
  */
 export async function getAuthOptions(): Promise<AuthOptions> {
-  // 1. Get the shared, cached database connection
-  const db = await getDb();
+  // 1. Retrieve the central runtime DataSource connection pool matrix
+  const dataSource = await getDb();
 
-  // 2. Throw an error if the DB isn't ready
-  //    (This check is important for serverless)
-  if (!db.sequelize && db.sequelize !== null) {
-    throw new Error("Sequelize connection is not available for NextAuth");
-  }
-
-  // 3. Build and return the AuthOptions
+  // 2. Build and return the NextAuth configuration block
   return {
-    // 4. Pass the *full db object* to the adapter
-    //    This is the correct way to initialize it.
-    adapter: db.sequelize
-      ? SequelizeAdapter(db.sequelize, {
-          models: {
-            User: db.User,
-            Account: db.Account,
-            Session: db.Session,
-            VerificationToken: db.VerificationToken,
-          },
-        })
+    // Inject the modern TypeORM adapter only if the connection pool is fully initialized
+    adapter: dataSource.isInitialized
+      ? (TypeORMAdapter(dataSource as any) as any)
       : undefined,
-    session: { strategy: "jwt" }, // Your setting, unchanged
-    pages: { signIn: "/login" }, // Your setting, unchanged
+
+    session: { strategy: "jwt" },
+    pages: { signIn: "/login" },
 
     providers: [
       GitHubProvider({
@@ -58,46 +37,51 @@ export async function getAuthOptions(): Promise<AuthOptions> {
           ticketNo: { label: "Ticket Number", type: "text" },
           password: { label: "SAIL Personal No.", type: "password" },
         },
-        // This 'authorize' function was already correct in your file,
-        // so it is just moved inside here, unchanged.
         async authorize(credentials) {
-          // 'db' is now the shared connection we got at the top
-          const User = db?.User;
-
-          if (!User) {
-            console.error("❌ Auth failed: DB not connected");
+          if (!dataSource || !dataSource.isInitialized) {
+            console.error(
+              "❌ Auth failed: TypeORM DataSource is not initialized or available",
+            );
             return null;
           }
 
           if (!credentials?.ticketNo || !credentials.password) return null;
 
-          const user = await User.findOne({
-            where: { ticketNo: credentials.ticketNo },
-            raw: true,
-          });
+          try {
+            // Target the strictly typed TypeORM user entity repository matching the active model layer
+            const userRepository = dataSource.getRepository<User>("User");
+            const user = await userRepository.findOne({
+              where: { ticketNo: credentials.ticketNo },
+            });
 
-          if (!user || !user.password) return null;
+            if (!user || !user.password) return null;
 
-          const isValid = await bcrypt.compare(
-            credentials.password,
-            user.password
-          );
+            const isValid = await bcrypt.compare(
+              credentials.password,
+              user.password,
+            );
+            if (!isValid) return null;
 
-          if (!isValid) return null;
-
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            image: user.image,
-            role: user.role,
-          };
+            // Return matching application payload parameters
+            return {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              image: user.image,
+              role: user.role,
+            };
+          } catch (error) {
+            console.error(
+              "❌ Exception captured during Credentials authentication process flow:",
+              error,
+            );
+            return null;
+          }
         },
       }),
     ],
 
     callbacks: {
-      // (Your callbacks, unchanged)
       async jwt({ token, user }) {
         if (user) {
           token.id = (user as any).id;

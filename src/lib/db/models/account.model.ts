@@ -1,89 +1,57 @@
-import { Sequelize, DataTypes, Model } from "sequelize";
+// src/lib/db/models/account.model.ts
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  Index,
+} from "typeorm";
 
-export class Account extends Model {
-  public id!: string;
-  public userId!: string;
-  public type!: string;
-  public provider!: string;
-  public providerAccountId!: string;
-  public refresh_token?: string;
-  public access_token?: string;
-  public expires_at?: number;
-  public token_type?: string;
-  public scope?: string;
-  public id_token?: string;
-  public session_state?: string;
-}
+@Entity({ name: "account" })
+@Index(["provider", "providerAccountId"], { unique: true })
+export class Account {
+  @PrimaryColumn({ type: "varchar" })
+  id!: string;
 
-export function initAccountModel(sequelize: Sequelize) {
-  // ✅ Prevents "Cannot read properties of undefined (reading 'define')" error
-  if (!sequelize) {
-    throw new Error("Sequelize instance is undefined in initAccountModel()");
-  }
+  @Column({ type: "varchar", name: "userId" })
+  userId!: string;
 
-  Account.init(
-    {
-      id: {
-        type: DataTypes.STRING,
-        primaryKey: true,
-      },
-      userId: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      type: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      provider: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      providerAccountId: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      refresh_token: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      access_token: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      expires_at: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
-      token_type: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      scope: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      id_token: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      session_state: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-    },
-    {
-      sequelize,
-      tableName: "account",
-      timestamps: false,
-      indexes: [
-        {
-          unique: true,
-          fields: ["provider", "providerAccountId"],
-        },
-      ],
-    }
-  );
+  @Column({ type: "varchar" })
+  type!: string;
 
-  return Account;
+  @Column({ type: "varchar" })
+  provider!: string;
+
+  @Column({ type: "varchar", name: "providerAccountId" })
+  providerAccountId!: string;
+
+  @Column({ type: "varchar", nullable: true, name: "refresh_token" })
+  refresh_token?: string;
+
+  @Column({ type: "varchar", nullable: true, name: "access_token" })
+  access_token?: string;
+
+  @Column({ type: "integer", nullable: true, name: "expires_at" })
+  expires_at?: number;
+
+  @Column({ type: "varchar", nullable: true, name: "token_type" })
+  token_type?: string;
+
+  @Column({ type: "varchar", nullable: true })
+  scope?: string;
+
+  @Column({ type: "varchar", nullable: true, name: "id_token" })
+  id_token?: string;
+
+  @Column({ type: "varchar", nullable: true, name: "session_state" })
+  session_state?: string;
+
+  // ==========================================
+  //               RELATIONSHIPS
+  // ==========================================
+
+  @ManyToOne("User", "accounts", { onDelete: "CASCADE" })
+  @JoinColumn({ name: "userId" })
+  user?: any;
 }

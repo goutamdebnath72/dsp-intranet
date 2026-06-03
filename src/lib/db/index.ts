@@ -1,122 +1,164 @@
 // src/lib/db/index.ts
-import "pg"; // For Vercel bundler
-import { Sequelize } from "sequelize";
+import "reflect-metadata"; // Required core decorator metadata initialization step for TypeORM
+import { DataSource, DataSourceOptions } from "typeorm";
 import { getOracleConfig } from "./config/oracle.config";
-// ✅ CHANGED: Import the *function* that creates the connection
-import { getSequelize } from "./postgres.runtime";
 
-// --- MODEL IMPORTS ---
-// (These are correct and necessary for Vercel's bundler)
-import "./models/account.model";
-import "./models/announcement-read-status.model";
-import "./models/announcement.model";
-import "./models/circular.model";
-import "./models/department.model";
-import "./models/holiday-master.model";
-import "./models/holiday-year.model";
-import "./models/link.model";
-import "./models/session.model";
-import "./models/user.model";
-import "./models/verification-token.model";
-// --- END OF MODEL IMPORTS ---
+// --- IMPORT TYPEORM ENTITIES ---
+import { Account } from "./models/account.model";
+import { AnnouncementReadStatus } from "./models/announcement-read-status.model";
+import { Announcement } from "./models/announcement.model";
+import { Circular } from "./models/circular.model";
+import { Department } from "./models/department.model";
+import { HolidayMaster } from "./models/holiday-master.model";
+import { HolidayYear } from "./models/holiday-year.model";
+import { Link } from "./models/link.model";
+import { Session } from "./models/session.model";
+import { User } from "./models/user.model";
+import { VerificationToken } from "./models/verification-token.model";
 
-import { initModels } from "./models";
+// Consolidation array of all active structural database entities
+const entities = [
+  Account,
+  AnnouncementReadStatus,
+  Announcement,
+  Circular,
+  Department,
+  HolidayMaster,
+  HolidayYear,
+  Link,
+  Session,
+  User,
+  VerificationToken,
+];
 
-/**
- * 💡 This is the "top-positioned file" you requested.
- * It manages a single, cached database connection.
- * All other files MUST import 'getDb' from this file.
- */
+// Explicit type definition hook for global node execution caching context
+declare global {
+  // eslint-disable-next-line no-var
+  var cachedTypeORMDataSource: DataSource | null;
+}
 
-// These 'let' variables will be cached across serverless function invocations
-let sequelize: Sequelize | null = null;
-let db: any = null;
+// Global caching container lifecycle validation to handle Next.js hot module replacements safely
+if (!global.cachedTypeORMDataSource) {
+  global.cachedTypeORMDataSource = null;
+}
 
-// Detects if we are in a Vercel build phase
+// Detects if the operational state is running under a production deployment compression phase
 const isBuildPhase =
   typeof process.env.NEXT_PHASE === "string" &&
   process.env.NEXT_PHASE.includes("build");
 
-// --- DUMMY DB for build phase (no changes) ---
-function makeDummyModel() {
-  return {
-    findAll: async () => [],
+// --- DUMMY DB PATTERN ENGINE FOR EMULATING TYPEORM AT BUILD LIFECYCLES ---
+const makeDummyRepository = () => ({
+  find: async () => [],
+  findOne: async () => null,
+  findAndCount: async () => [[], 0],
+  create: () => ({}),
+  save: async (entity: any) => entity,
+  update: async () => ({ affected: 0 }),
+  delete: async () => ({ affected: 0 }),
+  remove: async () => ({}),
+});
+
+const DUMMY_DATA_SOURCE = {
+  isInitialized: false,
+  initialize: async () => DUMMY_DATA_SOURCE as any,
+  destroy: async () => {},
+  getRepository: () => makeDummyRepository(),
+  manager: {
+    find: async () => [],
     findOne: async () => null,
-    findByPk: async () => null,
-    create: async () => ({}),
-    update: async () => ({}),
-    destroy: async () => 0,
-  };
-}
-const DUMMY_DB = {
-  sequelize: null,
-  Account: makeDummyModel(),
-  Announcement: makeDummyModel(),
-  AnnouncementReadStatus: makeDummyModel(),
-  Circular: makeDummyModel(),
-  Department: makeDummyModel(),
-  HolidayMaster: makeDummyModel(),
-  HolidayYear: makeDummyModel(),
-  Link: makeDummyModel(),
-  Session: makeDummyModel(),
-  User: makeDummyModel(),
-  VerificationToken: makeDummyModel(),
-};
-// --- End of DUMMY DB ---
+    save: async (entity: any) => entity,
+  },
+} as unknown as DataSource;
 
 /**
- * ✅ THE NEW CONNECTION MANAGER
- * This is now an ASYNC function that manages the single connection.
+ * Centralized High-Performance Database Connection Manager Factory.
+ * Manages pool recycling and dynamically switches enterprise infrastructure drivers.
  */
-export async function getDb() {
-  // 1. ✅ Return the cached connection if it exists
-  if (db && db.sequelize) {
-    // console.log("🔌 Using cached DB connection.");
-    return db;
+export async function getDb(): Promise<DataSource> {
+  // 1. Return globally cached DataSource instance if already connected and initialized
+  if (
+    global.cachedTypeORMDataSource &&
+    global.cachedTypeORMDataSource.isInitialized
+  ) {
+    return global.cachedTypeORMDataSource;
   }
 
-  // 2. 💤 Return dummy DB during build
+  // 2. Safely step around live connection routines during a production compilation lifecycle
   if (isBuildPhase) {
-    console.log("🔌 BUILD PHASE detected — returning dummy DB.");
-    return DUMMY_DB;
+    console.log(
+      "🔌 BUILD PHASE detected — returning dummy TypeORM target engine.",
+    );
+    return DUMMY_DATA_SOURCE;
   }
 
-  // 3. 🚀 Create new connection (this will only run once)
   const dbType = process.env.DB_TYPE || "postgres";
+  let dataSourceOptions: DataSourceOptions;
+
+  // 3. Construct exact, optimized structural configurations mapped by enterprise driver targets
+  if (dbType === "oracle") {
+    console.log(
+      "🔌 Configuring TypeORM client ecosystem connection for Oracle Database Enterprise Matrix...",
+    );
+    const oracleConfig = getOracleConfig();
+    dataSourceOptions = {
+      type: "oracle",
+      host: oracleConfig.host,
+      port: oracleConfig.port || 1521,
+      username: oracleConfig.username,
+      password: oracleConfig.password,
+      sid: oracleConfig.sid,
+      database: oracleConfig.database,
+      serviceName: oracleConfig.serviceName,
+      logging: false, // ✅ Turned off verbose query printing
+      synchronize: false, // Schema mutations are isolated safely away from active runtime execution paths
+      entities: entities,
+      extra: {
+        poolMax: 10,
+        poolMin: 2,
+        poolIncrement: 1,
+      },
+    };
+  } else {
+    console.log(
+      "🔌 Configuring TypeORM client connectivity options for Supabase Postgres Cluster...",
+    );
+    dataSourceOptions = {
+      type: "postgres",
+      url: process.env.DATABASE_URL, // Directly utilizes connection-string formatting natively optimized for Supabase connection pools
+      logging: false, // ✅ Turned off verbose query printing
+      synchronize: false, // Multi-tenant environment schema safety protection switch locked on
+      entities: entities,
+      extra: {
+        max: 5, // ✅ Decreased to match your legacy safety limit and protect Supabase slots
+        idleTimeoutMillis: 10000, // ✅ Decreased to 10 seconds to instantly evict inactive connections
+        connectionTimeoutMillis: 5000, // ✅ Increased to 5 seconds to give slow handshakes room to stabilize
+      },
+    };
+  }
 
   try {
-    // 'sequelize' is the global variable
-    if (!sequelize) {
-      console.log("🔌 No cached sequelize, creating new connection...");
-      if (dbType === "oracle") {
-        console.log("🔌 Connecting to Oracle...");
-        sequelize = new Sequelize(getOracleConfig());
-        await sequelize.authenticate();
-      } else {
-        console.log("🔌 Connecting to PostgreSQL (Supabase) via runtime...");
-        // Call the function from postgres.runtime.ts
-        sequelize = await getSequelize();
-      }
-      console.log("✅ Sequelize authenticated successfully.");
+    if (!global.cachedTypeORMDataSource) {
+      console.log(
+        "🔌 Active structural connection instance unavailable. Instantiating fresh runtime client connection pool...",
+      );
+      global.cachedTypeORMDataSource = new DataSource(dataSourceOptions);
     }
 
-    // 'db' is the global variable
-    if (!db) {
-      console.log("📚 Initializing models...");
-      const models = initModels(sequelize!);
-      db = { sequelize: sequelize!, ...models }; // Cache the connection and models
-      console.log("✅ Sequelize models initialized successfully.");
+    if (!global.cachedTypeORMDataSource.isInitialized) {
+      await global.cachedTypeORMDataSource.initialize();
+      console.log(
+        `✅ TypeORM DataSource context authenticated and synchronized successfully using [${dbType}] driver.`,
+      );
     }
 
-    return db; // Return the new, cached connection
+    return global.cachedTypeORMDataSource;
   } catch (err) {
-    console.error("❌ Failed to initialize Sequelize:", err);
-    // Invalidate cache on error to force retry on next request
-    sequelize = null;
-    db = null;
+    console.error(
+      "❌ Fatal validation crash processing current TypeORM runtime DataSource matrix configuration initialization:",
+      err,
+    );
+    global.cachedTypeORMDataSource = null; // Purge pool allocations to guarantee zero dead states on sub-sequential request loops
     throw err;
   }
 }
-
-// ⛔️ REMOVED: export default getDb();
-// This was creating a new connection on every file import.

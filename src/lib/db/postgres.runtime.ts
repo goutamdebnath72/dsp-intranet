@@ -1,55 +1,18 @@
 // src/lib/db/postgres.runtime.ts
-import { Sequelize } from "sequelize";
-import { getPostgresConfig } from "./config/postgres.config";
-import pg from "pg";
 
-// This is the global cache for the connection
-let sequelize: Sequelize | null = null;
+import { getDb } from "./index";
 
-export async function getSequelize(): Promise<Sequelize> {
-  // 1. Return the cached connection (Your code, unchanged)
-  if (sequelize) return sequelize;
-
-  console.log("Connecting to PostgreSQL...");
-  const config = getPostgresConfig();
-
-  // 2. Create new connection (Your code, with one addition)
-  const newSequelize = new Sequelize(
-    config.database!,
-    config.username!,
-    config.password!,
-    {
-      host: config.host!,
-      port: config.port!,
-      dialect: "postgres",
-      dialectModule: pg,
-      logging: false,
-      ssl: true,
-      dialectOptions: {
-        ssl: { require: true, rejectUnauthorized: false },
-      },
-      // ✅ ADDED: Connection Pooling
-      // This is essential for Vercel's serverless environment
-      // to fix the "MaxClients" error.
-      pool: {
-        max: 5, // Max 5 connections
-        min: 0,
-        acquire: 30000,
-        idle: 10000,
-      },
-    }
+/**
+ * @deprecated
+ * Legacy Sequelize connection entry point.
+ * This helper has been decommissioned in favor of the unified TypeORM engine.
+ * * Redirects directly to getDb() to prevent runtime crashes, but returns
+ * the TypeORM DataSource instance instead of Sequelize. Any files calling this
+ * should be updated to use import { getDb } from "@/lib/db" directly.
+ */
+export async function getSequelize(): Promise<any> {
+  console.warn(
+    "⚠️ Warning: A legacy file invoked getSequelize(). Redirecting call directly to the TypeORM engine.",
   );
-
-  try {
-    // 3. Authenticate and cache (Your code, unchanged)
-    await newSequelize.authenticate();
-    console.log("✅ Sequelize connected successfully");
-    sequelize = newSequelize; // Cache the new connection
-  } catch (error) {
-    console.error("❌ Database connection failed:", error);
-    sequelize = null; // Do not cache on failure
-    throw error;
-  }
-
-  return sequelize;
+  return await getDb();
 }

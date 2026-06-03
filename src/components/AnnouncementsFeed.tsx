@@ -10,37 +10,57 @@ import {
   Megaphone,
 } from "lucide-react";
 import { DateTime } from "luxon";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { Tooltip } from "./Tooltip";
 import { SCROLL_CONFIG } from "@/lib/SCROLL_CONFIG";
 
 // --- 2. ADDED NEW ANNOUNCEMENT TYPE ---
-// This type matches the data our API now sends
 type Announcement = {
   id: number;
-  createdAt: string; // Dates are strings after JSON serialization
+  createdAt: string;
   title: string;
   content: string | null;
-  date: string; // Dates are strings after JSON serialization
+  date: string;
   isRead?: boolean;
 };
-// ------------------------------------
 
 type AnnouncementWithReadStatus = Announcement & { isRead: boolean };
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+// 🚨 Bypasses intermediate browser proxy caches with millisecond timestamps
+const fetcher = (url: string) => {
+  const separator = url.includes("?") ? "&" : "?";
+  const cacheBusterUrl = `${url}${separator}t=${Date.now()}`;
+  return fetch(cacheBusterUrl, { cache: "no-store" }).then((res) => {
+    if (!res.ok) throw new Error("Failed to fetch announcements");
+    return res.json();
+  });
+};
 
 export function AnnouncementsFeed() {
   const { data: session } = useSession();
+
+  // ✅ FOOLPROOF CACHE SEPARATION:
+  // Dynamically change the SWR key based on the active user identity.
+  // When a user logs out or switches accounts, SWR treats it as a completely new key,
+  // preventing cached "Ghost Chips" from bleeding between accounts.
+  const userId = (session?.user as any)?.id || "";
+  const swrKey = session
+    ? `/api/announcements?u=${userId}`
+    : "/api/announcements?u=guest";
+
   const {
     data: announcementsData,
     error,
     isLoading,
-  } = useSWR<AnnouncementWithReadStatus[]>("/api/announcements", fetcher, {
-    keepPreviousData: true,
+    mutate: mutateSelf, // ✅ Bound mutate ensures we update the exact active user key
+  } = useSWR<AnnouncementWithReadStatus[]>(swrKey, fetcher, {
+    keepPreviousData: false, // 🚨 Do not retain previous user data when switching keys
+    revalidateOnFocus: true,
+    revalidateOnMount: true,
   });
+
   const [selectedAnnouncement, setSelectedAnnouncement] =
     useState<Announcement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,15 +79,15 @@ export function AnnouncementsFeed() {
       if (isOverflowing) {
         const singleListHeight = listEl.scrollHeight / 2;
         if (singleListHeight <= scrollEl.clientHeight) {
-          setIsOverflowing(false); // Stop duplicating
+          setIsOverflowing(false);
         }
       } else {
         if (listEl.scrollHeight > scrollEl.clientHeight) {
-          setIsOverflowing(true); // Start duplicating
+          setIsOverflowing(true);
         }
       }
     } else if (!announcementsData && isOverflowing) {
-      setIsOverflowing(false); // Reset on error or no data
+      setIsOverflowing(false);
     }
   }, [announcementsData, isOverflowing]);
 
@@ -119,7 +139,7 @@ export function AnnouncementsFeed() {
     if (!item.isRead && session) {
       try {
         await fetch(`/api/announcements/${item.id}/read`, { method: "POST" });
-        mutate("/api/announcements");
+        mutateSelf(); // ✅ Instantly updates the local UI list
       } catch (err) {
         console.error("Failed to mark announcement as read", err);
       }
@@ -130,7 +150,7 @@ export function AnnouncementsFeed() {
     if (!item.isRead && session) {
       try {
         await fetch(`/api/announcements/${item.id}/read`, { method: "POST" });
-        mutate("/api/announcements");
+        mutateSelf(); // ✅ Instantly updates the local UI list
       } catch (err) {
         console.error("Failed to mark announcement as read", err);
       }
@@ -162,7 +182,7 @@ export function AnnouncementsFeed() {
       .sort(
         (a, b) =>
           DateTime.fromISO(b.date as any).toMillis() -
-          DateTime.fromISO(a.date as any).toMillis()
+          DateTime.fromISO(a.date as any).toMillis(),
       );
     const dataToRender = isOverflowing
       ? [...sortedData, ...sortedData]
@@ -176,14 +196,14 @@ export function AnnouncementsFeed() {
       const WrapperComponent: React.ElementType = hasContent
         ? "button"
         : isClickableToMarkRead
-        ? "button"
-        : "div";
+          ? "button"
+          : "div";
       const wrapperProps = {
         onClick: hasContent
           ? () => handleAnnouncementClick(item)
           : isClickableToMarkRead
-          ? () => handleReadClick(item)
-          : undefined,
+            ? () => handleReadClick(item)
+            : undefined,
         className: `relative w-full bg-white rounded-lg border border-neutral-200/80 shadow-sm text-left ${
           hasContent || isClickableToMarkRead
             ? "transition-all duration-300 hover:shadow-md hover:border-neutral-300 hover:bg-neutral-50"
@@ -234,10 +254,7 @@ export function AnnouncementsFeed() {
           </motion.div>
 
           {/* spacer for visible consistent gap */}
-          <div
-            style={{ height: SCROLL_CONFIG.gapHeight }}
-            aria-hidden="true"
-          />
+          <div style={{ height: SCROLL_CONFIG.gapHeight }} aria-hidden="true" />
         </React.Fragment>
       );
     };

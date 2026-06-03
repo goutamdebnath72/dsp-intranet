@@ -1,46 +1,60 @@
-import { Sequelize, DataTypes, Model } from "sequelize";
+// src/lib/db/models/announcement-read-status.model.ts
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  Index,
+  ValueTransformer,
+} from "typeorm";
+import { DateTime } from "luxon";
 
-export class AnnouncementReadStatus extends Model {
-  public id!: string;
-  public userId!: string;
-  public announcementId!: number;
-  public readAt!: Date;
-}
+/**
+ * ValueTransformer to automatically bridge native database JS Dates
+ * to Luxon DateTime objects across the Next.js application layer.
+ */
+const LuxonDateTimeTransformer: ValueTransformer = {
+  to(value: DateTime | null | undefined): Date | null {
+    if (!value) return null;
+    return value.toJSDate();
+  },
+  from(value: Date | null | undefined): DateTime | null {
+    if (!value) return null;
+    return DateTime.fromJSDate(value);
+  },
+};
 
-export function initAnnouncementReadStatusModel(sequelize: Sequelize) {
-  AnnouncementReadStatus.init(
-    {
-      id: {
-        type: DataTypes.STRING,
-        primaryKey: true,
-      },
-      userId: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        // This will be set as a foreign key when we define associations
-      },
-      announcementId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        // This will be set as a foreign key when we define associations
-      },
-      readAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
-    },
-    {
-      sequelize,
-      tableName: "announcementreadstatus",
-      timestamps: false, // We use 'readAt' instead
-      // This adds the @@unique([userId, announcementId]) constraint
-      indexes: [
-        {
-          unique: true,
-          fields: ["userId", "announcementId"],
-        },
-      ],
-    }
-  );
-  return AnnouncementReadStatus;
+@Entity({ name: "announcementreadstatus" })
+@Index(["userId", "announcementId"], { unique: true })
+export class AnnouncementReadStatus {
+  @PrimaryColumn({ type: "varchar" })
+  id!: string;
+
+  @Column({ type: "varchar", name: "userId", nullable: false })
+  userId!: string;
+
+  @Column({ type: "integer", name: "announcementId", nullable: false })
+  announcementId!: number;
+
+  @Column({
+    type: "timestamp with time zone",
+    name: "readAt",
+    default: () => "CURRENT_TIMESTAMP",
+    transformer: LuxonDateTimeTransformer,
+    nullable: false,
+  })
+  readAt!: DateTime;
+
+  // ==========================================
+  //               RELATIONSHIPS
+  // ==========================================
+
+  @ManyToOne("User", "readAnnouncements", { onDelete: "CASCADE" })
+  @JoinColumn({ name: "userId" })
+  user?: any;
+
+  @ManyToOne("Announcement", "readByUsers", { onDelete: "CASCADE" })
+  @JoinColumn({ name: "announcementId" })
+  announcement?: any;
 }

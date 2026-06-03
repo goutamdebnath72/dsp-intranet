@@ -16,7 +16,7 @@ const nextConfig = {
 
   experimental: {
     // ✅ Allow these native modules to load at runtime
-    serverComponentsExternalPackages: ["pg", "pg-hstore", "sequelize", "oracledb"],
+    serverComponentsExternalPackages: ["pg", "pg-hstore", "sequelize", "oracledb", "tesseract.js", "typeorm"],
   },
 };
 

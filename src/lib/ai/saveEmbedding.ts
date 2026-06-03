@@ -10,19 +10,19 @@ import { getDb } from "@/lib/db";
 export async function saveEmbeddingToVectorTable(
   id: number,
   embedding: number[],
-  dim = 768
+  dim = 768,
 ) {
   if (!Array.isArray(embedding) || embedding.length === 0) return;
 
   // Ensure length matches expected dim
   if (embedding.length !== dim) {
     throw new Error(
-      `Embedding length ${embedding.length} does not match expected dim ${dim}`
+      `Embedding length ${embedding.length} does not match expected dim ${dim}`,
     );
   }
 
-  const db = await getDb();
-  const sequelize = db.sequelize;
+  // ✅ Swapped out legacy Sequelize container with the shared TypeORM DataSource pool
+  const dataSource = await getDb();
 
   // Postgres vector literal: '[x,y,z]'
   const vecLiteral = `[${embedding.join(",")}]`;
@@ -33,10 +33,8 @@ export async function saveEmbeddingToVectorTable(
                WHERE id = $2`;
 
   try {
-    await sequelize.query(sql, {
-      bind: [vecLiteral, id],
-      type: sequelize.QueryTypes.UPDATE,
-    });
+    // ✅ Updated to execute standard native positional parameters ($1, $2) via TypeORM
+    await dataSource.query(sql, [vecLiteral, id]);
   } catch (err) {
     console.error("saveEmbeddingToVectorTable failed:", err);
     throw err;

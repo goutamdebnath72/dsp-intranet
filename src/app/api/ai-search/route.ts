@@ -1,23 +1,21 @@
 // src/app/api/ai-search/route.ts
 import { NextResponse } from "next/server";
-// ⛔️ REMOVED: import db from "@/lib/db";
-// ✅ ADDED: Import the single connection function
 import { getDb } from "@/lib/db";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
-import { QueryTypes, Sequelize, Op } from "sequelize";
+import { ILike } from "typeorm";
+import { Circular } from "@/lib/db/models/circular.model";
+import { DateTime } from "luxon";
 
 export const runtime = "nodejs";
 
-// (Your SearchResultRow type, unchanged)
 type SearchResultRow = {
   id: number;
   headline: string;
   url: string | null;
-  publishedAt: Date | string;
+  publishedAt: Date | string | any;
   similarity?: number | null;
 };
 
-// (Your normalizeVector function, unchanged)
 function normalizeVector(vec: number[]): number[] {
   const sumSquares = vec.reduce((s, v) => s + v * v, 0);
   const norm = Math.sqrt(sumSquares) || 1;
@@ -25,27 +23,24 @@ function normalizeVector(vec: number[]): number[] {
 }
 
 export async function GET(request: Request) {
-  // ✅ ADDED: Get the shared DB connection
-  const db = await getDb();
+  const dataSource = await getDb();
 
   try {
-    // (Your build-time check, unchanged)
-    if (!db || !db.sequelize) {
+    // Graceful guard to protect runtime loops during the Next.js pre-compilation compilation phases
+    if (!dataSource || !dataSource.isInitialized) {
       console.log("Build-time or DB not initialized: skipping AI search");
       return NextResponse.json([]);
     }
 
-    // (Your query parameter logic, unchanged)
     const url = new URL(request.url);
     const q = url.searchParams.get("q")?.trim();
     if (!q) {
       return NextResponse.json(
         { error: "Missing query parameter 'q'." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Enforce minimum query length (avoid 1–2 character embeddings)
     if (q.length < 3) {
       return NextResponse.json({
         message: "Query too short for semantic search.",
@@ -53,112 +48,109 @@ export async function GET(request: Request) {
       });
     }
 
-    // 1) Generate and normalize the query embedding (Your code, unchanged)
-    let queryEmbedding: number[];
-    try {
-      const raw = await generateEmbedding(q);
-      queryEmbedding = normalizeVector(raw);
-      // DEBUG: print embedding dimension
-      console.log("DEBUG query embedding length:", queryEmbedding.length);
-    } catch (err) {
-      console.error(
-        "Embedding generation failed for query, falling back:",
-        err
-      );
-      // (Your embedding fallback logic, unchanged)
-      const fallbackRows = await db.Circular.findAll({
+    const circularRepository = dataSource.getRepository(Circular);
+
+    // HELPER: Reusable TypeORM keyword lookup strategy to prevent code duplication across exceptions
+    const executeKeywordFallback = async () => {
+      const fallbackRows = await circularRepository.find({
         where: {
-          headline: { [Op.iLike]: `%${q}%` },
+          headline: ILike(`%${q}%`),
         },
-        order: [["publishedAt", "DESC"]],
-        raw: true,
-        limit: 10,
+        order: {
+          publishedAt: "DESC",
+        },
+        take: 10,
       });
-      const fallback = fallbackRows.map((r: any) => ({
+
+      return fallbackRows.map((r) => ({
         id: r.id,
         headline: r.headline,
         url:
           Array.isArray(r.fileUrls) && r.fileUrls.length ? r.fileUrls[0] : null,
-        publishedAt: r.publishedAt
-          ? new Date(r.publishedAt).toISOString()
-          : null,
+        publishedAt: r.publishedAt ? r.publishedAt.toISO() : null, // Repository parses directly to Luxon instance
         similarity: null,
       }));
+    };
+
+    // 1) Generate and normalize query vector strings
+    let queryEmbedding: number[];
+    try {
+      const raw = await generateEmbedding(q);
+      queryEmbedding = normalizeVector(raw);
+      console.log("DEBUG query embedding length:", queryEmbedding.length);
+    } catch (err) {
+      console.error(
+        "Embedding generation failed for query, falling back to keyword search:",
+        err,
+      );
+      const fallback = await executeKeywordFallback();
       return NextResponse.json(fallback);
     }
 
     const vectorString = `[${queryEmbedding.join(",")}]`;
 
-    // 2) Try the vector similarity query (Your code, unchanged)
+    // 2) Execute specialized raw PgVector proximity index calculations
+    // 2) Execute specialized raw PgVector proximity index calculations
     try {
-      const rows = await (db.sequelize as Sequelize).query<SearchResultRow>(
+      // ✅ Added [] to the generic type so TypeScript knows this is an array of rows
+      const rows = await dataSource.query<SearchResultRow[]>(
         `
         SELECT
           id,
           headline,
           "fileUrls"[1] AS url,
           "publishedAt",
-          (embedding <-> :vector::public.vector(768)) AS similarity
+          (embedding <-> $1::public.vector(768)) AS similarity
         FROM circulars
         WHERE embedding IS NOT NULL
         ORDER BY similarity ASC, "publishedAt" DESC
         LIMIT 10;
       `,
-        {
-          replacements: { vector: vectorString },
-          type: QueryTypes.SELECT,
-        }
+        [vectorString],
       );
 
       if (rows && rows.length > 0) {
-        const results = rows.map((r) => ({
-          id: r.id,
-          headline: r.headline,
-          url: r.url ?? null,
-          publishedAt: r.publishedAt
-            ? new Date(r.publishedAt).toISOString()
-            : null,
-          similarity:
-            typeof r.similarity === "number"
-              ? Number(r.similarity.toFixed(6))
-              : null,
-        }));
+        const results = rows.map((r) => {
+          // Normalize variance between un-transformed database strings/Dates and clean Luxon instances
+          let dateStr: string | null = null;
+          if (r.publishedAt) {
+            if (r.publishedAt instanceof Date) {
+              dateStr = DateTime.fromJSDate(r.publishedAt).toISO();
+            } else if (typeof r.publishedAt === "string") {
+              dateStr = DateTime.fromISO(r.publishedAt).toISO();
+            } else if (typeof r.publishedAt.toISO === "function") {
+              dateStr = r.publishedAt.toISO();
+            }
+          }
+
+          return {
+            id: r.id,
+            headline: r.headline,
+            url: r.url ?? null,
+            publishedAt: dateStr,
+            similarity:
+              typeof r.similarity === "number"
+                ? Number(r.similarity.toFixed(6))
+                : null,
+          };
+        });
         return NextResponse.json(results);
       }
-      // If no rows returned, fallthrough to keyword fallback
     } catch (vectorErr) {
       console.warn(
         "Vector similarity query failed — falling back to keyword search.",
-        vectorErr
+        vectorErr,
       );
-      // fall through to keyword fallback
     }
 
-    // 3) Fallback keyword search (Your code, unchanged)
-    const fallbackRows = await db.Circular.findAll({
-      where: {
-        headline: { [Op.iLike]: `%${q}%` },
-      },
-      order: [["publishedAt", "DESC"]],
-      raw: true,
-      limit: 10,
-    });
-
-    const fallback = fallbackRows.map((r: any) => ({
-      id: r.id,
-      headline: r.headline,
-      url:
-        Array.isArray(r.fileUrls) && r.fileUrls.length ? r.fileUrls[0] : null,
-      publishedAt: r.publishedAt ? new Date(r.publishedAt).toISOString() : null,
-      similarity: null,
-    }));
-
+    // 3) Final structural fallback path triggered on empty matches or query calculation crashes
+    const fallback = await executeKeywordFallback();
     return NextResponse.json(fallback);
   } catch (error) {
     console.error("Semantic search error:", error);
     return NextResponse.json(
       { error: "Internal Server Error: search failed." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

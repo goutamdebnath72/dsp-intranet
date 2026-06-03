@@ -1,47 +1,58 @@
-import { Sequelize, DataTypes, Model } from "sequelize";
+// src/lib/db/models/announcement.model.ts
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  ValueTransformer,
+} from "typeorm";
+import { DateTime } from "luxon";
 
-export class Announcement extends Model {
-  public id!: number;
-  public createdAt!: Date;
-  public title!: string;
-  public content?: string;
-  public date!: Date;
+/**
+ * ValueTransformer to automatically bridge native database JS Dates
+ * to Luxon DateTime objects across the Next.js application layer.
+ */
+const LuxonDateTimeTransformer: ValueTransformer = {
+  to(value: DateTime | null | undefined): Date | null {
+    if (!value) return null;
+    return value.toJSDate();
+  },
+  from(value: Date | null | undefined): DateTime | null {
+    if (!value) return null;
+    return DateTime.fromJSDate(value);
+  },
+};
 
-  // This will be populated by Sequelize
-  // after we define associations
-  public readonly readByUsers?: any[];
-}
+@Entity({ name: "announcement" })
+export class Announcement {
+  @PrimaryGeneratedColumn({ type: "integer" })
+  id!: number;
 
-export function initAnnouncementModel(sequelize: Sequelize) {
-  Announcement.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true,
-      },
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
-      title: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      content: {
-        type: DataTypes.STRING, // Or DataTypes.TEXT if it can be very long
-        allowNull: true,
-      },
-      date: {
-        type: DataTypes.DATE,
-        allowNull: false,
-      },
-    },
-    {
-      sequelize,
-      tableName: "announcement",
-      timestamps: false, // We set 'createdAt' manually with a default
-    }
-  );
-  return Announcement;
+  @Column({
+    type: "timestamp with time zone",
+    name: "createdAt",
+    default: () => "CURRENT_TIMESTAMP",
+    transformer: LuxonDateTimeTransformer,
+  })
+  createdAt!: DateTime;
+
+  @Column({ type: "varchar", nullable: false })
+  title!: string;
+
+  @Column({ type: "text", nullable: true })
+  content?: string;
+
+  @Column({
+    type: "timestamp with time zone",
+    nullable: false,
+    transformer: LuxonDateTimeTransformer,
+  })
+  date!: DateTime;
+
+  // ==========================================
+  //               RELATIONSHIPS
+  // ==========================================
+
+  @OneToMany("AnnouncementReadStatus", "announcement", { cascade: true })
+  readByUsers?: any[];
 }

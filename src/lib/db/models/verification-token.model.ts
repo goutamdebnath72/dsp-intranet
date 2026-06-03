@@ -1,41 +1,41 @@
-import { Sequelize, DataTypes, Model } from "sequelize";
+// src/lib/db/models/verification-token.model.ts
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  Index,
+  ValueTransformer,
+} from "typeorm";
+import { DateTime } from "luxon";
 
-export class VerificationToken extends Model {
-  public identifier!: string;
-  public token!: string;
-  public expires!: Date;
-}
+/**
+ * ValueTransformer to automatically bridge native database JS Dates
+ * to Luxon DateTime objects across the Next.js application layer.
+ */
+const LuxonDateTimeTransformer: ValueTransformer = {
+  to(value: DateTime | null | undefined): Date | null {
+    if (!value) return null;
+    return value.toJSDate();
+  },
+  from(value: Date | null | undefined): DateTime | null {
+    if (!value) return null;
+    return DateTime.fromJSDate(value);
+  },
+};
 
-export function initVerificationTokenModel(sequelize: Sequelize) {
-  VerificationToken.init(
-    {
-      identifier: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      token: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        primaryKey: true, // <-- Make the token the primary key
-      },
-      expires: {
-        type: DataTypes.DATE,
-        allowNull: false,
-      },
-    },
-    {
-      sequelize,
-      tableName: "verificationtoken",
-      timestamps: false,
-      // This adds the @@unique([identifier, token]) constraint
-      indexes: [
-        {
-          unique: true,
-          fields: ["identifier", "token"],
-        },
-      ],
-      // We removed the incorrect 'primaryKey: false'
-    }
-  );
-  return VerificationToken;
+@Entity({ name: "verificationtoken" })
+@Index(["identifier", "token"], { unique: true })
+export class VerificationToken {
+  @PrimaryColumn({ type: "varchar" })
+  token!: string;
+
+  @Column({ type: "varchar", nullable: false })
+  identifier!: string;
+
+  @Column({
+    type: "timestamp with time zone",
+    nullable: false,
+    transformer: LuxonDateTimeTransformer,
+  })
+  expires!: DateTime;
 }

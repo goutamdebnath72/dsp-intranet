@@ -1,52 +1,63 @@
-import { Sequelize, DataTypes, Model } from "sequelize";
-import { HolidayType } from "./holiday-master.model"; // We re-use the enum
+// src/lib/db/models/holiday-year.model.ts
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  Index,
+  ValueTransformer,
+} from "typeorm";
+import { DateTime } from "luxon";
+import { HolidayType } from "./holiday-master.model";
 
-export class HolidayYear extends Model {
-  public id!: number;
-  public date!: Date;
-  public year!: number;
-  public holidayType!: HolidayType;
-  public holidayMasterId!: number;
-}
+/**
+ * ValueTransformer to automatically bridge native database JS Dates
+ * to Luxon DateTime objects across the Next.js application layer.
+ */
+const LuxonDateTimeTransformer: ValueTransformer = {
+  to(value: DateTime | null | undefined): Date | null {
+    if (!value) return null;
+    return value.toJSDate();
+  },
+  from(value: Date | null | undefined): DateTime | null {
+    if (!value) return null;
+    return DateTime.fromJSDate(value);
+  },
+};
 
-export function initHolidayYearModel(sequelize: Sequelize) {
-  HolidayYear.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true,
-      },
-      date: {
-        type: DataTypes.DATE,
-        allowNull: false,
-      },
-      year: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-      },
-      holidayType: {
-        // We use the same ENUM from HolidayMaster
-        type: DataTypes.ENUM(HolidayType.CH, HolidayType.FH, HolidayType.RH),
-        allowNull: false,
-      },
-      holidayMasterId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        // This will be set as a foreign key when we define associations
-      },
-    },
-    {
-      sequelize,
-      tableName: "holidayyear",
-      timestamps: false,
-      // This adds the @@index([year])
-      indexes: [
-        {
-          fields: ["year"],
-        },
-      ],
-    }
-  );
-  return HolidayYear;
+@Entity({ name: "holidayyear" })
+@Index(["year"])
+export class HolidayYear {
+  @PrimaryGeneratedColumn({ type: "integer" })
+  id!: number;
+
+  @Column({
+    type: "timestamp",
+    nullable: false,
+    transformer: LuxonDateTimeTransformer,
+  })
+  date!: DateTime;
+
+  @Column({ type: "integer", nullable: false })
+  year!: number;
+
+  @Column({
+    type: "enum",
+    enum: HolidayType,
+    name: "holidayType",
+    nullable: false,
+  })
+  holidayType!: HolidayType;
+
+  @Column({ type: "integer", name: "holidayMasterId", nullable: false })
+  holidayMasterId!: number;
+
+  // ==========================================
+  //               RELATIONSHIPS
+  // ==========================================
+
+  @ManyToOne("HolidayMaster", "years", { onDelete: "CASCADE" })
+  @JoinColumn({ name: "holidayMasterId" })
+  holidayMaster?: any;
 }

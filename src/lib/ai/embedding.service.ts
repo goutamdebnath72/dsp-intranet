@@ -1,8 +1,5 @@
 // src/lib/ai/embedding.service.ts
-// ⛔️ REMOVED: import db from "@/lib/db";
-// ✅ ADDED: Import the single connection function
 import { getDb } from "@/lib/db";
-import { QueryTypes } from "sequelize";
 import { TDocument } from "pdf-to-text";
 
 /**
@@ -64,13 +61,12 @@ function normalizeVector(vec: number[]): number[] {
 export async function generateAndSaveEmbedding(
   circularId: number,
   fileBuffer: Buffer,
-  headline: string
+  headline: string,
 ) {
-  // ✅ ADDED: Get the shared DB connection
-  const db = await getDb();
+  // ✅ Swapped legacy Sequelize lookup with the TypeORM shared DataSource pool
+  const dataSource = await getDb();
 
   try {
-    // (Your existing logic is unchanged, it now uses the correct 'db')
     const pdfText = await extractTextFromPDF(fileBuffer);
     const fullText = `Headline: ${headline}\n\nContent: ${pdfText}`;
     const rawEmbedding = await generateEmbedding(fullText);
@@ -81,16 +77,10 @@ export async function generateAndSaveEmbedding(
     // Convert to Postgres vector literal string like: [0.12,-0.45,...]
     const vectorString = `[${normalized.join(",")}]`;
 
-    // Use a raw query to update the vector column
-    await db.sequelize.query(
-      `UPDATE "circulars" SET embedding = :vector WHERE id = :circularId`,
-      {
-        replacements: {
-          vector: vectorString,
-          circularId,
-        },
-        type: QueryTypes.UPDATE,
-      }
+    // ✅ Swapped out Sequelize replacements engine with standard TypeORM indexed driver parameters ($1, $2)
+    await dataSource.query(
+      `UPDATE "circulars" SET embedding = $1 WHERE id = $2`,
+      [vectorString, circularId],
     );
 
     console.log(`✅ AI embedding generated and saved for: ${circularId}`);
@@ -98,7 +88,7 @@ export async function generateAndSaveEmbedding(
     // Do not block the upload on AI failure — just log it.
     console.error(
       `⚠️ AI embedding failed for ${circularId}:`,
-      error?.message ?? error
+      error?.message ?? error,
     );
   }
 }
