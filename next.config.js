@@ -1,11 +1,12 @@
+// next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ✅ Restore Next.js high-performance SWC compiler (keeps builds fast!)
-  swcMinify: true,
+  // 1. ✅ Disable the SWC minifier
+  swcMinify: false,
 
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
+    // 2. ✅ PRESERVE ORIGINAL NATIVE DRIVER EXTERNAL SETTINGS
     if (isServer) {
-      // ✅ Fix Sequelize / database dynamic imports for PostgreSQL and Oracle
       config.externals = config.externals || [];
       config.externals.push({
         pg: "commonjs pg",
@@ -14,11 +15,18 @@ const nextConfig = {
         oracledb: "commonjs oracledb",
       });
     }
+
+    // 3. ✅ DISABLE WEBPACK MINIFICATION ENTIRELY FOR PRODUCTION
+    // This stops Webpack/Terser from renaming "User" to "l" or "p", making TypeORM 100% stable!
+    if (!dev) {
+      config.optimization.minimize = false;
+    }
+
     return config;
   },
 
   experimental: {
-    // ✅ Keep allowing native modules to load correctly at runtime in Server Components
+    // ✅ Keep allowing native database modules to load correctly at runtime
     serverComponentsExternalPackages: [
       "pg",
       "pg-hstore",
