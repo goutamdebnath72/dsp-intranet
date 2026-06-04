@@ -1,13 +1,11 @@
-// next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 1. ✅ Force Next.js to fall back to Terser to allow class preservation rules to apply
-  swcMinify: false,
+  // ✅ Restore Next.js high-performance SWC compiler (keeps builds fast!)
+  swcMinify: true,
 
-  webpack: (config, { isServer, dev }) => {
-    // 2. ✅ PRESERVE ORIGINAL NATIVE DRIVER EXTERNAL SETTINGS
+  webpack: (config, { isServer }) => {
     if (isServer) {
-      // Fix Sequelize dynamic imports for PostgreSQL and Oracle
+      // ✅ Fix Sequelize / database dynamic imports for PostgreSQL and Oracle
       config.externals = config.externals || [];
       config.externals.push({
         pg: "commonjs pg",
@@ -16,26 +14,11 @@ const nextConfig = {
         oracledb: "commonjs oracledb",
       });
     }
-
-    // 3. ✅ PRESERVE CLASS & FUNCTION NAMES IN PRODUCTION BUILD
-    // Prevents Terser from minifying "User" class to "l", resolving the TypeORM metadata error!
-    if (!dev) {
-      config.optimization.minimizer.forEach((minimizer) => {
-        if (minimizer.options && minimizer.options.minimizerOptions) {
-          // Provide both snake_case and camelCase parameters to cover all compiler versions
-          minimizer.options.minimizerOptions.keep_classnames = true;
-          minimizer.options.minimizerOptions.keep_fnames = true;
-          minimizer.options.minimizerOptions.keepClassnames = true;
-          minimizer.options.minimizerOptions.keepFnames = true;
-        }
-      });
-    }
-
     return config;
   },
 
   experimental: {
-    // ✅ Keep allowing native database modules to load correctly at runtime
+    // ✅ Keep allowing native modules to load correctly at runtime in Server Components
     serverComponentsExternalPackages: [
       "pg",
       "pg-hstore",

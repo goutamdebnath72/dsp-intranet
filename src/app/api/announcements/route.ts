@@ -3,11 +3,12 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
-import { Announcement, AnnouncementReadStatus } from "@/lib/db/models";
+
+// ✅ Import directly from their model files to prevent Webpack module duplication
+import { Announcement } from "@/lib/db/models/announcement.model";
+import { AnnouncementReadStatus } from "@/lib/db/models/announcement-read-status.model";
 import { DateTime } from "luxon";
 
-// 🚨 MAXIMUM CACHE DESTRUCTION:
-// Force Next.js to completely disable Full Route Cache and Data Cache for this endpoint.
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
   try {
     const dataSource = await getDb();
 
-    // Class constructor references prevent production minification issues
+    // Class constructor references mapped securely
     const announcementRepo = dataSource.getRepository(Announcement);
     const announcements = await announcementRepo.find({
       order: { date: "DESC" },
@@ -31,7 +32,6 @@ export async function GET(request: Request) {
     let readIds = new Set<number>();
     let userId: string | null = null;
 
-    // Fetch precise reading history if the user is authenticated
     if (session?.user) {
       const activeUserId = (session.user as any).id;
       userId = activeUserId;
@@ -58,11 +58,8 @@ export async function GET(request: Request) {
         parsedDate = DateTime.fromJSDate(rawDate);
       }
 
-      // Rules for the "New" chip
       const isOlderThan7Days = parsedDate < sevenDaysAgo;
       const hasUserReadIt = userId ? readIds.has(ann.id) : false;
-
-      // Chip disappears ONLY IF it's old OR the specific user read it
       const shouldHideNewChip = isOlderThan7Days || hasUserReadIt;
 
       return {
@@ -71,7 +68,6 @@ export async function GET(request: Request) {
       };
     });
 
-    // Inject aggressive No-Cache headers into the response payload
     const response = NextResponse.json(data);
     response.headers.set(
       "Cache-Control",

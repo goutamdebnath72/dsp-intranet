@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
-import { Announcement, AnnouncementReadStatus, User } from "@/lib/db/models";
+
+// ✅ CRITICAL FIX: Import directly from individual model files to prevent Webpack duplication
+import { Announcement } from "@/lib/db/models/announcement.model";
+import { AnnouncementReadStatus } from "@/lib/db/models/announcement-read-status.model";
+import { User } from "@/lib/db/models/user.model";
 import { DateTime } from "luxon";
 
 export async function POST(
@@ -36,7 +40,7 @@ export async function POST(
   try {
     const dataSource = await getDb();
 
-    // Use class constructor references to avoid production minification problems
+    // Securely reference class-based repositories
     const announcementRepo = dataSource.getRepository(Announcement);
     const userRepo = dataSource.getRepository(User);
     const readStatusRepo = dataSource.getRepository(AnnouncementReadStatus);
