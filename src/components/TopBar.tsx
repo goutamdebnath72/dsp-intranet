@@ -19,21 +19,22 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { LogoModal } from "./LogoModal"; // Assuming LogoModal is in the same directory
 
-// --- MODIFIED: DspLogoVibrant ---
+// ✅ Clean, DRY imports from our single name helper utility
+import { getFriendlyFirstName, getInitials } from "@/lib/utils/nameHelper";
+
+// --- DspLogoVibrant ---
 const DspLogoVibrant: React.FC<{ onClick: () => void }> = ({ onClick }) => {
   return (
-    // --- MODIFIED: Added 'group', removed hover:scale ---
     <button
       onClick={onClick}
-      className="group flex items-center gap-3 text-left" // <-- Added 'group', removed scaling
+      className="group flex items-center gap-3 text-left"
     >
       <Image
         src="/sail-logo-bw.png"
         alt="SAIL Logo"
         width={878}
         height={861}
-        // --- MODIFIED: Added transition and group-hover:scale ---
-        className="h-12 w-auto transition-transform duration-200 group-hover:scale-110" // <-- Added effect here
+        className="h-12 w-auto transition-transform duration-200 group-hover:scale-110"
         priority
       />
       <div>
@@ -41,14 +42,14 @@ const DspLogoVibrant: React.FC<{ onClick: () => void }> = ({ onClick }) => {
           Durgapur Steel Plant
         </h1>
         <p className="text-sm text-neutral-300">
-          स्टील अथॉरिटी ऑफ इंडिया लिमिटेड
+          स्टील अथॉरिटी ऑफ India लिमिटेड
         </p>
       </div>
     </button>
   );
 };
 
-// --- TopBarSearch remains the same ---
+// --- TopBarSearch ---
 const TopBarSearch: React.FC = () => {
   return (
     <div className="relative flex-grow">
@@ -87,6 +88,11 @@ export function TopBar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // ✅ Determine executive credentials and dynamic admin dashboard permissions
+  const ticketNo = (session?.user as any)?.ticketNo || "";
+  const isExecutive = ticketNo.toLowerCase().startsWith("4");
+  const showAdminDashboard = session?.user?.role === "admin" && isExecutive;
 
   return (
     <>
@@ -135,12 +141,8 @@ export function TopBar() {
                 ) : (
                   <div className="w-full h-full rounded-full bg-blue-600 flex items-center justify-center">
                     <span className="font-medium text-white text-base">
-                      {session.user.name
-                        ?.split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .substring(0, 2)
-                        .toUpperCase() || "U"}
+                      {/* ✅ Clean, DRY initials generation logic */}
+                      {getInitials(session.user.name)}
                     </span>
                   </div>
                 )}
@@ -156,7 +158,8 @@ export function TopBar() {
                   >
                     <div className="p-2 border-b border-neutral-200">
                       <p className="font-bold text-neutral-800">
-                        {session.user.name}
+                        {/* ✅ Clean, DRY greeting logic */}
+                        Welcome, {getFriendlyFirstName(session.user.name)}
                       </p>
                       <p className="text-sm text-neutral-500">
                         {session.user.email}
@@ -173,7 +176,8 @@ export function TopBar() {
                           <span className="text-sm">Home</span>
                         </Link>
                       )}
-                      {session.user.role === "admin" && pathname !== "/admin" && (
+                      {/* ✅ Dynamic authorization restricting admin route link exclusively to executives */}
+                      {showAdminDashboard && pathname !== "/admin" && (
                         <Link
                           href="/admin"
                           className="flex items-center gap-3 p-2 rounded-md font-medium bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"

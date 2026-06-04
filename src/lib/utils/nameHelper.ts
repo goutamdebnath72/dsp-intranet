@@ -1,7 +1,8 @@
 /**
  * Smart Name Helper Utility
- * * Extracts the most appropriate conversational "first name" from a full name string,
- * ignoring common prefixes, honorifics, and religious title abbreviations.
+ *
+ * Extracts conversational names and initials from full name strings,
+ * ignoring common prefixes, honorifics, and religious abbreviations.
  */
 
 // A curated, case-insensitive list of common prefixes and honorifics
@@ -32,30 +33,45 @@ const COMMON_PREFIXES = new Set([
 ]);
 
 /**
+ * Helper to split a name into structural parts, discarding any configured prefixes.
+ */
+function getStructuralNameParts(fullName: string): string[] {
+  const parts = fullName.trim().split(/\s+/);
+
+  const filtered = parts.filter((part) => {
+    const cleanPart = part.replace(/[.,:]/g, "").toUpperCase();
+    return !COMMON_PREFIXES.has(cleanPart);
+  });
+
+  // Fallback to original parts if the entire name was filtered out as prefixes
+  return filtered.length > 0 ? filtered : parts;
+}
+
+/**
  * Parses a full name and extracts the true conversational call-name.
- * * @param fullName - The full raw name string (e.g., "MOHD ANWAR ULLAH", "DR GOUTAM SEN")
+ * @param fullName - The full raw name string (e.g., "MOHD ANWAR ULLAH", "DR GOUTAM SEN")
  * @returns The resolved first conversational name (e.g., "ANWAR", "GOUTAM")
  */
 export function getFriendlyFirstName(
   fullName: string | null | undefined,
 ): string {
   if (!fullName) return "User";
+  const structuralParts = getStructuralNameParts(fullName);
+  return structuralParts[0];
+}
 
-  // 1. Split the name into individual words, removing extra spaces
-  const nameParts = fullName.trim().split(/\s+/);
+/**
+ * Generates up to two initials from a name string, ignoring common prefixes.
+ * @param fullName - The full raw name string (e.g., "MOHD ANWAR ULLAH")
+ * @returns The resolved initials (e.g., "AU" instead of "MA")
+ */
+export function getInitials(fullName: string | null | undefined): string {
+  if (!fullName) return "U";
+  const structuralParts = getStructuralNameParts(fullName);
 
-  // 2. Filter out parts that match our common prefixes (case-insensitive)
-  const structuralParts = nameParts.filter((part) => {
-    // Strip trailing commas, periods, or colons from the word for clean matching
-    const cleanPart = part.replace(/[.,:]/g, "").toUpperCase();
-    return !COMMON_PREFIXES.has(cleanPart);
-  });
-
-  // 3. Fallback logic: If the entire name consisted of "prefixes" (e.g. "Mr. Md"),
-  // return the original first element. Otherwise, return the first structural word.
-  const resolvedName =
-    structuralParts.length > 0 ? structuralParts[0] : nameParts[0];
-
-  // 4. Return the name in its original casing (preserving UPPERCASE or Capital Case)
-  return resolvedName;
+  return structuralParts
+    .map((word) => word[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase();
 }

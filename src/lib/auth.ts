@@ -69,6 +69,7 @@ export async function getAuthOptions(): Promise<AuthOptions> {
               email: user.email,
               image: user.image,
               role: user.role,
+              ticketNo: user.ticketNo, // ✅ Passed database ticketNo attribute through the login token
             };
           } catch (error) {
             console.error(
@@ -86,6 +87,7 @@ export async function getAuthOptions(): Promise<AuthOptions> {
         if (user) {
           token.id = (user as any).id;
           token.role = (user as any).role;
+          token.ticketNo = (user as any).ticketNo; // ✅ Attached database ticketNo attribute to JWT token
         }
         return token;
       },
@@ -93,6 +95,7 @@ export async function getAuthOptions(): Promise<AuthOptions> {
         if (session.user) {
           (session.user as any).id = token.id;
           (session.user as any).role = token.role;
+          (session.user as any).ticketNo = token.ticketNo as string; // ✅ Attached database ticketNo attribute to active user session
         }
         return session;
       },
