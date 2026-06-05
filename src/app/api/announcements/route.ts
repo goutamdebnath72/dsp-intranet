@@ -3,12 +3,11 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
-
-// ✅ Import directly from their model files to prevent Webpack module duplication
-import { Announcement } from "@/lib/db/models/announcement.model";
-import { AnnouncementReadStatus } from "@/lib/db/models/announcement-read-status.model";
+import { Announcement, AnnouncementReadStatus } from "@/lib/db/models";
 import { DateTime } from "luxon";
+import { ANNOUNCEMENT_NEW_THRESHOLD_DAYS } from "@/lib/constants"; // ✅ Single source of truth
 
+// 🚨 MAXIMUM CACHE DESTRUCTION:
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
@@ -23,7 +22,6 @@ export async function GET(request: Request) {
   try {
     const dataSource = await getDb();
 
-    // Class constructor references mapped securely
     const announcementRepo = dataSource.getRepository(Announcement);
     const announcements = await announcementRepo.find({
       order: { date: "DESC" },
@@ -44,27 +42,27 @@ export async function GET(request: Request) {
     }
 
     const now = DateTime.now();
-    const sevenDaysAgo = now.minus({ days: 7 });
+    // ✅ Uses the token from lib/constants.ts
+    const thresholdDate = now.minus({ days: ANNOUNCEMENT_NEW_THRESHOLD_DAYS });
 
     const data = announcements.map((ann) => {
       let parsedDate: DateTime = now;
       const rawDate = ann.date as any;
 
-      if (rawDate && typeof rawDate.toMillis === "function") {
+      if (rawDate && typeof rawDate.toMillis === "function")
         parsedDate = rawDate;
-      } else if (typeof rawDate === "string") {
+      else if (typeof rawDate === "string")
         parsedDate = DateTime.fromISO(rawDate);
-      } else if (rawDate instanceof Date) {
+      else if (rawDate instanceof Date)
         parsedDate = DateTime.fromJSDate(rawDate);
-      }
 
-      const isOlderThan7Days = parsedDate < sevenDaysAgo;
+      // Logic: Hide chip if expired (older than threshold) OR if already read by user
+      const isExpired = parsedDate < thresholdDate;
       const hasUserReadIt = userId ? readIds.has(ann.id) : false;
-      const shouldHideNewChip = isOlderThan7Days || hasUserReadIt;
 
       return {
         ...ann,
-        isRead: shouldHideNewChip,
+        isRead: isExpired || hasUserReadIt,
       };
     });
 

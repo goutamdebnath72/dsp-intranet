@@ -16,7 +16,6 @@ import { useSession } from "next-auth/react";
 import { Tooltip } from "./Tooltip";
 import { SCROLL_CONFIG } from "@/lib/SCROLL_CONFIG";
 
-// --- 2. ADDED NEW ANNOUNCEMENT TYPE ---
 type Announcement = {
   id: number;
   createdAt: string;
@@ -28,7 +27,6 @@ type Announcement = {
 
 type AnnouncementWithReadStatus = Announcement & { isRead: boolean };
 
-// 🚨 Bypasses intermediate browser proxy caches with millisecond timestamps
 const fetcher = (url: string) => {
   const separator = url.includes("?") ? "&" : "?";
   const cacheBusterUrl = `${url}${separator}t=${Date.now()}`;
@@ -41,10 +39,6 @@ const fetcher = (url: string) => {
 export function AnnouncementsFeed() {
   const { data: session } = useSession();
 
-  // ✅ FOOLPROOF CACHE SEPARATION:
-  // Dynamically change the SWR key based on the active user identity.
-  // When a user logs out or switches accounts, SWR treats it as a completely new key,
-  // preventing cached "Ghost Chips" from bleeding between accounts.
   const userId = (session?.user as any)?.id || "";
   const swrKey = session
     ? `/api/announcements?u=${userId}`
@@ -54,9 +48,9 @@ export function AnnouncementsFeed() {
     data: announcementsData,
     error,
     isLoading,
-    mutate: mutateSelf, // ✅ Bound mutate ensures we update the exact active user key
+    mutate: mutateSelf,
   } = useSWR<AnnouncementWithReadStatus[]>(swrKey, fetcher, {
-    keepPreviousData: false, // 🚨 Do not retain previous user data when switching keys
+    keepPreviousData: false,
     revalidateOnFocus: true,
     revalidateOnMount: true,
   });
@@ -66,7 +60,6 @@ export function AnnouncementsFeed() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const isHoveringRef = useRef(false);
-  const listHeightRef = useRef(0);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const direction = SCROLL_CONFIG.announcementsDirection;
   const speedPxPerSec = SCROLL_CONFIG.speedPxPerSec;
@@ -101,7 +94,6 @@ export function AnnouncementsFeed() {
     const listEl = listRef.current;
     if (!scrollEl || !listEl) return;
 
-    listHeightRef.current = listEl.scrollHeight / 2;
     let rafId: number | null = null;
     let lastTs = performance.now();
     let accumulated = scrollEl.scrollTop;
@@ -112,7 +104,7 @@ export function AnnouncementsFeed() {
       lastTs = ts;
 
       if (!isHoveringRef.current && !isLoading && announcementsData) {
-        const h = listHeightRef.current;
+        const h = listEl.scrollHeight / 2;
         if (h > 0 && scrollEl.scrollHeight > scrollEl.clientHeight) {
           accumulated += (speedPxPerSec * dt * direction) / 1000;
           if (accumulated >= h && direction === 1) accumulated -= h;
@@ -139,7 +131,7 @@ export function AnnouncementsFeed() {
     if (!item.isRead && session) {
       try {
         await fetch(`/api/announcements/${item.id}/read`, { method: "POST" });
-        mutateSelf(); // ✅ Instantly updates the local UI list
+        mutateSelf();
       } catch (err) {
         console.error("Failed to mark announcement as read", err);
       }
@@ -150,7 +142,7 @@ export function AnnouncementsFeed() {
     if (!item.isRead && session) {
       try {
         await fetch(`/api/announcements/${item.id}/read`, { method: "POST" });
-        mutateSelf(); // ✅ Instantly updates the local UI list
+        mutateSelf();
       } catch (err) {
         console.error("Failed to mark announcement as read", err);
       }
@@ -189,9 +181,10 @@ export function AnnouncementsFeed() {
       : sortedData;
     const renderItem = (item: AnnouncementWithReadStatus, index: number) => {
       const hasContent = !!item.content;
-      const itemDate = DateTime.fromISO(item.date as any);
-      const isRecent = DateTime.now().diff(itemDate, "hours").hours <= 24;
-      const showNewChip = session ? isRecent && !item.isRead : isRecent;
+
+      // ✅ TRUST THE BACKEND: If isRead is true, the chip is hidden.
+      const showNewChip = !item.isRead;
+
       const isClickableToMarkRead = !hasContent && showNewChip && session;
       const WrapperComponent: React.ElementType = hasContent
         ? "button"
@@ -210,18 +203,13 @@ export function AnnouncementsFeed() {
             : ""
         }`,
       };
-      const uniqueKey = `${item.id}-${index}`;
 
       return (
-        <React.Fragment key={uniqueKey}>
+        <React.Fragment key={`${item.id}-${index}`}>
           <motion.div
             initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18 }}
-            style={{
-              willChange: "transform, opacity",
-              backfaceVisibility: "hidden",
-            }}
           >
             <WrapperComponent {...wrapperProps}>
               <div className="flex gap-3 p-4 pr-12">
@@ -233,15 +221,11 @@ export function AnnouncementsFeed() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="overflow-hidden [&>*]:block">
-                    <Tooltip content={item.title}>
-                      <p className="text-sm font-medium text-neutral-800 truncate cursor-default pr-2">
-                        {item.title}
-                      </p>
-                    </Tooltip>
-                  </div>
+                  <p className="text-sm font-medium text-neutral-800 truncate cursor-default pr-2">
+                    {item.title}
+                  </p>
                   <p className="text-xs text-neutral-500 mt-0.5">
-                    {itemDate.toFormat("dd LLL yyyy")}
+                    {DateTime.fromISO(item.date as any).toFormat("dd LLL yyyy")}
                   </p>
                 </div>
               </div>
@@ -252,8 +236,6 @@ export function AnnouncementsFeed() {
               )}
             </WrapperComponent>
           </motion.div>
-
-          {/* spacer for visible consistent gap */}
           <div style={{ height: SCROLL_CONFIG.gapHeight }} aria-hidden="true" />
         </React.Fragment>
       );
