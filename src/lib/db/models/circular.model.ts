@@ -40,15 +40,23 @@ export class Circular {
 
   @Column({
     type: "timestamp",
-    name: "publishedAt", // ✅ FIXED: Matches camelCase layout from live schema exactly
+    name: "publishedAt", // ✅ Preserved: Matches camelCase layout from live schema
     nullable: true,
     transformer: LuxonDateTimeTransformer,
   })
   publishedAt!: DateTime | null;
 
   @Column({
-    type: "vector", // ✅ FIXED: Matches native pgvector type from live schema exactly
+    type: "vector", // ✅ Preserved: Matches native pgvector type
     nullable: true,
   })
   embedding!: any;
+
+  // ✅ ADDED: Author tracking
+  @Column({ type: "varchar", nullable: false })
+  authorTicketNo!: string;
+
+  // ✅ ADDED: Placeholder for serial numbering
+  @Column({ type: "integer", nullable: true })
+  serialNumber?: number;
 }

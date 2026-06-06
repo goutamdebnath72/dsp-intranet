@@ -49,6 +49,10 @@ export class Announcement {
   })
   date!: DateTime;
 
+  // ✅ ADDED: Author tracking
+  @Column({ type: "varchar", nullable: false })
+  authorTicketNo!: string;
+
   // ==========================================
   //               RELATIONSHIPS
   // ==========================================

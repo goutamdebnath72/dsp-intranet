@@ -107,6 +107,9 @@ export async function POST(request: Request) {
       );
     }
 
+    // ✅ Extract ticketNo from session for author tracking
+    const authorTicketNo = (session?.user as any)?.ticketNo;
+
     const announcementRepo = dataSource.getRepository(Announcement);
 
     const newAnnouncement = announcementRepo.create({
@@ -114,6 +117,7 @@ export async function POST(request: Request) {
       content: content || null,
       date: DateTime.fromISO(date),
       createdAt: DateTime.now(),
+      authorTicketNo, // ✅ Now saving the author ID
     });
 
     const savedAnnouncement = await announcementRepo.save(newAnnouncement);
