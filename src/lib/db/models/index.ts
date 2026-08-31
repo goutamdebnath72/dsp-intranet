@@ -4,6 +4,7 @@ export * from "./account.model";
 export * from "./announcement-read-status.model";
 export * from "./announcement.model";
 export * from "./circular.model";
+export * from "./circular_pages.model"; // ✅ ADD THIS LINE
 export * from "./department.model";
 export * from "./holiday-master.model";
 export * from "./holiday-year.model";

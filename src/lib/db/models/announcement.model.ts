@@ -8,10 +8,6 @@ import {
 } from "typeorm";
 import { DateTime } from "luxon";
 
-/**
- * ValueTransformer to automatically bridge native database JS Dates
- * to Luxon DateTime objects across the Next.js application layer.
- */
 const LuxonDateTimeTransformer: ValueTransformer = {
   to(value: DateTime | null | undefined): Date | null {
     if (!value) return null;
@@ -49,13 +45,12 @@ export class Announcement {
   })
   date!: DateTime;
 
-  // ✅ ADDED: Author tracking
   @Column({ type: "varchar", nullable: false })
   authorTicketNo!: string;
 
-  // ==========================================
-  //               RELATIONSHIPS
-  // ==========================================
+  // ✅ ADDED: Vector embedding column for Omnibar deep search
+  @Column({ type: "text", nullable: true, select: false }) // or type: "vector" if explicitly configured in TypeORM
+  embedding?: string | null;
 
   @OneToMany("AnnouncementReadStatus", "announcement", { cascade: true })
   readByUsers?: any[];

@@ -4,8 +4,11 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ValueTransformer,
+  OneToMany,
 } from "typeorm";
+import type { Relation } from "typeorm";
 import { DateTime } from "luxon";
+import { CircularPage } from "./circular_pages.model";
 
 /**
  * ValueTransformer to automatically bridge native database JS Dates
@@ -40,23 +43,25 @@ export class Circular {
 
   @Column({
     type: "timestamp",
-    name: "publishedAt", // ✅ Preserved: Matches camelCase layout from live schema
+    name: "publishedAt",
     nullable: true,
     transformer: LuxonDateTimeTransformer,
   })
   publishedAt!: DateTime | null;
 
   @Column({
-    type: "vector", // ✅ Preserved: Matches native pgvector type
+    type: "vector",
     nullable: true,
   })
   embedding!: any;
 
-  // ✅ ADDED: Author tracking
   @Column({ type: "varchar", nullable: false })
   authorTicketNo!: string;
 
-  // ✅ ADDED: Placeholder for serial numbering
   @Column({ type: "integer", nullable: true })
   serialNumber?: number;
+
+  // ✅ The arrow function defers evaluation and Relation<> safely isolates TS metadata
+  @OneToMany(() => CircularPage, (page) => page.circular)
+  pages!: Relation<CircularPage>[];
 }

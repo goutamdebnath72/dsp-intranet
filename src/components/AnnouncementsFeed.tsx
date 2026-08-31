@@ -3,6 +3,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import AnnouncementModal from "./AnnouncementModal";
+import { ConfirmModal } from "./ConfirmModal";
 import {
   MessageSquareText,
   Loader2,
@@ -15,6 +16,7 @@ import { DateTime } from "luxon";
 import useSWR, { mutate } from "swr";
 import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
+import toast from "react-hot-toast";
 import { Tooltip } from "./Tooltip";
 import { SCROLL_CONFIG } from "@/lib/SCROLL_CONFIG";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
@@ -36,6 +38,8 @@ const fetcher = (url: string) =>
   fetch(url, { cache: "no-store" }).then((res) => res.json());
 
 export function AnnouncementsFeed() {
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const { data: session } = useSession();
   const router = useRouter();
   const userTicketNo = (session?.user as any)?.ticketNo || "";
@@ -73,15 +77,22 @@ export function AnnouncementsFeed() {
     return hoursOld < EDIT_DELETE_WINDOW_HOURS;
   };
 
-  const handleDelete = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this announcement?")) return;
+  const handleDelete = async (id: number) => {
     try {
       await fetch(`/api/announcements/${id}`, { method: "DELETE" });
       mutateSelf();
+      toast.success("Announcement deleted successfully."); // ✅ Optional: Add a nice success feedback
     } catch (err) {
       console.error("Delete failed", err);
+      toast.error("Failed to delete announcement.");
     }
+  };
+
+  // ✅ ADDING THIS HANDLER:
+  const confirmDelete = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteId(id);
+    setIsConfirmOpen(true);
   };
 
   // ✅ New navigation handler for edit
@@ -246,7 +257,7 @@ export function AnnouncementsFeed() {
                         <Pencil size={16} />
                       </button>
                       <button
-                        onClick={(e) => handleDelete(item.id, e)}
+                        onClick={(e) => confirmDelete(item.id, e)}
                         className="text-neutral-400 hover:text-red-600 p-1"
                       >
                         <Trash2 size={16} />
@@ -284,6 +295,14 @@ export function AnnouncementsFeed() {
           onClose={() => setSelectedAnnouncement(null)}
         />
       )}
+      {/* ✅ ADDING THIS COMPONENT: */}
+      <ConfirmModal
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={() => deleteId && handleDelete(deleteId)}
+        title="Delete Announcement"
+        message="Are you sure you want to delete this? This action cannot be undone."
+      />
     </div>
   );
 }

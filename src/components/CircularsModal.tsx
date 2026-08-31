@@ -14,6 +14,8 @@ import {
 import { DateTime } from "luxon";
 import { useSession } from "next-auth/react";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
+import { ConfirmModal } from "./ConfirmModal";
+import toast from "react-hot-toast";
 
 type Circular = {
   id: number;
@@ -43,6 +45,8 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   );
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const archiveButtonRef = useRef<HTMLDivElement>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const fetchCirculars = () => {
     setIsLoading(true);
@@ -100,15 +104,25 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   const circulars = circularsByYear[selectedYear] || [];
 
   // ✅ Wiring Delete Backend
-  const handleDelete = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("Are you sure?")) return;
+  const handleDelete = async (id: number) => {
     try {
-      await fetch(`/api/circulars/${id}`, { method: "DELETE" });
-      fetchCirculars(); // Refresh list
+      // The API should handle the physical deletion of image files
+      const response = await fetch(`/api/circulars/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete");
+
+      toast.success("Circular and associated files deleted.");
+      fetchCirculars(); // Refresh the list
     } catch (err) {
-      console.error("Delete failed", err);
+      toast.error("Failed to delete.");
     }
+  };
+
+  const confirmDelete = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteId(id);
+    setIsConfirmOpen(true);
   };
 
   // ✅ Ownership and 24h Window Check
@@ -276,12 +290,9 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
 
                       {/* ✅ Edit/Delete Controls */}
                       {canModify(circular) && (
-                        <div className="flex gap-2 ml-4">
-                          <button className="text-neutral-400 hover:text-blue-600 p-2">
-                            <Pencil size={18} />
-                          </button>
+                        <div className="flex gap-2 ml-4 items-center">
                           <button
-                            onClick={(e) => handleDelete(circular.id, e)}
+                            onClick={(e) => confirmDelete(circular.id, e)}
                             className="text-neutral-400 hover:text-red-600 p-2"
                           >
                             <Trash2 size={18} />
@@ -305,6 +316,13 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
           </AnimatePresence>
         </main>
       </motion.div>
+      <ConfirmModal
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={() => deleteId && handleDelete(deleteId)}
+        title="Delete Circular"
+        message="Are you sure? This will delete the circular and all associated files permanently."
+      />
     </div>
   );
 }
