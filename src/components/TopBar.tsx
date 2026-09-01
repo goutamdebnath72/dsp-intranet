@@ -114,7 +114,7 @@ const TopBarSearch: React.FC<{ onClick: () => void }> = ({ onClick }) => {
           <span className="text-neutral-400 font-medium leading-none mt-[2px]">
             Search for
           </span>
-          <div className="relative h-full flex-1 min-w-[120px]">
+          <div className="relative h-full flex-1 min-w-[150px]">
             <AnimatePresence mode="popLayout">
               <motion.span
                 key={searchCategories[currentIndex]}
