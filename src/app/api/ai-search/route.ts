@@ -8,6 +8,7 @@ import { Announcement } from "@/lib/db/models/announcement.model";
 import { DateTime } from "luxon";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic"; // Forces Vercel to bypass edge caching
 
 type SearchResultRow = {
   id: number;
@@ -25,19 +26,24 @@ function normalizeVector(vec: number[]): number[] {
 }
 
 export async function GET(request: Request) {
-  const dataSource = await getDb();
-
   try {
+    const dataSource = await getDb();
+
+    // Throw an error instead of silently failing so it appears in Vercel logs
     if (!dataSource || !dataSource.isInitialized) {
-      return NextResponse.json([]);
+      console.error("Database connection failed to initialize in Vercel.");
+      return NextResponse.json(
+        { error: "Database initialization failed." },
+        { status: 500 },
+      );
     }
 
     const url = new URL(request.url);
     const q = url.searchParams.get("q")?.trim();
-    const mode = url.searchParams.get("mode") || "deep"; // "title" | "deep"
+    const mode = url.searchParams.get("mode") || "deep";
 
     if (!q || q.length < 3) {
-      return NextResponse.json({ message: "Query too short.", results: [] });
+      return NextResponse.json([]);
     }
 
     const circularRepository = dataSource.getRepository(Circular);
@@ -73,7 +79,7 @@ export async function GET(request: Request) {
           id: r.id,
           type: "announcement",
           headline: r.title,
-          url: `/announcements/${r.id}`, // Route directly to announcement view
+          url: `/announcements/${r.id}`,
           publishedAt: r.date ? r.date.toISO() : null,
           similarity: null,
         }),
@@ -86,13 +92,11 @@ export async function GET(request: Request) {
       });
     };
 
-    // If strictly title mode, skip the AI logic completely
     if (mode === "title") {
-      const results = await executeKeywordSearch();
-      return NextResponse.json(results);
+      return NextResponse.json(await executeKeywordSearch());
     }
 
-    // --- DEEP SEARCH MODE ---
+    // --- STEP 1: SIMPLE SEMANTIC SEARCH ---
     let queryEmbedding: number[];
     try {
       const raw = await generateEmbedding(q);
@@ -108,24 +112,24 @@ export async function GET(request: Request) {
     const vectorString = `[${queryEmbedding.join(",")}]`;
 
     try {
-      // Execute parallel raw queries for both tables using Cosine Similarity
+      // Postgres pgvector uses <-> for cosine distance.
+      // 1 - distance = cosine similarity percentage.
       const [circularRows, announcementRows] = await Promise.all([
         dataSource.query<SearchResultRow[]>(
           `
           SELECT id, headline, "fileUrls"[1] AS url, "publishedAt",
-          (embedding <-> $1::public.vector(768)) AS similarity
+          (1 - (embedding <-> $1::public.vector(768))) AS similarity
           FROM circulars WHERE embedding IS NOT NULL
-          ORDER BY similarity ASC LIMIT 5;
+          ORDER BY (embedding <-> $1::public.vector(768)) ASC LIMIT 5;
         `,
           [vectorString],
         ),
-
         dataSource.query<any[]>(
           `
           SELECT id, title AS headline, date AS "publishedAt",
-          (embedding <-> $1::public.vector(768)) AS similarity
+          (1 - (embedding <-> $1::public.vector(768))) AS similarity
           FROM announcement WHERE embedding IS NOT NULL
-          ORDER BY similarity ASC LIMIT 5;
+          ORDER BY (embedding <-> $1::public.vector(768)) ASC LIMIT 5;
         `,
           [vectorString],
         ),
@@ -144,32 +148,21 @@ export async function GET(request: Request) {
       ];
 
       if (mergedRows.length > 0) {
-        // Sort by closest vector similarity first
-        mergedRows.sort((a, b) => (a.similarity || 0) - (b.similarity || 0));
+        mergedRows.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
 
-        const results = mergedRows.map((r) => {
-          let dateStr: string | null = null;
-          if (r.publishedAt) {
-            if (r.publishedAt instanceof Date) {
-              dateStr = DateTime.fromJSDate(r.publishedAt).toISO();
-            } else if (typeof r.publishedAt === "string") {
-              dateStr = DateTime.fromISO(r.publishedAt).toISO();
-            } else if (typeof r.publishedAt.toISO === "function") {
-              dateStr = r.publishedAt.toISO();
-            }
-          }
-          return {
-            id: r.id,
-            type: r.type,
-            headline: r.headline,
-            url: r.url ?? null,
-            publishedAt: dateStr,
-            similarity:
-              typeof r.similarity === "number"
-                ? Number(r.similarity.toFixed(6))
-                : null,
-          };
-        });
+        const results = mergedRows.map((r) => ({
+          id: r.id,
+          type: r.type,
+          headline: r.headline,
+          url: r.url ?? null,
+          publishedAt: r.publishedAt
+            ? DateTime.fromJSDate(new Date(r.publishedAt)).toISO()
+            : null,
+          similarity:
+            typeof r.similarity === "number"
+              ? Number(r.similarity.toFixed(4))
+              : null,
+        }));
         return NextResponse.json(results);
       }
     } catch (vectorErr) {
@@ -183,7 +176,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Semantic search error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error: search failed." },
+      { error: "Internal Server Error" },
       { status: 500 },
     );
   }
