@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Loader2, FileText } from "lucide-react";
+import AiOverview from "./AiOverview";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { DateTime } from "luxon";
@@ -30,17 +31,19 @@ const SearchBar: React.FC = () => {
   const { data: session, status } = useSession();
   const [query, setQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [searchMode, setSearchMode] = useState<"title" | "semantic">("title");
   const searchRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(query, 300);
 
   // Allow search for all users (public access)
   const shouldFetch = debouncedQuery.length > 2;
 
+  // Added &mode parameter to the fetch URL
   const { data: results, error } = useSWR<AISearchResult[]>(
     shouldFetch
-      ? `/api/ai-search?q=${encodeURIComponent(debouncedQuery)}`
+      ? `/api/ai-search?q=${encodeURIComponent(debouncedQuery)}&mode=${searchMode}`
       : null,
-    fetcher
+    fetcher,
   );
 
   const isLoading = shouldFetch && !results && !error;
@@ -101,7 +104,7 @@ const SearchBar: React.FC = () => {
                 <p className="text-xs text-gray-500">
                   {result.publishedAt
                     ? DateTime.fromISO(result.publishedAt).toLocaleString(
-                        DateTime.DATE_MED
+                        DateTime.DATE_MED,
                       )
                     : ""}
                 </p>
@@ -116,29 +119,60 @@ const SearchBar: React.FC = () => {
 
   return (
     <div className="relative w-full max-w-lg" ref={searchRef}>
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onFocus={() => setIsFocused(true)}
-        placeholder={
-          status === "authenticated"
-            ? "Search circulars, people, and more..."
-            : "Search circulars (public) — try 'holiday' or 'leave'"
-        }
-        className="w-full pl-10 pr-4 py-2 border border-slate-400 rounded-full text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-      <div className="absolute left-3 top-1/2 -translate-y-1/2">
-        {isLoading ? (
-          <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
-        ) : (
-          <Search className="h-5 w-5 text-gray-400" />
-        )}
+      <div className="relative w-full">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          placeholder={
+            status === "authenticated"
+              ? "Search circulars, people, and more..."
+              : "Search circulars (public) — try 'holiday' or 'leave'"
+          }
+          className="w-full pl-10 pr-4 py-2 border border-slate-400 rounded-full text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <div className="absolute left-3 top-1/2 -translate-y-1/2">
+          {isLoading ? (
+            <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
+          ) : (
+            <Search className="h-5 w-5 text-gray-400" />
+          )}
+        </div>
+      </div>
+
+      {/* Mode Toggle Buttons */}
+      <div className="flex items-center gap-4 mt-2 px-2">
+        <span className="text-sm font-medium text-gray-600">Search Mode:</span>
+        <button
+          onClick={() => setSearchMode("title")}
+          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+            searchMode === "title"
+              ? "bg-slate-800 text-white"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          Headline Match
+        </button>
+        <button
+          onClick={() => setSearchMode("semantic")}
+          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+            searchMode === "semantic"
+              ? "bg-blue-50 text-blue-700"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          Deep AI Content Search
+        </button>
       </div>
 
       {showPopover && (
-        <div className="absolute top-12 left-0 w-full bg-white border border-gray-200 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto">
-          {renderResults()}
+        <div className="absolute top-[85px] left-0 w-full bg-white border border-gray-200 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto flex flex-col">
+          {/* AI Answer streams in at the top ONLY during Deep AI search */}
+          {searchMode === "semantic" && <AiOverview query={debouncedQuery} />}
+
+          {/* Standard Document Links sit below with a visual separator */}
+          <div className="border-t border-gray-100">{renderResults()}</div>
         </div>
       )}
     </div>

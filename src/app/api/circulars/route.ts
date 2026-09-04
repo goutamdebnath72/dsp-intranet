@@ -3,15 +3,15 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import { put } from "@vercel/blob";
 import { getDb } from "@/lib/db";
-import { Circular } from "@/lib/db/models/circular.model"; // TypeORM entity blueprint
-import { DateTime } from "luxon"; // Pure Luxon replacement for native Date initialization
+import { Circular } from "@/lib/db/models/circular.model";
+import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
 import { saveEmbeddingToVectorTable } from "@/lib/ai/saveEmbedding";
 import { fromPath } from "pdf2pic";
 import Tesseract from "tesseract.js";
 
 /* ============================================================
-   Extract textual content from PDF buffer (original logic preserved)
+   Extract textual content from PDF buffer 
 ============================================================ */
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
@@ -64,17 +64,21 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 }
 
 /* ============================================================
-   POST: Upload a circular (pdf2pic + OCR + Vector Embedding)
+   POST: Upload a circular (pdf2pic + Trilingual OCR + Vectors)
 ============================================================ */
 export async function POST(req: Request) {
   const dataSource = await getDb();
 
   try {
     const formData = await req.formData();
-    const headline = formData.get("headline") as string;
     const file = formData.get("file") as File;
+    const rawHeadline = formData.get("headline") as string;
 
-    if (!headline || !file) {
+    // Safely cast to string or undefined to satisfy TypeORM
+    const authorTicketNo =
+      formData.get("authorTicketNo")?.toString() || undefined;
+
+    if (!rawHeadline || !file) {
       console.warn("POST /api/circulars missing headline or file");
       return NextResponse.json(
         { error: "Missing headline or file" },
@@ -82,7 +86,22 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`UPLOAD START: filename="${file.name}", type=${file.type}`);
+    // Auto-cleaner: strips leading numbers/dots (e.g., "108. ")
+    const headline = rawHeadline.replace(/^\s*\d+[\.\-\s]+/, "").trim();
+
+    // Year Parser: Detects 2022-2026 in headline for historical uploads
+    const yearMatch = headline.match(/\b(202[2-6])\b/);
+    const publishedAt = yearMatch
+      ? DateTime.fromObject({
+          year: parseInt(yearMatch[1], 10),
+          month: 1,
+          day: 1,
+        })
+      : DateTime.now();
+
+    console.log(
+      `UPLOAD START: filename="${file.name}", cleaned headline="${headline}"`,
+    );
 
     const fileBytes = Buffer.from(await file.arrayBuffer());
     const fileUrls: string[] = [];
@@ -98,10 +117,10 @@ export async function POST(req: Request) {
       fileUrls.push(url);
 
       try {
-        console.log("DEBUG: Running OCR on image...");
+        console.log("DEBUG: Running Trilingual OCR on image...");
         const {
           data: { text },
-        } = await Tesseract.recognize(fileBytes, "eng");
+        } = await Tesseract.recognize(fileBytes, "hin+eng+ben");
         ocrAccumulatedText += text + " ";
       } catch (err) {
         console.error("OCR failed on image:", err);
@@ -143,10 +162,10 @@ export async function POST(req: Request) {
         fileUrls.push(url);
 
         try {
-          console.log(`DEBUG: Running OCR on PDF page ${page}...`);
+          console.log(`DEBUG: Running Trilingual OCR on PDF page ${page}...`);
           const {
             data: { text },
-          } = await Tesseract.recognize(pngBuffer, "eng");
+          } = await Tesseract.recognize(pngBuffer, "hin+eng+ben");
           ocrAccumulatedText += text + " \n";
         } catch (err) {
           console.error(`OCR failed on page ${page}:`, err);
@@ -168,6 +187,7 @@ export async function POST(req: Request) {
        TEXT extraction + embedding
     ============================ */
     let extractedText = await extractTextFromPDF(fileBytes);
+
     if (!extractedText || extractedText.trim().length < 50) {
       console.log(
         "DEBUG: Standard extraction yielded little text. Using OCR text instead.",
@@ -180,34 +200,15 @@ export async function POST(req: Request) {
     extractedText = (extractedText || "").replace(/\s+/g, " ").trim();
     console.log("DEBUG: Final extractedText length =", extractedText?.length);
 
-    if (extractedText && extractedText.length > 0) {
-      const words = extractedText.split(/\s+/);
-      const chunkSize = 200;
-      console.log(
-        "DEBUG: Calculated",
-        Math.ceil(words.length / chunkSize),
-        "chunks to save",
-      );
-    }
-
     let embedding: number[] | null = null;
     if (extractedText && extractedText.length > 20) {
       try {
-        // ✅ Capped input text at 4,000 characters to protect local Ollama setups from model context limits
         const safeEmbeddingText =
           extractedText.length > 4000
             ? extractedText.slice(0, 4000)
             : extractedText;
 
         embedding = await generateEmbedding(safeEmbeddingText);
-        if (!Array.isArray(embedding)) {
-          console.warn(
-            "DEBUG: generateEmbedding returned non-array:",
-            typeof embedding,
-          );
-        } else {
-          console.log("DEBUG: generateEmbedding length =", embedding.length);
-        }
       } catch (err: any) {
         console.error("DEBUG: generateEmbedding threw:", err?.message || err);
         embedding = null;
@@ -215,15 +216,16 @@ export async function POST(req: Request) {
     }
 
     /* ============================
-       CREATE DB ROW VIA TYPEORM REPOSITORY
+       CREATE DB ROW VIA TYPEORM
     ============================ */
-    // ✅ Swapped to string identity lookup to secure stability against Next.js dynamic hot reloads
     const circularRepository = dataSource.getRepository<Circular>("Circular");
+
     const newCircular = circularRepository.create({
       headline,
       fileUrls,
       embedding,
-      publishedAt: DateTime.now(),
+      publishedAt,
+      authorTicketNo, // Now strictly string | undefined
     });
 
     const circular = await circularRepository.save(newCircular);
@@ -238,12 +240,20 @@ export async function POST(req: Request) {
       for (let i = 0; i < words.length; i += chunkSize) {
         const chunkText = words.slice(i, i + chunkSize).join(" ");
 
+        let chunkEmbeddingString = null;
+        try {
+          const rawVector = await generateEmbedding(chunkText);
+          chunkEmbeddingString = `[${rawVector.join(",")}]`;
+        } catch (err) {
+          console.error(`DEBUG: Failed to embed chunk ${chunkIndex}`);
+        }
+
         await dataSource.query(
           `
-            INSERT INTO public.circular_chunks (circular_id, chunk_index, text)
-            VALUES ($1, $2, $3)
+            INSERT INTO public.circular_chunks (circular_id, chunk_index, text, embedding)
+            VALUES ($1, $2, $3, $4)
           `,
-          [circular.id, chunkIndex, chunkText],
+          [circular.id, chunkIndex, chunkText, chunkEmbeddingString],
         );
 
         chunkIndex++;
@@ -251,27 +261,16 @@ export async function POST(req: Request) {
       console.log(
         "DEBUG: Saved",
         Math.ceil(words.length / chunkSize),
-        "chunks to database",
+        "vectorized chunks to database",
       );
     }
 
-    /* ============================
-       Save embedding into Postgres vector via helper
-    ============================ */
     if (embedding && circular && circular.id) {
-      console.log(
-        "DEBUG: Preparing to save embedding to vector for id",
-        circular.id,
-      );
       try {
         await saveEmbeddingToVectorTable(
           circular.id,
           embedding,
           Number(process.env.EMBEDDING_DIM || 768),
-        );
-        console.log(
-          "DEBUG: saveEmbeddingToVectorTable completed for id",
-          circular.id,
         );
       } catch (err: any) {
         console.error(
@@ -295,13 +294,12 @@ export async function POST(req: Request) {
 }
 
 /* ============================================================
-   GET: Fetch all circulars (TypeORM Performance Optimized)
+   GET: Fetch all circulars
 ============================================================ */
 export async function GET() {
   const dataSource = await getDb();
 
   try {
-    // ✅ Swapped to string identity lookup here as well
     const circularRepository = dataSource.getRepository<Circular>("Circular");
 
     const circulars = await circularRepository.find({
@@ -312,7 +310,8 @@ export async function GET() {
         publishedAt: true,
       },
       order: {
-        publishedAt: "DESC",
+        publishedAt: "DESC", // 1. Groups by the parsed year/date first
+        id: "DESC", // 2. Sorts identical dates by newest insertion (highest ID)
       },
     });
 

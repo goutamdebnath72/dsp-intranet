@@ -1,7 +1,7 @@
 // src/app/api/ai-search/route.ts
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { generateEmbedding } from "@/lib/ai/embedding.service";
+import { generateEmbedding } from "@/lib/ai-services";
 import { ILike } from "typeorm";
 import { Circular } from "@/lib/db/models/circular.model";
 import { Announcement } from "@/lib/db/models/announcement.model";

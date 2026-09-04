@@ -21,18 +21,33 @@ interface OmnibarModalProps {
 }
 
 export function OmnibarModal({ isOpen, setIsOpen }: OmnibarModalProps) {
+  // Hook now automatically manages its own cleanup based on isOpen
   const { query, setQuery, mode, setMode, results, isLoading, error } =
-    useOmniSearch();
+    useOmniSearch(isOpen);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sync internal hook state with parent state and auto-focus
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
-    } else {
-      setQuery("");
     }
-  }, [isOpen, setQuery]);
+  }, [isOpen]);
+
+  // Clean, decoupled keyboard listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setIsOpen(!isOpen);
+      }
+      if (e.key === "Escape" && isOpen) {
+        e.preventDefault();
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, setIsOpen]);
 
   return (
     <AnimatePresence>
@@ -145,8 +160,8 @@ export function OmnibarModal({ isOpen, setIsOpen }: OmnibarModalProps) {
                       key={`${result.type}-${result.id}`}
                       href={result.url ?? "#"}
                       target={result.type === "circular" ? "_blank" : undefined}
+                      rel="noopener noreferrer"
                       className="flex items-start gap-4 p-3 rounded-lg hover:bg-neutral-100 transition-colors group"
-                      onClick={() => setIsOpen(false)}
                     >
                       <div
                         className={`p-2 rounded-md ${result.type === "circular" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}
