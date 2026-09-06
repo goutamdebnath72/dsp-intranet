@@ -76,7 +76,7 @@ ${contextData}`;
       return `Local Ollama synthesis failed (HTTP ${ollamaRes.status}): ${errText}`;
     }
 
-    // PRODUCTION (Vercel): Groq Cloud Inference
+    // PRODUCTION (Vercel): Groq Cloud Inference using qwen/qwen3.6-27b
     if (!process.env.GROQ_API_KEY) {
       console.error("GROQ_API_KEY environment variable is not defined.");
       return "Cloud executive synthesis failed: Missing GROQ_API_KEY configuration in environment variables.";
@@ -91,7 +91,7 @@ ${contextData}`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "openai/gpt-oss-20b",
+          model: "qwen/qwen3.6-27b",
           messages: [
             {
               role: "system",
@@ -108,7 +108,22 @@ ${contextData}`;
 
     if (groqRes.ok) {
       const groqData = await groqRes.json();
-      return groqData.choices[0]?.message?.content || "";
+      const choice = groqData.choices?.[0];
+      const content =
+        choice?.message?.content ||
+        choice?.message?.reasoning ||
+        choice?.text ||
+        "";
+
+      if (!content.trim()) {
+        console.error(
+          "Groq returned empty text. Raw response:",
+          JSON.stringify(groqData),
+        );
+        return `Groq returned an empty response: ${JSON.stringify(groqData)}`;
+      }
+
+      return content;
     } else {
       const errorPayload = await groqRes.text();
       console.error(`Groq API Error (${groqRes.status}):`, errorPayload);
