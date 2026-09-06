@@ -73,10 +73,15 @@ ${contextData}`;
       }
       const errText = await ollamaRes.text();
       console.error(`Ollama error (${ollamaRes.status}):`, errText);
-      return "Executive synthesis unavailable via local Ollama.";
+      return `Local Ollama synthesis failed (HTTP ${ollamaRes.status}): ${errText}`;
     }
 
     // PRODUCTION (Vercel): Groq (Llama 3.1 8B Instant)
+    if (!process.env.GROQ_API_KEY) {
+      console.error("GROQ_API_KEY environment variable is not defined.");
+      return "Cloud executive synthesis failed: Missing GROQ_API_KEY configuration in environment variables.";
+    }
+
     const groqRes = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -104,10 +109,14 @@ ${contextData}`;
     if (groqRes.ok) {
       const groqData = await groqRes.json();
       return groqData.choices[0]?.message?.content || "";
+    } else {
+      const errorPayload = await groqRes.text();
+      console.error(`Groq API Error (${groqRes.status}):`, errorPayload);
+      return `Cloud executive synthesis failed (HTTP ${groqRes.status}): ${errorPayload}`;
     }
-    return "Cloud executive synthesis could not be completed at this time.";
-  } catch (synthErr) {
+  } catch (synthErr: any) {
     console.error("Executive synthesis connection error:", synthErr);
-    return "Executive synthesis encountered a connection issue. Direct circular matches are shown below.";
+    const errorMessage = synthErr?.message || String(synthErr);
+    return `Executive synthesis network/runtime error: ${errorMessage}`;
   }
 }
