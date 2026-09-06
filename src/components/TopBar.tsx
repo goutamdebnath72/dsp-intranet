@@ -131,7 +131,6 @@ const TopBarSearch: React.FC<{ onClick: () => void }> = ({ onClick }) => {
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          {/* ✅ Completely removed from DOM unless hovered AND wide enough. Contrast boosted. */}
           <AnimatePresence>
             {isHovered && canAccommodateHelperText && (
               <motion.span
@@ -139,7 +138,6 @@ const TopBarSearch: React.FC<{ onClick: () => void }> = ({ onClick }) => {
                 animate={{ opacity: 1, width: "auto" }}
                 exit={{ opacity: 0, width: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
-                // text-sm, font-medium, leading-none, and mt-[2px] match the left text exactly
                 className="text-sm font-medium leading-none text-neutral-300 whitespace-nowrap overflow-hidden mt-[2px]"
               >
                 Powered by AI Search
@@ -169,7 +167,17 @@ export function TopBar() {
 
   const [isOmnibarOpen, setIsOmnibarOpen] = useState(false);
 
-  // ✅ Single, clean keyboard listener with capture mode for robust global interception
+  // Compute executive validation using exact 6-digit rule starting with 4 + user role check
+  const userTicket = (session?.user as any)?.ticketNo || "";
+
+  // Authorized if it's a valid 6-digit ticket starting with 4
+  const isExecutiveUser = /^4\d{5}$/.test(userTicket.trim());
+
+  // Admin dashboard can remain tied to the admin role or specific conditions
+  const userRole = (session?.user as any)?.role || "";
+  const showAdminDashboard = userRole.toLowerCase() === "admin";
+
+  // Single, clean keyboard listener with capture mode for robust global interception
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Toggle modal on Cmd+K / Ctrl+K
@@ -202,10 +210,6 @@ export function TopBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const ticketNo = (session?.user as any)?.ticketNo || "";
-  const isExecutive = ticketNo.toLowerCase().startsWith("4");
-  const showAdminDashboard = session?.user?.role === "admin" && isExecutive;
-
   return (
     <>
       <div className="bg-[#1a1a1a] text-white px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
@@ -213,7 +217,6 @@ export function TopBar() {
           <DspLogoVibrant onClick={openLogoModal} />
         </div>
 
-        {/* ✅ Middle: Restrictive wrappers removed. TopBarSearch now expands smoothly! */}
         <div className="flex-1 flex justify-center px-4 lg:px-8">
           <TopBarSearch onClick={() => setIsOmnibarOpen(true)} />
         </div>
@@ -316,7 +319,11 @@ export function TopBar() {
       </div>
 
       <LogoModal isOpen={isLogoModalOpen} onClose={closeLogoModal} />
-      <OmnibarModal isOpen={isOmnibarOpen} setIsOpen={setIsOmnibarOpen} />
+      <OmnibarModal
+        isOpen={isOmnibarOpen}
+        setIsOpen={setIsOmnibarOpen}
+        isExecutive={isExecutiveUser}
+      />
     </>
   );
 }

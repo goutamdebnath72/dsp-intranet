@@ -1,13 +1,31 @@
 "use client";
-import { useEffect, useState } from "react";
 
-export default function AiOverview({ query }: { query: string }) {
-  const [answer, setAnswer] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+import React, { useEffect, useState } from "react";
 
+interface AiOverviewProps {
+  content?: string | null;
+  query?: string;
+}
+
+export function AiOverview({ content, query }: AiOverviewProps) {
+  const [answer, setAnswer] = useState<string | null>(content || null);
+  const [loading, setLoading] = useState<boolean>(
+    !content && Boolean(query && query.length >= 3),
+  );
+
+  // If content is passed directly from OmnibarModal / useOmniSearch synthesis
   useEffect(() => {
-    if (!query || query.length < 3) return;
+    if (content) {
+      setAnswer(content);
+      setLoading(false);
+    }
+  }, [content]);
 
+  // Fallback: If no direct content is passed, preserve original standalone /api/ai-chat behavior
+  useEffect(() => {
+    if (content || !query || query.length < 3) return;
+
+    let isMounted = true;
     const fetchAiAnswer = async () => {
       setLoading(true);
       try {
@@ -18,23 +36,33 @@ export default function AiOverview({ query }: { query: string }) {
         });
         const data = await res.json();
 
-        if (data.answer) {
-          setAnswer(data.answer);
-        } else {
-          setAnswer("No direct answer found in the uploaded circulars.");
+        if (isMounted) {
+          if (data.answer) {
+            setAnswer(data.answer);
+          } else {
+            setAnswer("No direct answer found in the uploaded circulars.");
+          }
         }
       } catch (error) {
         console.error("Failed to fetch AI overview:", error);
-        setAnswer("Unable to generate AI response at this time.");
+        if (isMounted) {
+          setAnswer("Unable to generate AI response at this time.");
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchAiAnswer();
-  }, [query]);
 
-  if (!query || query.length < 3) return null;
+    return () => {
+      isMounted = false;
+    };
+  }, [query, content]);
+
+  if (!loading && !answer) return null;
 
   return (
     <div className="p-5 mb-6 bg-indigo-50 border border-indigo-100 rounded-xl shadow-sm">
@@ -55,3 +83,5 @@ export default function AiOverview({ query }: { query: string }) {
     </div>
   );
 }
+
+export default AiOverview;

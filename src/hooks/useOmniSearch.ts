@@ -2,18 +2,7 @@
 import { useState, useEffect } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
 
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
-export type SearchMode = "title" | "deep";
+export type SearchMode = "title" | "semantic" | "intellectual" | null;
 
 export interface OmniSearchResult {
   id: number;
@@ -24,23 +13,28 @@ export interface OmniSearchResult {
   similarity: number | null;
 }
 
+export interface OmniSearchResponse {
+  synthesis?: string;
+  results: OmniSearchResult[];
+}
+
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) throw new Error("Search failed");
   return res.json();
 };
 
-export function useOmniSearch(isOpen: boolean) {
+export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<SearchMode>("title");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [mode, setMode] = useState<SearchMode>(null);
 
-  const debouncedQuery = useDebounce(query, 300);
-
-  // The ultimate failsafe: if modal closes, wipe all state immediately
+  // Wipe all state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setQuery("");
-      setMode("title");
+      setSubmittedQuery("");
+      setMode(null);
       globalMutate(
         (key) => typeof key === "string" && key.startsWith("/api/ai-search"),
         undefined,
@@ -49,15 +43,28 @@ export function useOmniSearch(isOpen: boolean) {
     }
   }, [isOpen]);
 
-  const shouldFetch = isOpen && debouncedQuery.length >= 3;
+  // ONLY executed when a mode button is explicitly clicked
+  const triggerSearch = (selectedMode: SearchMode) => {
+    if (!selectedMode) return;
+    setMode(selectedMode);
+    if (query.trim().length >= 3) {
+      setSubmittedQuery(query.trim());
+    } else {
+      setSubmittedQuery("");
+    }
+  };
+
+  // STRICT: SWR only fetches if modal is open, a button was clicked (mode !== null), and text is submitted
+  const shouldFetch =
+    isOpen && mode !== null && submittedQuery.trim().length >= 3;
 
   const {
-    data: results,
+    data,
     error,
     isLoading: isSwrLoading,
-  } = useSWR<OmniSearchResult[]>(
+  } = useSWR<OmniSearchResponse | OmniSearchResult[]>(
     shouldFetch
-      ? `/api/ai-search?q=${encodeURIComponent(debouncedQuery)}&mode=${mode}`
+      ? `/api/ai-search?q=${encodeURIComponent(submittedQuery)}&mode=${mode}${ticketNo ? `&ticket=${ticketNo}` : ""}`
       : null,
     fetcher,
     {
@@ -66,14 +73,23 @@ export function useOmniSearch(isOpen: boolean) {
     },
   );
 
+  // Normalize response whether it's the new synthesis object or the legacy flat array
+  const results: OmniSearchResult[] = Array.isArray(data)
+    ? data
+    : data?.results || [];
+
+  const synthesis: string | null =
+    !Array.isArray(data) && data?.synthesis ? data.synthesis : null;
+
   const isLoading = shouldFetch && isSwrLoading;
 
   return {
     query,
     setQuery,
     mode,
-    setMode,
-    results: results || [],
+    triggerSearch,
+    results,
+    synthesis,
     isLoading,
     error,
   };
