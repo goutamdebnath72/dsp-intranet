@@ -26,6 +26,7 @@ Synthesize a formal, executive-grade briefing in professional English directly a
 LANGUAGE & FORMATTING CONSTRAINTS:
 - Output strictly and exclusively in English. Translate any Hindi or Bengali circular data into English. Never output Devanagari or Bengali script.
 - Group your briefing logically using clear markdown headings (###) and bullet points directly addressing each part of the user query.
+- Output ONLY the final executive briefing. Do not output raw analysis notes or thinking steps.
 
 GROUND TRUTH & ACCURACY RULES:
 - Directly extract and detail specific figures, numbers, dates, and amounts requested. Do NOT give a generic table-of-contents summary.
@@ -76,7 +77,7 @@ ${contextData}`;
       return `Local Ollama synthesis failed (HTTP ${ollamaRes.status}): ${errText}`;
     }
 
-    // PRODUCTION (Vercel): Groq Cloud Inference using qwen/qwen3.6-27b
+    // PRODUCTION (Vercel): Groq Cloud Inference with Qwen 3.6 27B
     if (!process.env.GROQ_API_KEY) {
       console.error("GROQ_API_KEY environment variable is not defined.");
       return "Cloud executive synthesis failed: Missing GROQ_API_KEY configuration in environment variables.";
@@ -96,12 +97,13 @@ ${contextData}`;
             {
               role: "system",
               content:
-                "You are an executive intelligence assistant for DSP. Respond strictly in English.",
+                "You are an executive intelligence assistant for DSP. Respond strictly in English. Output only the final executive briefing.",
             },
             { role: "user", content: systemPrompt },
           ],
           temperature: 0.1,
-          max_tokens: 1500,
+          max_tokens: 3000,
+          reasoning_format: "hidden",
         }),
       },
     );
@@ -109,13 +111,12 @@ ${contextData}`;
     if (groqRes.ok) {
       const groqData = await groqRes.json();
       const choice = groqData.choices?.[0];
-      const content =
-        choice?.message?.content ||
-        choice?.message?.reasoning ||
-        choice?.text ||
-        "";
+      let content = choice?.message?.content || choice?.text || "";
 
-      if (!content.trim()) {
+      // Programmatic safety strip: ensure no raw <think> blocks reach the client
+      content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+      if (!content) {
         console.error(
           "Groq returned empty text. Raw response:",
           JSON.stringify(groqData),
