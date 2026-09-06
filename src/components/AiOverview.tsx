@@ -1,6 +1,9 @@
+// src/components/AiOverview.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface AiOverviewProps {
   content?: string | null;
@@ -76,9 +79,11 @@ export function AiOverview({ content, query }: AiOverviewProps) {
           <div className="h-4 bg-indigo-200/50 rounded w-5/6"></div>
         </div>
       ) : (
-        <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
-          {answer}
-        </p>
+        <div className="text-gray-800 text-sm leading-relaxed space-y-3 prose prose-slate max-w-none prose-table:w-full prose-table:border-collapse prose-table:my-3 prose-th:border prose-th:border-slate-300 prose-th:bg-white/70 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-td:border prose-td:border-slate-200 prose-td:px-3 prose-td:py-2 prose-td:bg-white/40 prose-h3:text-base prose-h3:font-bold prose-h3:text-slate-900 prose-h4:text-sm prose-h4:font-semibold prose-h4:text-slate-800 prose-ul:list-disc prose-ul:pl-5 prose-li:my-1 prose-strong:font-semibold prose-strong:text-slate-900">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {answer || ""}
+          </ReactMarkdown>
+        </div>
       )}
     </div>
   );
