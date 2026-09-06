@@ -76,7 +76,7 @@ ${contextData}`;
       return `Local Ollama synthesis failed (HTTP ${ollamaRes.status}): ${errText}`;
     }
 
-    // PRODUCTION (Vercel): Groq (Llama 3.1 8B Instant)
+    // PRODUCTION (Vercel): Groq Cloud Inference
     if (!process.env.GROQ_API_KEY) {
       console.error("GROQ_API_KEY environment variable is not defined.");
       return "Cloud executive synthesis failed: Missing GROQ_API_KEY configuration in environment variables.";
@@ -91,7 +91,7 @@ ${contextData}`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
+          model: "openai/gpt-oss-20b",
           messages: [
             {
               role: "system",
