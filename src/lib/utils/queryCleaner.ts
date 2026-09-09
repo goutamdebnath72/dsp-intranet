@@ -1,29 +1,19 @@
 // src/lib/utils/queryCleaner.ts
 
 /**
- * Sanitizes a search query string:
- * - Trims leading and trailing whitespace
- * - Strips enclosing/stray quotation marks (', ", `, “, ”, ‘, ’)
- * - Strips trailing question marks, periods, and delimiters
- * - Eliminates redundant interstitial spaces
+ * Cleans the search query while strictly preserving:
+ * - English alphanumeric characters (a-z, A-Z, 0-9)
+ * - Devanagari script (Hindi)
+ * - Bengali script
  */
-export function cleanQueryString(rawQuery: string | null | undefined): string {
-  if (!rawQuery || typeof rawQuery !== "string") {
-    return "";
-  }
+export function cleanQueryString(query: string): string {
+  if (!query) return "";
 
-  let cleaned = rawQuery.trim();
-
-  let prev = "";
-  while (cleaned !== prev) {
-    prev = cleaned;
-    // Strip leading quotation marks
-    cleaned = cleaned.replace(/^['"`“”‘’]+/, "");
-    // Strip trailing quotation marks, dots, question marks, and spaces
-    cleaned = cleaned.replace(/['"`“”‘’?. ]+$/, "");
-    // Normalize surrounding whitespace
-    cleaned = cleaned.trim();
-  }
-
-  return cleaned;
+  return (
+    query
+      // Keep English, numbers, spaces, Devanagari, and Bengali
+      .replace(/[^\p{Script=Devanagari}\p{Script=Bengali}a-zA-Z0-9\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }

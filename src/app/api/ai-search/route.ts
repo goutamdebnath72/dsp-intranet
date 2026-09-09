@@ -4,10 +4,11 @@ import { getDb } from "@/lib/db";
 import { executeTitleSearch } from "@/lib/search/titleSearch";
 import { executeSemanticSearch } from "@/lib/search/semanticSearch";
 import { executeExecutiveSynthesis } from "@/lib/search/executiveSynthesis";
-import { cleanQueryString } from "@/lib/utils/queryCleaner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const INDIC_SCRIPT_REGEX = /[\p{Script=Devanagari}\p{Script=Bengali}]/u;
 
 export async function GET(request: Request) {
   try {
@@ -21,18 +22,36 @@ export async function GET(request: Request) {
       );
     }
 
+    const rawUrl = request.url;
+    const match = rawUrl.match(/[?&]q=([^&]*)/);
+    let q = "";
+
+    if (match && match[1]) {
+      try {
+        q = decodeURIComponent(match[1]).trim();
+      } catch {
+        q = match[1].trim();
+      }
+    } else {
+      const url = new URL(request.url);
+      q = (url.searchParams.get("q") || "").trim();
+    }
+
+    console.log(`[RAW URL EXTRACT] q: "${q}" | length: ${q.length}`);
+
     const url = new URL(request.url);
-    const rawQ = url.searchParams.get("q");
-    const q = cleanQueryString(rawQ);
     let mode = url.searchParams.get("mode") || "semantic";
     const userTicket = url.searchParams.get("ticket")?.trim();
 
-    if (!q || q.length < 3) {
+    if (!q || q.length < 2) {
       return NextResponse.json([]);
     }
 
     // --- MODE 1: HEADLINE TITLE MATCH ---
     if (mode === "title") {
+      if (INDIC_SCRIPT_REGEX.test(q)) {
+        return NextResponse.json([]);
+      }
       const results = await executeTitleSearch(dataSource, q);
       return NextResponse.json(results.slice(0, 5));
     }
@@ -60,22 +79,25 @@ export async function GET(request: Request) {
       }
     }
 
-    // --- MODE 2: SMART SEMANTIC SEARCH (VECTOR + KEYWORD HYBRID) ---
-    const { uniqueResults, isFallback } = await executeSemanticSearch(
-      dataSource,
-      q,
-    );
+    // --- RETRIEVE BEST MATCHING CIRCULARS ---
+    const { uniqueResults } = await executeSemanticSearch(dataSource, q);
 
-    if (mode === "semantic" || isFallback) {
-      const topPrimarySources = uniqueResults.slice(0, 5);
+    const topPrimarySources = uniqueResults.slice(0, 5);
+
+    // --- MODE 2: SMART SEMANTIC SEARCH (Return Documents Only) ---
+    if (mode === "semantic") {
       return NextResponse.json(
         topPrimarySources.map(({ chunkText, ...rest }) => rest),
       );
     }
 
-    // --- MODE 3: EXECUTIVE DEEP SYNTHESIS ---
-    const synthesisText = await executeExecutiveSynthesis(q, uniqueResults);
-    const topPrimarySources = uniqueResults.slice(0, 5);
+    // --- MODE 3: EXECUTIVE DEEP SYNTHESIS (Always Generate Synthesis) ---
+    let synthesisText = "";
+    if (uniqueResults.length > 0) {
+      synthesisText = await executeExecutiveSynthesis(q, uniqueResults);
+    } else {
+      synthesisText = "No relevant circular records found to synthesize.";
+    }
 
     return NextResponse.json({
       synthesis: synthesisText,

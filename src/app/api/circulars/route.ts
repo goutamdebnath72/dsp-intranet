@@ -204,8 +204,8 @@ export async function POST(req: Request) {
     if (extractedText && extractedText.length > 20) {
       try {
         const safeEmbeddingText =
-          extractedText.length > 4000
-            ? extractedText.slice(0, 4000)
+          extractedText.length > 8192
+            ? extractedText.slice(0, 8192)
             : extractedText;
 
         embedding = await generateEmbedding(safeEmbeddingText);

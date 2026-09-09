@@ -1,3 +1,4 @@
+// src/components/CircularViewerLightbox.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -33,6 +34,8 @@ export function CircularViewerLightbox({ circularId, onClose }: Props) {
         .then((data) => setCircular(data))
         .catch(() => setError("Could not load the circular."))
         .finally(() => setIsLoading(false));
+    } else {
+      setCircular(null);
     }
   }, [circularId]);
 
@@ -43,45 +46,57 @@ export function CircularViewerLightbox({ circularId, onClose }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex flex-col"
+          className="fixed inset-0 bg-black/85 backdrop-blur-md z-[150] flex flex-col"
           role="dialog"
           aria-modal="true"
           tabIndex={0}
           onClick={onClose}
           onKeyDown={(e) => e.key === "Escape" && onClose()}
         >
-          <header className="flex-shrink-0 bg-black/30 text-white flex items-center p-4 space-x-4">
+          {/* Top Bar Header */}
+          <header className="flex-shrink-0 bg-black/50 text-white flex items-center p-4 space-x-4 border-b border-white/10">
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-full text-white/70 bg-transparent transition-all duration-200 ease-in-out transform hover:scale-110 hover:bg-red-100 hover:text-primary-600"
+              className="p-1.5 rounded-full text-white/70 bg-transparent transition-all duration-200 ease-in-out transform hover:scale-110 hover:bg-red-100 hover:text-red-600"
               aria-label="Close viewer"
             >
               <X size={28} />
             </button>
             <div className="flex-1 min-w-0">
               <h1 className="text-lg font-semibold truncate">
-                {isLoading ? "Loading..." : circular?.headline || "Circular"}
+                {isLoading && !circular
+                  ? "Loading circular..."
+                  : circular?.headline || "Circular"}
               </h1>
             </div>
           </header>
 
+          {/* Main Scrollable Canvas */}
           <div
             role="presentation"
-            className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 flex justify-center"
+            className="relative flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Absolute Centered Loader */}
             {isLoading && (
-              <div className="flex items-center justify-center h-full text-white">
-                <Loader2 className="animate-spin" size={48} />
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm text-white gap-3">
+                <Loader2 className="animate-spin text-primary-400" size={54} />
+                <span className="text-sm font-medium tracking-wide text-neutral-200">
+                  Rendering circular pages...
+                </span>
               </div>
             )}
+
+            {/* Error Message */}
             {error && (
               <div className="flex flex-col items-center justify-center h-full text-red-400">
                 <AlertCircle size={48} className="mb-4" />
                 <p>{error}</p>
               </div>
             )}
+
+            {/* Complete Pages in Sequence */}
             {circular && (
               <div className="w-full max-w-4xl space-y-6">
                 {circular.fileUrls.map((url, index) => (
@@ -89,7 +104,7 @@ export function CircularViewerLightbox({ circularId, onClose }: Props) {
                     key={index}
                     src={url}
                     alt={`Page ${index + 1} of ${circular.headline}`}
-                    className="w-full rounded-md shadow-lg"
+                    className="w-full rounded-md shadow-2xl bg-white"
                   />
                 ))}
               </div>
