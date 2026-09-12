@@ -1,11 +1,13 @@
+// src/components/SearchBar.tsx
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Search, Loader2, FileText } from "lucide-react";
+import { Search, Loader2, FileText, Sparkles } from "lucide-react";
 import AiOverview from "./AiOverview";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { DateTime } from "luxon";
+import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 
 function useDebounce(value: string, delay: number) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -22,6 +24,8 @@ interface AISearchResult {
   url: string | null;
   publishedAt: string | null;
   similarity: number | null;
+  chunkText?: string;
+  isPerfectMatch?: boolean;
 }
 
 const fetcher = (...args: Parameters<typeof fetch>) =>
@@ -63,6 +67,18 @@ const SearchBar: React.FC = () => {
 
   const showPopover = isFocused && shouldFetch;
 
+  // Safely construct the URL with the search hash for native viewers
+  const getPdfUrl = (result: AISearchResult) => {
+    let url = result.url ?? "#";
+    if (result.isPerfectMatch && searchMode === "semantic" && debouncedQuery.length > 2) {
+      const cleanQuery = debouncedQuery.replace(/^"|"$/g, "").trim();
+      if (cleanQuery) {
+        url += `#search=${encodeURIComponent(cleanQuery)}`;
+      }
+    }
+    return url;
+  };
+
   const renderResults = () => {
     if (isLoading) {
       return (
@@ -83,32 +99,50 @@ const SearchBar: React.FC = () => {
     }
     if (results) {
       return (
-        <div className="flex flex-col gap-1 p-2">
-          <span className="px-2 pt-1 pb-2 text-xs font-semibold text-gray-400 uppercase">
+        <div className="flex flex-col gap-2 p-2">
+          <span className="px-2 pt-1 pb-1 text-xs font-semibold text-gray-400 uppercase">
             Circulars
           </span>
           {results.map((result) => (
             <a
               key={result.id}
-              href={result.url ?? "#"}
+              href={getPdfUrl(result)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-100"
+              className={`flex flex-col gap-2 p-3 rounded-lg transition-colors border ${
+                result.isPerfectMatch 
+                  ? "bg-amber-50/50 border-amber-300 hover:bg-amber-100 shadow-sm" 
+                  : "border-transparent hover:bg-gray-100"
+              }`}
               onClick={() => setIsFocused(false)}
             >
-              <FileText className="h-5 w-5 text-blue-600 flex-shrink-0 mt-1" />
-              <div className="flex-1">
-                <p className="font-medium text-sm text-gray-900 line-clamp-2">
-                  {result.headline}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {result.publishedAt
-                    ? DateTime.fromISO(result.publishedAt).toLocaleString(
-                        DateTime.DATE_MED,
-                      )
-                    : ""}
-                </p>
+              <div className="flex items-start gap-3">
+                <FileText className={`h-5 w-5 flex-shrink-0 mt-1 ${result.isPerfectMatch ? "text-amber-700" : "text-blue-600"}`} />
+                <div className="flex-1">
+                  <p className={`font-medium text-sm line-clamp-2 ${result.isPerfectMatch ? "text-amber-900" : "text-gray-900"}`}>
+                    {result.headline}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {result.publishedAt
+                      ? DateTime.fromISO(result.publishedAt).toLocaleString(
+                          DateTime.DATE_MED,
+                        )
+                      : ""}
+                  </p>
+                </div>
               </div>
+              {/* Smart Contextual Snippet Drawer - ONLY FOR PERFECT MATCHES */}
+              {result.isPerfectMatch && result.chunkText && searchMode === "semantic" && (
+                <div className="ml-8 mt-1 text-xs text-neutral-800 bg-yellow-50 p-2.5 rounded-md border border-yellow-200 leading-relaxed shadow-sm">
+                  <div className="font-bold text-yellow-800 uppercase tracking-wider text-[9px] flex items-center gap-1 mb-1">
+                    <Sparkles size={10} className="text-yellow-600" />
+                    Exact Match Context:
+                  </div>
+                  <div className="font-medium font-serif italic text-neutral-700">
+                    "{generateSmartSnippet(result.chunkText, debouncedQuery)}"
+                  </div>
+                </div>
+              )}
             </a>
           ))}
         </div>

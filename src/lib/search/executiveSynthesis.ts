@@ -14,6 +14,18 @@ interface SynthesisSchema {
     columns: [string, string, string];
     rows: Array<[string, string, string]>;
   };
+  chart?: {
+    title: string;
+    subtitle?: string;
+    type: "donut" | "comparison_bars" | "timeline" | "metric_cards";
+    entityLabels?: [string, string];
+    items: Array<{
+      label: string;
+      value: number | string;
+      secondaryValue?: number | string;
+      detail?: string;
+    }>;
+  };
   specificDetails?: string[];
 }
 
@@ -29,29 +41,44 @@ export async function executeExecutiveSynthesis(
     )
     .join("\n\n---\n\n");
 
-  const systemPrompt = `You are the Executive Intelligence Assistant for Durgapur Steel Plant (DSP).
-Analyze the official circular records and synthesize a concise, high-impact executive briefing.
-You must respond with a JSON object matching this schema:
+  const systemPrompt = `You are the Senior Executive Intelligence Architect for Durgapur Steel Plant (DSP).
+Generate an actionable, high-density executive briefing with an intelligent visual chart selection based on the inquiry and circular records.
+
+OUTPUT FORMAT: Strict JSON object only.
+
+SCHEMA:
 {
-  "overview": "1-2 sentences summarizing the core policy evolution or direct answer.",
+  "overview": "1-2 direct sentences stating the core operational conclusion or shift.",
   "comparison": {
     "columns": ["Parameter", "Category/Period A", "Category/Period B"],
-    "rows": [
-      ["Parameter Name", "Value A", "Value B"]
+    "rows": [["...", "...", "..."]]
+  },
+  "chart": {
+    "title": "Short, striking title",
+    "subtitle": "Brief context tag",
+    "type": "donut | comparison_bars | timeline | metric_cards",
+    "entityLabels": ["Entity A", "Entity B"], // only for comparison_bars
+    "items": [
+      { "label": "...", "value": 123, "secondaryValue": 456, "detail": "..." }
     ]
   },
   "specificDetails": [
-    "Dedicated bullet points answering specific discrete sub-queries."
+    "2-3 high-density bullet points answering specific discrete sub-queries."
   ]
 }
 
-CRITICAL RULES:
-- ACCURACY OVER INVENTION: Transcribe currency amounts (₹), percentages, and dates verbatim from the records. Never invent or hallucinate rates.
-- NO ARTIFICIAL MIRRORING: If prior-period comparative figures (e.g. 2024 vs 2025) are not explicitly in the circular, state "Not stated in circular" or "Revised rate" rather than copying identical figures across columns.
-- FINANCIAL UNITS: Distinguish clearly between daily wage rates and monthly gross totals (e.g., ₹22,047.40 is a monthly gross, not a daily rate).
-- CONCISENESS & TO-THE-POINTNESS: Keep "specificDetails" strictly to 2 or 3 high-density bullets. Consolidate related clauses (such as combining award criteria and department quotas into a single bullet). Do not repeat items already captured in the table.
-- Bold key dates, circular reference numbers, pass numbers, and amounts using markdown (**01.01.2024**, **₹22,047.40/month**).
-- Output valid JSON only.`;
+INTELLIGENT CHART SELECTION RULES:
+1. "donut": Select when analyzing financial breakdowns, allowances, or budget shares (e.g. Basic ₹2,600, HRA ₹1,086, VDA ₹277, FDA ₹18.40). Use purely numeric "value" fields.
+2. "comparison_bars": Select when directly comparing quantities or measurable metrics across two categories/dates (e.g. 2023 vs 2024, or Executives vs Contract Workers).
+3. "timeline": Select when the inquiry traces progressive milestones, sequential phased rollouts, validity cutoffs, or pass transitions (e.g. 01.01.2023 Face Rec trial -> 01.01.2024 mandatory -> 06.07.2024 biometric enrollment).
+4. "metric_cards": Select for high-level KPIs, quotas, and pass numbers (e.g. 200 Workers/day, 2 Awards/month, Gate Pass #13).
+5. If the record data is insufficient to populate a chart cleanly, set "chart": null.
+
+ACCURACY & BREVITY RULES:
+- Transcribe figures, amounts (₹), dates, circular numbers, and colors verbatim. Never invent rates.
+- If comparison values are not in the text, use "Not stated in circular" instead of copying identical numbers across periods.
+- Distinguish between daily wage rates and monthly gross totals.
+- Output strictly parseable JSON.`;
 
   const userPrompt = `Inquiry: "${q}"
 
@@ -80,7 +107,7 @@ JSON Output:`;
           stream: false,
           options: {
             temperature: 0.1,
-            num_predict: 800,
+            num_predict: 1000,
           },
         }),
       } as any);
@@ -113,7 +140,7 @@ JSON Output:`;
           ],
           response_format: { type: "json_object" },
           temperature: 0.1,
-          max_tokens: 2500,
+          max_tokens: 3000,
         }),
       },
     );
@@ -176,7 +203,18 @@ function renderMarkdown(rawJson: string): string {
       sections.push(tableLines.join("\n"));
     }
 
-    // 3. Discrete Bullet Items
+    // 3. Embedded Intelligent Chart Directive
+    if (
+      data.chart &&
+      Array.isArray(data.chart.items) &&
+      data.chart.items.length > 0
+    ) {
+      sections.push(
+        `<!--CHART_DATA:${JSON.stringify(data.chart)}:CHART_DATA-->`,
+      );
+    }
+
+    // 4. Discrete Bullet Items
     if (
       Array.isArray(data.specificDetails) &&
       data.specificDetails.length > 0

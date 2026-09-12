@@ -1,29 +1,52 @@
 // src/lib/ai-services.ts
 
 export async function generateEmbedding(text: string): Promise<number[]> {
-  if (process.env.AI_ENVIRONMENT === "cloud") {
-    // Route to Nomic Cloud API
-    const res = await fetch("https://api-atlas.nomic.ai/v1/embedding/text", {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (process.env.AI_ENVIRONMENT === "cloud" || apiKey) {
+    if (!apiKey) {
+      throw new Error(
+        "GEMINI_API_KEY is not defined in environment variables.",
+      );
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
+
+    const res = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.NOMIC_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "nomic-embed-text-v1.5",
-        texts: [text],
-        task_type: "search_query",
+        model: "models/text-embedding-004",
+        content: {
+          parts: [{ text }],
+        },
       }),
     });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(
+        `Gemini Embedding API failed (${res.status}): ${errText}`,
+      );
+    }
+
     const data = await res.json();
-    return data.embeddings[0];
+    return data.embedding.values;
   } else {
-    // Route to local Ollama instance on your Mac
+    // Local fallback route to Ollama instance
     const res = await fetch("http://localhost:11434/api/embeddings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "nomic-embed-text", prompt: text }),
+      body: JSON.stringify({ model: "all-minilm", prompt: text }),
     });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Local Embedding failed (${res.status}): ${errText}`);
+    }
+
     const data = await res.json();
     return data.embedding;
   }
@@ -43,10 +66,16 @@ export async function generateChatResponse(prompt: string): Promise<string> {
         messages: [{ role: "user", content: prompt }],
       }),
     });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Groq API failed (${res.status}): ${errText}`);
+    }
+
     const data = await res.json();
     return data.choices[0].message.content;
   } else {
-    // Route to local Ollama instance for Llama 3.1
+    // Route to local Ollama instance
     const res = await fetch("http://localhost:11434/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -56,6 +85,12 @@ export async function generateChatResponse(prompt: string): Promise<string> {
         stream: false,
       }),
     });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Local Chat API failed (${res.status}): ${errText}`);
+    }
+
     const data = await res.json();
     return data.message.content;
   }

@@ -17,6 +17,7 @@ import { useOmniSearch } from "@/hooks/useOmniSearch";
 import { AiOverview } from "@/components/AiOverview";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import Link from "next/link";
+import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 
 interface OmnibarModalProps {
   isOpen: boolean;
@@ -56,6 +57,15 @@ export function OmnibarModal({
       ? (BASE_MODAL_WIDTH_REM * EXECUTIVE_SCALE).toFixed(2)
       : BASE_MODAL_WIDTH_REM.toFixed(2);
 
+  const handleCloseAll = () => {
+    setSelectedCircularId(null);
+    setIsOpen(false);
+  };
+
+  const handleCloseLightbox = () => {
+    setSelectedCircularId(null);
+  };
+
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isLoading && mode === "intellectual") {
@@ -69,28 +79,29 @@ export function OmnibarModal({
 
   useEffect(() => {
     if (isOpen && !selectedCircularId) {
-      setTimeout(() => textareaRef.current?.focus(), 100);
+      const timer = setTimeout(() => textareaRef.current?.focus(), 80);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, selectedCircularId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // If lightbox is open, let lightbox handle escape
+      // If lightbox is open, let lightbox handle its own Escape key
       if (selectedCircularId) return;
 
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setIsOpen(!isOpen);
+        handleCloseAll();
       }
       if (e.key === "Escape" && isOpen) {
         e.preventDefault();
-        setIsOpen(false);
+        handleCloseAll();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, setIsOpen, selectedCircularId]);
+  }, [isOpen, selectedCircularId]);
 
   const loadingMessages = [
     "Consulting executive knowledge base...",
@@ -108,6 +119,10 @@ export function OmnibarModal({
     }
   };
 
+  const activeMatchedCircular = selectedCircularId
+    ? results.find((r) => r.id === selectedCircularId)
+    : null;
+
   return (
     <>
       <AnimatePresence>
@@ -117,7 +132,7 @@ export function OmnibarModal({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsOpen(false)}
+              onClick={handleCloseAll}
               className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm"
             />
 
@@ -148,7 +163,7 @@ export function OmnibarModal({
                   onKeyDown={(e) => {
                     if (e.key === "Escape") {
                       e.preventDefault();
-                      setIsOpen(false);
+                      handleCloseAll();
                     }
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -165,7 +180,8 @@ export function OmnibarModal({
                 )}
                 <div className="flex items-center gap-2 border-l border-neutral-200 pl-3 ml-1 mt-1 shrink-0">
                   <button
-                    onClick={() => setIsOpen(false)}
+                    type="button"
+                    onClick={handleCloseAll}
                     className="hidden sm:inline-block focus:outline-none group"
                   >
                     <kbd className="px-2 py-1 text-xs font-semibold text-neutral-500 bg-neutral-100 rounded border border-neutral-300 group-hover:bg-neutral-200 group-hover:text-neutral-700 transition-colors cursor-pointer">
@@ -173,7 +189,8 @@ export function OmnibarModal({
                     </kbd>
                   </button>
                   <button
-                    onClick={() => setIsOpen(false)}
+                    type="button"
+                    onClick={handleCloseAll}
                     className="p-1 hover:bg-neutral-100 rounded-md transition-colors"
                   >
                     <X className="h-5 w-5 text-neutral-500" />
@@ -196,6 +213,7 @@ export function OmnibarModal({
 
                   {/* Headline Match */}
                   <button
+                    type="button"
                     onClick={() => triggerSearch("title")}
                     className={`group relative inline-flex items-center gap-2 overflow-hidden rounded-xl border px-3.5 py-1.5 sm:px-4 sm:py-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 shrink-0 focus-visible:ring-2 focus-visible:ring-slate-400/60 ${
                       mode === "title"
@@ -222,6 +240,7 @@ export function OmnibarModal({
 
                   {/* Smart Semantic */}
                   <button
+                    type="button"
                     onClick={() => triggerSearch("semantic")}
                     className={`group relative inline-flex items-center gap-2 overflow-hidden rounded-xl border px-3.5 py-1.5 sm:px-4 sm:py-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 shrink-0 focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${
                       mode === "semantic"
@@ -262,6 +281,7 @@ export function OmnibarModal({
 
                   {/* Executive Deep Synthesis */}
                   <button
+                    type="button"
                     onClick={() => isExecutive && triggerSearch("intellectual")}
                     disabled={!isExecutive}
                     title={
@@ -400,74 +420,170 @@ export function OmnibarModal({
                             <div
                               key={`${result.type}-${result.id}`}
                               onClick={(e) => handleResultClick(e, result)}
-                              className="cursor-pointer"
+                              className={`cursor-pointer flex flex-col gap-2 p-3 rounded-lg border transition-all duration-200 group ${
+                                result.isPerfectMatch
+                                  ? "bg-amber-50/50 border-amber-300 shadow-sm"
+                                  : "border-transparent hover:bg-neutral-100"
+                              }`}
                             >
                               {result.type === "circular" ? (
-                                <div className="flex items-start gap-4 p-3 rounded-lg hover:bg-neutral-100 transition-colors group">
-                                  <div className="p-2 rounded-md bg-blue-100 text-blue-700">
-                                    <FileText size={20} />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-semibold text-neutral-900 truncate group-hover:text-primary-700 transition-colors">
-                                        {result.headline}
-                                      </span>
-                                      {result.similarity && (
-                                        <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
-                                          {(result.similarity * 100).toFixed(0)}
-                                          % Match
+                                <>
+                                  <div className="flex items-start gap-4">
+                                    <div
+                                      className={`p-2 rounded-md ${result.isPerfectMatch ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}
+                                    >
+                                      <FileText size={20} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span
+                                          className={`font-semibold truncate transition-colors ${result.isPerfectMatch ? "text-amber-900 group-hover:text-amber-700" : "text-neutral-900 group-hover:text-primary-700"}`}
+                                        >
+                                          {result.headline}
                                         </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-3 text-xs text-neutral-500 font-medium">
-                                      <span className="uppercase tracking-wider">
-                                        {result.type}
-                                      </span>
-                                      <span>&bull;</span>
-                                      <span>
-                                        {result.publishedAt
-                                          ? DateTime.fromISO(
-                                              result.publishedAt,
-                                            ).toLocaleString(DateTime.DATE_MED)
-                                          : "No date"}
-                                      </span>
+                                        {result.similarity && (
+                                          <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
+                                            {/* Calibrated against Gemini baseline floor (0.80 = 0%, 0.95 = 100%) */}
+                                            {result.similarity && (
+                                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
+                                                {Math.min(
+                                                  100,
+                                                  Math.max(
+                                                    0,
+                                                    Math.round(
+                                                      ((result.similarity -
+                                                        0.8) /
+                                                        (0.95 - 0.8)) *
+                                                        100,
+                                                    ),
+                                                  ),
+                                                )}
+                                                % Match
+                                              </span>
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-3 text-xs text-neutral-500 font-medium">
+                                        <span className="uppercase tracking-wider">
+                                          {result.type}
+                                        </span>
+                                        <span>&bull;</span>
+                                        <span>
+                                          {result.publishedAt
+                                            ? DateTime.fromISO(
+                                                result.publishedAt,
+                                              ).toLocaleString(
+                                                DateTime.DATE_MED,
+                                              )
+                                            : "No date"}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
+
+                                  {result.isPerfectMatch &&
+                                    result.chunkText &&
+                                    mode === "semantic" && (
+                                      <div className="ml-12 mt-2 text-xs text-neutral-800 bg-yellow-50 p-3 rounded-md border border-yellow-200 leading-relaxed shadow-sm">
+                                        <div className="font-bold text-yellow-800 uppercase tracking-wider text-[10px] flex items-center gap-1 mb-1.5">
+                                          <Sparkles
+                                            size={12}
+                                            className="text-yellow-600"
+                                          />
+                                          Exact Match Context:
+                                        </div>
+                                        <div className="font-medium font-serif italic text-neutral-700">
+                                          &quot;
+                                          {generateSmartSnippet(
+                                            result.chunkText,
+                                            query,
+                                          )}
+                                          &quot;
+                                        </div>
+                                      </div>
+                                    )}
+                                </>
                               ) : (
                                 <Link
                                   href={result.url ?? "#"}
-                                  className="flex items-start gap-4 p-3 rounded-lg hover:bg-neutral-100 transition-colors group"
+                                  className="flex flex-col gap-2"
                                 >
-                                  <div className="p-2 rounded-md bg-orange-100 text-orange-700">
-                                    <Megaphone size={20} />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-semibold text-neutral-900 truncate group-hover:text-primary-700 transition-colors">
-                                        {result.headline}
-                                      </span>
-                                      {result.similarity && (
-                                        <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
-                                          {(result.similarity * 100).toFixed(0)}
-                                          % Match
+                                  <div className="flex items-start gap-4">
+                                    <div
+                                      className={`p-2 rounded-md ${result.isPerfectMatch ? "bg-amber-100 text-amber-700" : "bg-orange-100 text-orange-700"}`}
+                                    >
+                                      <Megaphone size={20} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span
+                                          className={`font-semibold truncate transition-colors ${result.isPerfectMatch ? "text-amber-900 group-hover:text-amber-700" : "text-neutral-900 group-hover:text-primary-700"}`}
+                                        >
+                                          {result.headline}
                                         </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-3 text-xs text-neutral-500 font-medium">
-                                      <span className="uppercase tracking-wider">
-                                        {result.type}
-                                      </span>
-                                      <span>&bull;</span>
-                                      <span>
-                                        {result.publishedAt
-                                          ? DateTime.fromISO(
-                                              result.publishedAt,
-                                            ).toLocaleString(DateTime.DATE_MED)
-                                          : "No date"}
-                                      </span>
+                                        {result.similarity && (
+                                          <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
+                                            {/* Calibrated against Gemini baseline floor (0.80 = 0%, 0.95 = 100%) */}
+                                            {result.similarity && (
+                                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
+                                                {Math.min(
+                                                  100,
+                                                  Math.max(
+                                                    0,
+                                                    Math.round(
+                                                      ((result.similarity -
+                                                        0.8) /
+                                                        (0.95 - 0.8)) *
+                                                        100,
+                                                    ),
+                                                  ),
+                                                )}
+                                                % Match
+                                              </span>
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-3 text-xs text-neutral-500 font-medium">
+                                        <span className="uppercase tracking-wider">
+                                          {result.type}
+                                        </span>
+                                        <span>&bull;</span>
+                                        <span>
+                                          {result.publishedAt
+                                            ? DateTime.fromISO(
+                                                result.publishedAt,
+                                              ).toLocaleString(
+                                                DateTime.DATE_MED,
+                                              )
+                                            : "No date"}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
+
+                                  {result.isPerfectMatch &&
+                                    result.chunkText &&
+                                    mode === "semantic" && (
+                                      <div className="ml-12 mt-2 text-xs text-neutral-800 bg-yellow-50 p-3 rounded-md border border-yellow-200 leading-relaxed shadow-sm">
+                                        <div className="font-bold text-yellow-800 uppercase tracking-wider text-[10px] flex items-center gap-1 mb-1.5">
+                                          <Sparkles
+                                            size={12}
+                                            className="text-yellow-600"
+                                          />
+                                          Exact Match Context:
+                                        </div>
+                                        <div className="font-medium font-serif italic text-neutral-700">
+                                          &quot;
+                                          {generateSmartSnippet(
+                                            result.chunkText,
+                                            query,
+                                          )}
+                                          &quot;
+                                        </div>
+                                      </div>
+                                    )}
                                 </Link>
                               )}
                             </div>
@@ -483,10 +599,35 @@ export function OmnibarModal({
         )}
       </AnimatePresence>
 
-      {/* Reusable Multi-Page Lightbox Viewer */}
+      {/* Floating Context Banner cleanly wrapped inside AnimatePresence */}
+      <AnimatePresence>
+        {selectedCircularId &&
+          activeMatchedCircular?.isPerfectMatch &&
+          activeMatchedCircular?.chunkText &&
+          mode === "semantic" && (
+            <motion.div
+              key="floating-banner"
+              initial={{ opacity: 0, y: -20, scale: 0.95, x: "-50%" }}
+              animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
+              exit={{ opacity: 0, y: -20, scale: 0.95, x: "-50%" }}
+              transition={{ duration: 0.2 }}
+              className="fixed top-20 left-1/2 z-[160] w-[90%] max-w-2xl bg-amber-50/95 backdrop-blur-md border-2 border-amber-400 p-3.5 rounded-xl shadow-2xl pointer-events-none"
+            >
+              <div className="font-bold text-amber-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5 mb-1.5">
+                <Sparkles size={13} className="text-amber-600 shrink-0" />
+                Target Clause Reference:
+              </div>
+              <div className="font-medium text-neutral-800 text-xs sm:text-sm leading-relaxed">
+                {generateSmartSnippet(activeMatchedCircular.chunkText, query)}
+              </div>
+            </motion.div>
+          )}
+      </AnimatePresence>
+
+      {/* Lightbox Viewer */}
       <CircularViewerLightbox
         circularId={selectedCircularId}
-        onClose={() => setSelectedCircularId(null)}
+        onClose={handleCloseLightbox}
       />
     </>
   );

@@ -11,6 +11,8 @@ export interface OmniSearchResult {
   url: string | null;
   publishedAt: string | null;
   similarity: number | null;
+  chunkText?: string;
+  isPerfectMatch?: boolean;
 }
 
 export interface OmniSearchResponse {

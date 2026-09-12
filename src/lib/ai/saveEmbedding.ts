@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
  * Save a numeric embedding array into the Postgres `vector` column.
  * - id: circulars.id
  * - embedding: number[] (plain JS numbers)
- * - dim: vector dimension (default 768 for nomic-embed-text)
+ * - dim: vector dimension (default 768 for Gemini text-embedding-004)
  */
 export async function saveEmbeddingToVectorTable(
   id: number,

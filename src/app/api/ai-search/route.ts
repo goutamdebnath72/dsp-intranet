@@ -2,13 +2,17 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { executeTitleSearch } from "@/lib/search/titleSearch";
-import { executeSemanticSearch } from "@/lib/search/semanticSearch";
+import { executeSmartSemanticRouter } from "@/lib/search/smartSemanticRouter";
 import { executeExecutiveSynthesis } from "@/lib/search/executiveSynthesis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const INDIC_SCRIPT_REGEX = /[\p{Script=Devanagari}\p{Script=Bengali}]/u;
+
+// Baseline floor for Google Gemini text-embedding-004
+// Cosine scores below 0.835 represent conversational/language background noise
+const SEMANTIC_SIMILARITY_THRESHOLD = 0.835;
 
 export async function GET(request: Request) {
   try {
@@ -22,26 +26,10 @@ export async function GET(request: Request) {
       );
     }
 
-    const rawUrl = request.url;
-    const match = rawUrl.match(/[?&]q=([^&]*)/);
-    let q = "";
-
-    if (match && match[1]) {
-      try {
-        q = decodeURIComponent(match[1]).trim();
-      } catch {
-        q = match[1].trim();
-      }
-    } else {
-      const url = new URL(request.url);
-      q = (url.searchParams.get("q") || "").trim();
-    }
-
-    console.log(`[RAW URL EXTRACT] q: "${q}" | length: ${q.length}`);
-
-    const url = new URL(request.url);
-    let mode = url.searchParams.get("mode") || "semantic";
-    const userTicket = url.searchParams.get("ticket")?.trim();
+    const { searchParams } = new URL(request.url);
+    const q = (searchParams.get("q") || "").trim();
+    let mode = searchParams.get("mode") || "semantic";
+    const userTicket = searchParams.get("ticket")?.trim();
 
     if (!q || q.length < 2) {
       return NextResponse.json([]);
@@ -80,28 +68,63 @@ export async function GET(request: Request) {
     }
 
     // --- RETRIEVE BEST MATCHING CIRCULARS ---
-    const { uniqueResults } = await executeSemanticSearch(dataSource, q);
+    const { uniqueResults } = await executeSmartSemanticRouter(dataSource, q);
 
-    const topPrimarySources = uniqueResults.slice(0, 5);
+    // Filter out items falling below the semantic confidence threshold
+    const qualifiedResults = (uniqueResults || []).filter((item) => {
+      if (typeof item.similarity === "number") {
+        return item.similarity >= SEMANTIC_SIMILARITY_THRESHOLD;
+      }
+      return true;
+    });
+
+    // If no records meet the relevance bar, return empty immediately
+    if (qualifiedResults.length === 0) {
+      if (mode === "intellectual") {
+        return NextResponse.json({
+          synthesis: "No relevant circular records found to synthesize.",
+          results: [],
+        });
+      }
+      return NextResponse.json([]);
+    }
+
+    const cleanQ = q.replace(/^"|"$/g, "").toLowerCase();
+
+    // Map results to include the Perfect Match flag and keep the chunkText
+    const topPrimarySources = qualifiedResults
+      .slice(0, 5)
+      .map((result, index) => {
+        let isPerfectMatch = false;
+
+        // If it's the #1 result and the exact query exists in the headline or chunk, flag it
+        if (index === 0 && cleanQ.length > 2) {
+          const headlineLower = (result.headline || "").toLowerCase();
+          const chunkLower = (result.chunkText || "").toLowerCase();
+          if (headlineLower.includes(cleanQ) || chunkLower.includes(cleanQ)) {
+            isPerfectMatch = true;
+          }
+        }
+
+        return { ...result, isPerfectMatch };
+      });
 
     // --- MODE 2: SMART SEMANTIC SEARCH (Return Documents Only) ---
     if (mode === "semantic") {
-      return NextResponse.json(
-        topPrimarySources.map(({ chunkText, ...rest }) => rest),
-      );
+      return NextResponse.json(topPrimarySources);
     }
 
-    // --- MODE 3: EXECUTIVE DEEP SYNTHESIS (Always Generate Synthesis) ---
+    // --- MODE 3: EXECUTIVE DEEP SYNTHESIS ---
     let synthesisText = "";
-    if (uniqueResults.length > 0) {
-      synthesisText = await executeExecutiveSynthesis(q, uniqueResults);
+    if (topPrimarySources.length > 0) {
+      synthesisText = await executeExecutiveSynthesis(q, topPrimarySources);
     } else {
       synthesisText = "No relevant circular records found to synthesize.";
     }
 
     return NextResponse.json({
       synthesis: synthesisText,
-      results: topPrimarySources.map(({ chunkText, ...rest }) => rest),
+      results: topPrimarySources,
     });
   } catch (error) {
     console.error("Search API error:", error);
