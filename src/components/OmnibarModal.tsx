@@ -430,39 +430,40 @@ export function OmnibarModal({
                                 <>
                                   <div className="flex items-start gap-4">
                                     <div
-                                      className={`p-2 rounded-md ${result.isPerfectMatch ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}
+                                      className={`p-2 rounded-md ${
+                                        result.isPerfectMatch
+                                          ? "bg-amber-100 text-amber-700"
+                                          : "bg-blue-100 text-blue-700"
+                                      }`}
                                     >
                                       <FileText size={20} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 mb-1">
                                         <span
-                                          className={`font-semibold truncate transition-colors ${result.isPerfectMatch ? "text-amber-900 group-hover:text-amber-700" : "text-neutral-900 group-hover:text-primary-700"}`}
+                                          className={`font-semibold truncate transition-colors ${
+                                            result.isPerfectMatch
+                                              ? "text-amber-900 group-hover:text-amber-700"
+                                              : "text-neutral-900 group-hover:text-primary-700"
+                                          }`}
                                         >
                                           {result.headline}
                                         </span>
-                                        {result.similarity && (
+                                        {/* Clean Match Percentage Badge */}
+                                        {typeof (result as any)
+                                          .matchPercentage === "number" ? (
                                           <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
-                                            {/* Calibrated against Gemini baseline floor (0.80 = 0%, 0.95 = 100%) */}
-                                            {result.similarity && (
-                                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
-                                                {Math.min(
-                                                  100,
-                                                  Math.max(
-                                                    0,
-                                                    Math.round(
-                                                      ((result.similarity -
-                                                        0.8) /
-                                                        (0.95 - 0.8)) *
-                                                        100,
-                                                    ),
-                                                  ),
-                                                )}
-                                                % Match
-                                              </span>
-                                            )}
+                                            {(result as any).matchPercentage}%
+                                            Match
                                           </span>
-                                        )}
+                                        ) : result.similarity ? (
+                                          <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
+                                            {Math.round(
+                                              result.similarity * 100,
+                                            )}
+                                            % Match
+                                          </span>
+                                        ) : null}
                                       </div>
                                       <div className="flex items-center gap-3 text-xs text-neutral-500 font-medium">
                                         <span className="uppercase tracking-wider">
@@ -511,39 +512,40 @@ export function OmnibarModal({
                                 >
                                   <div className="flex items-start gap-4">
                                     <div
-                                      className={`p-2 rounded-md ${result.isPerfectMatch ? "bg-amber-100 text-amber-700" : "bg-orange-100 text-orange-700"}`}
+                                      className={`p-2 rounded-md ${
+                                        result.isPerfectMatch
+                                          ? "bg-amber-100 text-amber-700"
+                                          : "bg-orange-100 text-orange-700"
+                                      }`}
                                     >
                                       <Megaphone size={20} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 mb-1">
                                         <span
-                                          className={`font-semibold truncate transition-colors ${result.isPerfectMatch ? "text-amber-900 group-hover:text-amber-700" : "text-neutral-900 group-hover:text-primary-700"}`}
+                                          className={`font-semibold truncate transition-colors ${
+                                            result.isPerfectMatch
+                                              ? "text-amber-900 group-hover:text-amber-700"
+                                              : "text-neutral-900 group-hover:text-primary-700"
+                                          }`}
                                         >
                                           {result.headline}
                                         </span>
-                                        {result.similarity && (
+                                        {/* Clean Match Percentage Badge */}
+                                        {typeof (result as any)
+                                          .matchPercentage === "number" ? (
                                           <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
-                                            {/* Calibrated against Gemini baseline floor (0.80 = 0%, 0.95 = 100%) */}
-                                            {result.similarity && (
-                                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
-                                                {Math.min(
-                                                  100,
-                                                  Math.max(
-                                                    0,
-                                                    Math.round(
-                                                      ((result.similarity -
-                                                        0.8) /
-                                                        (0.95 - 0.8)) *
-                                                        100,
-                                                    ),
-                                                  ),
-                                                )}
-                                                % Match
-                                              </span>
-                                            )}
+                                            {(result as any).matchPercentage}%
+                                            Match
                                           </span>
-                                        )}
+                                        ) : result.similarity ? (
+                                          <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
+                                            {Math.round(
+                                              result.similarity * 100,
+                                            )}
+                                            % Match
+                                          </span>
+                                        ) : null}
                                       </div>
                                       <div className="flex items-center gap-3 text-xs text-neutral-500 font-medium">
                                         <span className="uppercase tracking-wider">
