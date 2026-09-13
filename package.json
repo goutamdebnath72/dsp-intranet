@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typeorm": "tsx ./node_modules/typeorm/cli.js",
+    "wipe:circulars": "node scripts/wipe-circulars.mjs",
     "test:search": "node scripts/test-search.mjs"
   },
   "dependencies": {
