@@ -6,6 +6,7 @@ import {
   formatLuxonDate,
   executeTitleSearch,
 } from "./titleSearch";
+import { classifyQuoted, escapeRegex } from "./quotedMatch";
 
 export async function executeContentSearch(
   dataSource: DataSource,
@@ -19,16 +20,36 @@ export async function executeContentSearch(
   if (!safeQ)
     return { uniqueResults: [], isFallback: false, hasExactMatch: false };
 
-  // Remove quotes if the user explicitly wrapped the query
-  const cleanQ = safeQ.replace(/^"|"$/g, "");
-  const exactMatchTerm = `%${cleanQ}%`;
+  // Classify the query. Whole-word matching applies ONLY to a double-quoted,
+  // Latin-script phrase; everything else keeps the old case-insensitive
+  // substring behaviour. Matching stays case-INSENSITIVE in every mode
+  // (OCR corpus is case-noisy). The vector path is never affected.
+  const mode = classifyQuoted(safeQ);
+  const cleanQ = mode.phrase;
+
+  // $2 is used by whichever operator the literal branch selects:
+  //   - whole-word (quoted Latin) -> case-insensitive POSIX regex ~* \yphrase\y
+  //   - otherwise                 -> ILIKE %phrase%
+  const literalParam = mode.wholeWord
+    ? `\\y${escapeRegex(cleanQ)}\\y`
+    : `%${cleanQ}%`;
+
+  // Operator + expression fragments differ by mode but reference the SAME $2,
+  // so the rest of the query shape (and the literal_boost = 2.0) is unchanged.
+  const litText = mode.wholeWord ? "cc.text ~* $2" : "cc.text ILIKE $2";
+  const litHead = mode.wholeWord
+    ? "c.headline ~* $2"
+    : "c.headline ILIKE $2";
+  const literalPredicate = `(${litText} OR ${litHead})`;
 
   try {
     const rawEmbedding = await generateEmbedding(safeQ, "search_query");
     const queryVector = normalizeVector(rawEmbedding);
     const vectorString = `[${queryVector.join(",")}]`;
 
-    // Hybrid SQL: Searches both Vector Space AND Exact Substring Literal Space
+    // Hybrid SQL: Searches both Vector Space AND the Literal Space.
+    // The literal operator (~ vs ILIKE) is chosen above; the vector clause
+    // is identical in every mode.
     const hybridQuerySql = `
       SELECT 
         c.id,
@@ -37,13 +58,13 @@ export async function executeContentSearch(
         c."publishedAt",
         cc.text AS "chunkText",
         (1 - (cc.embedding <=> $1::vector(768))) AS base_similarity,
-        (CASE WHEN cc.text ILIKE $2 OR c.headline ILIKE $2 THEN 2.0 ELSE 0 END) AS literal_boost
+        (CASE WHEN ${literalPredicate} THEN 2.0 ELSE 0 END) AS literal_boost
       FROM circular_chunks cc
       JOIN circulars c ON c.id = cc.circular_id
       WHERE cc.embedding IS NOT NULL 
-        AND (cc.text ILIKE $2 OR c.headline ILIKE $2 OR (1 - (cc.embedding <=> $1::vector(768))) > 0.50)
+        AND (${literalPredicate} OR (1 - (cc.embedding <=> $1::vector(768))) > 0.50)
       ORDER BY (
-        (CASE WHEN cc.text ILIKE $2 OR c.headline ILIKE $2 THEN 2.0 ELSE 0 END) + 
+        (CASE WHEN ${literalPredicate} THEN 2.0 ELSE 0 END) + 
         (1 - (cc.embedding <=> $1::vector(768)))
       ) DESC
       LIMIT 20;
@@ -51,7 +72,7 @@ export async function executeContentSearch(
 
     const matches = await dataSource.query<any[]>(hybridQuerySql, [
       vectorString,
-      exactMatchTerm,
+      literalParam,
     ]);
 
     let hasExactMatch = false;

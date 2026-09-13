@@ -1,5 +1,6 @@
 // src/lib/utils/searchUtils.tsx
 import React from "react";
+import { classifyQuoted, highlightRegexSource } from "@/lib/search/quotedMatch";
 
 // Safely escape regex characters
 const escapeRegExp = (string: string) => {
@@ -34,11 +35,18 @@ export const generateSmartSnippet = (text: string, query: string) => {
 
   if (!query) return cleanText.substring(0, 150) + "...";
 
-  const cleanQuery = query.replace(/^"|"$/g, "").trim();
+  // Same classification the SQL literal branch and route.ts use, so what gets
+  // highlighted matches what qualified: a double-quoted Latin phrase is
+  // whole-word; unquoted or Indic-quoted stays substring. Always case-
+  // insensitive (the "i"/"gi" flags below).
+  const mode = classifyQuoted(query);
+  const cleanQuery = mode.phrase;
   if (cleanQuery.length < 2) return cleanText.substring(0, 150) + "...";
 
   try {
-    const regex = new RegExp(`(${escapeRegExp(cleanQuery)})`, "gi");
+    // Capturing group so String.split keeps the delimiters for <mark> mapping.
+    const regexSource = `(${highlightRegexSource(mode)})`;
+    const regex = new RegExp(regexSource, "gi");
     const match = regex.exec(cleanText);
 
     let snippet = cleanText;
@@ -60,9 +68,21 @@ export const generateSmartSnippet = (text: string, query: string) => {
       snippet = cleanText.substring(0, 150) + "...";
     }
 
+    // Reset lastIndex before reusing the /g regex with split.
+    regex.lastIndex = 0;
     const parts = snippet.split(regex);
-    return parts.map((part, i) =>
-      part.toLowerCase() === cleanQuery.toLowerCase() ? (
+
+    // With a capturing-group split, the odd-indexed parts are the delimiters
+    // that the regex matched — those are exactly the spans to highlight. We
+    // still confirm each against the phrase (case-insensitively) so stray
+    // parts are never marked.
+    return parts.map((part, i) => {
+      const isHit =
+        !!part &&
+        (mode.wholeWord
+          ? new RegExp(`^\\b${escapeRegExp(cleanQuery)}\\b$`, "i").test(part)
+          : part.toLowerCase() === cleanQuery.toLowerCase());
+      return isHit ? (
         <mark
           key={i}
           className="bg-yellow-300 text-yellow-900 font-extrabold px-1 rounded-sm shadow-sm"
@@ -71,8 +91,8 @@ export const generateSmartSnippet = (text: string, query: string) => {
         </mark>
       ) : (
         part
-      ),
-    );
+      );
+    });
   } catch (e) {
     return cleanText.substring(0, 150) + "...";
   }

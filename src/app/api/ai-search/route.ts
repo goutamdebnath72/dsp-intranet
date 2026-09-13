@@ -4,6 +4,8 @@ import { getDb } from "@/lib/db";
 import { executeTitleSearch } from "@/lib/search/titleSearch";
 import { executeSmartSemanticRouter } from "@/lib/search/smartSemanticRouter";
 import { executeExecutiveSynthesis } from "@/lib/search/executiveSynthesis";
+import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
+import { cleanQueryString } from "@/lib/utils/queryCleaner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +30,13 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const q = (searchParams.get("q") || "").trim();
+    // Sanitize junk characters up front. cleanQueryString deliberately
+    // PRESERVES the double-quote (the whole-word trigger) and the literal
+    // punctuation (. - / @ : # & ( ) , _) and both Indic scripts, so quoted
+    // and literal lookups survive intact. Everything downstream — quote
+    // classification, the vector embedding, and the literal term — uses this
+    // single cleaned value so they can never disagree.
+    const q = cleanQueryString(searchParams.get("q") || "");
     let mode = searchParams.get("mode") || "semantic";
     const userTicket = searchParams.get("ticket")?.trim();
 
@@ -71,8 +79,12 @@ export async function GET(request: Request) {
     // --- RETRIEVE BEST MATCHING CIRCULARS ---
     const { uniqueResults } = await executeSmartSemanticRouter(dataSource, q);
 
-    const cleanQ = q.replace(/^"|"$/g, "").trim().toLowerCase();
-    const isExplicitQuotedQuery = q.startsWith('"') && q.endsWith('"');
+    // Quoted-query classification (double-quote only; Latin-only gets
+    // case-insensitive whole-word, Indic stays substring) — mirrors the SQL
+    // literal branch in semanticContentSearch so the two never disagree.
+    const quoted = classifyQuoted(q);
+    const isExplicitQuotedQuery = quoted.isQuoted;
+    const cleanQ = quoted.phrase.toLowerCase();
     const queryTokens = cleanQ.split(/\s+/).filter((t) => t.length > 2);
 
     const scoredResults = (uniqueResults || []).map((result) => {
@@ -81,10 +93,13 @@ export async function GET(request: Request) {
       const rawSim =
         typeof result.similarity === "number" ? result.similarity : 0;
 
-      // Identify Lexical Overlap purely for UI Amber Box highlighting
+      // Identify Lexical Overlap for the UI Amber Box + quoted-query filter.
+      // For a quoted Latin phrase this is case-insensitive & whole-word; for an
+      // Indic quoted phrase or any unquoted query it is substring (as before).
       const isExactPhrase =
-        cleanQ.length >= 2 &&
-        (headlineLower.includes(cleanQ) || chunkLower.includes(cleanQ));
+        quoted.phrase.length >= 2 &&
+        (literalPhraseMatches(result.headline || "", quoted) ||
+          literalPhraseMatches(result.chunkText || "", quoted));
 
       const tokenHits = queryTokens.filter(
         (t) => headlineLower.includes(t) || chunkLower.includes(t),
