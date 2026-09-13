@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typeorm": "tsx ./node_modules/typeorm/cli.js"
+    "typeorm": "tsx ./node_modules/typeorm/cli.js",
+    "test:search": "node scripts/test-search.mjs"
   },
   "dependencies": {
     "@auth/typeorm-adapter": "^2.11.2",
