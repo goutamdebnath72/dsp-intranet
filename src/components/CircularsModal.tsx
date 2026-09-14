@@ -21,8 +21,10 @@ type Circular = {
   id: number;
   headline: string;
   publishedAt: string;
+  uploadedAt: string;
   fileUrls: string[];
   authorTicketNo: string;
+  serialNumber: number;
 };
 
 type Props = {
@@ -65,6 +67,12 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
           },
           {} as { [key: string]: Circular[] },
         );
+        // Sort each year's circulars by serialNumber DESC (highest first).
+        Object.keys(grouped).forEach((year) => {
+          grouped[year].sort(
+            (a, b) => (b.serialNumber ?? 0) - (a.serialNumber ?? 0),
+          );
+        });
         setCircularsByYear(grouped);
         const availableYears = Object.keys(grouped).sort(
           (a, b) => Number(b) - Number(a),
@@ -129,8 +137,10 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   const canModify = (circular: Circular) => {
     const userTicketNo = (session?.user as any)?.ticketNo || "";
     if (userTicketNo !== circular.authorTicketNo) return false;
-    const pubAt = DateTime.fromISO(circular.publishedAt);
-    const diff = DateTime.now().diff(pubAt, "hours").hours;
+    // Window is measured from UPLOAD time, not the circular's (possibly
+    // backfilled) issue date.
+    const upAt = DateTime.fromISO(circular.uploadedAt);
+    const diff = DateTime.now().diff(upAt, "hours").hours;
     return diff <= EDIT_DELETE_WINDOW_HOURS;
   };
 
@@ -279,6 +289,9 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
                         className="flex-1 text-left"
                       >
                         <p className="font-semibold text-neutral-800 group-hover:text-primary-700 transition-colors">
+                          <span className="text-neutral-400 font-mono mr-2">
+                            {String(circular.serialNumber ?? 0).padStart(3, "0")}
+                          </span>
                           {circular.headline}
                         </p>
                         <p className="text-sm text-neutral-500 mt-1">
