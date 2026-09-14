@@ -50,6 +50,14 @@ export class Circular {
   publishedAt!: DateTime | null;
 
   @Column({
+    type: "timestamp",
+    name: "uploadedAt",
+    nullable: true,
+    transformer: LuxonDateTimeTransformer,
+  })
+  uploadedAt!: DateTime | null;
+
+  @Column({
     type: "vector",
     nullable: true,
   })

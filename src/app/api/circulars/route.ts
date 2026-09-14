@@ -1,17 +1,16 @@
 // src/app/api/circulars/route.ts
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import { put } from "@vercel/blob";
+import { put, del } from "@vercel/blob";
 import { getDb } from "@/lib/db";
 import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
-import { saveEmbeddingToVectorTable } from "@/lib/ai/saveEmbedding";
 import { fromPath } from "pdf2pic";
 import Tesseract from "tesseract.js";
 
 /* ============================================================
-   Extract textual content from PDF buffer 
+   Extract textual content from PDF buffer
 ============================================================ */
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
@@ -64,17 +63,67 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 }
 
 /* ============================================================
-   POST: Upload a circular (pdf2pic + Trilingual OCR + Vectors)
+   POST: Upload a circular — FULLY ATOMIC.
+
+   A single upload is a queue of segmented jobs (blob writes, OCR,
+   embeddings, DB row, DB chunks, vector column). If ANY job fails, the
+   whole upload is considered failed and EVERY byte written anywhere for
+   this circular is removed:
+     - Vercel Blob objects  -> deleted via del()
+     - circulars row        -> never committed (single transaction)
+     - circular_chunks rows -> never committed (same transaction)
+     - embedding column     -> written inside that same transaction
+
+   Strategy:
+     PHASE A (persist blobs + compute everything that can fail cheaply):
+       validate -> render/upload blobs -> OCR -> extract text ->
+       compute top-level embedding -> compute ALL chunk embeddings.
+       A failure to embed ANY chunk aborts the upload (no null-embedding
+       chunk is ever stored). Blob URLs are tracked for cleanup.
+     PHASE B (single DB transaction):
+       assign serial (retry on unique collision) -> insert row ->
+       insert all chunks -> set vector column. Commit or rollback as one.
+     On ANY throw: delete all tracked blobs, return 500. The transaction
+     has already rolled back, so no DB trace remains.
 ============================================================ */
 export async function POST(req: Request) {
   const dataSource = await getDb();
 
+  // Every blob byte written during this upload, for compensating cleanup.
+  const uploadedBlobUrls: string[] = [];
+  // Temp files on disk to remove regardless of outcome.
+  const tempFiles: string[] = [];
+
+  const cleanupTempFiles = async () => {
+    await Promise.all(tempFiles.map((p) => fs.unlink(p).catch(() => {})));
+  };
+
+  const cleanupBlobs = async () => {
+    if (uploadedBlobUrls.length === 0) return;
+    try {
+      // del() accepts a single URL or an array of URLs.
+      await del(uploadedBlobUrls);
+      console.log(
+        `ROLLBACK: deleted ${uploadedBlobUrls.length} orphan blob(s).`,
+      );
+    } catch (e: any) {
+      // Cleanup itself failed — surface loudly but don't mask the original error.
+      console.error(
+        "ROLLBACK WARNING: failed to delete some blobs:",
+        e?.message || e,
+        uploadedBlobUrls,
+      );
+    }
+  };
+
   try {
+    /* ============================================================
+       VALIDATION (no bytes written yet)
+    ============================================================ */
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const rawHeadline = formData.get("headline") as string;
-
-    // Safely cast to string or undefined to satisfy TypeORM
+    const rawPublishedAt = formData.get("publishedAt")?.toString() || "";
     const authorTicketNo =
       formData.get("authorTicketNo")?.toString() || undefined;
 
@@ -89,15 +138,23 @@ export async function POST(req: Request) {
     // Auto-cleaner: strips leading numbers/dots (e.g., "108. ")
     const headline = rawHeadline.replace(/^\s*\d+[\.\-\s]+/, "").trim();
 
-    // Year Parser: Detects 2022-2026 in headline for historical uploads
-    const yearMatch = headline.match(/\b(202[2-6])\b/);
-    const publishedAt = yearMatch
-      ? DateTime.fromObject({
-          year: parseInt(yearMatch[1], 10),
-          month: 1,
-          day: 1,
-        })
-      : DateTime.now();
+    // publishedAt is REQUIRED and comes only from the picker.
+    if (!rawPublishedAt) {
+      return NextResponse.json(
+        { error: "Missing circular date" },
+        { status: 400 },
+      );
+    }
+    const publishedAt = DateTime.fromISO(rawPublishedAt);
+    if (!publishedAt.isValid) {
+      return NextResponse.json(
+        { error: "Invalid circular date" },
+        { status: 400 },
+      );
+    }
+
+    // Server-stamped upload time — tamper-proof, never from the client.
+    const uploadedAt = DateTime.now();
 
     console.log(
       `UPLOAD START: filename="${file.name}", cleaned headline="${headline}"`,
@@ -107,6 +164,11 @@ export async function POST(req: Request) {
     const fileUrls: string[] = [];
     let ocrAccumulatedText = "";
 
+    /* ============================================================
+       PHASE A — bytes to blob + all fallible compute.
+       Any throw here jumps to catch -> cleanupBlobs().
+    ============================================================ */
+
     /* IMAGE HANDLING */
     if (file.type.startsWith("image/")) {
       const key = `circulars/${Date.now()}_${file.name}`;
@@ -114,8 +176,12 @@ export async function POST(req: Request) {
         access: "public",
         contentType: file.type,
       });
+      uploadedBlobUrls.push(url);
       fileUrls.push(url);
 
+      // OCR failure here is NOT fatal on its own (text can still come from
+      // the PDF/text extractor path); but for a pure image, empty text will
+      // be caught by the "no embeddable text" guard below.
       try {
         console.log("DEBUG: Running Trilingual OCR on image...");
         const {
@@ -128,6 +194,7 @@ export async function POST(req: Request) {
     } else if (file.type === "application/pdf") {
       /* PDF via pdf2pic */
       const tempPdfPath = `/tmp/pdf_${Date.now()}.pdf`;
+      tempFiles.push(tempPdfPath);
       await fs.writeFile(tempPdfPath, fileBytes);
 
       const options = {
@@ -148,17 +215,17 @@ export async function POST(req: Request) {
         const output = await convert(page);
         const pngPath: string | undefined = output?.path;
         if (!pngPath) {
-          console.warn(
-            `Skipping page ${page}: pdf2pic returned undefined path`,
-          );
+          console.warn(`Skipping page ${page}: pdf2pic returned undefined path`);
           continue;
         }
+        tempFiles.push(pngPath);
         const pngBuffer = await fs.readFile(pngPath);
         const key = `circulars/${Date.now()}_page_${page}.png`;
         const { url } = await put(key, pngBuffer, {
           access: "public",
           contentType: "image/png",
         });
+        uploadedBlobUrls.push(url);
         fileUrls.push(url);
 
         try {
@@ -170,11 +237,7 @@ export async function POST(req: Request) {
         } catch (err) {
           console.error(`OCR failed on page ${page}:`, err);
         }
-
-        await fs.unlink(pngPath).catch(() => {});
       }
-
-      await fs.unlink(tempPdfPath).catch(() => {});
     } else {
       console.warn("Unsupported file type:", file.type);
       return NextResponse.json(
@@ -184,7 +247,7 @@ export async function POST(req: Request) {
     }
 
     /* ============================
-       TEXT extraction + embedding
+       TEXT extraction
     ============================ */
     let extractedText = await extractTextFromPDF(fileBytes);
 
@@ -200,38 +263,28 @@ export async function POST(req: Request) {
     extractedText = (extractedText || "").replace(/\s+/g, " ").trim();
     console.log("DEBUG: Final extractedText length =", extractedText?.length);
 
+    /* ============================
+       TOP-LEVEL embedding (fatal if it throws)
+    ============================ */
     let embedding: number[] | null = null;
     if (extractedText && extractedText.length > 20) {
-      try {
-        const safeEmbeddingText =
-          extractedText.length > 8192
-            ? extractedText.slice(0, 8192)
-            : extractedText;
-
-        embedding = await generateEmbedding(safeEmbeddingText);
-      } catch (err: any) {
-        console.error("DEBUG: generateEmbedding threw:", err?.message || err);
-        embedding = null;
-      }
+      const safeEmbeddingText =
+        extractedText.length > 8192
+          ? extractedText.slice(0, 8192)
+          : extractedText;
+      // No try/catch: a failure means the circular is not searchable ->
+      // fail the whole upload and clean up.
+      embedding = await generateEmbedding(safeEmbeddingText);
     }
 
     /* ============================
-       CREATE DB ROW VIA TYPEORM
+       ALL CHUNK embeddings, computed BEFORE any DB write.
+       If any chunk fails to embed, abort — we never store a
+       null-embedding (unsearchable) chunk.
     ============================ */
-    const circularRepository = dataSource.getRepository<Circular>("Circular");
+    type PreparedChunk = { index: number; text: string; embedding: string };
+    const preparedChunks: PreparedChunk[] = [];
 
-    const newCircular = circularRepository.create({
-      headline,
-      fileUrls,
-      embedding,
-      publishedAt,
-      authorTicketNo, // Now strictly string | undefined
-    });
-
-    const circular = await circularRepository.save(newCircular);
-    console.log("DEBUG: DB created circular id =", circular?.id);
-
-    /* === SAVE CHUNKS VIA PARAMETERIZED RAW SQL QUERY === */
     if (extractedText && extractedText.length > 0) {
       const words = extractedText.split(/\s+/);
       const chunkSize = 200;
@@ -239,53 +292,122 @@ export async function POST(req: Request) {
 
       for (let i = 0; i < words.length; i += chunkSize) {
         const chunkText = words.slice(i, i + chunkSize).join(" ");
-
-        let chunkEmbeddingString = null;
-        try {
-          const rawVector = await generateEmbedding(chunkText);
-          chunkEmbeddingString = `[${rawVector.join(",")}]`;
-        } catch (err) {
-          console.error(`DEBUG: Failed to embed chunk ${chunkIndex}`);
-        }
-
-        await dataSource.query(
-          `
-            INSERT INTO public.circular_chunks (circular_id, chunk_index, text, embedding)
-            VALUES ($1, $2, $3, $4)
-          `,
-          [circular.id, chunkIndex, chunkText, chunkEmbeddingString],
-        );
-
+        // Fatal on failure — no swallow.
+        const rawVector = await generateEmbedding(chunkText);
+        preparedChunks.push({
+          index: chunkIndex,
+          text: chunkText,
+          embedding: `[${rawVector.join(",")}]`,
+        });
         chunkIndex++;
       }
-      console.log(
-        "DEBUG: Saved",
-        Math.ceil(words.length / chunkSize),
-        "vectorized chunks to database",
-      );
+      console.log("DEBUG: Prepared", preparedChunks.length, "chunk embeddings");
     }
 
-    if (embedding && circular && circular.id) {
+    const vectorLiteral = embedding ? `[${embedding.join(",")}]` : null;
+
+    /* ============================================================
+       PHASE B — single DB transaction: row + chunks + vector.
+       Serial assignment retried on unique collision by re-running
+       the whole transaction (row+chunks+vector together).
+    ============================================================ */
+    const year = publishedAt.year;
+
+    const isUniqueViolation = (e: any) =>
+      e?.code === "23505" ||
+      /duplicate key value|unique constraint/i.test(e?.message || "");
+
+    let circular: Circular | null = null;
+    const MAX_ATTEMPTS = 5;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        await saveEmbeddingToVectorTable(
-          circular.id,
-          embedding,
-          Number(process.env.EMBEDDING_DIM || 768),
-        );
-      } catch (err: any) {
-        console.error(
-          "DEBUG: saveEmbeddingToVectorTable failed:",
-          err?.message || err,
-        );
+        circular = await dataSource.transaction(async (manager) => {
+          // Serialize concurrent uploads for the SAME year.
+          await manager.query(`SELECT pg_advisory_xact_lock($1)`, [year]);
+
+          const rows: Array<{ max: number | null }> = await manager.query(
+            `
+              SELECT MAX("serialNumber") AS max
+              FROM public.circulars
+              WHERE EXTRACT(YEAR FROM "publishedAt") = $1
+            `,
+            [year],
+          );
+          const nextSerial = (rows?.[0]?.max ?? 0) + 1;
+
+          const repo = manager.getRepository<Circular>("Circular");
+          const newCircular = repo.create({
+            headline,
+            fileUrls,
+            embedding,
+            publishedAt,
+            uploadedAt,
+            serialNumber: nextSerial,
+            authorTicketNo,
+          });
+          const saved = await repo.save(newCircular);
+
+          // Insert all chunks in the SAME transaction.
+          for (const c of preparedChunks) {
+            await manager.query(
+              `
+                INSERT INTO public.circular_chunks (circular_id, chunk_index, text, embedding)
+                VALUES ($1, $2, $3, $4)
+              `,
+              [saved.id, c.index, c.text, c.embedding],
+            );
+          }
+
+          // Set the top-level vector column in the SAME transaction.
+          if (vectorLiteral) {
+            await manager.query(
+              `UPDATE public.circulars SET embedding = $1::vector WHERE id = $2`,
+              [vectorLiteral, saved.id],
+            );
+          }
+
+          return saved;
+        });
+        break; // committed
+      } catch (e: any) {
+        if (isUniqueViolation(e) && attempt < MAX_ATTEMPTS) {
+          console.warn(
+            `Serial collision for year ${year}, retry ${attempt}/${MAX_ATTEMPTS}`,
+          );
+          continue; // whole transaction rolled back; recompute serial and retry
+        }
+        throw e; // -> outer catch -> blob cleanup
       }
     }
+
+    if (!circular) {
+      throw new Error("Failed to assign a serial number after retries");
+    }
+
+    console.log(
+      "DEBUG: Committed circular id =",
+      circular.id,
+      "serial =",
+      circular.serialNumber,
+      "chunks =",
+      preparedChunks.length,
+    );
+
+    await cleanupTempFiles();
 
     return NextResponse.json({
       message: "Circular uploaded successfully",
       circular,
     });
   } catch (err: any) {
-    console.error("Upload failed:", err);
+    console.error(
+      "Upload failed — rolling back all bytes:",
+      err?.message || err,
+    );
+    // DB transaction already rolled back (or never opened). Remove blob bytes.
+    await cleanupBlobs();
+    await cleanupTempFiles();
     return NextResponse.json(
       { error: err?.message || "Upload failed" },
       { status: 500 },
@@ -310,8 +432,8 @@ export async function GET() {
         publishedAt: true,
       },
       order: {
-        publishedAt: "DESC", // 1. Groups by the parsed year/date first
-        id: "DESC", // 2. Sorts identical dates by newest insertion (highest ID)
+        publishedAt: "DESC",
+        id: "DESC",
       },
     });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useDropzone } from "react-dropzone";
 import {
@@ -10,9 +10,14 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import axios from "axios";
 import { useSession } from "next-auth/react";
+import { DateTime } from "luxon";
+import { DayPicker } from "react-day-picker";
 import { AnimatedInput } from "./AnimatedInput";
 
 type Props = {
@@ -38,6 +43,13 @@ export function CircularUploadModal({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Circular's issue date (the value sent as publishedAt).
+  const [publishedDate, setPublishedDate] = useState<DateTime | null>(null);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  const today = DateTime.local().startOf("day");
+
   const resetState = useCallback(() => {
     setHeadline("");
     setFile(null);
@@ -45,6 +57,8 @@ export function CircularUploadModal({
     setStatus("idle");
     setUploadProgress(0);
     setErrorMessage("");
+    setPublishedDate(null);
+    setIsCalendarOpen(false);
   }, []);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -67,7 +81,7 @@ export function CircularUploadModal({
       "application/pdf": [".pdf"],
     },
     maxFiles: 1,
-    maxSize: 15 * 1024 * 1024, // Enforces the 10MB strict limit
+    maxSize: 15 * 1024 * 1024, // Enforces the 15MB strict limit
   });
 
   useEffect(() => {
@@ -76,9 +90,25 @@ export function CircularUploadModal({
     };
   }, [preview]);
 
+  // Close the calendar popover when clicking outside it.
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        calendarRef.current &&
+        !calendarRef.current.contains(event.target as Node)
+      ) {
+        setIsCalendarOpen(false);
+      }
+    }
+    if (isCalendarOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isCalendarOpen]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!file || !headline) return;
+    if (!file || !headline || !publishedDate) return;
 
     setStatus("uploading");
     setErrorMessage("");
@@ -86,8 +116,10 @@ export function CircularUploadModal({
     const formData = new FormData();
     formData.append("headline", headline);
     formData.append("file", file);
+    // Send the circular's issue date as an ISO date (yyyy-mm-dd).
+    formData.append("publishedAt", publishedDate.toISODate() || "");
 
-    // 2. Append the ticket number from the active session
+    // Append the ticket number from the active session
     if (session?.user?.ticketNo) {
       formData.append("authorTicketNo", String(session.user.ticketNo));
     }
@@ -124,6 +156,41 @@ export function CircularUploadModal({
     onClose();
   };
 
+  const isBusy = status === "uploading" || status === "success";
+
+  // Shared react-day-picker styling — mirrors EventCalendar for symmetry.
+  const dayPickerClassNames: React.ComponentProps<
+    typeof DayPicker
+  >["classNames"] = {
+    root: "bg-white p-3 rounded-lg shadow-lg border border-neutral-200",
+    caption: "flex items-center justify-center mb-3 px-1 relative h-8",
+    caption_label: "sr-only",
+    caption_dropdowns: "flex items-center justify-center gap-1.0",
+    dropdown:
+      "appearance-none bg-transparent border-0 px-1 py-0.5 text-base font-bold font-heading text-neutral-800 cursor-pointer hover:text-primary-600 transition-colors focus:outline-none",
+    dropdown_month: "relative",
+    dropdown_year: "relative",
+    vhidden: "sr-only",
+    nav: "flex items-center space-x-1",
+    nav_button:
+      "p-1.5 rounded-md hover:bg-neutral-100 text-neutral-500 hover:text-neutral-700 transition-colors",
+    nav_button_previous: "absolute left-1 top-1/2 -translate-y-1/2",
+    nav_button_next: "absolute right-1 top-1/2 -translate-y-1/2",
+    table: "w-full border-collapse",
+    head_row: "flex mb-2",
+    head_cell:
+      "text-neutral-500 rounded-md font-medium text-[0.7rem] uppercase w-9 text-center",
+    row: "flex w-full mt-1",
+    cell: "text-center text-sm p-0 relative w-9",
+    day: "w-9 h-9 flex items-center justify-center rounded-full hover:bg-primary-100 transition-colors cursor-pointer",
+    day_selected:
+      "bg-primary-600 text-white hover:bg-primary-600 font-bold",
+    day_today: "font-bold text-primary-600",
+    day_outside: "text-neutral-300 opacity-50",
+    day_disabled: "text-neutral-300 opacity-40 cursor-not-allowed line-through",
+    day_hidden: "invisible",
+  };
+
   if (!isOpen) {
     return null;
   }
@@ -141,18 +208,16 @@ export function CircularUploadModal({
         className="bg-white/80 backdrop-blur-xl border border-white/30 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* FIX #2: Applied the global .modal-close-button style */}
         <button onClick={handleClose} className="modal-close-button">
           <X size={28} />
         </button>
 
-        {/* FIX #1: Removed the border-b class to eliminate the white line */}
         <header className="p-6">
           <h2 className="text-2xl font-bold font-heading text-neutral-800">
             Post New Circular
           </h2>
           <p className="text-neutral-500 mt-1">
-            Upload a headline and file (PDF, JPG, or PNG).
+            Upload a headline, issue date, and file (PDF, JPG, or PNG).
           </p>
         </header>
 
@@ -165,9 +230,65 @@ export function CircularUploadModal({
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 setHeadline(e.target.value)
               }
-              disabled={status === "uploading" || status === "success"}
+              disabled={isBusy}
               autoFocus={true}
             />
+
+            {/* Circular Issue Date — popover calendar (react-day-picker) */}
+            <div className="relative pt-4" ref={calendarRef}>
+              <span className="absolute left-0 -top-1.5 text-sm text-primary-600 font-medium">
+                Circular Date
+              </span>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => setIsCalendarOpen((o) => !o)}
+                className="w-full flex items-center justify-between bg-transparent px-2 py-1 text-lg tracking-wide text-neutral-800 font-mono border-b-2 border-neutral-400 focus:outline-none focus:border-primary-600 disabled:bg-neutral-100 disabled:border-neutral-200 disabled:cursor-not-allowed"
+              >
+                <span
+                  className={publishedDate ? "text-neutral-800" : "text-neutral-400"}
+                >
+                  {publishedDate
+                    ? publishedDate.toFormat("dd LLL yyyy")
+                    : "Select the circular's issue date"}
+                </span>
+                <CalendarIcon size={18} className="text-neutral-400" />
+              </button>
+
+              <AnimatePresence>
+                {isCalendarOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="absolute z-30 mt-2 left-0"
+                  >
+                    <DayPicker
+                      mode="single"
+                      captionLayout="dropdown"
+                      fromYear={2000}
+                      toYear={today.year}
+                      selected={publishedDate?.toJSDate()}
+                      // Block future dates — a circular can't be issued later than today.
+                      disabled={{ after: today.toJSDate() }}
+                      defaultMonth={(publishedDate ?? today).toJSDate()}
+                      onSelect={(d) => {
+                        if (d) {
+                          setPublishedDate(DateTime.fromJSDate(d).startOf("day"));
+                          setIsCalendarOpen(false);
+                        }
+                      }}
+                      classNames={dayPickerClassNames}
+                      components={{
+                        IconLeft: () => <ChevronLeft className="h-5 w-5" />,
+                        IconRight: () => <ChevronRight className="h-5 w-5" />,
+                      }}
+                      weekStartsOn={0}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             <div
               {...getRootProps()}
@@ -251,19 +372,14 @@ export function CircularUploadModal({
               type="button"
               onClick={handleClose}
               className="px-4 py-2 text-sm font-semibold text-neutral-700 bg-transparent rounded-md hover:bg-neutral-200 transition-colors"
-              disabled={status === "uploading" || status === "success"}
+              disabled={isBusy}
             >
               Cancel
             </button>
             <button
               type="submit"
               className="ml-3 px-6 py-2 text-sm font-semibold text-white bg-primary-600 rounded-md hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              disabled={
-                !file ||
-                !headline ||
-                status === "uploading" ||
-                status === "success"
-              }
+              disabled={!file || !headline || !publishedDate || isBusy}
             >
               {status === "uploading" ? (
                 <Loader2 className="animate-spin mr-2" size={16} />
