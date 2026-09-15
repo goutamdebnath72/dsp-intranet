@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
-import { AiOverview } from "@/components/AiOverview";
+import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import Link from "next/link";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
@@ -76,6 +76,25 @@ export function OmnibarModal({
     }
     return () => clearInterval(timer);
   }, [isLoading, mode]);
+
+  // Lock background page scroll while the omnibar is open so mouse-wheel
+  // scrolling inside the reply modal never bleeds through to the home page.
+  // Compensate for the scrollbar width so the page doesn't shift on lock.
+  useEffect(() => {
+    if (!isOpen) return;
+    const { body, documentElement: html } = document;
+    const scrollBarWidth = window.innerWidth - html.clientWidth;
+    const prevOverflow = body.style.overflow;
+    const prevPaddingRight = body.style.paddingRight;
+    body.style.overflow = "hidden";
+    if (scrollBarWidth > 0) {
+      body.style.paddingRight = `${scrollBarWidth}px`;
+    }
+    return () => {
+      body.style.overflow = prevOverflow;
+      body.style.paddingRight = prevPaddingRight;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && !selectedCircularId) {
@@ -215,7 +234,11 @@ export function OmnibarModal({
                   <button
                     type="button"
                     onClick={() => triggerSearch("title")}
+                    disabled={isLoading}
+                    aria-busy={isLoading}
                     className={`group relative inline-flex items-center gap-2 overflow-hidden rounded-xl border px-3.5 py-1.5 sm:px-4 sm:py-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 shrink-0 focus-visible:ring-2 focus-visible:ring-slate-400/60 ${
+                      isLoading ? "cursor-not-allowed opacity-60" : ""
+                    } ${
                       mode === "title"
                         ? "border-slate-800 bg-slate-900 text-white shadow-[0_6px_18px_rgba(15,23,42,0.24)]"
                         : "border-slate-200 bg-white/90 text-slate-600 shadow-sm hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:text-slate-900 hover:shadow-md"
@@ -242,7 +265,11 @@ export function OmnibarModal({
                   <button
                     type="button"
                     onClick={() => triggerSearch("semantic")}
+                    disabled={isLoading}
+                    aria-busy={isLoading}
                     className={`group relative inline-flex items-center gap-2 overflow-hidden rounded-xl border px-3.5 py-1.5 sm:px-4 sm:py-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 shrink-0 focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${
+                      isLoading ? "cursor-not-allowed opacity-60" : ""
+                    } ${
                       mode === "semantic"
                         ? "border-cyan-500 bg-gradient-to-r from-sky-600 to-cyan-500 !text-white shadow-[0_7px_22px_rgba(6,182,212,0.32)] hover:-translate-y-0.5 hover:border-cyan-400 hover:brightness-110 hover:shadow-[0_10px_28px_rgba(6,182,212,0.42)]"
                         : "border-slate-200 bg-white/90 text-slate-600 shadow-sm hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 hover:shadow-md"
@@ -282,14 +309,18 @@ export function OmnibarModal({
                   {/* Executive Deep Synthesis */}
                   <button
                     type="button"
-                    onClick={() => isExecutive && triggerSearch("intellectual")}
-                    disabled={!isExecutive}
+                    onClick={() =>
+                      isExecutive && !isLoading && triggerSearch("intellectual")
+                    }
+                    disabled={!isExecutive || isLoading}
                     title={
                       isExecutive
                         ? "Intellectual Executive Deep Synthesis"
                         : "Executive clearance required (Ticket # starting with 4)"
                     }
                     className={`group relative inline-flex items-center gap-2 overflow-hidden rounded-xl border px-3.5 py-1.5 sm:px-4 sm:py-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 shrink-0 ${
+                      isExecutive && isLoading ? "cursor-not-allowed opacity-60" : ""
+                    } ${
                       !isExecutive
                         ? "cursor-not-allowed border-slate-200 bg-slate-100/90 !text-slate-400 opacity-70 hover:!border-slate-200 hover:!bg-slate-100/90 hover:!text-slate-400"
                         : mode === "intellectual"
@@ -350,7 +381,7 @@ export function OmnibarModal({
                 </motion.div>
               </div>
 
-              <div className="overflow-y-auto p-2 flex-1">
+              <div className="overflow-y-auto overscroll-contain p-2 flex-1">
                 {isLoading && mode === "intellectual" ? (
                   <div className="py-12 flex flex-col items-center justify-center text-center">
                     <Loader2 className="h-8 w-8 animate-spin text-amber-600 mb-4" />
@@ -407,7 +438,10 @@ export function OmnibarModal({
                     {!isLoading && results.length > 0 && (
                       <div className="flex flex-col gap-4 p-1">
                         {mode === "intellectual" && synthesis && (
-                          <AiOverview content={synthesis} />
+                          <ExecutiveBriefing
+                            data={synthesis}
+                            onOpenCircular={setSelectedCircularId}
+                          />
                         )}
 
                         <div className="flex flex-col gap-1">

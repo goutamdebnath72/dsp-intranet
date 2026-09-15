@@ -1,6 +1,7 @@
 // src/hooks/useOmniSearch.ts
 import { useState, useEffect } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
+import type { SynthesisResult } from "@/lib/search/executiveSynthesis";
 
 export type SearchMode = "title" | "semantic" | "intellectual" | null;
 
@@ -16,7 +17,7 @@ export interface OmniSearchResult {
 }
 
 export interface OmniSearchResponse {
-  synthesis?: string;
+  synthesis?: SynthesisResult;
   results: OmniSearchResult[];
 }
 
@@ -80,7 +81,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     ? data
     : data?.results || [];
 
-  const synthesis: string | null =
+  const synthesis: SynthesisResult | null =
     !Array.isArray(data) && data?.synthesis ? data.synthesis : null;
 
   const isLoading = shouldFetch && isSwrLoading;

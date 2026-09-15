@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { executeTitleSearch } from "@/lib/search/titleSearch";
 import { executeSmartSemanticRouter } from "@/lib/search/smartSemanticRouter";
-import { executeExecutiveSynthesis } from "@/lib/search/executiveSynthesis";
+import {
+  executeExecutiveSynthesis,
+  type SynthesisResult,
+} from "@/lib/search/executiveSynthesis";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
 
@@ -16,6 +19,63 @@ const INDIC_SCRIPT_REGEX = /[\p{Script=Devanagari}\p{Script=Bengali}]/u;
 // Google Gemini embeddings for completely unrelated text (e.g., Honda spark plugs) score ~0.55 - 0.62.
 // Valid Hindi/Cross-lingual or long conversational queries score ~0.68 - 0.78.
 const ABSOLUTE_NOISE_FLOOR = 0.65;
+
+// A well-formed empty SynthesisResult so intellectual-mode always returns the
+// typed object the frontend expects — never a bare string.
+function emptyBriefing(message: string): SynthesisResult {
+  return {
+    overview: message,
+    keyFindings: [],
+    table: null,
+    charts: [],
+    citations: [],
+  };
+}
+
+// How much text of each source circular to hand the synthesis model. The UI
+// snippet stays short (pickReadableExcerpt); the synthesis needs the FULL
+// circular so figures living in a different chunk than the one that matched the
+// query (e.g. an OCR rate table) are actually in context.
+const SYNTH_CHARS_PER_CIRCULAR = 6000;
+
+// Fetch the complete chunk text of the given circulars (all chunks, in order)
+// and return a map id -> concatenated text. This is what feeds the synthesis,
+// independent of which single chunk matched the query vector.
+async function fetchFullCircularText(
+  dataSource: import("typeorm").DataSource,
+  ids: number[],
+): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (ids.length === 0) return out;
+  try {
+    const rows = await dataSource.query<
+      Array<{ circular_id: number; text: string }>
+    >(
+      `SELECT circular_id, text
+         FROM public.circular_chunks
+        WHERE circular_id = ANY($1::int[])
+        ORDER BY circular_id ASC, chunk_index ASC`,
+      [ids],
+    );
+    for (const r of rows) {
+      const prev = out.get(r.circular_id) || "";
+      if (prev.length >= SYNTH_CHARS_PER_CIRCULAR) continue;
+      out.set(
+        r.circular_id,
+        prev ? `${prev}\n${r.text || ""}` : r.text || "",
+      );
+    }
+    // clamp each to the budget
+    for (const [k, v] of out) {
+      if (v.length > SYNTH_CHARS_PER_CIRCULAR) {
+        out.set(k, v.slice(0, SYNTH_CHARS_PER_CIRCULAR));
+      }
+    }
+  } catch (e) {
+    console.warn("fetchFullCircularText failed; falling back to excerpts:", e);
+  }
+  return out;
+}
 
 // The content engine may concatenate several chunks of a document with
 // "\n\n". When the top-scoring chunk is OCR garbage (dense tables read as
@@ -209,7 +269,9 @@ export async function GET(request: Request) {
     if (qualifiedResults.length === 0) {
       if (mode === "intellectual") {
         return NextResponse.json({
-          synthesis: "No relevant circular records found to synthesize.",
+          synthesis: emptyBriefing(
+            "No relevant circular records found to synthesize.",
+          ),
           results: [],
         });
       }
@@ -231,15 +293,28 @@ export async function GET(request: Request) {
     }
 
     // --- MODE 3: EXECUTIVE DEEP SYNTHESIS ---
-    let synthesisText = "";
+    // Feed synthesis the FULL text of each source circular (all chunks), not
+    // the single readable UI excerpt — so figures in an unmatched chunk (e.g. a
+    // rate table) are in context. The UI list still shows the short excerpt.
+    let synthesis: SynthesisResult;
     if (topPrimarySources.length > 0) {
-      synthesisText = await executeExecutiveSynthesis(q, topPrimarySources);
+      const fullText = await fetchFullCircularText(
+        dataSource,
+        topPrimarySources.map((r) => r.id),
+      );
+      const synthesisSources = topPrimarySources.map((r) => ({
+        ...r,
+        chunkText: fullText.get(r.id) || r.chunkText,
+      }));
+      synthesis = await executeExecutiveSynthesis(q, synthesisSources);
     } else {
-      synthesisText = "No relevant circular records found to synthesize.";
+      synthesis = emptyBriefing(
+        "No relevant circular records found to synthesize.",
+      );
     }
 
     return NextResponse.json({
-      synthesis: synthesisText,
+      synthesis,
       results: topPrimarySources,
     });
   } catch (error) {

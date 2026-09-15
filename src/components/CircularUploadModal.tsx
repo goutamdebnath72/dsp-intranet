@@ -90,6 +90,22 @@ export function CircularUploadModal({
     };
   }, [preview]);
 
+  // Lock background page scroll while this modal is open so mouse-wheel
+  // scrolling inside the modal never bleeds through to the admin page behind it.
+  useEffect(() => {
+    if (!isOpen) return;
+    const { body, documentElement: html } = document;
+    const scrollBarWidth = window.innerWidth - html.clientWidth;
+    const prevOverflow = body.style.overflow;
+    const prevPaddingRight = body.style.paddingRight;
+    body.style.overflow = "hidden";
+    if (scrollBarWidth > 0) body.style.paddingRight = `${scrollBarWidth}px`;
+    return () => {
+      body.style.overflow = prevOverflow;
+      body.style.paddingRight = prevPaddingRight;
+    };
+  }, [isOpen]);
+
   // Close the calendar popover when clicking outside it.
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -205,12 +221,14 @@ export function CircularUploadModal({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 50 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
-        className="bg-white/80 backdrop-blur-xl border border-white/30 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col"
+        className="bg-white/80 backdrop-blur-xl border border-white/30 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
-        <button onClick={handleClose} className="modal-close-button">
-          <X size={28} />
-        </button>
+        <div className="sticky top-0 z-20 h-0 self-end pr-1">
+          <button onClick={handleClose} className="modal-close-button">
+            <X size={28} />
+          </button>
+        </div>
 
         <header className="p-6">
           <h2 className="text-2xl font-bold font-heading text-neutral-800">
