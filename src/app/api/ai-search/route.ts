@@ -22,7 +22,10 @@ const ABSOLUTE_NOISE_FLOOR = 0.65;
 // noise), we would rather SHOW the user a readable passage that still contains
 // their words. This picks the best candidate chunk for DISPLAY only — it never
 // affects ranking or which documents match.
-function pickReadableExcerpt(chunkText: string, tokens: string[]): string {
+function pickReadableExcerpt(
+  chunkText: string | null | undefined,
+  tokens: string[],
+): string {
   const raw = (chunkText || "").trim();
   if (!raw) return raw;
   const candidates = raw
