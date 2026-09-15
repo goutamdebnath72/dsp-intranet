@@ -1,14 +1,61 @@
 // src/app/api/circulars/route.ts
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import { put } from "@vercel/blob";
+import { put, del } from "@vercel/blob";
 import { getDb } from "@/lib/db";
 import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
-import { saveEmbeddingToVectorTable } from "@/lib/ai/saveEmbedding";
 import { fromPath } from "pdf2pic";
 import Tesseract from "tesseract.js";
+
+/* ============================================================
+   Dual-pass OCR for one page/image.
+
+   Two hard-won facts drove this:
+   1) tesseract.js's DEFAULT page-seg mode differs from the tesseract CLI and
+      mangles dense tables — it silently drops values like "20995.30". We must
+      set PSM 3 (fully automatic) EXPLICITLY; the old Tesseract.recognize(buf,
+      langs) call could not set it, which is why those values were lost.
+   2) Running hin+eng+ben on an ENGLISH page corrupts Latin alphanumerics —
+      the Devanagari/Bengali models hallucinate on codes, so a policy number
+      like "0315054224P110856231" came out garbled. An eng-only pass reads it
+      cleanly.
+
+   So each page is OCR'd twice at PSM 3 — once "eng" (clean Latin codes/
+   numbers), once "hin+eng+ben" (Indic content) — and both texts are kept.
+   Slower, but every script and every code survives. Display/search dedupe
+   downstream; recall is what matters here.
+============================================================ */
+async function ocrPageDualPass(
+  input: Buffer | Uint8Array,
+  label = "",
+): Promise<string> {
+  const passes = ["eng", "hin+eng+ben"];
+  let combined = "";
+  for (const langs of passes) {
+    let worker: any = null;
+    try {
+      worker = await Tesseract.createWorker(langs);
+      // PSM 3 = fully automatic page segmentation (the value the CLI uses).
+      await worker.setParameters({
+        tessedit_pageseg_mode: "3" as any,
+      });
+      const {
+        data: { text },
+      } = await worker.recognize(input);
+      combined += (text || "") + "\n";
+    } catch (err) {
+      console.error(
+        `OCR pass "${langs}" failed${label ? " on " + label : ""}:`,
+        (err as any)?.message || err,
+      );
+    } finally {
+      if (worker) await worker.terminate().catch(() => {});
+    }
+  }
+  return combined;
+}
 
 /* ============================================================
    Extract textual content from PDF buffer 
@@ -69,6 +116,31 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 export async function POST(req: Request) {
   const dataSource = await getDb();
 
+  // Every blob byte written this request, for compensating cleanup on failure.
+  const uploadedBlobUrls: string[] = [];
+  // Temp files on disk to remove regardless of outcome.
+  const tempFiles: string[] = [];
+
+  const cleanupTempFiles = async () => {
+    await Promise.all(tempFiles.map((p) => fs.unlink(p).catch(() => {})));
+  };
+
+  const cleanupBlobs = async () => {
+    if (uploadedBlobUrls.length === 0) return;
+    try {
+      await del(uploadedBlobUrls); // accepts one URL or an array
+      console.log(
+        `ROLLBACK: deleted ${uploadedBlobUrls.length} orphan blob(s).`,
+      );
+    } catch (e: any) {
+      console.error(
+        "ROLLBACK WARNING: failed to delete some blobs:",
+        e?.message || e,
+        uploadedBlobUrls,
+      );
+    }
+  };
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
@@ -119,6 +191,12 @@ export async function POST(req: Request) {
     const fileUrls: string[] = [];
     let ocrAccumulatedText = "";
 
+    /* ============================================================
+       PHASE A — persist blobs + run every fallible step. Any throw
+       here jumps to the catch, which deletes all tracked blobs. No DB
+       row exists yet, so a failure leaves ZERO database trace.
+    ============================================================ */
+
     /* IMAGE HANDLING */
     if (file.type.startsWith("image/")) {
       const key = `circulars/${Date.now()}_${file.name}`;
@@ -126,13 +204,12 @@ export async function POST(req: Request) {
         access: "public",
         contentType: file.type,
       });
+      uploadedBlobUrls.push(url);
       fileUrls.push(url);
 
       try {
-        console.log("DEBUG: Running Trilingual OCR on image...");
-        const {
-          data: { text },
-        } = await Tesseract.recognize(fileBytes, "hin+eng+ben");
+        console.log("DEBUG: Running dual-pass OCR (PSM 3) on image...");
+        const text = await ocrPageDualPass(fileBytes, "image");
         ocrAccumulatedText += text + " ";
       } catch (err) {
         console.error("OCR failed on image:", err);
@@ -140,6 +217,7 @@ export async function POST(req: Request) {
     } else if (file.type === "application/pdf") {
       /* PDF via pdf2pic */
       const tempPdfPath = `/tmp/pdf_${Date.now()}.pdf`;
+      tempFiles.push(tempPdfPath);
       await fs.writeFile(tempPdfPath, fileBytes);
 
       const options = {
@@ -165,28 +243,26 @@ export async function POST(req: Request) {
           );
           continue;
         }
+        tempFiles.push(pngPath);
         const pngBuffer = await fs.readFile(pngPath);
         const key = `circulars/${Date.now()}_page_${page}.png`;
         const { url } = await put(key, pngBuffer, {
           access: "public",
           contentType: "image/png",
         });
+        uploadedBlobUrls.push(url);
         fileUrls.push(url);
 
         try {
-          console.log(`DEBUG: Running Trilingual OCR on PDF page ${page}...`);
-          const {
-            data: { text },
-          } = await Tesseract.recognize(pngBuffer, "hin+eng+ben");
+          console.log(
+            `DEBUG: Running dual-pass OCR (PSM 3) on PDF page ${page}...`,
+          );
+          const text = await ocrPageDualPass(pngBuffer, `page ${page}`);
           ocrAccumulatedText += text + " \n";
         } catch (err) {
           console.error(`OCR failed on page ${page}:`, err);
         }
-
-        await fs.unlink(pngPath).catch(() => {});
       }
-
-      await fs.unlink(tempPdfPath).catch(() => {});
     } else {
       console.warn("Unsupported file type:", file.type);
       return NextResponse.json(
@@ -196,7 +272,7 @@ export async function POST(req: Request) {
     }
 
     /* ============================
-       TEXT extraction + embedding
+       TEXT extraction
     ============================ */
     let extractedText = await extractTextFromPDF(fileBytes);
 
@@ -212,47 +288,68 @@ export async function POST(req: Request) {
     extractedText = (extractedText || "").replace(/\s+/g, " ").trim();
     console.log("DEBUG: Final extractedText length =", extractedText?.length);
 
+    /* ============================
+       TOP-LEVEL embedding (fatal if it throws — a circular that is not
+       searchable must not be saved as a success).
+    ============================ */
     let embedding: number[] | null = null;
     if (extractedText && extractedText.length > 20) {
-      try {
-        const safeEmbeddingText =
-          extractedText.length > 8192
-            ? extractedText.slice(0, 8192)
-            : extractedText;
-
-        embedding = await generateEmbedding(safeEmbeddingText);
-      } catch (err: any) {
-        console.error("DEBUG: generateEmbedding threw:", err?.message || err);
-        embedding = null;
-      }
+      const safeEmbeddingText =
+        extractedText.length > 8192
+          ? extractedText.slice(0, 8192)
+          : extractedText;
+      embedding = await generateEmbedding(safeEmbeddingText);
     }
 
     /* ============================
-       CREATE DB ROW VIA TYPEORM
-       serialNumber is auto-assigned as MAX+1 for the circular's YEAR.
-       Two layers protect against duplicate serials:
-         1) A transaction with FOR UPDATE locks that year's existing rows.
-         2) A UNIQUE INDEX on (year, serialNumber) in Postgres is the final
-            guard — it also covers the "first upload of a brand-new year"
-            race, where there are no rows yet to lock. If two uploads collide
-            there, the DB rejects the loser and we retry with a fresh MAX+1.
+       ALL CHUNK embeddings, computed BEFORE any DB write. A failure to
+       embed ANY chunk aborts the whole upload — we never store a
+       null-embedding (unsearchable) chunk and then report success.
     ============================ */
+    type PreparedChunk = { index: number; text: string; embedding: string };
+    const preparedChunks: PreparedChunk[] = [];
+
+    if (extractedText && extractedText.length > 0) {
+      const words = extractedText.split(/\s+/);
+      const chunkSize = 200;
+      let chunkIndex = 0;
+
+      for (let i = 0; i < words.length; i += chunkSize) {
+        const chunkText = words.slice(i, i + chunkSize).join(" ");
+        const rawVector = await generateEmbedding(chunkText); // fatal on throw
+        preparedChunks.push({
+          index: chunkIndex,
+          text: chunkText,
+          embedding: `[${rawVector.join(",")}]`,
+        });
+        chunkIndex++;
+      }
+      console.log("DEBUG: Prepared", preparedChunks.length, "chunk embeddings");
+    }
+
+    const vectorLiteral = embedding ? `[${embedding.join(",")}]` : null;
+
+    /* ============================================================
+       PHASE B — single transaction: row + chunks + vector column.
+       Serial is assigned MAX+1 per YEAR under a transaction-scoped
+       advisory lock; a unique index on (year, serialNumber) is the final
+       guard. On a unique collision the WHOLE transaction is retried, so
+       row+chunks+vector always commit together or not at all.
+    ============================================================ */
     const year = publishedAt.year;
 
-    // Postgres unique_violation
     const isUniqueViolation = (e: any) =>
       e?.code === "23505" ||
       /duplicate key value|unique constraint/i.test(e?.message || "");
 
     let circular: Circular | null = null;
     const MAX_ATTEMPTS = 5;
+
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         circular = await dataSource.transaction(async (manager) => {
-          // Serialize concurrent uploads for the SAME year with a
-          // transaction-scoped advisory lock keyed on the year. This avoids
-          // the illegal "MAX() ... FOR UPDATE" (aggregate + row lock) combo
-          // and also covers the empty-year case (no rows to lock yet).
+          // Serialize concurrent uploads for the SAME year; also covers the
+          // empty-year case (no rows to lock yet).
           await manager.query(`SELECT pg_advisory_xact_lock($1)`, [year]);
 
           const rows: Array<{ max: number | null }> = await manager.query(
@@ -275,17 +372,40 @@ export async function POST(req: Request) {
             serialNumber: nextSerial,
             authorTicketNo, // strictly string | undefined
           });
-          return repo.save(newCircular);
+          const saved = await repo.save(newCircular);
+
+          // Insert every chunk in the SAME transaction.
+          for (const c of preparedChunks) {
+            await manager.query(
+              `
+                INSERT INTO public.circular_chunks (circular_id, chunk_index, text, embedding)
+                VALUES ($1, $2, $3, $4)
+              `,
+              [saved.id, c.index, c.text, c.embedding],
+            );
+          }
+
+          // Set the top-level vector column in the SAME transaction, using an
+          // explicit ::vector cast (this is what saveEmbeddingToVectorTable
+          // used to do post-commit; folded in so it is atomic too).
+          if (vectorLiteral) {
+            await manager.query(
+              `UPDATE public.circulars SET embedding = $1::vector WHERE id = $2`,
+              [vectorLiteral, saved.id],
+            );
+          }
+
+          return saved;
         });
-        break; // success
+        break; // committed
       } catch (e: any) {
         if (isUniqueViolation(e) && attempt < MAX_ATTEMPTS) {
           console.warn(
             `Serial collision for year ${year}, retry ${attempt}/${MAX_ATTEMPTS}`,
           );
-          continue; // another upload took our number — recompute and retry
+          continue; // whole transaction rolled back; recompute serial + retry
         }
-        throw e;
+        throw e; // -> outer catch -> blob cleanup
       }
     }
 
@@ -294,67 +414,28 @@ export async function POST(req: Request) {
     }
 
     console.log(
-      "DEBUG: DB created circular id =",
-      circular?.id,
+      "DEBUG: Committed circular id =",
+      circular.id,
       "serial =",
-      circular?.serialNumber,
+      circular.serialNumber,
+      "chunks =",
+      preparedChunks.length,
     );
 
-    /* === SAVE CHUNKS VIA PARAMETERIZED RAW SQL QUERY === */
-    if (extractedText && extractedText.length > 0) {
-      const words = extractedText.split(/\s+/);
-      const chunkSize = 200;
-      let chunkIndex = 0;
-
-      for (let i = 0; i < words.length; i += chunkSize) {
-        const chunkText = words.slice(i, i + chunkSize).join(" ");
-
-        let chunkEmbeddingString = null;
-        try {
-          const rawVector = await generateEmbedding(chunkText);
-          chunkEmbeddingString = `[${rawVector.join(",")}]`;
-        } catch (err) {
-          console.error(`DEBUG: Failed to embed chunk ${chunkIndex}`);
-        }
-
-        await dataSource.query(
-          `
-            INSERT INTO public.circular_chunks (circular_id, chunk_index, text, embedding)
-            VALUES ($1, $2, $3, $4)
-          `,
-          [circular.id, chunkIndex, chunkText, chunkEmbeddingString],
-        );
-
-        chunkIndex++;
-      }
-      console.log(
-        "DEBUG: Saved",
-        Math.ceil(words.length / chunkSize),
-        "vectorized chunks to database",
-      );
-    }
-
-    if (embedding && circular && circular.id) {
-      try {
-        await saveEmbeddingToVectorTable(
-          circular.id,
-          embedding,
-          Number(process.env.EMBEDDING_DIM || 768),
-        );
-      } catch (err: any) {
-        console.error(
-          "DEBUG: saveEmbeddingToVectorTable failed:",
-          err?.message || err,
-        );
-      }
-    }
+    await cleanupTempFiles();
 
     return NextResponse.json({
       message: "Circular uploaded successfully",
       circular,
     });
   } catch (err: any) {
-    console.error("Upload failed:", err);
+    console.error(
+      "Upload failed — rolling back all bytes:",
+      err?.message || err,
+    );
+    // The DB transaction (if any) has already rolled back; remove blob bytes.
+    await cleanupBlobs();
+    await cleanupTempFiles();
     return NextResponse.json(
       { error: err?.message || "Upload failed" },
       { status: 500 },

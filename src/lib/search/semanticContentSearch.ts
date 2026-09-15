@@ -27,11 +27,23 @@ export async function executeContentSearch(
   const mode = classifyQuoted(safeQ);
   const cleanQ = mode.phrase;
 
+  // An "exact-token" query is a single token containing a digit (a number or
+  // an alphanumeric code like 20995.30 or a policy number). The user typed it
+  // to find that EXACT string. If it is not present literally in the corpus,
+  // the honest answer is "nothing" — NOT the semantically-nearest unrelated
+  // chunk. This prevents e.g. "20995.30" surfacing a Volleyball circular.
+  const isExactTokenQuery =
+    !/\s/.test(cleanQ) && /\d/.test(cleanQ) && cleanQ.length >= 4;
+
   // $2 is used by whichever operator the literal branch selects:
   //   - whole-word (quoted Latin) -> case-insensitive POSIX regex ~* \yphrase\y
   //   - otherwise                 -> ILIKE %phrase%
   const literalParam = mode.wholeWord
-    ? `\\y${escapeRegex(cleanQ)}\\y`
+    ? // POSIX ERE has no lookbehind, so express "not flanked by a letter or
+      // digit" with explicit boundary groups. This anchors codes with internal
+      // punctuation ("HR-CLC", "DSP/PERS-NW") as whole tokens — POSIX \y wrapped
+      // around a hyphenated string does not. The ~* operator is case-insensitive.
+      `(^|[^A-Za-z0-9])${escapeRegex(cleanQ)}([^A-Za-z0-9]|$)`
     : `%${cleanQ}%`;
 
   // Operator + expression fragments differ by mode but reference the SAME $2,
@@ -41,6 +53,46 @@ export async function executeContentSearch(
     ? "c.headline ~* $2"
     : "c.headline ILIKE $2";
   const literalPredicate = `(${litText} OR ${litHead})`;
+
+  // --- Per-token literal rescue (unquoted, multi-word, Latin queries) ---
+  // The whole-string literal above only fires when a chunk contains the ENTIRE
+  // query verbatim. A natural-language query ("format B declaration for SIR")
+  // rarely appears verbatim, yet its significant tokens ("format","declaration",
+  // "sir") do live in the target chunk. So for an UNQUOTED, non-Indic query with
+  // 2+ meaningful tokens, we also match chunks that contain a strong share of
+  // those tokens. Quoted queries and Indic queries are untouched.
+  const INDIC = /[\p{Script=Devanagari}\p{Script=Bengali}]/u;
+  const STOP = new Set([
+    "the","a","an","of","for","to","in","on","by","is","are","and","or",
+    "how","what","where","when","why","can","if","do","i","my","me","we",
+    "our","you","your","with","at","as","from","this","that","be","will",
+  ]);
+  const tokenParams: string[] = [];
+  let tokenPredicate = "";
+  if (!mode.isQuoted && !INDIC.test(cleanQ)) {
+    const toks = cleanQ
+      .toLowerCase()
+      .split(/\s+/)
+      .map((t) => t.replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ""))
+      .filter((t) => t.length > 2 && !STOP.has(t));
+    // de-dup, cap to keep the SQL sane
+    const uniq = Array.from(new Set(toks)).slice(0, 8);
+    if (uniq.length >= 2) {
+      // Each token -> its own ILIKE param; a chunk/headline matching ANY of
+      // them is admitted (ranking below still rewards more/where matches).
+      const parts: string[] = [];
+      uniq.forEach((t) => {
+        parts.push(`cc.text ILIKE $${3 + tokenParams.length}`);
+        tokenParams.push(`%${t}%`);
+      });
+      tokenPredicate = `(${parts.join(" OR ")})`;
+    }
+  }
+
+  // Combined literal side = whole-string literal OR the per-token rescue.
+  const literalOrTokens = tokenPredicate
+    ? `(${literalPredicate} OR ${tokenPredicate})`
+    : literalPredicate;
 
   try {
     const rawEmbedding = await generateEmbedding(safeQ, "search_query");
@@ -58,13 +110,15 @@ export async function executeContentSearch(
         c."publishedAt",
         cc.text AS "chunkText",
         (1 - (cc.embedding <=> $1::vector(768))) AS base_similarity,
-        (CASE WHEN ${literalPredicate} THEN 2.0 ELSE 0 END) AS literal_boost
+        (CASE WHEN ${literalPredicate} THEN 2.0 ELSE 0 END) AS literal_boost,
+        (CASE WHEN ${tokenPredicate || 'FALSE'} THEN 0.75 ELSE 0 END) AS token_boost
       FROM circular_chunks cc
       JOIN circulars c ON c.id = cc.circular_id
       WHERE cc.embedding IS NOT NULL 
-        AND (${literalPredicate} OR (1 - (cc.embedding <=> $1::vector(768))) > 0.50)
+        AND (${literalOrTokens} OR (1 - (cc.embedding <=> $1::vector(768))) > 0.50)
       ORDER BY (
-        (CASE WHEN ${literalPredicate} THEN 2.0 ELSE 0 END) + 
+        (CASE WHEN ${literalPredicate} THEN 2.0 ELSE 0 END) +
+        (CASE WHEN ${tokenPredicate || 'FALSE'} THEN 0.75 ELSE 0 END) +
         (1 - (cc.embedding <=> $1::vector(768)))
       ) DESC
       LIMIT 20;
@@ -73,6 +127,7 @@ export async function executeContentSearch(
     const matches = await dataSource.query<any[]>(hybridQuerySql, [
       vectorString,
       literalParam,
+      ...tokenParams,
     ]);
 
     let hasExactMatch = false;
@@ -86,13 +141,17 @@ export async function executeContentSearch(
       for (const m of matches) {
         const rawSim = Number(m.base_similarity) || 0;
         const literalBoost = Number(m.literal_boost) || 0;
+        const tokenBoost = Number(m.token_boost) || 0;
 
         if (literalBoost > 0) hasExactMatch = true;
 
-        // Strict floor: Only process if it has a literal match OR a strong semantic correlation
-        if (literalBoost === 0 && rawSim < 0.6) continue;
+        // Floor: keep a chunk if it has the whole-string literal, OR a strong
+        // semantic score, OR a per-token lexical hit (the rescue path). Without
+        // the tokenBoost clause the rescued chunks would be dropped here.
+        if (literalBoost === 0 && tokenBoost === 0 && rawSim < 0.6) continue;
 
-        const score = rawSim + literalBoost;
+        // literal (2.0) ranks above token (0.75) ranks above pure vector.
+        const score = rawSim + literalBoost + tokenBoost;
 
         if (!docMap.has(m.id)) {
           docMap.set(m.id, {
@@ -114,6 +173,12 @@ export async function executeContentSearch(
             existing.chunkText += `\n\n${m.chunkText}`;
           }
         }
+      }
+
+      // Exact-token query with no literal match anywhere -> return empty
+      // rather than vector-fallback junk.
+      if (isExactTokenQuery && !hasExactMatch) {
+        return { uniqueResults: [], isFallback: false, hasExactMatch: false };
       }
 
       const results = Array.from(docMap.values()).sort(

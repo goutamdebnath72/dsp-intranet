@@ -48,9 +48,14 @@ const CASES = [
   { group: "D", q: "How much deposit is required to keep a 2-bedroom quarter in Delhi after retirement?", expectHeadline: "Retention of Company" },
   { group: "D", q: "तेलुगु, तमिल, कन्नड़, मलयालम, मिजो", expectHeadline: "HTS" },
 
-  // Group E — known-bad (OCR corruption). Expected to stay empty until re-OCR.
+  // Group E — OCR-recovery checks.
+  // Bare 20995.30 now resolves after the dual-pass PSM-3 OCR fix recovered the
+  // wage-table value. The QUOTED "Rs. 20995.30" stays empty on purpose: "Rs."
+  // is a column header and "20995.30" a separate cell, so that exact contiguous
+  // phrase does not exist in the document. The quoted Telugu list stays empty
+  // (OCR still drops those specific Indic tokens in that table).
   { group: "E", q: '"Rs. 20995.30"',  expectEmpty: true },
-  { group: "E", q: "20995.30",        expectEmpty: true },
+  { group: "E", q: "20995.30",        expectHeadline: "Daily Rate of Wages" },
   { group: "E", q: '"तेलुगु, तमिल, कन्नड़, मलयालम, मिजो"', expectEmpty: true },
 ];
 

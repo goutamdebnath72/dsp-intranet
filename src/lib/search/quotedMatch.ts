@@ -38,6 +38,13 @@ export function classifyQuoted(raw: string): QuotedMode {
   const isQuoted = isDoubleQuoted(trimmed);
   const phrase = isQuoted ? trimmed.slice(1, -1).trim() : trimmed;
   const hasIndic = INDIC_SCRIPT_REGEX.test(phrase);
+  // Whole-word applies to any quoted Latin phrase, INCLUDING codes that
+  // contain punctuation ("HR-CLC", "DSP/PERS-NW", "bams.saildsp.co.in").
+  // The boundary is defined as "not flanked by a letter or digit" (see
+  // wordBoundaryRegexSource / the SQL branch) rather than POSIX \y, because
+  // \y wrapped around a hyphenated token does not anchor at internal
+  // punctuation. Indic phrases stay substring (\y is unreliable for those
+  // scripts).
   return {
     isQuoted,
     phrase,
@@ -58,7 +65,10 @@ export function escapeRegex(s: string): string {
  */
 export function highlightRegexSource(mode: QuotedMode): string {
   const esc = escapeRegex(mode.phrase);
-  return mode.wholeWord ? `\\b${esc}\\b` : esc;
+  // Boundary = not preceded/followed by a letter or digit. Works for codes
+  // with internal punctuation, unlike \b (which treats "-" and "/" as
+  // boundaries and so cannot anchor "HR-CLC" as one token).
+  return mode.wholeWord ? `(?<![A-Za-z0-9])${esc}(?![A-Za-z0-9])` : esc;
 }
 
 /**
@@ -75,9 +85,13 @@ export function literalPhraseMatches(
   if (!mode.phrase) return false;
 
   if (mode.wholeWord) {
-    // \b is ASCII-word-boundary in JS; the phrase is Latin-only here so that
-    // is exactly right. `i` => case-insensitive (option 1).
-    const re = new RegExp(`\\b${escapeRegex(mode.phrase)}\\b`, "i");
+    // Boundary = not flanked by a letter/digit, so codes with internal
+    // punctuation ("HR-CLC", "DSP/PERS-NW") anchor correctly. `i` =>
+    // case-insensitive (OCR corpus is case-noisy).
+    const re = new RegExp(
+      `(?<![A-Za-z0-9])${escapeRegex(mode.phrase)}(?![A-Za-z0-9])`,
+      "i",
+    );
     return re.test(hay);
   }
 
