@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useMemo } from "react";
 import { X } from "lucide-react";
-import { useTypewriter } from "@/hooks/useTypewriter";
 import { DateTime } from "luxon";
+import { sanitizeAnnouncementHtml } from "@/lib/announcements/contentProcessing";
 
 // --- 2. ADDED NEW ANNOUNCEMENT TYPE ---
 // This type matches the data our API now sends
@@ -23,17 +23,18 @@ type Props = {
 };
 
 export default function AnnouncementModal({ announcement, onClose }: Props) {
-  const typedContent = useTypewriter(announcement.content || "", 20);
   // This line is correct because the date is a string from the API
   const announcementDate = DateTime.fromISO(announcement.date);
 
+  // The body is stored as sanitized rich-text HTML. Render it as formatted
+  // markup (not escaped text). Sanitize again on the client as defense in
+  // depth — safe content stays identical; anything unexpected is stripped.
+  const safeHtml = useMemo(
+    () => sanitizeAnnouncementHtml(announcement.content || ""),
+    [announcement.content],
+  );
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      container.scrollTop = container.scrollHeight;
-    }
-  }, [typedContent]);
 
   // Lock background page scroll while this modal is mounted so mouse-wheel
   // scrolling inside it (including over the fixed header) never bleeds through
@@ -65,7 +66,7 @@ export default function AnnouncementModal({ announcement, onClose }: Props) {
           <X size={24} />
         </button>
 
-        <div className="p-6 border-b flex-shrink-0">
+        <div className="p-6 pr-14 border-b flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-800">
             {announcement.title}
           </h2>
@@ -74,10 +75,20 @@ export default function AnnouncementModal({ announcement, onClose }: Props) {
           </p>
         </div>
 
-        <div ref={scrollContainerRef} className="p-6 overflow-y-auto overscroll-contain">
-          <p className="text-base text-gray-700 whitespace-pre-wrap">
-            {typedContent}
-          </p>
+        <div
+          ref={scrollContainerRef}
+          className="p-6 overflow-y-auto overscroll-contain"
+        >
+          {safeHtml ? (
+            <div
+              className="announcement-content text-base text-gray-700 leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: safeHtml }}
+            />
+          ) : (
+            <p className="text-base text-gray-400 italic">
+              No additional details.
+            </p>
+          )}
         </div>
       </div>
     </div>

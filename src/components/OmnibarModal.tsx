@@ -17,7 +17,7 @@ import { useOmniSearch } from "@/hooks/useOmniSearch";
 import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { Tooltip } from "@/components/Tooltip";
-import Link from "next/link";
+import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 
 interface OmnibarModalProps {
@@ -55,6 +55,10 @@ export function OmnibarModal({
   // Whether the user has dismissed the "Target Clause Reference" banner for the
   // currently-open circular. Reset each time a new circular is opened/closed.
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  // Full announcement (with HTML content) fetched on click, to open the modal.
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(
+    null,
+  );
 
   const currentMaxWidthRem =
     mode === "intellectual"
@@ -139,6 +143,20 @@ export function OmnibarModal({
       e.preventDefault();
       setBannerDismissed(false);
       setSelectedCircularId(result.id);
+      return;
+    }
+    if (result.type === "announcement") {
+      e.preventDefault();
+      // Search rows carry only plain text; fetch the full announcement (with
+      // its rich-text HTML) so the modal renders formatting correctly.
+      fetch(`/api/announcements/${result.id}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data) setSelectedAnnouncement(data);
+        })
+        .catch(() => {
+          // Non-fatal: if the fetch fails, simply do nothing.
+        });
     }
   };
 
@@ -149,7 +167,7 @@ export function OmnibarModal({
   return (
     <>
       <AnimatePresence>
-        {isOpen && !selectedCircularId && (
+        {isOpen && !selectedCircularId && !selectedAnnouncement && (
           <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 sm:pt-24 px-4">
             <motion.div
               initial={{ opacity: 0 }}
@@ -561,10 +579,7 @@ export function OmnibarModal({
                                     )}
                                 </>
                               ) : (
-                                <Link
-                                  href={result.url ?? "#"}
-                                  className="flex flex-col gap-2"
-                                >
+                                <div className="flex flex-col gap-2">
                                   <div className="flex items-start gap-4">
                                     <div
                                       className={`p-2 rounded-md ${
@@ -641,7 +656,7 @@ export function OmnibarModal({
                                         </div>
                                       </div>
                                     )}
-                                </Link>
+                                </div>
                               )}
                             </div>
                           ))}
@@ -696,6 +711,14 @@ export function OmnibarModal({
             </motion.div>
           )}
       </AnimatePresence>
+
+      {/* Announcement modal (rich-text body) */}
+      {selectedAnnouncement && (
+        <AnnouncementModal
+          announcement={selectedAnnouncement}
+          onClose={() => setSelectedAnnouncement(null)}
+        />
+      )}
 
       {/* Lightbox Viewer */}
       <CircularViewerLightbox

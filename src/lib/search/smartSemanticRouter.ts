@@ -3,8 +3,9 @@ import { DataSource } from "typeorm";
 import { executePolicySearch } from "./semanticPolicySearch";
 import { executeContentSearch } from "./semanticContentSearch";
 import { SearchResultRow } from "./titleSearch";
+import { executeAnnouncementSemanticSearch } from "./announcementSemanticSearch";
 
-export async function executeSmartSemanticRouter(
+async function executeCircularRouter(
   dataSource: DataSource,
   q: string,
 ): Promise<{ uniqueResults: SearchResultRow[]; isFallback: boolean }> {
@@ -91,4 +92,53 @@ export async function executeSmartSemanticRouter(
     "[Smart Semantic Router] Resolution: No exact text match. Policy Engine wins.",
   );
   return policyResults;
+}
+
+
+/**
+ * Public entry point. Runs the circular router and the announcement semantic
+ * search in parallel, then merges both streams into one ranked list tagged by
+ * `type`. Announcements are ADDITIVE — they never displace the circular
+ * engine's carefully-tuned exact-match behaviour; they interleave by score.
+ */
+export async function executeSmartSemanticRouter(
+  dataSource: DataSource,
+  q: string,
+): Promise<{ uniqueResults: SearchResultRow[]; isFallback: boolean }> {
+  const safeQ = (q || "").trim();
+  if (!safeQ) return { uniqueResults: [], isFallback: false };
+
+  const [circular, announcements] = await Promise.all([
+    executeCircularRouter(dataSource, safeQ),
+    executeAnnouncementSemanticSearch(dataSource, safeQ),
+  ]);
+
+  // No announcement hits -> return the circular result untouched (preserves
+  // the exact circular-only behaviour, including empty exact-token misses).
+  if (announcements.length === 0) {
+    return circular;
+  }
+
+  // Merge and rank by the similarity each engine reported. Both scales are the
+  // same 0..1 vector similarity (+ literal boost folded into ordering already),
+  // so a shared sort is fair. De-dup defensively by type+id.
+  const seen = new Set<string>();
+  const merged: SearchResultRow[] = [];
+  for (const r of [...circular.uniqueResults, ...announcements]) {
+    const key = `${r.type}-${r.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(r);
+  }
+
+  merged.sort((a, b) => {
+    const sa = typeof a.similarity === "number" ? a.similarity : 0;
+    const sb = typeof b.similarity === "number" ? b.similarity : 0;
+    return sb - sa;
+  });
+
+  return {
+    uniqueResults: merged.slice(0, 8),
+    isFallback: circular.isFallback,
+  };
 }

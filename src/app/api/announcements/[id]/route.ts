@@ -6,6 +6,11 @@ import { getAuthOptions } from "@/lib/auth";
 import { Announcement } from "@/lib/db/models/announcement.model";
 import { DateTime } from "luxon";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
+import {
+  sanitizeAnnouncementHtml,
+  htmlToPlainText,
+} from "@/lib/announcements/contentProcessing";
+import { embedAnnouncement } from "@/lib/announcements/embedAnnouncement";
 
 export async function GET(
   request: Request,
@@ -76,15 +81,47 @@ export async function PATCH(
     }
 
     const { title, content } = await request.json();
+    const titleChanged =
+      typeof title === "string" && title && title !== announcement.title;
     announcement.title = title || announcement.title;
-    announcement.content =
-      content !== undefined ? content : announcement.content;
+
+    // Re-sanitize + re-derive the plain-text projection on edit so display
+    // stays safe and search stays in sync with the new body.
+    let bodyChanged = false;
+    if (content !== undefined) {
+      const safeContent = sanitizeAnnouncementHtml(content);
+      announcement.content = safeContent || undefined;
+      announcement.contentText = htmlToPlainText(safeContent) || null;
+      bodyChanged = true;
+    }
 
     await announcementRepo.save(announcement);
+
+    // Re-index only when the searchable text actually changed.
+    if (titleChanged || bodyChanged) {
+      await embedAnnouncement(
+        announcement.id,
+        announcement.title,
+        announcement.contentText,
+      );
+    }
+
     return NextResponse.json(announcement);
-  } catch (error) {
+  } catch (error: any) {
+    // Surface the real cause instead of swallowing it — makes a PATCH failure
+    // debuggable in the server log and (in dev) the response.
+    console.error(
+      `PATCH /api/announcements failed for id=${announcementId}:`,
+      error?.stack || error?.message || error,
+    );
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      {
+        error: "Internal Server Error",
+        detail:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error?.message || String(error),
+      },
       { status: 500 },
     );
   }
@@ -129,12 +166,44 @@ export async function DELETE(
       );
     }
 
-    await announcementRepo.remove(announcement);
+    // ---- ATOMIC DB DELETE (single transaction) ----
+    // Mirror the circular delete's rigor: remove every dependent row and the
+    // announcement itself together so a mid-delete failure rolls the whole
+    // thing back — never leaving an orphaned read-status row. There is no
+    // DB-level FK cascade here (schema is synchronize:false, table made by
+    // manual SQL), so the child rows MUST be deleted explicitly.
+    //
+    // Nothing else to clean up: the embedding is a column ON this row (gone
+    // with it), and announcements have no blob/file storage.
+    await dataSource.transaction(async (manager) => {
+      // 1. Delete the child read-status rows (no cascade defined in the DB).
+      await manager.query(
+        `DELETE FROM public.announcementreadstatus WHERE "announcementId" = $1`,
+        [announcementId],
+      );
+
+      // 2. Delete the announcement row itself (embedding column included).
+      await manager.query(`DELETE FROM public.announcement WHERE id = $1`, [
+        announcementId,
+      ]);
+    });
+
     return NextResponse.json({ message: "Deleted successfully" });
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+    // Surface the real cause instead of swallowing it — makes a DELETE failure
+    // debuggable in the server log and (in dev) the response.
+    console.error(
+      `DELETE /api/announcements failed for id=${announcementId}:`,
+      error?.stack || error?.message || error,
+    );
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      {
+        error: "Internal Server Error",
+        detail:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error?.message || String(error),
+      },
       { status: 500 },
     );
   }

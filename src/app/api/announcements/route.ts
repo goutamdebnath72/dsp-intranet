@@ -6,6 +6,11 @@ import { getAuthOptions } from "@/lib/auth";
 import { Announcement, AnnouncementReadStatus } from "@/lib/db/models";
 import { DateTime } from "luxon";
 import { ANNOUNCEMENT_NEW_THRESHOLD_DAYS } from "@/lib/constants"; // ✅ Single source of truth
+import {
+  sanitizeAnnouncementHtml,
+  htmlToPlainText,
+} from "@/lib/announcements/contentProcessing";
+import { embedAnnouncement } from "@/lib/announcements/embedAnnouncement";
 
 // 🚨 MAXIMUM CACHE DESTRUCTION:
 export const dynamic = "force-dynamic";
@@ -112,15 +117,30 @@ export async function POST(request: Request) {
 
     const announcementRepo = dataSource.getRepository(Announcement);
 
+    // Sanitize the rich-text HTML and derive the plain-text projection used
+    // for embedding + literal search. The AI never sees markup.
+    const safeContent = sanitizeAnnouncementHtml(content);
+    const contentText = htmlToPlainText(safeContent);
+
     const newAnnouncement = announcementRepo.create({
       title,
-      content: content || null,
+      content: safeContent || undefined,
+      contentText: contentText || null,
       date: DateTime.fromISO(date),
       createdAt: DateTime.now(),
       authorTicketNo, // ✅ Now saving the author ID
     });
 
     const savedAnnouncement = await announcementRepo.save(newAnnouncement);
+
+    // Index for semantic search. Non-blocking on failure: the announcement is
+    // already saved; a Gemini hiccup just leaves it unsearchable until re-saved.
+    await embedAnnouncement(
+      savedAnnouncement.id,
+      savedAnnouncement.title,
+      contentText,
+    );
+
     return NextResponse.json(savedAnnouncement, { status: 201 });
   } catch (error) {
     console.error("❌ Failed to create announcement:", error);

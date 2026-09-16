@@ -39,11 +39,19 @@ const entities = [
 declare global {
   // eslint-disable-next-line no-var
   var cachedTypeORMDataSource: DataSource | null;
+  // A single in-flight initialization promise so concurrent getDb() callers
+  // share ONE init instead of racing to create/destroy pools (the root cause
+  // of "Cannot use a pool after calling end on the pool" during dev HMR).
+  // eslint-disable-next-line no-var
+  var cachedTypeORMInitPromise: Promise<DataSource> | null;
 }
 
 // Global caching container lifecycle validation to handle Next.js hot module replacements safely
 if (!global.cachedTypeORMDataSource) {
   global.cachedTypeORMDataSource = null;
+}
+if (!global.cachedTypeORMInitPromise) {
+  global.cachedTypeORMInitPromise = null;
 }
 
 // Detects if the operational state is running under a production deployment compression phase
@@ -79,6 +87,24 @@ const DUMMY_DATA_SOURCE = {
  * Centralized High-Performance Database Connection Manager Factory.
  * Manages pool recycling, handles Next.js dev HMR reloads safely, and dynamically switches drivers.
  */
+// Tears down a stale DataSource safely. Nulls the global reference FIRST so a
+// concurrent caller can't grab the same instance and destroy it a second time,
+// then swallows any pool-already-ended error from the actual destroy().
+async function safeDestroy(ds: DataSource | null): Promise<void> {
+  if (!ds) return;
+  global.cachedTypeORMDataSource = null;
+  global.cachedTypeORMInitPromise = null;
+  try {
+    if (ds.isInitialized) await ds.destroy();
+  } catch (e) {
+    // Double-destroy / already-ended pool during HMR churn — non-fatal.
+    console.warn(
+      "⚠️ TypeORM DataSource teardown noise (safe to ignore):",
+      (e as Error)?.message ?? e,
+    );
+  }
+}
+
 export async function getDb(): Promise<DataSource> {
   // 1. Manage globally cached DataSource instance if already connected and initialized
   if (
@@ -100,8 +126,8 @@ export async function getDb(): Promise<DataSource> {
         console.log(
           "🔄 Next.js HMR reload detected. Re-initializing TypeORM DataSource pool...",
         );
-        await global.cachedTypeORMDataSource.destroy();
-        global.cachedTypeORMDataSource = null;
+        await safeDestroy(global.cachedTypeORMDataSource);
+        // fall through to (re)initialization below
       } else {
         return global.cachedTypeORMDataSource;
       }
@@ -159,32 +185,50 @@ export async function getDb(): Promise<DataSource> {
         max: 5, // Safety connection ceiling limits to protect Supabase transaction slots
         idleTimeoutMillis: 10000, // Instantly evict inactive connections
         connectionTimeoutMillis: 5000, // Ensure slow Handshakes have room to stabilize
+        keepAlive: true, // Keep TCP sockets warm so the pooler doesn't silently drop idle conns
+        allowExitOnIdle: false, // Never auto-end the pool from under a cached DataSource
       },
     };
   }
 
-  try {
-    if (!global.cachedTypeORMDataSource) {
+  // If an initialized source already survived the checks above, reuse it.
+  if (
+    global.cachedTypeORMDataSource &&
+    global.cachedTypeORMDataSource.isInitialized
+  ) {
+    return global.cachedTypeORMDataSource;
+  }
+
+  // Serialize initialization: the FIRST caller creates the init promise; every
+  // concurrent caller awaits that same promise instead of building its own
+  // DataSource and racing (which is what triggered the pool-end crash).
+  if (!global.cachedTypeORMInitPromise) {
+    global.cachedTypeORMInitPromise = (async () => {
       console.log(
         "🔌 Active structural connection instance unavailable. Instantiating fresh runtime client connection pool...",
       );
-      global.cachedTypeORMDataSource = new DataSource(dataSourceOptions);
-    }
-
-    if (!global.cachedTypeORMDataSource.isInitialized) {
-      await global.cachedTypeORMDataSource.initialize();
+      const ds = new DataSource(dataSourceOptions);
+      await ds.initialize();
       console.log(
         `✅ TypeORM DataSource context authenticated and synchronized successfully using [${dbType}] driver.`,
       );
-    }
+      global.cachedTypeORMDataSource = ds;
+      return ds;
+    })();
+  }
 
-    return global.cachedTypeORMDataSource;
+  try {
+    const ds = await global.cachedTypeORMInitPromise;
+    return ds;
   } catch (err) {
     console.error(
       "❌ Fatal validation crash processing current TypeORM runtime DataSource matrix configuration initialization:",
       err,
     );
-    global.cachedTypeORMDataSource = null; // Purge pool allocations to guarantee zero dead states on subsequent request loops
+    // Purge everything so the NEXT request retries a clean init instead of
+    // reusing a half-dead source or a rejected promise.
+    global.cachedTypeORMDataSource = null;
+    global.cachedTypeORMInitPromise = null;
     throw err;
   }
 }

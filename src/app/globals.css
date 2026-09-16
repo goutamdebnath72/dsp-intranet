@@ -187,3 +187,23 @@ button.modal-close:hover svg,
   /* Match the text color, font, and size */
   @apply text-slate-800 font-medium text-base;
 }
+/* Rendered rich-text body of an announcement (sanitized HTML from Tiptap).
+   Keeps paragraph rhythm and restores underline, which Tailwind's base
+   reset can otherwise flatten. Colors come through as inline styles. */
+.announcement-content p {
+  margin: 0 0 0.75rem;
+}
+.announcement-content p:last-child {
+  margin-bottom: 0;
+}
+.announcement-content strong,
+.announcement-content b {
+  font-weight: 700;
+}
+.announcement-content em,
+.announcement-content i {
+  font-style: italic;
+}
+.announcement-content u {
+  text-decoration: underline;
+}

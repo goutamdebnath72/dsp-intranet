@@ -4,6 +4,7 @@ import React, { useState, useTransition, useEffect } from "react";
 import { mutate } from "swr";
 import toast, { Toaster } from "react-hot-toast";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
+import RichTextEditor from "@/components/RichTextEditor";
 
 interface AnnouncementFormProps {
   editId?: string | null;
@@ -30,7 +31,11 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
           setContent(data.content || "");
           setInitialContent(data.content || "");
         })
-        .catch(() => toast.error("Failed to load announcement for editing."));
+        .catch(() =>
+          toast.error("Failed to load announcement for editing.", {
+            position: "top-left",
+          }),
+        );
     }
   }, [editId]);
 
@@ -70,10 +75,16 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
         if (!isEdit) {
           toast.success(
             `Announcement published! You can modify or delete this for the next ${EDIT_DELETE_WINDOW_HOURS} hours.`,
-            { duration: 6000, position: "top-right" },
+            {
+              duration: 6000,
+              position: "top-left",
+              style: { marginLeft: "120px" },
+            },
           );
         } else {
-          toast.success("Announcement updated successfully!");
+          toast.success("Announcement updated successfully!", {
+            position: "top-left",
+          });
         }
 
         // Reset form fields
@@ -85,14 +96,16 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
         mutate("/api/announcements?u=");
       } else {
         const error = await response.json();
-        toast.error(`Error: ${error.error || "Failed to save announcement."}`);
+        toast.error(`Error: ${error.error || "Failed to save announcement."}`, {
+          position: "top-left",
+        });
       }
     });
   };
 
   return (
     <>
-      <Toaster />
+      <Toaster position="top-left" />
       <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-2xl">
         <div>
           <label
@@ -114,19 +127,14 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
         </div>
 
         <div>
-          <label
-            htmlFor="content"
-            className="block text-sm font-medium leading-6 text-gray-900"
-          >
+          <span className="block text-sm font-medium leading-6 text-gray-900">
             Content (Optional)
-          </label>
+          </span>
           <div className="mt-2">
-            <textarea
-              id="content"
+            <RichTextEditor
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              style={{ height: "20vh" }}
-              className="block w-full rounded-md py-2 px-3 text-slate-800 font-medium shadow-md ring-1 ring-inset ring-slate-500 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-500"
+              onChange={setContent}
+              placeholder="Write the announcement details\u2026"
             />
           </div>
         </div>

@@ -229,7 +229,7 @@ export function AnnouncementsFeed() {
                 transition={{ duration: 0.18 }}
               >
                 <WrapperComponent {...wrapperProps}>
-                  <div className="flex gap-3 p-4 pr-12">
+                  <div className="flex gap-3 p-4 pr-16 w-full min-w-0">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
                       {hasContent ? (
                         <MessageSquareText size={16} />
@@ -238,8 +238,8 @@ export function AnnouncementsFeed() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <Tooltip content={item.title}>
-                        <p className="text-sm font-medium text-neutral-800 truncate cursor-default pr-2">
+                      <Tooltip content={item.title} className="block min-w-0 max-w-full">
+                        <p className="text-sm font-medium text-neutral-800 truncate cursor-default">
                           {item.title}
                         </p>
                       </Tooltip>
@@ -286,7 +286,16 @@ export function AnnouncementsFeed() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-gray-100 rounded-lg border">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-3 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
+        onMouseEnter={() => {
+          isHoveringRef.current = true;
+        }}
+        onMouseLeave={() => {
+          isHoveringRef.current = false;
+        }}
+      >
         {renderContent()}
       </div>
       {selectedAnnouncement && (

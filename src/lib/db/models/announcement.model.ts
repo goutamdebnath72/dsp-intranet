@@ -35,8 +35,14 @@ export class Announcement {
   @Column({ type: "varchar", nullable: false })
   title!: string;
 
+  // Rich-text body as sanitized HTML (formatting preserved for display).
   @Column({ type: "text", nullable: true })
   content?: string;
+
+  // Plain-text projection of `content` (HTML stripped) — what we embed and
+  // run literal search on, so the AI never sees markup.
+  @Column({ type: "text", name: "contentText", nullable: true })
+  contentText?: string | null;
 
   @Column({
     type: "timestamp with time zone",
@@ -48,9 +54,11 @@ export class Announcement {
   @Column({ type: "varchar", nullable: false })
   authorTicketNo!: string;
 
-  // ✅ ADDED: Vector embedding column for Omnibar deep search
-  @Column({ type: "text", nullable: true, select: false }) // or type: "vector" if explicitly configured in TypeORM
-  embedding?: string | null;
+  // Vector embedding for the Omnibar semantic search (768-dim, Gemini).
+  // select:false so normal queries don't drag the vector across the wire;
+  // search SQL selects it explicitly.
+  @Column({ type: "vector", nullable: true, select: false } as any)
+  embedding?: any;
 
   @OneToMany("AnnouncementReadStatus", "announcement", { cascade: true })
   readByUsers?: any[];
