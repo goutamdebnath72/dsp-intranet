@@ -15,6 +15,7 @@ import { DateTime } from "luxon";
 import { useSession } from "next-auth/react";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 import { ConfirmModal } from "./ConfirmModal";
+import { Tooltip } from "./Tooltip";
 import toast from "react-hot-toast";
 
 type Circular = {
@@ -87,6 +88,25 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
       })
       .finally(() => setIsLoading(false));
   };
+
+  // Lock background page scroll while the modal is open so mouse-wheel
+  // scrolling inside it (including over the fixed header) never bleeds through
+  // to the home page behind. NOTE: the page scroller in this app is <html>
+  // (globals.css sets `html { overflow-y: auto }`), so we must lock the
+  // documentElement, not <body>.
+  useEffect(() => {
+    if (!isOpen) return;
+    const html = document.documentElement;
+    const scrollBarWidth = window.innerWidth - html.clientWidth;
+    const prevOverflow = html.style.overflow;
+    const prevPaddingRight = html.style.paddingRight;
+    html.style.overflow = "hidden";
+    if (scrollBarWidth > 0) html.style.paddingRight = `${scrollBarWidth}px`;
+    return () => {
+      html.style.overflow = prevOverflow;
+      html.style.paddingRight = prevPaddingRight;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -270,7 +290,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
             )}
           </div>
         </nav>
-        <main className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-neutral-400/50 scrollbar-track-transparent">
+        <main className="flex-1 overflow-y-auto overscroll-contain p-6 scrollbar-thin scrollbar-thumb-neutral-400/50 scrollbar-track-transparent">
           <AnimatePresence mode="wait">
             <motion.ul
               key={selectedYear}
@@ -304,12 +324,15 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
                       {/* ✅ Edit/Delete Controls */}
                       {canModify(circular) && (
                         <div className="flex gap-2 ml-4 items-center">
-                          <button
-                            onClick={(e) => confirmDelete(circular.id, e)}
-                            className="text-neutral-400 hover:text-red-600 p-2"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          <Tooltip content="Delete — uploader only, within 24 h of upload">
+                            <button
+                              onClick={(e) => confirmDelete(circular.id, e)}
+                              aria-label="Delete circular"
+                              className="text-neutral-400 hover:text-red-600 p-2"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </Tooltip>
                         </div>
                       )}
 

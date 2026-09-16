@@ -109,6 +109,7 @@ export async function executeContentSearch(
         c."fileUrls",
         c."publishedAt",
         cc.text AS "chunkText",
+        cc.page_number AS "pageNumber",
         (1 - (cc.embedding <=> $1::vector(768))) AS base_similarity,
         (CASE WHEN ${literalPredicate} THEN 2.0 ELSE 0 END) AS literal_boost,
         (CASE WHEN ${tokenPredicate || 'FALSE'} THEN 0.75 ELSE 0 END) AS token_boost
@@ -166,11 +167,29 @@ export async function executeContentSearch(
             internalScore: score,
             similarity: Number(Math.min(0.99, Math.max(0, rawSim)).toFixed(3)), // Keep UI percentage realistic
             chunkText: m.chunkText || "",
+            // Page of the FIRST (highest-ranked) matching chunk — where the
+            // viewer should jump to. 0/undefined means unknown (legacy chunks).
+            matchPage:
+              m.pageNumber != null && Number(m.pageNumber) > 0
+                ? Number(m.pageNumber)
+                : null,
+            matchPages:
+              m.pageNumber != null && Number(m.pageNumber) > 0
+                ? [Number(m.pageNumber)]
+                : [],
           });
         } else {
           const existing = docMap.get(m.id)!;
           if (m.chunkText && !existing.chunkText?.includes(m.chunkText)) {
             existing.chunkText += `\n\n${m.chunkText}`;
+          }
+          // Collect every distinct page that has a matching chunk.
+          const pg =
+            m.pageNumber != null && Number(m.pageNumber) > 0
+              ? Number(m.pageNumber)
+              : null;
+          if (pg && existing.matchPages && !existing.matchPages.includes(pg)) {
+            existing.matchPages.push(pg);
           }
         }
       }

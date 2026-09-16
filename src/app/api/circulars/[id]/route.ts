@@ -164,7 +164,15 @@ export async function DELETE(request: Request, context: RouteContext) {
       ]);
 
       // 3. Renumber that year's remaining circulars to close the gap.
-      //    Order by current serial, then reassign 1..N with row_number().
+      //    Done in TWO phases to avoid a transient unique-constraint collision
+      //    on circulars_year_serial_uidx: a single bulk UPDATE to 1..N can make
+      //    one row momentarily take a serial another row still holds, which
+      //    Postgres rejects mid-statement even though the FINAL state is valid.
+      //    Phase 3a parks every row of the year at a guaranteed-free NEGATIVE
+      //    serial (-rn); phase 3b flips those to the final positive 1..N. The
+      //    negative range can never clash with the live positive set, and the
+      //    positive assignment starts from an all-negative set, so neither
+      //    phase can transiently duplicate a value.
       await manager.query(
         `
           WITH ranked AS (
@@ -174,10 +182,19 @@ export async function DELETE(request: Request, context: RouteContext) {
             WHERE EXTRACT(YEAR FROM "publishedAt") = $1
           )
           UPDATE public.circulars c
-          SET "serialNumber" = ranked.rn
+          SET "serialNumber" = -ranked.rn
           FROM ranked
           WHERE c.id = ranked.id
-            AND c."serialNumber" IS DISTINCT FROM ranked.rn
+        `,
+        [year],
+      );
+      // 3b. Flip the parked negatives to their final positive serials.
+      await manager.query(
+        `
+          UPDATE public.circulars
+          SET "serialNumber" = -"serialNumber"
+          WHERE EXTRACT(YEAR FROM "publishedAt") = $1
+            AND "serialNumber" < 0
         `,
         [year],
       );
@@ -202,9 +219,21 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
 
     return NextResponse.json({ message: "Deleted successfully" });
-  } catch (error) {
+  } catch (error: any) {
+    // Surface the real cause instead of swallowing it — this is what makes a
+    // DELETE failure debuggable in the server log and (in dev) the response.
+    console.error(
+      `DELETE /api/circulars failed for id=${circularId}:`,
+      error?.stack || error?.message || error,
+    );
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      {
+        error: "Internal Server Error",
+        detail:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error?.message || String(error),
+      },
       { status: 500 },
     );
   }

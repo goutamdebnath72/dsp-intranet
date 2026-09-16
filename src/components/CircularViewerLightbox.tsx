@@ -1,9 +1,9 @@
 // src/components/CircularViewerLightbox.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Loader2, AlertCircle } from "lucide-react";
+import { X, Loader2, AlertCircle, Sparkles } from "lucide-react";
 
 type Circular = {
   id: number;
@@ -15,17 +15,29 @@ type Circular = {
 type Props = {
   circularId: number | null;
   onClose: () => void;
+  /** 1-based page to scroll to once the pages render (e.g. a search match). */
+  scrollToPage?: number | null;
+  /** All 1-based pages that contain a match — each gets a margin marker. */
+  matchPages?: number[];
 };
 
-export function CircularViewerLightbox({ circularId, onClose }: Props) {
+export function CircularViewerLightbox({
+  circularId,
+  onClose,
+  scrollToPage,
+  matchPages = [],
+}: Props) {
   const [circular, setCircular] = useState<Circular | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const didScrollRef = useRef(false);
 
   useEffect(() => {
     if (circularId) {
       setIsLoading(true);
       setError(null);
+      didScrollRef.current = false;
       fetch(`/api/circulars/${circularId}`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch circular data.");
@@ -38,6 +50,36 @@ export function CircularViewerLightbox({ circularId, onClose }: Props) {
       setCircular(null);
     }
   }, [circularId]);
+
+
+  // Scroll to the matched page once the circular is loaded. Waits for the
+  // target page image to finish loading so the scroll offset is accurate.
+  useEffect(() => {
+    if (!circular || didScrollRef.current) return;
+    const page = scrollToPage ?? 0;
+    if (!page || page < 1) return; // no target -> stay at top (page 1)
+    const idx = page - 1;
+    const wrapper = pageRefs.current[idx];
+    if (!wrapper) return;
+    const img = wrapper.querySelector("img");
+
+    const doScroll = () => {
+      if (didScrollRef.current) return;
+      didScrollRef.current = true;
+      wrapper.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    if (!img || img.complete) {
+      requestAnimationFrame(doScroll); // cached / no img -> scroll next frame
+    } else {
+      img.addEventListener("load", doScroll, { once: true });
+      return () => img.removeEventListener("load", doScroll);
+    }
+  }, [circular, scrollToPage]);
+
+  const matchPageSet = new Set(
+    (matchPages || []).filter((n) => Number.isFinite(n) && n > 0),
+  );
 
   return (
     <AnimatePresence>
@@ -99,14 +141,41 @@ export function CircularViewerLightbox({ circularId, onClose }: Props) {
             {/* Complete Pages in Sequence */}
             {circular && (
               <div className="w-full max-w-4xl space-y-6">
-                {circular.fileUrls.map((url, index) => (
-                  <img
-                    key={index}
-                    src={url}
-                    alt={`Page ${index + 1} of ${circular.headline}`}
-                    className="w-full rounded-md shadow-2xl bg-white"
-                  />
-                ))}
+                {circular.fileUrls.map((url, index) => {
+                  const pageNo = index + 1;
+                  const isMatch = matchPageSet.has(pageNo);
+                  return (
+                    <div
+                      key={index}
+                      ref={(el) => {
+                        pageRefs.current[index] = el;
+                      }}
+                      className="relative w-full scroll-mt-4"
+                    >
+                      <img
+                        src={url}
+                        alt={`Page ${pageNo} of ${circular.headline}`}
+                        className={`w-full rounded-md bg-white ${
+                          isMatch
+                            ? "shadow-[0_0_0_2px_rgba(250,204,21,0.9)] shadow-2xl"
+                            : "shadow-2xl"
+                        }`}
+                      />
+                      {isMatch && (
+                        <>
+                          {/* Left-edge accent bar — a margin highlight that
+                              flags this as a match page without covering text. */}
+                          <span className="pointer-events-none absolute left-0 top-0 h-full w-1.5 rounded-l-md bg-yellow-400" />
+                          {/* "Match" tab pinned to the page's top-left corner. */}
+                          <span className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-yellow-400 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-yellow-950 shadow-lg">
+                            <Sparkles size={12} strokeWidth={2.5} />
+                            Match
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

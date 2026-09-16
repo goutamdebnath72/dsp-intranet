@@ -190,6 +190,11 @@ export async function POST(req: Request) {
     const fileBytes = Buffer.from(await file.arrayBuffer());
     const fileUrls: string[] = [];
     let ocrAccumulatedText = "";
+    // Per-page OCR text (index 0 = page 1). Used to chunk PER PAGE so each
+    // stored chunk can record the page it came from, enabling the viewer to
+    // jump to the matching page. ocrAccumulatedText stays for the top-level
+    // circular embedding (whole-document vector), unchanged.
+    const perPageText: string[] = [];
 
     /* ============================================================
        PHASE A — persist blobs + run every fallible step. Any throw
@@ -211,6 +216,7 @@ export async function POST(req: Request) {
         console.log("DEBUG: Running dual-pass OCR (PSM 3) on image...");
         const text = await ocrPageDualPass(fileBytes, "image");
         ocrAccumulatedText += text + " ";
+        perPageText[0] = text; // single-image circular == page 1
       } catch (err) {
         console.error("OCR failed on image:", err);
       }
@@ -259,6 +265,7 @@ export async function POST(req: Request) {
           );
           const text = await ocrPageDualPass(pngBuffer, `page ${page}`);
           ocrAccumulatedText += text + " \n";
+          perPageText[page - 1] = text; // page is 1-based; store 0-based
         } catch (err) {
           console.error(`OCR failed on page ${page}:`, err);
         }
@@ -306,26 +313,48 @@ export async function POST(req: Request) {
        embed ANY chunk aborts the whole upload — we never store a
        null-embedding (unsearchable) chunk and then report success.
     ============================ */
-    type PreparedChunk = { index: number; text: string; embedding: string };
+    type PreparedChunk = {
+      index: number;
+      page: number; // 1-based page this chunk came from (0 if unknown)
+      text: string;
+      embedding: string;
+    };
     const preparedChunks: PreparedChunk[] = [];
 
-    if (extractedText && extractedText.length > 0) {
-      const words = extractedText.split(/\s+/);
-      const chunkSize = 200;
-      let chunkIndex = 0;
+    const chunkSize = 200;
+    let chunkIndex = 0;
 
+    // Build the list of (page, pageText) to chunk. Prefer per-page OCR text so
+    // each chunk keeps its page number. If no per-page text exists (e.g. a
+    // born-digital PDF whose text came from extractTextFromPDF, not OCR), fall
+    // back to the whole document as a single page-less unit (page 0).
+    const pageUnits: Array<{ page: number; text: string }> = [];
+    const havePageText = perPageText.some((t) => t && t.trim().length > 0);
+    if (havePageText) {
+      for (let pi = 0; pi < perPageText.length; pi++) {
+        const t = (perPageText[pi] || "").replace(/\s+/g, " ").trim();
+        if (t.length > 0) pageUnits.push({ page: pi + 1, text: t });
+      }
+    } else if (extractedText && extractedText.length > 0) {
+      pageUnits.push({ page: 0, text: extractedText });
+    }
+
+    for (const unit of pageUnits) {
+      const words = unit.text.split(/\s+/);
       for (let i = 0; i < words.length; i += chunkSize) {
         const chunkText = words.slice(i, i + chunkSize).join(" ");
+        if (!chunkText.trim()) continue;
         const rawVector = await generateEmbedding(chunkText); // fatal on throw
         preparedChunks.push({
           index: chunkIndex,
+          page: unit.page,
           text: chunkText,
           embedding: `[${rawVector.join(",")}]`,
         });
         chunkIndex++;
       }
-      console.log("DEBUG: Prepared", preparedChunks.length, "chunk embeddings");
     }
+    console.log("DEBUG: Prepared", preparedChunks.length, "chunk embeddings");
 
     const vectorLiteral = embedding ? `[${embedding.join(",")}]` : null;
 
@@ -378,10 +407,10 @@ export async function POST(req: Request) {
           for (const c of preparedChunks) {
             await manager.query(
               `
-                INSERT INTO public.circular_chunks (circular_id, chunk_index, text, embedding)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO public.circular_chunks (circular_id, chunk_index, page_number, text, embedding)
+                VALUES ($1, $2, $3, $4, $5)
               `,
-              [saved.id, c.index, c.text, c.embedding],
+              [saved.id, c.index, c.page, c.text, c.embedding],
             );
           }
 

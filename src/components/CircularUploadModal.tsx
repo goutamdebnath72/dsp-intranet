@@ -94,15 +94,15 @@ export function CircularUploadModal({
   // scrolling inside the modal never bleeds through to the admin page behind it.
   useEffect(() => {
     if (!isOpen) return;
-    const { body, documentElement: html } = document;
+    const html = document.documentElement;
     const scrollBarWidth = window.innerWidth - html.clientWidth;
-    const prevOverflow = body.style.overflow;
-    const prevPaddingRight = body.style.paddingRight;
-    body.style.overflow = "hidden";
-    if (scrollBarWidth > 0) body.style.paddingRight = `${scrollBarWidth}px`;
+    const prevOverflow = html.style.overflow;
+    const prevPaddingRight = html.style.paddingRight;
+    html.style.overflow = "hidden";
+    if (scrollBarWidth > 0) html.style.paddingRight = `${scrollBarWidth}px`;
     return () => {
-      body.style.overflow = prevOverflow;
-      body.style.paddingRight = prevPaddingRight;
+      html.style.overflow = prevOverflow;
+      html.style.paddingRight = prevPaddingRight;
     };
   }, [isOpen]);
 

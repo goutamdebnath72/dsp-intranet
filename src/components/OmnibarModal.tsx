@@ -16,6 +16,7 @@ import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
 import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
+import { Tooltip } from "@/components/Tooltip";
 import Link from "next/link";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 
@@ -82,17 +83,15 @@ export function OmnibarModal({
   // Compensate for the scrollbar width so the page doesn't shift on lock.
   useEffect(() => {
     if (!isOpen) return;
-    const { body, documentElement: html } = document;
+    const html = document.documentElement;
     const scrollBarWidth = window.innerWidth - html.clientWidth;
-    const prevOverflow = body.style.overflow;
-    const prevPaddingRight = body.style.paddingRight;
-    body.style.overflow = "hidden";
-    if (scrollBarWidth > 0) {
-      body.style.paddingRight = `${scrollBarWidth}px`;
-    }
+    const prevOverflow = html.style.overflow;
+    const prevPaddingRight = html.style.paddingRight;
+    html.style.overflow = "hidden";
+    if (scrollBarWidth > 0) html.style.paddingRight = `${scrollBarWidth}px`;
     return () => {
-      body.style.overflow = prevOverflow;
-      body.style.paddingRight = prevPaddingRight;
+      html.style.overflow = prevOverflow;
+      html.style.paddingRight = prevPaddingRight;
     };
   }, [isOpen]);
 
@@ -231,6 +230,11 @@ export function OmnibarModal({
                   </span>
 
                   {/* Headline Match */}
+                  <Tooltip
+                    content="Searches headlines only · English"
+                    align="right"
+                    className="inline-block shrink-0"
+                  >
                   <button
                     type="button"
                     onClick={() => triggerSearch("title")}
@@ -260,8 +264,14 @@ export function OmnibarModal({
                       Headline Match
                     </span>
                   </button>
+                  </Tooltip>
 
                   {/* Smart Semantic */}
+                  <Tooltip
+                    content='Searches full content · EN / हि / বাং · "quotes" = exact match'
+                    align="center"
+                    className="inline-block shrink-0"
+                  >
                   <button
                     type="button"
                     onClick={() => triggerSearch("semantic")}
@@ -305,19 +315,24 @@ export function OmnibarModal({
                       <span className="relative h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]" />
                     )}
                   </button>
+                  </Tooltip>
 
                   {/* Executive Deep Synthesis */}
+                  <Tooltip
+                    content={
+                      isExecutive
+                        ? "Synthesises across circulars · English"
+                        : "Executives only — sign in with an executive ticket (starts with 4)"
+                    }
+                    align="left"
+                    className="inline-block shrink-0"
+                  >
                   <button
                     type="button"
                     onClick={() =>
                       isExecutive && !isLoading && triggerSearch("intellectual")
                     }
                     disabled={!isExecutive || isLoading}
-                    title={
-                      isExecutive
-                        ? "Intellectual Executive Deep Synthesis"
-                        : "Executive clearance required (Ticket # starting with 4)"
-                    }
                     className={`group relative inline-flex items-center gap-2 overflow-hidden rounded-xl border px-3.5 py-1.5 sm:px-4 sm:py-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 shrink-0 ${
                       isExecutive && isLoading ? "cursor-not-allowed opacity-60" : ""
                     } ${
@@ -378,6 +393,7 @@ export function OmnibarModal({
                       </motion.span>
                     )}
                   </button>
+                  </Tooltip>
                 </motion.div>
               </div>
 
@@ -630,6 +646,13 @@ export function OmnibarModal({
                   </>
                 )}
               </div>
+
+              {/* Persistent AI disclaimer footer */}
+              <div className="border-t border-slate-200/70 bg-white/60 px-4 py-2 text-center">
+                <p className="text-[11px] font-medium text-slate-400">
+                  AI can make mistakes, hence always double-check responses.
+                </p>
+              </div>
             </motion.div>
           </div>
         )}
@@ -663,6 +686,12 @@ export function OmnibarModal({
       {/* Lightbox Viewer */}
       <CircularViewerLightbox
         circularId={selectedCircularId}
+        scrollToPage={
+          mode === "semantic" ? activeMatchedCircular?.matchPage ?? null : null
+        }
+        matchPages={
+          mode === "semantic" ? activeMatchedCircular?.matchPages ?? [] : []
+        }
         onClose={handleCloseLightbox}
       />
     </>

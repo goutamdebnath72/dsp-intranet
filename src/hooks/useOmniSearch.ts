@@ -14,6 +14,8 @@ export interface OmniSearchResult {
   similarity: number | null;
   chunkText?: string;
   isPerfectMatch?: boolean;
+  matchPage?: number | null; // page of the best-matching chunk (viewer jump target)
+  matchPages?: number[]; // all pages that contain a match
 }
 
 export interface OmniSearchResponse {

@@ -12,6 +12,8 @@ export type SearchResultRow = {
   publishedAt: string | null;
   similarity?: number | null;
   chunkText?: string | null;
+  matchPage?: number | null; // 1-based page of the best-matching chunk (viewer jump target)
+  matchPages?: number[]; // all distinct 1-based pages that contain a match
 };
 
 export function formatLuxonDate(dateVal: any): string | null {

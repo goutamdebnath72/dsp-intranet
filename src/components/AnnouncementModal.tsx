@@ -35,6 +35,23 @@ export default function AnnouncementModal({ announcement, onClose }: Props) {
     }
   }, [typedContent]);
 
+  // Lock background page scroll while this modal is mounted so mouse-wheel
+  // scrolling inside it (including over the fixed header) never bleeds through
+  // to the page behind. The page scroller in this app is <html>
+  // (globals.css sets `html { overflow-y: auto }`), so lock the documentElement.
+  useEffect(() => {
+    const html = document.documentElement;
+    const scrollBarWidth = window.innerWidth - html.clientWidth;
+    const prevOverflow = html.style.overflow;
+    const prevPaddingRight = html.style.paddingRight;
+    html.style.overflow = "hidden";
+    if (scrollBarWidth > 0) html.style.paddingRight = `${scrollBarWidth}px`;
+    return () => {
+      html.style.overflow = prevOverflow;
+      html.style.paddingRight = prevPaddingRight;
+    };
+  }, []);
+
   return (
     <div
       className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in"
@@ -57,7 +74,7 @@ export default function AnnouncementModal({ announcement, onClose }: Props) {
           </p>
         </div>
 
-        <div ref={scrollContainerRef} className="p-6 overflow-y-auto">
+        <div ref={scrollContainerRef} className="p-6 overflow-y-auto overscroll-contain">
           <p className="text-base text-gray-700 whitespace-pre-wrap">
             {typedContent}
           </p>
