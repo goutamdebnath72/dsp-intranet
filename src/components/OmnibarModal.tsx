@@ -52,6 +52,9 @@ export function OmnibarModal({
   const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
     null,
   );
+  // Whether the user has dismissed the "Target Clause Reference" banner for the
+  // currently-open circular. Reset each time a new circular is opened/closed.
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const currentMaxWidthRem =
     mode === "intellectual"
@@ -65,6 +68,7 @@ export function OmnibarModal({
 
   const handleCloseLightbox = () => {
     setSelectedCircularId(null);
+    setBannerDismissed(false);
   };
 
   useEffect(() => {
@@ -133,6 +137,7 @@ export function OmnibarModal({
   ) => {
     if (result.type === "circular") {
       e.preventDefault();
+      setBannerDismissed(false);
       setSelectedCircularId(result.id);
     }
   };
@@ -661,6 +666,7 @@ export function OmnibarModal({
       {/* Floating Context Banner cleanly wrapped inside AnimatePresence */}
       <AnimatePresence>
         {selectedCircularId &&
+          !bannerDismissed &&
           activeMatchedCircular?.isPerfectMatch &&
           activeMatchedCircular?.chunkText &&
           mode === "semantic" && (
@@ -670,8 +676,16 @@ export function OmnibarModal({
               animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
               exit={{ opacity: 0, y: -20, scale: 0.95, x: "-50%" }}
               transition={{ duration: 0.2 }}
-              className="fixed top-20 left-1/2 z-[160] w-[90%] max-w-2xl bg-amber-50/95 backdrop-blur-md border-2 border-amber-400 p-3.5 rounded-xl shadow-2xl pointer-events-none"
+              className="fixed top-20 left-1/2 z-[160] w-[90%] max-w-2xl bg-amber-50/95 backdrop-blur-md border-2 border-amber-400 p-3.5 pr-10 rounded-xl shadow-2xl"
             >
+              <button
+                type="button"
+                onClick={() => setBannerDismissed(true)}
+                aria-label="Dismiss match reference"
+                className="absolute top-2 right-2 rounded-full p-1 text-amber-700/80 transition-colors hover:bg-amber-200/70 hover:text-amber-900"
+              >
+                <X size={16} strokeWidth={2.5} />
+              </button>
               <div className="font-bold text-amber-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5 mb-1.5">
                 <Sparkles size={13} className="text-amber-600 shrink-0" />
                 Target Clause Reference:
