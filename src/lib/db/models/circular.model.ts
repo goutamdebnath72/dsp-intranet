@@ -72,4 +72,10 @@ export class Circular {
   // ✅ The arrow function defers evaluation and Relation<> safely isolates TS metadata
   @OneToMany(() => CircularPage, (page) => page.circular)
   pages!: Relation<CircularPage>[];
+
+  /**
+   * One Circular tracks multiple read-confirmations from Users
+   */
+  @OneToMany("CircularReadStatus", "circular", { cascade: true })
+  readByUsers?: any[];
 }

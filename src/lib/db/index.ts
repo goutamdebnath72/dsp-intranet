@@ -8,6 +8,7 @@ import { Account } from "./models/account.model";
 import { AnnouncementReadStatus } from "./models/announcement-read-status.model";
 import { Announcement } from "./models/announcement.model";
 import { Circular } from "./models/circular.model";
+import { CircularReadStatus } from "./models/circular-read-status.model";
 import { CircularPage } from "./models/circular_pages.model";
 import { Department } from "./models/department.model";
 import { HolidayMaster } from "./models/holiday-master.model";
@@ -23,7 +24,8 @@ const entities = [
   AnnouncementReadStatus,
   Announcement,
   Circular,
-  CircularPage, 
+  CircularReadStatus,
+  CircularPage,
   Department,
   HolidayMaster,
   HolidayYear,

@@ -1,7 +1,7 @@
 // src/components/HomepageNew.tsx
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { PlayCircle, ArrowRight, PauseCircle } from "lucide-react";
 import { TopBar } from "./TopBar";
@@ -77,9 +77,44 @@ export function HomepageNew({
   );
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
 
+  // ✅ ADDED: red-dot ("new circular") state + fetcher
+  const [hasNewCircular, setHasNewCircular] = useState(false);
+
+  const refreshCircularStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/circulars/seen", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setHasNewCircular(Boolean(data?.hasNewCircular));
+    } catch {
+      // Fail safe: leave the dot as-is on transient errors
+    }
+  }, []);
+
+  // Compute the dot on first load
+  useEffect(() => {
+    refreshCircularStatus();
+  }, [refreshCircularStatus]);
+
   const handleCircularsClick = () => setIsCircularModalOpen(true);
-  const handleCircularSelect = (id: number) => setSelectedCircularId(id);
-  const handleCloseLightbox = () => setSelectedCircularId(null);
+
+  // ✅ MODIFIED: opening a circular marks it read (logged-in), then we
+  // re-check the dot. The POST is a no-op / 401 for logged-out users.
+  const handleCircularSelect = (id: number) => {
+    setSelectedCircularId(id);
+    fetch(`/api/circulars/${id}/read`, { method: "POST" })
+      .catch(() => {})
+      .finally(() => {
+        refreshCircularStatus();
+      });
+  };
+
+  // ✅ MODIFIED: re-check the dot after the viewer closes too
+  const handleCloseLightbox = () => {
+    setSelectedCircularId(null);
+    refreshCircularStatus();
+  };
+
   const handleMoreAppsClick = () => setIsAppDrawerOpen(true);
   const handleAppDrawerClose = () => setIsAppDrawerOpen(false);
   const handlePlayPause = () => {
@@ -226,6 +261,7 @@ export function HomepageNew({
         <QuickAccessBar
           onCircularsClick={handleCircularsClick}
           onMoreAppsClick={handleMoreAppsClick}
+          hasNewCircular={hasNewCircular}
         />
       </div>
 

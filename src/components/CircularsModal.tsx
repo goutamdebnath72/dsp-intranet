@@ -50,6 +50,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   const archiveButtonRef = useRef<HTMLDivElement>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [unreadIds, setUnreadIds] = useState<Set<number>>(new Set());
 
   const fetchCirculars = () => {
     setIsLoading(true);
@@ -89,6 +90,21 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
       .finally(() => setIsLoading(false));
   };
 
+  // Fetch which recent circulars are still unread for this session, so we can
+  // bold their titles (Gmail-style). Source of truth is /api/circulars/seen.
+  const fetchUnread = () => {
+    fetch("/api/circulars/seen", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.unreadIds)) {
+          setUnreadIds(new Set<number>(data.unreadIds));
+        }
+      })
+      .catch(() => {
+        // Non-fatal: titles just won't be bolded.
+      });
+  };
+
   // Lock background page scroll while the modal is open so mouse-wheel
   // scrolling inside it (including over the fixed header) never bleeds through
   // to the home page behind. NOTE: the page scroller in this app is <html>
@@ -111,6 +127,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   useEffect(() => {
     if (isOpen) {
       fetchCirculars();
+      fetchUnread();
     }
   }, [isOpen]);
 
@@ -303,18 +320,57 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
               {circulars.length > 0 ? (
                 circulars.map((circular) => (
                   <motion.li key={circular.id} variants={itemVariants}>
-                    <div className="w-full text-left flex items-center p-4 bg-white/50 rounded-lg border border-transparent hover:border-primary-300 hover:bg-white transition-all group">
+                    <div
+                      className={`relative w-full text-left flex items-center p-4 rounded-lg border transition-all group overflow-hidden ${
+                        unreadIds.has(circular.id)
+                          ? "bg-primary-50/60 border-primary-200 hover:bg-primary-50"
+                          : "bg-white/50 border-transparent hover:border-primary-300 hover:bg-white"
+                      }`}
+                    >
+                      {/* Unread accent bar (left edge) */}
+                      <span
+                        aria-hidden
+                        className={`absolute left-0 top-0 h-full w-1 rounded-l-lg transition-opacity ${
+                          unreadIds.has(circular.id)
+                            ? "bg-primary-600 opacity-100"
+                            : "opacity-0"
+                        }`}
+                      />
                       <button
-                        onClick={() => onCircularClick(circular.id)}
+                        onClick={() => {
+                          onCircularClick(circular.id);
+                          // Optimistically clear the unread mark, then reconcile.
+                          setUnreadIds((prev) => {
+                            const next = new Set(prev);
+                            next.delete(circular.id);
+                            return next;
+                          });
+                          setTimeout(fetchUnread, 800);
+                        }}
                         className="flex-1 text-left"
                       >
-                        <p className="font-semibold text-neutral-800 group-hover:text-primary-700 transition-colors">
+                        <p
+                          className={`flex items-center transition-colors ${
+                            unreadIds.has(circular.id)
+                              ? "font-bold text-neutral-900"
+                              : "font-semibold text-neutral-800"
+                          } group-hover:text-primary-700`}
+                        >
+                          {/* Unread dot (space reserved so nothing shifts) */}
+                          <span
+                            aria-hidden
+                            className={`mr-2 inline-block h-2 w-2 flex-shrink-0 rounded-full ${
+                              unreadIds.has(circular.id)
+                                ? "bg-primary-600"
+                                : "bg-transparent"
+                            }`}
+                          />
                           <span className="text-neutral-400 font-mono mr-2">
                             {String(circular.serialNumber ?? 0).padStart(3, "0")}
                           </span>
                           {circular.headline}
                         </p>
-                        <p className="text-sm text-neutral-500 mt-1">
+                        <p className="text-sm text-neutral-500 mt-1 pl-4">
                           {DateTime.fromISO(circular.publishedAt).toFormat(
                             "LLL dd, yy",
                           )}

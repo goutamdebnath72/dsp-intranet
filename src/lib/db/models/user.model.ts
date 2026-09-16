@@ -96,4 +96,10 @@ export class User {
    */
   @OneToMany("AnnouncementReadStatus", "user", { cascade: true })
   readAnnouncements?: any[];
+
+  /**
+   * One User tracks multiple read-confirmations for Circulars
+   */
+  @OneToMany("CircularReadStatus", "user", { cascade: true })
+  readCirculars?: any[];
 }

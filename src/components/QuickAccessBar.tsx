@@ -47,7 +47,7 @@ const priorityLinkTitles = [
 // --- MODIFIED: Build the list of 8 links ---
 const priorityLinks = priorityLinkTitles
   .map((title) =>
-    links.find((link) => link.title === title && link.category === "quicklink")
+    links.find((link) => link.title === title && link.category === "quicklink"),
   ) // Ensure category is quicklink
   .filter((link): link is (typeof links)[0] => !!link);
 // Filter out any undefined
@@ -67,6 +67,7 @@ const quickLinks = [...priorityLinks, moreAppsLink];
 interface QuickAccessBarProps {
   onCircularsClick: () => void;
   onMoreAppsClick: () => void;
+  hasNewCircular?: boolean;
 }
 
 // 3. This is the individual button component
@@ -75,7 +76,8 @@ const AccessButton: React.FC<{
   // Use the new combined type
   onCircularsClick: () => void;
   onMoreAppsClick: () => void;
-}> = ({ link, onCircularsClick, onMoreAppsClick }) => {
+  hasNewCircular?: boolean;
+}> = ({ link, onCircularsClick, onMoreAppsClick, hasNewCircular }) => {
   // --- MODIFIED: Get icon from the map ---
   // Ensure link.icon is treated as a key of iconMap
   const Icon = iconMap[link.icon as keyof typeof iconMap];
@@ -98,10 +100,16 @@ const AccessButton: React.FC<{
     return (
       <motion.button
         onClick={onCircularsClick}
-        className={className}
+        className={`${className} relative`}
         whileHover={{ y: -5 }}
         transition={{ type: "spring", stiffness: 300 }}
       >
+        {hasNewCircular && (
+          <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-red-500" />
+          </span>
+        )}
         <Icon
           size={28}
           className="transition-transform duration-300 
@@ -164,7 +172,7 @@ group-hover:scale-110"
           </>
         )}
       </span>
-    </motion.a >
+    </motion.a>
   );
 };
 
@@ -172,6 +180,7 @@ group-hover:scale-110"
 export function QuickAccessBar({
   onCircularsClick,
   onMoreAppsClick,
+  hasNewCircular,
 }: QuickAccessBarProps) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-4">
@@ -184,8 +193,9 @@ export function QuickAccessBar({
               link={link}
               onCircularsClick={onCircularsClick}
               onMoreAppsClick={onMoreAppsClick}
+              hasNewCircular={hasNewCircular}
             />
-          ) : null // Don't render if link is somehow undefined
+          ) : null, // Don't render if link is somehow undefined
       )}
     </div>
   );
