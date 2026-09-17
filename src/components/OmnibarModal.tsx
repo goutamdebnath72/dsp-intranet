@@ -225,7 +225,7 @@ export function OmnibarModal({
                       }
                     }
                   }}
-                  placeholder="Type your circular search query (3 lines visible, Shift+Enter for newline)..."
+                  placeholder="Search circulars, announcements & intranet sites…"
                   className="flex-1 bg-transparent text-sm sm:text-base text-neutral-900 placeholder-neutral-400 focus:outline-none resize-none leading-relaxed overflow-y-auto max-h-24 py-1"
                 />
                 {isLoading && mode !== "intellectual" && (
