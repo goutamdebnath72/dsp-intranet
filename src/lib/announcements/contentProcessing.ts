@@ -1,30 +1,22 @@
 // src/lib/announcements/contentProcessing.ts
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 
-// The only tags/attributes the rich-text editor can produce (bold, italic,
-// underline, colored text, paragraphs/line breaks). Anything outside this set
-// is stripped on save so a crafted payload can never inject script/style/img
-// or event handlers into a stored announcement.
-const ALLOWED_TAGS = [
-  "p",
-  "br",
-  "strong",
-  "b",
-  "em",
-  "i",
-  "u",
-  "s",
-  "span",
-];
-
-// `style` is allowed only so the editor's text color (color: #rrggbb) survives;
-// DOMPurify still scrubs dangerous style values. No href/src/event attributes.
-const ALLOWED_ATTR = ["style"];
+// The only tags the rich-text editor can produce (bold, italic, underline,
+// colored text via <span style="color">, paragraphs/line breaks). Anything
+// outside this set is stripped on save so a crafted payload can never inject
+// script/style/img or event handlers into a stored announcement.
+//
+// sanitize-html is pure Node (no jsdom / no ESM chain), so it bundles cleanly
+// into the Vercel serverless runtime — unlike isomorphic-dompurify, whose
+// jsdom dependency triggers ERR_REQUIRE_ESM there.
+const ALLOWED_TAGS = ["p", "br", "strong", "b", "em", "i", "u", "s", "span"];
 
 /**
  * Sanitize editor HTML for safe storage + rendering. Removes any tag or
- * attribute outside the rich-text whitelist. Returns a trimmed string;
- * an effectively-empty document collapses to "".
+ * attribute outside the rich-text whitelist. `style` is permitted only for a
+ * text `color` (the editor's one styling feature); every other style property
+ * and all URI-bearing attributes are dropped. Returns a trimmed string; an
+ * effectively-empty document collapses to "".
  */
 export function sanitizeAnnouncementHtml(
   html: string | null | undefined,
@@ -32,35 +24,46 @@ export function sanitizeAnnouncementHtml(
   const raw = (html || "").trim();
   if (!raw) return "";
 
-  const clean = DOMPurify.sanitize(raw, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
-    // Block URI-bearing attributes entirely (defense in depth; none are in
-    // ALLOWED_ATTR anyway).
-    ALLOWED_URI_REGEXP: /^$/,
+  const clean = sanitizeHtml(raw, {
+    allowedTags: ALLOWED_TAGS,
+    // Allow the style attribute on span only (for color).
+    allowedAttributes: {
+      span: ["style"],
+    },
+    // Whitelist ONLY the color CSS property, with sane value shapes
+    // (#rrggbb, rgb(), or a bare color keyword). Anything else is stripped.
+    allowedStyles: {
+      "*": {
+        color: [
+          /^#(0x)?[0-9a-fA-F]+$/,
+          /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/,
+          /^[a-zA-Z]+$/,
+        ],
+      },
+    },
+    // No links, images, or URI schemes at all.
+    allowedSchemes: [],
+    disallowedTagsMode: "discard",
   }).trim();
 
-  // Editor emits "<p></p>" for an empty doc.
+  // An empty editor doc collapses to "<p></p>" -> normalize to "".
   return clean === "<p></p>" ? "" : clean;
 }
 
 /**
  * Derive a plain-text projection of the (already sanitized) HTML for embedding
- * and literal search. Block elements become spaces so words don't run
+ * and literal search. Block/line boundaries become spaces so words don't run
  * together; entities are decoded; whitespace is collapsed.
  */
 export function htmlToPlainText(html: string | null | undefined): string {
   const raw = (html || "").trim();
   if (!raw) return "";
 
-  // Strip to text: DOMPurify with no allowed tags returns the text content
-  // with tags removed. We first turn block/line boundaries into spaces.
   const spaced = raw
     .replace(/<\/(p|div|h[1-6]|li|br)>/gi, " ")
     .replace(/<br\s*\/?>/gi, " ")
     .replace(/<\/?[^>]+>/g, " "); // drop any remaining tags
 
-  // Decode a handful of common entities, then collapse whitespace.
   const decoded = spaced
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")

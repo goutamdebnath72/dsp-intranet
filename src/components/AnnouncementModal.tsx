@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useMemo } from "react";
 import { X } from "lucide-react";
 import { DateTime } from "luxon";
 import { sanitizeAnnouncementHtml } from "@/lib/announcements/contentProcessing";
+import { highlightAnnouncementHtml } from "@/lib/announcements/highlightHtml";
 
 // --- 2. ADDED NEW ANNOUNCEMENT TYPE ---
 // This type matches the data our API now sends
@@ -20,19 +21,29 @@ type Announcement = {
 type Props = {
   announcement: Announcement;
   onClose: () => void;
+  // When opened from a search result, the query to highlight in the body.
+  highlightQuery?: string;
 };
 
-export default function AnnouncementModal({ announcement, onClose }: Props) {
+export default function AnnouncementModal({
+  announcement,
+  onClose,
+  highlightQuery,
+}: Props) {
   // This line is correct because the date is a string from the API
   const announcementDate = DateTime.fromISO(announcement.date);
 
   // The body is stored as sanitized rich-text HTML. Render it as formatted
   // markup (not escaped text). Sanitize again on the client as defense in
   // depth — safe content stays identical; anything unexpected is stripped.
-  const safeHtml = useMemo(
-    () => sanitizeAnnouncementHtml(announcement.content || ""),
-    [announcement.content],
-  );
+  const safeHtml = useMemo(() => {
+    const clean = sanitizeAnnouncementHtml(announcement.content || "");
+    // Highlight the search terms (if opened from a search result). Safe: marks
+    // only text between tags, never inside a tag or attribute.
+    return highlightQuery
+      ? highlightAnnouncementHtml(clean, highlightQuery)
+      : clean;
+  }, [announcement.content, highlightQuery]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 

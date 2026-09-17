@@ -717,6 +717,7 @@ export function OmnibarModal({
         <AnnouncementModal
           announcement={selectedAnnouncement}
           onClose={() => setSelectedAnnouncement(null)}
+          highlightQuery={query}
         />
       )}
 
