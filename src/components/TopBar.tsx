@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { LogoModal } from "./LogoModal";
 import { OmnibarModal } from "./OmnibarModal";
+import HelpManualModal from "./HelpManualModal";
 import { getFriendlyFirstName, getInitials } from "@/lib/utils/nameHelper";
 
 // --- DspLogoVibrant ---
@@ -166,6 +167,7 @@ export function TopBar() {
   const closeLogoModal = () => setIsLogoModalOpen(false);
 
   const [isOmnibarOpen, setIsOmnibarOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Compute executive validation using exact 6-digit rule starting with 4 + user role check
   const userTicket = (session?.user as any)?.ticketNo || "";
@@ -231,6 +233,7 @@ export function TopBar() {
           <button
             className="p-1 hover:bg-gray-700 rounded-full"
             aria-label="Help"
+            onClick={() => setIsHelpOpen(true)}
           >
             <HelpCircle size={22} />
           </button>
@@ -324,6 +327,7 @@ export function TopBar() {
         setIsOpen={setIsOmnibarOpen}
         isExecutive={isExecutiveUser}
       />
+      <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </>
   );
 }
