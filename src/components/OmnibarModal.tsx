@@ -1,7 +1,7 @@
 // src/components/OmnibarModal.tsx
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -19,6 +19,8 @@ import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
+import { searchSites } from "@/lib/search/siteSearch";
+import { ExternalLink, Globe } from "lucide-react";
 
 interface OmnibarModalProps {
   isOpen: boolean;
@@ -59,6 +61,16 @@ export function OmnibarModal({
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(
     null,
   );
+
+  // Client-side site directory matches (the "site" result type). Sites are a
+  // static list, so this needs no server round-trip. Shown pinned above the
+  // circular/announcement results. Skipped in Executive synthesis mode.
+  const siteResults = useMemo(() => {
+    if (mode === "intellectual") return [];
+    const q = (query || "").trim();
+    if (q.length < 2) return [];
+    return searchSites(q, 6);
+  }, [query, mode]);
 
   const currentMaxWidthRem =
     mode === "intellectual"
@@ -468,11 +480,63 @@ export function OmnibarModal({
                       mode !== null &&
                       query.trim().length >= 3 &&
                       results.length === 0 &&
+                      siteResults.length === 0 &&
                       !error && (
                         <div className="p-8 text-center text-neutral-500">
                           No results found for &quot;{query}&quot;
                         </div>
                       )}
+
+                    {/* Site directory matches (pinned above content results) */}
+                    {!isLoading && siteResults.length > 0 && (
+                      <div className="flex flex-col gap-1 p-1 mb-2">
+                        <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          Intranet Sites
+                        </h4>
+                        {siteResults.map((site) => (
+                          <div
+                            key={`site-${site.category}-${site.title}`}
+                            className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200 group"
+                          >
+                            <div className="p-2 rounded-md bg-sky-100 text-sky-700 flex-shrink-0">
+                              <Globe size={18} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-neutral-800 truncate">
+                                {site.title}
+                                {site.subtitle && (
+                                  <span className="ml-1.5 text-xs font-normal text-neutral-400">
+                                    {site.subtitle}
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-neutral-500 uppercase tracking-wide">
+                                {site.category === "sail"
+                                  ? "SAIL Site"
+                                  : site.category === "department"
+                                    ? "Department Site"
+                                    : "Quick Link"}
+                              </p>
+                            </div>
+                            {site.hasLink ? (
+                              <a
+                                href={site.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1.5 flex-shrink-0 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition-colors"
+                              >
+                                Open <ExternalLink size={13} />
+                              </a>
+                            ) : (
+                              <span className="flex-shrink-0 rounded-md bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-400 italic">
+                                Link not available yet
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {!isLoading && results.length > 0 && (
                       <div className="flex flex-col gap-4 p-1">
