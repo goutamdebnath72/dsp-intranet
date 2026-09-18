@@ -13,6 +13,7 @@ import {
   Quote,
   Languages,
   BellDot,
+  UserRound,
   Megaphone,
   Clock,
   Keyboard,
@@ -129,9 +130,10 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
               <p className="rounded-lg bg-sky-50 p-3 text-sm text-slate-700">
                 Press <Pill>Ctrl</Pill> + <Pill>K</Pill> (or click the search
                 bar) to open search from anywhere. One search looks across{" "}
-                <strong>circulars</strong>, <strong>announcements</strong>, and{" "}
-                <strong>intranet sites</strong> at once — each result is labelled
-                so you can tell them apart.
+                <strong>circulars</strong>, <strong>announcements</strong>,{" "}
+                <strong>intranet sites</strong> and the{" "}
+                <strong>employee directory</strong> — each result is labelled so
+                you can tell them apart.
               </p>
 
               {/* Search modes */}
@@ -200,6 +202,43 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                 </p>
               </Section>
 
+              {/* People / employee directory */}
+              <Section
+                icon={<UserRound size={17} />}
+                title="Finding people (employee directory)"
+              >
+                <p>
+                  The whole DSP employee list is searchable. There are two ways:
+                </p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    <strong>By number — instant, as you type:</strong> a 6-digit{" "}
+                    <strong>ticket number</strong>, a 10-digit{" "}
+                    <strong>CUG mobile number</strong>, or a{" "}
+                    <strong>SAIL personal number</strong> (e.g.{" "}
+                    <Pill>D111086</Pill>, any case) shows the person immediately —
+                    no key to press.
+                  </li>
+                  <li>
+                    <strong>By name — press{" "}
+                    <Pill>Enter</Pill>:</strong> type a full name, first, middle
+                    or last name and press Enter. The search is{" "}
+                    <strong>similar-sounding</strong>: “Goutam” also finds
+                    “Gautam”, “Anoop Sirkar” finds “Anup Sarkar”. Honorifics
+                    (Mr, Mohd, Dr, Shri…) are ignored, and multi-word names match
+                    in order (“Anil Kumar” finds “Anil Kumar Salian”).
+                  </li>
+                </ul>
+                <p>
+                  Results show name, ticket, personal number, designation and
+                  department. Mobile and email are{" "}
+                  <strong>masked</strong> (e.g. <Pill>943479xxxx</Pill>); click{" "}
+                  <strong>reveal</strong> to see the full value. Revealing is
+                  recorded (who viewed which contact, and when) — and requires
+                  sign-in if you are signed out.
+                </p>
+              </Section>
+
               {/* Tri-lingual */}
               <Section
                 icon={<Languages size={17} />}
@@ -216,17 +255,18 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
               {/* Circular red dot */}
               <Section
                 icon={<BellDot size={17} />}
-                title="The red dot on “Circular (Personnel)”"
+                title="The red badge on “Circular (Personnel)”"
               >
                 <p>
-                  A small red dot on the Circular button means a{" "}
-                  <strong>new circular</strong> has arrived.
+                  A red badge on the Circular button shows{" "}
+                  <strong>how many new circulars</strong> have arrived (the
+                  number inside it; “9+” beyond nine).
                 </p>
                 <ul className="list-disc space-y-1 pl-5">
                   <li>
-                    <strong>When you are signed in:</strong> the dot is personal.
-                    It clears as soon as you have opened the new circular(s).
-                    Open each new one to make it go away.
+                    <strong>When you are signed in:</strong> the count is
+                    personal. It drops as you open each new circular and the
+                    badge disappears once you have seen them all.
                   </li>
                   <li>
                     <strong>When you are signed out:</strong> the dot shows to
@@ -283,6 +323,10 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                 <ul className="list-disc space-y-1 pl-5">
                   <li>
                     <Pill>Ctrl</Pill> + <Pill>K</Pill> — open search
+                  </li>
+                  <li>
+                    <Pill>Enter</Pill> — search people by name (sites, circulars
+                    &amp; ID lookups need no key)
                   </li>
                   <li>
                     <Pill>Shift</Pill> + <Pill>Enter</Pill> — new line in the

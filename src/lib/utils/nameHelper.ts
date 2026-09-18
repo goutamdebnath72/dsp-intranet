@@ -7,6 +7,8 @@
 
 // A curated, case-insensitive list of common prefixes and honorifics
 // widely used in South Asia and globally.
+// ⚠️ KEEP IN SYNC with the SQL function public.name_prefixes()
+// (04_phonetic_setup.sql) used by employee phonetic search.
 const COMMON_PREFIXES = new Set([
   "MOHD",
   "MOHAMMAD",

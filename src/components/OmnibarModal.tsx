@@ -1,7 +1,7 @@
 // src/components/OmnibarModal.tsx
 "use client";
 
-import React, { useRef, useEffect, useState, useMemo } from "react";
+import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -14,13 +14,15 @@ import {
 } from "lucide-react";
 import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
+import { useSession } from "next-auth/react";
+import { useModal } from "@/context/ModalContext";
 import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 import { searchSites } from "@/lib/search/siteSearch";
-import { ExternalLink, Globe } from "lucide-react";
+import { ExternalLink, Globe, UserRound, Phone, Mail, ShieldCheck } from "lucide-react";
 
 interface OmnibarModalProps {
   isOpen: boolean;
@@ -49,6 +51,10 @@ export function OmnibarModal({
     error,
   } = useOmniSearch(isOpen, ticketNo);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { status: authStatus } = useSession();
+  const { openModal } = useModal();
+  // A reveal the user clicked while logged out; retried after they log in.
+  const pendingRevealRef = useRef<{ empId: string; field: "mobile" | "email" } | null>(null);
 
   const [loadingStep, setLoadingStep] = useState(0);
   const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
@@ -71,6 +77,128 @@ export function OmnibarModal({
     if (q.length < 2) return [];
     return searchSites(q, 6);
   }, [query, mode]);
+
+  // ---- Employee (People) search --------------------------------------------
+  // Live exact-ID lookups (ticket / mobile / SAIL PNO) as the user types, and
+  // fuzzy+phonetic NAME search triggered on Enter. Contacts arrive masked; the
+  // reveal endpoint unmasks + audits.
+  const [employeeResults, setEmployeeResults] = useState<any[]>([]);
+  const [employeeLoading, setEmployeeLoading] = useState(false);
+  // id -> { mobile?: string; email?: string } once revealed in this session.
+  const [revealed, setRevealed] = useState<Record<string, { mobile?: string; email?: string }>>({});
+
+  // ID-shape detector (mirror of the server's detectShape for the live path).
+  const isIdQuery = useCallback((raw: string) => {
+    const q = (raw || "").trim();
+    return /^\d{6}$/.test(q) || /^\d{10}$/.test(q) || /^[A-Za-z]\d{4,}$/.test(q);
+  }, []);
+
+  // Live: run ID lookups as the user types (debounced). Names wait for Enter.
+  useEffect(() => {
+    const q = (query || "").trim();
+    if (mode === "intellectual" || !isIdQuery(q)) {
+      // Clear employee results unless a name-search populated them (Enter path
+      // sets them directly and should persist until the query changes).
+      return;
+    }
+    let cancelled = false;
+    setEmployeeLoading(true);
+    const t = setTimeout(() => {
+      fetch(`/api/employees/search?mode=id&q=${encodeURIComponent(q)}`, {
+        cache: "no-store",
+      })
+        .then((r) => (r.ok ? r.json() : { results: [] }))
+        .then((d) => {
+          if (!cancelled) setEmployeeResults(Array.isArray(d.results) ? d.results : []);
+        })
+        .catch(() => {
+          if (!cancelled) setEmployeeResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setEmployeeLoading(false);
+        });
+    }, 180);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [query, mode, isIdQuery]);
+
+  // When the query is cleared or becomes an id/name, keep employee list sane.
+  useEffect(() => {
+    const q = (query || "").trim();
+    if (q.length < 2) {
+      setEmployeeResults([]);
+      setRevealed({});
+    }
+  }, [query]);
+
+  // Enter -> fuzzy + phonetic NAME search.
+  const runEmployeeNameSearch = useCallback(async () => {
+    const q = (query || "").trim();
+    if (q.length < 2) return;
+    setEmployeeLoading(true);
+    try {
+      const r = await fetch(
+        `/api/employees/search?mode=name&q=${encodeURIComponent(q)}`,
+        { cache: "no-store" },
+      );
+      const d = r.ok ? await r.json() : { results: [] };
+      setEmployeeResults(Array.isArray(d.results) ? d.results : []);
+    } catch {
+      setEmployeeResults([]);
+    } finally {
+      setEmployeeLoading(false);
+    }
+  }, [query]);
+
+  // Reveal a masked contact field: unmask inline + server writes the audit row.
+  const doReveal = useCallback(
+    async (empId: string, field: "mobile" | "email"): Promise<boolean> => {
+      try {
+        const r = await fetch(`/api/employees/${empId}/reveal`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ field }),
+        });
+        if (r.status === 401) return false; // not logged in
+        if (!r.ok) return true; // other error: stop, don't loop into login
+        const d = await r.json();
+        setRevealed((prev) => ({
+          ...prev,
+          [empId]: { ...prev[empId], [field]: d.value || "\u2014" },
+        }));
+        return true;
+      } catch {
+        return true; // network error: don't trigger login loop
+      }
+    },
+    [],
+  );
+
+  const revealContact = useCallback(
+    async (empId: string, field: "mobile" | "email") => {
+      // Logged in -> reveal directly (session cookie carries identity).
+      if (authStatus === "authenticated") {
+        await doReveal(empId, field);
+        return;
+      }
+      // Logged out -> remember what to reveal, open the normal login modal,
+      // and retry automatically once the session becomes authenticated.
+      pendingRevealRef.current = { empId, field };
+      openModal();
+    },
+    [authStatus, doReveal, openModal],
+  );
+
+  // After a successful login, complete any pending reveal.
+  useEffect(() => {
+    if (authStatus === "authenticated" && pendingRevealRef.current) {
+      const { empId, field } = pendingRevealRef.current;
+      pendingRevealRef.current = null;
+      doReveal(empId, field);
+    }
+  }, [authStatus, doReveal]);
 
   const currentMaxWidthRem =
     mode === "intellectual"
@@ -220,12 +348,15 @@ export function OmnibarModal({
                     }
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
+                      // Enter is dedicated to EMPLOYEE name search (fuzzy +
+                      // phonetic). Document search runs from the three buttons;
+                      // sites & ID lookups display live as you type.
                       if (query.trim().length >= 2) {
-                        triggerSearch(mode || "semantic");
+                        runEmployeeNameSearch();
                       }
                     }
                   }}
-                  placeholder="Search circulars, announcements & intranet sites…"
+                  placeholder="Search circulars, announcements, sites & people (Press Enter for names)…"
                   className="flex-1 bg-transparent text-sm sm:text-base text-neutral-900 placeholder-neutral-400 focus:outline-none resize-none leading-relaxed overflow-y-auto max-h-24 py-1"
                 />
                 {isLoading && mode !== "intellectual" && (
@@ -481,6 +612,7 @@ export function OmnibarModal({
                       query.trim().length >= 3 &&
                       results.length === 0 &&
                       siteResults.length === 0 &&
+                      employeeResults.length === 0 &&
                       !error && (
                         <div className="p-8 text-center text-neutral-500">
                           No results found for &quot;{query}&quot;
@@ -535,6 +667,84 @@ export function OmnibarModal({
                             )}
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* People (employee directory) — live ID lookups + Enter name search */}
+                    {employeeResults.length > 0 && (
+                      <div className="flex flex-col gap-1 p-1 mb-2">
+                        <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          People
+                        </h4>
+                        {employeeResults.map((emp) => {
+                          const rev = revealed[emp.id] || {};
+                          return (
+                            <div
+                              key={`emp-${emp.id}`}
+                              className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200"
+                            >
+                              <div className="p-2 rounded-md bg-emerald-100 text-emerald-700 flex-shrink-0">
+                                <UserRound size={18} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-neutral-800 truncate">
+                                  {emp.name}
+                                  {emp.isExecutive && (
+                                    <span className="ml-2 align-middle rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                                      EXE
+                                    </span>
+                                  )}
+                                </p>
+                                <p className="text-xs text-neutral-500 truncate">
+                                  {[
+                                    emp.ticketNo,
+                                    emp.sailPNo,
+                                    emp.designation,
+                                    emp.department,
+                                  ]
+                                    .filter(Boolean)
+                                    .join("  ·  ")}
+                                </p>
+                                {/* Contact row: masked with reveal buttons */}
+                                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                  {emp.hasMobile && (
+                                    <button
+                                      type="button"
+                                      onClick={() => revealContact(emp.id, "mobile")}
+                                      disabled={!!rev.mobile}
+                                      className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-default disabled:border-emerald-200 disabled:text-emerald-700"
+                                    >
+                                      <Phone size={12} />
+                                      {rev.mobile ? rev.mobile : emp.mobileMasked}
+                                      {!rev.mobile && (
+                                        <span className="text-[10px] text-neutral-400">reveal</span>
+                                      )}
+                                    </button>
+                                  )}
+                                  {emp.hasEmail && (
+                                    <button
+                                      type="button"
+                                      onClick={() => revealContact(emp.id, "email")}
+                                      disabled={!!rev.email}
+                                      className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-default disabled:border-emerald-200 disabled:text-emerald-700"
+                                    >
+                                      <Mail size={12} />
+                                      {rev.email ? rev.email : emp.emailMasked}
+                                      {!rev.email && (
+                                        <span className="text-[10px] text-neutral-400">reveal</span>
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              {emp.matchKind === "name-phonetic" && (
+                                <span className="flex-shrink-0 self-start rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                                  sounds-like
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 
