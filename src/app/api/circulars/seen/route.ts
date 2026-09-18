@@ -50,7 +50,7 @@ export async function GET(request: Request) {
 
     // No recent circulars at all -> nothing new for anyone.
     if (recentIds.length === 0) {
-      return noStore({ hasNewCircular: false, unreadIds: [] });
+      return noStore({ hasNewCircular: false, unreadIds: [], newCount: 0 });
     }
 
     const activeUserId = session?.user ? (session.user as any).id : null;
@@ -74,11 +74,12 @@ export async function GET(request: Request) {
     return noStore({
       hasNewCircular: unreadIds.length > 0,
       unreadIds,
+      newCount: unreadIds.length,
     });
   } catch (error) {
     console.error("❌ Failed to compute circular new-status:", error);
     // Fail safe: no dot rather than a false alarm.
-    return noStore({ hasNewCircular: false, unreadIds: [] });
+    return noStore({ hasNewCircular: false, unreadIds: [], newCount: 0 });
   }
 }
 

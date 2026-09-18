@@ -33,6 +33,11 @@ const iconMap: { [key: string]: React.ElementType } = {
   Users2, // Added Users2
   // Siren removed
 };
+// --- "New circular" badge color. Swap this one value to compare:
+//   Adobe red  -> "#FA0F00"
+//   macOS red  -> "#FF3B30"
+const NEW_BADGE_COLOR = "#FF3B30";
+
 // --- MODIFIED: Define the 8 priority links to pull ---
 const priorityLinkTitles = [
   "BAMS",
@@ -68,6 +73,7 @@ interface QuickAccessBarProps {
   onCircularsClick: () => void;
   onMoreAppsClick: () => void;
   hasNewCircular?: boolean;
+  newCircularCount?: number;
 }
 
 // 3. This is the individual button component
@@ -77,7 +83,14 @@ const AccessButton: React.FC<{
   onCircularsClick: () => void;
   onMoreAppsClick: () => void;
   hasNewCircular?: boolean;
-}> = ({ link, onCircularsClick, onMoreAppsClick, hasNewCircular }) => {
+  newCircularCount?: number;
+}> = ({
+  link,
+  onCircularsClick,
+  onMoreAppsClick,
+  hasNewCircular,
+  newCircularCount,
+}) => {
   // --- MODIFIED: Get icon from the map ---
   // Ensure link.icon is treated as a key of iconMap
   const Icon = iconMap[link.icon as keyof typeof iconMap];
@@ -104,12 +117,51 @@ const AccessButton: React.FC<{
         whileHover={{ y: -5 }}
         transition={{ type: "spring", stiffness: 300 }}
       >
-        {hasNewCircular && (
-          <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-red-500" />
-          </span>
-        )}
+        {hasNewCircular &&
+          (() => {
+            const count = newCircularCount ?? 0;
+            const label = count > 9 ? "9+" : count > 0 ? String(count) : "";
+            const isWide = label.length > 1;
+            // ~25% inside / ~75% outside the top-right corner.
+            return (
+              <span className="absolute -top-2 -right-2 flex items-center justify-center">
+                {/* soft ping halo */}
+                <span
+                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+                  style={{ backgroundColor: NEW_BADGE_COLOR }}
+                />
+                {/* badge body — perfect square (or pill for 2 digits) so the
+                    numeral optically centers; SF-style thin, sharp numerals. */}
+                <span
+                  className="relative flex items-center justify-center rounded-full text-white"
+                  style={{
+                    backgroundColor: NEW_BADGE_COLOR,
+                    height: "20px",
+                    width: isWide ? "auto" : "20px",
+                    minWidth: "20px",
+                    padding: isWide ? "0 6px" : "0",
+                    fontFamily:
+                      '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Segoe UI", Roboto, sans-serif',
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    lineHeight: "20px",
+                    letterSpacing: "-0.02em",
+                    fontVariantNumeric: "tabular-nums",
+                    textAlign: "center",
+                  }}
+                >
+                  <span
+                    style={{
+                      transform: "translateX(-1.0px)",
+                      display: "inline-block",
+                    }}
+                  >
+                    {label}
+                  </span>
+                </span>
+              </span>
+            );
+          })()}
         <Icon
           size={28}
           className="transition-transform duration-300 
@@ -181,6 +233,7 @@ export function QuickAccessBar({
   onCircularsClick,
   onMoreAppsClick,
   hasNewCircular,
+  newCircularCount,
 }: QuickAccessBarProps) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-4">
@@ -194,6 +247,7 @@ export function QuickAccessBar({
               onCircularsClick={onCircularsClick}
               onMoreAppsClick={onMoreAppsClick}
               hasNewCircular={hasNewCircular}
+              newCircularCount={newCircularCount}
             />
           ) : null, // Don't render if link is somehow undefined
       )}

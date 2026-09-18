@@ -79,6 +79,7 @@ export function HomepageNew({
 
   // ✅ ADDED: red-dot ("new circular") state + fetcher
   const [hasNewCircular, setHasNewCircular] = useState(false);
+  const [newCircularCount, setNewCircularCount] = useState(0);
 
   const refreshCircularStatus = useCallback(async () => {
     try {
@@ -86,6 +87,7 @@ export function HomepageNew({
       if (!res.ok) return;
       const data = await res.json();
       setHasNewCircular(Boolean(data?.hasNewCircular));
+      setNewCircularCount(Number(data?.newCount) || 0);
     } catch {
       // Fail safe: leave the dot as-is on transient errors
     }
@@ -262,6 +264,7 @@ export function HomepageNew({
           onCircularsClick={handleCircularsClick}
           onMoreAppsClick={handleMoreAppsClick}
           hasNewCircular={hasNewCircular}
+          newCircularCount={newCircularCount}
         />
       </div>
 
