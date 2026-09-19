@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { TypeORMAdapter } from "@auth/typeorm-adapter";
 import { getDb } from "@/lib/db";
 import { User } from "@/lib/db/models";
+import { isSuperAdmin } from "@/lib/superAdmin";
 
 /**
  * Async function to build AuthOptions matching TypeORM connection states.
@@ -96,6 +97,8 @@ export async function getAuthOptions(): Promise<AuthOptions> {
           (session.user as any).id = token.id;
           (session.user as any).role = token.role;
           (session.user as any).ticketNo = token.ticketNo as string; // ✅ Attached database ticketNo attribute to active user session
+          // ✅ Super-admin (HOD C&IT) flag, derived from ticket via SUPERADMIN_TICKETS env
+          (session.user as any).isSuperAdmin = isSuperAdmin(token.ticketNo as string);
         }
         return session;
       },

@@ -22,7 +22,7 @@ import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 import { searchSites } from "@/lib/search/siteSearch";
-import { ExternalLink, Globe, UserRound, Phone, Mail, ShieldCheck } from "lucide-react";
+import { ExternalLink, Globe, UserRound, Phone, Mail, ShieldCheck, Copy, Check } from "lucide-react";
 
 interface OmnibarModalProps {
   isOpen: boolean;
@@ -86,6 +86,8 @@ export function OmnibarModal({
   const [employeeLoading, setEmployeeLoading] = useState(false);
   // id -> { mobile?: string; email?: string } once revealed in this session.
   const [revealed, setRevealed] = useState<Record<string, { mobile?: string; email?: string }>>({});
+  // id of the row most recently copied (for a transient "Copied" confirmation).
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // ID-shape detector (mirror of the server's detectShape for the live path).
   const isIdQuery = useCallback((raw: string) => {
@@ -189,6 +191,37 @@ export function OmnibarModal({
       openModal();
     },
     [authStatus, doReveal, openModal],
+  );
+
+  // Copy an employee's visible directory record to the clipboard (logged-in
+  // only) and record the event as action='copy'. Masked contacts are included
+  // only if they were already revealed in this session.
+  const copyRecord = useCallback(
+    async (emp: any) => {
+      if (authStatus !== "authenticated") return; // button is disabled anyway
+      const rev = revealed[emp.id] || {};
+      const line = [emp.name, emp.ticketNo, emp.sailPNo, emp.designation, emp.department]
+        .filter(Boolean)
+        .join("  \u00b7  ");
+      const extra: string[] = [];
+      if (rev.mobile) extra.push(`Mobile: ${rev.mobile}`);
+      if (rev.email) extra.push(`Email: ${rev.email}`);
+      const text = [line, ...extra].join("\n");
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopiedId(emp.id);
+        setTimeout(() => setCopiedId((c) => (c === emp.id ? null : c)), 1500);
+      } catch {
+        // clipboard blocked; still record the intent below
+      }
+      // Best-effort audit; never blocks the UX.
+      fetch(`/api/employees/${emp.id}/copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: "record" }),
+      }).catch(() => {});
+    },
+    [authStatus, revealed],
   );
 
   // After a successful login, complete any pending reveal.
@@ -672,7 +705,23 @@ export function OmnibarModal({
 
                     {/* People (employee directory) — live ID lookups + Enter name search */}
                     {employeeResults.length > 0 && (
-                      <div className="flex flex-col gap-1 p-1 mb-2">
+                      <div
+                        className={`flex flex-col gap-1 p-1 mb-2 ${
+                          authStatus === "authenticated"
+                            ? "select-text"
+                            : "select-none"
+                        }`}
+                        onCopy={
+                          authStatus !== "authenticated"
+                            ? (e) => e.preventDefault()
+                            : undefined
+                        }
+                        onContextMenu={
+                          authStatus !== "authenticated"
+                            ? (e) => e.preventDefault()
+                            : undefined
+                        }
+                      >
                         <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                           People
                         </h4>
@@ -737,11 +786,31 @@ export function OmnibarModal({
                                   )}
                                 </div>
                               </div>
-                              {emp.matchKind === "name-phonetic" && (
-                                <span className="flex-shrink-0 self-start rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
-                                  sounds-like
-                                </span>
-                              )}
+                              <div className="flex flex-shrink-0 flex-col items-end gap-1 self-start">
+                                {emp.matchKind === "name-phonetic" && (
+                                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                                    sounds-like
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => copyRecord(emp)}
+                                  disabled={authStatus !== "authenticated"}
+                                  title={
+                                    authStatus === "authenticated"
+                                      ? "Copy record"
+                                      : "Log in to copy"
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-neutral-200 disabled:hover:text-neutral-700"
+                                >
+                                  {copiedId === emp.id ? (
+                                    <Check size={12} />
+                                  ) : (
+                                    <Copy size={12} />
+                                  )}
+                                  {copiedId === emp.id ? "Copied" : "Copy"}
+                                </button>
+                              </div>
                             </div>
                           );
                         })}

@@ -159,7 +159,7 @@ export async function searchEmployeesByName(
             ELSE 0 END) DESC,
       similarity(u.name, $1) DESC,
       u.name ASC
-    LIMIT 20;
+    LIMIT 50;
   `;
 
   const rows = await ds.query(sql, [q, like]);

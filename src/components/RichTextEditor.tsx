@@ -6,6 +6,7 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
 import { TextStyle, Color } from "@tiptap/extension-text-style";
+import { ADMIN_EDITOR_MIN_HEIGHT } from "@/lib/constants";
 import {
   Bold as BoldIcon,
   Italic as ItalicIcon,
@@ -154,7 +155,8 @@ export default function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm max-w-none min-h-[20vh] px-3 py-2 focus:outline-none text-slate-800",
+          "prose prose-sm max-w-none px-3 py-2 focus:outline-none text-slate-800",
+        style: `min-height:${ADMIN_EDITOR_MIN_HEIGHT}`,
         "data-placeholder": placeholder || "",
       },
     },
@@ -182,7 +184,10 @@ export default function RichTextEditor({
   if (!editor) {
     return (
       <div className="rounded-md border border-slate-500 shadow-md">
-        <div className="h-[calc(20vh+41px)] animate-pulse bg-slate-50" />
+        <div
+          className="animate-pulse bg-slate-50"
+          style={{ height: `calc(${ADMIN_EDITOR_MIN_HEIGHT} + 41px)` }}
+        />
       </div>
     );
   }
