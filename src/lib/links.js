@@ -137,8 +137,8 @@ export const links = [
   },
   {
     title: "SAIL Mail",
-    subtitle: "(mail.sail.in)",
-    href: "https://email.sail.in/", // Keep link
+    subtitle: "(mail.gov.in)",
+    href: "https://accounts.mgovcloud.in/signin?", // Keep link
     icon: "Mail", // Keep
     category: "quicklink",
   },
