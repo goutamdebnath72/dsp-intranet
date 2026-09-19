@@ -17,6 +17,7 @@ import {
   Megaphone,
   Clock,
   Keyboard,
+  ShieldCheck,
 } from "lucide-react";
 import {
   ANNOUNCEMENT_NEW_THRESHOLD_DAYS,
@@ -233,10 +234,63 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                   Results show name, ticket, personal number, designation and
                   department. Mobile and email are{" "}
                   <strong>masked</strong> (e.g. <Pill>943479xxxx</Pill>); click{" "}
-                  <strong>reveal</strong> to see the full value. Revealing is
-                  recorded (who viewed which contact, and when) — and requires
-                  sign-in if you are signed out.
+                  <strong>reveal</strong> to see the full value. Each row also has
+                  a <strong>Copy</strong> button that copies the person’s record
+                  (including any contact you have revealed).
                 </p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    <strong>Signed out:</strong> you can search and read the
+                    directory, but the <strong>Copy button is disabled</strong>{" "}
+                    and the on-screen details <strong>cannot be selected or
+                    copied</strong>. Revealing a contact asks you to sign in
+                    first.
+                  </li>
+                  <li>
+                    <strong>Signed in:</strong> you can reveal contacts and copy
+                    freely — but note that{" "}
+                    <strong>every reveal and every copy is recorded</strong>{" "}
+                    (who accessed whose contact, which field, whether it was a
+                    view or a copy, and when).
+                  </li>
+                </ul>
+              </Section>
+
+              {/* Super-admin: contact access log */}
+              <Section
+                icon={<ShieldCheck size={17} />}
+                title="Contact access log (HOD, C&IT)"
+              >
+                <p>
+                  Because every reveal and copy is recorded, the{" "}
+                  <strong>HOD of C&amp;IT</strong> has an exclusive{" "}
+                  <strong>Contact Access Log</strong> (Admin → Contact Access
+                  Log). No other admin can open it.
+                </p>
+                <p>
+                  It lists every access <strong>newest first</strong>: date &amp;
+                  time, the <strong>viewer</strong> (name + ticket), the{" "}
+                  <strong>viewed person</strong> (name + ticket), the field, and
+                  whether it was a <strong>reveal</strong> or a{" "}
+                  <strong>copy</strong>. Excel-like tools help narrow it down:
+                </p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    <strong>Per-column filters</strong> — a date range, free-text
+                    search on the viewer or the viewed person (by name or
+                    ticket), and dropdowns for field (mobile / email) and action
+                    (reveal / copy).
+                  </li>
+                  <li>
+                    <strong>Sortable columns</strong> — click any header to sort;
+                    a running <strong>Total · Reveals · Copies</strong> tally
+                    updates as filters change.
+                  </li>
+                  <li>
+                    <strong>Clear filters</strong> resets the whole view in one
+                    click.
+                  </li>
+                </ul>
               </Section>
 
               {/* Tri-lingual */}
