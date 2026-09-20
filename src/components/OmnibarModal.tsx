@@ -47,6 +47,7 @@ export function OmnibarModal({
     triggerSearch,
     results,
     synthesis,
+    analytics,
     isLoading,
     error,
   } = useOmniSearch(isOpen, ticketNo);
@@ -640,9 +641,77 @@ export function OmnibarModal({
                       </div>
                     )}
 
+                    {/* Employee analytics answer (Smart Semantic, DB-grounded) */}
+                    {!isLoading && analytics && (
+                      <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+                            <UserRound size={16} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            {typeof analytics.count === "number" &&
+                              analytics.kind !== "breakdown" && (
+                                <div className="text-2xl font-bold leading-tight text-blue-900">
+                                  {analytics.count.toLocaleString()}
+                                </div>
+                              )}
+                            <p className="text-sm text-neutral-700">
+                              {analytics.answer}
+                            </p>
+                            {analytics.kind === "breakdown" &&
+                              analytics.rows &&
+                              analytics.rows.length > 0 && (
+                                <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-blue-100 bg-white">
+                                  <table className="w-full text-sm">
+                                    <tbody>
+                                      {analytics.rows.map((r, i) => {
+                                        const prev = analytics.rows![i - 1];
+                                        const showHeader =
+                                          !prev || prev.class !== r.class;
+                                        const groupLabel =
+                                          r.class === "exec"
+                                            ? "Executives"
+                                            : r.class === "medical"
+                                              ? "Medical & Health Services"
+                                              : r.class === "nonexec"
+                                                ? "Non-executives"
+                                                : "Other";
+                                        return (
+                                          <React.Fragment key={r.designation}>
+                                            {showHeader && (
+                                              <tr className="bg-blue-50/70">
+                                                <td
+                                                  colSpan={2}
+                                                  className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-blue-700"
+                                                >
+                                                  {groupLabel}
+                                                </td>
+                                              </tr>
+                                            )}
+                                            <tr className="border-t border-neutral-100">
+                                              <td className="px-3 py-1.5 text-neutral-700">
+                                                {r.short}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-right font-semibold text-neutral-900">
+                                                {r.count.toLocaleString()}
+                                              </td>
+                                            </tr>
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {!isLoading &&
                       mode !== null &&
                       query.trim().length >= 3 &&
+                      !analytics &&
                       results.length === 0 &&
                       siteResults.length === 0 &&
                       employeeResults.length === 0 &&

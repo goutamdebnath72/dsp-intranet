@@ -18,8 +18,24 @@ export interface OmniSearchResult {
   matchPages?: number[]; // all pages that contain a match
 }
 
+export interface AnalyticsBreakdownRow {
+  designation: string;
+  short: string;
+  count: number;
+  class?: string;
+}
+
+export interface AnalyticsAnswer {
+  kind: "count" | "total" | "breakdown" | "pending";
+  answer: string;
+  label?: string;
+  count?: number;
+  rows?: AnalyticsBreakdownRow[];
+}
+
 export interface OmniSearchResponse {
   synthesis?: SynthesisResult;
+  analytics?: AnalyticsAnswer;
   results: OmniSearchResult[];
 }
 
@@ -86,6 +102,11 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   const synthesis: SynthesisResult | null =
     !Array.isArray(data) && data?.synthesis ? data.synthesis : null;
 
+  const analytics: AnalyticsAnswer | null =
+    !Array.isArray(data) && (data as OmniSearchResponse)?.analytics
+      ? (data as OmniSearchResponse).analytics!
+      : null;
+
   const isLoading = shouldFetch && isSwrLoading;
 
   return {
@@ -95,6 +116,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     triggerSearch,
     results,
     synthesis,
+    analytics,
     isLoading,
     error,
   };

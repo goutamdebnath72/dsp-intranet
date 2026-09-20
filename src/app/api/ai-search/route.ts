@@ -9,6 +9,12 @@ import {
 } from "@/lib/search/executiveSynthesis";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
+import { parseAnalytics } from "@/lib/employees/parser";
+import {
+  countByTerm,
+  totalHeadcount,
+  designationBreakdown,
+} from "@/lib/employees/analytics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -123,6 +129,55 @@ function pickReadableExcerpt(
   return best;
 }
 
+
+// Employee analytics (Phase 1, DSP-wide): try to answer a staffing question
+// deterministically from the DB. Returns a payload to send, or null so the
+// caller falls through to the normal circular/announcement search.
+async function tryEmployeeAnalytics(q: string) {
+  const intent = parseAnalytics(q);
+  if (!intent) return null;
+
+  if (intent.kind === "deptPending") {
+    return {
+      analytics: {
+        kind: "pending",
+        answer: `Department-scoped counts (e.g. \u201c${intent.dept}\u201d) are coming soon. For now I can answer DSP-wide counts \u2014 try the same question without the department.`,
+      },
+    };
+  }
+  if (intent.kind === "total") {
+    const n = await totalHeadcount();
+    return {
+      analytics: {
+        kind: "total",
+        count: n,
+        answer: `DSP has ${n.toLocaleString()} employees on record.`,
+      },
+    };
+  }
+  if (intent.kind === "breakdown") {
+    const rows = await designationBreakdown();
+    return {
+      analytics: {
+        kind: "breakdown",
+        rows,
+        answer: `Designation-wise breakdown across DSP (${rows.length} designations).`,
+      },
+    };
+  }
+  const res = await countByTerm(intent.term);
+  if (!res) return null;
+  const answer =
+    res.kind === "exec"
+      ? `DSP has ${res.count.toLocaleString()} executives.`
+      : res.kind === "nonexec"
+        ? `DSP has ${res.count.toLocaleString()} non-executives (S-scale).`
+        : `DSP currently has ${res.count.toLocaleString()} ${res.label}.`;
+  return {
+    analytics: { kind: "count", label: res.label, count: res.count, answer },
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const dataSource = await getDb();
@@ -180,6 +235,14 @@ export async function GET(request: Request) {
       if (!isAuthorizedExecutive && userTicket) {
         mode = "semantic";
       }
+    }
+
+    // --- EMPLOYEE ANALYTICS (deterministic, DB-grounded) ---
+    // Smart Semantic first tries to answer staffing questions from the DB;
+    // if it is not an analytics question, fall through to circular search.
+    if (mode === "semantic") {
+      const analytics = await tryEmployeeAnalytics(q);
+      if (analytics) return NextResponse.json(analytics);
     }
 
     // --- RETRIEVE BEST MATCHING CIRCULARS ---
