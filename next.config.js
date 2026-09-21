@@ -34,7 +34,21 @@ const nextConfig = {
       "oracledb",
       "tesseract.js",
       "typeorm",
+      // pdf-to-img -> pdfjs-dist's Node canvas factory needs the native
+      // @napi-rs/canvas binary at runtime.
+      "pdfjs-dist",
+      "@napi-rs/canvas",
     ],
+    // serverComponentsExternalPackages alone does NOT get the native
+    // @napi-rs/canvas .node binary into the traced serverless bundle —
+    // confirmed by inspecting .next/server/app/api/circulars/route.js.nft.json,
+    // which listed zero canvas/napi-rs files even with the package
+    // externalized. Next's build-time trace can't follow @napi-rs/canvas's
+    // own runtime `require()` of a platform-specific package
+    // (@napi-rs/canvas-<platform>-<arch>), so it must be force-included here.
+    outputFileTracingIncludes: {
+      "/api/circulars": ["./node_modules/@napi-rs/canvas*/**/*"],
+    },
   },
 };
 
