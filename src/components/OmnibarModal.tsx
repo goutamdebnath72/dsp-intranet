@@ -22,6 +22,7 @@ import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 import { searchSites } from "@/lib/search/siteSearch";
+import { findDepartmentInText } from "@/lib/employees/departments";
 import { ExternalLink, Globe, UserRound, Phone, Mail, ShieldCheck, Copy, Check } from "lucide-react";
 
 interface OmnibarModalProps {
@@ -33,6 +34,92 @@ interface OmnibarModalProps {
 
 const BASE_MODAL_WIDTH_REM = 52;
 const EXECUTIVE_SCALE = 1.08;
+
+function PersonRow({
+  emp,
+  rev,
+  authStatus,
+  copiedId,
+  onReveal,
+  onCopy,
+}: {
+  emp: any;
+  rev: { mobile?: string; email?: string };
+  authStatus: string;
+  copiedId: string | null;
+  onReveal: (id: string, field: "mobile" | "email") => void;
+  onCopy: (emp: any) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200">
+      <div className="p-2 rounded-md bg-emerald-100 text-emerald-700 flex-shrink-0">
+        <UserRound size={18} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-neutral-800 truncate">
+          {emp.name}
+          {emp.isExecutive && (
+            <span className="ml-2 align-middle rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+              EXE
+            </span>
+          )}
+        </p>
+        <p className="text-xs text-neutral-500 truncate">
+          {[emp.ticketNo, emp.sailPNo, emp.designation, emp.department]
+            .filter(Boolean)
+            .join("  \u00b7  ")}
+        </p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          {emp.hasMobile && (
+            <button
+              type="button"
+              onClick={() => onReveal(emp.id, "mobile")}
+              disabled={!!rev.mobile}
+              className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-default disabled:border-emerald-200 disabled:text-emerald-700"
+            >
+              <Phone size={12} />
+              {rev.mobile ? rev.mobile : emp.mobileMasked}
+              {!rev.mobile && (
+                <span className="text-[10px] text-neutral-400">reveal</span>
+              )}
+            </button>
+          )}
+          {emp.hasEmail && (
+            <button
+              type="button"
+              onClick={() => onReveal(emp.id, "email")}
+              disabled={!!rev.email}
+              className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-default disabled:border-emerald-200 disabled:text-emerald-700"
+            >
+              <Mail size={12} />
+              {rev.email ? rev.email : emp.emailMasked}
+              {!rev.email && (
+                <span className="text-[10px] text-neutral-400">reveal</span>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-shrink-0 flex-col items-end gap-1 self-start">
+        {emp.matchKind === "name-phonetic" && (
+          <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+            sounds-like
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => onCopy(emp)}
+          disabled={authStatus !== "authenticated"}
+          title={authStatus === "authenticated" ? "Copy record" : "Log in to copy"}
+          className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-neutral-200 disabled:hover:text-neutral-700"
+        >
+          {copiedId === emp.id ? <Check size={12} /> : <Copy size={12} />}
+          {copiedId === emp.id ? "Copied" : "Copy"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function OmnibarModal({
   isOpen,
@@ -76,7 +163,22 @@ export function OmnibarModal({
     if (mode === "intellectual") return [];
     const q = (query || "").trim();
     if (q.length < 2) return [];
-    return searchSites(q, 6);
+    let hits = searchSites(q, 6);
+    // Hybrid "<name> <department>" (e.g. "gautham c&it"): the whole string won't
+    // match a site because of the name, but the department the user typed still
+    // should show its link. Look it up by department name and pin it to the top.
+    const dept = findDepartmentInText(q);
+    if (dept) {
+      const deptHits = searchSites(dept.group.name, 3);
+      if (deptHits.length) {
+        const seen = new Set(hits.map((h) => `${h.category}-${h.title}`));
+        const add = deptHits.filter(
+          (h) => !seen.has(`${h.category}-${h.title}`),
+        );
+        hits = [...add, ...hits].slice(0, 6);
+      }
+    }
+    return hits;
   }, [query, mode]);
 
   // ---- Employee (People) search --------------------------------------------
@@ -93,7 +195,12 @@ export function OmnibarModal({
   // ID-shape detector (mirror of the server's detectShape for the live path).
   const isIdQuery = useCallback((raw: string) => {
     const q = (raw || "").trim();
-    return /^\d{6}$/.test(q) || /^\d{10}$/.test(q) || /^[A-Za-z]\d{4,}$/.test(q);
+    return (
+      /^\d{4}$/.test(q) ||
+      /^\d{6}$/.test(q) ||
+      /^\d{10}$/.test(q) ||
+      /^[A-Za-z]\d{4,}$/.test(q)
+    );
   }, []);
 
   // Live: run ID lookups as the user types (debounced). Names wait for Enter.
@@ -382,15 +489,18 @@ export function OmnibarModal({
                     }
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      // Enter is dedicated to EMPLOYEE name search (fuzzy +
-                      // phonetic). Document search runs from the three buttons;
-                      // sites & ID lookups display live as you type.
+                      // Smart Enter: fire ALL deterministic channels at once —
+                      // employee name search + employee/department analytics +
+                      // circular/announcement Smart Semantic. IDs & sites are
+                      // already live as you type; Executive Deep stays a
+                      // deliberate button click, never Enter.
                       if (query.trim().length >= 2) {
                         runEmployeeNameSearch();
                       }
+                      triggerSearch("semantic");
                     }
                   }}
-                  placeholder="Search circulars, announcements, sites & people (Press Enter for names)…"
+                  placeholder="Search people, departments, circulars, announcements & sites — press Enter…"
                   className="flex-1 bg-transparent text-sm sm:text-base text-neutral-900 placeholder-neutral-400 focus:outline-none resize-none leading-relaxed overflow-y-auto max-h-24 py-1"
                 />
                 {isLoading && mode !== "intellectual" && (
@@ -421,102 +531,8 @@ export function OmnibarModal({
                 <motion.div
                   layout
                   transition={{ type: "spring", stiffness: 380, damping: 26 }}
-                  className={`flex items-center justify-center ${
-                    mode === "intellectual" ? "gap-3.5" : "gap-2.5"
-                  }`}
+                  className="flex items-center"
                 >
-                  <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 shrink-0">
-                    Search Mode
-                  </span>
-
-                  {/* Headline Match */}
-                  <Tooltip
-                    content="Searches headlines only · English"
-                    align="right"
-                    className="inline-block shrink-0"
-                  >
-                  <button
-                    type="button"
-                    onClick={() => triggerSearch("title")}
-                    disabled={isLoading}
-                    aria-busy={isLoading}
-                    className={`group relative inline-flex items-center gap-2 overflow-hidden rounded-xl border px-3.5 py-1.5 sm:px-4 sm:py-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 shrink-0 focus-visible:ring-2 focus-visible:ring-slate-400/60 ${
-                      isLoading ? "cursor-not-allowed opacity-60" : ""
-                    } ${
-                      mode === "title"
-                        ? "border-slate-800 bg-slate-900 text-white shadow-[0_6px_18px_rgba(15,23,42,0.24)]"
-                        : "border-slate-200 bg-white/90 text-slate-600 shadow-sm hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:text-slate-900 hover:shadow-md"
-                    }`}
-                  >
-                    {mode === "title" && (
-                      <span className="absolute inset-0 bg-gradient-to-r from-white/10 via-white/0 to-white/10" />
-                    )}
-                    <span
-                      className={`relative flex h-5 w-5 items-center justify-center rounded-md text-[10px] font-black ${
-                        mode === "title"
-                          ? "bg-white/15 text-white"
-                          : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700"
-                      }`}
-                    >
-                      Aa
-                    </span>
-                    <span className="relative whitespace-nowrap">
-                      Headline Match
-                    </span>
-                  </button>
-                  </Tooltip>
-
-                  {/* Smart Semantic */}
-                  <Tooltip
-                    content='Searches full content · EN / हि / বাং · "quotes" = exact match'
-                    align="center"
-                    className="inline-block shrink-0"
-                  >
-                  <button
-                    type="button"
-                    onClick={() => triggerSearch("semantic")}
-                    disabled={isLoading}
-                    aria-busy={isLoading}
-                    className={`group relative inline-flex items-center gap-2 overflow-hidden rounded-xl border px-3.5 py-1.5 sm:px-4 sm:py-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 shrink-0 focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${
-                      isLoading ? "cursor-not-allowed opacity-60" : ""
-                    } ${
-                      mode === "semantic"
-                        ? "border-cyan-500 bg-gradient-to-r from-sky-600 to-cyan-500 !text-white shadow-[0_7px_22px_rgba(6,182,212,0.32)] hover:-translate-y-0.5 hover:border-cyan-400 hover:brightness-110 hover:shadow-[0_10px_28px_rgba(6,182,212,0.42)]"
-                        : "border-slate-200 bg-white/90 text-slate-600 shadow-sm hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 hover:shadow-md"
-                    }`}
-                  >
-                    <span
-                      className={`relative flex h-5 w-5 items-center justify-center rounded-md transition-colors ${
-                        mode === "semantic"
-                          ? "bg-white/20 text-white"
-                          : "bg-slate-100 text-sky-500 group-hover:bg-sky-100 group-hover:text-sky-600"
-                      }`}
-                    >
-                      <Sparkles
-                        size={13}
-                        strokeWidth={2.5}
-                        className={
-                          mode === "semantic"
-                            ? "text-white"
-                            : "text-sky-500 transition-transform duration-200 group-hover:rotate-12 group-hover:scale-110"
-                        }
-                      />
-                    </span>
-                    <span
-                      className={`relative whitespace-nowrap transition-colors ${
-                        mode === "semantic"
-                          ? "!text-white"
-                          : "text-slate-600 group-hover:text-sky-700"
-                      }`}
-                    >
-                      Smart Semantic
-                    </span>
-                    {mode === "semantic" && (
-                      <span className="relative h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]" />
-                    )}
-                  </button>
-                  </Tooltip>
-
                   {/* Executive Deep Synthesis */}
                   <Tooltip
                     content={
@@ -525,7 +541,7 @@ export function OmnibarModal({
                         : "Executives only — sign in with an executive ticket (starts with 4)"
                     }
                     align="left"
-                    className="inline-block shrink-0"
+                    className="block w-full"
                   >
                   <button
                     type="button"
@@ -533,7 +549,7 @@ export function OmnibarModal({
                       isExecutive && !isLoading && triggerSearch("intellectual")
                     }
                     disabled={!isExecutive || isLoading}
-                    className={`group relative inline-flex items-center gap-2 overflow-hidden rounded-xl border px-3.5 py-1.5 sm:px-4 sm:py-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 shrink-0 ${
+                    className={`group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl border px-3.5 py-2 sm:px-4 sm:py-2.5 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 ${
                       isExecutive && isLoading ? "cursor-not-allowed opacity-60" : ""
                     } ${
                       !isExecutive
@@ -708,6 +724,79 @@ export function OmnibarModal({
                       </div>
                     )}
 
+                    {/* Analytics people list (list/who queries) */}
+                    {!isLoading &&
+                      analytics?.people &&
+                      analytics.people.length > 0 && (
+                        <div
+                          className={`flex flex-col gap-1 p-1 mb-2 ${
+                            authStatus === "authenticated"
+                              ? "select-text"
+                              : "select-none"
+                          }`}
+                          onCopy={
+                            authStatus !== "authenticated"
+                              ? (e) => e.preventDefault()
+                              : undefined
+                          }
+                          onContextMenu={
+                            authStatus !== "authenticated"
+                              ? (e) => e.preventDefault()
+                              : undefined
+                          }
+                        >
+                          <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                            People{analytics.listTruncated ? " (first 100)" : ""}
+                          </h4>
+                          {analytics.people.map((emp: any) => (
+                            <PersonRow
+                              key={`ap-${emp.id}`}
+                              emp={emp}
+                              rev={revealed[emp.id] || {}}
+                              authStatus={authStatus}
+                              copiedId={copiedId}
+                              onReveal={revealContact}
+                              onCopy={copyRecord}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                    {/* Analytics holiday list (Stage 2 — holiday list/breakdown queries) */}
+                    {!isLoading &&
+                      analytics?.holidays &&
+                      analytics.holidays.length > 0 && (
+                        <div className="flex flex-col gap-1 p-1 mb-2">
+                          <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                            Holidays
+                          </h4>
+                          {analytics.holidays.map((h: any) => (
+                            <div
+                              key={`hol-${h.id}`}
+                              className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200"
+                            >
+                              <div className="p-2 rounded-md bg-amber-100 text-amber-700 flex-shrink-0">
+                                <Sparkles size={16} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-neutral-800 truncate">
+                                  {h.name}
+                                </p>
+                                <p className="text-xs text-neutral-500">
+                                  {DateTime.fromISO(h.date).toFormat("d LLLL yyyy")}
+                                  {"  ·  "}
+                                  {h.type === "CH"
+                                    ? "Closed"
+                                    : h.type === "FH"
+                                      ? "Festival"
+                                      : "Restricted"}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                     {!isLoading &&
                       mode !== null &&
                       query.trim().length >= 3 &&
@@ -720,57 +809,6 @@ export function OmnibarModal({
                           No results found for &quot;{query}&quot;
                         </div>
                       )}
-
-                    {/* Site directory matches (pinned above content results) */}
-                    {!isLoading && siteResults.length > 0 && (
-                      <div className="flex flex-col gap-1 p-1 mb-2">
-                        <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          Intranet Sites
-                        </h4>
-                        {siteResults.map((site) => (
-                          <div
-                            key={`site-${site.category}-${site.title}`}
-                            className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200 group"
-                          >
-                            <div className="p-2 rounded-md bg-sky-100 text-sky-700 flex-shrink-0">
-                              <Globe size={18} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-neutral-800 truncate">
-                                {site.title}
-                                {site.subtitle && (
-                                  <span className="ml-1.5 text-xs font-normal text-neutral-400">
-                                    {site.subtitle}
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-xs text-neutral-500 uppercase tracking-wide">
-                                {site.category === "sail"
-                                  ? "SAIL Site"
-                                  : site.category === "department"
-                                    ? "Department Site"
-                                    : "Quick Link"}
-                              </p>
-                            </div>
-                            {site.hasLink ? (
-                              <a
-                                href={site.href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1.5 flex-shrink-0 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition-colors"
-                              >
-                                Open <ExternalLink size={13} />
-                              </a>
-                            ) : (
-                              <span className="flex-shrink-0 rounded-md bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-400 italic">
-                                Link not available yet
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
 
                     {/* People (employee directory) — live ID lookups + Enter name search */}
                     {employeeResults.length > 0 && (
@@ -794,95 +832,17 @@ export function OmnibarModal({
                         <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                           People
                         </h4>
-                        {employeeResults.map((emp) => {
-                          const rev = revealed[emp.id] || {};
-                          return (
-                            <div
-                              key={`emp-${emp.id}`}
-                              className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200"
-                            >
-                              <div className="p-2 rounded-md bg-emerald-100 text-emerald-700 flex-shrink-0">
-                                <UserRound size={18} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-neutral-800 truncate">
-                                  {emp.name}
-                                  {emp.isExecutive && (
-                                    <span className="ml-2 align-middle rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
-                                      EXE
-                                    </span>
-                                  )}
-                                </p>
-                                <p className="text-xs text-neutral-500 truncate">
-                                  {[
-                                    emp.ticketNo,
-                                    emp.sailPNo,
-                                    emp.designation,
-                                    emp.department,
-                                  ]
-                                    .filter(Boolean)
-                                    .join("  ·  ")}
-                                </p>
-                                {/* Contact row: masked with reveal buttons */}
-                                <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                                  {emp.hasMobile && (
-                                    <button
-                                      type="button"
-                                      onClick={() => revealContact(emp.id, "mobile")}
-                                      disabled={!!rev.mobile}
-                                      className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-default disabled:border-emerald-200 disabled:text-emerald-700"
-                                    >
-                                      <Phone size={12} />
-                                      {rev.mobile ? rev.mobile : emp.mobileMasked}
-                                      {!rev.mobile && (
-                                        <span className="text-[10px] text-neutral-400">reveal</span>
-                                      )}
-                                    </button>
-                                  )}
-                                  {emp.hasEmail && (
-                                    <button
-                                      type="button"
-                                      onClick={() => revealContact(emp.id, "email")}
-                                      disabled={!!rev.email}
-                                      className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-default disabled:border-emerald-200 disabled:text-emerald-700"
-                                    >
-                                      <Mail size={12} />
-                                      {rev.email ? rev.email : emp.emailMasked}
-                                      {!rev.email && (
-                                        <span className="text-[10px] text-neutral-400">reveal</span>
-                                      )}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex flex-shrink-0 flex-col items-end gap-1 self-start">
-                                {emp.matchKind === "name-phonetic" && (
-                                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
-                                    sounds-like
-                                  </span>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => copyRecord(emp)}
-                                  disabled={authStatus !== "authenticated"}
-                                  title={
-                                    authStatus === "authenticated"
-                                      ? "Copy record"
-                                      : "Log in to copy"
-                                  }
-                                  className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-neutral-200 disabled:hover:text-neutral-700"
-                                >
-                                  {copiedId === emp.id ? (
-                                    <Check size={12} />
-                                  ) : (
-                                    <Copy size={12} />
-                                  )}
-                                  {copiedId === emp.id ? "Copied" : "Copy"}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {employeeResults.map((emp) => (
+                          <PersonRow
+                            key={`emp-${emp.id}`}
+                            emp={emp}
+                            rev={revealed[emp.id] || {}}
+                            authStatus={authStatus}
+                            copiedId={copiedId}
+                            onReveal={revealContact}
+                            onCopy={copyRecord}
+                          />
+                        ))}
                       </div>
                     )}
 
@@ -896,11 +856,15 @@ export function OmnibarModal({
                         )}
 
                         <div className="flex flex-col gap-1">
-                          {mode === "intellectual" && (
+                          {mode === "intellectual" ? (
                             <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
                               Primary Sources
                             </h4>
-                          )}
+                          ) : employeeResults.length > 0 ? (
+                            <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
+                              Mentioned in circulars
+                            </h4>
+                          ) : null}
                           {results.map((result) => (
                             <div
                               key={`${result.type}-${result.id}`}
@@ -1075,6 +1039,57 @@ export function OmnibarModal({
                         </div>
                       </div>
                     )}
+                    {/* Intranet Sites — always shown at the very bottom, below People and circulars */}
+                    {!isLoading && siteResults.length > 0 && (
+                      <div className="flex flex-col gap-1 p-1 mb-2">
+                        <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          Intranet Sites
+                        </h4>
+                        {siteResults.map((site) => (
+                          <div
+                            key={`site-${site.category}-${site.title}`}
+                            className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200 group"
+                          >
+                            <div className="p-2 rounded-md bg-sky-100 text-sky-700 flex-shrink-0">
+                              <Globe size={18} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-neutral-800 truncate">
+                                {site.title}
+                                {site.subtitle && (
+                                  <span className="ml-1.5 text-xs font-normal text-neutral-400">
+                                    {site.subtitle}
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-neutral-500 uppercase tracking-wide">
+                                {site.category === "sail"
+                                  ? "SAIL Site"
+                                  : site.category === "department"
+                                    ? "Department Site"
+                                    : "Quick Link"}
+                              </p>
+                            </div>
+                            {site.hasLink ? (
+                              <a
+                                href={site.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1.5 flex-shrink-0 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition-colors"
+                              >
+                                Open <ExternalLink size={13} />
+                              </a>
+                            ) : (
+                              <span className="flex-shrink-0 rounded-md bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-400 italic">
+                                Link not available yet
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                   </>
                 )}
               </div>

@@ -54,6 +54,14 @@ if (!global.cachedTypeORMInitPromise) {
   global.cachedTypeORMInitPromise = null;
 }
 
+// Transient connection errors that should trigger a one-shot re-init instead of
+// a 500 (Supabase's 6543 transaction pooler drops idle/over-loaded conns; dev
+// HMR tears pools down mid-flight).
+const TRANSIENT_DB_ERROR =
+  /connection terminated|driver not connected|timeout exceeded|connection timeout|econnreset|server closed the connection|terminating connection/i;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 // Detects if the operational state is running under a production deployment compression phase
 const isBuildPhase =
   typeof process.env.NEXT_PHASE === "string" &&
@@ -207,13 +215,38 @@ export async function getDb(): Promise<DataSource> {
       console.log(
         "🔌 Active structural connection instance unavailable. Instantiating fresh runtime client connection pool...",
       );
-      const ds = new DataSource(dataSourceOptions);
-      await ds.initialize();
-      console.log(
-        `✅ TypeORM DataSource context authenticated and synchronized successfully using [${dbType}] driver.`,
-      );
-      global.cachedTypeORMDataSource = ds;
-      return ds;
+      const MAX_ATTEMPTS = 3;
+      let lastErr: unknown;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const ds = new DataSource(dataSourceOptions);
+        try {
+          await ds.initialize();
+          console.log(
+            `✅ TypeORM DataSource context authenticated and synchronized successfully using [${dbType}] driver.`,
+          );
+          global.cachedTypeORMDataSource = ds;
+          return ds;
+        } catch (err) {
+          lastErr = err;
+          const msg = (err as Error)?.message ?? String(err);
+          // Only retry transient connection drops; a real config/auth error
+          // fails fast.
+          try {
+            if (ds.isInitialized) await ds.destroy();
+          } catch {
+            /* ignore teardown noise */
+          }
+          if (attempt < MAX_ATTEMPTS && TRANSIENT_DB_ERROR.test(msg)) {
+            console.warn(
+              `⚠️ Transient DB init failure (attempt ${attempt}/${MAX_ATTEMPTS}); retrying: ${msg}`,
+            );
+            await sleep(300 * attempt);
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw lastErr;
     })();
   }
 

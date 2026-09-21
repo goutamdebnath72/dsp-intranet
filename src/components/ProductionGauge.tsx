@@ -3,12 +3,9 @@
 
 import React, { useEffect } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
-import { Fira_Code } from "next/font/google";
 
-const firaCode = Fira_Code({
-  subsets: ["latin"],
-  weight: ["500", "700"],
-});
+// Fira Code is now self-hosted via @font-face in globals.css
+// (see --font-fira-code); nothing is fetched from Google Fonts here anymore.
 interface ProductionGaugeProps {
   value: number;
   max: number;
@@ -128,8 +125,11 @@ export function ProductionGauge({ value, max, label, unit }: ProductionGaugeProp
               {/* 1. The Text (z-0) */}
               {/* Positioned lower, at 75% from the top of the *viewBox* */}
               <div
-                className={`absolute left-1/2 top-[50%] flex -translate-x-1/2 -translate-y-1/2 ${firaCode.className}`}
-                style={{ pointerEvents: "none" }} // Text shouldn't block
+                className="absolute left-1/2 top-[50%] flex -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  pointerEvents: "none", // Text shouldn't block
+                  fontFamily: "var(--font-fira-code)",
+                }}
               >
                 <motion.span className="text-xl sm:text-2xl md:text-3xl font-bold text-neutral-800 tracking-normal">
                   {roundedNumber}

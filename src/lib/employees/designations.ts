@@ -54,6 +54,7 @@ export function normTerm(s: string): string {
     .toLowerCase()
     .replace(/[.\-_/]/g, " ")
     .replace(/&/g, " and ")
+    .replace(/[?!,]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

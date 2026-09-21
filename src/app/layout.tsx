@@ -1,25 +1,16 @@
 // src/app/layout.tsx
 
 import type { Metadata } from "next";
-import { Poppins, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import { ModalProvider } from "@/context/ModalContext";
 import LoginModal from "@/components/LoginModal";
 import { SessionGuard } from "@/components/SessionGuard"; // Import the guard
 
-const poppins = Poppins({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-poppins",
-  weight: ["400", "500", "600", "700"],
-});
-const sourceSans = Source_Sans_3({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-source-sans",
-  weight: ["400", "600"],
-});
+// Fonts are now SELF-HOSTED from /public/fonts via @font-face in globals.css.
+// The --font-poppins / --font-source-sans CSS variables are defined there too,
+// so Tailwind (and any var(--font-*) usage) keeps working unchanged — nothing
+// is fetched from Google Fonts anymore.
 
 export const metadata: Metadata = {
   title: "DSP Intranet",
@@ -32,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${poppins.variable} ${sourceSans.variable}`}>
+    <html lang="en">
       <body className="bg-neutral-100">
         <AuthProvider>
           <ModalProvider>

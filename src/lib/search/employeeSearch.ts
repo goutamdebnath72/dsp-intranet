@@ -35,10 +35,14 @@ function maskEmail(e: string | null): string | null {
   return `xxxxxx${e.slice(at)}`;
 }
 
+// Executive CUG mobile prefix. Users often type only the last 4 digits.
+const CUG_PREFIX = "943479";
+
 // ---- Query-shape detection ---------------------------------------------------
 export type QueryShape =
   | { kind: "ticket"; value: string }
   | { kind: "mobile"; value: string }
+  | { kind: "cug4"; value: string } // last 4 digits of an executive CUG number
   | { kind: "sailpno"; value: string }
   | { kind: "name"; value: string }
   | { kind: "none" };
@@ -48,6 +52,7 @@ export function detectShape(raw: string): QueryShape {
   if (q.length < 2) return { kind: "none" };
   if (/^\d{6}$/.test(q)) return { kind: "ticket", value: q };
   if (/^\d{10}$/.test(q)) return { kind: "mobile", value: q };
+  if (/^\d{4}$/.test(q)) return { kind: "cug4", value: q };
   if (/^[A-Za-z]\d{4,}$/.test(q)) return { kind: "sailpno", value: q };
   // any alphabetic / mixed text -> name
   if (/[A-Za-z\u0900-\u097F\u0980-\u09FF]/.test(q)) return { kind: "name", value: q };
@@ -85,7 +90,7 @@ const SELECT_COLS = `
  */
 export async function searchEmployeesById(
   ds: DataSource,
-  shape: Extract<QueryShape, { kind: "ticket" | "mobile" | "sailpno" }>,
+  shape: Extract<QueryShape, { kind: "ticket" | "mobile" | "cug4" | "sailpno" }>,
 ): Promise<EmployeeResult[]> {
   let where = "";
   const params: any[] = [];
@@ -95,6 +100,10 @@ export async function searchEmployeesById(
   } else if (shape.kind === "mobile") {
     where = `u."contactNo" = $1`;
     params.push(shape.value);
+  } else if (shape.kind === "cug4") {
+    // Only the last 4 digits typed -> reconstruct the full CUG number.
+    where = `u."contactNo" = $1`;
+    params.push(`${CUG_PREFIX}${shape.value}`);
   } else {
     // SAIL PNO doubles as the login password (case-sensitive there), but for
     // FINDING a person we match case-insensitively — login is unaffected.
@@ -171,5 +180,50 @@ export async function searchEmployeesByName(
     if (literal && sim > 0.85) kind = "name-exact";
     else if (!literal && phon) kind = "name-phonetic";
     return rowToResult(r, kind, sim + (phon ? 0.5 : 0) + (literal ? 1 : 0));
+  });
+}
+
+
+/**
+ * NAME FRAGMENT + DEPARTMENT search (on Enter). You remember part of a name and
+ * the department — e.g. "soumit c&it" or "roy blast furnace" (any word order).
+ * Department is filtered EXACTLY (by member codes); the name fragment is matched
+ * forgivingly (partial ILIKE OR phonetic), since you only recall a piece.
+ * Results are seniority-ordered (lowest ticket first), contacts masked.
+ */
+export async function searchEmployeesByNameInDept(
+  ds: DataSource,
+  fragment: string,
+  codes: number[],
+  limit = 50,
+): Promise<EmployeeResult[]> {
+  const q = (fragment || "").trim().replace(/\s+/g, " ");
+  if (q.length < 2 || !codes.length) return [];
+  const like = `%${q}%`;
+
+  const sql = `
+    SELECT ${SELECT_COLS},
+      (u.name ILIKE $2) AS literal_hit,
+      public.phonetic_subseq_match($1, u.name_phonetic) AS phon_match
+    FROM public."user" u
+    JOIN public.departments d ON d.id = u."departmentId"
+    WHERE d.code = ANY($3::int[])
+      AND (
+        u.name ILIKE $2
+        OR public.phonetic_subseq_match($1, u.name_phonetic)
+      )
+    ORDER BY
+      NULLIF(regexp_replace(u."ticketNo", '\D', '', 'g'), '')::int ASC NULLS LAST,
+      u.name ASC
+    LIMIT ${limit};
+  `;
+
+  const rows = await ds.query(sql, [q, like, codes]);
+  return rows.map((r: any) => {
+    const literal = r.literal_hit === true;
+    const phon = r.phon_match === true;
+    const kind: EmployeeResult["matchKind"] =
+      !literal && phon ? "name-phonetic" : "name-fuzzy";
+    return rowToResult(r, kind, 0);
   });
 }

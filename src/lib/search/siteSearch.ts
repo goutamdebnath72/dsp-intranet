@@ -27,6 +27,18 @@ function words(title: string): string[] {
     .filter(Boolean);
 }
 
+// Connector words ignored when forming an acronym.
+const CONNECTORS = new Set(["and", "of", "the", "for", "to"]);
+
+// Acronym = first letter of each significant word. "Wheel & Axle" -> "wa".
+function acronym(title: string): string {
+  return words(title)
+    .map((w) => normalize(w))
+    .filter((w) => w && !CONNECTORS.has(w))
+    .map((w) => w[0])
+    .join("");
+}
+
 /**
  * Search the static site directory (links.js) by name.
  *
@@ -45,7 +57,24 @@ export function searchSites(query: string, limit = 6): SiteResult[] {
   const q = normalize(query);
   if (q.length < 2) return [];
 
+  // Contiguous whole-word concatenations of the query. A short site acronym is
+  // only matched if the query SPELLS IT OUT with whole words (e.g. "c" + "it" ->
+  // "cit" for C&IT), never as a fragment inside a longer word ("lis" in "list").
+  const qWords = words(query).map(normalize).filter(Boolean);
+  const qRuns = new Set<string>();
+  for (let i = 0; i < qWords.length; i++) {
+    let acc = "";
+    for (let j = i; j < Math.min(i + 5, qWords.length); j++) {
+      acc += qWords[j];
+      qRuns.add(acc);
+    }
+  }
+
   const out: SiteResult[] = [];
+
+  // A query with "&" signals ACRONYM intent (w&a -> Wheel & Axle): match only the
+  // full name (c&it -> "cit") or the acronym, never loose word-prefixes.
+  const acronymMode = /&/.test(query);
 
   for (const link of links) {
     const title = link.title || "";
@@ -54,17 +83,25 @@ export function searchSites(query: string, limit = 6): SiteResult[] {
 
     const ws = words(title).map(normalize).filter(Boolean);
 
+    const acr = acronym(title);
+
+    // Banding: full-name exact (100) > acronym matches (92 exact / 85 prefix,
+    // i.e. consecutive word-initials like Wheel+Axle) > single-title prefix (80)
+    // > single-word start (60) > word contains (40) > spelled-out run (20).
+    // So EVERY consecutive-initials match ranks above any single-word prefix.
     let score = 0;
-    if (nTitle === q) {
-      score = 100;
-    } else if (nTitle.startsWith(q)) {
-      score = 80;
-    } else if (ws.some((w) => w.startsWith(q))) {
-      score = 60;
-    } else if (ws.some((w) => w.includes(q))) {
-      score = 40;
-    } else if (q.includes(nTitle) && nTitle.length >= 2) {
-      score = 20;
+    if (acronymMode) {
+      if (nTitle === q) score = 100; // "c&it" -> full name "cit"
+      else if (acr === q) score = 92; // "w&a" -> initials "wa"
+      else if (acr.startsWith(q) && q.length >= 2) score = 85;
+    } else {
+      if (nTitle === q) score = 100;
+      else if (acr === q) score = 92;
+      else if (acr.startsWith(q) && q.length >= 2) score = 85;
+      else if (nTitle.startsWith(q)) score = 80;
+      else if (ws.some((w) => w.startsWith(q))) score = 60;
+      else if (ws.some((w) => w.includes(q))) score = 40;
+      else if (qRuns.has(nTitle) && nTitle.length >= 2) score = 20;
     }
 
     // Also match the subtitle (e.g. BAMS has subtitle "(Attendance)"), scored a

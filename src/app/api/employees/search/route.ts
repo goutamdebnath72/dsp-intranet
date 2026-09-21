@@ -5,7 +5,10 @@ import {
   detectShape,
   searchEmployeesById,
   searchEmployeesByName,
+  searchEmployeesByNameInDept,
 } from "@/lib/search/employeeSearch";
+import { findDepartmentInText } from "@/lib/employees/departments";
+import { normTerm } from "@/lib/employees/designations";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -14,14 +17,14 @@ export const fetchCache = "force-no-store";
  * GET /api/employees/search?q=...&mode=id|name
  *
  * mode=id   -> live, exact lookups (ticket / mobile / SAIL PNO) as the user types.
- * mode=name -> fuzzy + phonetic name search, triggered on Enter.
+ * mode=name -> on Enter:
+ *              - "<name fragment> <department>" in ANY order (e.g. "soumit c&it",
+ *                "c&it roy") -> people in that department matching the fragment;
+ *              - otherwise -> normal fuzzy + phonetic name search.
  *
- * Login-gated (same privilege model as the rest of the app). Contact fields
- * come back MASKED; the /reveal endpoint returns full values and logs access.
+ * Contact fields come back MASKED; /reveal returns full values and logs access.
  */
 export async function GET(request: Request) {
-  // Search is open in both states: logged-out users can find people and see
-  // MASKED contacts. Unmasking (reveal) is the login-gated action, not search.
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") || "").trim();
   const mode = searchParams.get("mode") === "name" ? "name" : "id";
@@ -32,6 +35,28 @@ export async function GET(request: Request) {
     const ds = await getDb();
 
     if (mode === "name") {
+      // Name fragment + department (order-independent). If the query names a
+      // department, treat the rest as the name fragment.
+      const dept = findDepartmentInText(q);
+      if (dept) {
+        const fragment = normTerm(q)
+          .split(dept.phrase)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (fragment.length >= 2) {
+          const results = await searchEmployeesByNameInDept(
+            ds,
+            fragment,
+            dept.group.codes,
+          );
+          return NextResponse.json({ results });
+        }
+        // Department only, no name fragment -> the site-link channel handles it;
+        // don't dump the whole department here.
+        return NextResponse.json({ results: [] });
+      }
+
       const results = await searchEmployeesByName(ds, q);
       return NextResponse.json({ results });
     }
@@ -41,13 +66,13 @@ export async function GET(request: Request) {
     if (
       shape.kind === "ticket" ||
       shape.kind === "mobile" ||
+      shape.kind === "cug4" ||
       shape.kind === "sailpno"
     ) {
       const results = await searchEmployeesById(ds, shape);
       return NextResponse.json({ results });
     }
 
-    // A name-shaped query in id mode -> nothing live (waits for Enter).
     return NextResponse.json({ results: [] });
   } catch (error: any) {
     console.error("❌ Employee search failed:", error?.message ?? error);

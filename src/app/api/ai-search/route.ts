@@ -9,12 +9,9 @@ import {
 } from "@/lib/search/executiveSynthesis";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
-import { parseAnalytics } from "@/lib/employees/parser";
-import {
-  countByTerm,
-  totalHeadcount,
-  designationBreakdown,
-} from "@/lib/employees/analytics";
+import { answerAnalytics } from "@/lib/employees/analytics";
+import { findDepartmentInText } from "@/lib/employees/departments";
+import { normTerm } from "@/lib/employees/designations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +22,14 @@ const INDIC_SCRIPT_REGEX = /[\p{Script=Devanagari}\p{Script=Bengali}]/u;
 // Google Gemini embeddings for completely unrelated text (e.g., Honda spark plugs) score ~0.55 - 0.62.
 // Valid Hindi/Cross-lingual or long conversational queries score ~0.68 - 0.78.
 const ABSOLUTE_NOISE_FLOOR = 0.65;
+
+// For a person-name-shaped query (2-3 pure-Latin words, e.g. "goutam debnath"),
+// a circular/announcement must have a real textual anchor (the words appear) or
+// an unusually strong vector match to qualify — otherwise off-topic documents
+// ride the noise floor and surface as meaningless ~67% matches. This is scoped
+// to name-shaped queries only, so cross-lingual semantic matches (which score
+// ~0.68-0.78 with no shared words) are unaffected.
+const NAME_QUERY_VECTOR_BAR = 0.82;
 
 // A well-formed empty SynthesisResult so intellectual-mode always returns the
 // typed object the frontend expects — never a bare string.
@@ -130,54 +135,6 @@ function pickReadableExcerpt(
 }
 
 
-// Employee analytics (Phase 1, DSP-wide): try to answer a staffing question
-// deterministically from the DB. Returns a payload to send, or null so the
-// caller falls through to the normal circular/announcement search.
-async function tryEmployeeAnalytics(q: string) {
-  const intent = parseAnalytics(q);
-  if (!intent) return null;
-
-  if (intent.kind === "deptPending") {
-    return {
-      analytics: {
-        kind: "pending",
-        answer: `Department-scoped counts (e.g. \u201c${intent.dept}\u201d) are coming soon. For now I can answer DSP-wide counts \u2014 try the same question without the department.`,
-      },
-    };
-  }
-  if (intent.kind === "total") {
-    const n = await totalHeadcount();
-    return {
-      analytics: {
-        kind: "total",
-        count: n,
-        answer: `DSP has ${n.toLocaleString()} employees on record.`,
-      },
-    };
-  }
-  if (intent.kind === "breakdown") {
-    const rows = await designationBreakdown();
-    return {
-      analytics: {
-        kind: "breakdown",
-        rows,
-        answer: `Designation-wise breakdown across DSP (${rows.length} designations).`,
-      },
-    };
-  }
-  const res = await countByTerm(intent.term);
-  if (!res) return null;
-  const answer =
-    res.kind === "exec"
-      ? `DSP has ${res.count.toLocaleString()} executives.`
-      : res.kind === "nonexec"
-        ? `DSP has ${res.count.toLocaleString()} non-executives (S-scale).`
-        : `DSP currently has ${res.count.toLocaleString()} ${res.label}.`;
-  return {
-    analytics: { kind: "count", label: res.label, count: res.count, answer },
-  };
-}
-
 export async function GET(request: Request) {
   try {
     const dataSource = await getDb();
@@ -203,6 +160,65 @@ export async function GET(request: Request) {
 
     if (!q || q.length < 2) {
       return NextResponse.json([]);
+    }
+
+    // Name-shaped: 2-3 words, all pure Latin letters (a person's name). Such a
+    // query must anchor lexically in a document to qualify it (see the filter
+    // below) — this kills the "name -> random low-score circular" noise.
+    const nameTokens = q.trim().split(/\s+/);
+    const looksLikeName =
+      nameTokens.length >= 2 &&
+      nameTokens.length <= 3 &&
+      !INDIC_SCRIPT_REGEX.test(q) &&
+      nameTokens.every((t) => /^[A-Za-z][A-Za-z.]*$/.test(t));
+
+    // Only treat it as a name if it actually matches a PERSON in the directory
+    // (same phonetic check the People search uses). This distinguishes a real
+    // name ("goutam debnath") from a document phrase that happens to be two
+    // Latin words ("leave policy") — the latter keeps the normal semantic floor.
+    let isNameShaped = false;
+    if (looksLikeName) {
+      try {
+        const nameHit = await dataSource.query(
+          `SELECT 1 FROM public."user"
+             WHERE public.phonetic_subseq_match($1, name_phonetic)
+             LIMIT 1`,
+          [q],
+        );
+        isNameShaped = Array.isArray(nameHit) && nameHit.length > 0;
+      } catch {
+        isNameShaped = false;
+      }
+    }
+
+    // A query that NAMES A DEPARTMENT ("gautham c&it", "roy blast furnace") is a
+    // directory lookup, not a circular topic. If the leftover fragment (after
+    // removing the department) is an actual person, hold the circular side to the
+    // same strict anchor as a plain name query so floor-riding noise circulars
+    // don't leak in under the People results. A department + a real TOPIC
+    // fragment ("c&it attendance") is NOT a person -> keeps the normal floor.
+    if (!isNameShaped && !INDIC_SCRIPT_REGEX.test(q)) {
+      try {
+        const dept = findDepartmentInText(q);
+        if (dept) {
+          const fragment = normTerm(q)
+            .split(dept.phrase)
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (fragment.length >= 2) {
+            const fragHit = await dataSource.query(
+              `SELECT 1 FROM public."user"
+                 WHERE public.phonetic_subseq_match($1, name_phonetic)
+                 LIMIT 1`,
+              [fragment],
+            );
+            if (Array.isArray(fragHit) && fragHit.length > 0) isNameShaped = true;
+          }
+        }
+      } catch {
+        /* department-anchor best-effort */
+      }
     }
 
     // --- MODE 1: HEADLINE TITLE MATCH ---
@@ -241,8 +257,8 @@ export async function GET(request: Request) {
     // Smart Semantic first tries to answer staffing questions from the DB;
     // if it is not an analytics question, fall through to circular search.
     if (mode === "semantic") {
-      const analytics = await tryEmployeeAnalytics(q);
-      if (analytics) return NextResponse.json(analytics);
+      const payload = await answerAnalytics(q);
+      if (payload) return NextResponse.json({ analytics: payload });
     }
 
     // --- RETRIEVE BEST MATCHING CIRCULARS ---
@@ -325,6 +341,16 @@ export async function GET(request: Request) {
     const qualifiedResults = scoredResults.filter((item) => {
       if (isExplicitQuotedQuery) return item.isExactPhrase;
       const rawSim = typeof item.similarity === "number" ? item.similarity : 0;
+      if (isNameShaped) {
+        // A person-name query needs a genuine textual anchor, or a very strong
+        // vector score — no floor-riding. Documents that actually mention the
+        // name (lexical hit) still qualify.
+        return (
+          item.isExactPhrase ||
+          item.isPerfectMatch ||
+          rawSim >= NAME_QUERY_VECTOR_BAR
+        );
+      }
       if (rawSim >= ABSOLUTE_NOISE_FLOOR) return true;
       return item.isExactPhrase || item.isPerfectMatch;
     });
@@ -351,8 +377,53 @@ export async function GET(request: Request) {
       }));
 
     // --- MODE 2: SMART SEMANTIC SEARCH ---
+    // Enter uses this path. Fold the literal HEADLINE search in too, so a single
+    // Enter covers circular/announcement titles (literal) AND body (literal +
+    // vector) — the Headline button is no longer required. Exact-title hits are
+    // boosted to the top; body/semantic hits follow. (Headline search is Latin-
+    // only; Indic queries rely on the vector path, unchanged.)
     if (mode === "semantic") {
-      return NextResponse.json(topPrimarySources);
+      let merged = topPrimarySources as any[];
+      if (!INDIC_SCRIPT_REGEX.test(q)) {
+        try {
+          const titleHits = await executeTitleSearch(dataSource, q);
+          if (titleHits && titleHits.length > 0) {
+            const byKey = new Map<string, any>(
+              merged.map((r) => [`${r.type}-${r.id}`, r]),
+            );
+            for (const t of titleHits as any[]) {
+              const key = `${t.type}-${t.id}`;
+              const existing = byKey.get(key);
+              if (existing) {
+                // already a body/semantic hit — promote it: an exact title match
+                // is the strongest signal.
+                existing.matchPercentage = Math.max(
+                  existing.matchPercentage ?? 0,
+                  96,
+                );
+                existing.isExactPhrase = true;
+              } else {
+                byKey.set(key, {
+                  ...t,
+                  isExactPhrase: true,
+                  isPerfectMatch: true,
+                  matchPercentage: 96,
+                  chunkText: t.chunkText || "",
+                });
+              }
+            }
+            merged = Array.from(byKey.values())
+              .sort(
+                (a, b) => (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0),
+              )
+              .slice(0, 6);
+          }
+        } catch (e) {
+          // headline fold is best-effort; body/semantic results still stand.
+          console.warn("headline fold failed:", (e as any)?.message ?? e);
+        }
+      }
+      return NextResponse.json(merged);
     }
 
     // --- MODE 3: EXECUTIVE DEEP SYNTHESIS ---

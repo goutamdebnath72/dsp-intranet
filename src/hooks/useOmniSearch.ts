@@ -25,12 +25,23 @@ export interface AnalyticsBreakdownRow {
   class?: string;
 }
 
+export interface AnalyticsHolidayRow {
+  id: number;
+  name: string;
+  type: "CH" | "FH" | "RH";
+  date: string;
+}
+
 export interface AnalyticsAnswer {
   kind: "count" | "total" | "breakdown" | "pending";
   answer: string;
   label?: string;
   count?: number;
   rows?: AnalyticsBreakdownRow[];
+  people?: any[];
+  listTruncated?: boolean;
+  /** Stage 2: holiday rows for a holiday list query. */
+  holidays?: AnalyticsHolidayRow[];
 }
 
 export interface OmniSearchResponse {

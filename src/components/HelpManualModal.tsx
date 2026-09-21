@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   Search,
-  Type,
   Sparkles,
   Lock,
   Globe,
@@ -130,42 +129,58 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
               {/* Intro */}
               <p className="rounded-lg bg-sky-50 p-3 text-sm text-slate-700">
                 Press <Pill>Ctrl</Pill> + <Pill>K</Pill> (or click the search
-                bar) to open search from anywhere. One search looks across{" "}
-                <strong>circulars</strong>, <strong>announcements</strong>,{" "}
-                <strong>intranet sites</strong> and the{" "}
-                <strong>employee directory</strong> — each result is labelled so
-                you can tell them apart.
+                bar) to open search from anywhere. Just type and press{" "}
+                <Pill>Enter</Pill> — one search looks across the{" "}
+                <strong>employee directory</strong>, <strong>circulars</strong>,{" "}
+                <strong>announcements</strong> and{" "}
+                <strong>intranet sites</strong> at once. Each result is labelled
+                so you can tell them apart.
               </p>
 
-              {/* Search modes */}
+              {/* How search works */}
               <Section
                 icon={<Search size={17} />}
-                title="The three search modes"
+                title="How search works — just press Enter"
               >
                 <p>
-                  <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
-                    <Type size={14} /> Headline Match
-                  </span>{" "}
-                  — searches only the <strong>titles</strong> of circulars and
-                  announcements. English, fast, literal. Best when you know
-                  roughly what the document is called.
+                  There are no search-mode buttons to choose. Numbers and site
+                  names resolve <strong>instantly as you type</strong>; for
+                  anything else, type your query and press <Pill>Enter</Pill>.
+                </p>
+                <p>A single <Pill>Enter</Pill> looks, in order, for:</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    a matching <strong>person</strong> (by name —
+                    similar-sounding);
+                  </li>
+                  <li>
+                    a person in a <strong>named department</strong> (a
+                    half-remembered name + its department);
+                  </li>
+                  <li>
+                    matching circular / announcement <strong>titles</strong>;
+                  </li>
+                  <li>
+                    matching circular / announcement <strong>content</strong>, by
+                    meaning.
+                  </li>
+                </ul>
+                <p>
+                  The best answer leads. If a name is also{" "}
+                  <em>mentioned in circulars</em>, you get the person first and
+                  those circulars below.
                 </p>
                 <p>
                   <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
-                    <Sparkles size={14} /> Smart Semantic
+                    <Sparkles size={14} /> Executive Deep Synthesis
                   </span>{" "}
-                  — searches the <strong>full content</strong> by meaning, not
-                  just exact words. Understands English, Hindi (हिंदी) and
-                  Bengali (বাংলা). Best when you remember the topic but not the
-                  title.
-                </p>
-                <p>
-                  <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
-                    <Lock size={14} /> Executive Deep Synthesis
+                  is the only button. It reads across many circulars and writes a
+                  combined, sourced summary with figures and charts. It stays{" "}
+                  <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
+                    <Lock size={12} /> locked
                   </span>{" "}
-                  — reads across many circulars and writes a combined, sourced
-                  summary with figures and charts. Available only to executives
-                  (tickets starting with <Pill>4</Pill>). Covers circulars only.
+                  until an <strong>executive</strong> signs in (tickets starting
+                  with <Pill>4</Pill>); it covers circulars only.
                 </p>
               </Section>
 
@@ -177,7 +192,7 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                 <p>
                   Wrap words in double quotes to force an exact match:{" "}
                   <Pill>&quot;retention of company accommodation&quot;</Pill>{" "}
-                  finds that phrase verbatim. Without quotes, Smart Semantic
+                  finds that phrase verbatim. Without quotes, search
                   matches by meaning. Matched words are{" "}
                   <mark className="rounded-sm bg-yellow-200 px-1">
                     highlighted
@@ -201,6 +216,10 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                   tab. Sites not yet linked still appear, marked{" "}
                   <em>“Link not available yet.”</em>
                 </p>
+                <p>
+                  Typing just a <strong>department name</strong> brings up its
+                  site link automatically — no key needed.
+                </p>
               </Section>
 
               {/* People / employee directory */}
@@ -218,7 +237,10 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                     <strong>CUG mobile number</strong>, or a{" "}
                     <strong>SAIL personal number</strong> (e.g.{" "}
                     <Pill>D111086</Pill>, any case) shows the person immediately —
-                    no key to press.
+                    no key to press. You can also type just the{" "}
+                    <strong>last 4 digits</strong> of an executive’s CUG mobile
+                    (e.g. <Pill>2584</Pill>): the <Pill>943479</Pill> prefix is
+                    added for you and the executive appears at once.
                   </li>
                   <li>
                     <strong>By name — press{" "}
@@ -228,6 +250,16 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                     “Gautam”, “Anoop Sirkar” finds “Anup Sarkar”. Honorifics
                     (Mr, Mohd, Dr, Shri…) are ignored, and multi-word names match
                     in order (“Anil Kumar” finds “Anil Kumar Salian”).
+                  </li>
+                  <li>
+                    <strong>
+                      By part of a name + department — press <Pill>Enter</Pill>:
+                    </strong>{" "}
+                    when you recall only part of a name, add the department in{" "}
+                    <strong>any order</strong> — <Pill>soumit c&amp;it</Pill> or{" "}
+                    <Pill>c&amp;it soumit</Pill> both list the matching people in
+                    that department (masked, as above). The department’s site
+                    link still shows too.
                   </li>
                 </ul>
                 <p>
@@ -299,8 +331,8 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                 title="Searching in Hindi & Bengali"
               >
                 <p>
-                  In Smart Semantic mode you can type in English, हिंदी or বাংলা.
-                  The search understands all three, so a Hindi query can still
+                  You can type in English, हिंदी or বাংলা. The search
+                  understands all three, so a Hindi query can still
                   find an English circular about the same subject, and vice
                   versa.
                 </p>
@@ -379,8 +411,9 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                     <Pill>Ctrl</Pill> + <Pill>K</Pill> — open search
                   </li>
                   <li>
-                    <Pill>Enter</Pill> — search people by name (sites, circulars
-                    &amp; ID lookups need no key)
+                    <Pill>Enter</Pill> — search everything: people, departments,
+                    circulars &amp; announcements (numbers &amp; sites need no
+                    key)
                   </li>
                   <li>
                     <Pill>Shift</Pill> + <Pill>Enter</Pill> — new line in the
