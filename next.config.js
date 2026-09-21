@@ -39,15 +39,19 @@ const nextConfig = {
       "pdfjs-dist",
       "@napi-rs/canvas",
     ],
-    // serverComponentsExternalPackages alone does NOT get the native
-    // @napi-rs/canvas .node binary into the traced serverless bundle —
-    // confirmed by inspecting .next/server/app/api/circulars/route.js.nft.json,
-    // which listed zero canvas/napi-rs files even with the package
-    // externalized. Next's build-time trace can't follow @napi-rs/canvas's
-    // own runtime `require()` of a platform-specific package
-    // (@napi-rs/canvas-<platform>-<arch>), so it must be force-included here.
+    // serverComponentsExternalPackages alone does NOT get every file these
+    // two packages need at runtime into the traced serverless bundle —
+    // confirmed by inspecting .next/server/app/api/circulars/route.js.nft.json:
+    // @napi-rs/canvas's native .node binary was entirely absent, and pdfjs-dist
+    // was reduced to just its single entry file (missing package.json,
+    // standard_fonts/, cmaps/). pdf-to-img resolves both of these at runtime
+    // via dynamic require()/createRequire().resolve() calls that Next's
+    // build-time tracer can't follow, so both must be force-included here.
     outputFileTracingIncludes: {
-      "/api/circulars": ["./node_modules/@napi-rs/canvas*/**/*"],
+      "/api/circulars": [
+        "./node_modules/@napi-rs/canvas*/**/*",
+        "./node_modules/pdfjs-dist/**/*",
+      ],
     },
   },
 };
