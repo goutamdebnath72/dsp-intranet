@@ -6,7 +6,6 @@ import { getDb } from "@/lib/db";
 import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
-import { fromPath } from "pdf2pic";
 import Tesseract from "tesseract.js";
 
 /* ============================================================
@@ -111,7 +110,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 }
 
 /* ============================================================
-   POST: Upload a circular (pdf2pic + Trilingual OCR + Vectors)
+   POST: Upload a circular (pdf-to-img + Trilingual OCR + Vectors)
 ============================================================ */
 export async function POST(req: Request) {
   const dataSource = await getDb();
@@ -221,54 +220,51 @@ export async function POST(req: Request) {
         console.error("OCR failed on image:", err);
       }
     } else if (file.type === "application/pdf") {
-      /* PDF via pdf2pic */
-      const tempPdfPath = `/tmp/pdf_${Date.now()}.pdf`;
-      tempFiles.push(tempPdfPath);
-      await fs.writeFile(tempPdfPath, fileBytes);
-
-      const options = {
-        density: 300,
+      /* PDF via pdf-to-img (pure JS/WASM, built on pdfjs-dist — no
+         GraphicsMagick/ImageMagick binary required). pdf2pic shells out to
+         `gm convert`, which does not exist in Vercel's serverless runtime
+         (works locally only because the dev machine has GraphicsMagick
+         installed) — that is what was throwing "Could not execute
+         GraphicsMagick/ImageMagick" in production. scale = 300/72
+         reproduces the same ~300dpi output the old density:300 setting
+         produced, and preserves each page's real aspect ratio instead of
+         the old `-resize 2480x3508!` force-stretch. */
+      const PDF_RENDER_SCALE = 300 / 72;
+      const { pdf: renderPdfToImages } = await import("pdf-to-img");
+      const doc = await renderPdfToImages(fileBytes, {
+        scale: PDF_RENDER_SCALE,
         format: "png",
-        savePath: "/tmp",
-        width: 2480,
-        height: 3508,
-      };
-      const convert = fromPath(tempPdfPath, options);
+      });
 
       const pdfParseModule: any = await import("pdf-parse");
       const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
       const parsed: any = await parseFn(fileBytes);
-      const numPages = parsed.numpages || 1;
+      const numPages = parsed.numpages || doc.length || 1;
 
-      for (let page = 1; page <= numPages; page++) {
-        const output = await convert(page);
-        const pngPath: string | undefined = output?.path;
-        if (!pngPath) {
-          console.warn(
-            `Skipping page ${page}: pdf2pic returned undefined path`,
-          );
-          continue;
-        }
-        tempFiles.push(pngPath);
-        const pngBuffer = await fs.readFile(pngPath);
-        const key = `circulars/${Date.now()}_page_${page}.png`;
-        const { url } = await put(key, pngBuffer, {
-          access: "public",
-          contentType: "image/png",
-        });
-        uploadedBlobUrls.push(url);
-        fileUrls.push(url);
+      try {
+        for (let page = 1; page <= numPages; page++) {
+          const pngBuffer = await doc.getPage(page);
+          const key = `circulars/${Date.now()}_page_${page}.png`;
+          const { url } = await put(key, pngBuffer, {
+            access: "public",
+            contentType: "image/png",
+          });
+          uploadedBlobUrls.push(url);
+          fileUrls.push(url);
 
-        try {
-          console.log(
-            `DEBUG: Running dual-pass OCR (PSM 3) on PDF page ${page}...`,
-          );
-          const text = await ocrPageDualPass(pngBuffer, `page ${page}`);
-          ocrAccumulatedText += text + " \n";
-          perPageText[page - 1] = text; // page is 1-based; store 0-based
-        } catch (err) {
-          console.error(`OCR failed on page ${page}:`, err);
+          try {
+            console.log(
+              `DEBUG: Running dual-pass OCR (PSM 3) on PDF page ${page}...`,
+            );
+            const text = await ocrPageDualPass(pngBuffer, `page ${page}`);
+            ocrAccumulatedText += text + " \n";
+            perPageText[page - 1] = text; // page is 1-based; store 0-based
+          } catch (err) {
+            console.error(`OCR failed on page ${page}:`, err);
+          }
         }
+      } finally {
+        await doc.destroy();
       }
     } else {
       console.warn("Unsupported file type:", file.type);
