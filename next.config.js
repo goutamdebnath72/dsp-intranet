@@ -38,6 +38,20 @@ const nextConfig = {
       // @napi-rs/canvas binary at runtime.
       "pdfjs-dist",
       "@napi-rs/canvas",
+      // pdf-to-img ITSELF must also be external, not just its dependencies.
+      // Without this, webpack code-splits the dynamic `await
+      // import("pdf-to-img")` call into its own chunk file
+      // (.next/server/chunks/11.js locally). pdf-to-img's own code resolves
+      // pdfjs-dist's bundled assets via
+      // `createRequire(import.meta.url).resolve("pdfjs-dist/package.json")`
+      // — a resolution relative to WHATEVER FILE THAT CODE PHYSICALLY RUNS
+      // FROM. Once webpack relocates it into a chunk file, import.meta.url
+      // no longer points at pdf-to-img's real node_modules location, so
+      // that resolution breaks ("Cannot find module 'pdfjs-dist/package.json'")
+      // even though pdfjs-dist itself is correctly traced and present.
+      // Externalizing pdf-to-img keeps it as a plain, unbundled require()
+      // from its real file location, where the relative resolution is valid.
+      "pdf-to-img",
     ],
     // serverComponentsExternalPackages alone does NOT get every file these
     // two packages need at runtime into the traced serverless bundle —
