@@ -28,6 +28,26 @@ type Props = {
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
+// Our own /api/circulars route returns { error: "some string" } on failure.
+// But a platform-level failure -- most notably a serverless function timeout
+// on a large/slow OCR job -- never reaches that route handler at all, so it
+// comes back in VERCEL's own error shape instead, which nests error as an
+// OBJECT ({ error: { code, message } }), not a string. Blindly rendering
+// whatever err.response.data.error happens to be crashes the whole page with
+// React error #31 ("Objects are not valid as a React child") instead of
+// showing a normal error message. This always returns a plain string.
+function extractErrorMessage(err: any): string {
+  const data = err?.response?.data;
+  if (typeof data === "string" && data.trim()) return data;
+  const dataError = data?.error;
+  if (typeof dataError === "string" && dataError.trim()) return dataError;
+  if (dataError && typeof dataError.message === "string")
+    return dataError.message;
+  if (typeof err?.message === "string" && err.message.trim())
+    return err.message;
+  return "An unexpected error occurred.";
+}
+
 export function CircularUploadModal({
   isOpen,
   onClose,
@@ -159,9 +179,7 @@ export function CircularUploadModal({
     } catch (err: any) {
       console.error(err);
       setStatus("error");
-      setErrorMessage(
-        err.response?.data?.error || "An unexpected error occurred.",
-      );
+      setErrorMessage(extractErrorMessage(err));
     }
   };
 

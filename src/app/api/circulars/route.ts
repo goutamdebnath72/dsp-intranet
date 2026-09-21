@@ -8,6 +8,20 @@ import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
 import Tesseract from "tesseract.js";
 
+// This route does two full Tesseract OCR passes PER PAGE (English, then
+// Hindi+English+Bengali) plus an embedding call per ~200-word chunk, so a
+// multi-page circular can easily take well past Vercel's default function
+// duration -- that is what was producing the 504 Gateway Timeout (and the
+// resulting frontend crash trying to render that non-JSON error response).
+// 300 is the Pro-plan ceiling for a standard (non-Fluid-compute) Node
+// serverless function; Hobby's ceiling is lower (historically 60s, but
+// check Vercel Dashboard -> Project Settings -> Functions, or your plan's
+// current docs, for the real number -- Vercel has changed these limits
+// before, and setting a value above your plan's actual cap is silently
+// clamped down to that cap, not rejected, so it is worth confirming rather
+// than assuming this value is actually in effect for a given upload.
+export const maxDuration = 300;
+
 /* ============================================================
    Dual-pass OCR for one page/image.
 
