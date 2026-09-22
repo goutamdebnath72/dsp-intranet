@@ -13,14 +13,42 @@ import Tesseract from "tesseract.js";
 // multi-page circular can easily take well past Vercel's default function
 // duration -- that is what was producing the 504 Gateway Timeout (and the
 // resulting frontend crash trying to render that non-JSON error response).
-// 300 is the Pro-plan ceiling for a standard (non-Fluid-compute) Node
-// serverless function; Hobby's ceiling is lower (historically 60s, but
-// check Vercel Dashboard -> Project Settings -> Functions, or your plan's
-// current docs, for the real number -- Vercel has changed these limits
-// before, and setting a value above your plan's actual cap is silently
-// clamped down to that cap, not rejected, so it is worth confirming rather
-// than assuming this value is actually in effect for a given upload.
+// CONFIRMED (not assumed): 300 seconds is a hard platform ceiling on the
+// Hobby plan -- Vercel's own dashboard rejects any value above it outright
+// ("Max duration for Hobby projects must be between 1 and 300. Upgrade to
+// Pro."), so there is no code-level way to exceed this without upgrading
+// the plan. Getting real work done inside that ceiling means either
+// speeding up the OCR pipeline itself (e.g. reusing Tesseract workers
+// across pages instead of recreating them per page/pass) or moving the
+// heavy work out of the request/response cycle entirely.
 export const maxDuration = 300;
+
+const OCR_LANGS = ["eng", "hin+eng+ben"] as const;
+type OcrWorkerPool = Record<(typeof OCR_LANGS)[number], any>;
+
+/** Create both language workers ONCE, reused across every page of a
+ *  document. Creating a Tesseract worker loads the WASM engine and
+ *  language model files from scratch, which is the slowest part of using
+ *  tesseract.js -- doing that per-page instead of per-document was a real
+ *  contributor to hitting Vercel's 300s function duration ceiling on
+ *  multi-page circulars. Same PSM 3, same two passes, same accuracy;
+ *  only the repeated engine reload is removed. */
+async function createOcrWorkerPool(): Promise<OcrWorkerPool> {
+  const pool = {} as OcrWorkerPool;
+  for (const langs of OCR_LANGS) {
+    const worker = await Tesseract.createWorker(langs);
+    // PSM 3 = fully automatic page segmentation (the value the CLI uses).
+    await worker.setParameters({ tessedit_pageseg_mode: "3" as any });
+    pool[langs] = worker;
+  }
+  return pool;
+}
+
+async function destroyOcrWorkerPool(pool: OcrWorkerPool) {
+  await Promise.all(
+    OCR_LANGS.map((langs) => pool[langs]?.terminate().catch(() => {})),
+  );
+}
 
 /* ============================================================
    Dual-pass OCR for one page/image.
@@ -39,21 +67,19 @@ export const maxDuration = 300;
    numbers), once "hin+eng+ben" (Indic content) — and both texts are kept.
    Slower, but every script and every code survives. Display/search dedupe
    downstream; recall is what matters here.
+
+   Workers are created ONCE per upload (see createOcrWorkerPool above) and
+   passed in here, not created per call -- see that function's comment.
 ============================================================ */
 async function ocrPageDualPass(
   input: Buffer | Uint8Array,
-  label = "",
+  label: string,
+  workers: OcrWorkerPool,
 ): Promise<string> {
-  const passes = ["eng", "hin+eng+ben"];
   let combined = "";
-  for (const langs of passes) {
-    let worker: any = null;
+  for (const langs of OCR_LANGS) {
     try {
-      worker = await Tesseract.createWorker(langs);
-      // PSM 3 = fully automatic page segmentation (the value the CLI uses).
-      await worker.setParameters({
-        tessedit_pageseg_mode: "3" as any,
-      });
+      const worker = workers[langs];
       const {
         data: { text },
       } = await worker.recognize(input);
@@ -63,8 +89,6 @@ async function ocrPageDualPass(
         `OCR pass "${langs}" failed${label ? " on " + label : ""}:`,
         (err as any)?.message || err,
       );
-    } finally {
-      if (worker) await worker.terminate().catch(() => {});
     }
   }
   return combined;
@@ -227,9 +251,14 @@ export async function POST(req: Request) {
 
       try {
         console.log("DEBUG: Running dual-pass OCR (PSM 3) on image...");
-        const text = await ocrPageDualPass(fileBytes, "image");
-        ocrAccumulatedText += text + " ";
-        perPageText[0] = text; // single-image circular == page 1
+        const ocrWorkers = await createOcrWorkerPool();
+        try {
+          const text = await ocrPageDualPass(fileBytes, "image", ocrWorkers);
+          ocrAccumulatedText += text + " ";
+          perPageText[0] = text; // single-image circular == page 1
+        } finally {
+          await destroyOcrWorkerPool(ocrWorkers);
+        }
       } catch (err) {
         console.error("OCR failed on image:", err);
       }
@@ -255,6 +284,10 @@ export async function POST(req: Request) {
       const parsed: any = await parseFn(fileBytes);
       const numPages = parsed.numpages || doc.length || 1;
 
+      // Created ONCE for the whole document, not per page -- see
+      // createOcrWorkerPool's comment for why this matters for duration.
+      const ocrWorkers = await createOcrWorkerPool();
+
       try {
         for (let page = 1; page <= numPages; page++) {
           const pngBuffer = await doc.getPage(page);
@@ -270,7 +303,11 @@ export async function POST(req: Request) {
             console.log(
               `DEBUG: Running dual-pass OCR (PSM 3) on PDF page ${page}...`,
             );
-            const text = await ocrPageDualPass(pngBuffer, `page ${page}`);
+            const text = await ocrPageDualPass(
+              pngBuffer,
+              `page ${page}`,
+              ocrWorkers,
+            );
             ocrAccumulatedText += text + " \n";
             perPageText[page - 1] = text; // page is 1-based; store 0-based
           } catch (err) {
@@ -278,6 +315,7 @@ export async function POST(req: Request) {
           }
         }
       } finally {
+        await destroyOcrWorkerPool(ocrWorkers);
         await doc.destroy();
       }
     } else {
