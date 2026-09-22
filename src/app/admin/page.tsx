@@ -13,7 +13,7 @@ import Header from "@/components/Header";
 import OldHeader from "@/components/OldHeader";
 import { HolidayDashboard } from "@/components/admin/HolidayDashboard";
 import { ADMIN_CARD_HEIGHT } from "@/lib/constants";
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster } from "react-hot-toast";
 
 function AdminContent() {
   const { data: session, status } = useSession();
@@ -46,7 +46,12 @@ function AdminContent() {
   }, [session, status]);
 
   const handleUploadSuccess = (newCircular: any) => {
-    toast.success("Circular uploaded successfully!");
+    // The modal itself already shows an accurate "queued for processing"
+    // message for the full 5s it stays open before auto-closing -- a
+    // second toast here duplicated that feedback and, worse, said
+    // "uploaded successfully" which is no longer true the moment the
+    // upload completes under the async flow (the circular is only
+    // QUEUED at this point, not yet rendered/OCR'd/embedded).
     setIsCircularModalOpen(false);
   };
 

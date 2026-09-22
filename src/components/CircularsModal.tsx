@@ -26,7 +26,9 @@ type Circular = {
   uploadedAt: string;
   fileUrls: string[];
   authorTicketNo: string;
-  serialNumber: number;
+  serialNumber: number | null;
+  status?: "processing" | "ready" | "failed";
+  processingError?: string | null;
 };
 
 type Props = {
@@ -82,6 +84,16 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   } = useSWR<Circular[]>(
     isOpen && selectedYear ? `/api/circulars?year=${selectedYear}` : null,
     fetcher,
+    {
+      // Poll only while something in the currently-viewed year is still
+      // mid-flight (queued to QStash, not yet OCR'd/embedded) -- otherwise
+      // a "Processing" badge would just sit there showing a stale state
+      // until the user manually reopens the modal. Stops entirely (0 =
+      // no polling) the moment nothing is pending, so this never becomes
+      // a constant background poll for the common case.
+      refreshInterval: (data) =>
+        (data ?? []).some((c) => c.status === "processing") ? 4000 : 0,
+    },
   );
 
   // Quietly warm the cache for the immediately-preceding year, so the most
@@ -389,9 +401,22 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
                                 : "bg-transparent"
                             }`}
                           />
-                          <span className="text-neutral-400 font-mono mr-2">
-                            {String(circular.serialNumber ?? 0).padStart(3, "0")}
-                          </span>
+                          {circular.status === "processing" ? (
+                            <span className="inline-flex items-center gap-1 mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-amber-700">
+                              Processing
+                            </span>
+                          ) : circular.status === "failed" ? (
+                            <span className="inline-flex items-center gap-1 mr-2 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-red-700">
+                              Failed
+                            </span>
+                          ) : (
+                            <span className="text-neutral-400 font-mono mr-2">
+                              {String(circular.serialNumber ?? 0).padStart(
+                                3,
+                                "0",
+                              )}
+                            </span>
+                          )}
                           {circular.headline}
                         </p>
                         <p className="text-sm text-neutral-500 mt-1 pl-4">

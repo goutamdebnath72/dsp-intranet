@@ -10,6 +10,8 @@ type Circular = {
   headline: string;
   publishedAt: string;
   fileUrls: string[];
+  status?: "processing" | "ready" | "failed";
+  processingError?: string | null;
 };
 
 type Props = {
@@ -50,6 +52,22 @@ export function CircularViewerLightbox({
       setCircular(null);
     }
   }, [circularId]);
+
+  // While still processing, poll quietly every 4s so this view flips to the
+  // finished pages on its own once the background job completes, instead
+  // of requiring the user to close and reopen the viewer to see it.
+  useEffect(() => {
+    if (!circularId || circular?.status !== "processing") return;
+    const interval = setInterval(() => {
+      fetch(`/api/circulars/${circularId}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => data && setCircular(data))
+        .catch(() => {
+          // Non-fatal: just try again on the next tick.
+        });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [circularId, circular?.status]);
 
 
   // Scroll to the matched page once the circular is loaded. Waits for the
@@ -138,8 +156,38 @@ export function CircularViewerLightbox({
               </div>
             )}
 
-            {/* Complete Pages in Sequence */}
-            {circular && (
+            {/* Still processing: fileUrls only holds the raw uploaded file
+                at this point (not per-page images yet), so attempting to
+                render it as an image gallery would show a broken image --
+                this is exactly what was happening before this guard existed. */}
+            {circular && circular.status === "processing" && (
+              <div className="flex flex-col items-center justify-center h-full text-neutral-300 gap-3">
+                <Loader2 className="animate-spin text-primary-400" size={48} />
+                <p className="text-sm font-medium">
+                  Still processing — check back in a few minutes.
+                </p>
+              </div>
+            )}
+
+            {/* Permanent processing failure. */}
+            {circular && circular.status === "failed" && (
+              <div className="flex flex-col items-center justify-center h-full text-red-400 gap-2 text-center px-6">
+                <AlertCircle size={48} />
+                <p>This circular failed to process.</p>
+                {circular.processingError && (
+                  <p className="text-xs text-red-300/80 max-w-md break-words">
+                    {circular.processingError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Complete Pages in Sequence -- only once processing is done
+                (status "ready", or missing entirely for any pre-existing
+                row from before this field existed). */}
+            {circular &&
+              circular.status !== "processing" &&
+              circular.status !== "failed" && (
               <div className="w-full max-w-4xl space-y-6">
                 {circular.fileUrls.map((url, index) => {
                   const pageNo = index + 1;
