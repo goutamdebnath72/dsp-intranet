@@ -1,5 +1,50 @@
 // next.config.js
+/* eslint-disable @typescript-eslint/no-var-requires -- this file is
+   inherently CommonJS (Next.js loads it via require(), and it ends in
+   module.exports below), so require() here is correct, not something to
+   convert to import syntax. */
+const fs = require("fs");
+const path = require("path");
+
 /** @type {import('next').NextConfig} */
+
+// Recursively walks a package's own dependency tree (via each package.json's
+// "dependencies" field) and returns glob patterns covering that package and
+// every dependency, transitively. Exists because manually listing pg's
+// dependencies once already went wrong: only pg-connection-string (1 of 5
+// direct dependencies) was included, missing pg-pool, pg-protocol,
+// pg-types, and pgpass -- plus everything THEY depend on (pg-types alone
+// pulls in 5 more packages, one of which pulls in yet another). That gap
+// meant pg's own internal require() calls failed at runtime even though
+// pg's own files were correctly traced, which TypeORM reports as the
+// misleading "Postgres package has not been found installed" rather than
+// naming the actual missing sibling package. Walking the tree in code
+// avoids ever repeating that mistake, including if pg's dependencies
+// change in a future version bump.
+function traceIncludesForPackage(pkgName, seen = new Set()) {
+  if (seen.has(pkgName)) return [];
+  seen.add(pkgName);
+  const globs = [`./node_modules/${pkgName}/**/*`];
+  try {
+    const pkgJsonPath = path.join(
+      __dirname,
+      "node_modules",
+      pkgName,
+      "package.json",
+    );
+    const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
+    const deps = Object.keys(pkgJson.dependencies || {});
+    for (const dep of deps) {
+      globs.push(...traceIncludesForPackage(dep, seen));
+    }
+  } catch (e) {
+    console.warn(
+      `[next.config.js] Could not read dependencies for "${pkgName}" while building outputFileTracingIncludes -- if this package is genuinely needed at runtime, its files may be missing from the deployed bundle. Error: ${e.message}`,
+    );
+  }
+  return globs;
+}
+
 const nextConfig = {
   // 1. ✅ Disable the SWC minifier
   swcMinify: false,
@@ -69,21 +114,23 @@ const nextConfig = {
       // pg has been in serverComponentsExternalPackages since long before
       // tonight's changes, and the homepage/every DB-backed route worked
       // fine in every test tonight -- but confirmed directly by inspecting
-      // .next/server/app/page.js.nft.json that pg is traced into ZERO
+      // .next/server/app/page.js.nft.json that pg was traced into ZERO
       // files for the homepage bundle, despite getDb() needing it. This
-      // produced "DriverPackageNotInstalledError: Postgres package has
-      // not been found" app-wide on a freshly deployed, cold build. Best
-      // explanation: this project has Fluid Compute enabled, which can
-      // share warm execution context across routes -- as long as SOME
-      // route loaded pg first in a given warm instance, others could
-      // piggyback on the cached module, masking this trace gap until a
-      // fully cold deployment was hit. Applying broadly (not scoped to
-      // one route) since many routes across the app touch the database.
-      "/**": [
-        "./node_modules/pg/**/*",
-        "./node_modules/pg-hstore/**/*",
-        "./node_modules/pg-connection-string/**/*",
-      ],
+      // produced "DriverPackageNotInstalledError" app-wide on a freshly
+      // deployed, cold build. Best explanation: this project has Fluid
+      // Compute enabled, which can share warm execution context across
+      // routes -- as long as SOME route loaded pg first in a given warm
+      // instance, others could piggyback on the cached module, masking
+      // this trace gap until a fully cold deployment was hit. A first fix
+      // attempt manually listed pg + pg-hstore + pg-connection-string, but
+      // the real Vercel runtime logs showed the SAME error persisting --
+      // because pg also directly depends on pg-pool, pg-protocol, and
+      // pg-types (which itself pulls in 5 more packages), and pgpass
+      // (which pulls in split2) -- none of which were included, so
+      // require("pg") kept failing from the inside. Now using the
+      // dependency walker above to get the full, verified transitive tree
+      // automatically instead of a hand-typed list.
+      "/**": traceIncludesForPackage("pg"),
     },
   },
 };
