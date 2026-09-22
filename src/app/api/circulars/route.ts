@@ -98,6 +98,29 @@ export async function POST(req: Request) {
 
     const fileBytes = Buffer.from(await file.arrayBuffer());
 
+    // Cheap page-count read for PDFs -- pdf-parse's metadata pass, not the
+    // full render+OCR pipeline, so this stays fast even in this
+    // fast-response enqueue path. Lets the frontend show a time estimate
+    // based on THIS document's actual size rather than a generic guess.
+    // Failure here is non-fatal: the upload can proceed without an
+    // estimate, it just won't have a document-specific one.
+    let pageCount: number | null = null;
+    if (file.type === "application/pdf") {
+      try {
+        const pdfParseModule: any = await import("pdf-parse");
+        const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
+        const parsed: any = await parseFn(fileBytes);
+        pageCount = parsed?.numpages ?? null;
+      } catch (e) {
+        console.warn(
+          "Cheap page-count read failed (non-fatal, proceeding without estimate):",
+          (e as any)?.message || e,
+        );
+      }
+    } else if (file.type.startsWith("image/")) {
+      pageCount = 1;
+    }
+
     // Upload the ORIGINAL file once, fast. The background job fetches this
     // same blob to do the actual rendering/OCR — so the QStash message
     // payload only needs to carry a URL + metadata, never the file bytes
@@ -122,6 +145,7 @@ export async function POST(req: Request) {
       uploadedAt,
       authorTicketNo,
       status: "processing",
+      pageCount,
     });
     const saved = await repo.save(placeholder);
 
@@ -223,7 +247,8 @@ export async function GET(req: Request) {
           "serialNumber",
           "authorTicketNo",
           status,
-          "processingError"
+          "processingError",
+          "pageCount"
         FROM public.circulars
         WHERE EXTRACT(YEAR FROM "publishedAt") = $1
         ORDER BY "serialNumber" DESC, id DESC

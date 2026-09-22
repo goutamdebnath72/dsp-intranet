@@ -81,6 +81,14 @@ export class Circular {
   @Column({ type: "text", nullable: true })
   processingError?: string | null;
 
+  // Page count, known cheaply at upload time (PDF metadata read, no OCR)
+  // before background processing starts. Lets the frontend estimate how
+  // long THIS document will take based on its actual size, rather than a
+  // generic guess that would be wrong for anything but an average-length
+  // document.
+  @Column({ type: "integer", nullable: true })
+  pageCount?: number | null;
+
   // ✅ The arrow function defers evaluation and Relation<> safely isolates TS metadata
   @OneToMany(() => CircularPage, (page) => page.circular)
   pages!: Relation<CircularPage>[];

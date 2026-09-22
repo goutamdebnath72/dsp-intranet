@@ -4,14 +4,23 @@
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Loader2, AlertCircle, Sparkles } from "lucide-react";
+import {
+  estimateProcessingSeconds,
+  estimateProgressPercent,
+  isTakingLonger,
+  formatDuration,
+} from "@/lib/processingEstimate";
+import { useNowTick } from "@/hooks/useNowTick";
 
 type Circular = {
   id: number;
   headline: string;
   publishedAt: string;
+  uploadedAt: string;
   fileUrls: string[];
   status?: "processing" | "ready" | "failed";
   processingError?: string | null;
+  pageCount?: number | null;
 };
 
 type Props = {
@@ -30,6 +39,7 @@ export function CircularViewerLightbox({
   matchPages = [],
 }: Props) {
   const [circular, setCircular] = useState<Circular | null>(null);
+  const now = useNowTick(1000);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -160,14 +170,40 @@ export function CircularViewerLightbox({
                 at this point (not per-page images yet), so attempting to
                 render it as an image gallery would show a broken image --
                 this is exactly what was happening before this guard existed. */}
-            {circular && circular.status === "processing" && (
-              <div className="flex flex-col items-center justify-center h-full text-neutral-300 gap-3">
-                <Loader2 className="animate-spin text-primary-400" size={48} />
-                <p className="text-sm font-medium">
-                  Still processing — check back in a few minutes.
-                </p>
-              </div>
-            )}
+            {circular && circular.status === "processing" && (() => {
+              const elapsedSeconds = Math.max(
+                0,
+                (now - new Date(circular.uploadedAt).getTime()) / 1000,
+              );
+              const estimatedSeconds = estimateProcessingSeconds(
+                circular.pageCount,
+              );
+              const progressPercent = estimateProgressPercent(
+                elapsedSeconds,
+                estimatedSeconds,
+              );
+              const longer = isTakingLonger(elapsedSeconds, estimatedSeconds);
+              return (
+                <div className="flex flex-col items-center justify-center h-full text-neutral-300 gap-4 w-full max-w-sm px-6">
+                  <Loader2 className="animate-spin text-primary-400" size={48} />
+                  <div className="w-full">
+                    <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full bg-primary-400"
+                        initial={false}
+                        animate={{ width: `${progressPercent}%` }}
+                        transition={{ ease: "easeOut" }}
+                      />
+                    </div>
+                    <p className="text-sm font-medium text-center mt-3">
+                      {longer
+                        ? `Taking longer than usual — ${formatDuration(elapsedSeconds)} so far`
+                        : `${formatDuration(elapsedSeconds)} elapsed · usually ready in ~${formatDuration(estimatedSeconds)}${circular.pageCount ? ` for a ${circular.pageCount}-page document` : ""}`}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Permanent processing failure. */}
             {circular && circular.status === "failed" && (
