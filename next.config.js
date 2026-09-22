@@ -66,6 +66,24 @@ const nextConfig = {
         "./node_modules/@napi-rs/canvas*/**/*",
         "./node_modules/pdfjs-dist/**/*",
       ],
+      // pg has been in serverComponentsExternalPackages since long before
+      // tonight's changes, and the homepage/every DB-backed route worked
+      // fine in every test tonight -- but confirmed directly by inspecting
+      // .next/server/app/page.js.nft.json that pg is traced into ZERO
+      // files for the homepage bundle, despite getDb() needing it. This
+      // produced "DriverPackageNotInstalledError: Postgres package has
+      // not been found" app-wide on a freshly deployed, cold build. Best
+      // explanation: this project has Fluid Compute enabled, which can
+      // share warm execution context across routes -- as long as SOME
+      // route loaded pg first in a given warm instance, others could
+      // piggyback on the cached module, masking this trace gap until a
+      // fully cold deployment was hit. Applying broadly (not scoped to
+      // one route) since many routes across the app touch the database.
+      "/**": [
+        "./node_modules/pg/**/*",
+        "./node_modules/pg-hstore/**/*",
+        "./node_modules/pg-connection-string/**/*",
+      ],
     },
   },
 };
