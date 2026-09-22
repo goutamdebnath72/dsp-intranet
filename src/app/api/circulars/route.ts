@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { Client as QStashClient } from "@upstash/qstash";
+import { markStaleProcessingAsFailed } from "@/lib/circulars/markStaleProcessing";
 
 const qstash = new QStashClient({ token: process.env.QSTASH_TOKEN! });
 
@@ -232,6 +233,13 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
 
   try {
+    // Self-heal anything stuck past a safe threshold -- see
+    // markStaleProcessing.ts for why this can't just be caught by
+    // process/route.ts's own error handling.
+    await markStaleProcessingAsFailed(dataSource).catch((e) =>
+      console.error("markStaleProcessingAsFailed failed (non-fatal):", e),
+    );
+
     if (searchParams.get("meta") === "years") {
       const rows: Array<{ year: string }> = await dataSource.query(`
         SELECT DISTINCT EXTRACT(YEAR FROM "publishedAt")::int::text AS year

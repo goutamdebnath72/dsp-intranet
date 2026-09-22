@@ -7,6 +7,7 @@ import { getAuthOptions } from "@/lib/auth";
 import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
+import { markStaleProcessingAsFailed } from "@/lib/circulars/markStaleProcessing";
 
 type RouteContext = {
   params: {
@@ -23,6 +24,16 @@ export async function GET(request: Request, context: RouteContext) {
     if (isNaN(id)) {
       return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
     }
+
+    // Self-heal if this specific circular is stuck past a safe threshold --
+    // the viewer polls this endpoint every 4s while status is "processing",
+    // so this catches a stale job on the very next poll. See
+    // markStaleProcessing.ts for why this can't just be caught by
+    // process/route.ts's own error handling (a platform timeout kill isn't
+    // a catchable exception).
+    await markStaleProcessingAsFailed(dataSource).catch((e) =>
+      console.error("markStaleProcessingAsFailed failed (non-fatal):", e),
+    );
 
     const circularRepository = dataSource.getRepository(Circular);
     const circular = await circularRepository.findOne({ where: { id } });
