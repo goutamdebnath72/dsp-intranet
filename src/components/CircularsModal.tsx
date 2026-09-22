@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import useSWR, { preload } from "swr";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   X,
@@ -36,62 +37,70 @@ type Props = {
 
 const NUM_RECENT_YEARS = 2;
 
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("Failed to fetch circulars");
+    return res.json();
+  });
+
 export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   const { data: session } = useSession();
-  const [circularsByYear, setCircularsByYear] = useState<{
-    [key: string]: Circular[];
-  }>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedYear, setSelectedYear] = useState(
-    new Date().getFullYear().toString(),
+
+  // Cheap, rarely-changing: just which years actually have circulars.
+  // Drives the year-tab selector without ever pulling a single circular
+  // row -- previously this app fetched EVERY circular from EVERY year just
+  // to figure out which years to show as tabs.
+  const { data: availableYears = [] } = useSWR<string[]>(
+    isOpen ? "/api/circulars?meta=years" : null,
+    fetcher,
   );
+
+  const [selectedYear, setSelectedYear] = useState<string | null>(null);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const archiveButtonRef = useRef<HTMLDivElement>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [unreadIds, setUnreadIds] = useState<Set<number>>(new Set());
 
-  const fetchCirculars = () => {
-    setIsLoading(true);
-    fetch("/api/circulars")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch circulars");
-        return res.json();
-      })
-      .then((data: Circular[]) => {
-        const grouped = data.reduce(
-          (acc, circular) => {
-            const year = DateTime.fromISO(circular.publishedAt).year.toString();
-            if (!acc[year]) acc[year] = [];
-            acc[year].push(circular);
-            return acc;
-          },
-          {} as { [key: string]: Circular[] },
-        );
-        // Sort each year's circulars by serialNumber DESC (highest first).
-        Object.keys(grouped).forEach((year) => {
-          grouped[year].sort(
-            (a, b) => (b.serialNumber ?? 0) - (a.serialNumber ?? 0),
-          );
-        });
-        setCircularsByYear(grouped);
-        const availableYears = Object.keys(grouped).sort(
-          (a, b) => Number(b) - Number(a),
-        );
-        if (availableYears.length > 0) {
-          setSelectedYear(availableYears[0]);
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        setError("Could not load circulars. Please try again later.");
-      })
-      .finally(() => setIsLoading(false));
-  };
+  // Once the years list arrives, default to the latest year that actually
+  // has data -- mirrors the old "jump to the most recent year with
+  // content" behavior. Only fires the FIRST time (selectedYear starts
+  // null), so it never fights the user's own tab clicks afterward.
+  useEffect(() => {
+    if (isOpen && selectedYear === null && availableYears.length > 0) {
+      setSelectedYear(availableYears[0]);
+    }
+  }, [isOpen, availableYears, selectedYear]);
+
+  // The ONLY circular-row fetch that happens on demand: just the currently
+  // selected year, ~500 rows at most instead of every year's archive at
+  // once. Switching tabs is a new SWR cache key, not a full refetch.
+  const {
+    data: circulars = [],
+    isLoading,
+    mutate: mutateCirculars,
+  } = useSWR<Circular[]>(
+    isOpen && selectedYear ? `/api/circulars?year=${selectedYear}` : null,
+    fetcher,
+  );
+
+  // Quietly warm the cache for the immediately-preceding year, so the most
+  // likely next click (browsing one year further back) shows instantly
+  // from cache instead of a fresh loading spinner. Deliberately only ONE
+  // year ahead -- prefetching several years would just recreate the
+  // original "load everything up front" problem in a slower, sneakier
+  // form instead of actually fixing it.
+  useEffect(() => {
+    if (!isOpen || !selectedYear) return;
+    const prevYear = String(Number(selectedYear) - 1);
+    if (availableYears.includes(prevYear)) {
+      preload(`/api/circulars?year=${prevYear}`, fetcher);
+    }
+  }, [isOpen, selectedYear, availableYears]);
 
   // Fetch which recent circulars are still unread for this session, so we can
   // bold their titles (Gmail-style). Source of truth is /api/circulars/seen.
+  // Independent of which year is selected -- unchanged from before.
   const fetchUnread = () => {
     fetch("/api/circulars/seen", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
@@ -125,28 +134,20 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchCirculars();
-      fetchUnread();
-    }
+    if (isOpen) fetchUnread();
   }, [isOpen]);
 
   const recentYears = useMemo(
-    () =>
-      Object.keys(circularsByYear)
-        .sort((a, b) => Number(b) - Number(a))
-        .slice(0, NUM_RECENT_YEARS),
-    [circularsByYear],
+    () => availableYears.slice(0, NUM_RECENT_YEARS),
+    [availableYears],
   );
   const archiveYears = useMemo(
-    () =>
-      Object.keys(circularsByYear)
-        .sort((a, b) => Number(b) - Number(a))
-        .slice(NUM_RECENT_YEARS),
-    [circularsByYear],
+    () => availableYears.slice(NUM_RECENT_YEARS),
+    [availableYears],
   );
-  const isArchiveSelected = archiveYears.includes(selectedYear);
-  const circulars = circularsByYear[selectedYear] || [];
+  const isArchiveSelected = selectedYear
+    ? archiveYears.includes(selectedYear)
+    : false;
 
   // ✅ Wiring Delete Backend
   const handleDelete = async (id: number) => {
@@ -158,7 +159,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
       if (!response.ok) throw new Error("Failed to delete");
 
       toast.success("Circular and associated files deleted.");
-      fetchCirculars(); // Refresh the list
+      mutateCirculars(); // Refresh just this year's list
     } catch (err) {
       toast.error("Failed to delete.");
     }
@@ -310,14 +311,37 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
         <main className="flex-1 overflow-y-auto overscroll-contain p-6 scrollbar-thin scrollbar-thumb-neutral-400/50 scrollbar-track-transparent">
           <AnimatePresence mode="wait">
             <motion.ul
-              key={selectedYear}
+              key={selectedYear ?? "loading"}
               variants={listVariants}
               initial="hidden"
               animate="visible"
               exit="exit"
               className="space-y-3"
             >
-              {circulars.length > 0 ? (
+              {isLoading || !selectedYear ? (
+                <motion.div
+                  variants={itemVariants}
+                  className="flex items-center justify-center gap-2 text-neutral-700 min-h-[50vh]"
+                >
+                  <span>Loading circulars</span>
+                  <span className="flex items-center gap-1" aria-hidden>
+                    {[0, 1, 2].map((i) => (
+                      <motion.span
+                        key={i}
+                        className="h-1.5 w-1.5 rounded-full bg-neutral-600"
+                        animate={{ opacity: [0.35, 1, 0.35] }}
+                        transition={{
+                          duration: 1,
+                          repeat: Infinity,
+                          delay: i * 0.2,
+                          ease: "easeInOut",
+                        }}
+                      />
+                    ))}
+                  </span>
+                  <span className="sr-only">Loading circulars…</span>
+                </motion.div>
+              ) : circulars.length > 0 ? (
                 circulars.map((circular) => (
                   <motion.li key={circular.id} variants={itemVariants}>
                     <div
@@ -350,7 +374,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
                         className="flex-1 text-left"
                       >
                         <p
-                          className={`flex items-center transition-colors ${
+                          className={`flex items-start transition-colors ${
                             unreadIds.has(circular.id)
                               ? "font-bold text-neutral-900"
                               : "font-semibold text-neutral-800"

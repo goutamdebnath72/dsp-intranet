@@ -107,6 +107,27 @@ function findDesignation(query: string): { term: string; label: string } | null 
   return null;
 }
 
+// Whole-phrase (anchored) version of the designation check above: true only
+// when the ENTIRE phrase is nothing but a recognised designation term (plus
+// its own plural), not merely containing one. Used to tell "for employees" /
+// "for non-executive employees" apart from a genuine department name — those
+// describe WHO, not WHERE, and must never be treated as an unresolved
+// department (see findDeptScope below).
+function fullyConsumedByDesignation(phrase: string): boolean {
+  const nq = ` ${normTerm(phrase)} `;
+  const all: { p: string }[] = [];
+  for (const r of RANKS) for (const a of [...r.aliases, r.short]) all.push({ p: normTerm(a) });
+  all.sort((x, y) => y.p.length - x.p.length);
+  for (const { p } of all) {
+    if (new RegExp(`^ ${esc(p)}(s|es)? $`).test(nq)) return true;
+  }
+  if (/^ (?:grade )?s \d{1,2} $/.test(nq)) return true;
+  if (/^ non executives? $/.test(nq) || /^ non exec $/.test(nq) || /^ s grade $/.test(nq) || /^ s scale $/.test(nq)) return true;
+  if (/^ executives? $/.test(nq) || /^ execs? $/.test(nq)) return true;
+  if (/^ workers? $/.test(nq) && hasBareWorkersTerm(nq)) return true;
+  return false;
+}
+
 // Department scope after a preposition. Strong (in/at/for/under/within) drives
 // the "unknown department" message; weak (of) is only used if it resolves — so
 // "number OF AGM" is never mistaken for a department.
@@ -129,6 +150,12 @@ function findDeptScope(original: string): { phrase: string; strong: boolean } | 
   if (!words.length) return null;
   const nt = normTerm(words.join(" ")).split(" ").filter(Boolean);
   if (!nt.length || DSP_WIDE.has(nt[0]) || nt.every((t) => DSP_WIDE.has(t))) return null;
+  // Reject candidates that are nothing but generic people-words and/or a
+  // designation phrase ("employees", "non-executive employees") -- those are
+  // never an attempted department name, so must not become "deptUnknown".
+  if (nt.every((t) => PEOPLE_TOK.has(t))) return null;
+  const withoutPeopleWords = nt.filter((t) => !PEOPLE_TOK.has(t)).join(" ");
+  if (withoutPeopleWords && fullyConsumedByDesignation(withoutPeopleWords)) return null;
   return { phrase: words.join(" "), strong };
 }
 

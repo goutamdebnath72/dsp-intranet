@@ -1,182 +1,46 @@
 // src/app/api/circulars/route.ts
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
 import { put, del } from "@vercel/blob";
 import { getDb } from "@/lib/db";
 import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
-import { generateEmbedding } from "@/lib/ai/embedding.service";
-import Tesseract from "tesseract.js";
+import { Client as QStashClient } from "@upstash/qstash";
 
-// This route does two full Tesseract OCR passes PER PAGE (English, then
-// Hindi+English+Bengali) plus an embedding call per ~200-word chunk, so a
-// multi-page circular can easily take well past Vercel's default function
-// duration -- that is what was producing the 504 Gateway Timeout (and the
-// resulting frontend crash trying to render that non-JSON error response).
-// CONFIRMED (not assumed): 300 seconds is a hard platform ceiling on the
-// Hobby plan -- Vercel's own dashboard rejects any value above it outright
-// ("Max duration for Hobby projects must be between 1 and 300. Upgrade to
-// Pro."), so there is no code-level way to exceed this without upgrading
-// the plan. Getting real work done inside that ceiling means either
-// speeding up the OCR pipeline itself (e.g. reusing Tesseract workers
-// across pages instead of recreating them per page/pass) or moving the
-// heavy work out of the request/response cycle entirely.
-export const maxDuration = 300;
+const qstash = new QStashClient({ token: process.env.QSTASH_TOKEN! });
 
-const OCR_LANGS = ["eng", "hin+eng+ben"] as const;
-type OcrWorkerPool = Record<(typeof OCR_LANGS)[number], any>;
-
-/** Create both language workers ONCE, reused across every page of a
- *  document. Creating a Tesseract worker loads the WASM engine and
- *  language model files from scratch, which is the slowest part of using
- *  tesseract.js -- doing that per-page instead of per-document was a real
- *  contributor to hitting Vercel's 300s function duration ceiling on
- *  multi-page circulars. Same PSM 3, same two passes, same accuracy;
- *  only the repeated engine reload is removed. */
-async function createOcrWorkerPool(): Promise<OcrWorkerPool> {
-  const pool = {} as OcrWorkerPool;
-  for (const langs of OCR_LANGS) {
-    const worker = await Tesseract.createWorker(langs);
-    // PSM 3 = fully automatic page segmentation (the value the CLI uses).
-    await worker.setParameters({ tessedit_pageseg_mode: "3" as any });
-    pool[langs] = worker;
-  }
-  return pool;
-}
-
-async function destroyOcrWorkerPool(pool: OcrWorkerPool) {
-  await Promise.all(
-    OCR_LANGS.map((langs) => pool[langs]?.terminate().catch(() => {})),
-  );
+// Base URL of THIS deployment, so QStash knows where to call back.
+// VERCEL_URL is set automatically on every Vercel deployment (no manual
+// config needed) but omits the protocol -- always https there. APP_BASE_URL
+// is an escape hatch for local dev against a real QStash account (QStash
+// needs a URL it can actually reach over the internet, so plain
+// http://localhost will not work without a tunnel).
+function getBaseUrl(): string {
+  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
 }
 
 /* ============================================================
-   Dual-pass OCR for one page/image.
+   POST: Enqueue a circular for processing.
 
-   Two hard-won facts drove this:
-   1) tesseract.js's DEFAULT page-seg mode differs from the tesseract CLI and
-      mangles dense tables — it silently drops values like "20995.30". We must
-      set PSM 3 (fully automatic) EXPLICITLY; the old Tesseract.recognize(buf,
-      langs) call could not set it, which is why those values were lost.
-   2) Running hin+eng+ben on an ENGLISH page corrupts Latin alphanumerics —
-      the Devanagari/Bengali models hallucinate on codes, so a policy number
-      like "0315054224P110856231" came out garbled. An eng-only pass reads it
-      cleanly.
+   This used to do everything synchronously: render the PDF, run dual-pass
+   OCR on every page, generate embeddings, and commit it all in one
+   request/response cycle. That routinely exceeded Vercel's serverless
+   function duration ceiling (300s, a HARD platform limit on the Hobby
+   plan -- confirmed directly via the dashboard, which rejects any
+   maxDuration above 300 outright) on multi-page documents, producing a
+   504 Gateway Timeout.
 
-   So each page is OCR'd twice at PSM 3 — once "eng" (clean Latin codes/
-   numbers), once "hin+eng+ben" (Indic content) — and both texts are kept.
-   Slower, but every script and every code survives. Display/search dedupe
-   downstream; recall is what matters here.
-
-   Workers are created ONCE per upload (see createOcrWorkerPool above) and
-   passed in here, not created per call -- see that function's comment.
-============================================================ */
-async function ocrPageDualPass(
-  input: Buffer | Uint8Array,
-  label: string,
-  workers: OcrWorkerPool,
-): Promise<string> {
-  let combined = "";
-  for (const langs of OCR_LANGS) {
-    try {
-      const worker = workers[langs];
-      const {
-        data: { text },
-      } = await worker.recognize(input);
-      combined += (text || "") + "\n";
-    } catch (err) {
-      console.error(
-        `OCR pass "${langs}" failed${label ? " on " + label : ""}:`,
-        (err as any)?.message || err,
-      );
-    }
-  }
-  return combined;
-}
-
-/* ============================================================
-   Extract textual content from PDF buffer 
-============================================================ */
-async function extractTextFromPDF(buffer: Buffer): Promise<string> {
-  const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
-  const safeUnlink = async () => {
-    try {
-      await fs.unlink(tempPdfPath);
-    } catch {}
-  };
-
-  try {
-    await fs.writeFile(tempPdfPath, buffer);
-  } catch {}
-
-  try {
-    const pdfToTextModule: any = await import("pdf-to-text");
-    const pdfToTextFn: any =
-      pdfToTextModule?.pdfToText ?? pdfToTextModule?.default ?? pdfToTextModule;
-    if (typeof pdfToTextFn === "function") {
-      const rawText: string = await new Promise((resolve, reject) => {
-        pdfToTextFn(tempPdfPath, null, (err: any, data: string) => {
-          if (err) return reject(err);
-          resolve(data ?? "");
-        });
-      });
-      const cleaned = (rawText || "").replace(/\s+/g, " ").trim();
-      if (cleaned.length > 20) {
-        await safeUnlink();
-        return cleaned;
-      }
-    }
-  } catch (e) {
-    console.warn("pdf-to-text extraction failed:", (e as any)?.message || e);
-  }
-
-  try {
-    const pdfParseModule: any = await import("pdf-parse");
-    const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
-    if (typeof parseFn === "function") {
-      const parsed: any = await parseFn(buffer);
-      const text = (parsed?.text || "").replace(/\s+/g, " ").trim();
-      await safeUnlink();
-      return text;
-    }
-  } catch (e) {
-    console.warn("pdf-parse fallback failed:", (e as any)?.message || e);
-  }
-
-  await safeUnlink();
-  return "";
-}
-
-/* ============================================================
-   POST: Upload a circular (pdf-to-img + Trilingual OCR + Vectors)
+   Now this route only does the fast part: validate, upload the original
+   file once, create a placeholder DB row (status: "processing"), and
+   enqueue a background job via Upstash QStash to do the actual heavy
+   work in src/app/api/circulars/process/route.ts -- a separate function
+   invocation with its own independent time budget, decoupled from this
+   request entirely.
 ============================================================ */
 export async function POST(req: Request) {
   const dataSource = await getDb();
-
-  // Every blob byte written this request, for compensating cleanup on failure.
-  const uploadedBlobUrls: string[] = [];
-  // Temp files on disk to remove regardless of outcome.
-  const tempFiles: string[] = [];
-
-  const cleanupTempFiles = async () => {
-    await Promise.all(tempFiles.map((p) => fs.unlink(p).catch(() => {})));
-  };
-
-  const cleanupBlobs = async () => {
-    if (uploadedBlobUrls.length === 0) return;
-    try {
-      await del(uploadedBlobUrls); // accepts one URL or an array
-      console.log(
-        `ROLLBACK: deleted ${uploadedBlobUrls.length} orphan blob(s).`,
-      );
-    } catch (e: any) {
-      console.error(
-        "ROLLBACK WARNING: failed to delete some blobs:",
-        e?.message || e,
-        uploadedBlobUrls,
-      );
-    }
-  };
+  let rawBlobUrl: string | null = null;
 
   try {
     const formData = await req.formData();
@@ -217,108 +81,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Server-stamped upload time — tamper-proof, never from the client.
-    const uploadedAt = DateTime.now();
-
-    console.log(
-      `UPLOAD START: filename="${file.name}", cleaned headline="${headline}"`,
-    );
-
-    const fileBytes = Buffer.from(await file.arrayBuffer());
-    const fileUrls: string[] = [];
-    let ocrAccumulatedText = "";
-    // Per-page OCR text (index 0 = page 1). Used to chunk PER PAGE so each
-    // stored chunk can record the page it came from, enabling the viewer to
-    // jump to the matching page. ocrAccumulatedText stays for the top-level
-    // circular embedding (whole-document vector), unchanged.
-    const perPageText: string[] = [];
-
-    /* ============================================================
-       PHASE A — persist blobs + run every fallible step. Any throw
-       here jumps to the catch, which deletes all tracked blobs. No DB
-       row exists yet, so a failure leaves ZERO database trace.
-    ============================================================ */
-
-    /* IMAGE HANDLING */
-    if (file.type.startsWith("image/")) {
-      const key = `circulars/${Date.now()}_${file.name}`;
-      const { url } = await put(key, fileBytes, {
-        access: "public",
-        contentType: file.type,
-      });
-      uploadedBlobUrls.push(url);
-      fileUrls.push(url);
-
-      try {
-        console.log("DEBUG: Running dual-pass OCR (PSM 3) on image...");
-        const ocrWorkers = await createOcrWorkerPool();
-        try {
-          const text = await ocrPageDualPass(fileBytes, "image", ocrWorkers);
-          ocrAccumulatedText += text + " ";
-          perPageText[0] = text; // single-image circular == page 1
-        } finally {
-          await destroyOcrWorkerPool(ocrWorkers);
-        }
-      } catch (err) {
-        console.error("OCR failed on image:", err);
-      }
-    } else if (file.type === "application/pdf") {
-      /* PDF via pdf-to-img (pure JS/WASM, built on pdfjs-dist — no
-         GraphicsMagick/ImageMagick binary required). pdf2pic shells out to
-         `gm convert`, which does not exist in Vercel's serverless runtime
-         (works locally only because the dev machine has GraphicsMagick
-         installed) — that is what was throwing "Could not execute
-         GraphicsMagick/ImageMagick" in production. scale = 300/72
-         reproduces the same ~300dpi output the old density:300 setting
-         produced, and preserves each page's real aspect ratio instead of
-         the old `-resize 2480x3508!` force-stretch. */
-      const PDF_RENDER_SCALE = 300 / 72;
-      const { pdf: renderPdfToImages } = await import("pdf-to-img");
-      const doc = await renderPdfToImages(fileBytes, {
-        scale: PDF_RENDER_SCALE,
-        format: "png",
-      });
-
-      const pdfParseModule: any = await import("pdf-parse");
-      const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
-      const parsed: any = await parseFn(fileBytes);
-      const numPages = parsed.numpages || doc.length || 1;
-
-      // Created ONCE for the whole document, not per page -- see
-      // createOcrWorkerPool's comment for why this matters for duration.
-      const ocrWorkers = await createOcrWorkerPool();
-
-      try {
-        for (let page = 1; page <= numPages; page++) {
-          const pngBuffer = await doc.getPage(page);
-          const key = `circulars/${Date.now()}_page_${page}.png`;
-          const { url } = await put(key, pngBuffer, {
-            access: "public",
-            contentType: "image/png",
-          });
-          uploadedBlobUrls.push(url);
-          fileUrls.push(url);
-
-          try {
-            console.log(
-              `DEBUG: Running dual-pass OCR (PSM 3) on PDF page ${page}...`,
-            );
-            const text = await ocrPageDualPass(
-              pngBuffer,
-              `page ${page}`,
-              ocrWorkers,
-            );
-            ocrAccumulatedText += text + " \n";
-            perPageText[page - 1] = text; // page is 1-based; store 0-based
-          } catch (err) {
-            console.error(`OCR failed on page ${page}:`, err);
-          }
-        }
-      } finally {
-        await destroyOcrWorkerPool(ocrWorkers);
-        await doc.destroy();
-      }
-    } else {
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
       console.warn("Unsupported file type:", file.type);
       return NextResponse.json(
         { error: "Unsupported file type. Upload PDF or image." },
@@ -326,193 +89,81 @@ export async function POST(req: Request) {
       );
     }
 
-    /* ============================
-       TEXT extraction
-    ============================ */
-    let extractedText = await extractTextFromPDF(fileBytes);
+    // Server-stamped upload time — tamper-proof, never from the client.
+    const uploadedAt = DateTime.now();
 
-    if (!extractedText || extractedText.trim().length < 50) {
-      console.log(
-        "DEBUG: Standard extraction yielded little text. Using OCR text instead.",
-      );
-      extractedText = ocrAccumulatedText;
-    } else if (ocrAccumulatedText.length > extractedText.length) {
-      extractedText = ocrAccumulatedText;
-    }
+    console.log(
+      `UPLOAD START (enqueue): filename="${file.name}", cleaned headline="${headline}"`,
+    );
 
-    extractedText = (extractedText || "").replace(/\s+/g, " ").trim();
-    console.log("DEBUG: Final extractedText length =", extractedText?.length);
+    const fileBytes = Buffer.from(await file.arrayBuffer());
 
-    /* ============================
-       TOP-LEVEL embedding (fatal if it throws — a circular that is not
-       searchable must not be saved as a success).
-    ============================ */
-    let embedding: number[] | null = null;
-    if (extractedText && extractedText.length > 20) {
-      const safeEmbeddingText =
-        extractedText.length > 8192
-          ? extractedText.slice(0, 8192)
-          : extractedText;
-      embedding = await generateEmbedding(safeEmbeddingText);
-    }
+    // Upload the ORIGINAL file once, fast. The background job fetches this
+    // same blob to do the actual rendering/OCR — so the QStash message
+    // payload only needs to carry a URL + metadata, never the file bytes
+    // themselves.
+    const rawKey = `circulars/raw/${Date.now()}_${file.name}`;
+    const { url } = await put(rawKey, fileBytes, {
+      access: "public",
+      contentType: file.type,
+    });
+    rawBlobUrl = url;
 
-    /* ============================
-       ALL CHUNK embeddings, computed BEFORE any DB write. A failure to
-       embed ANY chunk aborts the whole upload — we never store a
-       null-embedding (unsearchable) chunk and then report success.
-    ============================ */
-    type PreparedChunk = {
-      index: number;
-      page: number; // 1-based page this chunk came from (0 if unknown)
-      text: string;
-      embedding: string;
-    };
-    const preparedChunks: PreparedChunk[] = [];
+    // Placeholder row — no serialNumber yet (assigned once processing
+    // completes, in the same transaction that used to run synchronously
+    // here). fileUrls starts pointing at the raw upload so nothing is ever
+    // orphaned/unlinked even if processing fails outright before ever
+    // rendering a single page.
+    const repo = dataSource.getRepository<Circular>("Circular");
+    const placeholder = repo.create({
+      headline,
+      fileUrls: [rawBlobUrl],
+      publishedAt,
+      uploadedAt,
+      authorTicketNo,
+      status: "processing",
+    });
+    const saved = await repo.save(placeholder);
 
-    const chunkSize = 200;
-    let chunkIndex = 0;
-
-    // Build the list of (page, pageText) to chunk. Prefer per-page OCR text so
-    // each chunk keeps its page number. If no per-page text exists (e.g. a
-    // born-digital PDF whose text came from extractTextFromPDF, not OCR), fall
-    // back to the whole document as a single page-less unit (page 0).
-    const pageUnits: Array<{ page: number; text: string }> = [];
-    const havePageText = perPageText.some((t) => t && t.trim().length > 0);
-    if (havePageText) {
-      for (let pi = 0; pi < perPageText.length; pi++) {
-        const t = (perPageText[pi] || "").replace(/\s+/g, " ").trim();
-        if (t.length > 0) pageUnits.push({ page: pi + 1, text: t });
-      }
-    } else if (extractedText && extractedText.length > 0) {
-      pageUnits.push({ page: 0, text: extractedText });
-    }
-
-    for (const unit of pageUnits) {
-      const words = unit.text.split(/\s+/);
-      for (let i = 0; i < words.length; i += chunkSize) {
-        const chunkText = words.slice(i, i + chunkSize).join(" ");
-        if (!chunkText.trim()) continue;
-        const rawVector = await generateEmbedding(chunkText); // fatal on throw
-        preparedChunks.push({
-          index: chunkIndex,
-          page: unit.page,
-          text: chunkText,
-          embedding: `[${rawVector.join(",")}]`,
-        });
-        chunkIndex++;
-      }
-    }
-    console.log("DEBUG: Prepared", preparedChunks.length, "chunk embeddings");
-
-    const vectorLiteral = embedding ? `[${embedding.join(",")}]` : null;
-
-    /* ============================================================
-       PHASE B — single transaction: row + chunks + vector column.
-       Serial is assigned MAX+1 per YEAR under a transaction-scoped
-       advisory lock; a unique index on (year, serialNumber) is the final
-       guard. On a unique collision the WHOLE transaction is retried, so
-       row+chunks+vector always commit together or not at all.
-    ============================================================ */
-    const year = publishedAt.year;
-
-    const isUniqueViolation = (e: any) =>
-      e?.code === "23505" ||
-      /duplicate key value|unique constraint/i.test(e?.message || "");
-
-    let circular: Circular | null = null;
-    const MAX_ATTEMPTS = 5;
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        circular = await dataSource.transaction(async (manager) => {
-          // Serialize concurrent uploads for the SAME year; also covers the
-          // empty-year case (no rows to lock yet).
-          await manager.query(`SELECT pg_advisory_xact_lock($1)`, [year]);
-
-          const rows: Array<{ max: number | null }> = await manager.query(
-            `
-              SELECT MAX("serialNumber") AS max
-              FROM public.circulars
-              WHERE EXTRACT(YEAR FROM "publishedAt") = $1
-            `,
-            [year],
-          );
-          const nextSerial = (rows?.[0]?.max ?? 0) + 1;
-
-          const repo = manager.getRepository<Circular>("Circular");
-          const newCircular = repo.create({
-            headline,
-            fileUrls,
-            embedding,
-            publishedAt,
-            uploadedAt,
-            serialNumber: nextSerial,
-            authorTicketNo, // strictly string | undefined
-          });
-          const saved = await repo.save(newCircular);
-
-          // Insert every chunk in the SAME transaction.
-          for (const c of preparedChunks) {
-            await manager.query(
-              `
-                INSERT INTO public.circular_chunks (circular_id, chunk_index, page_number, text, embedding)
-                VALUES ($1, $2, $3, $4, $5)
-              `,
-              [saved.id, c.index, c.page, c.text, c.embedding],
-            );
-          }
-
-          // Set the top-level vector column in the SAME transaction, using an
-          // explicit ::vector cast (this is what saveEmbeddingToVectorTable
-          // used to do post-commit; folded in so it is atomic too).
-          if (vectorLiteral) {
-            await manager.query(
-              `UPDATE public.circulars SET embedding = $1::vector WHERE id = $2`,
-              [vectorLiteral, saved.id],
-            );
-          }
-
-          return saved;
-        });
-        break; // committed
-      } catch (e: any) {
-        if (isUniqueViolation(e) && attempt < MAX_ATTEMPTS) {
-          console.warn(
-            `Serial collision for year ${year}, retry ${attempt}/${MAX_ATTEMPTS}`,
-          );
-          continue; // whole transaction rolled back; recompute serial + retry
-        }
-        throw e; // -> outer catch -> blob cleanup
-      }
-    }
-
-    if (!circular) {
-      throw new Error("Failed to assign a serial number after retries");
+    try {
+      await qstash.publishJSON({
+        url: `${getBaseUrl()}/api/circulars/process`,
+        body: {
+          circularId: saved.id,
+          rawBlobUrl,
+          fileType: file.type,
+          fileName: file.name,
+        },
+        retries: 3,
+      });
+    } catch (qErr: any) {
+      // Could never even enqueue the job — no job will ever pick this row
+      // up, so leaving it as a permanent "processing" row would be worse
+      // than a clean rollback. Matches this project's existing "a failure
+      // before commit leaves zero database trace" convention.
+      await repo.delete(saved.id).catch(() => {});
+      throw qErr;
     }
 
     console.log(
-      "DEBUG: Committed circular id =",
-      circular.id,
-      "serial =",
-      circular.serialNumber,
-      "chunks =",
-      preparedChunks.length,
+      `UPLOAD ENQUEUED: circular id=${saved.id}, queued for background processing.`,
     );
 
-    await cleanupTempFiles();
-
-    return NextResponse.json({
-      message: "Circular uploaded successfully",
-      circular,
-    });
+    return NextResponse.json(
+      {
+        message: "Circular queued for processing",
+        circular: saved,
+      },
+      { status: 202 }, // 202 Accepted: request valid, work not yet done
+    );
   } catch (err: any) {
     console.error(
-      "Upload failed — rolling back all bytes:",
+      "Circular upload (enqueue phase) failed:",
       err?.message || err,
     );
-    // The DB transaction (if any) has already rolled back; remove blob bytes.
-    await cleanupBlobs();
-    await cleanupTempFiles();
+    if (rawBlobUrl) {
+      await del(rawBlobUrl).catch(() => {});
+    }
     return NextResponse.json(
       { error: err?.message || "Upload failed" },
       { status: 500 },
@@ -521,30 +172,64 @@ export async function POST(req: Request) {
 }
 
 /* ============================================================
-   GET: Fetch all circulars
+   GET: Fetch circulars, scoped by year.
+
+   This used to fetch EVERY circular from EVERY year in one request. With
+   ~500 circulars/year in practice, that only gets slower and heavier every
+   year the archive grows -- and it made the "no circulars found" empty
+   state flash misleadingly before data ever arrived, since the whole
+   (large, slow) fetch had to finish before anything could render.
+
+   Two modes now:
+   - ?meta=years  -> just the distinct years that have circulars, cheap and
+     rarely-changing, used to render the year-tab selector without pulling
+     any circular rows at all.
+   - ?year=YYYY   -> only that year's circulars (the normal case).
+   No params defaults to the current calendar year rather than silently
+   reintroducing a fetch-everything fallback.
 ============================================================ */
-export async function GET() {
+export async function GET(req: Request) {
   const dataSource = await getDb();
+  const { searchParams } = new URL(req.url);
 
   try {
-    const circularRepository = dataSource.getRepository<Circular>("Circular");
+    if (searchParams.get("meta") === "years") {
+      const rows: Array<{ year: string }> = await dataSource.query(`
+        SELECT DISTINCT EXTRACT(YEAR FROM "publishedAt")::int::text AS year
+        FROM public.circulars
+        WHERE "publishedAt" IS NOT NULL
+        ORDER BY year DESC
+      `);
+      return NextResponse.json(rows.map((r) => r.year));
+    }
 
-    const circulars = await circularRepository.find({
-      select: {
-        id: true,
-        headline: true,
-        fileUrls: true,
-        publishedAt: true,
-        uploadedAt: true,
-        serialNumber: true,
-        authorTicketNo: true,
-      },
-      order: {
-        publishedAt: "DESC", // 1. Groups by the parsed year/date first
-        serialNumber: "DESC", // 2. Within a year, highest serial first
-        id: "DESC", // 3. Final tie-breaker: newest insertion
-      },
-    });
+    const yearParam = searchParams.get("year");
+    const year = yearParam
+      ? Number.parseInt(yearParam, 10)
+      : new Date().getFullYear();
+
+    if (!Number.isFinite(year)) {
+      return NextResponse.json({ error: "Invalid year" }, { status: 400 });
+    }
+
+    const circulars = await dataSource.query(
+      `
+        SELECT
+          id,
+          headline,
+          "fileUrls",
+          "publishedAt",
+          "uploadedAt",
+          "serialNumber",
+          "authorTicketNo",
+          status,
+          "processingError"
+        FROM public.circulars
+        WHERE EXTRACT(YEAR FROM "publishedAt") = $1
+        ORDER BY "serialNumber" DESC, id DESC
+      `,
+      [year],
+    );
 
     return NextResponse.json(circulars);
   } catch (err: any) {
