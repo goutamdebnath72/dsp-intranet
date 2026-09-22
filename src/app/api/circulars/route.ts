@@ -159,6 +159,21 @@ export async function POST(req: Request) {
           fileName: file.name,
         },
         retries: 3,
+        // Defense-in-depth beyond just using a stable APP_BASE_URL: if this
+        // project's Vercel Authentication (Deployment Protection) is ever
+        // tightened to cover the production custom domain too, this header
+        // still lets QStash's callback through. VERCEL_AUTOMATION_BYPASS_SECRET
+        // is Vercel's own mechanism for exactly this (Project Settings ->
+        // Deployment Protection -> Protection Bypass for Automation) --
+        // undefined here (bypass secret not yet configured) simply omits
+        // the header, which is fine as long as APP_BASE_URL points at an
+        // unprotected domain.
+        headers: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+          ? {
+              "x-vercel-protection-bypass":
+                process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+            }
+          : undefined,
       });
     } catch (qErr: any) {
       // Could never even enqueue the job — no job will ever pick this row
