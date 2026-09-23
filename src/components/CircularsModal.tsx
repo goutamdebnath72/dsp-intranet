@@ -15,13 +15,6 @@ import {
 import { DateTime } from "luxon";
 import { useSession } from "next-auth/react";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
-import {
-  estimateProcessingSeconds,
-  estimateProgressPercent,
-  isTakingLonger,
-  formatDuration,
-} from "@/lib/processingEstimate";
-import { useNowTick } from "@/hooks/useNowTick";
 import { ConfirmModal } from "./ConfirmModal";
 import { Tooltip } from "./Tooltip";
 import toast from "react-hot-toast";
@@ -33,10 +26,7 @@ type Circular = {
   uploadedAt: string;
   fileUrls: string[];
   authorTicketNo: string;
-  serialNumber: number | null;
-  status?: "processing" | "ready" | "failed";
-  processingError?: string | null;
-  pageCount?: number | null;
+  serialNumber: number;
 };
 
 type Props = {
@@ -72,11 +62,6 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [unreadIds, setUnreadIds] = useState<Set<number>>(new Set());
 
-  // Single shared clock for every "Processing" row's elapsed-time display,
-  // instead of one setInterval per row. Only ticks while the modal is
-  // actually open (nothing to show otherwise).
-  const now = useNowTick(1000);
-
   // Once the years list arrives, default to the latest year that actually
   // has data -- mirrors the old "jump to the most recent year with
   // content" behavior. Only fires the FIRST time (selectedYear starts
@@ -97,16 +82,6 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   } = useSWR<Circular[]>(
     isOpen && selectedYear ? `/api/circulars?year=${selectedYear}` : null,
     fetcher,
-    {
-      // Poll only while something in the currently-viewed year is still
-      // mid-flight (queued to QStash, not yet OCR'd/embedded) -- otherwise
-      // a "Processing" badge would just sit there showing a stale state
-      // until the user manually reopens the modal. Stops entirely (0 =
-      // no polling) the moment nothing is pending, so this never becomes
-      // a constant background poll for the common case.
-      refreshInterval: (data) =>
-        (data ?? []).some((c) => c.status === "processing") ? 4000 : 0,
-    },
   );
 
   // Quietly warm the cache for the immediately-preceding year, so the most
@@ -414,32 +389,12 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
                                 : "bg-transparent"
                             }`}
                           />
-                          {circular.status === "processing" ? (
-                            <span className="inline-flex items-center gap-1.5 mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-amber-700">
-                              <motion.span
-                                aria-hidden
-                                className="h-1.5 w-1.5 rounded-full bg-amber-500"
-                                animate={{ opacity: [0.4, 1, 0.4] }}
-                                transition={{
-                                  duration: 1.2,
-                                  repeat: Infinity,
-                                  ease: "easeInOut",
-                                }}
-                              />
-                              Processing
-                            </span>
-                          ) : circular.status === "failed" ? (
-                            <span className="inline-flex items-center gap-1 mr-2 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-red-700">
-                              Failed
-                            </span>
-                          ) : (
-                            <span className="text-neutral-400 font-mono mr-2">
-                              {String(circular.serialNumber ?? 0).padStart(
-                                3,
-                                "0",
-                              )}
-                            </span>
-                          )}
+                          <span className="text-neutral-400 font-mono mr-2">
+                            {String(circular.serialNumber ?? 0).padStart(
+                              3,
+                              "0",
+                            )}
+                          </span>
                           {circular.headline}
                         </p>
                         <p className="text-sm text-neutral-500 mt-1 pl-4">
@@ -447,43 +402,6 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
                             "LLL dd, yy",
                           )}
                         </p>
-                        {circular.status === "processing" &&
-                          (() => {
-                            const elapsedSeconds = Math.max(
-                              0,
-                              (now -
-                                new Date(circular.uploadedAt).getTime()) /
-                                1000,
-                            );
-                            const estimatedSeconds = estimateProcessingSeconds(
-                              circular.pageCount,
-                            );
-                            const progressPercent = estimateProgressPercent(
-                              elapsedSeconds,
-                              estimatedSeconds,
-                            );
-                            const longer = isTakingLonger(
-                              elapsedSeconds,
-                              estimatedSeconds,
-                            );
-                            return (
-                              <div className="pl-4 mt-2 max-w-xs">
-                                <div className="h-1 w-full rounded-full bg-amber-100 overflow-hidden">
-                                  <motion.div
-                                    className="h-full rounded-full bg-amber-400"
-                                    initial={false}
-                                    animate={{ width: `${progressPercent}%` }}
-                                    transition={{ ease: "easeOut" }}
-                                  />
-                                </div>
-                                <p className="text-xs text-neutral-400 mt-1">
-                                  {longer
-                                    ? `Taking longer than usual — ${formatDuration(elapsedSeconds)} so far`
-                                    : `${formatDuration(elapsedSeconds)} elapsed · usually ready in ~${formatDuration(estimatedSeconds)}${circular.pageCount ? ` for a ${circular.pageCount}-page document` : ""}`}
-                                </p>
-                              </div>
-                            );
-                          })()}
                       </button>
 
                       {/* ✅ Edit/Delete Controls */}

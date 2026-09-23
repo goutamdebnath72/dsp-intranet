@@ -398,8 +398,7 @@ export function CircularUploadModal({
             )}
             {status === "success" && (
               <p className="text-sm text-green-600 text-center">
-                Circular queued for processing — it will appear once ready.
-                Closing soon...
+                Upload successful! Closing soon...
               </p>
             )}
           </div>

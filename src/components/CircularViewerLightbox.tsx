@@ -4,23 +4,12 @@
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Loader2, AlertCircle, Sparkles } from "lucide-react";
-import {
-  estimateProcessingSeconds,
-  estimateProgressPercent,
-  isTakingLonger,
-  formatDuration,
-} from "@/lib/processingEstimate";
-import { useNowTick } from "@/hooks/useNowTick";
 
 type Circular = {
   id: number;
   headline: string;
   publishedAt: string;
-  uploadedAt: string;
   fileUrls: string[];
-  status?: "processing" | "ready" | "failed";
-  processingError?: string | null;
-  pageCount?: number | null;
 };
 
 type Props = {
@@ -39,7 +28,6 @@ export function CircularViewerLightbox({
   matchPages = [],
 }: Props) {
   const [circular, setCircular] = useState<Circular | null>(null);
-  const now = useNowTick(1000);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -62,22 +50,6 @@ export function CircularViewerLightbox({
       setCircular(null);
     }
   }, [circularId]);
-
-  // While still processing, poll quietly every 4s so this view flips to the
-  // finished pages on its own once the background job completes, instead
-  // of requiring the user to close and reopen the viewer to see it.
-  useEffect(() => {
-    if (!circularId || circular?.status !== "processing") return;
-    const interval = setInterval(() => {
-      fetch(`/api/circulars/${circularId}`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => data && setCircular(data))
-        .catch(() => {
-          // Non-fatal: just try again on the next tick.
-        });
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [circularId, circular?.status]);
 
 
   // Scroll to the matched page once the circular is loaded. Waits for the
@@ -166,64 +138,8 @@ export function CircularViewerLightbox({
               </div>
             )}
 
-            {/* Still processing: fileUrls only holds the raw uploaded file
-                at this point (not per-page images yet), so attempting to
-                render it as an image gallery would show a broken image --
-                this is exactly what was happening before this guard existed. */}
-            {circular && circular.status === "processing" && (() => {
-              const elapsedSeconds = Math.max(
-                0,
-                (now - new Date(circular.uploadedAt).getTime()) / 1000,
-              );
-              const estimatedSeconds = estimateProcessingSeconds(
-                circular.pageCount,
-              );
-              const progressPercent = estimateProgressPercent(
-                elapsedSeconds,
-                estimatedSeconds,
-              );
-              const longer = isTakingLonger(elapsedSeconds, estimatedSeconds);
-              return (
-                <div className="flex flex-col items-center justify-center h-full text-neutral-300 gap-4 w-full max-w-sm px-6">
-                  <Loader2 className="animate-spin text-primary-400" size={48} />
-                  <div className="w-full">
-                    <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full bg-primary-400"
-                        initial={false}
-                        animate={{ width: `${progressPercent}%` }}
-                        transition={{ ease: "easeOut" }}
-                      />
-                    </div>
-                    <p className="text-sm font-medium text-center mt-3">
-                      {longer
-                        ? `Taking longer than usual — ${formatDuration(elapsedSeconds)} so far`
-                        : `${formatDuration(elapsedSeconds)} elapsed · usually ready in ~${formatDuration(estimatedSeconds)}${circular.pageCount ? ` for a ${circular.pageCount}-page document` : ""}`}
-                    </p>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Permanent processing failure. */}
-            {circular && circular.status === "failed" && (
-              <div className="flex flex-col items-center justify-center h-full text-red-400 gap-2 text-center px-6">
-                <AlertCircle size={48} />
-                <p>This circular failed to process.</p>
-                {circular.processingError && (
-                  <p className="text-xs text-red-300/80 max-w-md break-words">
-                    {circular.processingError}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Complete Pages in Sequence -- only once processing is done
-                (status "ready", or missing entirely for any pre-existing
-                row from before this field existed). */}
-            {circular &&
-              circular.status !== "processing" &&
-              circular.status !== "failed" && (
+            {/* Complete Pages in Sequence */}
+            {circular && (
               <div className="w-full max-w-4xl space-y-6">
                 {circular.fileUrls.map((url, index) => {
                   const pageNo = index + 1;

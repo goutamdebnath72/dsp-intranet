@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:tunnel": "bash scripts/dev-with-tunnel.sh",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -22,7 +21,6 @@
     "@tiptap/starter-kit": "^3.31.3",
     "@types/sanitize-html": "^2.16.1",
     "@vercel/blob": "^2.0.0",
-    "@upstash/qstash": "^2.11.3",
     "axios": "^1.13.1",
     "bcryptjs": "^2.4.3",
     "date-fns": "^4.4.0",
