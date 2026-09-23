@@ -43,7 +43,7 @@ export default function Header() {
   return (
     <>
       <header className="w-full bg-neutral-50 text-neutral-800">
-        <div className="relative w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto flex items-center justify-between px-2 sm:px-6 py-2">
+        <div className="relative w-full md:w-[var(--content-width)] mx-auto flex items-center justify-between px-2 sm:px-6 py-2">
           <div className="flex items-center gap-3 lg-custom:gap-4">
             <button
               onClick={() => setIsLogoModalOpen(true)}

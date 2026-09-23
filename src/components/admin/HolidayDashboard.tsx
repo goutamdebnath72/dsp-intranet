@@ -16,16 +16,16 @@ export function HolidayDashboard() {
     <div className="flex flex-col items-center justify-center h-full">
       <Toaster position="top-center" reverseOrder={false} />
 
-      <h2 className="text-2xl font-bold font-heading mb-2 text-center">
+      <h2 className="text-2xl font-bold font-heading mb-3 text-center">
         Holiday Management
       </h2>
-      <p className="mb-8 text-neutral-600 text-center">
+      <p className="mb-10 text-neutral-600 text-center">
         {/* --- CHANGE --- */}
         Upload the official holiday file (.txt) to seed the database.
         {/* --- END CHANGE --- */}
       </p>
 
-      <div className="mb-8 flex items-center gap-2">
+      <div className="mb-10 flex items-center gap-2">
         <label
           htmlFor="holiday-year"
           className="font-semibold text-neutral-700"

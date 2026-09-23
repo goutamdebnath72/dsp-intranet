@@ -46,6 +46,14 @@
 
   --color-link-blue: #0000ff;
 
+  /* ===== Site content width — the ONE value to tune =====
+     Used as `md:w-[var(--content-width)]` on every page/section wrapper
+     (home, admin). Below the `md` breakpoint (768px) pages are always
+     full width; at `md` and up, this is the wrapper's width, expressed
+     as a percentage of the viewport (vw) so it holds steady at any
+     browser zoom level. Change ONLY this line to tune it everywhere. */
+  --content-width: 80vw;
+
   /* Font-family variables (were set by next/font; now point at the local faces) */
   --font-poppins: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-source-sans: "Source Sans 3", system-ui, -apple-system, "Segoe UI",

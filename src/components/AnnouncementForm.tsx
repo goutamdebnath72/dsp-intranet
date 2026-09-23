@@ -106,7 +106,7 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
   return (
     <>
       <Toaster position="top-left" />
-      <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-2xl">
+      <form onSubmit={handleSubmit} className="w-full max-w-2xl">
         <div>
           <label
             htmlFor="title"
@@ -126,7 +126,7 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
           </div>
         </div>
 
-        <div>
+        <div className="mt-10">
           <span className="block text-sm font-medium leading-6 text-gray-900">
             Content (Optional)
           </span>
@@ -139,7 +139,7 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
           </div>
         </div>
 
-        <div>
+        <div className="mt-10">
           <label
             htmlFor="date"
             className="block text-sm font-medium leading-6 text-gray-900"
@@ -165,7 +165,7 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="mt-10 flex items-center justify-between">
           <button
             type="submit"
             disabled={isPending || !isButtonEnabled}

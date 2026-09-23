@@ -134,14 +134,14 @@ export function HomepageNew({
   return (
     <>
       {/* --- Top Bar / Header --- */}
-      <div className="relative z-50 w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto">
+      <div className="relative z-50 w-full md:w-[var(--content-width)] mx-auto">
         <TopBar />
       </div>
       <Header />
 
       {/* --- Hero Section --- */}
       <div
-        className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-cover bg-center relative h-[455px]"
+        className="w-full md:w-[var(--content-width)] mx-auto bg-cover bg-center relative h-[455px]"
         style={{ backgroundImage: "url('/steel-plant1.png')" }}
       >
         <div className="absolute inset-0 bg-black/30" />
@@ -259,7 +259,7 @@ export function HomepageNew({
       </div>
 
       {/* --- Quick Access Bar Wrapper --- */}
-      <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-white pt-20 sm:pt-24 lg:pt-24 pb-8 px-4 sm:px-6 lg:px-8">
+      <div className="w-full md:w-[var(--content-width)] mx-auto bg-white pt-20 sm:pt-24 lg:pt-24 pb-8 px-4 sm:px-6 lg:px-8">
         <QuickAccessBar
           onCircularsClick={handleCircularsClick}
           onMoreAppsClick={handleMoreAppsClick}
@@ -270,7 +270,7 @@ export function HomepageNew({
 
       {/* --- Production Dashboard Wrapper --- */}
       <motion.div
-        className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-white pt-8 sm:pt-10 lg:pt-10 pb-4 sm:pb-6 lg:pb-8"
+        className="w-full md:w-[var(--content-width)] mx-auto bg-white pt-8 sm:pt-10 lg:pt-10 pb-4 sm:pb-6 lg:pb-8"
         variants={dashboardContainerVariants}
         initial="hidden"
         animate="visible"
@@ -279,7 +279,7 @@ export function HomepageNew({
       </motion.div>
 
       {/* --- SECTION 3: 3-Column Layout Wrapper --- */}
-      <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto bg-white rounded-lg py-4 sm:py-6 lg:py-8 mb-8">
+      <div className="w-full md:w-[var(--content-width)] mx-auto bg-white rounded-lg py-4 sm:py-6 lg:py-8 mb-8">
         <div className="flex flex-col h-[460px] px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 min-h-0">
             <div className="flex flex-col min-h-0">

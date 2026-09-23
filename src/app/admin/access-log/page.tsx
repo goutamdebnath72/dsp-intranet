@@ -138,7 +138,7 @@ function AccessLogContent() {
     <>
       {ACTIVE_UI_DESIGN === "new" ? (
         <>
-          <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto">
+          <div className="w-full md:w-[var(--content-width)] mx-auto">
             <TopBar />
           </div>
           <Header />
@@ -147,7 +147,7 @@ function AccessLogContent() {
         <OldHeader />
       )}
 
-      <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto shadow-lg bg-gray-200 min-h-screen">
+      <div className="w-full md:w-[var(--content-width)] mx-auto shadow-lg bg-gray-200 min-h-screen">
         <div className="container mx-auto pt-8 px-8 pb-10">
           <Link href="/admin" className="inline-flex items-center gap-1 text-sm text-neutral-600 hover:text-neutral-900 mb-4">
             <ArrowLeft size={16} /> Back to Admin

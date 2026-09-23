@@ -12,7 +12,7 @@ import { TopBar } from "@/components/TopBar";
 import Header from "@/components/Header";
 import OldHeader from "@/components/OldHeader";
 import { HolidayDashboard } from "@/components/admin/HolidayDashboard";
-import { ADMIN_CARD_HEIGHT } from "@/lib/constants";
+import { ADMIN_TITLE_AREA_HEIGHT, ADMIN_CARDS_AREA_HEIGHT } from "@/lib/constants";
 import { Toaster } from "react-hot-toast";
 
 function AdminContent() {
@@ -63,31 +63,36 @@ function AdminContent() {
     );
 
   return (
-    <>
+    <div className="h-screen flex flex-col overflow-y-auto">
       <Toaster position="top-center" />
       {ACTIVE_UI_DESIGN === "new" ? (
-        <>
-          <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto">
+        <div className="flex-shrink-0">
+          <div className="w-full md:w-[var(--content-width)] mx-auto">
             <TopBar />
           </div>
           <Header />
-        </>
+        </div>
       ) : (
-        <OldHeader />
+        <div className="flex-shrink-0">
+          <OldHeader />
+        </div>
       )}
 
-      <div className="w-full lg-custom:w-[88%] xl-custom:w-[72%] mx-auto shadow-lg bg-gray-200">
-        <div className="container mx-auto pt-4 px-8 pb-4">
-          <h1 className="text-2xl font-bold font-heading mb-3 text-center text-neutral-800">
+      <div className="flex-1 w-full md:w-[var(--content-width)] mx-auto shadow-lg bg-gray-200 flex flex-col">
+        <div className="flex-1 container mx-auto px-8 pt-4 pb-4 flex flex-col">
+          <h1
+            className="text-2xl font-bold font-heading text-center text-neutral-800 flex items-center justify-center flex-shrink-0"
+            style={{ minHeight: ADMIN_TITLE_AREA_HEIGHT }}
+          >
             Admin Dashboard
           </h1>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 auto-rows-fr items-stretch gap-6"
+            style={{ minHeight: ADMIN_CARDS_AREA_HEIGHT }}
+          >
             {/* Column 1 — Announcements */}
-            <div
-              className="rounded-lg p-5 bg-white/50 shadow-lg"
-              style={{ minHeight: ADMIN_CARD_HEIGHT }}
-            >
-              <h2 className="text-2xl font-bold font-heading mb-2 text-center">
+            <div className="rounded-lg p-5 bg-white/50 shadow-lg">
+              <h2 className="text-2xl font-bold font-heading mb-8 text-center">
                 Announcements
               </h2>
               <div className="flex justify-center">
@@ -98,10 +103,7 @@ function AdminContent() {
             {/* Column 2 — middle */}
             {isSuper ? (
               // Super-admin: Circulars (top) compresses + Access Log (bottom) expands in.
-              <div
-                className="flex flex-col gap-6 h-full"
-                style={{ minHeight: ADMIN_CARD_HEIGHT }}
-              >
+              <div className="flex flex-col gap-6 h-full min-h-0">
                 <div
                   className="rounded-lg p-5 bg-white/50 shadow-lg flex flex-col justify-center items-center overflow-hidden"
                   style={{
@@ -111,7 +113,7 @@ function AdminContent() {
                     transition: "flex-grow 1400ms cubic-bezier(0.22,1,0.36,1)",
                   }}
                 >
-                  <h2 className="text-2xl font-bold font-heading mb-2 text-center">
+                  <h2 className="text-2xl font-bold font-heading mb-6 text-center">
                     Circulars
                   </h2>
                   <button
@@ -134,10 +136,10 @@ function AdminContent() {
                       "flex-grow 1400ms cubic-bezier(0.22,1,0.36,1), opacity 1000ms ease 300ms, transform 1000ms ease 300ms",
                   }}
                 >
-                  <h2 className="text-2xl font-bold font-heading mb-2 text-center">
+                  <h2 className="text-2xl font-bold font-heading mb-3 text-center">
                     Contact Access Log
                   </h2>
-                  <p className="text-sm text-neutral-500 mb-4 text-center">
+                  <p className="text-sm text-neutral-500 mb-6 text-center">
                     Audit trail of who viewed or copied employee contacts.
                   </p>
                   <Link
@@ -150,11 +152,8 @@ function AdminContent() {
               </div>
             ) : (
               // Everyone else: the original full-height Circulars card, untouched.
-              <div
-                className="rounded-lg p-5 bg-white/50 shadow-lg flex flex-col justify-center items-center"
-                style={{ minHeight: ADMIN_CARD_HEIGHT }}
-              >
-                <h2 className="text-2xl font-bold font-heading mb-2 text-center">
+              <div className="rounded-lg p-5 bg-white/50 shadow-lg flex flex-col justify-center items-center">
+                <h2 className="text-2xl font-bold font-heading mb-6 text-center">
                   Circulars
                 </h2>
                 <button
@@ -167,10 +166,7 @@ function AdminContent() {
             )}
 
             {/* Column 3 — Holiday */}
-            <div
-              className="rounded-lg p-5 bg-white/50 shadow-lg"
-              style={{ minHeight: ADMIN_CARD_HEIGHT }}
-            >
+            <div className="rounded-lg p-5 bg-white/50 shadow-lg">
               <HolidayDashboard />
             </div>
           </div>
@@ -181,7 +177,7 @@ function AdminContent() {
           />
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
