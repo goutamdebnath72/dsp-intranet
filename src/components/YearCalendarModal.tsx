@@ -39,22 +39,36 @@ export function YearCalendarModal({
   // Keep startOfYear as a Luxon object for logic
   const startOfYear = DateTime.local(year, 1, 1);
 
+  // The holidays prop comes from EventCalendar's allHolidays cache, which
+  // accumulates EVERY year visited in the browsing session (2026 on first
+  // load, plus whatever years someone navigates to afterward) -- it is NOT
+  // pre-filtered to just this modal's year. Filtering here, once, before
+  // anything below uses it, so the grid's dots and the "Holiday List"
+  // section both only ever see this one year's data. Without this, a real
+  // observed bug: the bottom list showed a chronologically-jumbled mix of
+  // 2024, 2025, and 2026 entries all at once under a "2024 Holiday List"
+  // header, because grouping/sorting had no year boundary at all.
+  const yearHolidays = useMemo(
+    () => holidays.filter((h) => h.date.year === year),
+    [holidays, year],
+  );
+
   // This logic is correct, as it uses the .dateObj prop for the picker
   const modifiers = useMemo(
     () => ({
       // --- FIX: Use API types (CH, FH, RH) ---
-      isClosed: holidays
+      isClosed: yearHolidays
         .filter((h) => h.type === "CH") // Was "Closed"
         .map((h) => h.dateObj),
-      isFestival: holidays
+      isFestival: yearHolidays
         .filter((h) => h.type === "FH") // Was "Festival"
         .map((h) => h.dateObj),
-      isRestricted: holidays
+      isRestricted: yearHolidays
         .filter((h) => h.type === "RH") // Was "Restricted"
         .map((h) => h.dateObj),
       // --- END FIX ---
     }),
-    [holidays],
+    [yearHolidays],
   );
 
   const modalModifiersClassNames = {
@@ -122,8 +136,8 @@ export function YearCalendarModal({
   function CustomDay(props: DayProps & { modifiers?: { outside?: boolean } }) {
     const dayAsLuxon = DateTime.fromJSDate(props.date);
 
-    // In the Modal, we specifically use 'holidays'
-    const matchingHolidays = holidays.filter((h) =>
+    // In the Modal, we specifically use 'yearHolidays'
+    const matchingHolidays = yearHolidays.filter((h) =>
       h.date.hasSame(dayAsLuxon, "day"),
     );
 
@@ -144,7 +158,7 @@ export function YearCalendarModal({
   };
 
   // 1. Sort the holidays first
-  const rawSortedHolidays = [...holidays].sort(
+  const rawSortedHolidays = [...yearHolidays].sort(
     (a, b) => a.date.toMillis() - b.date.toMillis(),
   );
 

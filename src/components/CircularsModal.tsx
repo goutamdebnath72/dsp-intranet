@@ -94,7 +94,15 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
     if (!isOpen || !selectedYear) return;
     const prevYear = String(Number(selectedYear) - 1);
     if (availableYears.includes(prevYear)) {
-      preload(`/api/circulars?year=${prevYear}`, fetcher);
+      // Best-effort only -- a failure here (e.g. a transient DB connection
+      // hiccup right after a heavy request, which this app's pool is known
+      // to occasionally hit) must never surface to the user. Unlike the two
+      // useSWR() calls above, preload()'s returned promise isn't consumed
+      // by a hook that exposes its own error state, so an unhandled
+      // rejection here was crashing the whole page with Next's dev overlay
+      // for what should have been an invisible background prefetch -- the
+      // selected year will just load normally, un-prefetched, if it fails.
+      preload(`/api/circulars?year=${prevYear}`, fetcher).catch(() => {});
     }
   }, [isOpen, selectedYear, availableYears]);
 

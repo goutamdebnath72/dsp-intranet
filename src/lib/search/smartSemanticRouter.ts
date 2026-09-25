@@ -4,6 +4,7 @@ import { executePolicySearch } from "./semanticPolicySearch";
 import { executeContentSearch } from "./semanticContentSearch";
 import { SearchResultRow } from "./titleSearch";
 import { executeAnnouncementSemanticSearch } from "./announcementSemanticSearch";
+import { executeHolidayPolicySearch } from "./holidayPolicySearch";
 
 async function executeCircularRouter(
   dataSource: DataSource,
@@ -96,9 +97,10 @@ async function executeCircularRouter(
 
 
 /**
- * Public entry point. Runs the circular router and the announcement semantic
- * search in parallel, then merges both streams into one ranked list tagged by
- * `type`. Announcements are ADDITIVE — they never displace the circular
+ * Public entry point. Runs the circular router, the announcement semantic
+ * search, and the holiday policy search in parallel, then merges all three
+ * streams into one ranked list tagged by `type`. Announcements and holiday
+ * policy chunks are BOTH additive -- neither ever displaces the circular
  * engine's carefully-tuned exact-match behaviour; they interleave by score.
  */
 export async function executeSmartSemanticRouter(
@@ -108,23 +110,26 @@ export async function executeSmartSemanticRouter(
   const safeQ = (q || "").trim();
   if (!safeQ) return { uniqueResults: [], isFallback: false };
 
-  const [circular, announcements] = await Promise.all([
+  const [circular, announcements, holidayPolicy] = await Promise.all([
     executeCircularRouter(dataSource, safeQ),
     executeAnnouncementSemanticSearch(dataSource, safeQ),
+    executeHolidayPolicySearch(dataSource, safeQ),
   ]);
 
-  // No announcement hits -> return the circular result untouched (preserves
-  // the exact circular-only behaviour, including empty exact-token misses).
-  if (announcements.length === 0) {
+  // Neither additive source hit -> return the circular result untouched
+  // (preserves the exact circular-only behaviour, including empty
+  // exact-token misses).
+  if (announcements.length === 0 && holidayPolicy.length === 0) {
     return circular;
   }
 
-  // Merge and rank by the similarity each engine reported. Both scales are the
-  // same 0..1 vector similarity (+ literal boost folded into ordering already),
-  // so a shared sort is fair. De-dup defensively by type+id.
+  // Merge and rank by the similarity each engine reported. All three scales
+  // are the same 0..1 vector similarity (+ literal boost folded into
+  // ordering already for circulars/announcements), so a shared sort is
+  // fair. De-dup defensively by type+id.
   const seen = new Set<string>();
   const merged: SearchResultRow[] = [];
-  for (const r of [...circular.uniqueResults, ...announcements]) {
+  for (const r of [...circular.uniqueResults, ...announcements, ...holidayPolicy]) {
     const key = `${r.type}-${r.id}`;
     if (seen.has(key)) continue;
     seen.add(key);

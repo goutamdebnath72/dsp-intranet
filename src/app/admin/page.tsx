@@ -13,7 +13,7 @@ import Header from "@/components/Header";
 import OldHeader from "@/components/OldHeader";
 import { HolidayDashboard } from "@/components/admin/HolidayDashboard";
 import { ADMIN_TITLE_AREA_HEIGHT, ADMIN_CARDS_AREA_HEIGHT } from "@/lib/constants";
-import { Toaster } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
 
 function AdminContent() {
   const { data: session, status } = useSession();
@@ -45,13 +45,13 @@ function AdminContent() {
     if (status === "unauthenticated") redirect("/");
   }, [session, status]);
 
-  const handleUploadSuccess = (newCircular: any) => {
-    // The modal itself already shows an accurate "queued for processing"
-    // message for the full 5s it stays open before auto-closing -- a
-    // second toast here duplicated that feedback and, worse, said
-    // "uploaded successfully" which is no longer true the moment the
-    // upload completes under the async flow (the circular is only
-    // QUEUED at this point, not yet rendered/OCR'd/embedded).
+  const handleUploadSuccess = () => {
+    // Upload is synchronous (the earlier async/QStash flow was reverted) --
+    // by the time this fires, the circular is fully OCR'd, chunked,
+    // embedded and committed, not merely queued. The modal's own "Upload
+    // successful!" message disappears when it auto-closes, so this toast
+    // is the only feedback left once that happens.
+    toast.success("✅ Circular upload is successful!");
     setIsCircularModalOpen(false);
   };
 
@@ -64,7 +64,20 @@ function AdminContent() {
 
   return (
     <div className="h-screen flex flex-col overflow-y-auto">
-      <Toaster position="top-center" />
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          style: { whiteSpace: "nowrap", maxWidth: "none" },
+          // Every success toast on this page now includes its own ✅ emoji
+          // in its message text (see HolidayDashboard, AnnouncementForm,
+          // and handleUploadSuccess below), for one consistent tick style
+          // everywhere. Suppressing react-hot-toast's own built-in icon
+          // here, globally, is what makes that actually consistent --
+          // doing it per-call on only some toasts left others showing a
+          // different (the library's default) icon instead.
+          success: { icon: null },
+        }}
+      />
       {ACTIVE_UI_DESIGN === "new" ? (
         <div className="flex-shrink-0">
           <div className="w-full md:w-[var(--content-width)] mx-auto">

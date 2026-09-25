@@ -8,6 +8,7 @@ import {
   Loader2,
   FileText,
   Megaphone,
+  CalendarDays,
   Sparkles,
   X,
   Lock,
@@ -961,10 +962,16 @@ export function OmnibarModal({
                                       className={`p-2 rounded-md ${
                                         result.isPerfectMatch
                                           ? "bg-amber-100 text-amber-700"
-                                          : "bg-orange-100 text-orange-700"
+                                          : result.type === "holiday"
+                                            ? "bg-purple-100 text-purple-700"
+                                            : "bg-orange-100 text-orange-700"
                                       }`}
                                     >
-                                      <Megaphone size={20} />
+                                      {result.type === "holiday" ? (
+                                        <CalendarDays size={20} />
+                                      ) : (
+                                        <Megaphone size={20} />
+                                      )}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 mb-1">
@@ -1032,6 +1039,17 @@ export function OmnibarModal({
                                         </div>
                                       </div>
                                     )}
+                                  {/* Holiday chunks have no document to open and no
+                                      full-record fetch on click -- the chunk text
+                                      IS the entire answer, so it always shows
+                                      inline rather than being gated behind
+                                      isPerfectMatch/semantic mode like the other
+                                      two types above. */}
+                                  {result.type === "holiday" && result.chunkText && (
+                                    <div className="ml-12 mt-2 text-xs text-neutral-800 bg-purple-50 p-3 rounded-md border border-purple-200 leading-relaxed shadow-sm">
+                                      {result.chunkText}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>

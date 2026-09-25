@@ -1,0 +1,82 @@
+{
+  "year": 2026,
+  "holidays": [
+    { "name": "SAIL Foundation Day", "date": "2026-01-24", "type": "CH", "categories": null, "note": null },
+    { "name": "Republic Day", "date": "2026-01-26", "type": "CH", "categories": null, "note": null },
+    { "name": "May Day", "date": "2026-05-01", "type": "CH", "categories": null, "note": null },
+    { "name": "Independence Day", "date": "2026-08-15", "type": "CH", "categories": null, "note": null },
+    { "name": "Mahatma Gandhi's Birthday", "date": "2026-10-02", "type": "CH", "categories": null, "note": null },
+
+    { "name": "Saraswati Puja/ Basant Panchami/ Netaji's Birth Day", "date": "2026-01-23", "type": "FH", "categories": "B", "note": null },
+    { "name": "Doljatra", "date": "2026-03-03", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Id-ul-Fitr", "date": "2026-03-21", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Good Friday", "date": "2026-04-03", "type": "FH", "categories": "B", "note": null },
+    { "name": "Id-Ud-Zoha (Bakrid)", "date": "2026-05-27", "type": "FH", "categories": "B", "note": null },
+    { "name": "Rath Yatra", "date": "2026-07-16", "type": "FH", "categories": "B", "note": null },
+    { "name": "Janmasthami", "date": "2026-09-04", "type": "FH", "categories": "B", "note": null },
+    { "name": "Durgapuja - Maha Ashtami", "date": "2026-10-19", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Durgapuja - Maha Navami", "date": "2026-10-20", "type": "FH", "categories": "B", "note": null },
+    { "name": "Durgapuja - Maha Dasami", "date": "2026-10-21", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Bhatridwitiya", "date": "2026-11-11", "type": "FH", "categories": "B", "note": null },
+    { "name": "Birth Day of Guru Nanak", "date": "2026-11-24", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Christmas Day", "date": "2026-12-25", "type": "FH", "categories": "A,B", "note": null },
+
+    { "name": "Bengali New Year's Day", "date": "2026-04-15", "type": "FH", "categories": "B",
+      "note": "One Closed/Public Holiday namely SAIL Foundation Day falls on 4th Saturday. So, one restricted holiday namely Bengali New Year's Day (15th April, 2026) will be treated as additional Festival Holiday for maintaining total number of Public/Closed/Festival holidays to 18 for this category of employees who are entitled to get 2nd and 4th Saturdays as additional weekly-off day." },
+
+    { "name": "New Year's Day", "date": "2026-01-01", "type": "RH", "categories": null, "note": null },
+    { "name": "Hazrat Ali's Birthday", "date": "2026-01-03", "type": "RH", "categories": null, "note": null },
+    { "name": "Makar Sankranti / Magha Bihu / Pongol", "date": "2026-01-14", "type": "RH", "categories": null, "note": null },
+    { "name": "Saraswati Puja/ Basant Panchami/ Netaji's Birth Day", "date": "2026-01-23", "type": "RH", "categories": null, "note": null },
+    { "name": "Guru Ravi Das's Birthday", "date": "2026-02-01", "type": "RH", "categories": null, "note": null },
+    { "name": "Maha Shivaratri", "date": "2026-02-15", "type": "RH", "categories": null, "note": null },
+    { "name": "Dol Yatra", "date": "2026-03-03", "type": "RH", "categories": null, "note": null },
+    { "name": "Holi", "date": "2026-03-04", "type": "RH", "categories": null, "note": null },
+    { "name": "Jamat-Ul-Vida", "date": "2026-03-20", "type": "RH", "categories": null, "note": null },
+    { "name": "Id-ul-Fitr", "date": "2026-03-21", "type": "RH", "categories": null, "note": null },
+    { "name": "Ram Navami", "date": "2026-03-26", "type": "RH", "categories": null, "note": null },
+    { "name": "Mahavir Jayanti", "date": "2026-03-31", "type": "RH", "categories": null, "note": null },
+    { "name": "Good Friday", "date": "2026-04-03", "type": "RH", "categories": null, "note": null },
+    { "name": "Bengali New Year's Day", "date": "2026-04-15", "type": "RH", "categories": null, "note": null },
+    { "name": "Birthday of Rabindranath Tagore", "date": "2026-05-09", "type": "RH", "categories": null, "note": null },
+    { "name": "Id-ul-Zuha (Bakrid)", "date": "2026-05-27", "type": "RH", "categories": null, "note": null },
+    { "name": "Muharram", "date": "2026-06-26", "type": "RH", "categories": null, "note": null },
+    { "name": "Rath Yatra", "date": "2026-07-16", "type": "RH", "categories": null, "note": null },
+    { "name": "Milad-Un-Nabi / Id-E-Milad / Onam", "date": "2026-08-26", "type": "RH", "categories": null, "note": null },
+    { "name": "Raksha Bandhan", "date": "2026-08-28", "type": "RH", "categories": null, "note": null },
+    { "name": "Janmasthami", "date": "2026-09-04", "type": "RH", "categories": null, "note": null },
+    { "name": "Ganesh Chaturthi/ Vinayak Chaturthi", "date": "2026-09-14", "type": "RH", "categories": null, "note": null },
+    { "name": "Mahalaya", "date": "2026-10-10", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja --- Maha Saptami", "date": "2026-10-18", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Ashtami", "date": "2026-10-19", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Nabami", "date": "2026-10-20", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Dasami", "date": "2026-10-21", "type": "RH", "categories": null, "note": null },
+    { "name": "Lakshmi Puja", "date": "2026-10-25", "type": "RH", "categories": null, "note": null },
+    { "name": "Diwali (Deepavali) / Kali Puja", "date": "2026-11-08", "type": "RH", "categories": null, "note": null },
+    { "name": "Bhatridwitiya / Bhai Duj", "date": "2026-11-11", "type": "RH", "categories": null, "note": null },
+    { "name": "Chhat Puja", "date": "2026-11-15", "type": "RH", "categories": null, "note": null },
+    { "name": "Guru Nanak's Birthday / Guru Teg Bahadur's Martyrdom", "date": "2026-11-24", "type": "RH", "categories": null, "note": null },
+    { "name": "Christmas Eve", "date": "2026-12-24", "type": "RH", "categories": null, "note": null },
+    { "name": "Christmas Day", "date": "2026-12-25", "type": "RH", "categories": null, "note": null }
+  ],
+  "rhQuota": [
+    { "category": "A", "quota": 4 },
+    { "category": "C", "quota": 4 },
+    { "category": "B", "quota": 2 },
+    { "category": "D", "quota": 4 }
+  ],
+  "policyNotes": [
+    {
+      "topic": "Muslim festival dates",
+      "text": "Muslim festivals, not falling on the notified dates due to non-sighting of moon, will be observed as per Government guidelines."
+    },
+    {
+      "topic": "Compensatory Off",
+      "text": "All employees (including non-executive trainees) can avail a compensatory off against not spared Closed/Public/Festival/Restricted holiday(s) within two (02) months in the same calendar year. Category A [Executives (both Works and Non-Works)], Category C [Industrial non-executives (Works & Non-Works)] and Category D (non-executive trainees) employees can avail a compensatory off against each Closed/Public holiday coinciding with their weekly off (including Sunday). Category C [industrial non-executive employee (Works & Non-Works)] employees who will not be spared to avail Closed/Public Holidays on Republic Day, May Day, Independence Day and Mahatma Gandhi's Birthday will have the following option: claiming Compensatory off within 2 months in the same calendar year, or Extra wages. This option is also available if any of the aforesaid holidays coincides with their weekly off (excluding Sunday); in case of Sunday weekly-off, only Compensatory off is admissible."
+    },
+    {
+      "topic": "Proportionate RH for new joiners",
+      "text": "Employees joining services of the company during the calendar year will be entitled for proportionate Restricted Holiday(s), to be calculated on half-yearly or quarterly basis with reference to their joining date, as the case may be."
+    }
+  ]
+}

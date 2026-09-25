@@ -1,0 +1,486 @@
+{
+    "year": 2021,
+    "holidays": [
+        {
+            "name": "SAIL Foundation Day",
+            "date": "2021-01-24",
+            "type": "CH",
+            "categories": null,
+            "note": null
+        },
+        {
+            "name": "Republic Day",
+            "date": "2021-01-26",
+            "type": "CH",
+            "categories": null,
+            "note": null
+        },
+        {
+            "name": "May Day",
+            "date": "2021-05-01",
+            "type": "CH",
+            "categories": null,
+            "note": null
+        },
+        {
+            "name": "Independence Day",
+            "date": "2021-08-15",
+            "type": "CH",
+            "categories": null,
+            "note": null
+        },
+        {
+            "name": "Mahatma Gandhi's Birthday",
+            "date": "2021-10-02",
+            "type": "CH",
+            "categories": null,
+            "note": null
+        },
+        {
+            "name": "Netaji's Birth Day",
+            "date": "2021-01-23",
+            "type": "FH",
+            "categories": "B",
+            "note": null
+        },
+        {
+            "name": "Basanta Panchami / Sri Panchami",
+            "date": "2021-02-16",
+            "type": "FH",
+            "categories": "B",
+            "note": null
+        },
+        {
+            "name": "Bengali New Year's day",
+            "date": "2021-04-15",
+            "type": "FH",
+            "categories": "B",
+            "note": null
+        },
+        {
+            "name": "Id-ul-Fitr",
+            "date": "2021-05-14",
+            "type": "FH",
+            "categories": "A,B",
+            "note": null
+        },
+        {
+            "name": "Rath Yatra",
+            "date": "2021-07-12",
+            "type": "FH",
+            "categories": "B",
+            "note": null
+        },
+        {
+            "name": "Id-ul-Zuha (Bakrid)",
+            "date": "2021-07-21",
+            "type": "FH",
+            "categories": "B",
+            "note": null
+        },
+        {
+            "name": "Durgapuja - Maha Ashtami",
+            "date": "2021-10-13",
+            "type": "FH",
+            "categories": "B",
+            "note": null
+        },
+        {
+            "name": "Durgapuja - Maha Navami",
+            "date": "2021-10-14",
+            "type": "FH",
+            "categories": "A,B",
+            "note": null
+        },
+        {
+            "name": "Durgapuja - Vijaya Dashami / Dussehra",
+            "date": "2021-10-15",
+            "type": "FH",
+            "categories": "A,B",
+            "note": null
+        },
+        {
+            "name": "Lakshmi Puja",
+            "date": "2021-10-19",
+            "type": "FH",
+            "categories": "B",
+            "note": null
+        },
+        {
+            "name": "Kali Puja/Diwali",
+            "date": "2021-11-04",
+            "type": "FH",
+            "categories": "A,B",
+            "note": null
+        },
+        {
+            "name": "Guru Nanak's Birthday",
+            "date": "2021-11-19",
+            "type": "FH",
+            "categories": "A,B",
+            "note": null
+        },
+        {
+            "name": "Christmas Day",
+            "date": "2021-12-25",
+            "type": "FH",
+            "categories": "A,B",
+            "note": null
+        },
+        {
+            "name": "Maha Shivratri",
+            "date": "2021-03-11",
+            "type": "FH",
+            "categories": "B",
+            "note": "Since two Closed/Public Holidays namely SAIL Foundation Day (24th January, 2021) and Independence Day (15th August, 2021) fall on Sunday, Restricted Holidays namely Maha Shivratri (11th March, 2021) and Janmashtami (30th August, 2021) will be treated as additional festival holidays for maintaining the total number of Public/Closed/Festival holidays to 18 for non-industrial non-executive employees attached to offices, including Education Department and Kolkata Branch Office."
+        },
+        {
+            "name": "Janmashtami",
+            "date": "2021-08-30",
+            "type": "FH",
+            "categories": "B",
+            "note": "Since two Closed/Public Holidays namely SAIL Foundation Day (24th January, 2021) and Independence Day (15th August, 2021) fall on Sunday, Restricted Holidays namely Maha Shivratri (11th March, 2021) and Janmashtami (30th August, 2021) will be treated as additional festival holidays for maintaining the total number of Public/Closed/Festival holidays to 18 for non-industrial non-executive employees attached to offices, including Education Department and Kolkata Branch Office."
+        },
+        {
+            "name": "Buddha Purnima",
+            "date": "2021-05-26",
+            "type": "FH",
+            "categories": "B",
+            "note": "Two Festival Holidays namely Netaji's Birth Day and Christmas Day fall on the 4th Saturday. Hence, two other Restricted Holidays namely Buddha Purnima (26th May, 2021) and Mahalaya (6th October, 2021) will be treated as additional festival holidays for maintaining the total number of Public/Closed/Festival holidays to 18 for non-executive employees who are entitled to get the 2nd and 4th Saturday in a month as an additional weekly off-day."
+        },
+        {
+            "name": "Mahalaya",
+            "date": "2021-10-06",
+            "type": "FH",
+            "categories": "B",
+            "note": "Two Festival Holidays namely Netaji's Birth Day and Christmas Day fall on the 4th Saturday. Hence, two other Restricted Holidays namely Buddha Purnima (26th May, 2021) and Mahalaya (6th October, 2021) will be treated as additional festival holidays for maintaining the total number of Public/Closed/Festival holidays to 18 for non-executive employees who are entitled to get the 2nd and 4th Saturday in a month as an additional weekly off-day."
+        },
+        {
+            "name": "New Year's Day",
+            "date": "2021-01-01",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Makar Sankranti",
+            "date": "2021-01-14",
+            "type": "RH",
+            "categories": "B",
+            "note": null
+        },
+        {
+            "name": "Makar Sankranti / Magha Bihu/ Pongal",
+            "date": "2021-01-14",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Guru Gobind Singh's Birthday",
+            "date": "2021-01-20",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Netaji's Birth Day",
+            "date": "2021-01-23",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Basanta Panchami /Sri Panchami",
+            "date": "2021-02-16",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Maha Shivratri",
+            "date": "2021-03-11",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Doljatra",
+            "date": "2021-03-28",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Holi",
+            "date": "2021-03-29",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Sab-e-barat",
+            "date": "2021-03-30",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Good Friday",
+            "date": "2021-04-02",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Easter Saturday",
+            "date": "2021-04-03",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Bengali New Year's day",
+            "date": "2021-04-15",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Ram Navami",
+            "date": "2021-04-21",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Mahavir Jayanti",
+            "date": "2021-04-25",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Birthday of Rabindranath Tagore",
+            "date": "2021-05-09",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Id-ul-Fitr",
+            "date": "2021-05-14",
+            "type": "RH",
+            "categories": "C,D",
+            "note": null
+        },
+        {
+            "name": "Buddha Purnima",
+            "date": "2021-05-26",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Rath Yatra",
+            "date": "2021-07-12",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Id-ul-Zuha (Bakrid)",
+            "date": "2021-07-21",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Muharram",
+            "date": "2021-08-19",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Onam",
+            "date": "2021-08-21",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Raksha Bandhan",
+            "date": "2021-08-22",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Janmashtami",
+            "date": "2021-08-30",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Ganesh Chaturthi",
+            "date": "2021-09-10",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Vishwakarma Puja",
+            "date": "2021-09-17",
+            "type": "RH",
+            "categories": "B",
+            "note": null
+        },
+        {
+            "name": "Mahalaya",
+            "date": "2021-10-06",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Durgapuja - Maha Saptami",
+            "date": "2021-10-12",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Durgapuja - Maha Ashtami",
+            "date": "2021-10-13",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Durgapuja - Maha Navami",
+            "date": "2021-10-14",
+            "type": "RH",
+            "categories": "C,D",
+            "note": null
+        },
+        {
+            "name": "Durgapuja - Vijaya Dashami / Dussehra",
+            "date": "2021-10-15",
+            "type": "RH",
+            "categories": "C,D",
+            "note": null
+        },
+        {
+            "name": "Milad-Un-Nabi or Id-E-Milad (Birthday of Prophet Mohammed)",
+            "date": "2021-10-19",
+            "type": "RH",
+            "categories": "B,C,D",
+            "note": null
+        },
+        {
+            "name": "Milad-un-Nabi or Id-e-Milad (Birthday of Prophet Mohammad)",
+            "date": "2021-10-19",
+            "type": "RH",
+            "categories": "A",
+            "note": null
+        },
+        {
+            "name": "Lakshmi Puja",
+            "date": "2021-10-20",
+            "type": "RH",
+            "categories": "A,C,D",
+            "note": null
+        },
+        {
+            "name": "Kali Puja/Diwali",
+            "date": "2021-11-04",
+            "type": "RH",
+            "categories": "C,D",
+            "note": null
+        },
+        {
+            "name": "Bhatridwitiya",
+            "date": "2021-11-06",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Chhat Puja",
+            "date": "2021-11-10",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Guru Nanak's Birthday",
+            "date": "2021-11-19",
+            "type": "RH",
+            "categories": "C,D",
+            "note": null
+        },
+        {
+            "name": "Guru Teg Bahadur's Martyrdom Day",
+            "date": "2021-11-24",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Christmas Eve",
+            "date": "2021-12-24",
+            "type": "RH",
+            "categories": "A,B,C,D",
+            "note": null
+        },
+        {
+            "name": "Christmas Day",
+            "date": "2021-12-25",
+            "type": "RH",
+            "categories": "C,D",
+            "note": null
+        }
+    ],
+    "rhQuota": [
+        {
+            "category": "A",
+            "quota": 4
+        },
+        {
+            "category": "B",
+            "quota": 2
+        },
+        {
+            "category": "C",
+            "quota": 4
+        },
+        {
+            "category": "D",
+            "quota": 4
+        }
+    ],
+    "policyNotes": [
+        {
+            "topic": "Muslim festival dates",
+            "text": "In case the Muslim festivals do not fall on the notified dates due to non-sighting of moon, the holiday will be observed as per the announcement of State/Central Government notification in electronic/print media. However, a separate notification will be issued at the appropriate time."
+        },
+        {
+            "topic": "Restricted Holiday option deadline",
+            "text": "For availing Restricted Holidays (from para 2.2, 2.3 and para 2.5), concerned employees shall have to exercise their option by 31st January 2021 and obtain approval of their controlling officer before availing the same."
+        },
+        {
+            "topic": "Compensatory Off",
+            "text": "An employee, including an executive, who is not spared to avail a Closed/Public/Festival/Restricted holiday is entitled to one day's compensatory-off in lieu, within the calendar year and within two months of the date on which the holiday falls due, with prior approval of the controlling officer. An industrial non-executive employee (Works & Non-Works) who cannot be spared, or does not want to avail the Closed/Public holiday(s) on Republic Day, May Day, Independence Day or Mahatma Gandhi's Birthday, has the option of claiming Compensatory Off within the calendar year or extra wages instead; this option is also available if any of these four holidays coincides with their weekly off (excluding Sunday) -- in case of a Sunday weekly-off, only Compensatory Off is admissible. All executives and non-executive employees (following the industrial pattern of holidays) may be allowed one day's compensatory-off for each Public/Closed holiday coinciding with their weekly off (including Sunday)."
+        },
+        {
+            "topic": "Proportionate RH for new joiners",
+            "text": "Employees joining services of the company during the calendar year will be entitled for proportionate Festival/Restricted Holiday(s), to be calculated on half-yearly or quarterly basis with reference to their joining date, as the case may be."
+        },
+        {
+            "topic": "No Festival Holidays for Category C/D in 2021",
+            "text": "Unlike Category A (Executives) and Category B (non-industrial non-executives attached to Offices, Education Department and Kolkata Branch Office), Category C (industrial non-executives) and Category D (non-executive trainees) are not admissible for any Festival Holidays in 2021 -- per clause 6.0, Trainees are entitled only to the Closed/Public Holidays and Restricted Holidays admissible to industrial non-executives (Clause 1.0 and 2.3), with no Festival Holiday allotment for either group this year."
+        }
+    ]
+}

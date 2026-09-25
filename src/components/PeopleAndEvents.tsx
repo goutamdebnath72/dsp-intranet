@@ -14,6 +14,11 @@ import { RetirementScrollList } from "./RetirementScrollList";
 import { EventCalendar } from "./EventCalendar";
 
 export type FetchedHoliday = {
+  id: number; // real HolidayYear row id from the API -- the only value
+  // guaranteed unique per row, unlike date+title, which legitimately
+  // collides for the same real holiday's separate FH and RH database rows
+  // sharing an identical date and name (a confirmed, intentional data
+  // pattern, not an error -- see holidays/extraction.ts's own comments).
   date: string; // ISO date string from server
   title: string;
   type: string;

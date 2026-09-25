@@ -1,0 +1,87 @@
+{
+  "year": 2024,
+  "holidays": [
+    { "name": "SAIL Foundation Day", "date": "2024-01-24", "type": "CH", "categories": null, "note": null },
+    { "name": "Republic Day", "date": "2024-01-26", "type": "CH", "categories": null, "note": null },
+    { "name": "May Day", "date": "2024-05-01", "type": "CH", "categories": null, "note": null },
+    { "name": "Independence Day", "date": "2024-08-15", "type": "CH", "categories": null, "note": null },
+    { "name": "Mahatma Gandhi's Birthday", "date": "2024-10-02", "type": "CH", "categories": null, "note": null },
+
+    { "name": "Saraswati Puja (Sri Panchami/ Basant Panchami)", "date": "2024-02-14", "type": "FH", "categories": "B", "note": null },
+    { "name": "Doljatra", "date": "2024-03-25", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Good Friday", "date": "2024-03-29", "type": "FH", "categories": "B", "note": null },
+    { "name": "Id-ul-Fitr (*)", "date": "2024-04-11", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Buddha Purnima", "date": "2024-05-23", "type": "FH", "categories": "B", "note": null },
+    { "name": "Id-Ud-Zuha (Bakrid) (*)", "date": "2024-06-17", "type": "FH", "categories": "B", "note": null },
+    { "name": "Janmashtami", "date": "2024-08-26", "type": "FH", "categories": "B", "note": null },
+    { "name": "Durgapuja \u2013 Maha Astami and Maha Navami", "date": "2024-10-11", "type": "FH", "categories": "B", "note": null },
+    { "name": "Durgapuja - Vijaya Dashami / Dussehra", "date": "2024-10-12", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Lakshmi Puja", "date": "2024-10-16", "type": "FH", "categories": "B", "note": null },
+    { "name": "Diwali (Deepavali)/ Kali Puja", "date": "2024-10-31", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Birth Day of Guru Nanak", "date": "2024-11-15", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Christmas Day", "date": "2024-12-25", "type": "FH", "categories": "A,B", "note": null },
+
+    { "name": "Ram Navami", "date": "2024-04-17", "type": "FH", "categories": "B",
+      "note": "One Festival Holiday namely Vijaya Dashami/Dussehra falls on 2nd Saturday, so one restricted holiday namely Ram Navami (17th April - Wednesday) will be treated as additional festival holiday for maintaining total number of Public/Closed/Festival holidays to 18 for this category of employees who are entitled to get 2nd and 4th Saturday as additional weekly off-day." },
+
+    { "name": "New Year's Day", "date": "2024-01-01", "type": "RH", "categories": null, "note": null },
+    { "name": "Lohri", "date": "2024-01-13", "type": "RH", "categories": null, "note": null },
+    { "name": "Makar Sankranti", "date": "2024-01-14", "type": "RH", "categories": null, "note": null },
+    { "name": "Magha Bihu / Pongal", "date": "2024-01-15", "type": "RH", "categories": null, "note": null },
+    { "name": "Netaji's Birth Day", "date": "2024-01-23", "type": "RH", "categories": null, "note": null },
+    { "name": "Saraswati Puja / Basanta Panchami / Sri Panchami", "date": "2024-02-14", "type": "RH", "categories": null, "note": null },
+    { "name": "Maha Shivaratri", "date": "2024-03-08", "type": "RH", "categories": null, "note": null },
+    { "name": "Holika Dahan", "date": "2024-03-24", "type": "RH", "categories": null, "note": null },
+    { "name": "Doljatra", "date": "2024-03-25", "type": "RH", "categories": null, "note": null },
+    { "name": "Good Friday", "date": "2024-03-29", "type": "RH", "categories": null, "note": null },
+    { "name": "Easter Saturday", "date": "2024-03-30", "type": "RH", "categories": null, "note": null },
+    { "name": "Jamat-Ul-Vida (*)", "date": "2024-04-05", "type": "RH", "categories": null, "note": null },
+    { "name": "Id-ul-Fitr (*)", "date": "2024-04-11", "type": "RH", "categories": null, "note": null },
+    { "name": "Bengali New Year's Day / Meshadi (Tamil New Year's day) / Bahag Bihu (Assam)", "date": "2024-04-14", "type": "RH", "categories": null, "note": null },
+    { "name": "Ram Navami", "date": "2024-04-17", "type": "RH", "categories": null, "note": null },
+    { "name": "Mahavir Jayanti", "date": "2024-04-21", "type": "RH", "categories": null, "note": null },
+    { "name": "Birthday of Guru Rabindranath Tagore", "date": "2024-05-08", "type": "RH", "categories": null, "note": null },
+    { "name": "Buddha Purnima", "date": "2024-05-23", "type": "RH", "categories": null, "note": null },
+    { "name": "Id-ul-Zuha (Bakrid) (*)", "date": "2024-06-17", "type": "RH", "categories": null, "note": null },
+    { "name": "Rath Yatra", "date": "2024-07-07", "type": "RH", "categories": null, "note": null },
+    { "name": "Muharram (*)", "date": "2024-07-17", "type": "RH", "categories": null, "note": null },
+    { "name": "Raksha Bandhan", "date": "2024-08-19", "type": "RH", "categories": null, "note": null },
+    { "name": "Janmashtami", "date": "2024-08-26", "type": "RH", "categories": null, "note": null },
+    { "name": "Ganesh Chaturthi / Vinayaka Chaturthi", "date": "2024-09-07", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Saptami", "date": "2024-10-10", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Ashtami and Maha Navami", "date": "2024-10-11", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Vijaya Dashami", "date": "2024-10-12", "type": "RH", "categories": null, "note": null },
+    { "name": "Lakshmi Puja", "date": "2024-10-16", "type": "RH", "categories": null, "note": null },
+    { "name": "Karaka Chaturthi (Karwa Chouth)", "date": "2024-10-20", "type": "RH", "categories": null, "note": null },
+    { "name": "Diwali (Deepavali) / Kali Puja", "date": "2024-10-31", "type": "RH", "categories": null, "note": null },
+    { "name": "Bhatridwitiya / Bhai Duj", "date": "2024-11-03", "type": "RH", "categories": null, "note": null },
+    { "name": "Pratihar Shashthi or Surya Shashthi (Chhat Puja)", "date": "2024-11-07", "type": "RH", "categories": null, "note": null },
+    { "name": "Guru Nanak's Birthday", "date": "2024-11-15", "type": "RH", "categories": null, "note": null },
+    { "name": "Guru Teg Bahadur's Martyrdom Day", "date": "2024-11-24", "type": "RH", "categories": null, "note": null },
+    { "name": "Christmas Day", "date": "2024-12-25", "type": "RH", "categories": null, "note": null }
+  ],
+  "rhQuota": [
+    { "category": "A", "quota": 4 },
+    { "category": "C", "quota": 4 },
+    { "category": "D", "quota": 4 },
+    { "category": "B", "quota": 2 }
+  ],
+  "policyNotes": [
+    {
+      "topic": "Muslim festival dates",
+      "text": "Muslim festivals, not falling on the notified dates due to non-sighting of moon, will be observed as per the Government guidelines. This applies to holidays marked (*): Id-ul-Fitr, Id-Ud-Zuha (Bakrid), Jamat-Ul-Vida, and Muharram."
+    },
+    {
+      "topic": "Restricted Holiday option deadline",
+      "text": "For availing Restricted Holidays, concerned employees shall have to exercise their option by 31st January 2024 and obtain approval of their controlling officer before availing the same."
+    },
+    {
+      "topic": "Compensatory Off",
+      "text": "All employees (including non-executive trainees) can avail a compensatory off against not spared Closed/Public/Festival/Restricted holiday(s) within two (02) months in the same calendar year. Category A [Executives (both Works and Non-Works)], Category C [Industrial non-executives (Works & Non-Works)] and Category D (non-executive trainees) employees can avail a compensatory off against each Public/Closed holiday coinciding with their weekly off (including Sunday). Category C [industrial non-executive employee (Works & Non-Works)] employees who will not be spared, or do not want to avail Closed/Public Holidays on Republic Day, May Day, Independence Day and Mahatma Gandhi's Birthday, will have the following option: claiming Compensatory off within 2 months in the same calendar year, or Extra wages. This option is also available if any of the aforesaid holidays coincides with their weekly off (excluding Sunday); in case of Sunday weekly-off, only Compensatory off is admissible."
+    },
+    {
+      "topic": "Proportionate RH for new joiners",
+      "text": "Employees joining services of the company during the calendar year will be entitled for proportionate Restricted Holiday(s), to be calculated on half-yearly or quarterly basis with reference to their joining date, as the case may be."
+    }
+  ]
+}

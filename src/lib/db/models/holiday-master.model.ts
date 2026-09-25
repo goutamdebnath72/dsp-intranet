@@ -16,6 +16,18 @@ export class HolidayMaster {
   @Column({ type: "varchar", unique: true, nullable: false })
   name!: string;
 
+  // Alternate spellings for the same holiday, e.g. "Doljatra" (this row,
+  // FH-typed) carries alias "Dol Yatra" (the separate RH-typed master row's
+  // own name). A search for either spelling should find this row. Nullable/
+  // empty for the common case of no known alternate spelling.
+  @Column({
+    type: "text",
+    array: true,
+    nullable: true,
+    default: () => "'{}'",
+  })
+  aliases!: string[];
+
   @Column({
     type: "enum",
     enum: HolidayType,

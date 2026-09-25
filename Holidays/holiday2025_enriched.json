@@ -1,0 +1,85 @@
+{
+  "year": 2025,
+  "holidays": [
+    { "name": "SAIL Foundation Day", "date": "2025-01-24", "type": "CH", "categories": null, "note": null },
+    { "name": "Republic Day", "date": "2025-01-26", "type": "CH", "categories": null, "note": null },
+    { "name": "May Day", "date": "2025-05-01", "type": "CH", "categories": null, "note": null },
+    { "name": "Independence Day", "date": "2025-08-15", "type": "CH", "categories": null, "note": null },
+    { "name": "Mahatma Gandhi's Birthday", "date": "2025-10-02", "type": "CH", "categories": null, "note": null },
+
+    { "name": "Maha Shivaratri", "date": "2025-02-26", "type": "FH", "categories": "B", "note": null },
+    { "name": "Doljatra / Holi", "date": "2025-03-14", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Id-ul-Fitr", "date": "2025-03-31", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Good Friday", "date": "2025-04-18", "type": "FH", "categories": "B", "note": null },
+    { "name": "Buddha Purnima", "date": "2025-05-12", "type": "FH", "categories": "B", "note": null },
+    { "name": "Id-Ud-Zoha (Bakrid)", "date": "2025-06-07", "type": "FH", "categories": "B", "note": null },
+    { "name": "Janmasthami", "date": "2025-08-16", "type": "FH", "categories": "B", "note": null },
+    { "name": "Durgapuja - Maha Ashtami", "date": "2025-09-30", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Durgapuja - Maha Navami", "date": "2025-10-01", "type": "FH", "categories": "B", "note": null },
+    { "name": "Lakshmi Puja", "date": "2025-10-06", "type": "FH", "categories": "B", "note": null },
+    { "name": "Diwali (Deepavali) / Kali Puja", "date": "2025-10-20", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Birth Day of Guru Nanak", "date": "2025-11-05", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Christmas Day", "date": "2025-12-25", "type": "FH", "categories": "A,B", "note": null },
+
+    { "name": "Bhatridwitiya", "date": "2025-10-23", "type": "FH", "categories": "B",
+      "note": "One Closed/Public Holiday namely Republic Day falls on Sunday. So, one restricted holiday namely Bhatridwitiya (23rd October, 2025) will be treated as additional Festival Holiday for maintaining total number of Public/Closed/Festival holidays to 18 for this category of employees. (Note: the source circular's own text states the date as \"23rd October, 2024\", an apparent typo for 2025 -- the RH list elsewhere in the same document correctly places Bhatridwitiya on 23 October 2025.)" },
+
+    { "name": "New Year's Day", "date": "2025-01-01", "type": "RH", "categories": null, "note": null },
+    { "name": "Guru Govind Singh's Birthday", "date": "2025-01-06", "type": "RH", "categories": null, "note": null },
+    { "name": "Makar Sankranti / Magha Bihu / Pongol", "date": "2025-01-14", "type": "RH", "categories": null, "note": null },
+    { "name": "Netaji's Birth Day", "date": "2025-01-23", "type": "RH", "categories": null, "note": null },
+    { "name": "Basanta Panchami / Sri Panchami", "date": "2025-02-02", "type": "RH", "categories": null, "note": null },
+    { "name": "Maha Shivaratri", "date": "2025-02-26", "type": "RH", "categories": null, "note": null },
+    { "name": "Doljatra / Holi", "date": "2025-03-14", "type": "RH", "categories": null, "note": null },
+    { "name": "Jamat-Ul-Vida", "date": "2025-03-28", "type": "RH", "categories": null, "note": null },
+    { "name": "Id-ul-Fitr", "date": "2025-03-31", "type": "RH", "categories": null, "note": null },
+    { "name": "Ram Navami", "date": "2025-04-06", "type": "RH", "categories": null, "note": null },
+    { "name": "Mahavir Jayanti", "date": "2025-04-10", "type": "RH", "categories": null, "note": null },
+    { "name": "Bengali New Year's day", "date": "2025-04-15", "type": "RH", "categories": null, "note": null },
+    { "name": "Good Friday", "date": "2025-04-18", "type": "RH", "categories": null, "note": null },
+    { "name": "Birthday of Rabindranath Tagore", "date": "2025-05-09", "type": "RH", "categories": null, "note": null },
+    { "name": "Buddha Purnima", "date": "2025-05-12", "type": "RH", "categories": null, "note": null },
+    { "name": "Id-ul-Zuha (Bakrid)", "date": "2025-06-07", "type": "RH", "categories": null, "note": null },
+    { "name": "Rath Yatra", "date": "2025-06-27", "type": "RH", "categories": null, "note": null },
+    { "name": "Muharram", "date": "2025-07-06", "type": "RH", "categories": null, "note": null },
+    { "name": "Raksha Bandhan", "date": "2025-08-09", "type": "RH", "categories": null, "note": null },
+    { "name": "Janmasthami", "date": "2025-08-16", "type": "RH", "categories": null, "note": null },
+    { "name": "Milad-Un-Nabi / Id-E-Milad", "date": "2025-09-05", "type": "RH", "categories": null, "note": null },
+    { "name": "Mahalaya", "date": "2025-09-21", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Saptami", "date": "2025-09-29", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Ashtami", "date": "2025-09-30", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Navami", "date": "2025-10-01", "type": "RH", "categories": null, "note": null },
+    { "name": "Lakshmi Puja", "date": "2025-10-06", "type": "RH", "categories": null, "note": null },
+    { "name": "Kali Puja / Diwali / Dipawali", "date": "2025-10-20", "type": "RH", "categories": null, "note": null },
+    { "name": "Bhatridwitiya", "date": "2025-10-23", "type": "RH", "categories": null, "note": null },
+    { "name": "Chhat Puja", "date": "2025-10-27", "type": "RH", "categories": null, "note": null },
+    { "name": "Guru Nanak's Birthday", "date": "2025-11-05", "type": "RH", "categories": null, "note": null },
+    { "name": "Guru Teg Bahadur's Martyrdom Day", "date": "2025-11-24", "type": "RH", "categories": null, "note": null },
+    { "name": "Christmas Eve", "date": "2025-12-24", "type": "RH", "categories": null, "note": null },
+    { "name": "Christmas Day", "date": "2025-12-25", "type": "RH", "categories": null, "note": null }
+  ],
+  "rhQuota": [
+    { "category": "A", "quota": 4 },
+    { "category": "C", "quota": 4 },
+    { "category": "D", "quota": 4 },
+    { "category": "B", "quota": 2 }
+  ],
+  "policyNotes": [
+    {
+      "topic": "Muslim festival dates",
+      "text": "Muslim festivals, not falling on the notified dates due to non-sighting of moon, will be observed as per the Government guidelines."
+    },
+    {
+      "topic": "Restricted Holiday option deadline",
+      "text": "For availing Restricted Holidays, concerned employees shall have to exercise their option by 31st January 2025 and obtain approval of their controlling officer before availing the same."
+    },
+    {
+      "topic": "Compensatory Off",
+      "text": "All employees (including non-executive trainees) can avail a compensatory off against not spared Closed/Public/Festival/Restricted holiday(s) within two (02) months in the same calendar year. Category A [Executives (both Works and Non-Works)], Category C [Industrial non-executives (Works & Non-Works)] and Category D (non-executive trainees) employees can avail a compensatory off against each Public/Closed holiday coinciding with their weekly off (including Sunday). Category C [industrial non-executive employee (Works & Non-Works)] employees who will not be spared, or do not want to avail Closed/Public Holidays on Republic Day, May Day, Independence Day and Mahatma Gandhi's Birthday, will have the following option: claiming Compensatory off within 2 months in the same calendar year, or Extra wages. This option is also available if any of the aforesaid holidays coincides with their weekly off (excluding Sunday); in case of Sunday weekly-off, only Compensatory off is admissible."
+    },
+    {
+      "topic": "Proportionate RH for new joiners",
+      "text": "Employees joining services of the company during the calendar year will be entitled for proportionate Restricted Holiday(s), to be calculated on half-yearly or quarterly basis with reference to their joining date, as the case may be."
+    }
+  ]
+}

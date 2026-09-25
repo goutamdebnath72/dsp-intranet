@@ -7,6 +7,9 @@ import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
 import Tesseract from "tesseract.js";
+import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
+import { extractHolidaysFromCircular } from "@/lib/holidays/extraction";
+import { HolidayExtractionStaging } from "@/lib/db/models/holiday-extraction-staging.model";
 
 // This route does two full Tesseract OCR passes PER PAGE (English, then
 // Hindi+English+Bengali) plus an embedding call per ~200-word chunk, so a
@@ -484,6 +487,58 @@ export async function POST(req: Request) {
       "chunks =",
       preparedChunks.length,
     );
+
+    // ============================================================
+    // ADDITIONAL JOB — holiday-list detection + extraction. Runs strictly
+    // AFTER the circular itself has committed successfully, and is wrapped
+    // so nothing here can ever fail or delay a normal circular upload -- a
+    // bug in this block must never become an upload-breaking bug. This
+    // ONLY stages the extracted data (holiday_extraction_staging) for an
+    // admin to review -- it deliberately never writes to
+    // holidaymaster/holidayyear directly. See extraction.ts's header
+    // comment for why (LLM output feeding a database real employees' leave
+    // calculations depend on).
+    // ============================================================
+    try {
+      const detection = detectHolidayListCircular(headline);
+      if (detection.isHolidayListCircular) {
+        if (detection.year) {
+          console.log(
+            `HOLIDAY DETECTION: circular id=${circular.id} ("${headline}") ` +
+              `recognized as the employee holiday-list circular for ${detection.year}. ` +
+              `Running extraction...`,
+          );
+          const payload = await extractHolidaysFromCircular(detection.year, perPageText);
+          const stagingRepo = (await getDb()).getRepository(HolidayExtractionStaging);
+          const staged = stagingRepo.create({
+            circularId: circular.id,
+            year: detection.year,
+            status: "pending",
+            payload,
+            createdAt: new Date(),
+          });
+          await stagingRepo.save(staged);
+          console.log(
+            `HOLIDAY EXTRACTION: staged id=${staged.id} for year ${detection.year} -- ` +
+              `${payload.holidays.length} holidays (` +
+              `${payload.holidays.filter((h) => h.isNewMaster).length} new masters), ` +
+              `${payload.rhQuota.length} RH quota rows. Awaiting admin review -- ` +
+              `no holidaymaster/holidayyear write has happened.`,
+          );
+        } else {
+          console.warn(
+            `HOLIDAY DETECTION: circular id=${circular.id} ("${headline}") ` +
+              `matched the holiday-list pattern but no target year could be ` +
+              `parsed from the headline -- skipping, nothing acted on.`,
+          );
+        }
+      }
+    } catch (e) {
+      console.warn(
+        "HOLIDAY DETECTION/EXTRACTION: non-fatal error, circular upload unaffected:",
+        (e as any)?.message ?? e,
+      );
+    }
 
     await cleanupTempFiles();
 

@@ -23,7 +23,8 @@ export type HolidayOp =
   | "typeLookup"
   | "exists"
   | "breakdown"
-  | "compare";
+  | "compare"
+  | "rhQuota";
 
 export interface HolidayFilters {
   year?: number | null; // primary year (compare: yearA)
@@ -32,6 +33,11 @@ export interface HolidayFilters {
   name?: string | null; // ILIKE on holidaymaster.name
   month?: number | null; // 1..12
   date?: { month: number; day: number } | null;
+  category?: string | null; // "A" | "B" | "C" | "D" -- filters holidayyear
+  // rows whose categories column (a comma-separated string, e.g. "A,B")
+  // contains this letter. Only meaningful for FH rows; CH/RH rows have
+  // categories = null since CH applies to everyone and RH entitlement is a
+  // quota, not a per-holiday fact.
 }
 
 export interface HolidayQuery {
@@ -44,6 +50,8 @@ export interface HolidayRow {
   name: string;
   type: HolidayType;
   date: string; // ISO yyyy-LL-dd
+  categories: string | null; // e.g. "A,B" -- FH rows only, null otherwise
+  note: string | null; // one-off reclassification reason, or null
 }
 
 export interface HolidayBreakdownRow {
@@ -59,6 +67,11 @@ export interface HolidayCompareRow {
   b: number;
 }
 
+export interface HolidayRhQuotaRow {
+  category: string;
+  quota: number;
+}
+
 export interface HolidayQueryResult {
   count: number;
   holidays?: HolidayRow[];
@@ -70,6 +83,7 @@ export interface HolidayQueryResult {
     totalA: number;
     totalB: number;
   };
+  rhQuota?: HolidayRhQuotaRow[];
   /** false = the requested year isn't loaded in holidayyear -- the caller
    *  must NOT invent an answer (see the future-year guard, handoff §2.2). */
   yearAvailable?: boolean;
@@ -130,6 +144,14 @@ function buildWhere(f: HolidayFilters): { where: string; params: any[] } {
     params.push(`%${f.name.trim()}%`);
     clauses.push(`hm.name ILIKE $${params.length}`);
   }
+  if (f.category && f.category.trim()) {
+    params.push(f.category.trim());
+    // categories is a comma-separated string, e.g. "A,B" -- string_to_array
+    // + array containment is the correct "comma list contains this value"
+    // check, rather than a fragile ILIKE substring match (which would
+    // wrongly match "A" against a hypothetical future "AB" or similar).
+    clauses.push(`string_to_array(hy.categories, ',') @> ARRAY[$${params.length}]::text[]`);
+  }
   return { where: clauses.join(" AND "), params };
 }
 
@@ -140,6 +162,8 @@ function rowToHoliday(r: any): HolidayRow {
     name: r.name,
     type: r.type,
     date: d.toISODate() ?? "",
+    categories: r.categories ?? null,
+    note: r.note ?? null,
   };
 }
 
@@ -184,6 +208,24 @@ export async function queryHolidays(spec: HolidayQuery): Promise<HolidayQueryRes
     return { count: 0, yearAvailable: false };
   }
 
+  // ---- rhQuota: per-category RH entitlement for a year -- a genuinely
+  // different table (holiday_rh_quota), not holidayyear, since this is a
+  // year-level policy fact, not tied to any single holiday. ----
+  if (op === "rhQuota") {
+    const year = filters.year ?? DateTime.now().year;
+    const params: any[] = [year];
+    let where = `year = $1`;
+    if (filters.category && filters.category.trim()) {
+      params.push(filters.category.trim());
+      where += ` AND category = $${params.length}`;
+    }
+    const rows: HolidayRhQuotaRow[] = await d.query(
+      `SELECT category, quota FROM holiday_rh_quota WHERE ${where} ORDER BY category ASC`,
+      params,
+    );
+    return { count: rows.length, rhQuota: rows, yearAvailable: true };
+  }
+
   // ---- breakdown: one year, grouped by type. ----
   if (op === "breakdown") {
     const year = filters.year ?? DateTime.now().year;
@@ -219,7 +261,8 @@ export async function queryHolidays(spec: HolidayQuery): Promise<HolidayQueryRes
   // hits, or a plain list), the SQL shape is identical. ----
   const { where, params } = buildWhere(filters);
   const rows: any[] = await d.query(
-    `SELECT hy.id, hy.date, hy."holidayType" AS type, hm.name AS name
+    `SELECT hy.id, hy.date, hy."holidayType" AS type, hm.name AS name,
+            hy.categories AS categories, hy.note AS note
        FROM holidayyear hy JOIN holidaymaster hm ON hm.id = hy."holidayMasterId"
       WHERE ${where}
       ORDER BY hy.date ASC`,

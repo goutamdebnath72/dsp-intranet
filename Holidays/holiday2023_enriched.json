@@ -1,0 +1,89 @@
+{
+  "year": 2023,
+  "holidays": [
+    { "name": "SAIL Foundation Day", "date": "2023-01-24", "type": "CH", "categories": null, "note": null },
+    { "name": "Republic Day", "date": "2023-01-26", "type": "CH", "categories": null, "note": null },
+    { "name": "May Day", "date": "2023-05-01", "type": "CH", "categories": null, "note": null },
+    { "name": "Independence Day", "date": "2023-08-15", "type": "CH", "categories": null, "note": null },
+    { "name": "Mahatma Gandhi's Birthday", "date": "2023-10-02", "type": "CH", "categories": null, "note": null },
+
+    { "name": "Netaji's Birthday", "date": "2023-01-23", "type": "FH", "categories": "B", "note": null },
+    { "name": "Doljatra", "date": "2023-03-07", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Bengali New Year's day", "date": "2023-04-15", "type": "FH", "categories": "B", "note": null },
+    { "name": "Id-ul-Fitr (*)", "date": "2023-04-22", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Id-Ud-Zoha (Bakrid) (*)", "date": "2023-06-29", "type": "FH", "categories": "B", "note": null },
+    { "name": "Janmashtami", "date": "2023-09-06", "type": "FH", "categories": "B", "note": null },
+    { "name": "Durgapuja - Maha Navami", "date": "2023-10-23", "type": "FH", "categories": "B", "note": null },
+    { "name": "Durgapuja - Vijaya Dashami / Dussehra", "date": "2023-10-24", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Lakshmi Puja", "date": "2023-10-28", "type": "FH", "categories": "B", "note": null },
+    { "name": "Kali Puja", "date": "2023-11-13", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Bhatridwitya", "date": "2023-11-15", "type": "FH", "categories": "B", "note": null },
+    { "name": "Birth Day of Guru Nanak", "date": "2023-11-27", "type": "FH", "categories": "A,B", "note": null },
+    { "name": "Christmas Day", "date": "2023-12-25", "type": "FH", "categories": "A,B", "note": null },
+
+    { "name": "Maha Shivratri", "date": "2023-02-18", "type": "FH", "categories": "B",
+      "note": "Since the 02 (Two) Festival Holidays namely Id-ul-Fitr (22nd April 2023) and Lakshmi Puja (28th October 2023) fall on 4th Saturday, Category B employees can avail two additional festival holidays -- Milad-un-Nabi or Id-e-Milad (Birthday of Prophet Mohammad) on 28th September 2023 (Thursday) and Maha Shivratri on 18th February 2023 (Saturday) -- to maintain the total number of Public/Closed/Festival holidays to 18. (Note: 'Milad-un-Nabi or Id-e-Milad' is referenced here as an RH being promoted to FH, but that name does not appear as its own row in the printed 35-row RH list on pages 2-3 of this circular -- an apparent inconsistency in the source document itself, not corrected here.)" },
+    { "name": "Milad-un-Nabi or Id-e-Milad (Birthday of Prophet Mohammad) (*)", "date": "2023-09-28", "type": "FH", "categories": "B",
+      "note": "Since the 02 (Two) Festival Holidays namely Id-ul-Fitr (22nd April 2023) and Lakshmi Puja (28th October 2023) fall on 4th Saturday, Category B employees can avail two additional festival holidays -- Milad-un-Nabi or Id-e-Milad (Birthday of Prophet Mohammad) on 28th September 2023 (Thursday) and Maha Shivratri on 18th February 2023 (Saturday) -- to maintain the total number of Public/Closed/Festival holidays to 18. (Note: this holiday is referenced here as an RH being promoted to FH, but that name does not appear as its own row in the printed 35-row RH list on pages 2-3 of this circular -- an apparent inconsistency in the source document itself, not corrected here.)" },
+
+    { "name": "New Year's Day", "date": "2023-01-01", "type": "RH", "categories": null, "note": null },
+    { "name": "Makar Sankranti /Magha Bihu", "date": "2023-01-14", "type": "RH", "categories": null, "note": null },
+    { "name": "Pongal", "date": "2023-01-15", "type": "RH", "categories": null, "note": null },
+    { "name": "Netaji's Birthday", "date": "2023-01-23", "type": "RH", "categories": null, "note": null },
+    { "name": "Basanta Panchami/ Sri Panchami", "date": "2023-01-26", "type": "RH", "categories": null, "note": null },
+    { "name": "Maha Shivaratri", "date": "2023-02-18", "type": "RH", "categories": null, "note": null },
+    { "name": "Doljatra", "date": "2023-03-07", "type": "RH", "categories": null, "note": null },
+    { "name": "Holi", "date": "2023-03-08", "type": "RH", "categories": null, "note": null },
+    { "name": "Mahavir Jayanti", "date": "2023-04-04", "type": "RH", "categories": null, "note": null },
+    { "name": "Good Friday", "date": "2023-04-07", "type": "RH", "categories": null, "note": null },
+    { "name": "Easter Sunday", "date": "2023-04-09", "type": "RH", "categories": null, "note": null },
+    { "name": "Bengali New Year's day", "date": "2023-04-15", "type": "RH", "categories": null, "note": null },
+    { "name": "Jamat-Ul-Vida (*)", "date": "2023-04-21", "type": "RH", "categories": null, "note": null },
+    { "name": "Id-ul-Fitr (*)", "date": "2023-04-22", "type": "RH", "categories": null, "note": null },
+    { "name": "Buddha Purnima", "date": "2023-05-05", "type": "RH", "categories": null, "note": null },
+    { "name": "Birthday of Rabindranath Tagore", "date": "2023-05-09", "type": "RH", "categories": null, "note": null },
+    { "name": "Rath Yatra", "date": "2023-06-20", "type": "RH", "categories": null, "note": null },
+    { "name": "Id-ul-Zuha (Bakrid) (*)", "date": "2023-06-29", "type": "RH", "categories": null, "note": null },
+    { "name": "Muharram", "date": "2023-07-29", "type": "RH", "categories": null, "note": null },
+    { "name": "Raksha Bandhan", "date": "2023-08-30", "type": "RH", "categories": null, "note": null },
+    { "name": "Janmashtami", "date": "2023-09-06", "type": "RH", "categories": null, "note": null },
+    { "name": "Ganesh Chaturthi", "date": "2023-09-19", "type": "RH", "categories": null, "note": null },
+    { "name": "Mahalaya", "date": "2023-10-14", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Saptami", "date": "2023-10-21", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Ashtami", "date": "2023-10-22", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Maha Navami", "date": "2023-10-23", "type": "RH", "categories": null, "note": null },
+    { "name": "Durgapuja - Vijaya Dashami/ Dussehra", "date": "2023-10-24", "type": "RH", "categories": null, "note": null },
+    { "name": "Lakshmi Puja", "date": "2023-10-28", "type": "RH", "categories": null, "note": null },
+    { "name": "Diwali (Deepawali)", "date": "2023-11-12", "type": "RH", "categories": null, "note": null },
+    { "name": "Kali Puja", "date": "2023-11-13", "type": "RH", "categories": null, "note": null },
+    { "name": "Bhatridwitiya", "date": "2023-11-15", "type": "RH", "categories": null, "note": null },
+    { "name": "Pratihar Shashthi or Surya Shashthi (Chhat Puja)", "date": "2023-11-20", "type": "RH", "categories": null, "note": null },
+    { "name": "Guru Teg Bahadur's Martyrdom Day", "date": "2023-11-24", "type": "RH", "categories": null, "note": null },
+    { "name": "Birth Day of Guru Nanak", "date": "2023-11-27", "type": "RH", "categories": null, "note": null },
+    { "name": "Christmas Day", "date": "2023-12-25", "type": "RH", "categories": null, "note": null }
+  ],
+  "rhQuota": [
+    { "category": "A", "quota": 4 },
+    { "category": "C", "quota": 4 },
+    { "category": "B", "quota": 2 },
+    { "category": "D", "quota": 4 }
+  ],
+  "policyNotes": [
+    {
+      "topic": "Muslim festival dates",
+      "text": "Muslim festivals, not falling on the notified dates due to non-sighting of moon, will be observed as per the Government guidelines."
+    },
+    {
+      "topic": "Restricted Holiday option deadline",
+      "text": "For availing Restricted Holidays, concerned employees shall have to exercise their option by 31st January 2023 and obtain approval of their controlling officer before availing the same."
+    },
+    {
+      "topic": "Compensatory Off",
+      "text": "All employees (including non-executive trainees) can avail a compensatory off against not spared Closed/Public/Festival/Restricted holiday(s) within two (02) months in the same calendar year. Category A [Executives (both Works and Non-Works)], Category C [Industrial non-executives (Works & Non-Works)] and Category D (non-executive trainees) employees can avail a compensatory off against each Public/Closed holiday coinciding with their weekly off (including Sunday). Category C [Industrial non-executives (Works & Non-Works)] employees who will not be spared, or do not want to avail Closed/Public Holidays on Republic Day, May Day, Independence Day and Mahatma Gandhi's Birthday, will have the following option: claiming Compensatory off within 2 months in the same calendar year, or Extra wages. This option is also available if any of the aforesaid holidays coincides with their weekly off (excluding Sunday); in case of Sunday weekly-off, only Compensatory off is admissible."
+    },
+    {
+      "topic": "Proportionate RH for new joiners",
+      "text": "Employees joining services of the company during the calendar year will be entitled for proportionate Restricted Holiday(s), to be calculated on half-yearly or quarterly basis with reference to their joining date, as the case may be."
+    }
+  ]
+}

@@ -32,6 +32,7 @@ function useFormattedHolidays(holidays: FetchedHoliday[]) {
       const dt = DateTime.fromISO(h.date).startOf("day");
 
       return {
+        id: h.id,
         // --- FIX: Map API data to component props ---
         title: h.name, // Map API's 'name' to 'title'
         type: h.type, // Pass through the type (CH, FH, RH)
@@ -267,7 +268,7 @@ export function EventCalendar({
             {selectedMonthHolidays.length > 0 ? (
               selectedMonthHolidays.map((holiday) => (
                 <div
-                  key={holiday.date.toISO() + holiday.title}
+                  key={holiday.id}
                   className="flex items-center gap-2 text-xs p-1.5 bg-white rounded border border-neutral-200/60 shadow-sm"
                 >
                   <span

@@ -11,14 +11,17 @@ import { Circular } from "./models/circular.model";
 import { CircularReadStatus } from "./models/circular-read-status.model";
 import { CircularPage } from "./models/circular_pages.model";
 import { Department } from "./models/department.model";
+import { HolidayExtractionStaging } from "./models/holiday-extraction-staging.model";
 import { HolidayMaster } from "./models/holiday-master.model";
+import { HolidayPolicyChunk } from "./models/holiday-policy-chunk.model";
+import { HolidayRhQuota } from "./models/holiday-rh-quota.model";
 import { HolidayYear } from "./models/holiday-year.model";
 import { Link } from "./models/link.model";
 import { Session } from "./models/session.model";
 import { User } from "./models/user.model";
 import { VerificationToken } from "./models/verification-token.model";
 
-// Consolidation array of all active structural database entities (All 11 Preserved!)
+// Consolidation array of all active structural database entities
 const entities = [
   Account,
   AnnouncementReadStatus,
@@ -27,7 +30,10 @@ const entities = [
   CircularReadStatus,
   CircularPage,
   Department,
+  HolidayExtractionStaging,
   HolidayMaster,
+  HolidayPolicyChunk,
+  HolidayRhQuota,
   HolidayYear,
   Link,
   Session,

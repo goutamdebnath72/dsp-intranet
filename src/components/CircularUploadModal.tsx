@@ -18,6 +18,7 @@ import axios from "axios";
 import { useSession } from "next-auth/react";
 import { DateTime } from "luxon";
 import { DayPicker } from "react-day-picker";
+import { CIRCULAR_UPLOAD_ESTIMATED_SECONDS } from "@/lib/constants";
 import { AnimatedInput } from "./AnimatedInput";
 
 type Props = {
@@ -62,6 +63,14 @@ export function CircularUploadModal({
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
+  // Phase 2 of the progress bar (see handleSubmit): once the file's bytes
+  // have fully reached the server, axios's own upload-progress event has
+  // nothing left to report, but the server-side OCR/chunk/embed work (the
+  // vast majority of the real wait) is only just starting. This interval
+  // smoothly animates the bar the rest of the way based on a time estimate,
+  // so it never falsely sits at 100% while the user is still waiting.
+  const serverPhaseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const serverPhaseStartRef = useRef<number | null>(null);
 
   // Circular's issue date (the value sent as publishedAt).
   const [publishedDate, setPublishedDate] = useState<DateTime | null>(null);
@@ -70,7 +79,36 @@ export function CircularUploadModal({
 
   const today = DateTime.local().startOf("day");
 
+  /** Starts the phase-2 animation: smoothly approaches, but never reaches,
+   *  95% based on CIRCULAR_UPLOAD_ESTIMATED_SECONDS -- the actual jump to
+   *  100% only ever happens when the real response arrives (handleSubmit's
+   *  success branch), so a slower-than-usual upload never shows a false
+   *  "done" signal. Guarded so calling it twice (e.g. a duplicate 100%
+   *  onUploadProgress event) doesn't start a second interval. */
+  const startServerPhaseAnimation = useCallback(() => {
+    if (serverPhaseIntervalRef.current) return;
+    serverPhaseStartRef.current = Date.now();
+    serverPhaseIntervalRef.current = setInterval(() => {
+      const elapsedSeconds = (Date.now() - (serverPhaseStartRef.current ?? Date.now())) / 1000;
+      // Exponential approach from 15% toward 95%, using the estimate as the
+      // time constant -- fast progress early, naturally slowing down rather
+      // than stalling abruptly if the real job runs longer than estimated.
+      const next =
+        95 - (95 - 15) * Math.exp(-elapsedSeconds / CIRCULAR_UPLOAD_ESTIMATED_SECONDS);
+      setUploadProgress(Math.min(95, Math.round(next)));
+    }, 500);
+  }, []);
+
+  const stopServerPhaseAnimation = useCallback(() => {
+    if (serverPhaseIntervalRef.current) {
+      clearInterval(serverPhaseIntervalRef.current);
+      serverPhaseIntervalRef.current = null;
+    }
+    serverPhaseStartRef.current = null;
+  }, []);
+
   const resetState = useCallback(() => {
+    stopServerPhaseAnimation();
     setHeadline("");
     setFile(null);
     setPreview(null);
@@ -79,7 +117,7 @@ export function CircularUploadModal({
     setErrorMessage("");
     setPublishedDate(null);
     setIsCalendarOpen(false);
-  }, []);
+  }, [stopServerPhaseAnimation]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles[0]) {
@@ -109,6 +147,13 @@ export function CircularUploadModal({
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
+
+  // Stop the phase-2 progress interval if the component unmounts mid-upload
+  // (e.g. the admin navigates away) -- otherwise it keeps ticking and
+  // calling setState on an unmounted component.
+  useEffect(() => {
+    return () => stopServerPhaseAnimation();
+  }, [stopServerPhaseAnimation]);
 
   // Lock background page scroll while this modal is open so mouse-wheel
   // scrolling inside the modal never bleeds through to the admin page behind it.
@@ -166,10 +211,20 @@ export function CircularUploadModal({
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / (progressEvent.total ?? 1),
           );
-          setUploadProgress(percentCompleted);
+          // Sending the file's bytes is genuinely a small fraction of the
+          // real wait -- the OCR/chunk/embed work that follows, entirely
+          // server-side, is where the other ~100+ seconds go. Map the real
+          // byte-progress into a small early band, and once it completes
+          // (all bytes sent), switch to the time-based estimate for the
+          // rest, so the bar doesn't falsely sit at 100% for the bulk of
+          // the actual wait.
+          setUploadProgress(Math.min(15, Math.round(percentCompleted * 0.15)));
+          if (percentCompleted >= 100) startServerPhaseAnimation();
         },
       });
 
+      stopServerPhaseAnimation();
+      setUploadProgress(100);
       setStatus("success");
       onUploadSuccess(response.data);
       setTimeout(() => {
@@ -177,6 +232,7 @@ export function CircularUploadModal({
         resetState();
       }, 5000);
     } catch (err: any) {
+      stopServerPhaseAnimation();
       console.error(err);
       setStatus("error");
       setErrorMessage(extractErrorMessage(err));

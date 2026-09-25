@@ -14,6 +14,24 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
+/** Vercel's own platform-level errors (a timeout, a 5xx) nest "error" as an
+ *  OBJECT, not a string -- err.response?.data?.error assumed it was always
+ *  a string, which crashed the whole page with React error #31 the moment
+ *  a real platform error occurred instead of one of this app's own route
+ *  errors. Mirrors the identical fix already applied to
+ *  CircularUploadModal.tsx. */
+function extractErrorMessage(err: any): string {
+  const data = err?.response?.data;
+  if (typeof data === "string" && data.trim()) return data;
+  const dataError = data?.error;
+  if (typeof dataError === "string" && dataError.trim()) return dataError;
+  if (dataError && typeof dataError.message === "string")
+    return dataError.message;
+  if (typeof err?.message === "string" && err.message.trim())
+    return err.message;
+  return "An unexpected error occurred.";
+}
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
@@ -49,11 +67,13 @@ export function HolidayUploadModal({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    // --- CHANGE 1: Restrict to .txt only ---
+    // Accepts both .txt and .json -- the backend parser already just reads
+    // the file as raw text and extracts the JSON substring regardless of
+    // extension, so this is purely a frontend affordance change.
     accept: {
       "text/plain": [".txt"],
+      "application/json": [".json"],
     },
-    // --- END CHANGE ---
     maxFiles: 1,
   });
 
@@ -91,9 +111,7 @@ export function HolidayUploadModal({
     } catch (err: any) {
       console.error(err);
       setStatus("error");
-      setErrorMessage(
-        err.response?.data?.error || "An unexpected error occurred."
-      );
+      setErrorMessage(extractErrorMessage(err));
     }
   };
 
@@ -153,7 +171,7 @@ export function HolidayUploadModal({
           </h2>
           <p className="text-neutral-500 mt-1">
             {/* --- CHANGE 2: Update helper text --- */}
-            Upload the official Holiday file (.txt) for {year}.
+            Upload the official Holiday file (.txt or .json) for {year}.
             {/* --- END CHANGE --- */}
           </p>
         </header>
@@ -180,7 +198,7 @@ export function HolidayUploadModal({
                 )}
                 <p className="text-sm mt-1">
                   {/* --- CHANGE 3: Update dropzone text --- */}
-                  Accepts .txt files only — up to 10MB
+                  Accepts .txt or .json files — up to 10MB
                   {/* --- END CHANGE --- */}
                 </p>
               </div>

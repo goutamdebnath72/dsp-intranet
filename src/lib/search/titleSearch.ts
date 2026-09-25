@@ -6,7 +6,7 @@ import { DateTime } from "luxon";
 
 export type SearchResultRow = {
   id: number;
-  type: "circular" | "announcement";
+  type: "circular" | "announcement" | "holiday";
   headline: string;
   url: string | null;
   publishedAt: string | null;

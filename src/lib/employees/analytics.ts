@@ -17,6 +17,7 @@ import {
 import { parseAnalytics } from "./parser";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { queryHolidays, type HolidayRow } from "@/lib/holidays/analytics";
+import { HolidayType } from "@/lib/db/models/holiday-master.model";
 import { TYPE_LABEL as HOLIDAY_TYPE_LABEL, MONTH_LABEL } from "@/lib/holidays/terms";
 
 async function userRepo() {
@@ -377,6 +378,16 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
   const intent = await parseAnalytics(q);
   if (!intent) return null;
 
+  // Shared across every holiday case below: a result with yearAvailable ===
+  // false means the requested year simply isn't loaded. Say so plainly
+  // instead of returning null (which hands off to circular/semantic search
+  // and surfaces confusing, unrelated-looking results for what is really
+  // just "that year isn't loaded yet").
+  const holidayYearNotLoaded = (year: number): AnalyticsPayload => ({
+    kind: "pending",
+    answer: `I don't have holiday data loaded for ${year} yet.`,
+  });
+
   switch (intent.kind) {
     case "deptUnknown":
       return {
@@ -484,35 +495,122 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
     // ==========================================================================
     // Stage 2 — holidays. queryHolidays() is the one parameterized worker; every
     // case below just shapes its result into an AnalyticsPayload. A result with
-    // yearAvailable === false means the requested year isn't loaded (handoff
-    // §2.2 future-year guard) — returning null here hands off to the existing
-    // hybrid circular search, which is exactly right (e.g. next year's list may
-    // already exist as a circular even though holidayyear isn't seeded yet).
+    // yearAvailable === false means the requested year isn't loaded at all --
+    // this must say so plainly (see holidayYearNotLoaded below) rather than
+    // return null, which hands off to circular/semantic search and produces
+    // confusing, unrelated-looking results for what is really just an honest
+    // "that year isn't loaded yet."
     // ==========================================================================
     case "holidayCount": {
-      const res = await queryHolidays({ op: "count", filters: { year: intent.year, type: intent.type } });
-      if (res.yearAvailable === false) return null;
+      // Closed holidays apply to EVERY employee category -- holidayyear
+      // never sets `categories` on a CH row (see queryHolidays' buildWhere
+      // comment), so filtering a CH count by category would always
+      // silently return 0. That reads as "Category X gets none," which is
+      // the opposite of the truth. Drop the inapplicable filter and say so.
+      if (intent.type === HolidayType.CH && intent.category) {
+        const res = await queryHolidays({ op: "count", filters: { year: intent.year, type: intent.type } });
+        if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
+        const noun = res.count === 1 ? "Closed holiday" : "Closed holidays";
+        return {
+          kind: "count",
+          count: res.count,
+          answer: `Closed holidays apply to every employee category, including Category ${intent.category} — there ${res.count === 1 ? "is" : "are"} ${res.count.toLocaleString()} ${noun} in ${intent.year}.`,
+        };
+      }
+
+      // Restricted Holiday entitlement per category is a QUOTA fact
+      // (holiday_rh_quota) -- RH rows themselves never carry a category
+      // either (same reason as CH above), so a plain row-count filtered by
+      // category would also always silently return 0. Answer from the
+      // real source instead.
+      if (intent.type === HolidayType.RH && intent.category) {
+        const quotaRes = await queryHolidays({
+          op: "rhQuota",
+          filters: { year: intent.year, category: intent.category },
+        });
+        if (quotaRes.yearAvailable === false) return holidayYearNotLoaded(intent.year);
+        const row = (quotaRes.rhQuota ?? [])[0];
+        if (!row) {
+          return {
+            kind: "pending",
+            answer: `I couldn't find an RH quota for Category ${intent.category} in ${intent.year}.`,
+          };
+        }
+        const noun = row.quota === 1 ? "Restricted Holiday" : "Restricted Holidays";
+        return {
+          kind: "count",
+          count: row.quota,
+          answer: `Restricted Holidays aren't assigned per category — Category ${row.category} can choose ${row.quota} ${noun} in ${intent.year} from the full RH list.`,
+        };
+      }
+
+      const res = await queryHolidays({
+        op: "count",
+        filters: { year: intent.year, type: intent.type, category: intent.category },
+      });
+      if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
       const label = intent.type ? `${HOLIDAY_TYPE_LABEL[intent.type]} holiday` : "holiday";
       const noun = res.count === 1 ? label : `${label}s`;
+      const forCategory = intent.category ? ` for Category ${intent.category}` : "";
       return {
         kind: "count",
         count: res.count,
-        answer: `There ${res.count === 1 ? "is" : "are"} ${res.count.toLocaleString()} ${noun} in ${intent.year}.`,
+        answer: `There ${res.count === 1 ? "is" : "are"} ${res.count.toLocaleString()} ${noun} in ${intent.year}${forCategory}.`,
       };
     }
 
     case "holidayList": {
+      // Same reasoning as holidayCount above: CH applies to every category,
+      // so a category filter on a CH list is dropped and the answer says
+      // so explicitly, instead of "No Closed holidays found ... for
+      // Category A" -- which reads as Category A getting none, when in
+      // fact they get every one of them, same as everyone else.
+      if (intent.type === HolidayType.CH && intent.category) {
+        const res = await queryHolidays({ op: "list", filters: { year: intent.year, type: intent.type, month: intent.month } });
+        if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
+        const rows = res.holidays ?? [];
+        const scope = intent.month ? ` in ${MONTH_LABEL[intent.month]}` : "";
+        const answer = rows.length
+          ? `Closed holidays apply to every employee category, including Category ${intent.category} — ${rows.length} in ${intent.year}${scope}.`
+          : `No Closed holidays found in ${intent.year}${scope} (this applies to every employee category, including Category ${intent.category}).`;
+        return { kind: "count", count: rows.length, answer, holidays: rows };
+      }
+
+      // RH per-category entitlement is a QUOTA, not a distinct subset of
+      // the RH list -- every employee picks from the same master list, so
+      // "restricted holidays for Category D" has no different list than
+      // the full one. Show the full list plus the real quota fact together,
+      // rather than a category filter that would always silently be empty.
+      if (intent.type === HolidayType.RH && intent.category) {
+        const [listRes, quotaRes] = await Promise.all([
+          queryHolidays({ op: "list", filters: { year: intent.year, type: intent.type, month: intent.month } }),
+          queryHolidays({ op: "rhQuota", filters: { year: intent.year, category: intent.category } }),
+        ]);
+        if (listRes.yearAvailable === false || quotaRes.yearAvailable === false) {
+          return holidayYearNotLoaded(intent.year);
+        }
+        const rows = listRes.holidays ?? [];
+        const quotaRow = (quotaRes.rhQuota ?? [])[0];
+        const quotaText = quotaRow
+          ? ` Category ${quotaRow.category}'s quota is ${quotaRow.quota} of these.`
+          : "";
+        const scope = intent.month ? ` in ${MONTH_LABEL[intent.month]}` : "";
+        const answer = `Restricted Holidays aren't assigned per category — here ${rows.length === 1 ? "is" : "are"} all ${rows.length} in ${intent.year}${scope}.${quotaText}`;
+        return { kind: "count", count: rows.length, answer, holidays: rows };
+      }
+
       const res = await queryHolidays({
         op: "list",
-        filters: { year: intent.year, type: intent.type, month: intent.month },
+        filters: { year: intent.year, type: intent.type, month: intent.month, category: intent.category },
       });
-      if (res.yearAvailable === false) return null;
+      if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
       const rows = res.holidays ?? [];
       const label = intent.type ? `${HOLIDAY_TYPE_LABEL[intent.type]} holiday` : "holiday";
       const scope = intent.month ? ` in ${MONTH_LABEL[intent.month]}` : "";
+      const forCategory = intent.category ? ` for Category ${intent.category}` : "";
       const answer = rows.length
-        ? `${rows.length} ${rows.length === 1 ? label : `${label}s`} in ${intent.year}${scope}.`
-        : `No ${label}s found in ${intent.year}${scope}.`;
+        ? `${rows.length} ${rows.length === 1 ? label : `${label}s`} in ${intent.year}${scope}${forCategory}.`
+        : `No ${label}s found in ${intent.year}${scope}${forCategory}.`;
       return {
         kind: "count",
         count: rows.length,
@@ -523,7 +621,7 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
 
     case "holidayBreakdown": {
       const res = await queryHolidays({ op: "breakdown", filters: { year: intent.year } });
-      if (res.yearAvailable === false) return null;
+      if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
       const byType = res.byType ?? [];
       const rows: BreakdownRow[] = byType.map((b) => ({
         designation: b.type,
@@ -573,6 +671,9 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
       const yearGiven = intent.year != null;
       const firstYear = intent.year ?? now.year;
       let res = await queryHolidays({ op: "list", filters: { name: intent.name, year: firstYear } });
+      if (yearGiven && res.yearAvailable === false) {
+        return holidayYearNotLoaded(firstYear);
+      }
       if ((res.holidays?.length ?? 0) === 0 && !yearGiven) {
         // No hit in the default (current) year -- search any loaded year.
         res = await queryHolidays({ op: "list", filters: { name: intent.name, year: null } });
@@ -587,9 +688,10 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
       if (rows.length === 1) {
         const r = rows[0];
         const d = DateTime.fromISO(r.date);
+        const noteText = r.note ? ` ${r.note}` : "";
         return {
           kind: "count",
-          answer: `${r.name} falls on ${d.toFormat("d LLLL yyyy")} (${HOLIDAY_TYPE_LABEL[r.type]}).`,
+          answer: `${r.name} falls on ${d.toFormat("d LLLL yyyy")} (${HOLIDAY_TYPE_LABEL[r.type]}).${noteText}`,
         };
       }
       const lines = rows.map((r) => {
@@ -604,7 +706,7 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
         ? { date: intent.date, year: intent.year }
         : { name: intent.name, year: intent.year };
       const res = await queryHolidays({ op: "list", filters });
-      if (res.yearAvailable === false) return null;
+      if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
       const rows = res.holidays ?? [];
       if (rows.length === 0) {
         const what = intent.date
@@ -613,19 +715,60 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
         return { kind: "pending", answer: `${what} isn't a holiday in the loaded calendar.` };
       }
       const lines = rows.map((r) => `${r.name} (${HOLIDAY_TYPE_LABEL[r.type]})`);
-      return { kind: "count", answer: `${lines.join(" and ")}.` };
+      const notes = Array.from(new Set(rows.map((r) => r.note).filter((n): n is string => !!n)));
+      const noteText = notes.length ? ` ${notes.join(" ")}` : "";
+      return { kind: "count", answer: `${lines.join(" and ")}.${noteText}` };
     }
 
     case "holidayExists": {
       const res = await queryHolidays({ op: "list", filters: { date: intent.date, year: intent.year } });
-      if (res.yearAvailable === false) return null;
+      if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
       const rows = res.holidays ?? [];
       const dateLabel = `${intent.date.day} ${MONTH_LABEL[intent.date.month]} ${intent.year}`;
       if (rows.length === 0) {
         return { kind: "count", answer: `No, ${dateLabel} is not a holiday.` };
       }
       const names = rows.map((r) => `${r.name} (${HOLIDAY_TYPE_LABEL[r.type]})`).join(" and ");
-      return { kind: "count", answer: `Yes — ${dateLabel} is ${names}.` };
+      const notes = Array.from(new Set(rows.map((r) => r.note).filter((n): n is string => !!n)));
+      const noteText = notes.length ? ` ${notes.join(" ")}` : "";
+      return { kind: "count", answer: `Yes — ${dateLabel} is ${names}.${noteText}` };
+    }
+
+    case "holidayInvalidCategory":
+      return {
+        kind: "pending",
+        answer: `Category ${intent.input} is not a valid employee category`,
+      };
+
+    case "holidayRhQuota": {
+      const res = await queryHolidays({
+        op: "rhQuota",
+        filters: { year: intent.year, category: intent.category },
+      });
+      if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
+      const rows = res.rhQuota ?? [];
+      if (rows.length === 0) {
+        const scope = intent.category ? ` for Category ${intent.category}` : "";
+        return {
+          kind: "pending",
+          answer: `I couldn't find an RH quota${scope} in ${intent.year}.`,
+        };
+      }
+      if (intent.category) {
+        const r = rows[0];
+        const noun = r.quota === 1 ? "Restricted Holiday" : "Restricted Holidays";
+        return {
+          kind: "count",
+          count: r.quota,
+          answer: `Category ${r.category} can take ${r.quota} ${noun} in ${intent.year}.`,
+        };
+      }
+      const parts = rows.map((r) => `Category ${r.category}: ${r.quota}`);
+      return {
+        kind: "count",
+        count: rows.reduce((s, r) => s + r.quota, 0),
+        answer: `RH quota for ${intent.year} — ${parts.join(", ")}.`,
+      };
     }
   }
   return null;

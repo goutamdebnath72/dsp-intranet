@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition, useEffect } from "react";
 import { mutate } from "swr";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 import RichTextEditor from "@/components/RichTextEditor";
 
@@ -31,11 +31,7 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
           setContent(data.content || "");
           setInitialContent(data.content || "");
         })
-        .catch(() =>
-          toast.error("Failed to load announcement for editing.", {
-            position: "top-left",
-          }),
-        );
+        .catch(() => toast.error("Failed to load announcement for editing."));
     }
   }, [editId]);
 
@@ -74,17 +70,11 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
       if (response.ok) {
         if (!isEdit) {
           toast.success(
-            `Announcement published! You can modify or delete this for the next ${EDIT_DELETE_WINDOW_HOURS} hours.`,
-            {
-              duration: 6000,
-              position: "top-left",
-              style: { marginLeft: "120px" },
-            },
+            `✅ Announcement published! You can modify or delete this for the next ${EDIT_DELETE_WINDOW_HOURS} hours.`,
+            { duration: 6000 },
           );
         } else {
-          toast.success("Announcement updated successfully!", {
-            position: "top-left",
-          });
+          toast.success("✅ Announcement updated successfully!");
         }
 
         // Reset form fields
@@ -96,16 +86,13 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
         mutate("/api/announcements?u=");
       } else {
         const error = await response.json();
-        toast.error(`Error: ${error.error || "Failed to save announcement."}`, {
-          position: "top-left",
-        });
+        toast.error(`Error: ${error.error || "Failed to save announcement."}`);
       }
     });
   };
 
   return (
     <>
-      <Toaster position="top-left" />
       <form onSubmit={handleSubmit} className="w-full max-w-2xl">
         <div>
           <label

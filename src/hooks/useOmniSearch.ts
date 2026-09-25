@@ -7,7 +7,7 @@ export type SearchMode = "title" | "semantic" | "intellectual" | null;
 
 export interface OmniSearchResult {
   id: number;
-  type: "circular" | "announcement";
+  type: "circular" | "announcement" | "holiday";
   headline: string;
   url: string | null;
   publishedAt: string | null;
