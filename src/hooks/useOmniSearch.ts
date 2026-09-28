@@ -28,12 +28,14 @@ export interface AnalyticsBreakdownRow {
 export interface AnalyticsHolidayRow {
   id: number;
   name: string;
+  aliases: string[] | null;
   type: "CH" | "FH" | "RH";
   date: string;
+  categories: string | null;
 }
 
 export interface AnalyticsAnswer {
-  kind: "count" | "total" | "breakdown" | "pending";
+  kind: "count" | "total" | "breakdown" | "pending" | "error";
   answer: string;
   label?: string;
   count?: number;
@@ -42,6 +44,18 @@ export interface AnalyticsAnswer {
   listTruncated?: boolean;
   /** Stage 2: holiday rows for a holiday list query. */
   holidays?: AnalyticsHolidayRow[];
+  /** Per-type (RH/CH/FH) tally for a holiday list query, only present when
+   *  no single type was already filtered on. `count` above is the
+   *  DISTINCT-holiday number; rawEntryCount is the raw (date,type) row
+   *  total that count deliberately excludes the double-counting from.
+   *  Mirrors AnalyticsPayload in src/lib/employees/analytics.ts -- keep
+   *  the two in sync if either changes. */
+  typeBreakdown?: { type: string; label: string; count: number }[];
+  rawEntryCount?: number;
+  /** Per-category RH quota (holiday_rh_quota) alongside a holiday list. */
+  rhQuotaByCategory?: { category: string; quota: number }[];
+  /** What A/B/C/D actually mean -- see CATEGORY_LABEL in holidays/terms.ts. */
+  categoryLabels?: Record<string, string>;
 }
 
 export interface OmniSearchResponse {
