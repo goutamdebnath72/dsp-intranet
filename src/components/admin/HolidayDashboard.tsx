@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import { AnimatePresence, motion } from "framer-motion";
 import { CalendarDays, ChevronDown, AlertTriangle } from "lucide-react";
 import { HolidayUploadModal } from "./HolidayUploadModal";
@@ -34,7 +34,7 @@ interface PendingExtraction {
 }
 
 export function HolidayDashboard() {
-  const { data: session } = useSession();
+  const { data: session } = useVerifiedSession();
   const reviewerTicket = (session?.user as any)?.ticketNo ?? null;
 
   const [selectedYear, setSelectedYear] = useState<number | "">("");

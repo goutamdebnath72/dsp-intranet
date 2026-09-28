@@ -14,9 +14,7 @@
 //    - Endpoint: https://api.groq.com/openai/v1/chat/completions
 //    - response_format: { type: "json_object" }
 //    - temperature: 0.1
-//    - max_tokens: 3000
-//    - Local-dev fallback: Ollama, model "llama3.1:latest", used when
-//      AI_ENVIRONMENT=local AND NODE_ENV=development
+//    - max_tokens: 3000    
 //    - Env var: GROQ_API_KEY
 //
 // 2. generateChatResponse (this file, below) -- used by the holiday

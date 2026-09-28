@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from "react";
-import { useSession } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { DateTime } from "luxon";
@@ -44,7 +44,7 @@ function ActionBadge({ action }: { action: string }) {
 }
 
 function AccessLogContent() {
-  const { data: session, status } = useSession();
+  const { data: session, status } = useVerifiedSession();
   const isSuper = (session?.user as any)?.isSuperAdmin === true;
 
   const [rows, setRows] = useState<LogRow[]>([]);

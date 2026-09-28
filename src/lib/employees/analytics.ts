@@ -18,7 +18,7 @@ import { parseAnalytics } from "./parser";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { queryHolidays, type HolidayRow } from "@/lib/holidays/analytics";
 import { HolidayType } from "@/lib/db/models/holiday-master.model";
-import { TYPE_LABEL as HOLIDAY_TYPE_LABEL, MONTH_LABEL } from "@/lib/holidays/terms";
+import { TYPE_LABEL as HOLIDAY_TYPE_LABEL, CATEGORY_LABEL, MONTH_LABEL } from "@/lib/holidays/terms";
 
 async function userRepo() {
   const ds = await getDb();
@@ -363,7 +363,7 @@ export async function listPeople(
 }
 
 export interface AnalyticsPayload {
-  kind: "count" | "total" | "breakdown" | "pending";
+  kind: "count" | "total" | "breakdown" | "pending" | "error";
   answer: string;
   label?: string;
   count?: number;
@@ -372,6 +372,21 @@ export interface AnalyticsPayload {
   listTruncated?: boolean;
   /** Stage 2: holiday rows for a holiday list query (rendered like People). */
   holidays?: HolidayRow[];
+  /** Per-type (RH/CH/FH) tally for a holiday list query, only present when
+   *  no single type was already filtered on. `count` above is the
+   *  DISTINCT-holiday number (see holidayList's comment); rawEntryCount is
+   *  the raw (date,type) row total that count deliberately excludes the
+   *  double-counting from. */
+  typeBreakdown?: { type: string; label: string; count: number }[];
+  rawEntryCount?: number;
+  /** Per-category RH quota (holiday_rh_quota) alongside a holiday list --
+   *  see the holidayList case's comment for why this can't be represented
+   *  as simple per-row category ticks the way FH/CH can. */
+  rhQuotaByCategory?: { category: string; quota: number }[];
+  /** What A/B/C/D actually mean -- see CATEGORY_LABEL in holidays/terms.ts.
+   *  Present alongside rhQuotaByCategory so the frontend never shows bare
+   *  category letters without an explanation of who they refer to. */
+  categoryLabels?: Record<string, string>;
 }
 
 export async function answerAnalytics(q: string): Promise<AnalyticsPayload | null> {
@@ -386,6 +401,33 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
   const holidayYearNotLoaded = (year: number): AnalyticsPayload => ({
     kind: "pending",
     answer: `I don't have holiday data loaded for ${year} yet.`,
+  });
+
+  // Describes a months filter for the answer sentence: none -> "in 2025",
+  // one -> "in March 2025", two or more -> "in March, April and May 2025".
+  const monthsLabel = (months: number[] | null, year?: number): string => {
+    if (!months || months.length === 0) return year != null ? ` in ${year}` : "";
+    const names = months.map((m) => MONTH_LABEL[m]);
+    const joined =
+      names.length === 1
+        ? names[0]
+        : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    return ` in ${joined}${year != null ? ` ${year}` : ""}`;
+  };
+
+  const formatIsoDate = (iso: string | null): string => {
+    if (!iso) return "";
+    const d = DateTime.fromISO(iso);
+    return d.isValid ? d.toFormat("d LLL yyyy") : iso;
+  };
+
+  // A query that's internally contradictory or names input this parser
+  // can't confidently resolve -- see HolidayIntent's "holidayBadQuery"
+  // comment for why this must be a visible rejection, never a silent
+  // reinterpretation. Rendered in red by the frontend (kind: "error").
+  const holidayBadQuery = (message: string): AnalyticsPayload => ({
+    kind: "error",
+    answer: message,
   });
 
   switch (intent.kind) {
@@ -566,10 +608,10 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
       // Category A" -- which reads as Category A getting none, when in
       // fact they get every one of them, same as everyone else.
       if (intent.type === HolidayType.CH && intent.category) {
-        const res = await queryHolidays({ op: "list", filters: { year: intent.year, type: intent.type, month: intent.month } });
+        const res = await queryHolidays({ op: "list", filters: { year: intent.year, type: intent.type, months: intent.months } });
         if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
         const rows = res.holidays ?? [];
-        const scope = intent.month ? ` in ${MONTH_LABEL[intent.month]}` : "";
+        const scope = monthsLabel(intent.months);
         const answer = rows.length
           ? `Closed holidays apply to every employee category, including Category ${intent.category} — ${rows.length} in ${intent.year}${scope}.`
           : `No Closed holidays found in ${intent.year}${scope} (this applies to every employee category, including Category ${intent.category}).`;
@@ -583,7 +625,7 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
       // rather than a category filter that would always silently be empty.
       if (intent.type === HolidayType.RH && intent.category) {
         const [listRes, quotaRes] = await Promise.all([
-          queryHolidays({ op: "list", filters: { year: intent.year, type: intent.type, month: intent.month } }),
+          queryHolidays({ op: "list", filters: { year: intent.year, type: intent.type, months: intent.months } }),
           queryHolidays({ op: "rhQuota", filters: { year: intent.year, category: intent.category } }),
         ]);
         if (listRes.yearAvailable === false || quotaRes.yearAvailable === false) {
@@ -594,28 +636,88 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
         const quotaText = quotaRow
           ? ` Category ${quotaRow.category}'s quota is ${quotaRow.quota} of these.`
           : "";
-        const scope = intent.month ? ` in ${MONTH_LABEL[intent.month]}` : "";
+        const scope = monthsLabel(intent.months);
         const answer = `Restricted Holidays aren't assigned per category — here ${rows.length === 1 ? "is" : "are"} all ${rows.length} in ${intent.year}${scope}.${quotaText}`;
         return { kind: "count", count: rows.length, answer, holidays: rows };
       }
 
       const res = await queryHolidays({
         op: "list",
-        filters: { year: intent.year, type: intent.type, month: intent.month, category: intent.category },
+        filters: {
+          year: intent.year,
+          type: intent.type,
+          months: intent.months,
+          category: intent.category,
+          fromDate: intent.fromDate,
+          toDate: intent.toDate,
+        },
       });
       if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
       const rows = res.holidays ?? [];
+
+      // A holiday can carry two type rows for the same real day (the
+      // documented "same holiday, same year" dual FH/RH pattern -- see
+      // holidays/analytics.ts's schema-facts comment). The headline count
+      // should reflect distinct holiday occasions, not raw (date,type)
+      // rows, which double-counts those days -- 13 dual-type days in a
+      // year otherwise inflate "39 holidays" into a misleading "52".
+      // OmnibarModal.tsx's table groups by the same (date + name) key, so
+      // this number matches what the person can actually count in the
+      // table below it.
+      const distinctCount = new Set(rows.map((r) => `${r.date}|${r.name}`)).size;
+
       const label = intent.type ? `${HOLIDAY_TYPE_LABEL[intent.type]} holiday` : "holiday";
-      const scope = intent.month ? ` in ${MONTH_LABEL[intent.month]}` : "";
+      const scope = intent.toDate
+        ? ` from ${formatIsoDate(intent.fromDate)} to ${formatIsoDate(intent.toDate)}`
+        : intent.fromDate
+          ? ` from today to 31 Dec ${intent.year}`
+          : monthsLabel(intent.months, intent.year);
       const forCategory = intent.category ? ` for Category ${intent.category}` : "";
-      const answer = rows.length
-        ? `${rows.length} ${rows.length === 1 ? label : `${label}s`} in ${intent.year}${scope}${forCategory}.`
-        : `No ${label}s found in ${intent.year}${scope}${forCategory}.`;
+      const answer = distinctCount
+        ? `${distinctCount} ${distinctCount === 1 ? label : `${label}s`}${scope}${forCategory}.`
+        : `No ${label}s found${scope}${forCategory}.`;
+
+      // Per-type tally, from these SAME filtered rows (so month/category
+      // filters stay consistent with the list itself) -- only meaningful
+      // when no single type was already asked for; a type-filtered list
+      // only ever has one type, so a breakdown of it would be pointless.
+      const typeBreakdown =
+        !intent.type && rows.length > 0
+          ? (Object.values(HolidayType) as HolidayType[]).map((t) => ({
+              type: t,
+              label: HOLIDAY_TYPE_LABEL[t],
+              count: rows.filter((r) => r.type === t).length,
+            }))
+          : undefined;
+
+      // Per-category RH quota (holiday_rh_quota, a YEAR-level policy fact,
+      // not a per-row one) -- fetched alongside the list so the frontend can
+      // show real, complete category information without a second round
+      // trip. This matters specifically because RH categories work
+      // differently from CH/FH: CH applies to every category (no per-row
+      // data needed), FH is restricted to whichever categories its own row
+      // names, but RH is a SHARED POOL every category can pick from -- the
+      // real per-category fact for RH isn't "which categories can use this
+      // holiday" (all of them can) but "how many they're allowed to pick,
+      // which differs by category." Showing all four categories ticked for
+      // an RH row without this quota alongside it would itself be a new,
+      // subtler version of the same "technically true but misleading"
+      // problem this whole feature has been fixing.
+      let rhQuotaByCategory: { category: string; quota: number }[] | undefined;
+      if (!intent.type && rows.length > 0) {
+        const quotaRes = await queryHolidays({ op: "rhQuota", filters: { year: intent.year } });
+        rhQuotaByCategory = quotaRes.rhQuota ?? [];
+      }
+
       return {
         kind: "count",
-        count: rows.length,
+        count: distinctCount,
         answer,
         holidays: rows,
+        typeBreakdown,
+        rawEntryCount: rows.length,
+        rhQuotaByCategory,
+        categoryLabels: rhQuotaByCategory ? CATEGORY_LABEL : undefined,
       };
     }
 
@@ -738,6 +840,22 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
       return {
         kind: "pending",
         answer: `Category ${intent.input} is not a valid employee category`,
+      };
+
+    case "holidayBadQuery":
+      return holidayBadQuery(intent.message);
+
+    case "holidayNotificationRequest":
+      // Deliberately NOT a data answer, and deliberately NOT routed to
+      // circular/semantic search either -- "holiday notification 2025" is
+      // asking for a standing alert (something shown at login, going
+      // forward), not a one-off lookup this parser can serve. Being honest
+      // that this doesn't exist yet is better than silently answering the
+      // word "notification" as if it meant "list."
+      return {
+        kind: "pending",
+        answer:
+          "I can't set up notifications yet -- that would need its own feature: a reminder shown when you log in, with its own subscribe and unsubscribe controls. I can tell you the upcoming holidays right now if that helps in the meantime -- just ask \"upcoming holidays.\"",
       };
 
     case "holidayRhQuota": {

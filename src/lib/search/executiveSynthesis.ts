@@ -159,11 +159,97 @@ function condenseForSynthesis(text: string): string {
   return out || t.slice(0, SYNTH_CONTEXT_BUDGET);
 }
 
+// ----------------------------------------------------------------------------
+// SOURCE RELEVANCE PRE-FILTER
+//
+// This is a second, independent checkpoint layered on top of the existing
+// search/qualification ranking in route.ts -- it does not replace or touch
+// that ranking (which stays untouched, same blast-radius reasoning as the
+// earlier smartSemanticRouter.ts fix). It only removes candidates that
+// ranking let through but that are DECISIVELY wrong on two specific,
+// checkable axes, BEFORE they ever reach the LLM as context -- not just
+// hidden from the citation list afterward (that's the separate, already-
+// shipped keyFindings-based filter further down in buildResult; this is
+// upstream of it, so a wrong source doesn't even get a chance to influence
+// what the model writes).
+//
+//   1. YEAR MISMATCH: the query names an explicit year, and the candidate's
+//      own HEADLINE names a DIFFERENT explicit year. Deliberately checks the
+//      HEADLINE's own stated year, not `publishedAt`'s calendar year -- this
+//      corpus's holiday-list circulars are routinely published in December
+//      of the PRIOR year (the 2023 Holiday List circular is dated
+//      26/12/2022), so comparing publishedAt's year directly would wrongly
+//      exclude the correct source. A circular whose own title says "-2025"
+//      answering a question about 2023 is unambiguously wrong regardless of
+//      when it was filed.
+//   2. POPULATION MISMATCH: the query does not mention contract/contractor
+//      workers at all, but the candidate's headline is specifically about
+//      contract/contractor workers -- a distinct, differently-administered
+//      population in this corpus (see the recurring "Holidays & Leaves for
+//      Contractor Workers" circulars), never the right source for an
+//      ordinary DSP-employee policy question.
+//
+// Both checks are decisive (not scored/probabilistic) on purpose: this is
+// exactly what was missing when "why is Maha Shivratri an extra holiday in
+// 2023?" pulled in a 2025-dated Holiday List circular and two contractor-
+// worker circulars at 88-90% match -- nothing upstream ever asked "does
+// this source even claim to be about the right year and the right
+// population," only "is this vector/lexically close enough."
+//
+// Deliberately narrow: this does NOT attempt full topical/semantic
+// relevance -- a same-year, same-population but only tangentially related
+// source (e.g. a generic Compensatory Off policy chunk) still passes this
+// filter. Closing that gap is a much larger piece of work, intentionally
+// left for a dedicated pass on the executive synthesis engine, not bundled
+// into this fix.
+// ----------------------------------------------------------------------------
+const YEAR_RE = /\b(20\d{2})\b/g;
+const CONTRACTOR_RE = /\bcontract(?:or)?s?\b/i;
+
+function extractYearsFromText(text: string): number[] {
+  const out: number[] = [];
+  const matches = (text || "").match(YEAR_RE);
+  if (matches) for (const m of matches) out.push(parseInt(m, 10));
+  return out;
+}
+
+function filterSourcesForRelevance(
+  q: string,
+  records: SearchResultRow[],
+): SearchResultRow[] {
+  const queryYears = extractYearsFromText(q);
+  const queryMentionsContractor = CONTRACTOR_RE.test(q || "");
+
+  const clean = records.filter((r) => {
+    const headline = r.headline || "";
+    const headlineYears = extractYearsFromText(headline);
+    const yearMismatch =
+      queryYears.length > 0 &&
+      headlineYears.length > 0 &&
+      !headlineYears.some((y) => queryYears.includes(y));
+
+    const populationMismatch =
+      !queryMentionsContractor && CONTRACTOR_RE.test(headline);
+
+    return !yearMismatch && !populationMismatch;
+  });
+
+  // Safety net: never zero out the candidate pool entirely. An imperfect
+  // answer from the original ranking is better than no answer at all if
+  // these heuristics happen to reject everything (e.g. every candidate's
+  // headline genuinely lacks a year and the query is very specific). If
+  // this fallback fires often in practice, that's a sign the heuristics
+  // need revisiting -- not a reason to hide the gap behind a silently empty
+  // result.
+  return clean.length > 0 ? clean : records;
+}
+
 export async function executeExecutiveSynthesis(
   q: string,
   records: SearchResultRow[],
 ): Promise<SynthesisResult> {
-  const sources = records.slice(0, 5);
+  const relevanceFiltered = filterSourcesForRelevance(q, records);
+  const sources = relevanceFiltered.slice(0, 5);
 
   const citations: SynthesisCitation[] = sources.map((r) => ({
     id: r.id,
@@ -699,13 +785,41 @@ function buildResult(
     .map((c) => groundChart(c, numberIsGrounded))
     .filter((c): c is SynthesisChart => c !== null);
 
+  // ---- CITATION RELEVANCE FILTER ---------------------------------------
+  // `citations` (the parameter above) was built from ALL of the top-5
+  // candidate records handed to the LLM as context, BEFORE the LLM ever
+  // saw them -- every candidate that cleared the upstream search/qualify
+  // filter shows up here unconditionally, regardless of whether it turned
+  // out to be topically relevant to the actual answer. That's what let a
+  // wrong-year Holiday List circular and two contractor-worker circulars
+  // appear as confident "primary sources" for an unrelated 2023 Category-B
+  // holiday question -- they cleared the noise floor, but were never
+  // relevant to what got synthesized.
+  //
+  // Key findings already track which ids they actually relied on
+  // (`keyFindings[].sources`, validated against `validIds` above); a
+  // source only earns a place in the final citation list if at least one
+  // surviving finding actually cites it. This does NOT touch the upstream
+  // qualification filter (route.ts) or which records get handed to the
+  // model at all -- only which of them get presented as "sources" in the
+  // final result.
+  //
+  // Known limitation: `table` and `chart` items don't currently carry
+  // per-item source ids (only `keyFindings` do), so an answer consisting
+  // only of a table/chart with no key findings will end up with an empty
+  // citation list. That's a deliberate consequence of this narrow fix, not
+  // a bug -- extending source-tracking to tables/charts is a separate,
+  // larger change.
+  const citedIds = new Set(keyFindings.flatMap((f) => f.sources));
+  const filteredCitations = citations.filter((c) => citedIds.has(c.id));
+
   return {
     overview: overview || "No synthesis could be derived.",
     headline: parsed.headline?.toString().trim() || undefined,
     keyFindings,
     table,
     charts,
-    citations,
+    citations: filteredCitations,
   };
 }
 

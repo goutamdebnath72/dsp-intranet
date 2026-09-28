@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { useModal } from "@/context/ModalContext";
+import { markTabSessionActive } from "./SessionGuard";
 import { StepOne } from "./StepOne";
 import { StepTwo } from "./StepTwo";
 
@@ -62,7 +63,7 @@ export default function LoginModal() {
       setIsLoading(false);
     } else {
       // ✅ SET THE TAB-SESSION MARKER
-      sessionStorage.setItem("is_session_active", "true");
+      markTabSessionActive();
 
       closeModal();
       router.refresh(); // Reload current page context

@@ -43,6 +43,17 @@ export const TYPE_LABEL: Record<HolidayType, string> = {
   [HolidayType.RH]: "Restricted",
 };
 
+// Confirmed from the actual holiday-list circulars for every seeded year
+// (2020-2026) -- this exact category table (name + description) appears
+// verbatim at the top of each one, unchanged year to year. Not derived,
+// not guessed -- copied from source.
+export const CATEGORY_LABEL: Record<"A" | "B" | "C" | "D", string> = {
+  A: "Executives (Works & Non-Works)",
+  B: "Non-industrial non-executives (Offices, Education Deptt & Kolkata Branch)",
+  C: "Industrial non-executives (Works & Non-Works)",
+  D: "Non-executive Trainees",
+};
+
 /** Resolve a free-text holiday-type mention to its enum, or null if none found. */
 export function resolveHolidayType(normalizedText: string): HolidayType | null {
   for (const { re, type } of TYPE_TERMS) {
@@ -130,6 +141,183 @@ export function parseMonthName(normalizedText: string): number | null {
   const m = normalizedText.match(MONTH_WORD_RE);
   if (!m) return null;
   return MONTH_NAMES[m[0]] ?? null;
+}
+
+/** All DISTINCT months named anywhere in the query, in the order first
+ *  mentioned -- for "holidays in March and April 2025" style queries.
+ *  parseMonthName (singular) only ever looks at the first match; this is
+ *  the same underlying regex, just collecting every match instead of one. */
+export function parseMonthNames(normalizedText: string): number[] {
+  const matches = normalizedText.match(MONTH_WORD_RE);
+  if (!matches) return [];
+  const seen = new Set<number>();
+  const out: number[] = [];
+  for (const raw of matches) {
+    const n = MONTH_NAMES[raw];
+    if (n && !seen.has(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  }
+  return out;
+}
+
+export interface SimpleDate {
+  year: number;
+  month: number;
+  day: number;
+}
+
+/** Try to read ONE date out of a short fragment (already isolated by the
+ *  caller -- see parseDateRange). Tries, in order: numeric "dd mm yyyy"
+ *  (the shape normTerm produces from "10/03/2025" or "10-03-2025", since it
+ *  turns "/" and "-" into spaces before this ever runs), "dd <month name>
+ *  [yyyy]", and "<month name> dd [yyyy]". Returns null rather than guess if
+ *  none of these three specific, well-defined shapes match -- an unrecognized
+ *  format should surface as "I couldn't read this date," never as a
+ *  silently-wrong one. */
+function tryParseOneDate(fragment: string): SimpleDate | null {
+  let m = fragment.match(/\b(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\b/);
+  if (m) {
+    const day = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10);
+    const year = parseInt(m[3], 10);
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) return { year, month, day };
+  }
+  m = fragment.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)\s*(20\d{2})?\b/);
+  if (m && MONTH_NAMES[m[2]]) {
+    const day = parseInt(m[1], 10);
+    const month = MONTH_NAMES[m[2]];
+    if (day >= 1 && day <= 31) {
+      return { year: m[3] ? parseInt(m[3], 10) : NaN, month, day };
+    }
+  }
+  m = fragment.match(/\b([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?\s*(20\d{2})?\b/);
+  if (m && MONTH_NAMES[m[1]]) {
+    const month = MONTH_NAMES[m[1]];
+    const day = parseInt(m[2], 10);
+    if (day >= 1 && day <= 31) {
+      return { year: m[3] ? parseInt(m[3], 10) : NaN, month, day };
+    }
+  }
+  return null;
+}
+
+export type DateRangeResult =
+  | { kind: "range"; from: SimpleDate; to: SimpleDate }
+  // A "from X to Y" / "between X and Y" STRUCTURE was clearly present, but
+  // one or both sides couldn't be read as a real date -- this must surface
+  // as a clear "couldn't understand" response, never silently fall back to
+  // a full-year list as if the range had never been mentioned.
+  | { kind: "ambiguous" }
+  // Both sides read as real dates, but at least one omitted its year.
+  // Deliberately NOT compensated by borrowing the other side's year or
+  // defaulting to the current year -- an incomplete query must be named as
+  // incomplete, not silently completed on the asker's behalf. See the
+  // "garbage in, garbage out" principle: a person who gets an unstated
+  // assumption instead of a clear rejection never learns to ask a complete
+  // question next time.
+  | { kind: "missing-year" }
+  // No range structure detected at all -- the caller should treat this
+  // query as an ordinary (non-range) holiday question.
+  | null;
+
+const RANGE_STRUCTURE_RE = /\b(from|between)\b.+\b(to|and|till|until)\b/;
+// Require something date-SHAPED to be present at all before treating a
+// "from X to Y" query as a date-range attempt -- otherwise a perfectly
+// ordinary "holidays from 2023 to 2025" (a bare year mention, not a date)
+// would get intercepted here and reported as an unparseable range, when it
+// was never meant to be one. This checks for a month name or a
+// dd-mm-yy(yy)-shaped numeric triple; a bare 4-digit year alone doesn't
+// count (it never has the internal spacing a 3-part triple needs).
+//
+// Deliberately widened to 2-4 digit trailing numbers, not just 20xx: a
+// genuine attempt at a date with a 2-digit year ("1/3/25 to 30/6/25") must
+// still be recognized as a date-range ATTEMPT so it gets the explicit
+// "couldn't read this, use dd/mm/yyyy" rejection -- tryParseOneDate below
+// still only accepts a full 4-digit year as valid, so this widening alone
+// can't cause a 2-digit year to be silently accepted; it only prevents the
+// query from being mistaken for "no range attempted at all" and silently
+// falling through to a default full-year list instead of being rejected.
+const RANGE_LOOKS_DATE_SHAPED_RE = new RegExp(
+  MONTH_WORD_RE.source + "|" + /\b\d{1,2}\s+\d{1,2}\s+\d{2,4}\b/.source,
+);
+
+/** Detects and parses an explicit custom date range ("from 10/03/2025 to
+ *  15/06/2025", "between 1st March and 30th June 2025"). Deliberately
+ *  narrow: only the three date shapes tryParseOneDate understands, and only
+ *  within a single calendar year (see the caller in parser.ts for why a
+ *  range spanning two years is reported as unsupported rather than
+ *  silently mishandled). Both dates must state their own year explicitly --
+ *  see "missing-year" above for why this is never inferred or defaulted. */
+export function parseDateRange(normalizedText: string, now: DateTime): DateRangeResult {
+  if (!RANGE_STRUCTURE_RE.test(normalizedText)) return null;
+  if (!RANGE_LOOKS_DATE_SHAPED_RE.test(normalizedText)) return null;
+
+  const split = normalizedText.match(/^(.*?)\b(?:from|between)\b(.+?)\b(?:to|and|till|until)\b(.+)$/);
+  // The RANGE_STRUCTURE_RE test above guarantees a "from/between ... to/and/
+  // till/until ..." shape exists, but re-matching with capture groups here
+  // could still fail on a pathological ordering -- treat that as ambiguous,
+  // not a crash.
+  if (!split) return { kind: "ambiguous" };
+
+  const fragA = split[2];
+  const fragB = split[3];
+  const a = tryParseOneDate(fragA);
+  const b = tryParseOneDate(fragB);
+  if (!a || !b) return { kind: "ambiguous" };
+
+  // Neither side's year is inferred from the other, and neither defaults to
+  // the current year -- a date range with an unstated year is an incomplete
+  // query, not a query this parser should complete on the person's behalf.
+  if (isNaN(a.year) || isNaN(b.year)) return { kind: "missing-year" };
+
+  return { kind: "range", from: a, to: b };
+}
+
+const NUMBER_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+  seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+
+export const RELATIVE_MONTHS_RE =
+  /\b(next|previous)\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)?\s*months?\b/;
+
+export type RelativeMonthsResult =
+  | { kind: "months"; year: number; months: number[] }
+  // The range would need to cross into a different calendar year (e.g.
+  // "previous 2 months" asked in January, or "next 3 months" asked in
+  // November) -- deliberately unsupported rather than silently clipped or
+  // silently shifted to the other year, per the same year-boundary
+  // discipline as parseDateRange's cross-year rejection.
+  | { kind: "cross-year"; wouldBeYear: number }
+  | null;
+
+/** "next month" / "next 2 months" / "next three months" / "previous month" /
+ *  "previous 4 months" -- resolved relative to `now`'s month, always within
+ *  `now`'s year. "Next month" means the single month right after the
+ *  current one (not including the current month); "next 2 months" means
+ *  the two months after that, and so on. Same shape for "previous." */
+export function parseRelativeMonths(normalizedText: string, now: DateTime): RelativeMonthsResult {
+  const m = normalizedText.match(RELATIVE_MONTHS_RE);
+  if (!m) return null;
+
+  const direction = m[1] as "next" | "previous";
+  const countRaw = m[2];
+  const count = countRaw ? (NUMBER_WORDS[countRaw] ?? parseInt(countRaw, 10)) : 1;
+  if (!count || count < 1) return null;
+
+  const months: number[] = [];
+  for (let i = 1; i <= count; i++) {
+    const offset = direction === "next" ? i : -i;
+    const target = now.plus({ months: offset });
+    if (target.year !== now.year) {
+      return { kind: "cross-year", wouldBeYear: target.year };
+    }
+    months.push(target.month);
+  }
+  months.sort((a, b) => a - b);
+  return { kind: "months", year: now.year, months };
 }
 
 // ----------------------------------------------------------------------------
@@ -361,7 +549,15 @@ export function findHolidayNameInText(
 // name, stripped in addition to the domain scaffolding (type/year/month/day)
 // so what's left is name-shaped before it's handed to the phonetic function
 // -- which expects a name-like string, not a full sentence.
-const QUESTION_FRAME_WORDS = /\b(when|what|which|is|are|falls?|fall|falling|date|on|the|a|an|of)\b/g;
+// "in" added after a live bug: "when is shivaratri in 2024" strips the year
+// via stripDomainScaffolding but left a dangling "in", producing the
+// fragment "shivaratri in" instead of "shivaratri" -- which then fails to
+// phonetically match "Maha Shivratri" (holiday_phonetic_match saw an extra
+// stray word it was never meant to encode). Confirmed live in the app
+// (Stage 4 Step 3 test): the query fell through to circular search instead
+// of resolving via the phonetic layer. Root cause was this preposition
+// never being in the strip list, not the phonetic function itself.
+const QUESTION_FRAME_WORDS = /\b(when|what|which|is|are|falls?|fall|falling|date|on|in|the|a|an|of)\b/g;
 
 // Local copy of parser.ts's HOLIDAY_WORD -- terms.ts can't import it back
 // from parser.ts (parser.ts already imports from terms.ts; that would be

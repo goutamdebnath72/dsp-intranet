@@ -24,9 +24,12 @@ import { normTerm } from "@/lib/employees/designations";
 import {
   resolveHolidayType,
   resolveCategory,
-  parseMonthName,
+  parseMonthNames,
   parseExplicitDate,
   parseRelativeDate,
+  parseDateRange,
+  parseRelativeMonths,
+  RELATIVE_MONTHS_RE,
   extractYears,
   getHolidayNames,
   findHolidayNameInText,
@@ -35,7 +38,15 @@ import {
 
 export type HolidayIntent =
   | { kind: "holidayCount"; year: number; type: HolidayType | null; category: string | null }
-  | { kind: "holidayList"; year: number; type: HolidayType | null; month: number | null; category: string | null }
+  | {
+      kind: "holidayList";
+      year: number;
+      type: HolidayType | null;
+      months: number[] | null;
+      category: string | null;
+      fromDate: string | null;
+      toDate: string | null;
+    }
   | { kind: "holidayBreakdown"; year: number }
   | { kind: "holidayCompare"; yearA: number; yearB: number; type: HolidayType | null }
   | { kind: "holidayFindOne"; name: string; year: number | null }
@@ -47,7 +58,20 @@ export type HolidayIntent =
     }
   | { kind: "holidayExists"; date: { month: number; day: number }; year: number }
   | { kind: "holidayRhQuota"; year: number; category: string | null }
-  | { kind: "holidayInvalidCategory"; input: string };
+  | { kind: "holidayInvalidCategory"; input: string }
+  // A query that is internally contradictory or names a shape of input this
+  // parser can't confidently resolve -- e.g. "upcoming holidays in 2023"
+  // (a past year can't be "upcoming"), or a "from X to Y" that doesn't
+  // parse as two real dates. Must surface as an explicit, visible rejection
+  // -- never silently reinterpreted into whatever the parser could salvage,
+  // and never silently handed to circular search as if this were an
+  // ordinary unstructured question.
+  | { kind: "holidayBadQuery"; message: string }
+  // "holiday notification 2025" / "notify me about holidays" -- asking for
+  // a genuinely different capability (a standing alert, not a one-off
+  // lookup) that doesn't exist yet. Must not be answered as if it were a
+  // normal list query.
+  | { kind: "holidayNotificationRequest" };
 
 const HOLIDAY_WORD = /\bholidays?\b/;
 const COMPARE_WORD = /\b(vs|versus|compared to|compare)\b/;
@@ -59,9 +83,34 @@ const TYPE_Q_WORD = /\b(what type|which type|type of|restricted or festival|fest
 const EXISTS_WORD = /\bis\b.*\bholiday\b|\bholiday\b.*\bis\b/;
 const RH_QUOTA_WORD =
   /\b(quota|entitled|entitlement|allowed)\b|\bcan\b.{0,25}\b(take|taken|takes|avail|availed|availing|choose|chosen|choosing)\b/;
+// "upcoming holidays" / "remaining holidays this year" / "what's left this
+// year" -- a genuinely different question from a plain year list: it means
+// "from TODAY to the end of the current year," not the whole year including
+// dates already past. Confirmed failing case: "upcoming holidays" alone
+// (no year, no list/count word) previously fell through this parser
+// entirely -- see leftoverAfterStrip, which now strips this phrase before
+// deciding whether anything unrelated survives.
+const UPCOMING_WORD =
+  /\b(upcoming|remaining|left (in|this) (the )?year|rest of (the )?year|still to come|coming up|yet to come)\b/;
+
+// "holiday notification 2025" / "notify me about holidays" -- this is a
+// request for a standing ALERT (something that would need to exist
+// separately, e.g. a login-time reminder with its own subscribe/unsubscribe
+// flow), not a one-off lookup. Deliberately NOT treated as filler (an
+// earlier version of this set discarded these words, which meant "holiday
+// notification 2025" silently answered as if it had just asked for the
+// plain list -- technically an answer, but not the one the word
+// "notification" actually asked for).
+const NOTIFICATION_WORD = /\b(notification|notify|notified|alert|remind|reminder|subscribe|subscription)\b/;
 
 // Words to discard when checking whether anything OTHER than the holiday
-// domain itself survives in the query (see hijack guard above).
+// domain itself survives in the query (see hijack guard above). Widened
+// after real, confirmed failures: "annual holiday list 2025", "employee
+// holiday calendar 2025", "official holiday list 2025", "holiday schedule
+// for 2025", "public holiday list 2025" all contain the literal word
+// "holiday" but were rejected because a common, perfectly ordinary
+// descriptive word wasn't recognized as harmless filler. Notification-
+// related words are deliberately NOT here -- see NOTIFICATION_WORD above.
 const FILLER = new Set([
   "the", "a", "an", "is", "are", "was", "were", "this", "of", "for", "in", "at", "on", "to", "from",
   "and", "with", "that", "he", "she", "they", "it", "them",
@@ -70,6 +119,8 @@ const FILLER = new Set([
   "do", "does", "did", "will", "would", "can", "could", "i", "my", "any", "there",
   "how", "many", "much", "number", "total", "count", "list", "show", "display",
   "have", "has", "get", "gets", "fall", "falls", "falling",
+  "annual", "annually", "employee", "employees", "staff", "worker", "workers", "calendar",
+  "official", "schedule", "public", "between", "till", "until",
 ]);
 
 /**
@@ -83,6 +134,8 @@ function leftoverAfterStrip(q: string): string {
   t = t.replace(HOLIDAY_WORD, " ");
   t = t.replace(/\b(restricted|optional|rh|festival|fh|closed|gazetted|national|mandatory|compulsory|ch)\b/g, " ");
   t = t.replace(/\b(this|current|last|previous|next)\s+year\b/g, " ");
+  t = t.replace(UPCOMING_WORD, " ");
+  t = t.replace(RELATIVE_MONTHS_RE, " ");
   t = t.replace(/\b20\d{2}\b/g, " ");
   t = t.replace(/\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b/g, " ");
   t = t.replace(/\b\d{1,2}(st|nd|rd|th)?\b/g, " ");
@@ -141,8 +194,15 @@ export async function parseHolidayIntent(
   // type mention (RH/FH/CH) counts too -- "how many RH can Category B take"
   // never says the word "holiday" at all, but "RH" alone is unambiguous
   // (word-bounded in resolveHolidayType, so this can't misfire on an
-  // unrelated word that happens to contain those letters).
-  if (!hasHolidayWord && !nameMatch && !type) return null;
+  // unrelated word that happens to contain those letters). UPCOMING_WORD
+  // also counts on its own -- "upcoming 2024" has no "holiday" in it either,
+  // but it's still worth engaging this parser for: the hijack guard just
+  // below (leftoverAfterStrip) already refuses to answer unless NOTHING
+  // else survives stripping, so a genuinely unrelated "upcoming meetings"
+  // still correctly falls through (leftover = "meetings") -- this only
+  // catches the narrow, otherwise-silently-dropped case of "upcoming" (or a
+  // bare year) with nothing else in the query at all.
+  if (!hasHolidayWord && !nameMatch && !type && !UPCOMING_WORD.test(q) && !RELATIVE_MONTHS_RE.test(q)) return null;
 
   // ---- invalid category: an explicit "category X" mention where X isn't
   // A/B/C/D. Checked before every other branch (rhQuota, compare,
@@ -210,26 +270,129 @@ export async function parseHolidayIntent(
     return { kind: "holidayFindOne", name: nameMatch, year };
   }
 
-  // ---- count / list: the literal word "holiday(s)" OR a bare type
-  // abbreviation (RH/FH/CH) is enough to reach this branch -- "how many RH
-  // does category D get in 2025" never says "holiday" at all, and must
-  // not fall through to null (which would silently hand the question to
-  // semantic search instead of the DB). Safe to widen: the hijack guard
-  // immediately below runs unconditionally and already strips type
-  // abbreviations before deciding whether anything unrelated survives. ----
-  if (hasHolidayWord || type) {
-    const year = years[0] ?? explicitYearFromDate ?? now.year;
-    const month = explicitDate ? explicitDate.month : parseMonthName(q);
+  // ---- count / list: the literal word "holiday(s)", a bare type
+  // abbreviation (RH/FH/CH), or UPCOMING_WORD alone is enough to reach this
+  // branch -- see the initial domain gate above for why each of these is
+  // safe to widen on its own (the hijack guard immediately below still
+  // protects against anything genuinely unrelated slipping through). ----
+  if (hasHolidayWord || type || UPCOMING_WORD.test(q) || RELATIVE_MONTHS_RE.test(q)) {
+    // "Upcoming" / "remaining" / "next N months" / "previous N months" on
+    // their own, with no literal "holiday(s)" anywhere in the query, are
+    // deliberately rejected rather than silently treated as if they meant
+    // holidays -- "next 2 months" alone is ambiguous (next 2 months of
+    // WHAT?) and guessing the domain from these words alone is exactly the
+    // kind of silent reinterpretation this parser's hijack guard otherwise
+    // exists to prevent. This check runs before anything else in this
+    // branch specifically because it's the more fundamental problem -- a
+    // query missing the required word shouldn't also be evaluated for a
+    // year mismatch, wrong format, etc.
+    if ((UPCOMING_WORD.test(q) || RELATIVE_MONTHS_RE.test(q)) && !hasHolidayWord && !type) {
+      return {
+        kind: "holidayBadQuery",
+        message:
+          "Please include the word \"holiday\" or \"holidays\" somewhere in the query -- for example \"upcoming holidays\", \"next 2 months of holidays\", or \"previous month's holidays\".",
+      };
+    }
 
-    // Hijack guard -- see file header. Applies to every sub-branch below.
+    // "holiday notification 2025" / "notify me about holidays" -- a request
+    // for a standing alert, a genuinely different capability from a one-off
+    // lookup. Checked BEFORE the hijack guard, since these words are
+    // deliberately not filler (see NOTIFICATION_WORD's comment) and would
+    // otherwise survive leftoverAfterStrip and just fall through to
+    // circular search, showing the person unrelated documents instead of
+    // an honest "that's not built yet, here's what we could build."
+    if (NOTIFICATION_WORD.test(q)) return { kind: "holidayNotificationRequest" };
+
+    // Explicit custom date range ("from 10/03/2025 to 15/06/2025"),
+    // checked before the ordinary year/month resolution below since it
+    // supersedes both when present.
+    const range = parseDateRange(q, now);
+    if (range?.kind === "ambiguous") {
+      return {
+        kind: "holidayBadQuery",
+        message:
+          "I can see you're asking for a date range, but couldn't read the two dates. Try the format dd/mm/yyyy to dd/mm/yyyy -- for example \"holidays from 01/03/2025 to 30/06/2025\".",
+      };
+    }
+    if (range?.kind === "missing-year") {
+      return {
+        kind: "holidayBadQuery",
+        message:
+          "Please include the year for both dates in your range -- for example \"holidays from 01/03/2025 to 30/06/2025\", not just \"1 March to 30 June\".",
+      };
+    }
+    if (range?.kind === "range" && range.from.year !== range.to.year) {
+      return {
+        kind: "holidayBadQuery",
+        message: `A date range spanning two different years (${range.from.year} to ${range.to.year}) isn't supported yet -- please ask about one year at a time.`,
+      };
+    }
+
+    // "next N months" / "previous N months" -- same year-boundary
+    // discipline as the date-range check above: a request that would cross
+    // into a different calendar year is rejected outright, not silently
+    // clipped or shifted.
+    const relMonths = parseRelativeMonths(q, now);
+    if (relMonths?.kind === "cross-year") {
+      return {
+        kind: "holidayBadQuery",
+        message: `That range would cross into ${relMonths.wouldBeYear}, a different year from today's (${now.year}) -- only ranges that stay within the current year are supported. Try a smaller number of months.`,
+      };
+    }
+
     const leftover = leftoverAfterStrip(q);
     if (leftover) return null;
 
-    if (LIST_WORD.test(q)) return { kind: "holidayList", year, type, month, category };
+    if (range?.kind === "range") {
+      const year = range.from.year;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const fromDate = `${range.from.year}-${pad(range.from.month)}-${pad(range.from.day)}`;
+      const toDate = `${range.to.year}-${pad(range.to.month)}-${pad(range.to.day)}`;
+      return { kind: "holidayList", year, type, months: null, category, fromDate, toDate };
+    }
+
+    if (relMonths?.kind === "months") {
+      const explicitYearHere = years[0] ?? explicitYearFromDate;
+      if (explicitYearHere != null && explicitYearHere !== relMonths.year) {
+        return {
+          kind: "holidayBadQuery",
+          message: `"Next"/"previous" are relative to today, which is in ${relMonths.year} -- ${explicitYearHere} doesn't match. Ask for the ${explicitYearHere} holiday list directly instead, naming the months you want.`,
+        };
+      }
+      return {
+        kind: "holidayList",
+        year: relMonths.year,
+        type,
+        months: relMonths.months,
+        category,
+        fromDate: null,
+        toDate: null,
+      };
+    }
+
+    const year = years[0] ?? explicitYearFromDate ?? now.year;
+    const months = explicitDate ? [explicitDate.month] : parseMonthNames(q);
+
+    // "Upcoming holidays" means from TODAY onward, not the whole year. An
+    // explicit year that ISN'T the current one makes "upcoming" self-
+    // contradictory -- "upcoming holidays in 2023" can't mean anything,
+    // 2023 is over -- so this is reported as a bad query rather than
+    // silently answered as an ordinary full-year list, which would hide
+    // the fact that the question itself didn't make sense.
+    const explicitYear = years[0] ?? explicitYearFromDate;
+    if (UPCOMING_WORD.test(q) && explicitYear != null && explicitYear !== now.year) {
+      return {
+        kind: "holidayBadQuery",
+        message: `"Upcoming" only makes sense for the current year (${now.year}) -- ${explicitYear} isn't upcoming, it's ${explicitYear < now.year ? "already past" : "in the future, but not right after today"}. Ask for the ${explicitYear} holiday list directly instead.`,
+      };
+    }
+    const fromDate = UPCOMING_WORD.test(q) && year === now.year ? now.toISODate() : null;
+
+    if (LIST_WORD.test(q)) return { kind: "holidayList", year, type, months: months.length ? months : null, category, fromDate, toDate: null };
     if (COUNT_WORD.test(q)) return { kind: "holidayCount", year, type, category };
     // Bare "holidays in 2026" with neither an explicit count nor list verb --
     // default to a list (the more informative answer).
-    return { kind: "holidayList", year, type, month, category };
+    return { kind: "holidayList", year, type, months: months.length ? months : null, category, fromDate, toDate: null };
   }
 
   return null;

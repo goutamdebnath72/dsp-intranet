@@ -7,7 +7,7 @@ import { MessageSquareText, Loader } from "lucide-react";
 import { DateTime } from "luxon";
 import useSWR, { mutate } from "swr";
 import { motion } from "framer-motion";
-import { useSession } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 
 // --- 2. ADDED NEW ANNOUNCEMENT TYPE (same as in AnnouncementModal.tsx) ---
 type Announcement = {
@@ -25,7 +25,7 @@ type AnnouncementWithReadStatus = Announcement & { isRead: boolean };
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function Announcements() {
-  const { data: session } = useSession();
+  const { data: session } = useVerifiedSession();
   const {
     data: announcementsData,
     error,

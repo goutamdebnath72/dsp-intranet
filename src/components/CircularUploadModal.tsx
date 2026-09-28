@@ -15,7 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import axios from "axios";
-import { useSession } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import { DateTime } from "luxon";
 import { DayPicker } from "react-day-picker";
 import { CIRCULAR_UPLOAD_ESTIMATED_SECONDS } from "@/lib/constants";
@@ -55,7 +55,7 @@ export function CircularUploadModal({
   onUploadSuccess,
 }: Props) {
   // 1. Initialize NextAuth session
-  const { data: session } = useSession();
+  const { data: session } = useVerifiedSession();
 
   const [headline, setHeadline] = useState("");
   const [file, setFile] = useState<File | null>(null);

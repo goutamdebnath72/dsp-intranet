@@ -31,13 +31,21 @@ export interface HolidayFilters {
   yearB?: number | null; // compare mode only
   type?: HolidayType | null;
   name?: string | null; // ILIKE on holidaymaster.name
-  month?: number | null; // 1..12
+  months?: number[] | null; // 1..12, one or more -- "holidays in March"
+  // (a single-element array) and "holidays in March and April" (two
+  // elements) both go through the same filter.
   date?: { month: number; day: number } | null;
   category?: string | null; // "A" | "B" | "C" | "D" -- filters holidayyear
   // rows whose categories column (a comma-separated string, e.g. "A,B")
   // contains this letter. Only meaningful for FH rows; CH/RH rows have
   // categories = null since CH applies to everyone and RH entitlement is a
   // quota, not a per-holiday fact.
+  fromDate?: string | null; // ISO yyyy-LL-dd -- lower bound (inclusive).
+  // Used both for "upcoming holidays" (today's date) and for the lower end
+  // of an explicit custom date range.
+  toDate?: string | null; // ISO yyyy-LL-dd -- upper bound (inclusive), for
+  // an explicit custom date range ("from X to Y"). Not used by "upcoming"
+  // (which relies on `year` to cap the upper end at that year's Dec 31).
 }
 
 export interface HolidayQuery {
@@ -48,6 +56,7 @@ export interface HolidayQuery {
 export interface HolidayRow {
   id: number;
   name: string;
+  aliases: string[] | null;
   type: HolidayType;
   date: string; // ISO yyyy-LL-dd
   categories: string | null; // e.g. "A,B" -- FH rows only, null otherwise
@@ -130,9 +139,17 @@ function buildWhere(f: HolidayFilters): { where: string; params: any[] } {
     params.push(f.type);
     clauses.push(`hy."holidayType" = $${params.length}`);
   }
-  if (f.month != null) {
-    params.push(f.month);
-    clauses.push(`EXTRACT(MONTH FROM hy.date)::int = $${params.length}`);
+  if (f.months && f.months.length > 0) {
+    params.push(f.months);
+    clauses.push(`EXTRACT(MONTH FROM hy.date)::int = ANY($${params.length}::int[])`);
+  }
+  if (f.fromDate) {
+    params.push(f.fromDate);
+    clauses.push(`hy.date >= $${params.length}::date`);
+  }
+  if (f.toDate) {
+    params.push(f.toDate);
+    clauses.push(`hy.date <= $${params.length}::date`);
   }
   if (f.date) {
     params.push(f.date.month);
@@ -141,8 +158,19 @@ function buildWhere(f: HolidayFilters): { where: string; params: any[] } {
     clauses.push(`EXTRACT(DAY FROM hy.date)::int = $${params.length}`);
   }
   if (f.name && f.name.trim()) {
-    params.push(`%${f.name.trim()}%`);
-    clauses.push(`hm.name ILIKE $${params.length}`);
+    // Normalize whitespace around "/" on both sides before comparing.
+    // This corpus has repeatedly shown spacing drift around slashes in
+    // compound names (e.g. "X/ Y" vs "X / Y") between rows that are
+    // otherwise meant to be the exact same holiday on the same date --
+    // see the 2024 Diwali/Kali Puja FH+RH pair, where a one-space
+    // difference caused the FH row to be silently missed from a lookup
+    // that correctly found the RH row. A plain ILIKE on the raw strings
+    // is fragile to this; normalizing slash-spacing on both the column
+    // and the parameter closes the gap generically, not just for that
+    // one row.
+    const normalizedName = f.name.trim().replace(/\s*\/\s*/g, "/");
+    params.push(`%${normalizedName}%`);
+    clauses.push(`regexp_replace(hm.name, '\\s*/\\s*', '/', 'g') ILIKE $${params.length}`);
   }
   if (f.category && f.category.trim()) {
     params.push(f.category.trim());
@@ -160,6 +188,7 @@ function rowToHoliday(r: any): HolidayRow {
   return {
     id: r.id,
     name: r.name,
+    aliases: Array.isArray(r.aliases) && r.aliases.length > 0 ? r.aliases : null,
     type: r.type,
     date: d.toISODate() ?? "",
     categories: r.categories ?? null,
@@ -262,7 +291,7 @@ export async function queryHolidays(spec: HolidayQuery): Promise<HolidayQueryRes
   const { where, params } = buildWhere(filters);
   const rows: any[] = await d.query(
     `SELECT hy.id, hy.date, hy."holidayType" AS type, hm.name AS name,
-            hy.categories AS categories, hy.note AS note
+            hm.aliases AS aliases, hy.categories AS categories, hy.note AS note
        FROM holidayyear hy JOIN holidaymaster hm ON hm.id = hy."holidayMasterId"
       WHERE ${where}
       ORDER BY hy.date ASC`,

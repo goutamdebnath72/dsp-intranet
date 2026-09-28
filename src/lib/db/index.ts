@@ -13,6 +13,7 @@ import { CircularPage } from "./models/circular_pages.model";
 import { Department } from "./models/department.model";
 import { HolidayExtractionStaging } from "./models/holiday-extraction-staging.model";
 import { HolidayMaster } from "./models/holiday-master.model";
+import { HolidayNotificationSubscription } from "./models/holiday-notification-subscription.model";
 import { HolidayPolicyChunk } from "./models/holiday-policy-chunk.model";
 import { HolidayRhQuota } from "./models/holiday-rh-quota.model";
 import { HolidayYear } from "./models/holiday-year.model";
@@ -32,6 +33,7 @@ const entities = [
   Department,
   HolidayExtractionStaging,
   HolidayMaster,
+  HolidayNotificationSubscription,
   HolidayPolicyChunk,
   HolidayRhQuota,
   HolidayYear,

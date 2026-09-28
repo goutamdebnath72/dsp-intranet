@@ -15,7 +15,7 @@ import {
 import { DateTime } from "luxon";
 import useSWR, { mutate } from "swr";
 import { motion } from "framer-motion";
-import { useSession } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import toast from "react-hot-toast";
 import { Tooltip } from "./Tooltip";
 import { SCROLL_CONFIG } from "@/lib/SCROLL_CONFIG";
@@ -40,7 +40,7 @@ const fetcher = (url: string) =>
 export function AnnouncementsFeed() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const { data: session } = useSession();
+  const { data: session } = useVerifiedSession();
   const router = useRouter();
   const userTicketNo = (session?.user as any)?.ticketNo || "";
   const userId = (session?.user as any)?.id || "guest";

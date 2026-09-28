@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
-import { useSession } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
 import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
@@ -24,7 +24,7 @@ import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 import { searchSites } from "@/lib/search/siteSearch";
 import { findDepartmentInText } from "@/lib/employees/departments";
-import { ExternalLink, Globe, UserRound, Phone, Mail, ShieldCheck, Copy, Check } from "lucide-react";
+import { ExternalLink, Globe, UserRound, Phone, Mail, ShieldCheck, Copy, Check, AlertTriangle } from "lucide-react";
 
 interface OmnibarModalProps {
   isOpen: boolean;
@@ -140,7 +140,7 @@ export function OmnibarModal({
     error,
   } = useOmniSearch(isOpen, ticketNo);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { status: authStatus } = useSession();
+  const { status: authStatus } = useVerifiedSession();
   const { openModal } = useModal();
   // A reveal the user clicked while logged out; retried after they log in.
   const pendingRevealRef = useRef<{ empId: string; field: "mobile" | "email" } | null>(null);
@@ -614,7 +614,7 @@ export function OmnibarModal({
                 </motion.div>
               </div>
 
-              <div className="overflow-y-auto overscroll-contain p-2 flex-1">
+              <div className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">
                 {isLoading && mode === "intellectual" ? (
                   <div className="py-12 flex flex-col items-center justify-center text-center">
                     <Loader2 className="h-8 w-8 animate-spin text-amber-600 mb-4" />
@@ -660,10 +660,24 @@ export function OmnibarModal({
 
                     {/* Employee analytics answer (Smart Semantic, DB-grounded) */}
                     {!isLoading && analytics && (
-                      <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                      <div
+                        className={`mb-3 rounded-xl border p-4 ${
+                          analytics.kind === "error"
+                            ? "border-red-200 bg-red-50"
+                            : "border-blue-100 bg-blue-50/60"
+                        }`}
+                      >
                         <div className="flex items-start gap-3">
-                          <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
-                            <UserRound size={16} />
+                          <div
+                            className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-white ${
+                              analytics.kind === "error" ? "bg-red-600" : "bg-blue-600"
+                            }`}
+                          >
+                            {analytics.kind === "error" ? (
+                              <AlertTriangle size={16} />
+                            ) : (
+                              <UserRound size={16} />
+                            )}
                           </div>
                           <div className="min-w-0 flex-1">
                             {typeof analytics.count === "number" &&
@@ -672,9 +686,89 @@ export function OmnibarModal({
                                   {analytics.count.toLocaleString()}
                                 </div>
                               )}
-                            <p className="text-sm text-neutral-700">
+                            <p
+                              className={`text-sm ${
+                                analytics.kind === "error"
+                                  ? "font-semibold text-red-700"
+                                  : "text-neutral-700"
+                              }`}
+                            >
+                              {analytics.kind === "error" && "Bad query: "}
                               {analytics.answer}
                             </p>
+                            {analytics.typeBreakdown &&
+                              analytics.typeBreakdown.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {analytics.typeBreakdown.map((b) => (
+                                    <div
+                                      key={b.type}
+                                      className="flex min-w-[64px] flex-col items-center rounded-lg border border-blue-100 bg-white px-3 py-1.5"
+                                    >
+                                      <span className="text-base font-bold leading-tight text-blue-900">
+                                        {b.count}
+                                      </span>
+                                      <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                                        {b.type}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {typeof analytics.rawEntryCount === "number" &&
+                                    typeof analytics.count === "number" &&
+                                    analytics.rawEntryCount > analytics.count && (
+                                      <span className="self-center pl-1 text-xs text-neutral-500">
+                                        {analytics.rawEntryCount} entries total —{" "}
+                                        {analytics.rawEntryCount - analytics.count} day
+                                        {analytics.rawEntryCount - analytics.count === 1
+                                          ? ""
+                                          : "s"}{" "}
+                                        counted under two types
+                                      </span>
+                                    )}
+                                </div>
+                              )}
+                            {analytics.rhQuotaByCategory &&
+                              analytics.rhQuotaByCategory.length > 0 && (
+                                <div className="mt-2">
+                                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                                    RH Quota by Category
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {analytics.rhQuotaByCategory.map((q) => (
+                                      <div
+                                        key={q.category}
+                                        className="flex min-w-[52px] flex-col items-center rounded-lg border border-amber-100 bg-amber-50/60 px-3 py-1.5"
+                                      >
+                                        <span className="text-base font-bold leading-tight text-amber-800">
+                                          {q.quota}
+                                        </span>
+                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                                          Cat {q.category}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            {analytics.categoryLabels && (
+                              <div className="mt-2 space-y-0.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                                  Category Key
+                                </p>
+                                {Object.entries(analytics.categoryLabels).map(
+                                  ([letter, desc]) => (
+                                    <div
+                                      key={letter}
+                                      className="flex items-baseline gap-2 text-xs text-neutral-600"
+                                    >
+                                      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-neutral-200 text-[10px] font-bold text-neutral-700">
+                                        {letter}
+                                      </span>
+                                      <span>{desc}</span>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                            )}
                             {analytics.kind === "breakdown" &&
                               analytics.rows &&
                               analytics.rows.length > 0 && (
@@ -766,37 +860,171 @@ export function OmnibarModal({
                     {/* Analytics holiday list (Stage 2 — holiday list/breakdown queries) */}
                     {!isLoading &&
                       analytics?.holidays &&
-                      analytics.holidays.length > 0 && (
-                        <div className="flex flex-col gap-1 p-1 mb-2">
-                          <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                            Holidays
-                          </h4>
-                          {analytics.holidays.map((h: any) => (
-                            <div
-                              key={`hol-${h.id}`}
-                              className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200"
-                            >
-                              <div className="p-2 rounded-md bg-amber-100 text-amber-700 flex-shrink-0">
-                                <Sparkles size={16} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-neutral-800 truncate">
-                                  {h.name}
-                                </p>
-                                <p className="text-xs text-neutral-500">
-                                  {DateTime.fromISO(h.date).toFormat("d LLLL yyyy")}
-                                  {"  ·  "}
-                                  {h.type === "CH"
-                                    ? "Closed"
-                                    : h.type === "FH"
-                                      ? "Festival"
-                                      : "Restricted"}
-                                </p>
-                              </div>
+                      analytics.holidays.length > 0 &&
+                      (() => {
+                        // Group same-date, same-name rows (the documented
+                        // dual FH/RH pattern -- see the holidays/analytics.ts
+                        // header comment on "the same holiday, same year"
+                        // pattern) into one table row with a tick in each
+                        // applicable type column, instead of showing two
+                        // separate stacked entries for what is really one
+                        // holiday. Grouped by (date + name) specifically,
+                        // not date alone -- two genuinely different
+                        // holidays can share a date (e.g. Doljatra / Holi)
+                        // and must stay as separate rows.
+                        //
+                        // Category applicability (A/B/C/D) differs by TYPE,
+                        // not just by holiday, so it's computed per group
+                        // from whichever type rows are present:
+                        //  - CH -> every category, always (no per-row data
+                        //    needed; this is a confirmed domain fact, not a
+                        //    guess -- see employees/analytics.ts's CH
+                        //    category-filter handling).
+                        //  - FH -> exactly the categories that row's own
+                        //    `categories` field names.
+                        //  - RH -> NOT ticked here. The RH pool is available
+                        //    to every category, so ticking all four would be
+                        //    technically true but would hide the one fact
+                        //    that actually differs per category: the quota.
+                        //    That's shown once, above the table, from
+                        //    rhQuotaByCategory -- see the chip row in the
+                        //    summary card.
+                        const ALL_CATEGORIES = ["A", "B", "C", "D"];
+                        type GroupedHoliday = {
+                          key: string;
+                          date: string;
+                          name: string;
+                          aliases: string[] | null;
+                          types: Set<string>;
+                          categories: Set<string>;
+                        };
+                        const groups = new Map<string, GroupedHoliday>();
+                        for (const h of analytics.holidays as any[]) {
+                          const key = `${h.date}|${h.name}`;
+                          let existing = groups.get(key);
+                          if (!existing) {
+                            existing = {
+                              key,
+                              date: h.date,
+                              name: h.name,
+                              aliases: h.aliases ?? null,
+                              types: new Set(),
+                              categories: new Set(),
+                            };
+                            groups.set(key, existing);
+                          }
+                          existing.types.add(h.type);
+                          if (h.type === "CH") {
+                            ALL_CATEGORIES.forEach((c) => existing!.categories.add(c));
+                          } else if (h.type === "FH" && h.categories) {
+                            String(h.categories)
+                              .split(/[,&\s]+/)
+                              .map((c: string) => c.trim().toUpperCase())
+                              .filter((c: string) => ALL_CATEGORIES.includes(c))
+                              .forEach((c: string) => existing!.categories.add(c));
+                          }
+                        }
+                        const rows = Array.from(groups.values()).sort((a, b) =>
+                          a.date.localeCompare(b.date),
+                        );
+
+                        return (
+                          <div className="flex flex-col gap-1 p-1 mb-2">
+                            <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                              Holidays
+                            </h4>
+                            <div className="scrollbar-thin overflow-x-auto overflow-y-visible rounded-lg border border-neutral-200">
+                              <table className="w-full text-sm border-collapse">
+                                <thead>
+                                  <tr className="sticky top-0 z-10 bg-neutral-50 text-left text-[11px] uppercase tracking-wider text-neutral-500 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
+                                    <th className="px-3 py-2 font-semibold whitespace-nowrap">
+                                      Date
+                                    </th>
+                                    <th className="px-3 py-2 font-semibold">
+                                      Holiday
+                                    </th>
+                                    <th className="w-14 px-3 py-2 text-center font-semibold">
+                                      RH
+                                    </th>
+                                    <th className="w-14 px-3 py-2 text-center font-semibold">
+                                      CH
+                                    </th>
+                                    <th className="w-14 px-3 py-2 text-center font-semibold">
+                                      FH
+                                    </th>
+                                    <th className="w-10 border-l border-neutral-200 px-2 py-2 text-center font-semibold">
+                                      A
+                                    </th>
+                                    <th className="w-10 px-2 py-2 text-center font-semibold">
+                                      B
+                                    </th>
+                                    <th className="w-10 px-2 py-2 text-center font-semibold">
+                                      C
+                                    </th>
+                                    <th className="w-10 px-2 py-2 text-center font-semibold">
+                                      D
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {rows.map((r) => (
+                                    <tr
+                                      key={r.key}
+                                      className="border-t border-neutral-100 hover:bg-neutral-50"
+                                    >
+                                      <td className="whitespace-nowrap px-3 py-2 text-neutral-700">
+                                        {DateTime.fromISO(r.date).toFormat("d LLL yyyy")}
+                                      </td>
+                                      <td className="px-3 py-2 text-neutral-800">
+                                        <span className="font-semibold">{r.name}</span>
+                                        {r.aliases && r.aliases.length > 0 && (
+                                          <span className="text-neutral-400">
+                                            {" "}
+                                            ({r.aliases.join(", ")})
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        {r.types.has("RH") && (
+                                          <span className="font-bold text-black">✓</span>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        {r.types.has("CH") && (
+                                          <span className="font-bold text-black">✓</span>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        {r.types.has("FH") && (
+                                          <span className="font-bold text-black">✓</span>
+                                        )}
+                                      </td>
+                                      {ALL_CATEGORIES.map((c, i) => (
+                                        <td
+                                          key={c}
+                                          className={`px-2 py-2 text-center ${i === 0 ? "border-l border-neutral-200" : ""}`}
+                                        >
+                                          {r.categories.has(c) && (
+                                            <span className="font-bold text-black">✓</span>
+                                          )}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
-                          ))}
-                        </div>
-                      )}
+                            <p className="px-2 pt-1 text-[11px] text-neutral-400">
+                              A–D columns show Closed and Festival holiday
+                              eligibility only. Restricted Holidays are a
+                              shared pool every category can pick from — see
+                              the RH quota above for how many each category
+                              gets.
+                            </p>
+                          </div>
+                        );
+                      })()}
+
 
                     {!isLoading &&
                       mode !== null &&
@@ -866,7 +1094,27 @@ export function OmnibarModal({
                               Mentioned in circulars
                             </h4>
                           ) : null}
-                          {results.map((result) => (
+                          {/* In synthesis mode, only show cards for sources
+                              the synthesis actually cited in a finding (see
+                              executiveSynthesis.ts's citation-relevance
+                              filter) -- not every raw candidate that merely
+                              cleared the upstream search/qualify floor.
+                              Every other mode is unaffected: `results`
+                              itself is untouched here, this only changes
+                              what renders under "Primary Sources" in
+                              intellectual mode specifically. Known minor
+                              edge case: if `synthesis.citations` ends up
+                              empty (a table/chart-only answer with no key
+                              findings -- see executiveSynthesis.ts), the
+                              "Primary Sources" heading above will still
+                              render with no cards beneath it; not fixed
+                              here to keep this change small and low-risk. */}
+                          {(mode === "intellectual" && synthesis
+                            ? results.filter((r) =>
+                                synthesis.citations.some((c) => c.id === r.id),
+                              )
+                            : results
+                          ).map((result) => (
                             <div
                               key={`${result.type}-${result.id}`}
                               onClick={(e) => handleResultClick(e, result)}

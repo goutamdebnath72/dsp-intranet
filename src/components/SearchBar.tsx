@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Loader2, FileText, Sparkles } from "lucide-react";
 import AiOverview from "./AiOverview";
-import { useSession } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import useSWR from "swr";
 import { DateTime } from "luxon";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
@@ -32,7 +32,7 @@ const fetcher = (...args: Parameters<typeof fetch>) =>
   fetch(...args).then((res) => res.json());
 
 const SearchBar: React.FC = () => {
-  const { data: session, status } = useSession();
+  const { data: session, status } = useVerifiedSession();
   const [query, setQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [searchMode, setSearchMode] = useState<"title" | "semantic">("title");

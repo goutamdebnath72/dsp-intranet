@@ -9,9 +9,9 @@ import { executeHolidayPolicySearch } from "./holidayPolicySearch";
 async function executeCircularRouter(
   dataSource: DataSource,
   q: string,
-): Promise<{ uniqueResults: SearchResultRow[]; isFallback: boolean }> {
+): Promise<{ uniqueResults: SearchResultRow[]; isFallback: boolean; isSyntheticBand: boolean }> {
   const safeQ = (q || "").trim();
-  if (!safeQ) return { uniqueResults: [], isFallback: false };
+  if (!safeQ) return { uniqueResults: [], isFallback: false, isSyntheticBand: false };
 
   // 1. INTENT ANALYSIS
   // Detects literal markers: Quotes, @ symbols, URLs, Alphanumeric codes (CN-9, Rs. 20995), specific formatting
@@ -50,13 +50,16 @@ async function executeCircularRouter(
       return {
         uniqueResults: contentResults.uniqueResults,
         isFallback: contentResults.isFallback,
+        // True cosine (see semanticContentSearch.ts: similarity is capped
+        // raw rawSim, boosts are used only to select/order, never reported).
+        isSyntheticBand: false,
       };
     }
     // For an exact-token query (number / code), a content miss is a real miss.
     // Do NOT fall through to the vector policy engine — that would return an
     // unrelated nearest-neighbour circular.
     if (isExactTokenQuery) {
-      return { uniqueResults: [], isFallback: false };
+      return { uniqueResults: [], isFallback: false, isSyntheticBand: false };
     }
   }
 
@@ -65,7 +68,11 @@ async function executeCircularRouter(
     console.log(
       "[Smart Semantic Router] Intent: Conversational Policy. Firing Policy Engine.",
     );
-    return await executePolicySearch(dataSource, safeQ);
+    const r = await executePolicySearch(dataSource, safeQ);
+    // executePolicySearch's similarity is a synthetic rank-positional display
+    // band (SIM_HI..SIM_LO), not a true relevance magnitude -- see that
+    // file's own header comment and holidayPolicySearch.ts's docstring.
+    return { ...r, isSyntheticBand: true };
   }
 
   // Rule C: The Parallel Safety Net (Ambiguous Queries)
@@ -85,6 +92,7 @@ async function executeCircularRouter(
     return {
       uniqueResults: contentResults.uniqueResults,
       isFallback: contentResults.isFallback,
+      isSyntheticBand: false,
     };
   }
 
@@ -92,7 +100,7 @@ async function executeCircularRouter(
   console.log(
     "[Smart Semantic Router] Resolution: No exact text match. Policy Engine wins.",
   );
-  return policyResults;
+  return { ...policyResults, isSyntheticBand: true };
 }
 
 
@@ -120,16 +128,38 @@ export async function executeSmartSemanticRouter(
   // (preserves the exact circular-only behaviour, including empty
   // exact-token misses).
   if (announcements.length === 0 && holidayPolicy.length === 0) {
-    return circular;
+    return { uniqueResults: circular.uniqueResults, isFallback: circular.isFallback };
   }
 
-  // Merge and rank by the similarity each engine reported. All three scales
-  // are the same 0..1 vector similarity (+ literal boost folded into
-  // ordering already for circulars/announcements), so a shared sort is
-  // fair. De-dup defensively by type+id.
+  // Merge and rank by the similarity each engine reported. holidayPolicy and
+  // announcements report TRUE cosine similarity (a real relevance
+  // magnitude). Circular results are NOT always on that same scale: when
+  // circular.isSyntheticBand is true, their similarity came from
+  // executePolicySearch's rank-positional display band (SIM_HI..SIM_LO --
+  // see that file), which reflects only "ranked Nth within its own result
+  // set," not real relevance -- so the best of a weak batch of circulars can
+  // otherwise display ~0.97 and wrongly bury a genuinely strong, true-cosine
+  // holiday-chunk match. Fix scoped to exactly this comparison: when
+  // isSyntheticBand, cap each circular's effective score at a conservative
+  // ceiling before the cross-engine sort, so it can still win against a
+  // genuinely weak true-cosine match (nothing better exists) but can no
+  // longer automatically beat a strong one purely by being first-in-batch.
+  // The calibrated RRF engine itself (semanticPolicySearch.ts) and its
+  // circular-only behaviour above are completely untouched.
+  const SYNTHETIC_BAND_MERGE_CEILING = 0.75;
+  const circularForMerge: SearchResultRow[] = circular.isSyntheticBand
+    ? circular.uniqueResults.map((r) => ({
+        ...r,
+        similarity:
+          typeof r.similarity === "number"
+            ? Math.min(r.similarity, SYNTHETIC_BAND_MERGE_CEILING)
+            : r.similarity,
+      }))
+    : circular.uniqueResults;
+
   const seen = new Set<string>();
   const merged: SearchResultRow[] = [];
-  for (const r of [...circular.uniqueResults, ...announcements, ...holidayPolicy]) {
+  for (const r of [...circularForMerge, ...announcements, ...holidayPolicy]) {
     const key = `${r.type}-${r.id}`;
     if (seen.has(key)) continue;
     seen.add(key);

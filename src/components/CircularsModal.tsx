@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { DateTime } from "luxon";
-import { useSession } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 import { ConfirmModal } from "./ConfirmModal";
 import { Tooltip } from "./Tooltip";
@@ -44,7 +44,7 @@ const fetcher = (url: string) =>
   });
 
 export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
-  const { data: session } = useSession();
+  const { data: session } = useVerifiedSession();
 
   // Cheap, rarely-changing: just which years actually have circulars.
   // Drives the year-tab selector without ever pulling a single circular

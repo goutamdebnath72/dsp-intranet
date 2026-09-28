@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSession } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import { redirect, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AnnouncementForm from "@/components/AnnouncementForm";
@@ -16,7 +16,7 @@ import { ADMIN_TITLE_AREA_HEIGHT, ADMIN_CARDS_AREA_HEIGHT } from "@/lib/constant
 import { Toaster, toast } from "react-hot-toast";
 
 function AdminContent() {
-  const { data: session, status } = useSession();
+  const { data: session, status } = useVerifiedSession();
   const searchParams = useSearchParams();
   const editId = searchParams.get("editId");
   const [isCircularModalOpen, setIsCircularModalOpen] = useState(false);

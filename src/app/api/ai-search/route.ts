@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { executeTitleSearch } from "@/lib/search/titleSearch";
+import { executeHeadlineEmbeddingSearch } from "@/lib/search/headlineEmbeddingSearch";
 import { executeSmartSemanticRouter } from "@/lib/search/smartSemanticRouter";
 import {
   executeExecutiveSynthesis,
@@ -367,10 +368,16 @@ export async function GET(request: Request) {
       return NextResponse.json([]);
     }
 
-    // Rank by match percentage
+    // Rank by match percentage. Intellectual (synthesis) mode gets a wider
+    // candidate pool than the plain semantic display -- executeExecutiveSynthesis
+    // now runs its own decisive year/population relevance filter on whatever it's
+    // handed (see that file), and needs real alternatives to fall back on when
+    // the top-ranked candidates turn out to be a wrong-year or wrong-population
+    // circular. Semantic/title mode is untouched: still exactly 5, same as before.
+    const PRIMARY_SOURCE_LIMIT = mode === "intellectual" ? 10 : 5;
     const topPrimarySources = qualifiedResults
       .sort((a, b) => b.matchPercentage - a.matchPercentage)
-      .slice(0, 5)
+      .slice(0, PRIMARY_SOURCE_LIMIT)
       .map((item) => ({
         ...item,
         chunkText: pickReadableExcerpt(item.chunkText, queryTokens),
@@ -386,38 +393,59 @@ export async function GET(request: Request) {
       let merged = topPrimarySources as any[];
       if (!INDIC_SCRIPT_REGEX.test(q)) {
         try {
+          const byKey = new Map<string, any>(
+            merged.map((r) => [`${r.type}-${r.id}`, r]),
+          );
+
           const titleHits = await executeTitleSearch(dataSource, q);
-          if (titleHits && titleHits.length > 0) {
-            const byKey = new Map<string, any>(
-              merged.map((r) => [`${r.type}-${r.id}`, r]),
-            );
-            for (const t of titleHits as any[]) {
-              const key = `${t.type}-${t.id}`;
-              const existing = byKey.get(key);
-              if (existing) {
-                // already a body/semantic hit — promote it: an exact title match
-                // is the strongest signal.
-                existing.matchPercentage = Math.max(
-                  existing.matchPercentage ?? 0,
-                  96,
-                );
-                existing.isExactPhrase = true;
-              } else {
-                byKey.set(key, {
-                  ...t,
-                  isExactPhrase: true,
-                  isPerfectMatch: true,
-                  matchPercentage: 96,
-                  chunkText: t.chunkText || "",
-                });
-              }
+          for (const t of titleHits as any[]) {
+            const key = `${t.type}-${t.id}`;
+            const existing = byKey.get(key);
+            if (existing) {
+              // already a body/semantic hit — promote it: an exact title match
+              // is the strongest signal.
+              existing.matchPercentage = Math.max(
+                existing.matchPercentage ?? 0,
+                96,
+              );
+              existing.isExactPhrase = true;
+            } else {
+              byKey.set(key, {
+                ...t,
+                isExactPhrase: true,
+                isPerfectMatch: true,
+                matchPercentage: 96,
+                chunkText: t.chunkText || "",
+              });
             }
-            merged = Array.from(byKey.values())
-              .sort(
-                (a, b) => (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0),
-              )
-              .slice(0, 6);
           }
+
+          // Headline-only embedding hits (circulars with no body chunks at
+          // all -- see headlineEmbeddingSearch.ts). A real cosine
+          // similarity, not a literal match, so it gets its own honest
+          // percentage rather than the fixed 96 a literal title match
+          // earns -- these should read as "related" not "exact."
+          const headlineHits = await executeHeadlineEmbeddingSearch(dataSource, q);
+          for (const h of headlineHits as any[]) {
+            const key = `${h.type}-${h.id}`;
+            const existing = byKey.get(key);
+            const pct = Math.round((h.similarity ?? 0) * 100);
+            if (existing) {
+              existing.matchPercentage = Math.max(existing.matchPercentage ?? 0, pct);
+            } else {
+              byKey.set(key, {
+                ...h,
+                matchPercentage: pct,
+                chunkText: "",
+              });
+            }
+          }
+
+          merged = Array.from(byKey.values())
+            .sort(
+              (a, b) => (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0),
+            )
+            .slice(0, 6);
         } catch (e) {
           // headline fold is best-effort; body/semantic results still stand.
           console.warn("headline fold failed:", (e as any)?.message ?? e);

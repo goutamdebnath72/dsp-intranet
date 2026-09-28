@@ -7,12 +7,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Search, LogIn, LogOut, Shield, Undo2 } from "lucide-react";
-import { useSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import { motion, AnimatePresence } from "framer-motion";
 import { useModal } from "@/context/ModalContext";
 
 const OldHeader: React.FC = () => {
-  const { data: session, status } = useSession();
+  const { data: session, status } = useVerifiedSession();
   const { openModal } = useModal();
   const pathname = usePathname();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);

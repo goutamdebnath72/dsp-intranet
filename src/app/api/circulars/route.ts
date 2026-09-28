@@ -7,9 +7,8 @@ import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
 import Tesseract from "tesseract.js";
+import { reconstructTableFromTSV } from "@/lib/ingestion/tableReconstruction";
 import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
-import { extractHolidaysFromCircular } from "@/lib/holidays/extraction";
-import { HolidayExtractionStaging } from "@/lib/db/models/holiday-extraction-staging.model";
 
 // This route does two full Tesseract OCR passes PER PAGE (English, then
 // Hindi+English+Bengali) plus an embedding call per ~200-word chunk, so a
@@ -67,6 +66,22 @@ async function destroyOcrWorkerPool(pool: OcrWorkerPool) {
    numbers), once "hin+eng+ben" (Indic content) — and both texts are kept.
    Slower, but every script and every code survives. Display/search dedupe
    downstream; recall is what matters here.
+
+   A THIRD, hard-won fact, discovered after a real synthesis error (a
+   monthly wage TOTAL of Rs 20,995.30 was reported as if it were the DAILY
+   wage, Rs 808, from the adjacent column): fixing PSM 3 stopped the
+   pipeline from silently DROPPING dense-table values, but it does nothing
+   about a genuinely different failure -- Tesseract's own internal reading
+   order can interleave a wrapped, merged table header's fragments out of
+   column order relative to the data rows below it. The flattened `text` we
+   already kept has the numbers in the right left-to-right sequence, but
+   with the WRONG header words sitting near them, and nothing downstream had
+   any way to tell. See src/lib/ingestion/tableReconstruction.ts for the
+   full story and its validated scope/limits. Its output is added here
+   ADDITIVELY -- the original flattened text is never altered -- using the
+   ENGLISH pass's TSV specifically, since numeric-grid tables in this corpus
+   are overwhelmingly Latin-digit tables and the eng-only pass already reads
+   those digits more cleanly than the trilingual pass.
 ============================================================ */
 async function ocrPageDualPass(
   input: Buffer | Uint8Array,
@@ -78,9 +93,15 @@ async function ocrPageDualPass(
     try {
       const worker = workers[langs];
       const {
-        data: { text },
-      } = await worker.recognize(input);
+        data: { text, tsv },
+      } = await worker.recognize(input, {}, { text: true, tsv: langs === "eng" });
       combined += (text || "") + "\n";
+      if (langs === "eng" && tsv) {
+        const table = reconstructTableFromTSV(tsv);
+        if (table) {
+          combined += "\n" + table + "\n";
+        }
+      }
     } catch (err) {
       console.error(
         `OCR pass "${langs}" failed${label ? " on " + label : ""}:`,
@@ -143,6 +164,17 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 
 /* ============================================================
    POST: Upload a circular (pdf-to-img + Trilingual OCR + Vectors)
+
+   EXCEPTION: a detected employee holiday-list circular skips OCR, text
+   extraction and body chunking entirely -- see the detectHolidayListCircular
+   call and skipOcrAndEmbedding flag just after the headline is parsed
+   below. Its page images are still rendered and stored so it displays and
+   pages correctly in the Circulars Archive, and it still gets ONE
+   embedding computed from its headline alone (see the TOP-LEVEL embedding
+   section further down and headlineEmbeddingSearch.ts on the read side) --
+   but it is never OCR'd, never chunked, and its actual body content never
+   becomes searchable, because its real facts are seeded separately and far
+   more reliably via /api/holidays/upload-and-seed.
 ============================================================ */
 export async function POST(req: Request) {
   const dataSource = await getDb();
@@ -195,6 +227,33 @@ export async function POST(req: Request) {
     // Auto-cleaner: strips leading numbers/dots (e.g., "108. ")
     const headline = rawHeadline.replace(/^\s*\d+[\.\-\s]+/, "").trim();
 
+    // HOLIDAY-LIST CIRCULAR DETECTION -- decided upfront, before any blob or
+    // OCR work happens, not after the fact. The employee holiday-list
+    // circular (as opposed to the separate contract-worker holiday/leave
+    // circular) is uploaded through this same form purely so the original
+    // document is visible and downloadable in the Circulars Archive -- its
+    // actual holiday facts are seeded separately and far more reliably
+    // through /api/holidays/upload-and-seed from a human-curated JSON file.
+    // OCR-ing, chunking and embedding it here would create a second,
+    // unstructured, error-prone copy of facts that already live correctly
+    // in holidaymaster/holidayyear/holiday_policy_chunks -- exactly the
+    // "two conflicting sources of truth" failure pattern this project spent
+    // an entire session diagnosing and fixing in the executive synthesis
+    // engine (see executiveSynthesis.ts's header comment). So for a
+    // detected holiday-list circular, every OCR/text-extraction/embedding
+    // step below is skipped -- only the page-image blobs and their
+    // sequencing are saved, which is all the Archive viewer needs to
+    // display and page through the original document.
+    const holidayDetection = detectHolidayListCircular(headline);
+    const skipOcrAndEmbedding = holidayDetection.isHolidayListCircular;
+    if (skipOcrAndEmbedding) {
+      console.log(
+        `UPLOAD: "${headline}" detected as the employee holiday-list circular` +
+          (holidayDetection.year ? ` (for ${holidayDetection.year})` : "") +
+          ` -- skipping OCR/text-extraction and body chunking; saving as a display-only circular with a headline-only embedding.`,
+      );
+    }
+
     // publishedAt is REQUIRED and comes only from the picker — no more
     // guessing the year from the headline. Reject if missing or unparseable.
     if (!rawPublishedAt) {
@@ -243,18 +302,20 @@ export async function POST(req: Request) {
       uploadedBlobUrls.push(url);
       fileUrls.push(url);
 
-      try {
-        console.log("DEBUG: Running dual-pass OCR (PSM 3) on image...");
-        const ocrWorkers = await createOcrWorkerPool();
+      if (!skipOcrAndEmbedding) {
         try {
-          const text = await ocrPageDualPass(fileBytes, "image", ocrWorkers);
-          ocrAccumulatedText += text + " ";
-          perPageText[0] = text; // single-image circular == page 1
-        } finally {
-          await destroyOcrWorkerPool(ocrWorkers);
+          console.log("DEBUG: Running dual-pass OCR (PSM 3) on image...");
+          const ocrWorkers = await createOcrWorkerPool();
+          try {
+            const text = await ocrPageDualPass(fileBytes, "image", ocrWorkers);
+            ocrAccumulatedText += text + " ";
+            perPageText[0] = text; // single-image circular == page 1
+          } finally {
+            await destroyOcrWorkerPool(ocrWorkers);
+          }
+        } catch (err) {
+          console.error("OCR failed on image:", err);
         }
-      } catch (err) {
-        console.error("OCR failed on image:", err);
       }
     } else if (file.type === "application/pdf") {
       /* PDF via pdf-to-img (pure JS/WASM, built on pdfjs-dist — no
@@ -275,7 +336,10 @@ export async function POST(req: Request) {
 
       // Created ONCE for the whole document, not per page -- see
       // createOcrWorkerPool's comment for why this matters for duration.
-      const ocrWorkers = await createOcrWorkerPool();
+      // Not created at all for a detected holiday-list circular -- nothing
+      // below will use it, and spinning up Tesseract workers is real,
+      // avoidable cost for a document whose text is never embedded.
+      const ocrWorkers = skipOcrAndEmbedding ? null : await createOcrWorkerPool();
 
       try {
         for (let page = 1; page <= numPages; page++) {
@@ -288,23 +352,25 @@ export async function POST(req: Request) {
           uploadedBlobUrls.push(url);
           fileUrls.push(url);
 
-          try {
-            console.log(
-              `DEBUG: Running dual-pass OCR (PSM 3) on PDF page ${page}...`,
-            );
-            const text = await ocrPageDualPass(
-              pngBuffer,
-              `page ${page}`,
-              ocrWorkers,
-            );
-            ocrAccumulatedText += text + " \n";
-            perPageText[page - 1] = text; // page is 1-based; store 0-based
-          } catch (err) {
-            console.error(`OCR failed on page ${page}:`, err);
+          if (ocrWorkers) {
+            try {
+              console.log(
+                `DEBUG: Running dual-pass OCR (PSM 3) on PDF page ${page}...`,
+              );
+              const text = await ocrPageDualPass(
+                pngBuffer,
+                `page ${page}`,
+                ocrWorkers,
+              );
+              ocrAccumulatedText += text + " \n";
+              perPageText[page - 1] = text; // page is 1-based; store 0-based
+            } catch (err) {
+              console.error(`OCR failed on page ${page}:`, err);
+            }
           }
         }
       } finally {
-        await destroyOcrWorkerPool(ocrWorkers);
+        if (ocrWorkers) await destroyOcrWorkerPool(ocrWorkers);
         await doc.destroy();
       }
     } else {
@@ -316,28 +382,45 @@ export async function POST(req: Request) {
     }
 
     /* ============================
-       TEXT extraction
+       TEXT extraction -- skipped entirely for a detected holiday-list
+       circular (see the detection block above for why).
     ============================ */
-    let extractedText = await extractTextFromPDF(fileBytes);
+    let extractedText = skipOcrAndEmbedding ? "" : await extractTextFromPDF(fileBytes);
 
-    if (!extractedText || extractedText.trim().length < 50) {
-      console.log(
-        "DEBUG: Standard extraction yielded little text. Using OCR text instead.",
-      );
-      extractedText = ocrAccumulatedText;
-    } else if (ocrAccumulatedText.length > extractedText.length) {
-      extractedText = ocrAccumulatedText;
+    if (!skipOcrAndEmbedding) {
+      if (!extractedText || extractedText.trim().length < 50) {
+        console.log(
+          "DEBUG: Standard extraction yielded little text. Using OCR text instead.",
+        );
+        extractedText = ocrAccumulatedText;
+      } else if (ocrAccumulatedText.length > extractedText.length) {
+        extractedText = ocrAccumulatedText;
+      }
+      extractedText = (extractedText || "").replace(/\s+/g, " ").trim();
     }
-
-    extractedText = (extractedText || "").replace(/\s+/g, " ").trim();
     console.log("DEBUG: Final extractedText length =", extractedText?.length);
 
     /* ============================
        TOP-LEVEL embedding (fatal if it throws — a circular that is not
        searchable must not be saved as a success).
+
+       For a detected holiday-list circular, this is a HEADLINE-ONLY
+       embedding, not a body embedding -- deliberately narrow. Body
+       OCR/chunking is skipped entirely for these (see the detection block
+       above), so without this, such a circular would have ZERO semantic-
+       similarity signal at all -- findable only by an exact headline
+       substring match (executeTitleSearch), never by a query that means
+       the same thing without sharing its words. A headline embedding is
+       cheap (one short string, no OCR) and gives it that one semantic
+       signal without ever re-introducing the unreliable OCR'd table/body
+       content this whole change exists to keep out of general search. See
+       src/lib/search/headlineEmbeddingSearch.ts for the read side that
+       actually uses this.
     ============================ */
     let embedding: number[] | null = null;
-    if (extractedText && extractedText.length > 20) {
+    if (skipOcrAndEmbedding) {
+      embedding = await generateEmbedding(headline);
+    } else if (extractedText && extractedText.length > 20) {
       const safeEmbeddingText =
         extractedText.length > 8192
           ? extractedText.slice(0, 8192)
@@ -349,6 +432,9 @@ export async function POST(req: Request) {
        ALL CHUNK embeddings, computed BEFORE any DB write. A failure to
        embed ANY chunk aborts the whole upload — we never store a
        null-embedding (unsearchable) chunk and then report success.
+       Skipped entirely for a detected holiday-list circular -- preparedChunks
+       stays empty, so the circular row is saved with zero circular_chunks
+       rows (display-only).
     ============================ */
     type PreparedChunk = {
       index: number;
@@ -358,40 +444,42 @@ export async function POST(req: Request) {
     };
     const preparedChunks: PreparedChunk[] = [];
 
-    const chunkSize = 200;
-    let chunkIndex = 0;
+    if (!skipOcrAndEmbedding) {
+      const chunkSize = 200;
+      let chunkIndex = 0;
 
-    // Build the list of (page, pageText) to chunk. Prefer per-page OCR text so
-    // each chunk keeps its page number. If no per-page text exists (e.g. a
-    // born-digital PDF whose text came from extractTextFromPDF, not OCR), fall
-    // back to the whole document as a single page-less unit (page 0).
-    const pageUnits: Array<{ page: number; text: string }> = [];
-    const havePageText = perPageText.some((t) => t && t.trim().length > 0);
-    if (havePageText) {
-      for (let pi = 0; pi < perPageText.length; pi++) {
-        const t = (perPageText[pi] || "").replace(/\s+/g, " ").trim();
-        if (t.length > 0) pageUnits.push({ page: pi + 1, text: t });
+      // Build the list of (page, pageText) to chunk. Prefer per-page OCR text so
+      // each chunk keeps its page number. If no per-page text exists (e.g. a
+      // born-digital PDF whose text came from extractTextFromPDF, not OCR), fall
+      // back to the whole document as a single page-less unit (page 0).
+      const pageUnits: Array<{ page: number; text: string }> = [];
+      const havePageText = perPageText.some((t) => t && t.trim().length > 0);
+      if (havePageText) {
+        for (let pi = 0; pi < perPageText.length; pi++) {
+          const t = (perPageText[pi] || "").replace(/\s+/g, " ").trim();
+          if (t.length > 0) pageUnits.push({ page: pi + 1, text: t });
+        }
+      } else if (extractedText && extractedText.length > 0) {
+        pageUnits.push({ page: 0, text: extractedText });
       }
-    } else if (extractedText && extractedText.length > 0) {
-      pageUnits.push({ page: 0, text: extractedText });
-    }
 
-    for (const unit of pageUnits) {
-      const words = unit.text.split(/\s+/);
-      for (let i = 0; i < words.length; i += chunkSize) {
-        const chunkText = words.slice(i, i + chunkSize).join(" ");
-        if (!chunkText.trim()) continue;
-        const rawVector = await generateEmbedding(chunkText); // fatal on throw
-        preparedChunks.push({
-          index: chunkIndex,
-          page: unit.page,
-          text: chunkText,
-          embedding: `[${rawVector.join(",")}]`,
-        });
-        chunkIndex++;
+      for (const unit of pageUnits) {
+        const words = unit.text.split(/\s+/);
+        for (let i = 0; i < words.length; i += chunkSize) {
+          const chunkText = words.slice(i, i + chunkSize).join(" ");
+          if (!chunkText.trim()) continue;
+          const rawVector = await generateEmbedding(chunkText); // fatal on throw
+          preparedChunks.push({
+            index: chunkIndex,
+            page: unit.page,
+            text: chunkText,
+            embedding: `[${rawVector.join(",")}]`,
+          });
+          chunkIndex++;
+        }
       }
+      console.log("DEBUG: Prepared", preparedChunks.length, "chunk embeddings");
     }
-    console.log("DEBUG: Prepared", preparedChunks.length, "chunk embeddings");
 
     const vectorLiteral = embedding ? `[${embedding.join(",")}]` : null;
 
@@ -488,57 +576,18 @@ export async function POST(req: Request) {
       preparedChunks.length,
     );
 
-    // ============================================================
-    // ADDITIONAL JOB — holiday-list detection + extraction. Runs strictly
-    // AFTER the circular itself has committed successfully, and is wrapped
-    // so nothing here can ever fail or delay a normal circular upload -- a
-    // bug in this block must never become an upload-breaking bug. This
-    // ONLY stages the extracted data (holiday_extraction_staging) for an
-    // admin to review -- it deliberately never writes to
-    // holidaymaster/holidayyear directly. See extraction.ts's header
-    // comment for why (LLM output feeding a database real employees' leave
-    // calculations depend on).
-    // ============================================================
-    try {
-      const detection = detectHolidayListCircular(headline);
-      if (detection.isHolidayListCircular) {
-        if (detection.year) {
-          console.log(
-            `HOLIDAY DETECTION: circular id=${circular.id} ("${headline}") ` +
-              `recognized as the employee holiday-list circular for ${detection.year}. ` +
-              `Running extraction...`,
-          );
-          const payload = await extractHolidaysFromCircular(detection.year, perPageText);
-          const stagingRepo = (await getDb()).getRepository(HolidayExtractionStaging);
-          const staged = stagingRepo.create({
-            circularId: circular.id,
-            year: detection.year,
-            status: "pending",
-            payload,
-            createdAt: new Date(),
-          });
-          await stagingRepo.save(staged);
-          console.log(
-            `HOLIDAY EXTRACTION: staged id=${staged.id} for year ${detection.year} -- ` +
-              `${payload.holidays.length} holidays (` +
-              `${payload.holidays.filter((h) => h.isNewMaster).length} new masters), ` +
-              `${payload.rhQuota.length} RH quota rows. Awaiting admin review -- ` +
-              `no holidaymaster/holidayyear write has happened.`,
-          );
-        } else {
-          console.warn(
-            `HOLIDAY DETECTION: circular id=${circular.id} ("${headline}") ` +
-              `matched the holiday-list pattern but no target year could be ` +
-              `parsed from the headline -- skipping, nothing acted on.`,
-          );
-        }
-      }
-    } catch (e) {
-      console.warn(
-        "HOLIDAY DETECTION/EXTRACTION: non-fatal error, circular upload unaffected:",
-        (e as any)?.message ?? e,
-      );
-    }
+    // NOTE: this used to run a post-commit "holiday-list detection +
+    // extraction" job here -- staging an LLM-generated draft of the
+    // circular's holidays for human review. That facility has been removed:
+    // holiday-list circulars are now caught upfront (see skipOcrAndEmbedding
+    // above) and never OCR'd/embedded in the first place, and the real
+    // holiday data is seeded directly from a human-curated JSON file via
+    // /api/holidays/upload-and-seed -- a review-and-approve staging step for
+    // an LLM's guess at the same data added risk without adding value once
+    // that direct path existed. If this project ever needs to reconstruct a
+    // circular's holiday data automatically again, start from
+    // holidays/circularDetection.ts and holidays/extraction.ts, both still
+    // present but unused.
 
     await cleanupTempFiles();
 

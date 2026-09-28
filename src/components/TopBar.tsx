@@ -5,7 +5,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
+import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
 import {
   Settings,
@@ -20,6 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LogoModal } from "./LogoModal";
 import { OmnibarModal } from "./OmnibarModal";
 import HelpManualModal from "./HelpManualModal";
+import { HolidayNotificationToast } from "./HolidayNotificationToast";
 import { getFriendlyFirstName, getInitials } from "@/lib/utils/nameHelper";
 
 // --- DspLogoVibrant ---
@@ -156,7 +158,7 @@ const TopBarSearch: React.FC<{ onClick: () => void }> = ({ onClick }) => {
 
 // --- TopBar component ---
 export function TopBar() {
-  const { data: session, status } = useSession();
+  const { data: session, status } = useVerifiedSession();
   const { openModal } = useModal();
   const pathname = usePathname();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -328,6 +330,7 @@ export function TopBar() {
         isExecutive={isExecutiveUser}
       />
       <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      <HolidayNotificationToast />
     </>
   );
 }

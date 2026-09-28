@@ -62,6 +62,23 @@
     monospace;
 }
 
+/* ===== Small-monitor override for --content-width =====
+   Monitors under ~24" get 90vw instead of 80vw (80% of a small screen
+   leaves too little usable width). The `data-monitor-size="small"`
+   attribute on <html> is set by JS (the inline bootstrap script in
+   layout.tsx, kept in sync afterwards by <MonitorSizeSync />), using
+   window.screen.width/height -- NOT window.innerWidth -- specifically so
+   browser zoom never affects this (innerWidth shrinks as you zoom in;
+   screen.width/height do not). This is inherently an approximation, since
+   browsers do not expose true physical screen size: screen.width/height are
+   reported in CSS reference pixels (nominally 1/96 inch), which already
+   factor out most OS display-scaling differences between e.g. a 1080p and a
+   4K panel of similar physical size, but an unusual manual scaling override
+   can still throw it off. See the bootstrap script for the exact formula. */
+html[data-monitor-size="small"] {
+  --content-width: 90vw;
+}
+
 html {
   overflow-y: auto;
 }
