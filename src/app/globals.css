@@ -76,7 +76,7 @@
    4K panel of similar physical size, but an unusual manual scaling override
    can still throw it off. See the bootstrap script for the exact formula. */
 html[data-monitor-size="small"] {
-  --content-width: 90vw;
+  --content-width: 85vw;
 }
 
 html {
