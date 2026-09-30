@@ -197,6 +197,23 @@ async function main() {
   check("connection is left outside any read-only transaction", afterTxn.rows[0].transaction_read_only === "off");
 
   // ==========================================================================
+  section("D2. Setup file 05 runs as ONE transaction (as the Supabase editor does), repeats safely, leaks no role");
+  const file05 = readFileSync(join(SQL_DIR, "05_fast_name_codes.sql"), "utf8");
+  for (const pass of [1, 2]) {
+    let err = "";
+    try {
+      await pg.query(file05);
+    } catch (e: any) {
+      err = String(e.message);
+    }
+    check(`05 runs cleanly as a single query (run ${pass})`, err === "", err);
+  }
+  const roleAfter = (await pg.query(`SELECT current_user AS u`)).rows[0].u;
+  check("no restricted role is left switched on after the file", roleAfter !== "nlq_reader", roleAfter);
+  const afterRoster = (await pg.query(`SELECT count(*)::int n FROM public.employee_roster`)).rows[0].n;
+  check("the connection can still read the roster after the file (role fully restored)", afterRoster === roster.length, String(afterRoster));
+
+  // ==========================================================================
   section("E. Seed examples shown to the model must be valid and runnable");
   for (const e of SEED_EXAMPLES) {
     if (!e.sql) continue;
@@ -351,6 +368,28 @@ async function main() {
   const midNames = (await runReadOnly(db, mid.reference!, { rowLimit: 5000 })).rows.map((x) => String(x.name));
   check("'contains nath but not at the end' excludes every Debnath and Gopinath", !midNames.some((n) => /DEBNATH$|GOPINATH$/.test(n)) && midNames.includes("UPENDRANATH BARMAN"));
   check("reference row counts are non-trivial (tests are not vacuous)", (await sizeOf(GOLDEN[0].reference!)) > 5 && (await sizeOf(GOLDEN[4].reference!)) > 3);
+
+  // ==========================================================================
+  section("J. Scale: about 6,500 employees -- the phonetic query must stay fast and correct");
+  await pg.query(`INSERT INTO public.employee_roster (ticket_no, sail_pno, name, designation_grade_id, sail_department_id, cohort, within_grade_position, global_seniority_rank, user_id)
+                  SELECT r.ticket_no || '-' || g, r.sail_pno, r.name, r.designation_grade_id, r.sail_department_id, r.cohort, r.within_grade_position, r.global_seniority_rank, NULL
+                  FROM public.employee_roster r CROSS JOIN generate_series(1, 6) g`);
+  const total = (await pg.query(`SELECT count(*)::int n FROM public.employee_roster`)).rows[0].n;
+  const stored = (await pg.query(`SELECT nlq.refresh_name_codes() AS n`)).rows[0].n;
+  check(`refresh stores codes for every employee (${total})`, Number(stored) === total, `${stored} vs ${total}`);
+  const fastSql = `SELECT ticket_no, name FROM nlq.employees
+     WHERE nlq.word_like(name_words, name_codes, 'kumar') AND NOT nlq.first_word_like(name_words, name_codes, 'kumar') AND NOT nlq.last_word_like(name_words, name_codes, 'kumar')`;
+  const t0 = Date.now();
+  const fast = await runReadOnly(db, fastSql, { rowLimit: 100, timeoutMs: 5000 });
+  const ms = Date.now() - t0;
+  check(`similar-spelling query over ${total} employees is fast (< 1000 ms; before the fix it was several seconds)`, ms < 1000, `${ms} ms`);
+  console.log(`  phonetic query over ${total} employees: ${ms} ms`);
+  const liveCount = (await pg.query(`SELECT count(*)::int n FROM (SELECT regexp_split_to_array(upper(btrim(name)), '\\s+') AS w, public.name_phonetic_codes(name) AS c FROM public.employee_roster) l
+     WHERE nlq.word_like(w, c, 'kumar') AND NOT nlq.first_word_like(w, c, 'kumar') AND NOT nlq.last_word_like(w, c, 'kumar')`)).rows[0].n;
+  check("fast view returns exactly the same rows as computing the codes live", fast.total === liveCount, `${fast.total} vs ${liveCount}`);
+  await pg.query(`UPDATE public.employee_roster SET name = 'ZZ RENAMED MAZUMDAR' WHERE id = (SELECT min(id) FROM public.employee_roster)`);
+  const healed = await runReadOnly(db, `SELECT ticket_no FROM nlq.employees WHERE name = 'ZZ RENAMED MAZUMDAR' AND nlq.last_word_like(name_words, name_codes, 'majumdar')`);
+  check("a renamed employee is matched correctly with NO refresh (stored codes never go stale)", healed.total === 1);
 
   // ==========================================================================
   await pg.end();

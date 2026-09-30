@@ -37,31 +37,65 @@ LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path = pg_catalog, public AS 
   SELECT public.indic_fold(public.name_synonym_normalize(word, as_last))
 $$;
 
--- The phonetic layer, as three NULL-SAFE building blocks the LLM combines
--- freely with AND / OR / NOT. "Similar spelling": the typed word matches a
--- name word if it is the same word (case-insensitive) OR has the same
--- phonetic code (Roy=Ray, Mazumdar=Majumdar=Majumder, Nath=Debnath as a last
--- word ...). Arguments are the employee's name_words / name_codes columns.
--- Every branch is wrapped in coalesce so the result is never NULL; a NULL
--- would silently drop the row under NOT(...).
+-- Phonetic codes of a whole name, for the view below. WHY THIS WRAPPER EXISTS: the view
+-- calls a function that lives in schema public, and functions called from a view run with
+-- the privileges of the person querying (nlq_reader), who is deliberately locked out of
+-- schema public. SECURITY DEFINER runs this one small function as its owner instead, so the
+-- restricted role never needs any access to public.
+CREATE OR REPLACE FUNCTION nlq.name_codes_of(full_name text) RETURNS text[]
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+  SELECT public.name_phonetic_codes(full_name)
+$$;
+
+-- Stored phonetic codes (fast). A stored row is used only while its stored NAME still equals the
+-- employee's current name, otherwise the code is computed live, so answers are never stale.
+CREATE TABLE IF NOT EXISTS nlq.employee_name_codes (
+  id    integer PRIMARY KEY,
+  name  text   NOT NULL,
+  codes text[] NOT NULL
+);
+
+CREATE OR REPLACE FUNCTION nlq.refresh_name_codes() RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE n integer;
+BEGIN
+  DELETE FROM nlq.employee_name_codes;
+  INSERT INTO nlq.employee_name_codes (id, name, codes)
+  SELECT er.id, er.name, coalesce(public.name_phonetic_codes(er.name), ARRAY[]::text[])
+  FROM public.employee_roster er;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $$;
+
+REVOKE ALL ON FUNCTION nlq.refresh_name_codes() FROM PUBLIC;
+REVOKE ALL ON TABLE nlq.employee_name_codes FROM PUBLIC;
+
+-- The phonetic layer, as three NULL-SAFE building blocks the LLM combines freely with AND / OR /
+-- NOT. "Similar spelling": the typed word matches a name word if it is the same word
+-- (case-insensitive) OR has the same phonetic code (Roy=Ray, Mazumdar=Majumdar=Majumder,
+-- Nath=Debnath as a last word ...). Arguments are the employee's name_words / name_codes columns.
+-- Every branch is wrapped in coalesce so the result is never NULL (a NULL would silently drop the
+-- row under NOT(...)). They are plain SQL, not SECURITY DEFINER, so the database can optimise them.
+-- as plain SQL the database can pre-compute the constant word once instead of per employee.
 CREATE OR REPLACE FUNCTION nlq.word_like(words text[], codes text[], w text) RETURNS boolean
-LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+LANGUAGE sql IMMUTABLE AS $$
   SELECT coalesce(upper(btrim(w)) = ANY(words), false)
       OR coalesce(nlq.code(w, true)  = ANY(codes), false)
       OR coalesce(nlq.code(w, false) = ANY(codes), false)
 $$;
 
 CREATE OR REPLACE FUNCTION nlq.first_word_like(words text[], codes text[], w text) RETURNS boolean
-LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+LANGUAGE sql IMMUTABLE AS $$
   SELECT coalesce(words[1] = upper(btrim(w)), false)
       OR coalesce(codes[1] = nlq.code(w, false), false)
 $$;
 
 CREATE OR REPLACE FUNCTION nlq.last_word_like(words text[], codes text[], w text) RETURNS boolean
-LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+LANGUAGE sql IMMUTABLE AS $$
   SELECT coalesce(words[cardinality(words)] = upper(btrim(w)), false)
       OR coalesce(codes[cardinality(codes)] = nlq.code(w, true), false)
 $$;
+
 
 CREATE OR REPLACE VIEW nlq.designations AS
 SELECT id, code, title, track, rank_order
@@ -71,6 +105,9 @@ CREATE OR REPLACE VIEW nlq.departments AS
 SELECT id, code, name, cohort_scope
 FROM public.sail_department;
 
+-- name_codes is produced in an inner step (OFFSET 0 keeps it as a plain column). That matters:
+-- the database only optimises the helper functions when their input is a plain column, not a
+-- computed expression.
 CREATE OR REPLACE VIEW nlq.employees AS
 SELECT
   er.id,
@@ -94,8 +131,13 @@ SELECT
   (er.webmail_saildsp IS NOT NULL AND btrim(er.webmail_saildsp) <> '') AS has_webmail,
   (er.address    IS NOT NULL AND btrim(er.address)    <> '') AS has_address,
   regexp_split_to_array(upper(btrim(er.name)), '\s+') AS name_words,
-  public.name_phonetic_codes(er.name)                 AS name_codes
-FROM public.employee_roster er
+  er.name_codes
+FROM (
+  SELECT r.*, coalesce(nc.codes, nlq.name_codes_of(r.name)) AS name_codes
+  FROM public.employee_roster r
+  LEFT JOIN nlq.employee_name_codes nc ON nc.id = r.id AND nc.name = r.name
+  OFFSET 0
+) er
 JOIN public.designation_grade dg ON dg.id = er.designation_grade_id
 LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id
 LEFT JOIN public."user" u ON u.id = er.user_id;
@@ -111,7 +153,7 @@ END $$;
 GRANT USAGE ON SCHEMA nlq TO nlq_reader;
 GRANT SELECT ON nlq.employees, nlq.designations, nlq.departments TO nlq_reader;
 GRANT EXECUTE ON FUNCTION
-  nlq.norm(text), nlq.code(text, boolean),
+  nlq.norm(text), nlq.code(text, boolean), nlq.name_codes_of(text),
   nlq.word_like(text[], text[], text), nlq.first_word_like(text[], text[], text), nlq.last_word_like(text[], text[], text)
 TO nlq_reader;
 
@@ -119,6 +161,9 @@ TO nlq_reader;
 -- If the app connects as a different role than the one running this file,
 -- run:  GRANT nlq_reader TO <that_role>;
 GRANT nlq_reader TO CURRENT_USER;
+
+-- Fill the stored phonetic codes once (re-run after changing the phonetic functions).
+SELECT nlq.refresh_name_codes() AS phonetic_codes_stored;
 
 -- Verify (expect 3 views + 2 functions; last query must show nlq_reader has
 -- NO table privileges outside nlq):

@@ -65,6 +65,11 @@ Writes `nl2sql-eval-report.md` / `.json`: pass rate overall and per question, th
 
 `eval/golden.ts` is the suite: each question is one meaning in several wordings plus a reference SQL that defines the right answer. Add your own cases there – that is how "many different phrasings" gets measured instead of guessed.
 
+## Keeping the phonetic codes current
+The phonetic code of every name is stored in `nlq.employee_name_codes` so matching stays fast (about 70 ms for 6,500 people instead of several seconds). A stored code is used only while its stored name still equals the employee's current name, so a renamed or newly added employee is always answered correctly without any action. After you change the phonetic functions themselves (for example adding a synonym in `name_synonym_normalize`), refresh the stored codes: `SELECT nlq.refresh_name_codes();`
+
+Setup files, in the order they were needed: `01` (views, helpers, role, stored codes), `02` (log table), `03` (optional login role), `04` and `05` (fixes for a database that already ran the first version of `01`; a fresh install needs only `01`, `02`, `03`).
+
 ## The learning loop
 Every question is stored in `public.nl2sql_log`. A ✓ marks the question/SQL pair as a worked example that is retrieved (by similarity) into future prompts. A ✗ stops that exact SQL being shown to that person again for that question. This improves answers **without code changes**.
 

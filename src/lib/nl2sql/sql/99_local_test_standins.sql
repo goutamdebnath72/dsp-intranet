@@ -92,3 +92,7 @@ LANGUAGE sql IMMUTABLE AS $$
     ) kept
   ) q
 $$;
+
+-- Match Supabase: the public schema is NOT open to arbitrary roles. (A stock local Postgres
+-- lets everyone in, which hid a real permission bug during the first round of local tests.)
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
