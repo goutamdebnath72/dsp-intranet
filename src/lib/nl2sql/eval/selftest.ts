@@ -26,6 +26,7 @@ import { buildPrompt } from "../prompt";
 import { loadDynamicContext, clearContextCache, selectRelevantDepartments } from "../context";
 import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
+import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
 import { GOLDEN, compareResults } from "./golden";
 import { GUARD_ACCEPT, GUARD_REJECT } from "./guard-cases";
 import { buildSeedSql } from "./seed-local";
@@ -271,6 +272,21 @@ async function main() {
   check("accepts null sql with a reason", parsePlan('{"sql":null,"understood_as":"salary","unanswerable_reason":"no salary data"}')?.unanswerable_reason === "no salary data");
 
   // ==========================================================================
+  section("G2. The rule 'a name in double quotes means EXACT'");
+  check("finds straight-quoted terms", JSON.stringify(extractQuotedTerms('end with "Debnath" but not "nath"')) === '["Debnath","nath"]');
+  check("finds curly-quoted terms", JSON.stringify(extractQuotedTerms("ends with \u201Ckumar\u201D")) === '["kumar"]');
+  check("no quotes -> no terms", extractQuotedTerms("ends with kumar").length === 0);
+  const helperSql = `SELECT ticket_no FROM nlq.employees WHERE nlq.last_word_like(name_words, name_codes, 'debnath')`;
+  const exactSql = `SELECT ticket_no FROM nlq.employees WHERE name_words[cardinality(name_words)] = 'DEBNATH'`;
+  check("quoted name + similar-spelling helper is flagged", checkQuotedTerms('find names which end with "debnath"', helperSql) !== null);
+  check("quoted name + nlq.code is flagged", checkQuotedTerms('names with "debnath"', `SELECT 1 FROM nlq.employees WHERE nlq.code('debnath', true) = ANY(name_codes)`) !== null);
+  check("quoted name + exact SQL is accepted", checkQuotedTerms('find names which end with "debnath"', exactSql) === null);
+  check("UNquoted name + helper is accepted (similar spelling is the default)", checkQuotedTerms("find names which end with debnath", helperSql) === null);
+  check("helper on an UNquoted name is fine even when another name is quoted",
+    checkQuotedTerms('first name arup and last word "roy"', `SELECT 1 FROM nlq.employees WHERE nlq.first_word_like(name_words, name_codes, 'arup') AND name_words[cardinality(name_words)] = 'ROY'`) === null);
+  check("quoted non-name (a designation) is not flagged", checkQuotedTerms('"General Manager" in C&IT', `SELECT 1 FROM nlq.employees WHERE designation = 'General Manager'`) === null);
+
+  // ==========================================================================
   section("H. Full pipeline with a scripted stand-in model");
   const json = (o: object) => JSON.stringify(o);
   const script = (replies: string[]): LlmFn => {
@@ -312,6 +328,16 @@ async function main() {
   check("empty question is refused", !r.ok && r.kind === "error");
   r = await answerQuestion("x".repeat(600), "T1", { llm: script([]), withClient });
   check("over-long question is refused", !r.ok && r.kind === "error");
+
+  // the quoted-name rule through the whole pipeline
+  r = await answerQuestion('find the names which end with "debnath"', "T1", {
+    llm: script([json({ sql: helperSql, understood_as: "similar spelling", confidence: "high" }), json({ sql: exactSql, understood_as: "Exactly DEBNATH.", confidence: "high" })]),
+    withClient,
+  });
+  check("a quoted name answered with similar-spelling is sent back and corrected on attempt 2", r.ok && r.attempts === 2 && r.sql.includes("'DEBNATH'") && !r.sql.includes("last_word_like"), r.ok ? `attempts ${r.attempts}` : r.message);
+  const qPrompt = buildPrompt({ question: 'find the names which end with "debnath"', context: ctx, examples: [] });
+  check("the prompt names the quoted term and demands exact matching", qPrompt.includes('puts "debnath" in double quotes') && qPrompt.includes("EXACTLY"));
+  check("an unquoted question gets no such line", !buildPrompt({ question: "find the names which end with debnath", context: ctx, examples: [] }).includes("in double quotes. Match"));
 
   // tick / cross and rejected-reading memory
   r = await answerQuestion("kumar test verdict", "USER-A", { llm: script([goodPlan]), withClient });

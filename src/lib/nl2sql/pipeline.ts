@@ -15,6 +15,7 @@ import { buildPrompt } from "./prompt";
 import { parsePlan } from "./generator";
 import { logResult, loadRejectedSql } from "./log";
 import { normalizeSql } from "./text";
+import { checkQuotedTerms } from "./quoted";
 
 export interface PipelineDeps {
   llm: LlmFn;
@@ -110,6 +111,12 @@ export async function answerQuestion(question: string, userKey: string | null, d
     if (!g.ok) {
       lastProblem = g.reason;
       repair = { previousSql: plan.sql, problem: `The SQL was rejected by the safety check: ${g.reason}` };
+      continue;
+    }
+    const quotedProblem = checkQuotedTerms(q, g.sql);
+    if (quotedProblem) {
+      lastProblem = quotedProblem;
+      repair = { previousSql: g.sql, problem: quotedProblem };
       continue;
     }
     if (rejectedNorm.has(normalizeSql(g.sql))) {

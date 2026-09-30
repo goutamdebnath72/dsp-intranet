@@ -7,6 +7,7 @@
 // improving the system means editing this text or adding examples.
 
 import type { Example } from "./examples";
+import { extractQuotedTerms } from "./quoted";
 import { formatDepartments, formatDesignations, selectRelevantDepartments, type DynamicContext } from "./context";
 
 const SCHEMA_AND_RULES = `You convert a question about the employees of SAIL Durgapur Steel Plant (DSP) into ONE read-only PostgreSQL SELECT statement, and restate the question in plain English.
@@ -112,6 +113,13 @@ export function buildPrompt(input: PromptInput): string {
   if (input.repair) {
     parts.push(
       `YOUR PREVIOUS ATTEMPT FAILED.\nSQL: ${input.repair.previousSql.replace(/\s+/g, " ")}\nProblem: ${input.repair.problem}\nFix it and return the corrected JSON object.`,
+    );
+  }
+  const quoted = extractQuotedTerms(input.question);
+  if (quoted.length) {
+    const list = quoted.map((t) => `"${t}"`).join(", ");
+    parts.push(
+      `IMPORTANT: this question puts ${list} in double quotes. Match ${quoted.length > 1 ? "each of them" : "it"} EXACTLY and literally (name_words in UPPER CASE, or LIKE for text) and do NOT use nlq.word_like / first_word_like / last_word_like / nlq.code for ${quoted.length > 1 ? "them" : "it"}. Say "exactly" in understood_as.`,
     );
   }
   parts.push(`Question: ${input.question}\nReturn only the JSON object.`);

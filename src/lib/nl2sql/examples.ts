@@ -45,6 +45,25 @@ ORDER BY global_seniority_rank`,
     source: "seed",
   },
   {
+    question: 'find the names which end with "kumar"',
+    sql: `SELECT ${PEOPLE}
+FROM nlq.employees
+WHERE name_words[cardinality(name_words)] = 'KUMAR'
+ORDER BY global_seniority_rank`,
+    understood_as:
+      'Employees whose last word is exactly KUMAR, letter for letter (no similar spellings), because the name is in double quotes.',
+    source: "seed",
+  },
+  {
+    question: "find the names which end with kumar",
+    sql: `SELECT ${PEOPLE}
+FROM nlq.employees
+WHERE nlq.last_word_like(name_words, name_codes, 'kumar')
+ORDER BY global_seniority_rank`,
+    understood_as: 'Employees whose last word is "kumar" or a similar spelling.',
+    source: "seed",
+  },
+  {
     question: "GMs in C&IT whose name ends with nath",
     sql: `SELECT ${PEOPLE}
 FROM nlq.employees
@@ -147,7 +166,7 @@ export function similarity(a: string, b: string): number {
 
 /** Choose up to `k` examples: always the best seeds (they teach the grammar)
  *  plus the most similar confirmed ones (they teach this database's usage). */
-export function pickExamples(question: string, confirmed: Example[], k = 6): Example[] {
+export function pickExamples(question: string, confirmed: Example[], k = 5): Example[] {
   const scored = [...SEED_EXAMPLES, ...confirmed]
     .map((e) => ({ e, s: similarity(question, e.question) + (e.source === "confirmed" ? 0.05 : 0) }))
     .sort((x, y) => y.s - x.s);
