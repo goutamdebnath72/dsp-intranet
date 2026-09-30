@@ -187,43 +187,57 @@ export async function searchEmployeesByName(
 /**
  * NAME FRAGMENT + DEPARTMENT search (on Enter). You remember part of a name and
  * the department — e.g. "soumit c&it" or "roy blast furnace" (any word order).
- * Department is filtered EXACTLY (by member codes); the name fragment is matched
- * forgivingly (partial ILIKE OR phonetic), since you only recall a piece.
- * Results are seniority-ordered (lowest ticket first), contacts masked.
+ * Department is filtered EXACTLY by `sail_department` ids (Stage 8 overhaul,
+ * 28 Sep 2026 -- was legacy `departments.code`, see sailDepartments.ts); the
+ * name fragment is matched forgivingly (partial ILIKE OR phonetic).
+ *
+ * FIXED (28 Sep 2026): this used to sort by parsed ticket number, with a doc
+ * comment literally claiming that was "seniority-ordered" -- it wasn't. Now
+ * joins `employee_roster` and sorts strictly by `global_seniority_rank`, the
+ * same no-exceptions rule every other people-list in the app now follows.
+ * LEFT JOIN so the 3 roster rows with no `user_id` link still sort correctly
+ * relative to everyone else (they just won't have live contact fields).
  */
 export async function searchEmployeesByNameInDept(
   ds: DataSource,
   fragment: string,
-  codes: number[],
+  sailDeptIds: number[],
   limit = 50,
 ): Promise<EmployeeResult[]> {
   const q = (fragment || "").trim().replace(/\s+/g, " ");
-  if (q.length < 2 || !codes.length) return [];
+  if (q.length < 2 || !sailDeptIds.length) return [];
   const like = `%${q}%`;
 
   const sql = `
-    SELECT ${SELECT_COLS},
-      (u.name ILIKE $2) AS literal_hit,
+    SELECT
+      er.id, er.name, er.ticket_no AS "ticketNo", er.sail_pno AS "sailPNo",
+      dg.title AS designation, u."contactNo" AS "contactNo", u.email,
+      sd.name AS dept_name,
+      (er.name ILIKE $2) AS literal_hit,
       public.phonetic_subseq_match($1, u.name_phonetic) AS phon_match
-    FROM public."user" u
-    JOIN public.departments d ON d.id = u."departmentId"
-    WHERE d.code = ANY($3::int[])
+    FROM public.employee_roster er
+    JOIN public.designation_grade dg ON dg.id = er.designation_grade_id
+    JOIN public.sail_department sd ON sd.id = er.sail_department_id
+    LEFT JOIN public."user" u ON u.id = er.user_id
+    WHERE er.sail_department_id = ANY($3::smallint[])
       AND (
-        u.name ILIKE $2
+        er.name ILIKE $2
         OR public.phonetic_subseq_match($1, u.name_phonetic)
       )
-    ORDER BY
-      NULLIF(regexp_replace(u."ticketNo", '\D', '', 'g'), '')::int ASC NULLS LAST,
-      u.name ASC
+    ORDER BY er.global_seniority_rank ASC
     LIMIT ${limit};
   `;
 
-  const rows = await ds.query(sql, [q, like, codes]);
+  const rows = await ds.query(sql, [q, like, sailDeptIds]);
   return rows.map((r: any) => {
     const literal = r.literal_hit === true;
     const phon = r.phon_match === true;
     const kind: EmployeeResult["matchKind"] =
       !literal && phon ? "name-phonetic" : "name-fuzzy";
-    return rowToResult(r, kind, 0);
+    return rowToResult(
+      { ...r, id: r.id, ticketNo: r.ticketNo, sailPNo: r.sailPNo },
+      kind,
+      0,
+    );
   });
 }

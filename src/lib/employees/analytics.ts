@@ -1,369 +1,84 @@
 // src/lib/employees/analytics.ts
 //
-// Deterministic employee analytics. Every number comes from the DB via TypeORM
-// QueryBuilder (parameterized, injection-safe) — never from AI. Aggregates only,
-// no PII: these functions return counts/rows, never unmasked contacts.
+// Deterministic employee analytics. Every number comes from the DB via
+// parameterized SQL -- never from AI.
+//
+// STAGE 8 OVERHAUL (28 Sep 2026): the people-layer below is entirely
+// rebuilt on `employee_roster`/`designation_grade`/`sail_department`
+// (rosterQuery.ts / designationGrades.ts / sailDepartments.ts). The old
+// queryPeople()/countByTerm()/etc that queried public."user" directly and
+// sorted by parsed ticket number are gone -- every list here is
+// `ORDER BY global_seniority_rank`, no exceptions. The holiday section below
+// (Stage 2, untouched) is unaffected by this and unchanged.
 
 import { DateTime } from "luxon";
 import { getDb } from "@/lib/db";
-import { User } from "@/lib/db/models";
-import {
-  RANKS,
-  NONEXEC_DESIGNATIONS,
-  resolveDesignation,
-  HIERARCHY_INDEX,
-  type DesigClass,
-} from "./designations";
-import { parseAnalytics } from "./parser";
+import { queryRoster, listByGrades, type RosterFilters } from "./rosterQuery";
+import { parseAnalytics, type AnalyticsIntent } from "./parser";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { queryHolidays, type HolidayRow } from "@/lib/holidays/analytics";
 import { HolidayType } from "@/lib/db/models/holiday-master.model";
 import { TYPE_LABEL as HOLIDAY_TYPE_LABEL, CATEGORY_LABEL, MONTH_LABEL } from "@/lib/holidays/terms";
 
-async function userRepo() {
-  const ds = await getDb();
-  return ds.getRepository<User>("User");
-}
-
 // ============================================================================
-// THE people worker. ONE parameterized query answers every people question —
-// count or list — filtered by any combination of: a name fragment, exact
-// designation(s), department codes, and executive class. All values are bound
-// (injection-safe). Every people-count/list helper below delegates here, so new
-// question shapes need new *filters*, not new functions.
+// Headcount / list helpers -- thin wrappers over rosterQuery for the cases
+// answerAnalytics needs directly.
 // ============================================================================
-export interface PeopleFilters {
-  nameFragment?: string | null; // partial/phonetic name (first, last, or piece)
-  nameExact?: string | null; // quoted: exact whole-word match, case-insensitive
-  designations?: string[] | null; // exact canonical designations
-  deptCodes?: number[] | null; // departments.code members
-  execOnly?: boolean; // designation present and NOT on the S-scale
-  nonExecOnly?: boolean; // designation on the S-scale
-}
-export interface PeopleQuery {
-  op: "count" | "list";
-  filters: PeopleFilters;
-  limit?: number;
-}
-export interface PeopleQueryResult {
-  count: number;
-  people?: EmployeeResult[];
-}
 
-function buildPeopleWhere(f: PeopleFilters): {
-  where: string;
-  params: any[];
-  needsJoin: boolean;
-} {
-  const clauses: string[] = [];
-  const params: any[] = [];
-  let needsJoin = false;
-
-  const frag = (f.nameFragment ?? "").trim();
-  if (frag) {
-    params.push(`%${frag}%`);
-    const pLike = params.length;
-    params.push(frag);
-    const pPhon = params.length;
-    // forgiving: literal substring OR phonetic (sound-alike) — same rule the
-    // People search uses, so "goutam" also counts "Gautam".
-    clauses.push(
-      `(u.name ILIKE $${pLike} OR public.phonetic_subseq_match($${pPhon}, u.name_phonetic))`,
-    );
-  }
-
-  const exact = (f.nameExact ?? "").trim();
-  if (exact) {
-    // Quoted term: match the string exactly as a whole word (or contiguous
-    // words), case-insensitively — NO phonetic, NO mid-word substring. Uses
-    // position() with space padding so "goutam" hits "GOUTAM KARMAKAR" but not
-    // "GAUTAM ..." (different spelling) or "GOUTAMA" (not a whole word).
-    params.push(exact.toLowerCase());
-    clauses.push(
-      `position((' ' || $${params.length} || ' ') in (' ' || lower(u.name) || ' ')) > 0`,
-    );
-  }
-  if (f.designations && f.designations.length) {
-    params.push(f.designations);
-    clauses.push(`u.designation = ANY($${params.length}::text[])`);
-  }
-  if (f.execOnly) {
-    params.push(NONEXEC_DESIGNATIONS);
-    clauses.push(
-      `u.designation IS NOT NULL AND u.designation <> ALL($${params.length}::text[])`,
-    );
-  }
-  if (f.nonExecOnly) {
-    params.push(NONEXEC_DESIGNATIONS);
-    clauses.push(`u.designation = ANY($${params.length}::text[])`);
-  }
-  if (f.deptCodes && f.deptCodes.length) {
-    needsJoin = true;
-    params.push(f.deptCodes);
-    clauses.push(`dp.code = ANY($${params.length}::int[])`);
-  }
-
-  const where = clauses.length ? clauses.join(" AND ") : "TRUE";
-  return { where, params, needsJoin };
-}
-
-export async function queryPeople(
-  spec: PeopleQuery,
-): Promise<PeopleQueryResult> {
-  const d = await getDb();
-  const { where, params, needsJoin } = buildPeopleWhere(spec.filters);
-  const join = needsJoin
-    ? `JOIN public.departments dp ON dp.id = u."departmentId"`
-    : `LEFT JOIN public.departments dp ON dp.id = u."departmentId"`;
-
-  const countRows: Array<{ n: number }> = await d.query(
-    `SELECT count(*)::int AS n FROM public."user" u ${join} WHERE ${where}`,
-    params,
-  );
-  const count = countRows?.[0]?.n ?? 0;
-  if (spec.op === "count") return { count };
-
-  const limit = spec.limit ?? 100;
-  const listParams = [...params, limit];
-  const rows: any[] = await d.query(
-    `SELECT u.id, u.name, u."ticketNo" AS "ticketNo", u."sailPNo" AS "sailPNo",
-            u.designation, u."contactNo" AS "contactNo", u.email, dp.name AS dept_name
-       FROM public."user" u ${join}
-      WHERE ${where}
-      ORDER BY NULLIF(regexp_replace(u."ticketNo", '\\D', '', 'g'), '')::int ASC NULLS LAST, u.name ASC
-      LIMIT $${listParams.length}`,
-    listParams,
-  );
-  return { count, people: rows.map(rowToEmployee) };
-}
-
-/** Count employees whose designation is exactly one of the given strings. */
-export async function countDesignations(canonicals: string[]): Promise<number> {
-  if (!canonicals.length) return 0;
-  return (await queryPeople({ op: "count", filters: { designations: canonicals } }))
-    .count;
-}
-
-/** Executives = anyone with a designation that is NOT on the S-scale. */
-export async function countExecutives(): Promise<number> {
-  return (await queryPeople({ op: "count", filters: { execOnly: true } })).count;
-}
-
-/** Non-executives = S-1 … S-11. */
-export async function countNonExecutives(): Promise<number> {
-  return countDesignations(NONEXEC_DESIGNATIONS);
-}
-
-/** Total employees on record. */
 export async function totalHeadcount(): Promise<number> {
-  return (await queryPeople({ op: "count", filters: {} })).count;
+  return (await queryRoster({ op: "count", filters: {} })).count;
+}
+
+export async function deptHeadcount(deptIds: number[]): Promise<number> {
+  if (!deptIds.length) return 0;
+  return (await queryRoster({ op: "count", filters: { sailDeptIds: deptIds } })).count;
 }
 
 export interface BreakdownRow {
-  designation: string;
+  designation: string; // designation_grade.title
   count: number;
   short: string;
-  class: DesigClass | "unknown";
+  class: "managerial" | "medical" | "nonexec" | "unknown";
 }
 
-// canonical -> { short, class } lookup for labelling the breakdown
-const META = (() => {
-  const m = new Map<string, { short: string; cls: DesigClass }>();
-  for (const r of RANKS) m.set(r.canonical, { short: r.short, cls: r.class });
-  for (const s of NONEXEC_DESIGNATIONS) m.set(s, { short: s, cls: "nonexec" });
-  return m;
-})();
-
-/** Full designation-wise breakdown, highest count first. */
-export async function designationBreakdown(): Promise<BreakdownRow[]> {
-  const r = await userRepo();
-  const rows = await r
-    .createQueryBuilder("u")
-    .select("u.designation", "designation")
-    .addSelect("COUNT(*)", "count")
-    .where("u.designation IS NOT NULL")
-    .groupBy("u.designation")
-    .orderBy("COUNT(*)", "DESC")
-    .getRawMany<{ designation: string; count: string }>();
-
-  return rows
-    .map((row) => {
-      const meta = META.get(row.designation);
-      return {
-        designation: row.designation,
-        count: parseInt(row.count, 10) || 0,
-        short: meta?.short ?? row.designation,
-        class: meta?.cls ?? ("unknown" as const),
-      };
-    })
-    .sort(
-      (a, b) =>
-        (HIERARCHY_INDEX.get(a.designation) ?? 999) -
-        (HIERARCHY_INDEX.get(b.designation) ?? 999),
-    );
-}
-
-export interface RankCountResult {
-  label: string;
-  count: number;
-  kind: "rank" | "sgrade" | "exec" | "nonexec";
-  canonicals: string[];
-}
-
-/**
- * Resolve a free term (e.g. "AGM", "executives", "S-1") to its exact count.
- * Returns null if the term isn't a recognised designation/class — the caller
- * then falls through to the next layer (AI, or a different search).
- */
-export async function countByTerm(term: string): Promise<RankCountResult | null> {
-  const res = resolveDesignation(term);
-  if (!res) return null;
-
-  let count: number;
-  if (res.kind === "exec") count = await countExecutives();
-  else if (res.kind === "nonexec") count = await countNonExecutives();
-  else count = await countDesignations(res.canonicals);
-
-  return { label: res.label, count, kind: res.kind, canonicals: res.canonicals };
-}
-
-
-// ============================================================================
-// Department-scoped (Phase 2). Uses the validated join
-//   user.departmentId -> departments.id, filtered by departments.code.
-// Parameterized raw SQL (same pattern as the reveal/phonetic paths).
-// ============================================================================
-
-export async function deptHeadcount(codes: number[]): Promise<number> {
-  if (!codes.length) return 0;
-  return (await queryPeople({ op: "count", filters: { deptCodes: codes } })).count;
-}
-
-export async function countByDesignationAndDept(
-  canonicals: string[],
-  codes: number[],
-): Promise<number> {
-  if (!codes.length || !canonicals.length) return 0;
-  return (
-    await queryPeople({
-      op: "count",
-      filters: { designations: canonicals, deptCodes: codes },
-    })
-  ).count;
-}
-
-export async function execCountInDept(codes: number[]): Promise<number> {
-  if (!codes.length) return 0;
-  return (
-    await queryPeople({ op: "count", filters: { execOnly: true, deptCodes: codes } })
-  ).count;
-}
-
-export async function nonExecCountInDept(codes: number[]): Promise<number> {
-  return countByDesignationAndDept(NONEXEC_DESIGNATIONS, codes);
-}
-
-export async function deptBreakdown(codes: number[]): Promise<BreakdownRow[]> {
-  if (!codes.length) return [];
+async function buildBreakdown(sailDeptIds?: number[]): Promise<BreakdownRow[]> {
   const d = await getDb();
-  const rows: Array<{ designation: string; count: number }> = await d.query(
-    `SELECT u.designation AS designation, count(*)::int AS count
-       FROM public."user" u
-       JOIN public.departments dp ON dp.id = u."departmentId"
-      WHERE dp.code = ANY($1::int[]) AND u.designation IS NOT NULL
-      GROUP BY u.designation`,
-    [codes],
+  const params: any[] = [];
+  let where = "TRUE";
+  if (sailDeptIds && sailDeptIds.length) {
+    params.push(sailDeptIds);
+    where = `er.sail_department_id = ANY($1::smallint[])`;
+  }
+  const rows: any[] = await d.query(
+    `SELECT dg.title AS title, dg.track AS track, dg.rank_order AS "rankOrder", count(*)::int AS n
+       FROM public.employee_roster er
+       JOIN public.designation_grade dg ON dg.id = er.designation_grade_id
+      WHERE ${where}
+      GROUP BY dg.id, dg.title, dg.track, dg.rank_order
+      ORDER BY dg.rank_order`,
+    params,
   );
-  return rows
-    .map((row) => {
-      const meta = META.get(row.designation);
-      return {
-        designation: row.designation,
-        count: Number(row.count) || 0,
-        short: meta?.short ?? row.designation,
-        class: meta?.cls ?? ("unknown" as const),
-      };
-    })
-    .sort(
-      (a, b) =>
-        (HIERARCHY_INDEX.get(a.designation) ?? 999) -
-        (HIERARCHY_INDEX.get(b.designation) ?? 999),
-    );
+  return rows.map((r: any) => ({
+    designation: r.title,
+    count: Number(r.n) || 0,
+    short: r.title,
+    class: (r.track as BreakdownRow["class"]) ?? "unknown",
+  }));
 }
 
-export async function countByTermInDept(
-  term: string,
-  codes: number[],
-): Promise<RankCountResult | null> {
-  const res = resolveDesignation(term);
-  if (!res) return null;
-  let count: number;
-  if (res.kind === "exec") count = await execCountInDept(codes);
-  else if (res.kind === "nonexec") count = await nonExecCountInDept(codes);
-  else count = await countByDesignationAndDept(res.canonicals, codes);
-  return { label: res.label, count, kind: res.kind, canonicals: res.canonicals };
+/** Full designation-wise breakdown across DSP, senior-most first. */
+export async function designationBreakdown(): Promise<BreakdownRow[]> {
+  return buildBreakdown();
 }
 
-// ============================================================================
-// Single entry point: question text -> ready-to-render answer, or null.
-// Shared by the Smart Semantic path and the debug endpoint so they never drift.
-// ============================================================================
-
-// ---- People list worker (masked cards, same shape as the employee search) ---
-// Local masking (mirrors employeeSearch.ts) so listing a rank/department never
-// leaks a raw contact and the frontend can reuse the existing People-row card.
-function maskMobileLocal(m: string | null): string | null {
-  if (!m) return null;
-  const digits = m.replace(/\D/g, "");
-  if (digits.length < 4) return "xxxx";
-  return `${digits.slice(0, 6)}${"x".repeat(Math.max(0, digits.length - 6))}`;
-}
-function maskEmailLocal(e: string | null): string | null {
-  if (!e) return null;
-  const at = e.indexOf("@");
-  if (at <= 0) return "xxxxxx";
-  return `xxxxxx${e.slice(at)}`;
-}
-
-// Shared row -> masked People card (used by queryPeople). Never leaks a raw
-// contact; the frontend reuses the existing People-row component.
-function rowToEmployee(r: any): EmployeeResult {
-  const ticket = (r.ticketNo || "").trim();
-  return {
-    id: r.id,
-    type: "employee",
-    name: r.name,
-    ticketNo: ticket,
-    sailPNo: r.sailPNo || null,
-    designation: r.designation || null,
-    department: r.dept_name || null,
-    mobileMasked: maskMobileLocal(r.contactNo || null),
-    emailMasked: maskEmailLocal(r.email || null),
-    hasMobile: !!r.contactNo,
-    hasEmail: !!r.email,
-    isExecutive: /^4\d{5}$/.test(ticket),
-    matchKind: "id",
-    score: 0,
-  } as EmployeeResult;
-}
-
-export async function listPeople(
-  canonicals: string[],
-  codes: number[] | null,
-  limit = 100,
-): Promise<EmployeeResult[]> {
-  if (!canonicals.length) return [];
-  return (
-    await queryPeople({
-      op: "list",
-      filters: { designations: canonicals, deptCodes: codes ?? undefined },
-      limit,
-    })
-  ).people ?? [];
+/** Designation-wise breakdown scoped to a set of sail_department ids. */
+export async function deptBreakdown(deptIds: number[]): Promise<BreakdownRow[]> {
+  if (!deptIds.length) return [];
+  return buildBreakdown(deptIds);
 }
 
 export interface AnalyticsPayload {
-  kind: "count" | "total" | "breakdown" | "pending" | "error";
+  kind: "count" | "total" | "breakdown" | "pending" | "error" | "clarify";
   answer: string;
   label?: string;
   count?: number;
@@ -372,39 +87,67 @@ export interface AnalyticsPayload {
   listTruncated?: boolean;
   /** Stage 2: holiday rows for a holiday list query (rendered like People). */
   holidays?: HolidayRow[];
-  /** Per-type (RH/CH/FH) tally for a holiday list query, only present when
-   *  no single type was already filtered on. `count` above is the
-   *  DISTINCT-holiday number (see holidayList's comment); rawEntryCount is
-   *  the raw (date,type) row total that count deliberately excludes the
-   *  double-counting from. */
   typeBreakdown?: { type: string; label: string; count: number }[];
   rawEntryCount?: number;
-  /** Per-category RH quota (holiday_rh_quota) alongside a holiday list --
-   *  see the holidayList case's comment for why this can't be represented
-   *  as simple per-row category ticks the way FH/CH can. */
   rhQuotaByCategory?: { category: string; quota: number }[];
-  /** What A/B/C/D actually mean -- see CATEGORY_LABEL in holidays/terms.ts.
-   *  Present alongside rhQuotaByCategory so the frontend never shows bare
-   *  category letters without an explanation of who they refer to. */
   categoryLabels?: Record<string, string>;
+  /**
+   * Added 29 Sep 2026 for the hybrid LLM router's feedback loop (see
+   * queryOrchestrator.ts / patternCache.ts): present ONLY when this answer
+   * came from a fresh LLM classification that generalized to a new,
+   * not-yet-trusted pattern. The frontend should show a tick/cross on any
+   * payload carrying this id, and call the pattern-feedback endpoint with
+   * it on an explicit click. Nothing is inferred from behaviour -- no click,
+   * no signal. Absent for every
+   * other answer (deterministic parser, or an already-confirmed cache hit)
+   * -- those never need feedback UI at all.
+   */
+  pendingPatternId?: number;
+  /**
+   * Added 29 Sep 2026: a plain-language statement of how an LLM-derived
+   * query was understood (e.g. `Name has the word "kumar" and "kumar" is not
+   * the first word ...`). Present only on answers that came from the LLM
+   * tier or a learned-pattern hit, never on deterministic-parser answers.
+   * The verifier proves rows match the interpreted condition; this line lets
+   * the person check the condition itself matches what they meant.
+   */
+  interpretation?: string;
 }
 
+/**
+ * Original public entry point: parse a raw query with the deterministic
+ * regex/pattern parser, then execute it. Kept exactly as before for any
+ * existing caller -- this is now also the FALLBACK path the new LLM
+ * orchestrator (queryOrchestrator.ts) calls when LLM classification fails
+ * or declines to handle a query.
+ */
 export async function answerAnalytics(q: string): Promise<AnalyticsPayload | null> {
   const intent = await parseAnalytics(q);
   if (!intent) return null;
+  return runAnalyticsIntent(intent);
+}
 
-  // Shared across every holiday case below: a result with yearAvailable ===
-  // false means the requested year simply isn't loaded. Say so plainly
-  // instead of returning null (which hands off to circular/semantic search
-  // and surfaces confusing, unrelated-looking results for what is really
-  // just "that year isn't loaded yet").
+/**
+ * Execute an already-parsed intent and produce the final display payload.
+ * Split out from answerAnalytics() on 29 Sep 2026 so the new LLM-based
+ * intent orchestrator (queryOrchestrator.ts) can supply its OWN grounded
+ * intent directly, without going through the regex/pattern parser at all --
+ * that parser (parseAnalytics, below) is now the FALLBACK path only, used
+ * when the LLM classification fails or is low-confidence. Every existing
+ * intent kind and its formatting is unchanged.
+ *
+ * Return type stays NULLABLE (not a plain AnalyticsPayload): a weak,
+ * unquoted peopleByName search that finds nothing signals null on purpose,
+ * meaning "let the caller fall through to semantic/circular search" rather
+ * than assert "no employees found" -- this must survive the split, not get
+ * papered over into a forced non-null return.
+ */
+export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<AnalyticsPayload | null> {
   const holidayYearNotLoaded = (year: number): AnalyticsPayload => ({
     kind: "pending",
     answer: `I don't have holiday data loaded for ${year} yet.`,
   });
 
-  // Describes a months filter for the answer sentence: none -> "in 2025",
-  // one -> "in March 2025", two or more -> "in March, April and May 2025".
   const monthsLabel = (months: number[] | null, year?: number): string => {
     if (!months || months.length === 0) return year != null ? ` in ${year}` : "";
     const names = months.map((m) => MONTH_LABEL[m]);
@@ -421,93 +164,89 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
     return d.isValid ? d.toFormat("d LLL yyyy") : iso;
   };
 
-  // A query that's internally contradictory or names input this parser
-  // can't confidently resolve -- see HolidayIntent's "holidayBadQuery"
-  // comment for why this must be a visible rejection, never a silent
-  // reinterpretation. Rendered in red by the frontend (kind: "error").
   const holidayBadQuery = (message: string): AnalyticsPayload => ({
     kind: "error",
     answer: message,
   });
 
   switch (intent.kind) {
-    case "deptUnknown":
-      return {
-        kind: "pending",
-        answer: `I couldn't identify the department “${intent.dept}”. Try its full name or a known short form (e.g. C&IT, ETL).`,
-      };
     case "deptTotal": {
-      const n = await deptHeadcount(intent.codes);
+      const n = await deptHeadcount(intent.deptIds);
       return {
         kind: "count",
         count: n,
         answer: `${intent.deptName} has ${n.toLocaleString()} employees.`,
       };
     }
+
     case "deptBreakdown": {
-      const rows = await deptBreakdown(intent.codes);
+      const rows = await deptBreakdown(intent.deptIds);
       return {
         kind: "breakdown",
         rows,
         answer: `Designation-wise breakdown for ${intent.deptName} (${rows.length} designations).`,
       };
     }
+
     case "people": {
-      const res = intent.codes
-        ? await countByTermInDept(intent.term, intent.codes)
-        : await countByTerm(intent.term);
-      if (!res) return null;
+      const filters: RosterFilters = {
+        gradeIds: intent.gradeIds ?? undefined,
+        cohort: intent.cohort ?? undefined,
+        sailDeptIds: intent.deptIds ?? undefined,
+      };
+      const res = await queryRoster({ op: intent.list ? "list" : "count", filters, limit: 100 });
       const scope = intent.scopeName;
+      const noun =
+        intent.cohort === "executive"
+          ? "executives"
+          : intent.cohort === "nonexecutive"
+            ? "non-executives"
+            : intent.label === "Employees"
+              ? "employees"
+              : intent.label;
       const answer = scope
-        ? res.kind === "exec"
-          ? `${scope} has ${res.count.toLocaleString()} executives.`
-          : res.kind === "nonexec"
-            ? `${scope} has ${res.count.toLocaleString()} non-executives.`
-            : `${scope} has ${res.count.toLocaleString()} ${res.label}.`
-        : res.kind === "exec"
-          ? `DSP has ${res.count.toLocaleString()} executives.`
-          : res.kind === "nonexec"
-            ? `DSP has ${res.count.toLocaleString()} non-executives (S-scale).`
-            : `DSP currently has ${res.count.toLocaleString()} ${res.label}.`;
+        ? `${scope} has ${res.count.toLocaleString()} ${noun}.`
+        : `DSP currently has ${res.count.toLocaleString()} ${noun}.`;
       const payload: AnalyticsPayload = {
         kind: "count",
-        label: res.label,
+        label: intent.label,
         count: res.count,
         answer,
       };
       if (intent.list) {
-        const people = await listPeople(res.canonicals, intent.codes ?? null, 100);
-        payload.people = people;
-        payload.listTruncated = res.count > people.length;
+        payload.people = res.people ?? [];
+        payload.listTruncated = res.count > (res.people?.length ?? 0);
       }
       return payload;
     }
+
     case "peopleByName": {
-      // Count/list employees whose NAME matches a fragment (partial + phonetic),
-      // optionally scoped to a department. Always fetch the list — for a name,
-      // *who* they are is the useful part.
-      const res = await queryPeople({
+      const res = await queryRoster({
         op: "list",
         filters: {
           ...(intent.exact
             ? { nameExact: intent.fragment }
-            : { nameFragment: intent.fragment }),
-          deptCodes: intent.codes ?? undefined,
+            : intent.namePredicate
+              ? { namePredicate: intent.namePredicate }
+              : { nameFragment: intent.fragment }),
+          sailDeptIds: intent.deptIds ?? undefined,
         },
         limit: 100,
       });
-      // A weak (unquoted, unverified) candidate that matches nobody is probably
-      // not a name at all -> hand off to the next search lane instead of "0".
       if (res.count === 0 && !intent.strong) return null;
       const scope = intent.scopeName ? ` in ${intent.scopeName}` : "";
       const noun = res.count === 1 ? "person" : "people";
+      // With a predicate tree, quoting one leaf value ("matching \"kumar\"")
+      // misdescribes a compound condition -- the interpretation line shown
+      // under the answer states the real condition.
+      const subject = intent.namePredicate ? "the stated condition" : `"${intent.fragment}"`;
       const answer =
         res.count === 0
-          ? `No employees named “${intent.fragment}”${scope}.`
-          : `${res.count.toLocaleString()} ${noun} named “${intent.fragment}”${scope}.`;
+          ? `No employees matching ${subject}${scope}.`
+          : `${res.count.toLocaleString()} ${noun} matching ${subject}${scope}.`;
       const payload: AnalyticsPayload = {
         kind: "count",
-        label: intent.fragment,
+        label: intent.fragment || "matching employees",
         count: res.count,
         answer,
       };
@@ -517,6 +256,7 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
       }
       return payload;
     }
+
     case "total": {
       const n = await totalHeadcount();
       return {
@@ -525,6 +265,7 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
         answer: `DSP has ${n.toLocaleString()} employees on record.`,
       };
     }
+
     case "breakdown": {
       const rows = await designationBreakdown();
       return {
@@ -534,15 +275,6 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
       };
     }
 
-    // ==========================================================================
-    // Stage 2 — holidays. queryHolidays() is the one parameterized worker; every
-    // case below just shapes its result into an AnalyticsPayload. A result with
-    // yearAvailable === false means the requested year isn't loaded at all --
-    // this must say so plainly (see holidayYearNotLoaded below) rather than
-    // return null, which hands off to circular/semantic search and produces
-    // confusing, unrelated-looking results for what is really just an honest
-    // "that year isn't loaded yet."
-    // ==========================================================================
     case "holidayCount": {
       // Closed holidays apply to EVERY employee category -- holidayyear
       // never sets `categories` on a CH row (see queryHolidays' buildWhere

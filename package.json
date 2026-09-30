@@ -38,6 +38,7 @@
     "pdf-to-text": "^0.0.7",
     "pg": "^8.21.0",
     "pg-connection-string": "^2.9.1",
+    "pgsql-ast-parser": "^12.0.2",
     "react": "18.3.1",
     "react-confetti": "^6.4.0",
     "react-day-picker": "8.10.1",

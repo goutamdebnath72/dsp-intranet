@@ -10,8 +10,8 @@ import {
 } from "@/lib/search/executiveSynthesis";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
-import { answerAnalytics } from "@/lib/employees/analytics";
-import { findDepartmentInText } from "@/lib/employees/departments";
+import { answerEmployeeQuery } from "@/lib/employees/queryOrchestrator";
+import { findSailDepartmentInText } from "@/lib/employees/sailDepartments";
 import { normTerm } from "@/lib/employees/designations";
 
 export const runtime = "nodejs";
@@ -200,7 +200,7 @@ export async function GET(request: Request) {
     // fragment ("c&it attendance") is NOT a person -> keeps the normal floor.
     if (!isNameShaped && !INDIC_SCRIPT_REGEX.test(q)) {
       try {
-        const dept = findDepartmentInText(q);
+        const dept = await findSailDepartmentInText(q);
         if (dept) {
           const fragment = normTerm(q)
             .split(dept.phrase)
@@ -258,7 +258,7 @@ export async function GET(request: Request) {
     // Smart Semantic first tries to answer staffing questions from the DB;
     // if it is not an analytics question, fall through to circular search.
     if (mode === "semantic") {
-      const payload = await answerAnalytics(q);
+      const payload = await answerEmployeeQuery(q);
       if (payload) return NextResponse.json({ analytics: payload });
     }
 

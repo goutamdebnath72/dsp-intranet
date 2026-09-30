@@ -35,7 +35,7 @@ export interface AnalyticsHolidayRow {
 }
 
 export interface AnalyticsAnswer {
-  kind: "count" | "total" | "breakdown" | "pending" | "error";
+  kind: "count" | "total" | "breakdown" | "pending" | "error" | "clarify";
   answer: string;
   label?: string;
   count?: number;
@@ -56,6 +56,13 @@ export interface AnalyticsAnswer {
   rhQuotaByCategory?: { category: string; quota: number }[];
   /** What A/B/C/D actually mean -- see CATEGORY_LABEL in holidays/terms.ts. */
   categoryLabels?: Record<string, string>;
+  /** Present only on answers from a fresh, not-yet-trusted LLM-derived
+   *  pattern -- show the tick/cross and report feedback with this id.
+   *  Mirrors AnalyticsPayload.pendingPatternId (employees/analytics.ts). */
+  pendingPatternId?: number;
+  /** Plain-language statement of how an LLM-derived query was understood.
+   *  Mirrors AnalyticsPayload.interpretation. */
+  interpretation?: string;
 }
 
 export interface OmniSearchResponse {

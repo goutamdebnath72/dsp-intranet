@@ -18,6 +18,7 @@ import { useOmniSearch } from "@/hooks/useOmniSearch";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
 import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
+import { InterpretationNote, PatternFeedbackBar } from "@/components/AnalyticsFeedback";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
@@ -696,6 +697,15 @@ export function OmnibarModal({
                               {analytics.kind === "error" && "Bad query: "}
                               {analytics.answer}
                             </p>
+                            {analytics.interpretation && (
+                              <InterpretationNote text={analytics.interpretation} />
+                            )}
+                            {typeof analytics.pendingPatternId === "number" && (
+                              <PatternFeedbackBar
+                                key={analytics.pendingPatternId}
+                                patternId={analytics.pendingPatternId}
+                              />
+                            )}
                             {analytics.typeBreakdown &&
                               analytics.typeBreakdown.length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-2">

@@ -7,8 +7,8 @@ import {
   searchEmployeesByName,
   searchEmployeesByNameInDept,
 } from "@/lib/search/employeeSearch";
-import { findDepartmentInText } from "@/lib/employees/departments";
-import { normTerm } from "@/lib/employees/designations";
+import { findSailDepartmentInText } from "@/lib/employees/sailDepartments";
+import { normTerm } from "@/lib/employees/parser";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     if (mode === "name") {
       // Name fragment + department (order-independent). If the query names a
       // department, treat the rest as the name fragment.
-      const dept = findDepartmentInText(q);
+      const dept = await findSailDepartmentInText(q);
       if (dept) {
         const fragment = normTerm(q)
           .split(dept.phrase)
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
           const results = await searchEmployeesByNameInDept(
             ds,
             fragment,
-            dept.group.codes,
+            dept.group.ids,
           );
           return NextResponse.json({ results });
         }
