@@ -1,7 +1,8 @@
 -- 04_fix_name_codes_permission.sql
 -- Fixes "permission denied for schema public" when a query uses name_codes / the
 -- name-matching helpers. Run this whole file once on the live database. Safe to re-run.
--- NOTE: 05_fast_name_codes.sql supersedes this file. If you run 05, do NOT run 04 afterwards.
+-- NOTE: SUPERSEDED. 05_fast_name_codes.sql and 06_spelling_families.sql replace this file. Do NOT run 04
+-- after 05 or 06: it would put back an older version of nlq.name_codes_of (without the spelling rule).
 -- (01_nlq_schema_views_role.sql has been updated to include the same change for fresh installs.)
 
 CREATE OR REPLACE FUNCTION nlq.name_codes_of(full_name text) RETURNS text[]

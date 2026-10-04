@@ -106,6 +106,16 @@ ORDER BY global_seniority_rank`,
     source: "seed",
   },
   {
+    question: "how many DGMs in mechanical",
+    sql: `SELECT count(*) AS count
+FROM nlq.employees
+WHERE designation = 'Dy. General Manager'
+  AND department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%mech%')`,
+    understood_as:
+      "The number of Dy. General Managers in every department whose name contains MECH (mechanical, including abbreviated names such as '(MECH)'); matched on the stem because department names abbreviate the word.",
+    source: "seed",
+  },
+  {
     question: "who are the 10 most senior non executives",
     sql: `SELECT ${PEOPLE}
 FROM nlq.employees

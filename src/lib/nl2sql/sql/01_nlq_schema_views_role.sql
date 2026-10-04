@@ -28,13 +28,30 @@ LANGUAGE sql IMMUTABLE AS $$
   SELECT btrim(regexp_replace(lower(replace(coalesce(t, ''), '&', ' and ')), '[^a-z0-9]+', ' ', 'g'))
 $$;
 
+-- Spelling families whose variants the phonetic code cannot see. The -padhyay surnames are written
+-- many ways (Mukhopadhyay / Mukhopadhya / Mukhopadhayay ...). Any "-padhya / -padhyaya / -padhayay"
+-- ending after the stems Mukho-, Bando-/Bandyo-, Chatto-, Gango- is treated as the full "-padhyay"
+-- form, for typed words AND for stored names. Only those four stems, so Upadhyay, Padhi etc. are
+-- untouched. (Mukherji / Banerji / Chatterji / Ganguli already share a code with their family.)
+CREATE OR REPLACE FUNCTION nlq.spelling_fix(t text) RETURNS text
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT regexp_replace(
+         regexp_replace(
+         regexp_replace(
+         regexp_replace(coalesce(t, ''),
+           '\mMUKH?[OA]PADH[AY]{1,5}\M',    'MUKHOPADHYAY',  'gi'),
+           '\mBAND[YH]?OPADH[AY]{1,5}\M',   'BANDYOPADHYAY', 'gi'),
+           '\mCHATT?OPADH[AY]{1,5}\M',      'CHATTOPADHYAY', 'gi'),
+           '\mGANG[OA]PADH[AY]{1,5}\M',     'GANGOPADHYAY',  'gi')
+$$;
+
 -- Phonetic code of ONE word, the same code stored in nlq.employees.name_codes.
 -- as_last = true applies last-word (surname) synonyms, e.g. NATH -> DEBNATH.
 -- SECURITY DEFINER with a pinned search_path so the reader role needs no
 -- access to schema public.
 CREATE OR REPLACE FUNCTION nlq.code(word text, as_last boolean DEFAULT false) RETURNS text
 LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
-  SELECT public.indic_fold(public.name_synonym_normalize(word, as_last))
+  SELECT public.indic_fold(public.name_synonym_normalize(nlq.spelling_fix(word), as_last))
 $$;
 
 -- Phonetic codes of a whole name, for the view below. WHY THIS WRAPPER EXISTS: the view
@@ -44,7 +61,7 @@ $$;
 -- restricted role never needs any access to public.
 CREATE OR REPLACE FUNCTION nlq.name_codes_of(full_name text) RETURNS text[]
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
-  SELECT public.name_phonetic_codes(full_name)
+  SELECT public.name_phonetic_codes(nlq.spelling_fix(full_name))
 $$;
 
 -- Stored phonetic codes (fast). A stored row is used only while its stored NAME still equals the
@@ -61,7 +78,7 @@ DECLARE n integer;
 BEGIN
   DELETE FROM nlq.employee_name_codes;
   INSERT INTO nlq.employee_name_codes (id, name, codes)
-  SELECT er.id, er.name, coalesce(public.name_phonetic_codes(er.name), ARRAY[]::text[])
+  SELECT er.id, er.name, coalesce(nlq.name_codes_of(er.name), ARRAY[]::text[])
   FROM public.employee_roster er;
   GET DIAGNOSTICS n = ROW_COUNT;
   RETURN n;

@@ -17,6 +17,7 @@ import { logResult, loadRejectedSql } from "./log";
 import { normalizeSql } from "./text";
 import { checkQuotedTerms } from "./quoted";
 import { checkNormPatterns, checkVocabulary } from "./vocabulary";
+import { computeDepartmentScope } from "./scope";
 
 export interface PipelineDeps {
   llm: LlmFn;
@@ -135,8 +136,9 @@ export async function answerQuestion(question: string, userKey: string | null, d
 
     try {
       const data = await deps.withClient((c) => runReadOnly(c, g.sql, deps.exec));
+      const scope = await deps.withClient((c) => computeDepartmentScope(c, g.sql)).catch(() => null);
       return finish(
-        { ok: true, question: q, sql: g.sql, understoodAs: plan.understood_as, confidence: plan.confidence, data, attempts } as any,
+        { ok: true, question: q, sql: g.sql, understoodAs: plan.understood_as, confidence: plan.confidence, data, scope, attempts } as any,
         { ok: true, error: null, rowTotal: data.total, understoodAs: plan.understood_as, confidence: plan.confidence },
       );
     } catch (e) {

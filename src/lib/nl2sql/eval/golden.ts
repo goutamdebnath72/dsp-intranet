@@ -185,6 +185,20 @@ export const GOLDEN: GoldenCase[] = [
       ORDER BY global_seniority_rank`,
   },
   {
+    id: "dgm_electrical",
+    kind: "set",
+    note: "Department words are abbreviated in the names ('(ELECT)'): match the stem, not only the full word. Found in a real review.",
+    variants: [
+      "who is the senior most DGM in electrical",
+      "senior most Dy. General Manager in the electrical departments",
+      "who is the most senior DGM of electrical",
+    ],
+    reference: `SELECT ${P} FROM nlq.employees
+      WHERE designation = 'Dy. General Manager'
+        AND department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%elect%')
+      ORDER BY global_seniority_rank LIMIT 1`,
+  },
+  {
     id: "count_blast_furnace",
     kind: "scalar",
     variants: ["how many employees in blast furnace operation", "number of people working in BLAST FURNACE (OPERATION)", "headcount of blast furnace operation", "headcount of the BLAST FURNACE (OPERATION) department"],

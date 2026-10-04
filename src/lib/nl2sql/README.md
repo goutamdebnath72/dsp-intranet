@@ -65,12 +65,16 @@ Writes `nl2sql-eval-report.md` / `.json`: pass rate overall and per question, th
 
 The run saves results after every question and stops cleanly if the model provider's daily token allowance runs out; continue later with `npm run nl2sql:live -- --resume` (questions that already got a real answer are not asked again). The report shows tokens per question, which matters: each question costs roughly 5,000 tokens, so a 200,000-token daily allowance is only about 35-40 questions for the whole organisation.
 
+**Review run (real questions).** `eval/review.ts` takes a text file of real questions (one per line) and writes `nl2sql-eval-review.md`: for each question, what the model understood, its SQL, and the result size. There is no reference answer; a person judges each reading. By default the sheet contains no employee data (only aggregate numbers such as counts); `--rows=N` adds the first N rows of each list of people. Example: `npx tsx --env-file=.env.local src/lib/nl2sql/eval/review.ts nl2sql-eval-questions.txt` (add `--resume` to continue after a daily-limit stop).
+
 `eval/golden.ts` is the suite: each question is one meaning in several wordings plus a reference SQL that defines the right answer. Add your own cases there – that is how "many different phrasings" gets measured instead of guessed.
 
 ## Keeping the phonetic codes current
 The phonetic code of every name is stored in `nlq.employee_name_codes` so matching stays fast (about 70 ms for 6,500 people instead of several seconds). A stored code is used only while its stored name still equals the employee's current name, so a renamed or newly added employee is always answered correctly without any action. After you change the phonetic functions themselves (for example adding a synonym in `name_synonym_normalize`), refresh the stored codes: `SELECT nlq.refresh_name_codes();`
 
-Setup files, in the order they were needed: `01` (views, helpers, role, stored codes), `02` (log table), `03` (optional login role), `04` and `05` (fixes for a database that already ran the first version of `01`; a fresh install needs only `01`, `02`, `03`).
+**Spelling families.** Spelling variants of the -padhyay surnames (Mukhopadhya, Gangopadhya, Bandyopadhya, Chattopadhya ...) are treated as the same name as their family (Mukherjee, Ganguly, Banerjee, Chatterjee), for typed words and for stored names, by `nlq.spelling_fix` (file `06`, included in `01` for fresh installs). It lives in the `nlq` schema only; the phonetic functions in `public` are not changed. To add another family, extend that function and run `SELECT nlq.refresh_name_codes();`.
+
+Setup files, in the order they were needed: `01` (views, helpers, role, stored codes), `02` (log table), `03` (optional login role), `04`, `05` and `06` (fixes for a database that already ran the first version of `01`; a fresh install needs only `01`, `02`, `03`; if you run `05`, do not run `04` afterwards).
 
 ## The learning loop
 Every question is stored in `public.nl2sql_log`. A ✓ marks the question/SQL pair as a worked example that is retrieved (by similarity) into future prompts. A ✗ stops that exact SQL being shown to that person again for that question. This improves answers **without code changes**.

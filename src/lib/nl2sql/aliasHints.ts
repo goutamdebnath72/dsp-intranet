@@ -48,6 +48,17 @@ export const MULTI_ROW_DEPARTMENTS: { name: string; aliases: string[]; codes: nu
   },
 ];
 
+/** Words that department names abbreviate (seen in the live list: "(ELECT)", "(MECH)", "(OPRN)", "ELECT.MAINT.", "DEPTT."). */
+export const DEPARTMENT_WORD_ABBREVIATIONS: [string, string][] = [
+  ["electrical", "ELECT"],
+  ["mechanical", "MECH"],
+  ["operation", "OPRN"],
+  ["maintenance", "MAINT"],
+  ["technical", "TECH"],
+  ["department", "DEPTT"],
+  ["laboratory", "LAB"],
+];
+
 /** Designation short forms -> the exact stored title(s). */
 export const DESIGNATION_SHORT_FORMS: [string, string[]][] = [
   ["Director In-charge", ["DIC", "director incharge"]],

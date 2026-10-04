@@ -1,6 +1,6 @@
 -- 05_fast_name_codes.sql
 -- Makes phonetic name matching fast (a query that took 6.4 s now takes milliseconds).
--- Run this whole file once on the live database. Safe to re-run. It adds ONE new table and
+-- Run this whole file once on the live database. Safe to re-run, in any order with 06. It adds ONE new table and
 -- replaces the view and the three helper functions; it changes no existing table.
 --
 -- Why it was slow: the phonetic code of every name was recomputed for every employee, several
@@ -24,7 +24,7 @@ DECLARE n integer;
 BEGIN
   DELETE FROM nlq.employee_name_codes;
   INSERT INTO nlq.employee_name_codes (id, name, codes)
-  SELECT er.id, er.name, coalesce(public.name_phonetic_codes(er.name), ARRAY[]::text[])
+  SELECT er.id, er.name, coalesce(nlq.name_codes_of(er.name), ARRAY[]::text[])
   FROM public.employee_roster er;
   GET DIAGNOSTICS n = ROW_COUNT;
   RETURN n;
@@ -101,7 +101,7 @@ TO nlq_reader;
 SELECT count(*) AS stored_codes_that_differ_from_live
 FROM nlq.employee_name_codes nc
 JOIN public.employee_roster er ON er.id = nc.id AND er.name = nc.name
-WHERE nc.codes IS DISTINCT FROM coalesce(public.name_phonetic_codes(er.name), ARRAY[]::text[]);
+WHERE nc.codes IS DISTINCT FROM coalesce(nlq.name_codes_of(er.name), ARRAY[]::text[]);
 
 -- Proof 2 (keep this LAST): the restricted role can use the phonetic columns. It raises an error
 -- if not, which undoes this whole file. RESET ROLE matters: the SQL editor runs a file as one

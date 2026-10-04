@@ -27,6 +27,7 @@ import { loadDynamicContext, clearContextCache, selectRelevantDepartments } from
 import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
+import { departmentScopeQueries, computeDepartmentScope } from "../scope";
 import { vocabularyHits, vocabularyLine, checkVocabulary, checkNormPatterns } from "../vocabulary";
 import { GOLDEN, compareResults } from "./golden";
 import { GUARD_ACCEPT, GUARD_REJECT } from "./guard-cases";
@@ -216,6 +217,44 @@ async function main() {
   check("the connection can still read the roster after the file (role fully restored)", afterRoster === roster.length, String(afterRoster));
 
   // ==========================================================================
+  section("D3. Spelling families: Mukhopadhya / Gangopadhya ... match their family (typed words AND stored names)");
+  const sameCode = async (a2: string, b2: string) => (await pg.query(`SELECT nlq.code($1, true) = nlq.code($2, true) AS same`, [a2, b2])).rows[0].same === true;
+  for (const [variant, family] of [
+    ["gangopadhya", "ganguly"], ["gangopadhyay", "ganguly"], ["ganguli", "ganguly"], ["gangapadhyay", "ganguly"],
+    ["mukhopadhya", "mukherjee"], ["mukhopadhayay", "mukherjee"], ["mukhopadhyaya", "mukherjee"], ["mukherji", "mukherjee"],
+    ["bandyopadhya", "banerjee"], ["bandhopadhyay", "banerjee"], ["bandopadhyay", "banerjee"], ["banerji", "banerjee"],
+    ["chattopadhya", "chatterjee"], ["chatopadhyay", "chatterjee"], ["chatterji", "chatterjee"],
+  ]) check(`typed "${variant}" matches the ${family} family`, await sameCode(variant, family));
+  for (const [x, y] of [["mukherjee", "banerjee"], ["mukherjee", "chatterjee"], ["banerjee", "chatterjee"], ["ganguly", "mukherjee"], ["upadhyay", "mukherjee"], ["gangadhar", "ganguly"], ["mukund", "mukherjee"]]) {
+    check(`different surnames stay different: ${x} / ${y}`, !(await sameCode(x, y)));
+  }
+  check("Upadhyay is untouched by the -padhyay rule", (await pg.query(`SELECT nlq.spelling_fix('UPADHYAY') AS s`)).rows[0].s === "UPADHYAY");
+  await pg.query("BEGIN");
+  try {
+    await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
+      ('990001','ZZ ONE MUKHOPADHYA',20,1,'nonexecutive',99001,990001), ('990002','ZZ TWO MUKHOPADHAYAY',20,1,'nonexecutive',99002,990002),
+      ('990003','ZZ THREE GANGOPADHYA',20,1,'nonexecutive',99003,990003), ('990004','ZZ FOUR GANGULY',20,1,'nonexecutive',99004,990004)`);
+    await pg.query(`SELECT nlq.refresh_name_codes()`);
+    const mk = (await pg.query(`SELECT name FROM nlq.employees WHERE name LIKE 'ZZ %' AND nlq.word_like(name_words, name_codes, 'mukherjee') ORDER BY name`)).rows.map((r: any) => r.name);
+    check("a search for 'mukherjee' now finds the Mukhopadhya and Mukhopadhayay spellings", mk.length === 2 && mk[0] === "ZZ ONE MUKHOPADHYA" && mk[1] === "ZZ TWO MUKHOPADHAYAY", JSON.stringify(mk));
+    const gg = (await pg.query(`SELECT name FROM nlq.employees WHERE name LIKE 'ZZ %' AND nlq.last_word_like(name_words, name_codes, 'gangopadhya') ORDER BY name`)).rows.map((r: any) => r.name);
+    check("typing 'gangopadhya' finds both GANGOPADHYA and GANGULY", gg.length === 2 && gg.includes("ZZ THREE GANGOPADHYA") && gg.includes("ZZ FOUR GANGULY"), JSON.stringify(gg));
+    const exact = (await pg.query(`SELECT name FROM nlq.employees WHERE name LIKE 'ZZ %' AND 'MUKHOPADHYA' = ANY(name_words)`)).rows.map((r: any) => r.name);
+    check("EXACT matching still sees the literal spelling only (the real words are never rewritten)", exact.length === 1 && exact[0] === "ZZ ONE MUKHOPADHYA", JSON.stringify(exact));
+    const drift = (await pg.query(`SELECT count(*)::int n FROM nlq.employee_name_codes nc JOIN public.employee_roster er ON er.id = nc.id AND er.name = nc.name WHERE nc.codes IS DISTINCT FROM coalesce(nlq.name_codes_of(er.name), ARRAY[]::text[])`)).rows[0].n;
+    check("stored codes equal live codes after the refresh", drift === 0, String(drift));
+  } finally {
+    await pg.query("ROLLBACK");
+  }
+  const file06 = readFileSync(join(SQL_DIR, "06_spelling_families.sql"), "utf8");
+  for (const pass of [1, 2]) {
+    let err = "";
+    try { await pg.query(file06); } catch (e: any) { err = String(e.message); }
+    check(`06 runs cleanly as a single query (run ${pass})`, err === "", err);
+  }
+  check("no restricted role is left switched on after 06", (await pg.query(`SELECT current_user AS u`)).rows[0].u !== "nlq_reader");
+
+  // ==========================================================================
   section("E. Seed examples shown to the model must be valid and runnable");
   for (const e of SEED_EXAMPLES) {
     if (!e.sql) continue;
@@ -327,6 +366,26 @@ async function main() {
   check("and the original pattern really matches nothing (confirming the diagnosis)", Number(dead.rows[0].n) === 0);
 
   // ==========================================================================
+  section("G4. Which departments an answer covered (computed from the SQL, not by the model)");
+  const posQ = `SELECT count(*) FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%')`;
+  check("a department sub-query yields one scope query", departmentScopeQueries(posQ).length === 1 && /nlq\.departments/i.test(departmentScopeQueries(posQ)[0]));
+  check("NOT IN (an exclusion) yields no scope", departmentScopeQueries(`SELECT 1 FROM nlq.employees WHERE department_id NOT IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%')`).length === 0);
+  check("NOT (...) around a department sub-query yields no scope", departmentScopeQueries(`SELECT 1 FROM nlq.employees WHERE NOT (department_id IN (SELECT id FROM nlq.departments WHERE code = 1))`).length === 0);
+  check("a query with no department filter yields no scope", departmentScopeQueries(`SELECT count(*) FROM nlq.employees WHERE cohort = 'executive'`).length === 0);
+  check("a question that IS about departments (top-level select) yields no scope", departmentScopeQueries(`SELECT code, name FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%'`).length === 0);
+  check("two department sub-queries yield two scope queries", departmentScopeQueries(`SELECT 1 FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE code = 1) OR department_id IN (SELECT id FROM nlq.departments WHERE code = 2)`).length === 2);
+  check("a department CTE counts", departmentScopeQueries(`WITH d AS (SELECT id FROM nlq.departments WHERE code IN (98500)) SELECT count(*) FROM nlq.employees WHERE department_id IN (SELECT id FROM d)`).length === 1);
+  const gScope = await computeDepartmentScope(db, posQ);
+  check("garage question covers exactly the 3 garage departments", gScope !== null && gScope.total === 3 && gScope.departments.every((d) => /GARAGE/.test(d.name)), JSON.stringify(gScope));
+  const cScope = await computeDepartmentScope(db, `SELECT 1 FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE code IN (98500, 98530, 98540))`);
+  check("a code-based filter lists the C&IT departments by name", cScope !== null && cScope.total === 3 && cScope.departments.some((d) => d.name === "C & IT"), JSON.stringify(cScope));
+  const corr = await computeDepartmentScope(db, `SELECT 1 FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE department_code IN (85000, 85110))`);
+  check("a sub-query that only works through the outer query (the real 'garage, no email' SQL) claims NO scope", corr === null, JSON.stringify(corr));
+  check("no department filter -> null", (await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees`)) === null);
+  const promptDept = buildPrompt({ question: "senior most DGM in electrical", context: ctx, examples: [] });
+  check("the prompt explains abbreviated department words and the stem rule", promptDept.includes("ELECT") && promptDept.includes("LIKE '%elect%'") && promptDept.includes("SHORT STEM"));
+
+  // ==========================================================================
   section("H. Full pipeline with a scripted stand-in model");
   const json = (o: object) => JSON.stringify(o);
   const script = (replies: string[]): LlmFn => {
@@ -368,6 +427,12 @@ async function main() {
   check("empty question is refused", !r.ok && r.kind === "error");
   r = await answerQuestion("x".repeat(600), "T1", { llm: script([]), withClient });
   check("over-long question is refused", !r.ok && r.kind === "error");
+
+  // the department scope through the whole pipeline
+  const scoped = await answerQuestion("how many in garage", "T1", { llm: script([json({ sql: posQ, understood_as: "garage count", confidence: "high" })]), withClient });
+  check("the pipeline result carries the scope", scoped.ok && scoped.scope !== null && scoped.scope.total === 3, scoped.ok ? JSON.stringify(scoped.scope) : scoped.message);
+  const plain = await answerQuestion("how many executives", "T1", { llm: script([json({ sql: `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'`, understood_as: "execs", confidence: "high" })]), withClient });
+  check("an answer without a department filter has no scope", plain.ok && plain.scope === null);
 
   // the quoted-name rule through the whole pipeline
   r = await answerQuestion('find the names which end with "debnath"', "T1", {

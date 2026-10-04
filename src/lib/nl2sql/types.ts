@@ -34,6 +34,12 @@ export interface QueryResultData {
   truncated: boolean;
 }
 
+/** The departments an answer's department filter matched (computed from the SQL by the system). */
+export interface DepartmentScope {
+  departments: { code: number; name: string }[];
+  total: number;
+}
+
 export type PipelineResult =
   | {
       ok: true;
@@ -42,6 +48,8 @@ export type PipelineResult =
       understoodAs: string;
       confidence: LlmPlan["confidence"];
       data: QueryResultData;
+      /** Departments covered by the answer, or null when none/unknown. */
+      scope: DepartmentScope | null;
       attempts: number;
       elapsedMs: number;
       logId: number | null;

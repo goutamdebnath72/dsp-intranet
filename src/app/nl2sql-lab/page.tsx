@@ -11,8 +11,9 @@ import { useVerifiedSession } from "@/components/SessionGuard";
 
 type Cell = string | number | boolean | null;
 interface Data { columns: string[]; rows: Record<string, Cell>[]; total: number; truncated: boolean }
+type Scope = { departments: { code: number; name: string }[]; total: number } | null;
 type Result =
-  | { ok: true; question: string; sql: string; understoodAs: string; confidence: string; data: Data; attempts: number; elapsedMs: number; logId: number | null }
+  | { ok: true; question: string; sql: string; understoodAs: string; confidence: string; data: Data; scope?: Scope; attempts: number; elapsedMs: number; logId: number | null }
   | { ok: false; kind: "clarify" | "unanswerable" | "error"; message: string; sql?: string | null; understoodAs?: string; attempts: number; elapsedMs: number; logId: number | null };
 
 const EXAMPLES = [
@@ -112,6 +113,13 @@ export default function Nl2SqlLab() {
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
             <div className="text-2xl font-bold text-blue-900">{result.data.total.toLocaleString()} {result.data.total === 1 ? "row" : "rows"}</div>
             <div className="mt-1 text-sm text-slate-700"><b>Understood as:</b> {result.understoodAs}</div>
+            {result.scope && result.scope.total > 0 && (
+              <div className="mt-1 text-sm text-slate-700">
+                <b>Departments covered ({result.scope.total}):</b>{" "}
+                {result.scope.departments.slice(0, 12).map((d) => d.name).join(", ")}
+                {result.scope.total > 12 ? ` … and ${result.scope.total - 12} more` : ""}
+              </div>
+            )}
             <div className="mt-1 text-xs text-slate-500">
               confidence {result.confidence} · {result.attempts} attempt{result.attempts === 1 ? "" : "s"} · {(result.elapsedMs / 1000).toFixed(1)} s
             </div>

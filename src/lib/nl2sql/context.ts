@@ -7,7 +7,7 @@
 
 import type { SqlClient } from "./types";
 import { runReadOnly } from "./executor";
-import { DEPARTMENT_SHORT_FORMS, DESIGNATION_SHORT_FORMS, MULTI_ROW_DEPARTMENTS } from "./aliasHints";
+import { DEPARTMENT_SHORT_FORMS, DEPARTMENT_WORD_ABBREVIATIONS, DESIGNATION_SHORT_FORMS, MULTI_ROW_DEPARTMENTS } from "./aliasHints";
 
 export interface DesignationRow { id: number; code: number; title: string; track: string; rank_order: number }
 export interface DepartmentRow { id: number; code: number; name: string; cohort_scope: string }
@@ -95,6 +95,10 @@ export function formatDepartments(shown: DepartmentRow[], totalCount: number): s
   return (
     `The database has ${totalCount} department rows. Only those that look relevant to this question are listed:\n${rows}\n` +
     `A department that is not listed is still found in SQL by name: department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%words%').\n\n` +
-    `Departments made of several rows (use ALL codes):\n${multi}\n\nOther short forms: ${short}.`
+    `Departments made of several rows (use ALL codes):\n${multi}\n\nOther short forms: ${short}.\n\n` +
+    `Department names abbreviate common words (${DEPARTMENT_WORD_ABBREVIATIONS.map(([w, a]) => `${w} = ${a}`).join(", ")}). ` +
+    `When the question names a department by such a word, match its SHORT STEM, which also matches the full word: ` +
+    `nlq.norm(name) LIKE '%elect%' finds 'BLAST FURNACE (ELECT)', 'S.M.S. ELECT.MAINT.' and 'ELECTRICAL TECHNICAL LAB.'. ` +
+    `Matching only the full word (LIKE '%electrical%') would silently skip the abbreviated departments. Say in understood_as that you matched on the stem.`
   );
 }
