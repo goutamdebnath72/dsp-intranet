@@ -16,6 +16,7 @@ import { parsePlan } from "./generator";
 import { logResult, loadRejectedSql } from "./log";
 import { normalizeSql } from "./text";
 import { checkQuotedTerms } from "./quoted";
+import { checkNormPatterns, checkVocabulary } from "./vocabulary";
 
 export interface PipelineDeps {
   llm: LlmFn;
@@ -117,6 +118,13 @@ export async function answerQuestion(question: string, userKey: string | null, d
     if (quotedProblem) {
       lastProblem = quotedProblem;
       repair = { previousSql: g.sql, problem: quotedProblem };
+      continue;
+    }
+    const knownPhrases = [...prep.ctx.departments.map((d) => d.name), ...prep.ctx.designations.map((d) => d.title)];
+    const senseProblem = checkVocabulary(q, g.sql, knownPhrases) ?? checkNormPatterns(g.sql);
+    if (senseProblem) {
+      lastProblem = senseProblem;
+      repair = { previousSql: g.sql, problem: senseProblem };
       continue;
     }
     if (rejectedNorm.has(normalizeSql(g.sql))) {

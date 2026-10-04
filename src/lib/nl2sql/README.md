@@ -63,6 +63,8 @@ npm run nl2sql:live -- --only=gm_cit_nath,debnath_not_nath
 ```
 Writes `nl2sql-eval-report.md` / `.json`: pass rate overall and per question, the SQL and the model's own reading for every failure, and which passes needed a retry. Paste the **Failures** section back to guide prompt changes.
 
+The run saves results after every question and stops cleanly if the model provider's daily token allowance runs out; continue later with `npm run nl2sql:live -- --resume` (questions that already got a real answer are not asked again). The report shows tokens per question, which matters: each question costs roughly 5,000 tokens, so a 200,000-token daily allowance is only about 35-40 questions for the whole organisation.
+
 `eval/golden.ts` is the suite: each question is one meaning in several wordings plus a reference SQL that defines the right answer. Add your own cases there – that is how "many different phrasings" gets measured instead of guessed.
 
 ## Keeping the phonetic codes current

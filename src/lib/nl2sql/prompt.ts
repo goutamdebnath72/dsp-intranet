@@ -8,6 +8,7 @@
 
 import type { Example } from "./examples";
 import { extractQuotedTerms } from "./quoted";
+import { vocabularyLine } from "./vocabulary";
 import { formatDepartments, formatDesignations, selectRelevantDepartments, type DynamicContext } from "./context";
 
 const SCHEMA_AND_RULES = `You convert a question about the employees of SAIL Durgapur Steel Plant (DSP) into ONE read-only PostgreSQL SELECT statement, and restate the question in plain English.
@@ -43,11 +44,11 @@ BUILT-IN FUNCTIONS YOU MAY CALL: count, sum, avg, min, max, array_agg, string_ag
 NOT ALLOWED: any other function, comments (-- or /* */), semicolons, more than one statement, FOR UPDATE, any table other than the three above. The SQL reader also cannot parse: array slices like a[2:5], SELECT INTO, IS [NOT] DISTINCT FROM, SIMILAR TO, EXCEPT, INTERSECT, trim(both ... from ...) -- write these another way (use NOT IN / NOT EXISTS instead of EXCEPT, ILIKE or ~* instead of SIMILAR TO). Use plain standard PostgreSQL.
 
 DOMAIN RULES
-- "executives", "officers" -> cohort = 'executive'. "non-executives", "non executives", "non-ex", "staff", "workers" -> cohort = 'nonexecutive'. "employees", "people", "names", "persons" with no other qualifier -> everyone: NO cohort filter, and this is NOT a designation.
+- "executive", "executives", "exec", "officer", "officers" -> cohort = 'executive'. This is the meaning even though some designation titles contain the word Officer (e.g. 'Medical Officer'): match such a title only when the question names it ("medical officer"). "non-executive(s)", "non executive(s)", "non-ex", "nonex", "staff", "worker(s)" -> cohort = 'nonexecutive'. Singular and plural mean the same. "employees", "people", "names", "persons" with no other qualifier -> everyone: NO cohort filter, and this is NOT a designation.
 - A designation given by title or short form (GM, DGM, AGM, ED, CGM, "Sr. Manager", "S-7") -> match nlq.employees.designation against the exact stored title from the designation list below. The title "Asst. Manager" exists at TWO grades; matching designation = 'Asst. Manager' correctly returns both.
 - "Director(M&HS)", "Joint Director" etc. are medical-track designations; managerial and medical grades with the same rank_order are equivalent in seniority.
 - A designation and a name condition together are BOTH required ("GMs whose name ends with nath" = grade General Manager AND the name condition). Never drop one.
-- A department the person names -> use the department list below. Resolve it to department rows and filter with  department_id IN (SELECT id FROM nlq.departments WHERE ...)  using code IN (...) or a name match  nlq.norm(name) LIKE '%...%'  (nlq.norm is case- and punctuation-insensitive: 'C & IT' and 'C&IT' both become 'c and it'). A department made of several rows (C&IT, Plant Garage) must include ALL its rows. Words like DSP, SAIL, plant, company mean "no department filter".
+- A department the person names -> use the department list below. Resolve it to department rows and filter with  department_id IN (SELECT id FROM nlq.departments WHERE ...)  using code IN (...) or a name match  nlq.norm(name) LIKE '%...%'  (nlq.norm output is only lowercase letters, digits and single spaces: 'C & IT' and 'C&IT' both become 'c and it', 'BLAST FURNACE (OPERATION)' becomes 'blast furnace operation'. Write the pattern the same way -- NO brackets, punctuation or capitals -- e.g. nlq.norm(name) LIKE '%blast furnace operation%', or wrap the typed text: LIKE '%' || nlq.norm('BLAST FURNACE (OPERATION)') || '%'). A department made of several rows (C&IT, Plant Garage) must include ALL its rows. Words like DSP, SAIL, plant, company mean "no department filter".
 - Department codes 101, 103, 21000, 40017, 83002 and 98902 each exist twice (one executive-only name, one non-executive-only name): filter by department_id, not by code alone, when it matters.
 - Lists of people: SELECT ticket_no, name, designation, department (in that order, plus anything specifically asked), ORDER BY global_seniority_rank unless another order is requested. Do not SELECT *; never select name_words or name_codes.
 - Counts: return a single column named count. Breakdowns: a label column and a column named count. "Top N"/"N most senior": ORDER BY global_seniority_rank LIMIT N.
@@ -115,6 +116,11 @@ export function buildPrompt(input: PromptInput): string {
       `YOUR PREVIOUS ATTEMPT FAILED.\nSQL: ${input.repair.previousSql.replace(/\s+/g, " ")}\nProblem: ${input.repair.problem}\nFix it and return the corrected JSON object.`,
     );
   }
+  const vocab = vocabularyLine(input.question, [
+    ...input.context.departments.map((d) => d.name),
+    ...input.context.designations.map((d) => d.title),
+  ]);
+  if (vocab) parts.push(vocab);
   const quoted = extractQuotedTerms(input.question);
   if (quoted.length) {
     const list = quoted.map((t) => `"${t}"`).join(", ");

@@ -27,6 +27,7 @@ import { loadDynamicContext, clearContextCache, selectRelevantDepartments } from
 import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
+import { vocabularyHits, vocabularyLine, checkVocabulary, checkNormPatterns } from "../vocabulary";
 import { GOLDEN, compareResults } from "./golden";
 import { GUARD_ACCEPT, GUARD_REJECT } from "./guard-cases";
 import { buildSeedSql } from "./seed-local";
@@ -287,6 +288,45 @@ async function main() {
   check("quoted non-name (a designation) is not flagged", checkQuotedTerms('"General Manager" in C&IT', `SELECT 1 FROM nlq.employees WHERE designation = 'General Manager'`) === null);
 
   // ==========================================================================
+  section("G3. Cohort vocabulary (officer/executive/staff ...) and nlq.norm patterns");
+  const phrases = [...ctx.departments.map((d) => d.name), ...ctx.designations.map((d) => d.title)];
+  const hit = (q: string) => vocabularyHits(q, phrases).map((h) => `${h.word}:${h.cohort}`).join(",");
+  check('"officers" -> executive', hit("count of officers in the C&IT department") === "officers:executive", hit("count of officers in the C&IT department"));
+  check('"officer" (singular) -> executive', hit("number of officer in c and it") === "officer:executive");
+  check('"executive" (singular) -> executive', hit("how many executive are working in C&IT") === "executive:executive");
+  check('"staff" -> nonexecutive', hit("top 10 senior staff") === "staff:nonexecutive");
+  check('"non executives" is non-executive and NOT also executive', hit("how many non executives are in plant garage") === "non executives:nonexecutive", hit("how many non executives are in plant garage"));
+  check('"non-ex" -> nonexecutive', hit("top 10 senior non-ex") === "non ex:nonexecutive", hit("top 10 senior non-ex"));
+  check('"workers" -> nonexecutive', hit("how many workers in blast furnace") === "workers:nonexecutive");
+  check("both cohorts in one question are both found, each once", hit("executives and non-executives in c and it") === "non executives:nonexecutive,executives:executive", hit("executives and non-executives in c and it"));
+  check('"staff" inside the department name COMPUTER and IT STAFF is NOT a cohort word', hit("how many people in computer and IT staff") === "", hit("how many people in computer and IT staff"));
+  check('"Medical Officer" (title) is NOT a cohort word', hit("how many Medical Officer in blast furnace") === "", hit("how many Medical Officer in blast furnace"));
+  check('"medical officers" (plural of the title) is NOT a cohort word', hit("how many medical officers in blast furnace") === "", hit("how many medical officers in blast furnace"));
+  check('"officers" next to the title still counts when the title is NOT in the question', hit("officers in blast furnace") === "officers:executive");
+  check("an ordinary question has no vocabulary line", vocabularyLine("find names that start with sanj", phrases) === null);
+  check("the vocabulary line is produced for cohort words", (vocabularyLine("top 10 senior staff", phrases) || "").includes("cohort = 'nonexecutive'"));
+  const bad1 = `SELECT count(*) AS count FROM nlq.employees WHERE upper(designation) LIKE '%OFFICER%'`;
+  const bad2 = `SELECT ticket_no FROM nlq.employees ORDER BY global_seniority_rank LIMIT 10`;
+  check("officers read as a designation word (no cohort) is flagged", checkVocabulary("count of officers in the C&IT department", bad1, phrases) !== null);
+  check("staff with no cohort condition is flagged", checkVocabulary("top 10 senior staff", bad2, phrases) !== null);
+  check("officers with cohort = 'executive' is accepted", checkVocabulary("count of officers in c and it", `SELECT count(*) FROM nlq.employees WHERE cohort = 'executive'`, phrases) === null);
+  check("officers filtered as 'nonexecutive' is flagged", checkVocabulary("count of officers", `SELECT count(*) FROM nlq.employees WHERE cohort = 'nonexecutive'`, phrases) !== null);
+  check("executives AND non-executives grouped by cohort is accepted", checkVocabulary("executives and non-executives in c and it", `SELECT cohort, count(*) FROM nlq.employees GROUP BY cohort`, phrases) === null);
+  check("a question with no cohort words is never flagged", checkVocabulary("names ending with nath", bad2, phrases) === null);
+  check("the department named COMPUTER and IT STAFF is not forced to a cohort", checkVocabulary("how many people in computer and IT staff", `SELECT count(*) FROM nlq.employees WHERE department_id = 2`, phrases) === null);
+  check("norm pattern with brackets is flagged (the real failure)", checkNormPatterns(`SELECT 1 FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace (operation)%'`) !== null);
+  check("norm pattern in normalized form is accepted", checkNormPatterns(`SELECT 1 FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace operation%'`) === null);
+  check("capitals with LIKE are flagged (norm output is lowercase)", checkNormPatterns(`SELECT 1 FROM nlq.departments WHERE nlq.norm(name) LIKE '%BLAST%'`) !== null);
+  check("capitals with ILIKE are fine", checkNormPatterns(`SELECT 1 FROM nlq.departments WHERE nlq.norm(name) ILIKE '%BLAST%'`) === null);
+  check("wrapping the typed text in nlq.norm is accepted", checkNormPatterns(`SELECT 1 FROM nlq.departments WHERE nlq.norm(name) LIKE '%' || nlq.norm('BLAST FURNACE (OPERATION)') || '%'`) === null);
+  check("equality with an un-normalized literal is flagged", checkNormPatterns(`SELECT 1 FROM nlq.departments WHERE nlq.norm(name) = 'C & IT'`) !== null);
+  check("equality with a normalized literal is accepted", checkNormPatterns(`SELECT 1 FROM nlq.departments WHERE nlq.norm(name) = 'c and it'`) === null);
+  const wrapped = await runReadOnly(db, `SELECT count(*) AS n FROM nlq.departments WHERE nlq.norm(name) LIKE '%' || nlq.norm('BLAST FURNACE (OPERATION)') || '%'`);
+  check("the suggested wrapped form really matches in the database", Number(wrapped.rows[0].n) === 1, JSON.stringify(wrapped.rows));
+  const dead = await runReadOnly(db, `SELECT count(*) AS n FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace (operation)%'`);
+  check("and the original pattern really matches nothing (confirming the diagnosis)", Number(dead.rows[0].n) === 0);
+
+  // ==========================================================================
   section("H. Full pipeline with a scripted stand-in model");
   const json = (o: object) => JSON.stringify(o);
   const script = (replies: string[]): LlmFn => {
@@ -338,6 +378,21 @@ async function main() {
   const qPrompt = buildPrompt({ question: 'find the names which end with "debnath"', context: ctx, examples: [] });
   check("the prompt names the quoted term and demands exact matching", qPrompt.includes('puts "debnath" in double quotes') && qPrompt.includes("EXACTLY"));
   check("an unquoted question gets no such line", !buildPrompt({ question: "find the names which end with debnath", context: ctx, examples: [] }).includes("in double quotes. Match"));
+
+  // the three real failures, through the whole pipeline: wrong first try, corrected on the second
+  const cases3: [string, string, string][] = [
+    ["count of officers in the C&IT department", bad1, `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM nlq.departments WHERE code IN (98500,98530,98540))`],
+    ["top 10 senior staff", bad2, `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'nonexecutive' ORDER BY global_seniority_rank LIMIT 10`],
+    ["number of people working in BLAST FURNACE (OPERATION)", `SELECT count(*) AS count FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace (operation)%')`, `SELECT count(*) AS count FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace operation%')`],
+  ];
+  for (const [qq, badSql, goodSql2] of cases3) {
+    const rr = await answerQuestion(qq, "T1", { llm: script([json({ sql: badSql, understood_as: "first try", confidence: "high" }), json({ sql: goodSql2, understood_as: "corrected", confidence: "high" })]), withClient });
+    check(`wrong first answer is caught and corrected: "${qq}"`, rr.ok && rr.attempts === 2, rr.ok ? `attempts ${rr.attempts}` : rr.message);
+  }
+  const promptStaff = buildPrompt({ question: "top 10 senior staff", context: ctx, examples: [] });
+  check("the prompt carries the vocabulary line for this question", promptStaff.includes("IMPORTANT (vocabulary)") && promptStaff.includes("cohort = 'nonexecutive'"));
+  check("the prompt states singular and plural forms and the Medical Officer tie-break", promptStaff.includes("Singular and plural mean the same") && promptStaff.includes("Medical Officer"));
+  check("the prompt tells the model to write norm patterns without punctuation", promptStaff.includes("NO brackets, punctuation or capitals"));
 
   // tick / cross and rejected-reading memory
   r = await answerQuestion("kumar test verdict", "USER-A", { llm: script([goodPlan]), withClient });

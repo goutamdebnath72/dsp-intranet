@@ -127,7 +127,7 @@ export const GOLDEN: GoldenCase[] = [
   {
     id: "count_exec_cit",
     kind: "scalar",
-    variants: ["how many executives are there in C&IT", "number of executives in c and it", "count of officers in the C&IT department"],
+    variants: ["how many executives are there in C&IT", "number of executives in c and it", "count of officers in the C&IT department", "how many executive are working in C&IT", "number of officer in c and it"],
     reference: `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id IN ${CIT}`,
   },
   {
@@ -139,7 +139,7 @@ export const GOLDEN: GoldenCase[] = [
   {
     id: "top10_nonexec",
     kind: "ordered",
-    variants: ["who are the 10 most senior non executives", "top 10 senior staff", "list the ten most senior non-executive employees"],
+    variants: ["who are the 10 most senior non executives", "top 10 senior staff", "list the ten most senior non-executive employees", "who are the 10 most senior staff members", "top 10 senior non-ex"],
     reference: `SELECT ${P} FROM nlq.employees WHERE cohort = 'nonexecutive' ORDER BY global_seniority_rank LIMIT 10`,
   },
   {
@@ -187,7 +187,7 @@ export const GOLDEN: GoldenCase[] = [
   {
     id: "count_blast_furnace",
     kind: "scalar",
-    variants: ["how many employees in blast furnace operation", "number of people working in BLAST FURNACE (OPERATION)", "headcount of blast furnace operation"],
+    variants: ["how many employees in blast furnace operation", "number of people working in BLAST FURNACE (OPERATION)", "headcount of blast furnace operation", "headcount of the BLAST FURNACE (OPERATION) department"],
     reference: `SELECT count(*) AS count FROM nlq.employees
       WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace%operation%')`,
   },

@@ -19,7 +19,9 @@ function retryAfterSeconds(res: Response, bodyText: string): number | null {
   return m[2].toLowerCase() === "ms" ? v / 1000 : m[2].toLowerCase() === "m" ? v * 60 : v;
 }
 
-export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number } = {}): LlmFn {
+export interface TokenUsage { prompt: number; completion: number; total: number; cached: number }
+
+export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onUsage?: (u: TokenUsage) => void } = {}): LlmFn {
   return async (prompt: string) => {
     const key = process.env.GROQ_API_KEY;
     if (!key) throw new Error("GROQ_API_KEY is not set");
@@ -44,6 +46,15 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number } = 
       });
       if (res.ok) {
         const data = await res.json();
+        if (opts.onUsage && data.usage) {
+          opts.onUsage({
+            prompt: Number(data.usage.prompt_tokens ?? 0),
+            completion: Number(data.usage.completion_tokens ?? 0),
+            total: Number(data.usage.total_tokens ?? 0),
+            // Groq reports cached prompt tokens here for models with prompt caching; absent -> 0.
+            cached: Number(data.usage.prompt_tokens_details?.cached_tokens ?? 0),
+          });
+        }
         return String(data.choices?.[0]?.message?.content ?? "");
       }
       const text = await res.text();
