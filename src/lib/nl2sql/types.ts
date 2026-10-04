@@ -24,6 +24,8 @@ export interface LlmPlan {
   needs_clarification?: string | null;
   /** Set when sql is null: why the data can't answer this. */
   unanswerable_reason?: string | null;
+  /** True when the question is not about employees at all (circulars, policies, holidays ...). */
+  out_of_scope?: boolean;
 }
 
 export interface QueryResultData {
@@ -50,13 +52,17 @@ export type PipelineResult =
       data: QueryResultData;
       /** Departments covered by the answer, or null when none/unknown. */
       scope: DepartmentScope | null;
+      /** 'nl2sql' = the model wrote the SQL just now; 'cache' = a VERIFIED answer was re-run without the model. */
+      source: "nl2sql" | "cache";
+      /** For source 'cache': how many different people confirmed this answer. */
+      verifiedBy?: number;
       attempts: number;
       elapsedMs: number;
       logId: number | null;
     }
   | {
       ok: false;
-      kind: "clarify" | "unanswerable" | "error";
+      kind: "clarify" | "unanswerable" | "out_of_scope" | "error";
       question: string;
       message: string;
       sql?: string | null;

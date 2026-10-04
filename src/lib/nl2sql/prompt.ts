@@ -9,6 +9,7 @@
 import type { Example } from "./examples";
 import { extractQuotedTerms } from "./quoted";
 import { vocabularyLine } from "./vocabulary";
+import type { NegativeExample } from "./learning";
 import { formatDepartments, formatDesignations, selectRelevantDepartments, type DynamicContext } from "./context";
 
 const SCHEMA_AND_RULES = `You convert a question about the employees of SAIL Durgapur Steel Plant (DSP) into ONE read-only PostgreSQL SELECT statement, and restate the question in plain English.
@@ -18,9 +19,11 @@ OUTPUT -- a single JSON object and nothing else:
  "understood_as": "<1-2 plain sentences stating exactly what your SQL selects, in the person's terms>",
  "confidence": "high" | "medium" | "low",
  "needs_clarification": null | "<one short question>",
- "unanswerable_reason": null | "<why the data cannot answer this>"}
+ "unanswerable_reason": null | "<why the data cannot answer this>",
+ "out_of_scope": true | false}
 - sql = null with needs_clarification ONLY when the question is genuinely ambiguous in a way that changes the answer. Otherwise make the most reasonable reading and say it in understood_as.
-- sql = null with unanswerable_reason when the question needs data these views do not hold (salary, leave, attendance, phone numbers or e-mail addresses themselves, home addresses, anything about holidays or circulars).
+- sql = null with unanswerable_reason when the question is about employees but needs data these views do not hold (salary, leave balances, attendance, phone numbers or e-mail addresses themselves, home addresses).
+- sql = null with out_of_scope = true when the question is NOT about employees at all: circulars, notices, policies, rules, holidays, leave rules, forms, announcements, general knowledge. The application then searches the circulars instead. Do not invent an employee query for such a question.
 - understood_as must describe your conditions faithfully -- including whether names are matched exactly or by similar spelling. It is shown to the person so they can catch a misreading.
 
 THE ONLY TABLES YOU MAY USE (views in schema nlq):
@@ -84,6 +87,7 @@ function formatExample(e: Example): string {
     confidence: "high",
     needs_clarification: null,
     unanswerable_reason: e.unanswerable_reason ?? null,
+    out_of_scope: e.out_of_scope ?? false,
   };
   return `Question: ${e.question}\n${JSON.stringify(plan)}`;
 }
@@ -96,6 +100,10 @@ export interface PromptInput {
   rejectedSql?: string[];
   /** Set on a repair attempt: what went wrong with the previous SQL. */
   repair?: { previousSql: string; problem: string };
+  /** Readings people marked WRONG for similar questions (learned from "No" answers). */
+  negatives?: NegativeExample[];
+  /** Set on a second attempt after a "No": the person's reason, as an instruction. */
+  hint?: string;
 }
 
 export function buildPrompt(input: PromptInput): string {
@@ -111,6 +119,14 @@ export function buildPrompt(input: PromptInput): string {
         input.rejectedSql.map((s) => "- " + s.replace(/\s+/g, " ")).join("\n"),
     );
   }
+  if (input.negatives?.length) {
+    const short = (s: string) => s.replace(/\s+/g, " ").slice(0, 350);
+    parts.push(
+      "READINGS PEOPLE MARKED WRONG FOR SIMILAR QUESTIONS (do not repeat these mistakes):\n" +
+        input.negatives.map((n) => `- Question: ${n.question}\n  Wrong SQL: ${short(n.sql)}${n.reason ? `\n  Why it was wrong: ${n.reason}` : ""}`).join("\n"),
+    );
+  }
+  if (input.hint) parts.push(`THE PERSON SAID YOUR PREVIOUS ANSWER TO THIS QUESTION WAS WRONG. ${input.hint}`);
   if (input.repair) {
     parts.push(
       `YOUR PREVIOUS ATTEMPT FAILED.\nSQL: ${input.repair.previousSql.replace(/\s+/g, " ")}\nProblem: ${input.repair.problem}\nFix it and return the corrected JSON object.`,

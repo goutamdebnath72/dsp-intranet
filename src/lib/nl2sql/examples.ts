@@ -15,6 +15,8 @@ export interface Example {
   understood_as: string;
   /** Set for "cannot be answered" examples (sql is null). */
   unanswerable_reason?: string;
+  /** Set for "not about employees" examples (sql is null). */
+  out_of_scope?: boolean;
   source: "seed" | "confirmed";
 }
 
@@ -145,6 +147,13 @@ ORDER BY global_seniority_rank`,
     source: "seed",
   },
   {
+    question: "what is the leave policy for contract workers",
+    sql: null,
+    understood_as: "A question about a policy, not about employees in the directory.",
+    out_of_scope: true,
+    source: "seed",
+  },
+  {
     question: "what is the salary of sanjay debnath",
     sql: null,
     understood_as: "A request for an employee's salary.",
@@ -181,9 +190,11 @@ export function pickExamples(question: string, confirmed: Example[], k = 5): Exa
     .map((e) => ({ e, s: similarity(question, e.question) + (e.source === "confirmed" ? 0.05 : 0) }))
     .sort((x, y) => y.s - x.s);
   const chosen = scored.slice(0, k).map((x) => x.e);
-  // Always keep the "unanswerable" exemplar so the model knows null is legal.
-  const unans = SEED_EXAMPLES.find((e) => e.sql === null);
+  // Always keep the two "no SQL" exemplars so the model knows null is legal and when to use each.
+  const unans = SEED_EXAMPLES.find((e) => e.sql === null && !e.out_of_scope);
+  const oos = SEED_EXAMPLES.find((e) => e.sql === null && e.out_of_scope);
   if (unans && !chosen.includes(unans)) chosen[chosen.length - 1] = unans;
+  if (oos && !chosen.includes(oos)) chosen[chosen.length - 2] = oos;
   return chosen;
 }
 

@@ -6,6 +6,40 @@
 - `src/app/api/nl2sql/route.ts` – experiment endpoint (404 unless enabled)
 - `src/app/nl2sql-lab/page.tsx` – a page to try questions by hand
 
+## In the omnibar (implemented 4 Oct 2026)
+
+The app's search route (`src/app/api/ai-search/route.ts`, semantic mode) now sends questions through the model path in `omnibar.ts`:
+
+1. **Holiday questions** that the existing deterministic holiday parser recognises keep their deterministic answers (a separate, verified feature).
+2. **Everything else goes to the language model, with no keyword gate.** The model decides: an employee question gets SQL and an answer; a question that is not about employees (circulars, policies ...) returns `out_of_scope` and the route continues with circular search exactly as before; employee data we do not hold (salary ...) gets a plain explanation; an ambiguous question gets a clarifying question.
+3. **Safety net:** if the model is unreachable (provider limit/outage) or cannot produce a working query, the previous rule-based employee engine answers, so the omnibar never goes dark.
+
+Answers appear in the omnibar's existing cards: a number (counts), the people cards with masked phone/e-mail and the reveal button (lists of people, in seniority order, first 100 with the true total), or a table (breakdowns). Each model-written answer also shows **Understood as**, **Departments covered** (computed from the SQL), a tick/cross (stored in `public.nl2sql_log` through `/api/nl2sql/feedback`) and the SQL, collapsed.
+
+Kill switch: `NL2SQL_OMNIBAR_ENABLED=false` in the environment sends employee questions to the previous engine only (default: on). The lab page (`/nl2sql-lab`) and `NL2SQL_LAB_ENABLED` are unchanged and independent.
+
+New files: `omnibar.ts`, `clientTypes.ts`, `src/components/Nl2SqlAnswerExtras.tsx`, `src/app/api/nl2sql/feedback/route.ts`. Edited: the search route (one call site), `OmnibarModal.tsx` (three insertions), `useOmniSearch.ts` (one type field). The self-test (section K) covers the whole path.
+
+## The learning loop (Yes / No on every answer)
+
+Every answer in the omnibar — model-written, verified, holiday, old engine, circular results, even "no results" — has a **"Was this what you were looking for? Yes / No"** in the footer (`AnswerFeedback.tsx`). Clicks go to `/api/omnibar/feedback` and are stored in `public.omnibar_feedback`; for model-written answers the verdict is also set on the answer's row in `public.nl2sql_log`.
+
+**Yes teaches.** The question + SQL becomes a worked example for similar questions. When at least `NL2SQL_VERIFIED_MIN_CONFIRMS` (default 2) DIFFERENT people confirmed the same SQL for the same question and nobody rejected it, it becomes a **verified answer**: the SQL is re-run (fresh data, same guard and checks) without calling the model, and the card says "Verified answer — confirmed by N people". A single later No revokes it.
+
+**No asks one question — "What was wrong?" — then tries again differently**, chosen by the reason:
+| Reason | What happens next |
+|---|---|
+| I wanted documents | the model is skipped; the app searches circulars instead |
+| I wanted people / employee data (after documents) | the model is told to read it as an employee question |
+| The result is wrong / wrong department(s) / a name was matched wrongly / something else | the model writes a genuinely different reading, told the rejected SQL, the reason and the person's own words |
+After 3 attempts it stops and says so; every No is kept for review.
+
+**No also teaches.** The rejected SQL is never offered again to that person for that question; after two different people reject it (and nobody confirms) it is blocked for everyone; and rejected readings of SIMILAR questions are shown to the model as "mistakes to avoid".
+
+**Nothing is retrained.** "Learning" means these three mechanisms plus a human review step: `npx tsx --env-file=.env.local src/lib/nl2sql/eval/feedback-report.ts [--days=N]` writes `nl2sql-eval-feedback.md` (Yes/No by route, reasons, most-rejected questions with their SQL, No's fixed by a second attempt = ready-made regression cases, verified answers, volume). Turn recurring failures into rules, examples and golden tests.
+
+Files: `learning.ts`, `feedback.ts`, `components/AnswerFeedback.tsx`, `api/omnibar/feedback/route.ts`, `eval/feedback-report.ts`, `sql/07_feedback_learning.sql` (**required** on the live database before the code is used: it adds the log columns and the feedback table).
+
 ## What it does
 
 ```
@@ -74,7 +108,7 @@ The phonetic code of every name is stored in `nlq.employee_name_codes` so matchi
 
 **Spelling families.** Spelling variants of the -padhyay surnames (Mukhopadhya, Gangopadhya, Bandyopadhya, Chattopadhya ...) are treated as the same name as their family (Mukherjee, Ganguly, Banerjee, Chatterjee), for typed words and for stored names, by `nlq.spelling_fix` (file `06`, included in `01` for fresh installs). It lives in the `nlq` schema only; the phonetic functions in `public` are not changed. To add another family, extend that function and run `SELECT nlq.refresh_name_codes();`.
 
-Setup files, in the order they were needed: `01` (views, helpers, role, stored codes), `02` (log table), `03` (optional login role), `04`, `05` and `06` (fixes for a database that already ran the first version of `01`; a fresh install needs only `01`, `02`, `03`; if you run `05`, do not run `04` afterwards).
+Setup files, in the order they were needed: `01` (views, helpers, role, stored codes), `02` (log table), `03` (optional login role), `04`, `05`, `06` and `07` (fixes and additions for a database that already ran the first version of `01`; a fresh install needs only `01`, `02`, `03`; if you run `05`, do not run `04` afterwards).
 
 ## The learning loop
 Every question is stored in `public.nl2sql_log`. A ✓ marks the question/SQL pair as a worked example that is retrieved (by similarity) into future prompts. A ✗ stops that exact SQL being shown to that person again for that question. This improves answers **without code changes**.

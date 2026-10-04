@@ -10,7 +10,7 @@ import {
 } from "@/lib/search/executiveSynthesis";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
-import { answerEmployeeQuery } from "@/lib/employees/queryOrchestrator";
+import { answerOmnibar, parseRetry } from "@/lib/nl2sql/omnibar";
 import { findSailDepartmentInText } from "@/lib/employees/sailDepartments";
 import { normTerm } from "@/lib/employees/designations";
 
@@ -254,11 +254,14 @@ export async function GET(request: Request) {
       }
     }
 
-    // --- EMPLOYEE ANALYTICS (deterministic, DB-grounded) ---
-    // Smart Semantic first tries to answer staffing questions from the DB;
-    // if it is not an analytics question, fall through to circular search.
+    // --- EMPLOYEE QUESTIONS: the language model writes the read-only SQL ---
+    // Holiday questions keep their deterministic answers; every other question goes to the model, which
+    // decides whether it is an employee question (answered from the database, with its reading, SQL,
+    // departments covered and a tick/cross) or not (then we fall through to circular search below).
+    // If the model path is unavailable the previous rule-based engine answers instead.
+    // See src/lib/nl2sql/omnibar.ts. Kill switch: NL2SQL_OMNIBAR_ENABLED=false.
     if (mode === "semantic") {
-      const payload = await answerEmployeeQuery(q);
+      const payload = await answerOmnibar(q, userTicket || null, parseRetry(searchParams));
       if (payload) return NextResponse.json({ analytics: payload });
     }
 

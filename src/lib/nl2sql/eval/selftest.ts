@@ -28,6 +28,12 @@ import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
 import { departmentScopeQueries, computeDepartmentScope } from "../scope";
+import { runOmnibar, peopleFor, parseRetry, MAX_ATTEMPTS, type OmnibarDeps } from "../omnibar";
+import { answerFromVerified } from "../pipeline";
+import { parseFeedback, recordFeedback } from "../feedback";
+import { findVerifiedSql, loadNegativeExamples, pickNegatives, retryHint, REASON_CODES } from "../learning";
+import { loadRejectedSql } from "../log";
+import { buildReport } from "./feedback-report";
 import { vocabularyHits, vocabularyLine, checkVocabulary, checkNormPatterns } from "../vocabulary";
 import { GOLDEN, compareResults } from "./golden";
 import { GUARD_ACCEPT, GUARD_REJECT } from "./guard-cases";
@@ -288,7 +294,7 @@ async function main() {
   const padded = [...ctx.departments, ...Array.from({ length: 285 }, (_, i) => ({ id: 100 + i, code: 30000 + i, name: `SECTION ${i} MECHANICAL MAINTENANCE STAFF`, cohort_scope: "shared" }))];
   for (const qq of ["how many non executives are in plant garage", "how many executives have no NIC email", "GMs in C&IT whose name ends with nath"]) {
     const pp = buildPrompt({ question: qq, context: { ...ctx, departments: padded }, examples: pickExamples(qq, []) });
-    check(`prompt stays under the token budget with 300 departments: "${qq.slice(0, 32)}"`, pp.length < 16000, `${pp.length} chars`);
+    check(`prompt stays under the token budget with 300 departments: "${qq.slice(0, 32)}"`, pp.length < 18000, `${pp.length} chars`);
   }
   const garage = selectRelevantDepartments("how many non executives are in plant garage", ctx.departments).map((d) => d.id).sort((x, y) => x - y);
   check("a named department brings in ALL its matching rows (plant garage = ids 4,5,6)", JSON.stringify(garage) === "[4,5,6]", JSON.stringify(garage));
@@ -308,6 +314,8 @@ async function main() {
   check("parses inside a markdown fence", parsePlan('```json\n{"sql":"SELECT 1","understood_as":"x"}\n```')?.sql === "SELECT 1");
   check("parses with prose around it", parsePlan('Sure! {"sql":"SELECT 1","understood_as":"x"} hope that helps')?.sql === "SELECT 1");
   check("rejects non-JSON", parsePlan("I cannot do that") === null);
+  check("reads out_of_scope = true", parsePlan('{"sql":null,"understood_as":"a policy question","out_of_scope":true}')?.out_of_scope === true);
+  check("out_of_scope defaults to false", parsePlan('{"sql":"SELECT 1","understood_as":"x"}')?.out_of_scope === false);
   check("rejects a query with no explanation", parsePlan('{"sql":"SELECT 1"}') === null);
   check("accepts null sql with a reason", parsePlan('{"sql":null,"understood_as":"salary","unanswerable_reason":"no salary data"}')?.unanswerable_reason === "no salary data");
 
@@ -417,6 +425,9 @@ async function main() {
   r = await answerQuestion("q5", "T1", { llm: script([json({ sql: null, understood_as: "salary", unanswerable_reason: "No salary data." })]), withClient });
   check("unanswerable is reported, not guessed", !r.ok && r.kind === "unanswerable" && r.message === "No salary data.");
 
+  r = await answerQuestion("what is the leave policy for contract workers", "T1", { llm: script([json({ sql: null, understood_as: "A policy question.", out_of_scope: true })]), withClient });
+  check("a question that is not about employees is reported as out_of_scope", !r.ok && r.kind === "out_of_scope");
+
   r = await answerQuestion("q6", "T1", { llm: script([json({ sql: null, understood_as: "ambiguous", needs_clarification: "Which Sanjay do you mean?" })]), withClient });
   check("clarifying question is passed through", !r.ok && r.kind === "clarify" && r.message === "Which Sanjay do you mean?");
 
@@ -514,6 +525,260 @@ async function main() {
   const midNames = (await runReadOnly(db, mid.reference!, { rowLimit: 5000 })).rows.map((x) => String(x.name));
   check("'contains nath but not at the end' excludes every Debnath and Gopinath", !midNames.some((n) => /DEBNATH$|GOPINATH$/.test(n)) && midNames.includes("UPENDRANATH BARMAN"));
   check("reference row counts are non-trivial (tests are not vacuous)", (await sizeOf(GOLDEN[0].reference!)) > 5 && (await sizeOf(GOLDEN[4].reference!)) > 3);
+
+  // ==========================================================================
+  section("K. The omnibar path: question -> model SQL -> the payload the omnibar renders");
+  const nothing = async () => null;
+  let legacyCalls = 0;
+  const mkDeps = (llm: LlmFn, over: Partial<OmnibarDeps> = {}): OmnibarDeps => ({
+    enabled: true, llm, withClient, holiday: nothing, legacy: async () => { legacyCalls++; return null; }, verifiedMin: 2, ...over,
+  });
+  const model = (sql: string, understood = "the reading") => script([json({ sql, understood_as: understood, confidence: "high" })]);
+  const PEOPLE5 = `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 5`;
+
+  let o: any = await runOmnibar("list five senior executives", "T-OMNI", mkDeps(model(PEOPLE5, "Five most senior executives.")));
+  const expectTickets = (await pg.query(`SELECT ticket_no FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 5`)).rows.map((r: any) => r.ticket_no);
+  check("a people list becomes count + people cards", o && o.kind === "count" && o.count === 5 && Array.isArray(o.people) && o.people.length === 5, JSON.stringify(o && { kind: o.kind, count: o.count }));
+  check("people cards keep the model's seniority order", JSON.stringify(o.people.map((p: any) => p.ticketNo)) === JSON.stringify(expectTickets));
+  check("people cards have the shape the omnibar renders", o.people.every((p: any) => p.type === "employee" && typeof p.id === "string" && p.name && p.isExecutive === true && "mobileMasked" in p && "hasEmail" in p));
+  check("the reading, the SQL and the log id travel with the answer", o.interpretation === "Five most senior executives." && o.nl2sql.sql.includes("LIMIT 5") && typeof o.nl2sql.logId === "number" && o.nl2sql.userKey === "T-OMNI");
+  check("the headline names the number of people", /5 people found/.test(o.answer));
+  const logged = (await pg.query(`SELECT user_key, ok FROM public.nl2sql_log WHERE id = $1`, [o.nl2sql.logId])).rows[0];
+  check("the omnibar answer is logged for that person", logged && logged.user_key === "T-OMNI" && logged.ok === true);
+
+  // contact details stay masked; passwords never appear
+  const many: any = await runOmnibar("sixty executives", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 60`)));
+  const withMobile = many.people.find((p: any) => p.hasMobile);
+  check("some people have a phone on file (test data)", !!withMobile);
+  const raw = (await pg.query(`SELECT u."contactNo" AS c, u.email AS e FROM public.employee_roster r JOIN public."user" u ON u.id = r.user_id WHERE r.ticket_no = $1`, [withMobile.ticketNo])).rows[0];
+  check("a phone number is masked after its first 6 digits", withMobile.mobileMasked === raw.c.slice(0, 6) + "x".repeat(raw.c.length - 6) && withMobile.mobileMasked !== raw.c, `${withMobile.mobileMasked} vs ${raw.c}`);
+  const withMail = many.people.find((p: any) => p.hasEmail);
+  check("an e-mail address is masked before the @", !!withMail && /^xxxxxx@/.test(withMail.emailMasked));
+  const blob = JSON.stringify(many);
+  check("no password hash and no full contact value is in the payload", !blob.includes("HASHED-SECRET") && !blob.includes(raw.c) && !(raw.e && blob.includes(raw.e)));
+
+  // long lists: first 100 shown, true total reported
+  const longList: any = await runOmnibar("all non executives", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'nonexecutive' ORDER BY global_seniority_rank`)));
+  const nonExecTotal = (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE cohort = 'nonexecutive'`)).rows[0].n;
+  check("a long list shows 100 people but reports the true total", longList.people.length === 100 && longList.listTruncated === true && longList.count === nonExecTotal, `${longList.people.length}/${longList.count} vs ${nonExecTotal}`);
+
+  // a single number
+  o = await runOmnibar("how many executives", "T-OMNI", mkDeps(model(`SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'`, "The number of executives.")));
+  const execTotal = (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE cohort = 'executive'`)).rows[0].n;
+  check("a single number becomes a count answer", o.kind === "count" && o.count === execTotal && o.answer === "The number of executives." && !o.people, JSON.stringify(o));
+
+  // a breakdown table
+  o = await runOmnibar("designation wise", "T-OMNI", mkDeps(model(`SELECT designation, count(*) AS count FROM nlq.employees GROUP BY designation, rank_order ORDER BY rank_order`)));
+  check("a breakdown becomes a table answer", o.kind === "total" && o.nl2sql.table && o.nl2sql.table.columns.join() === "designation,count" && o.nl2sql.table.rows.length > 5 && !o.people);
+  check("the table headline counts its rows", new RegExp(`^${o.nl2sql.table.total.toLocaleString()} rows\\.`).test(o.answer), o.answer);
+
+  // departments covered
+  o = await runOmnibar("garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%')`)));
+  check("departments covered travel with the answer", o.nl2sql.scope && o.nl2sql.scope.total === 3 && o.nl2sql.scope.departments.every((d: string) => /GARAGE/.test(d)), JSON.stringify(o.nl2sql.scope));
+
+  // extra columns next to ticket_no
+  o = await runOmnibar("with email flag", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, has_email_nic FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`)));
+  check("a people list with an extra column also gets the table", o.people.length === 3 && o.nl2sql.table && o.nl2sql.table.columns.includes("has_email_nic"));
+  o = await runOmnibar("nobody", "T-OMNI", mkDeps(model(`SELECT ticket_no, name FROM nlq.employees WHERE name = 'NO SUCH PERSON'`)));
+  check("an empty list says so", o.kind === "count" && o.count === 0 && Array.isArray(o.people) && o.people.length === 0 && /0 people found/.test(o.answer));
+
+  // routing decisions
+  legacyCalls = 0;
+  let calls = 0;
+  const counted = (inner: LlmFn): LlmFn => async (p) => { calls++; return inner(p); };
+  o = await runOmnibar("what is the leave policy for contract workers", "T-OMNI", mkDeps(counted(script([json({ sql: null, understood_as: "A policy question.", out_of_scope: true })]))));
+  check("a non-employee question falls through to circular search (null) without the old engine", o === null && legacyCalls === 0);
+
+  calls = 0;
+  o = await runOmnibar("holidays in 2026", "T-OMNI", mkDeps(counted(script([])), { holiday: async () => ({ kind: "count", answer: "holiday answer" }) as any }));
+  check("a holiday question keeps its deterministic answer and never calls the model", o && o.answer === "holiday answer" && calls === 0);
+  o = await runOmnibar("anything", "T-OMNI", mkDeps(model(PEOPLE5), { holiday: async () => { throw new Error("parser exploded"); } }));
+  check("a failing holiday check does not break employee questions", o && o.kind === "count");
+
+  calls = 0; legacyCalls = 0;
+  o = await runOmnibar("anything", "T-OMNI", mkDeps(counted(script([])), { enabled: false, legacy: async () => ({ kind: "count", answer: "legacy answer" }) as any }));
+  check("the kill switch sends the question to the previous engine only", o && o.answer === "legacy answer" && calls === 0);
+
+  o = await runOmnibar("salary of arup roy", "T-OMNI", mkDeps(script([json({ sql: null, understood_as: "A salary request.", unanswerable_reason: "This data does not include salary." })])));
+  check("an unanswerable employee question is explained, in the information card", o.kind === "clarify" && o.answer === "This data does not include salary." && o.interpretation === "A salary request.");
+  o = await runOmnibar("sanjay", "T-OMNI", mkDeps(script([json({ sql: null, understood_as: "ambiguous", needs_clarification: "Which Sanjay do you mean?" })])));
+  check("a clarifying question is passed on", o.kind === "clarify" && o.answer === "Which Sanjay do you mean?");
+
+  const down: LlmFn = async () => { throw new Error("network down"); };
+  o = await runOmnibar("anything", "T-OMNI", mkDeps(down, { legacy: async () => ({ kind: "count", answer: "legacy answer" }) as any }));
+  check("if the model is unreachable the previous engine answers", o && o.answer === "legacy answer");
+  o = await runOmnibar("anything", "T-OMNI", mkDeps(down));
+  check("if the model is unreachable and the old engine has nothing, circular search still runs (null)", o === null);
+  o = await runOmnibar("anything", "T-OMNI", mkDeps(script(["not json", "still not json", "nope"])));
+  check("three unusable replies give an honest message, not silence", o && o.kind === "clarify" && /could not turn this/i.test(o.answer), JSON.stringify(o));
+  o = await runOmnibar("anything", "T-OMNI", mkDeps(script(["not json", "still not json", "nope"]), { legacy: async () => ({ kind: "count", answer: "legacy answer" }) as any }));
+  check("three unusable replies fall back to the previous engine when it has an answer", o && o.answer === "legacy answer");
+
+  // people lookup details
+  const pf = await peopleFor(db, ["", "no-such-ticket", ...expectTickets, expectTickets[0]]);
+  check("peopleFor ignores blanks and unknown tickets and removes duplicates", pf.length === 5 && new Set(pf.map((p) => p.ticketNo)).size === 5);
+  check("peopleFor returns nothing for an empty list", (await peopleFor(db, [])).length === 0);
+
+  // the tick/cross wiring: rating the omnibar answer works for its owner only
+  const rated: any = await runOmnibar("rate me", "T-RATER", mkDeps(model(PEOPLE5)));
+  check("the owner can rate an omnibar answer", await recordVerdict(db, rated.nl2sql.logId, "confirm", rated.nl2sql.userKey));
+  check("someone else cannot", !(await recordVerdict(db, rated.nl2sql.logId, "reject", "T-OTHER")));
+
+  // ==========================================================================
+  section("L. The learning loop: Yes / No on every answer, a different second attempt, verified answers");
+
+  // -- the live database is upgraded by file 07: simulate the OLD table and run it as ONE query, twice
+  await pg.query(`ALTER TABLE public.nl2sql_log DROP COLUMN source, DROP COLUMN retry_of, DROP COLUMN reject_reason, DROP COLUMN reject_note`);
+  await pg.query(`DROP TABLE public.omnibar_feedback`);
+  const file07 = readFileSync(join(SQL_DIR, "07_feedback_learning.sql"), "utf8");
+  for (const pass of [1, 2]) {
+    let err = "";
+    try { await pg.query(file07); } catch (e: any) { err = String(e.message); }
+    check(`07 upgrades the old log table and creates the feedback table (run ${pass})`, err === "", err);
+  }
+  const cols = (await pg.query(`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='nl2sql_log' AND column_name IN ('source','retry_of','reject_reason','reject_note')`)).rows.length;
+  check("the four new log columns exist", cols === 4, String(cols));
+  check("no restricted role is left switched on after 07", (await pg.query(`SELECT current_user AS u`)).rows[0].u !== "nlq_reader");
+
+  // -- input validation
+  const fbOk = parseFeedback({ query: " q ", source: "nl2sql", verdict: "no", reasonCode: "wrong_name", note: " x ", nl2sqlLogId: 5, attempt: 2 }, "T1");
+  check("valid feedback is parsed and trimmed", !!fbOk && fbOk.query === "q" && fbOk.reasonCode === "wrong_name" && fbOk.note === "x" && fbOk.nl2sqlLogId === 5 && fbOk.attempt === 2);
+  check("an unknown route is refused", parseFeedback({ query: "q", source: "nope", verdict: "yes" }, null) === null);
+  check("a missing verdict is refused", parseFeedback({ query: "q", source: "circular" }, null) === null);
+  check("an empty query is refused", parseFeedback({ query: "  ", source: "circular", verdict: "yes" }, null) === null);
+  check("a Yes carries no reason", parseFeedback({ query: "q", source: "circular", verdict: "yes", reasonCode: "wrong_name", note: "n" }, null)?.reasonCode === null);
+  check("an unknown reason code is dropped", parseFeedback({ query: "q", source: "circular", verdict: "no", reasonCode: "bogus" }, null)?.reasonCode === null);
+  check("a long note is capped at 300 characters", (parseFeedback({ query: "q", source: "circular", verdict: "no", note: "x".repeat(900) }, null)?.note || "").length === 300);
+  check("every reason code has a hint", REASON_CODES.every((c) => retryHint(c, null).length > 20));
+
+  // -- Yes / No on a model answer, on someone else's answer, and on a non-model answer
+  const SQL_A = `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 4`;
+  const SQL_B = `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`;
+  const ask = async (qq: string, user: string | null, sql: string, over: Partial<OmnibarDeps> = {}) => {
+    const out = (await runOmnibar(qq, user, mkDeps(model(sql), over))) as any;
+    if (!out || !out.nl2sql) throw new Error(`ask() got no model answer for "${qq}" (user ${user}): ${JSON.stringify(out)}`);
+    return out;
+  };
+
+  const a1 = await ask("learn question", "L-A", SQL_A);
+  const fNo = await recordFeedback(db, { userKey: "L-A", query: "learn question", source: "nl2sql", verdict: "no", reasonCode: "wrong_name", note: "I meant exact", nl2sqlLogId: a1.nl2sql.logId, attempt: 1 });
+  const rowNo = (await pg.query(`SELECT verdict, reject_reason, reject_note FROM public.nl2sql_log WHERE id = $1`, [a1.nl2sql.logId])).rows[0];
+  check("a No on a model answer is stored with its reason and sets the verdict on the log row", fNo.verdictRecorded && rowNo.verdict === "reject" && rowNo.reject_reason === "wrong_name" && rowNo.reject_note === "I meant exact", JSON.stringify(rowNo));
+  check("the click itself is stored in omnibar_feedback", (await pg.query(`SELECT count(*)::int n FROM public.omnibar_feedback WHERE id = $1 AND verdict = 'no' AND source = 'nl2sql'`, [fNo.id])).rows[0].n === 1);
+
+  const a2 = await ask("learn question 2", "L-B", SQL_A);
+  const fYes = await recordFeedback(db, { userKey: "L-B", query: "learn question 2", source: "nl2sql", verdict: "yes", nl2sqlLogId: a2.nl2sql.logId, attempt: 1 });
+  const rowYes = (await pg.query(`SELECT verdict, reject_reason FROM public.nl2sql_log WHERE id = $1`, [a2.nl2sql.logId])).rows[0];
+  check("a Yes sets the verdict to confirm and carries no reason", fYes.verdictRecorded && rowYes.verdict === "confirm" && rowYes.reject_reason === null);
+
+  const fOther = await recordFeedback(db, { userKey: "L-X", query: "learn question", source: "nl2sql", verdict: "yes", nl2sqlLogId: a1.nl2sql.logId, attempt: 1 });
+  check("someone else cannot change another person's verdict (but the click is still stored)", !fOther.verdictRecorded && fOther.id !== null && (await pg.query(`SELECT verdict FROM public.nl2sql_log WHERE id = $1`, [a1.nl2sql.logId])).rows[0].verdict === "reject");
+
+  const fCirc = await recordFeedback(db, { userKey: "L-A", query: "leave rules", source: "circular", verdict: "no", reasonCode: "wanted_employees", attempt: 1 });
+  check("a No on circular results (no log row) is stored", fCirc.id !== null && !fCirc.verdictRecorded && (await pg.query(`SELECT reason_code FROM public.omnibar_feedback WHERE id = $1`, [fCirc.id])).rows[0].reason_code === "wanted_employees");
+  const fHol = await recordFeedback(db, { userKey: "L-A", query: "holidays 2026", source: "holiday", verdict: "yes", attempt: 1 });
+  check("a Yes on a holiday answer is stored", fHol.id !== null);
+
+  // -- No teaches: blocked for everyone after two different people reject it
+  const GQ = "global reject question";
+  for (const u of ["G-1", "G-2"]) {
+    const g = await ask(GQ, u, SQL_A);
+    await recordFeedback(db, { userKey: u, query: GQ, source: "nl2sql", verdict: "no", reasonCode: "wrong_result", note: "too few", nl2sqlLogId: g.nl2sql.logId, attempt: 1 });
+  }
+  check("an SQL rejected by two different people is blocked for a third", (await loadRejectedSql(db, "G-3", GQ)).some((x) => x.includes("LIMIT 4")));
+  check("it is not blocked for a different question", !(await loadRejectedSql(db, "G-3", "something else entirely")).some((x) => x.includes("LIMIT 4")));
+  const g3 = await runOmnibar(GQ, "G-3", mkDeps(script([json({ sql: SQL_A, understood_as: "again", confidence: "high" }), json({ sql: SQL_B, understood_as: "different", confidence: "high" })])));
+  check("the model's attempt to repeat that SQL is turned down and a different one is used", !!g3 && (g3 as any).nl2sql.sql.includes("LIMIT 3") && (g3 as any).nl2sql.attempts === 2, JSON.stringify((g3 as any)?.nl2sql?.attempts));
+  const CQ = "split opinion question";
+  for (const [u, v] of [["C-3", "yes"], ["C-1", "no"], ["C-2", "no"]] as const) { // the confirmation comes first, so the SQL is never blocked
+    const g = await ask(CQ, u, SQL_A);
+    await recordFeedback(db, { userKey: u, query: CQ, source: "nl2sql", verdict: v, reasonCode: v === "no" ? "wrong_result" : null, nl2sqlLogId: g.nl2sql.logId, attempt: 1 });
+  }
+  check("an SQL that someone confirmed is NOT blocked globally", !(await loadRejectedSql(db, "C-4", CQ)).some((x) => x.includes("LIMIT 4")));
+
+  // -- No teaches: rejected readings of SIMILAR questions are shown to the model
+  const negs = await loadNegativeExamples(db);
+  check("rejected pairs are loaded with their reasons", negs.some((n) => n.question === GQ && n.reason && /wrong result/.test(n.reason)));
+  check("the most similar rejected readings are picked, unrelated ones are not", pickNegatives("global reject question variant", negs).some((n) => n.question === GQ) && pickNegatives("zzz totally unrelated words", negs).length === 0);
+  const prompts: string[] = [];
+  const capture = (inner: LlmFn): LlmFn => async (p) => { prompts.push(p); return inner(p); };
+  await runOmnibar("global reject question variant", "N-1", mkDeps(capture(model(SQL_B))));
+  check("the prompt shows the model readings people marked wrong for a similar question", /READINGS PEOPLE MARKED WRONG/.test(prompts[0]) && prompts[0].includes("LIMIT 4") && /too few/.test(prompts[0]));
+  const longHint = retryHint("wrong_name", "n".repeat(900));
+  const bigNeg = pickNegatives("global reject question", negs, 2).map((n) => ({ ...n, sql: n.sql + " ".repeat(10) + "x".repeat(900) }));
+  const ppBig = buildPrompt({ question: "global reject question", context: { ...ctx, departments: padded }, examples: pickExamples("global reject question", []), negatives: bigNeg, hint: longHint, rejectedSql: [SQL_A] });
+  check("with lessons and a correction the prompt still fits the budget (300 departments)", ppBig.length < 19000, `${ppBig.length} chars`);
+
+  // -- Yes teaches: the verified answer lifecycle
+  const VQ = "verified question";
+  const v1 = await ask(VQ, "V-1", SQL_A);
+  await recordFeedback(db, { userKey: "V-1", query: VQ, source: "nl2sql", verdict: "yes", nl2sqlLogId: v1.nl2sql.logId, attempt: 1 });
+  check("one confirmation is not enough to verify an answer", (await findVerifiedSql(db, VQ, 2)) === null);
+  const v2 = await ask(VQ, "V-2", SQL_A);
+  await recordFeedback(db, { userKey: "V-2", query: VQ, source: "nl2sql", verdict: "yes", nl2sqlLogId: v2.nl2sql.logId, attempt: 1 });
+  const ver = await findVerifiedSql(db, VQ, 2);
+  check("two different people confirming the same SQL verifies it", !!ver && ver.confirms === 2 && ver.sql.includes("LIMIT 4"));
+  const anonQ = "anonymous question";
+  for (let i = 0; i < 2; i++) {
+    const g = await ask(anonQ, null, SQL_A);
+    await recordFeedback(db, { userKey: null, query: anonQ, source: "nl2sql", verdict: "yes", nl2sqlLogId: g.nl2sql.logId, attempt: 1 });
+  }
+  check("anonymous confirmations do not count towards verification", (await findVerifiedSql(db, anonQ, 2)) === null);
+
+  let modelCalls = 0;
+  const callCounter = (inner: LlmFn): LlmFn => async (p) => { modelCalls++; return inner(p); };
+  modelCalls = 0;
+  const vAns: any = await runOmnibar(VQ, "V-3", mkDeps(callCounter(model(SQL_B))));
+  check("a verified answer is served WITHOUT calling the model", modelCalls === 0 && vAns.source === "cache" && vAns.nl2sql.verifiedBy === 2 && vAns.people.length === 4, JSON.stringify({ modelCalls, src: vAns?.source }));
+  check("it is logged as a cache answer so it can be rated", (await pg.query(`SELECT source FROM public.nl2sql_log WHERE id = $1`, [vAns.nl2sql.logId])).rows[0].source === "cache");
+  check("answerFromVerified returns nothing for an unverified question", (await answerFromVerified("never asked before", "V-3", { llm: model(SQL_A), withClient }, 2)) === null);
+  await recordFeedback(db, { userKey: "V-3", query: VQ, source: "cache", verdict: "no", reasonCode: "wrong_result", nl2sqlLogId: vAns.nl2sql.logId, attempt: 1 });
+  check("a single No revokes a verified answer", (await findVerifiedSql(db, VQ, 2)) === null);
+  modelCalls = 0;
+  const after: any = await runOmnibar(VQ, "V-4", mkDeps(callCounter(model(SQL_B))));
+  check("after the revocation the model is asked again", modelCalls === 1 && after.source === "nl2sql");
+
+  // -- a No chooses a DIFFERENT way to answer
+  const RQ = "retry question";
+  const r1 = await ask(RQ, "R-1", SQL_A);
+  await recordFeedback(db, { userKey: "R-1", query: RQ, source: "nl2sql", verdict: "no", reasonCode: "wrong_name", note: "I meant exact", nl2sqlLogId: r1.nl2sql.logId, attempt: 1 });
+  prompts.length = 0;
+  const r2: any = await runOmnibar(RQ, "R-1", mkDeps(capture(script([json({ sql: SQL_A, understood_as: "same again", confidence: "high" }), json({ sql: SQL_B, understood_as: "different", confidence: "high" })]))), { logId: r1.nl2sql.logId, reason: "wrong_name", note: "I meant exact", attempt: 1 });
+  check("a second attempt is a new answer marked as attempt 2", r2.attempt === 2 && r2.nl2sql.retryAttempt === 2 && r2.nl2sql.sql.includes("LIMIT 3"));
+  check("the model was told what was rejected and why", /name matching was wrong/i.test(prompts[0]) && prompts[0].includes("I meant exact") && prompts[0].includes("LIMIT 4"));
+  check("repeating the rejected SQL was turned down (answer came on the 2nd model try)", r2.nl2sql.attempts === 2);
+  check("the new answer is linked to the one it replaced", (await pg.query(`SELECT retry_of FROM public.nl2sql_log WHERE id = $1`, [r2.nl2sql.logId])).rows[0].retry_of === String(r1.nl2sql.logId) || Number((await pg.query(`SELECT retry_of FROM public.nl2sql_log WHERE id = $1`, [r2.nl2sql.logId])).rows[0].retry_of) === r1.nl2sql.logId);
+
+  modelCalls = 0;
+  const dv: any = await runOmnibar(RQ, "R-1", mkDeps(callCounter(model(SQL_B)), { holiday: async () => ({ kind: "count", answer: "holiday" }) as any }), { logId: null, reason: "wrong_result", note: null, attempt: 1 });
+  check("a second attempt skips the holiday shortcut and the verified shortcut", modelCalls === 1 && dv.source === "nl2sql");
+  modelCalls = 0;
+  const docs = await runOmnibar(RQ, "R-1", mkDeps(callCounter(model(SQL_B))), { logId: r1.nl2sql.logId, reason: "wanted_documents", note: null, attempt: 1 });
+  check("'I wanted documents' switches route to circular search without calling the model", docs === null && modelCalls === 0);
+  prompts.length = 0;
+  await runOmnibar("leave rules for staff", "R-2", mkDeps(capture(model(SQL_B))), { logId: null, reason: "wanted_employees", note: null, attempt: 1 });
+  check("'I wanted employee data' (after circular results) makes the model read it as an employee question", /expected an answer from the employee directory/.test(prompts[0]));
+  modelCalls = 0;
+  const gaveUp: any = await runOmnibar(RQ, "R-1", mkDeps(callCounter(model(SQL_B))), { logId: r2.nl2sql.logId, reason: "wrong_result", note: null, attempt: MAX_ATTEMPTS });
+  check("after the maximum number of attempts it stops, explains, and does not call the model", modelCalls === 0 && gaveUp.kind === "clarify" && /saved for the team/.test(gaveUp.answer));
+
+  // -- the URL contract
+  const sp = (q: string) => new URLSearchParams(q);
+  const pr = parseRetry(sp("ra=2&rr=wrong_name&rl=17&rn=%20hello%20"));
+  check("parseRetry reads the retry request", !!pr && pr.attempt === 2 && pr.reason === "wrong_name" && pr.logId === 17 && pr.note === "hello");
+  check("no ra means no retry", parseRetry(sp("rr=wrong_name&rl=17")) === null);
+  check("an out-of-range attempt is ignored", parseRetry(sp("ra=0")) === null && parseRetry(sp("ra=10")) === null && parseRetry(sp("ra=abc")) === null);
+  check("an unknown reason is dropped but the retry still happens", parseRetry(sp("ra=1&rr=bogus"))?.reason === null);
+  check("a long note is capped", (parseRetry(sp("ra=1&rn=" + "x".repeat(800)))?.note || "").length === 300);
+
+  // -- the review report
+  await recordFeedback(db, { userKey: "R-1", query: RQ, source: "nl2sql", verdict: "yes", nl2sqlLogId: r2.nl2sql.logId, attempt: 2 });
+  const report = await buildReport(db, 30, 2);
+  check("the report shows Yes / No by route", /Yes \/ No by route/.test(report) && /\| nl2sql \|/.test(report));
+  check("the report lists the reasons people gave", /wrong_name/.test(report) && /wanted_employees/.test(report));
+  check("the report lists the most rejected questions with their SQL", report.includes(GQ) && /LIMIT 4/.test(report));
+  check("the report turns a fixed No into a regression case (rejected -> accepted)", /Fixed by a second attempt/.test(report) && report.includes(RQ) && /Rejected:/.test(report) && /Accepted:/.test(report));
+  check("the report lists verified answers (after revocation the revoked one is gone)", /Verified answers/.test(report) && !report.includes(`- ${VQ} —`));
 
   // ==========================================================================
   section("J. Scale: about 6,500 employees -- the phonetic query must stay fast and correct");

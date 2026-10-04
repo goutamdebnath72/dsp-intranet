@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
 import type { SynthesisResult } from "@/lib/search/executiveSynthesis";
+import type { Nl2SqlExtras } from "@/lib/nl2sql/clientTypes";
 
 export type SearchMode = "title" | "semantic" | "intellectual" | null;
 
@@ -63,6 +64,15 @@ export interface AnalyticsAnswer {
   /** Plain-language statement of how an LLM-derived query was understood.
    *  Mirrors AnalyticsPayload.interpretation. */
   interpretation?: string;
+  /** Present when the answer was written by the language model (SQL, departments covered, tick/cross,
+   *  and a table for breakdowns). See src/lib/nl2sql/omnibar.ts. */
+  nl2sql?: Nl2SqlExtras;
+  /** Which route produced the answer; the footer's Yes/No is recorded against it. */
+  source?: "nl2sql" | "cache" | "holiday" | "legacy" | "circular" | "none";
+  /** 1 for the first answer, 2 for a second attempt after a "No" ... */
+  attempt?: number;
+  /** The log row to rate, also for explanations that carry no SQL. */
+  feedbackLogId?: number | null;
 }
 
 export interface OmniSearchResponse {
@@ -81,6 +91,9 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [mode, setMode] = useState<SearchMode>(null);
+  // A "No" on an answer asks for another attempt: the request carries the reason (see AnswerFeedback.tsx).
+  const [retry, setRetry] = useState<{ attempt: number; reason: string; note: string; logId: number | null } | null>(null);
+  const [attempt, setAttempt] = useState(1); // the attempt number of the answer now on screen
 
   // Wipe all state when modal closes
   useEffect(() => {
@@ -88,6 +101,8 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
       setQuery("");
       setSubmittedQuery("");
       setMode(null);
+      setRetry(null);
+      setAttempt(1);
       globalMutate(
         (key) => typeof key === "string" && key.startsWith("/api/ai-search"),
         undefined,
@@ -100,6 +115,8 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   const triggerSearch = (selectedMode: SearchMode) => {
     if (!selectedMode) return;
     setMode(selectedMode);
+    setRetry(null);
+    setAttempt(1);
     if (query.trim().length >= 3) {
       setSubmittedQuery(query.trim());
     } else {
@@ -117,7 +134,13 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     isLoading: isSwrLoading,
   } = useSWR<OmniSearchResponse | OmniSearchResult[]>(
     shouldFetch
-      ? `/api/ai-search?q=${encodeURIComponent(submittedQuery)}&mode=${mode}${ticketNo ? `&ticket=${ticketNo}` : ""}`
+      ? `/api/ai-search?q=${encodeURIComponent(submittedQuery)}&mode=${mode}${ticketNo ? `&ticket=${ticketNo}` : ""}${
+          retry
+            ? `&ra=${retry.attempt}&rr=${encodeURIComponent(retry.reason)}${retry.logId ? `&rl=${retry.logId}` : ""}${
+                retry.note ? `&rn=${encodeURIComponent(retry.note)}` : ""
+              }`
+            : ""
+        }`
       : null,
     fetcher,
     {
@@ -141,8 +164,17 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
 
   const isLoading = shouldFetch && isSwrLoading;
 
+  // "No" -> ask for another attempt in a different way (the server chooses it from the reason).
+  const requestRetry = (r: { reason: string; note: string; logId: number | null }) => {
+    setRetry({ ...r, attempt });
+    setAttempt((a) => a + 1);
+  };
+
   return {
     query,
+    submittedQuery,
+    attempt,
+    requestRetry,
     setQuery,
     mode,
     triggerSearch,

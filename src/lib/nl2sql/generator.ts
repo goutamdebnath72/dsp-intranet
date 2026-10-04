@@ -28,5 +28,6 @@ export function parsePlan(raw: string): LlmPlan | null {
     confidence: conf,
     needs_clarification: typeof obj.needs_clarification === "string" && obj.needs_clarification.trim() ? obj.needs_clarification.trim() : null,
     unanswerable_reason: typeof obj.unanswerable_reason === "string" && obj.unanswerable_reason.trim() ? obj.unanswerable_reason.trim() : null,
+    out_of_scope: obj.out_of_scope === true,
   };
 }

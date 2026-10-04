@@ -19,6 +19,8 @@ import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
 import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
 import { InterpretationNote, PatternFeedbackBar } from "@/components/AnalyticsFeedback";
+import { Nl2SqlAnswerExtras, Nl2SqlTable } from "@/components/Nl2SqlAnswerExtras";
+import { AnswerFeedback, type AnswerSource } from "@/components/AnswerFeedback";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
@@ -131,6 +133,9 @@ export function OmnibarModal({
 }: OmnibarModalProps) {
   const {
     query,
+    submittedQuery,
+    attempt,
+    requestRetry,
     setQuery,
     mode,
     triggerSearch,
@@ -706,6 +711,12 @@ export function OmnibarModal({
                                 patternId={analytics.pendingPatternId}
                               />
                             )}
+                            {analytics.nl2sql && (
+                              <Nl2SqlAnswerExtras
+                                key={analytics.nl2sql.logId ?? analytics.nl2sql.sql}
+                                nl2sql={analytics.nl2sql}
+                              />
+                            )}
                             {analytics.typeBreakdown &&
                               analytics.typeBreakdown.length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-2">
@@ -827,6 +838,11 @@ export function OmnibarModal({
                           </div>
                         </div>
                       </div>
+                    )}
+
+                    {/* Table answer written by the language model (breakdowns etc.) */}
+                    {!isLoading && analytics?.nl2sql?.table && (
+                      <Nl2SqlTable table={analytics.nl2sql.table} />
                     )}
 
                     {/* Analytics people list (list/who queries) */}
@@ -1369,6 +1385,22 @@ export function OmnibarModal({
                   </>
                 )}
               </div>
+
+              {/* Universal Yes / No for the answer on screen: the entry point of the learning loop */}
+              {!isLoading && mode === "semantic" && submittedQuery.trim().length >= 3 && !error && (
+                <div className="border-t border-slate-200/70 bg-white/80">
+                  <AnswerFeedback
+                    query={submittedQuery}
+                    source={
+                      (analytics?.source ?? (analytics ? "legacy" : results.length > 0 ? "circular" : "none")) as AnswerSource
+                    }
+                    nl2sqlLogId={analytics?.nl2sql?.logId ?? analytics?.feedbackLogId ?? null}
+                    userKey={ticketNo ?? null}
+                    attempt={attempt}
+                    onRetry={requestRetry}
+                  />
+                </div>
+              )}
 
               {/* Persistent AI disclaimer footer */}
               <div className="border-t border-slate-200/70 bg-white/60 px-4 py-2 text-center">

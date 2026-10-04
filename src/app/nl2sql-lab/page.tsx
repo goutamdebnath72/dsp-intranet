@@ -14,7 +14,7 @@ interface Data { columns: string[]; rows: Record<string, Cell>[]; total: number;
 type Scope = { departments: { code: number; name: string }[]; total: number } | null;
 type Result =
   | { ok: true; question: string; sql: string; understoodAs: string; confidence: string; data: Data; scope?: Scope; attempts: number; elapsedMs: number; logId: number | null }
-  | { ok: false; kind: "clarify" | "unanswerable" | "error"; message: string; sql?: string | null; understoodAs?: string; attempts: number; elapsedMs: number; logId: number | null };
+  | { ok: false; kind: "clarify" | "unanswerable" | "out_of_scope" | "error"; message: string; sql?: string | null; understoodAs?: string; attempts: number; elapsedMs: number; logId: number | null };
 
 const EXAMPLES = [
   'find the names of employees which have kumar at the middle',
@@ -101,7 +101,7 @@ export default function Nl2SqlLab() {
 
       {result && !result.ok && (
         <div className={`mt-4 rounded-lg border p-4 text-sm ${result.kind === "error" ? "border-red-300 bg-red-50 text-red-900" : "border-blue-200 bg-blue-50 text-blue-900"}`}>
-          <div className="font-semibold">{result.kind === "clarify" ? "I need one detail" : result.kind === "unanswerable" ? "This can’t be answered from the data" : "Something went wrong"}</div>
+          <div className="font-semibold">{result.kind === "clarify" ? "I need one detail" : result.kind === "unanswerable" ? "This can’t be answered from the data" : result.kind === "out_of_scope" ? "This isn’t a question about employees" : "Something went wrong"}</div>
           <div className="mt-1">{result.message}</div>
           {result.understoodAs && <div className="mt-2 text-xs opacity-80">Understood as: {result.understoodAs}</div>}
           {result.sql && <pre className="mt-2 overflow-x-auto rounded bg-white/70 p-2 text-xs">{result.sql}</pre>}
