@@ -1386,8 +1386,9 @@ export function OmnibarModal({
                 )}
               </div>
 
-              {/* Universal Yes / No for the answer on screen: the entry point of the learning loop */}
-              {!isLoading && mode === "semantic" && submittedQuery.trim().length >= 3 && !error && (
+              {/* Universal Yes / No for the answer on screen: the entry point of the learning loop.
+                  Not shown for a VERIFIED answer (source "cache"): it was already confirmed, so asking again only confuses. */}
+              {!isLoading && mode === "semantic" && submittedQuery.trim().length >= 3 && !error && analytics?.source !== "cache" && (
                 <div className="border-t border-slate-200/70 bg-white/80">
                   <AnswerFeedback
                     query={submittedQuery}

@@ -56,7 +56,7 @@ export async function recordVerdict(
 /**
  * SQL that must not be offered again for this exact question:
  *  - what THIS person already marked wrong (30 days), and
- *  - what at least TWO different people marked wrong and nobody confirmed (blocked for everyone).
+ *  - what anyone marked wrong and nobody confirmed (one "No" is final: blocked for everyone).
  */
 export async function loadRejectedSql(client: SqlClient, userKey: string | null, question: string): Promise<string[]> {
   const qn = normalizeQuestion(question);
@@ -75,7 +75,7 @@ export async function loadRejectedSql(client: SqlClient, userKey: string | null,
       `SELECT sql FROM public.nl2sql_log
         WHERE question_norm = $1 AND sql IS NOT NULL
         GROUP BY sql
-       HAVING count(DISTINCT user_key) FILTER (WHERE verdict = 'reject') >= 2
+       HAVING count(*) FILTER (WHERE verdict = 'reject') >= 1
           AND count(*) FILTER (WHERE verdict = 'confirm') = 0
         LIMIT 5`,
       [qn],

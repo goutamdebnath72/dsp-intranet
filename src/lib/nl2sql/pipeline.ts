@@ -175,7 +175,7 @@ export async function answerQuestion(question: string, userKey: string | null, d
 }
 
 /**
- * A VERIFIED answer: the same question, with a stored SQL that enough different people confirmed and nobody
+ * A VERIFIED answer: the same question, with a stored SQL that was confirmed and nobody
  * rejected (learning.ts findVerifiedSql). The SQL goes through the same guard and checks and is executed afresh
  * (so the data is current), but the model is not called. Returns null when there is no verified answer or it
  * no longer passes, and the normal path takes over.

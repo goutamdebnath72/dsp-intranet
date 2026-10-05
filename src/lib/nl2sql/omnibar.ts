@@ -219,7 +219,7 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
     const holiday = await deps.holiday(q).catch(() => null);
     if (holiday) return { ...holiday, source: "holiday", attempt };
 
-    // 2. a VERIFIED answer (confirmed by enough different people, never rejected): re-run it, no model call
+    // 2. a VERIFIED answer (confirmed at least once, never rejected): re-run it, no model call
     const verified = await answerFromVerified(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: 100 } }, deps.verifiedMin).catch(() => null);
     if (verified) return okToPayload(verified, userKey, deps, attempt);
   }

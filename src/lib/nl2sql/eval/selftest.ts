@@ -478,8 +478,8 @@ async function main() {
   check("the asker can mark it wrong", logId !== null && (await recordVerdict(db, logId, "reject", "USER-A")));
   r = await answerQuestion("Kumar  test   VERDICT", "USER-A", { llm: script([goodPlan, json({ sql: `${good} LIMIT 5`, understood_as: "A different reading." })]), withClient });
   check("the same SQL is refused after a cross; a different reading is accepted", r.ok && r.attempts === 2 && r.sql.includes("LIMIT 5"), r.ok ? `attempts ${r.attempts}` : r.message);
-  r = await answerQuestion("kumar test verdict", "USER-C", { llm: script([goodPlan]), withClient });
-  check("someone else's cross does not affect other people", r.ok && r.attempts === 1);
+  r = await answerQuestion("kumar test verdict", "USER-C", { llm: script([goodPlan, json({ sql: `${good} LIMIT 5`, understood_as: "A different reading." })]), withClient });
+  check("one person's cross is final: the same SQL is refused for everyone else too", r.ok && r.attempts === 2 && r.sql.includes("LIMIT 5"), r.ok ? `attempts ${r.attempts}` : r.message);
 
   // confirmed answers become worked examples
   r = await answerQuestion("employees called zzqx", "USER-A", { llm: script([json({ sql: `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE 'ZZQX' = ANY(name_words)`, understood_as: "zzqx" })]), withClient });
@@ -679,13 +679,13 @@ async function main() {
   const fHol = await recordFeedback(db, { userKey: "L-A", query: "holidays 2026", source: "holiday", verdict: "yes", attempt: 1 });
   check("a Yes on a holiday answer is stored", fHol.id !== null);
 
-  // -- No teaches: blocked for everyone after two different people reject it
+  // -- No teaches: one No is final, the SQL is blocked for everyone
   const GQ = "global reject question";
-  for (const u of ["G-1", "G-2"]) {
+  for (const u of ["G-1"]) {
     const g = await ask(GQ, u, SQL_A);
     await recordFeedback(db, { userKey: u, query: GQ, source: "nl2sql", verdict: "no", reasonCode: "wrong_result", note: "too few", nl2sqlLogId: g.nl2sql.logId, attempt: 1 });
   }
-  check("an SQL rejected by two different people is blocked for a third", (await loadRejectedSql(db, "G-3", GQ)).some((x) => x.includes("LIMIT 4")));
+  check("an SQL rejected by one person is blocked for everyone else", (await loadRejectedSql(db, "G-3", GQ)).some((x) => x.includes("LIMIT 4")));
   check("it is not blocked for a different question", !(await loadRejectedSql(db, "G-3", "something else entirely")).some((x) => x.includes("LIMIT 4")));
   const g3 = await runOmnibar(GQ, "G-3", mkDeps(script([json({ sql: SQL_A, understood_as: "again", confidence: "high" }), json({ sql: SQL_B, understood_as: "different", confidence: "high" })])));
   check("the model's attempt to repeat that SQL is turned down and a different one is used", !!g3 && (g3 as any).nl2sql.sql.includes("LIMIT 3") && (g3 as any).nl2sql.attempts === 2, JSON.stringify((g3 as any)?.nl2sql?.attempts));
@@ -713,17 +713,18 @@ async function main() {
   const VQ = "verified question";
   const v1 = await ask(VQ, "V-1", SQL_A);
   await recordFeedback(db, { userKey: "V-1", query: VQ, source: "nl2sql", verdict: "yes", nl2sqlLogId: v1.nl2sql.logId, attempt: 1 });
-  check("one confirmation is not enough to verify an answer", (await findVerifiedSql(db, VQ, 2)) === null);
+  const ver1 = await findVerifiedSql(db, VQ, 1);
+  check("one confirmation is enough to verify an answer", !!ver1 && ver1.confirms === 1 && ver1.sql.includes("LIMIT 4"));
   const v2 = await ask(VQ, "V-2", SQL_A);
   await recordFeedback(db, { userKey: "V-2", query: VQ, source: "nl2sql", verdict: "yes", nl2sqlLogId: v2.nl2sql.logId, attempt: 1 });
   const ver = await findVerifiedSql(db, VQ, 2);
-  check("two different people confirming the same SQL verifies it", !!ver && ver.confirms === 2 && ver.sql.includes("LIMIT 4"));
+  check("a second confirmation of the same SQL is counted", !!ver && ver.confirms === 2 && ver.sql.includes("LIMIT 4"));
   const anonQ = "anonymous question";
   for (let i = 0; i < 2; i++) {
     const g = await ask(anonQ, null, SQL_A);
     await recordFeedback(db, { userKey: null, query: anonQ, source: "nl2sql", verdict: "yes", nl2sqlLogId: g.nl2sql.logId, attempt: 1 });
   }
-  check("anonymous confirmations do not count towards verification", (await findVerifiedSql(db, anonQ, 2)) === null);
+  check("a confirmation without a user key still counts (feedback does not depend on who clicked)", !!(await findVerifiedSql(db, anonQ, 1)));
 
   let modelCalls = 0;
   const callCounter = (inner: LlmFn): LlmFn => async (p) => { modelCalls++; return inner(p); };

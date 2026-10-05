@@ -25,7 +25,7 @@ export interface Nl2SqlExtras {
   scope: { departments: string[]; total: number } | null;
   /** Tabular result, present for breakdowns and any answer that is not a plain count or list of people. */
   table?: Nl2SqlTable;
-  /** Set when the answer is a VERIFIED answer: how many different people confirmed it (the model was not called). */
+  /** Set when the answer is a VERIFIED answer: how many confirmations it has (the model was not called). */
   verifiedBy?: number;
   /** 2, 3 ... when this is another attempt after a "No". */
   retryAttempt?: number;

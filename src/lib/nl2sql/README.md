@@ -24,7 +24,7 @@ New files: `omnibar.ts`, `clientTypes.ts`, `src/components/Nl2SqlAnswerExtras.ts
 
 Every answer in the omnibar — model-written, verified, holiday, old engine, circular results, even "no results" — has a **"Was this what you were looking for? Yes / No"** in the footer (`AnswerFeedback.tsx`). Clicks go to `/api/omnibar/feedback` and are stored in `public.omnibar_feedback`; for model-written answers the verdict is also set on the answer's row in `public.nl2sql_log`.
 
-**Yes teaches.** The question + SQL becomes a worked example for similar questions. When at least `NL2SQL_VERIFIED_MIN_CONFIRMS` (default 2) DIFFERENT people confirmed the same SQL for the same question and nobody rejected it, it becomes a **verified answer**: the SQL is re-run (fresh data, same guard and checks) without calling the model, and the card says "Verified answer — confirmed by N people". A single later No revokes it.
+**Yes teaches.** The question + SQL becomes a worked example for similar questions. When at least `NL2SQL_VERIFIED_MIN_CONFIRMS` (default 1: one Yes is final) confirmations exist for the same SQL and the same question and nobody rejected it, it becomes a **verified answer**: the SQL is re-run (fresh data, same guard and checks) without calling the model, and the card says "Verified answer — confirmed by N person/people". A single later No revokes it.
 
 **No asks one question — "What was wrong?" — then tries again differently**, chosen by the reason:
 | Reason | What happens next |
@@ -34,7 +34,7 @@ Every answer in the omnibar — model-written, verified, holiday, old engine, ci
 | The result is wrong / wrong department(s) / a name was matched wrongly / something else | the model writes a genuinely different reading, told the rejected SQL, the reason and the person's own words |
 After 3 attempts it stops and says so; every No is kept for review.
 
-**No also teaches.** The rejected SQL is never offered again to that person for that question; after two different people reject it (and nobody confirms) it is blocked for everyone; and rejected readings of SIMILAR questions are shown to the model as "mistakes to avoid".
+**No also teaches.** The rejected SQL is never offered again for that question: one No is final and blocks it for everyone (unless someone confirmed it); and rejected readings of SIMILAR questions are shown to the model as "mistakes to avoid".
 
 **Nothing is retrained.** "Learning" means these three mechanisms plus a human review step: `npx tsx --env-file=.env.local src/lib/nl2sql/eval/feedback-report.ts [--days=N]` writes `nl2sql-eval-feedback.md` (Yes/No by route, reasons, most-rejected questions with their SQL, No's fixed by a second attempt = ready-made regression cases, verified answers, volume). Turn recurring failures into rules, examples and golden tests.
 

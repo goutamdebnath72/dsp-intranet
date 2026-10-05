@@ -19,7 +19,7 @@ const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "â€
 const one = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
 const code = (s: unknown, max = 600) => "```sql\n" + one(s).slice(0, max) + "\n```";
 
-export async function buildReport(db: SqlClient, days = 30, minConfirms = 2): Promise<string> {
+export async function buildReport(db: SqlClient, days = 30, minConfirms = 1): Promise<string> {
   const win = `now() - make_interval(days => ${Math.max(1, Math.floor(days))})`;
   const q = async (sql: string, p: any[] = []) => (await db.query(sql, p)).rows as any[];
   const md: string[] = [];
@@ -87,14 +87,14 @@ export async function buildReport(db: SqlClient, days = 30, minConfirms = 2): Pr
 
   // 5. Verified answers
   const verified = await q(
-    `SELECT min(question) AS question, count(DISTINCT user_key) FILTER (WHERE verdict = 'confirm')::int AS confirms
+    `SELECT min(question) AS question, count(*) FILTER (WHERE verdict = 'confirm')::int AS confirms
        FROM public.nl2sql_log WHERE ok AND sql IS NOT NULL
       GROUP BY question_norm, sql
-     HAVING count(DISTINCT user_key) FILTER (WHERE verdict = 'confirm') >= $1 AND count(*) FILTER (WHERE verdict = 'reject') = 0
+     HAVING count(*) FILTER (WHERE verdict = 'confirm') >= $1 AND count(*) FILTER (WHERE verdict = 'reject') = 0
       ORDER BY confirms DESC LIMIT 50`,
     [minConfirms],
   );
-  md.push(`## Verified answers (served without the model; needs ${minConfirms}+ different people and no rejection)\n`);
+  md.push(`## Verified answers (served without the model; needs ${minConfirms}+ confirmation(s) and no rejection)\n`);
   if (!verified.length) md.push("None yet.\n");
   else { verified.forEach((r) => md.push(`- ${one(r.question)} â€” confirmed by ${r.confirms}`)); md.push(""); }
 

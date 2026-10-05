@@ -328,6 +328,7 @@ export function TopBar() {
         isOpen={isOmnibarOpen}
         setIsOpen={setIsOmnibarOpen}
         isExecutive={isExecutiveUser}
+        ticketNo={userTicket.trim() || undefined}
       />
       <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
       <HolidayNotificationToast />

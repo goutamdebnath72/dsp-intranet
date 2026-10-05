@@ -44,7 +44,7 @@ export function Nl2SqlAnswerExtras({ nl2sql }: { nl2sql: Nl2SqlExtras }) {
       ) : null}
       {nl2sql.retryAttempt ? <p className="mt-1 text-xs font-medium text-blue-700">A different reading (attempt {nl2sql.retryAttempt}), after your feedback.</p> : null}
       <details className="mt-2">
-        <summary className="cursor-pointer text-xs font-medium text-slate-500">SQL the model wrote</summary>
+        <summary className="cursor-pointer text-xs font-medium text-slate-500">{nl2sql.verifiedBy ? "SQL (stored, confirmed answer)" : "SQL the model wrote"}</summary>
         <pre className="mt-1 overflow-x-auto rounded-md bg-slate-900 p-2 text-[11px] leading-snug text-slate-100">{nl2sql.sql}</pre>
       </details>
     </div>

@@ -54,7 +54,7 @@ export type PipelineResult =
       scope: DepartmentScope | null;
       /** 'nl2sql' = the model wrote the SQL just now; 'cache' = a VERIFIED answer was re-run without the model. */
       source: "nl2sql" | "cache";
-      /** For source 'cache': how many different people confirmed this answer. */
+      /** For source 'cache': how many confirmations this answer has. */
       verifiedBy?: number;
       attempts: number;
       elapsedMs: number;

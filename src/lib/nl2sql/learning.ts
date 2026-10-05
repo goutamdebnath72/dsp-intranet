@@ -25,10 +25,10 @@ export const ANSWER_SOURCES = ["nl2sql", "cache", "holiday", "legacy", "circular
 export type AnswerSource = (typeof ANSWER_SOURCES)[number];
 export const isAnswerSource = (x: unknown): x is AnswerSource => typeof x === "string" && (ANSWER_SOURCES as readonly string[]).includes(x);
 
-/** Different people who must confirm the same answer before it is served without the model. */
+/** Confirmations needed before an answer is served without the model. One "Yes" is final (a later "No" revokes it). */
 export function verifiedMinConfirms(): number {
   const n = Number(process.env.NL2SQL_VERIFIED_MIN_CONFIRMS);
-  return Number.isInteger(n) && n >= 1 ? n : 2;
+  return Number.isInteger(n) && n >= 1 ? n : 1;
 }
 
 const REASON_HINTS: Record<ReasonCode, string> = {
@@ -102,7 +102,7 @@ export interface VerifiedAnswer {
 }
 
 /**
- * A stored SQL for this exact (normalized) question that at least `minConfirms` DIFFERENT people confirmed and
+ * A stored SQL for this exact (normalized) question that at least `minConfirms` confirmations (one Yes is enough) exist for and
  * that NOBODY rejected. It is served by re-running the SQL (always fresh data), without calling the model.
  * A single later "No" removes it from this list, so a verified answer can always be revoked.
  */
@@ -110,12 +110,12 @@ export async function findVerifiedSql(client: SqlClient, question: string, minCo
   try {
     const r = await client.query(
       `SELECT sql,
-              count(DISTINCT user_key) FILTER (WHERE verdict = 'confirm')            AS confirms,
+              count(*) FILTER (WHERE verdict = 'confirm')            AS confirms,
               (array_agg(understood_as ORDER BY id DESC) FILTER (WHERE verdict = 'confirm'))[1] AS understood_as
          FROM public.nl2sql_log
         WHERE question_norm = $1 AND sql IS NOT NULL AND ok
         GROUP BY sql
-       HAVING count(DISTINCT user_key) FILTER (WHERE verdict = 'confirm') >= $2
+       HAVING count(*) FILTER (WHERE verdict = 'confirm') >= $2
           AND count(*) FILTER (WHERE verdict = 'reject') = 0
         ORDER BY confirms DESC LIMIT 1`,
       [normalizeQuestion(question), minConfirms],
