@@ -148,6 +148,23 @@ function leftoverAfterStrip(q: string): string {
   return toks.join(" ").trim();
 }
 
+/**
+ * For a query that names a holiday but has no "when is ..." cue: whatever is being asked
+ * beyond the holiday name itself (after removing every word of every holiday name/alias,
+ * the holiday vocabulary and filler). Empty = a plain date lookup ("Holi 2026").
+ * Non-empty = a question about something else ("SAIL Foundation Day 5 km walk run").
+ */
+export function bareNameLeftover(q: string, names: { name: string; aliases?: string[] }[]): string {
+  const nameWords = new Set<string>();
+  const words = (t: string) => normTerm(t).replace(/[^\p{L}\p{N}]+/gu, " ").split(/\s+/).filter(Boolean);
+  for (const rec of names) {
+    for (const w of words(rec.name)) nameWords.add(w);
+    for (const al of rec.aliases ?? []) for (const w of words(al)) nameWords.add(w);
+  }
+  const rest = q.split(/\s+/).filter((w) => !nameWords.has(w)).join(" ");
+  return leftoverAfterStrip(rest).replace(/\b(or|vs|versus|type|kind|date|dates|day)\b/g, " ").replace(/\s+/g, " ").trim();
+}
+
 export async function parseHolidayIntent(
   query: string,
   now: DateTime = DateTime.now(),
@@ -266,6 +283,10 @@ export async function parseHolidayIntent(
   // ---- find-one: a known holiday NAME + a "when/what date" cue, or a name
   // match with no other holiday-domain cue at all (e.g. bare "Holi 2026"). ----
   if (nameMatch && (FINDONE_WORD.test(q) || !hasHolidayWord)) {
+    // A bare name with NO "when is ..." cue answers as a date lookup only when nothing
+    // else is being asked: "Holi 2026" yes; "SAIL Foundation Day 5 km walk run" is a
+    // question about a circular, not about the holiday -> hand it to circular search.
+    if (!FINDONE_WORD.test(q) && bareNameLeftover(q, names)) return null;
     const year = years[0] ?? explicitYearFromDate ?? null;
     return { kind: "holidayFindOne", name: nameMatch, year };
   }

@@ -11,6 +11,10 @@ import {
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
 import { answerOmnibar, parseRetry } from "@/lib/nl2sql/omnibar";
+import { contentTokens, isHolidayTopic, topicTokens } from "@/lib/search/topicGate";
+import { applyRankAdjustments } from "@/lib/search/rankAdjust";
+import { queryTokenWeights, weightedCoverage } from "@/lib/search/tokenWeights";
+import { loadDocumentChunks, bestPassage } from "@/lib/search/documentText";
 import { findSailDepartmentInText } from "@/lib/employees/sailDepartments";
 import { normTerm } from "@/lib/employees/designations";
 
@@ -260,7 +264,11 @@ export async function GET(request: Request) {
     // departments covered and a tick/cross) or not (then we fall through to circular search below).
     // If the model path is unavailable the previous rule-based engine answers instead.
     // See src/lib/nl2sql/omnibar.ts. Kill switch: NL2SQL_OMNIBAR_ENABLED=false.
-    if (mode === "semantic") {
+    // Test hook (never active in production builds): ?retrievalOnly=1 skips every
+    // employee/holiday answer path -- and with it every model call -- so the circular
+    // search can be measured on its own, for free and repeatably (scripts/circular-battery.mjs).
+    const retrievalOnly = process.env.NODE_ENV !== "production" && searchParams.get("retrievalOnly") === "1";
+    if (mode === "semantic" && !retrievalOnly) {
       const payload = await answerOmnibar(q, userTicket || null, parseRetry(searchParams));
       if (payload) return NextResponse.json({ analytics: payload });
     }
@@ -274,7 +282,32 @@ export async function GET(request: Request) {
     const quoted = classifyQuoted(q);
     const isExplicitQuotedQuery = quoted.isQuoted;
     const cleanQ = quoted.phrase.toLowerCase();
-    const queryTokens = cleanQ.split(/\s+/).filter((t) => t.length > 2);
+    // Lexical evidence uses CONTENT words only (see lib/search/topicGate.ts):
+    // counting "what", "the", "for" made nearly every chunk a "perfect match".
+    // Quoted and Indic queries keep the original token rule unchanged.
+    const strictLexical = !isExplicitQuotedQuery && !INDIC_SCRIPT_REGEX.test(q);
+    const allTokens = cleanQ.split(/\s+/).filter((t) => t.length > 2);
+    const contentOnly = strictLexical ? contentTokens(cleanQ) : [];
+    const queryTokens = strictLexical && contentOnly.length > 0 ? contentOnly : allTokens;
+    // What the question is ABOUT (content words minus who-it-is-for words): a result
+    // that shares only "contract workers" with "leave policy for contract workers"
+    // is about something else, however many audience words it repeats.
+    const topicQ = strictLexical ? topicTokens(queryTokens) : [];
+    // Rarity weights (lib/search/tokenWeights.ts): a word found in every circular counts
+    // little, a word found in one or two counts a lot. Quoted/Indic queries stay unweighted.
+    const tokenWeight = strictLexical ? await queryTokenWeights(dataSource, queryTokens) : null;
+    // Lexical evidence is read from the BEST PASSAGE among all of a circular's chunks, not only
+    // the one chunk the engine surfaced (lib/search/documentText.ts). Quoted/Indic queries keep
+    // the single chunk.
+    const docChunks = strictLexical
+      ? await loadDocumentChunks(
+          dataSource,
+          (uniqueResults || []).filter((r: any) => r.type === "circular").map((r: any) => Number(r.id)),
+        )
+      : new Map<number, string[]>();
+    // Holiday notes are the answer to a holiday question: lift them BEFORE the top-5 cut so a
+    // slightly low-scoring note cannot be crowded out by circulars (not for contractor questions).
+    const holidayFloor = strictLexical && isHolidayTopic(q) && !/\bcontract/i.test(q);
 
     const scoredResults = (uniqueResults || []).map((result) => {
       const headlineLower = (result.headline || "").toLowerCase();
@@ -290,19 +323,40 @@ export async function GET(request: Request) {
         (literalPhraseMatches(result.headline || "", quoted) ||
           literalPhraseMatches(result.chunkText || "", quoted));
 
-      const tokenHits = queryTokens.filter(
-        (t) => headlineLower.includes(t) || chunkLower.includes(t),
-      ).length;
+      const passages = result.type === "circular" ? docChunks.get(Number(result.id)) : undefined;
+      const passage = bestPassage(
+        queryTokens,
+        headlineLower,
+        passages && passages.length ? [chunkLower, ...passages] : [chunkLower],
+        tokenWeight,
+      );
+      const evidenceLower = passage.evidence;
+      const hitTokens = passage.hits;
+      const tokenHits = hitTokens.length;
       // Headline hits mark the PRIMARY document (the circular actually about
       // the query) vs a chunk that merely mentions the words in passing.
       const headlineHits = queryTokens.filter((t) =>
         headlineLower.includes(t),
       ).length;
-      const coverage =
-        queryTokens.length > 0 ? tokenHits / queryTokens.length : 0;
+      const coverage = tokenWeight
+        ? weightedCoverage(queryTokens, hitTokens, tokenWeight)
+        : queryTokens.length > 0
+          ? tokenHits / queryTokens.length
+          : 0;
 
+      // A "perfect" lexical match must cover most of what was asked, not just any
+      // two words (a notice that only shares "contract workers" with
+      // "leave policy for contract workers" is not a perfect match).
+      const topicRelevant =
+        topicQ.length === 0 ||
+        topicQ.some((t) => headlineLower.includes(t)) ||
+        topicQ.filter((t) => evidenceLower.includes(t)).length / topicQ.length > 0.5 ||
+        rawSim >= 0.88;
       const isPerfectMatch =
-        isExactPhrase || (queryTokens.length >= 2 && tokenHits >= 2);
+        isExactPhrase ||
+        (queryTokens.length >= 2 &&
+          tokenHits >= 2 &&
+          (!strictLexical || (coverage >= 0.6 && topicRelevant)));
 
       // Map to a human-friendly percentage. Within each band the score varies
       // CONTINUOUSLY with token coverage + headline hits + vector, so a primary
@@ -326,6 +380,8 @@ export async function GET(request: Request) {
           60 +
           ((rawSim - ABSOLUTE_NOISE_FLOOR) / (0.9 - ABSOLUTE_NOISE_FLOOR)) * 21;
       }
+
+      if (holidayFloor && result.type === "holiday") displayMatch = Math.max(displayMatch, 86);
 
       return {
         ...result,
@@ -428,7 +484,11 @@ export async function GET(request: Request) {
           // similarity, not a literal match, so it gets its own honest
           // percentage rather than the fixed 96 a literal title match
           // earns -- these should read as "related" not "exact."
-          const headlineHits = await executeHeadlineEmbeddingSearch(dataSource, q);
+          // The holiday-list circulars (no body text) only belong in the results
+          // when the question is about holidays; otherwise they are filler.
+          const headlineHits = isHolidayTopic(q)
+            ? await executeHeadlineEmbeddingSearch(dataSource, q, 8)
+            : [];
           for (const h of headlineHits as any[]) {
             const key = `${h.type}-${h.id}`;
             const existing = byKey.get(key);
@@ -440,15 +500,17 @@ export async function GET(request: Request) {
                 ...h,
                 matchPercentage: pct,
                 chunkText: "",
+                fromHeadlineEmbedding: true,
               });
             }
           }
 
-          merged = Array.from(byKey.values())
-            .sort(
-              (a, b) => (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0),
-            )
-            .slice(0, 6);
+          // Rank rules (year, audience, holiday-first, cutoff): see lib/search/rankAdjust.ts.
+          // Quoted and Indic queries pass through unchanged.
+          const sortedByPct = Array.from(byKey.values()).sort(
+            (a, b) => (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0),
+          );
+          merged = applyRankAdjustments(q, sortedByPct as any[]).slice(0, 6);
         } catch (e) {
           // headline fold is best-effort; body/semantic results still stand.
           console.warn("headline fold failed:", (e as any)?.message ?? e);

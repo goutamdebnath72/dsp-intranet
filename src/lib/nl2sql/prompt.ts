@@ -23,7 +23,7 @@ OUTPUT -- a single JSON object and nothing else:
  "out_of_scope": true | false}
 - sql = null with needs_clarification ONLY when the question is genuinely ambiguous in a way that changes the answer. Otherwise make the most reasonable reading and say it in understood_as.
 - sql = null with unanswerable_reason when the question is about employees but needs data these views do not hold (salary, leave balances, attendance, phone numbers or e-mail addresses themselves, home addresses).
-- sql = null with out_of_scope = true when the question is NOT about employees at all: circulars, notices, policies, rules, holidays, leave rules, forms, announcements, general knowledge. The application then searches the circulars instead. Do not invent an employee query for such a question.
+- sql = null with out_of_scope = true when the question is NOT about employees at all: circulars, notices, policies, rules, holidays, leave rules, forms, announcements, general knowledge. The application then searches the circulars instead. Also out_of_scope: asking WHO holds a role that a circular or notice itself defines (nodal officers, coordinators, selection committee members, coaches, team members, authorised signatories, contact persons): those names are printed in the circular, the employee views only know designation and department. Do not invent an employee query for such a question.
 - understood_as must describe your conditions faithfully -- including whether names are matched exactly or by similar spelling. It is shown to the person so they can catch a misreading.
 
 THE ONLY TABLES YOU MAY USE (views in schema nlq):

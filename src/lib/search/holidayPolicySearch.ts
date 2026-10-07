@@ -67,7 +67,7 @@ export async function executeHolidayPolicySearch(
     const qualified = rows.filter((r) => Number(r.cos) >= 0.55);
     if (qualified.length === 0) return [];
 
-    return qualified.slice(0, 5).map((r) => {
+    return qualified.slice(0, 12).map((r) => {
       const label =
         r.source_type === "reclassification"
           ? `${r.holiday_name} — reclassification (${r.year})`

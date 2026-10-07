@@ -5,6 +5,8 @@ import { executeContentSearch } from "./semanticContentSearch";
 import { SearchResultRow } from "./titleSearch";
 import { executeAnnouncementSemanticSearch } from "./announcementSemanticSearch";
 import { executeHolidayPolicySearch } from "./holidayPolicySearch";
+import { isHolidayTopic } from "./topicGate";
+import { collapseYearlyPolicyCopies } from "./rankAdjust";
 
 async function executeCircularRouter(
   dataSource: DataSource,
@@ -118,11 +120,19 @@ export async function executeSmartSemanticRouter(
   const safeQ = (q || "").trim();
   if (!safeQ) return { uniqueResults: [], isFallback: false };
 
-  const [circular, announcements, holidayPolicy] = await Promise.all([
+  // Holiday-policy notes compete only for holiday-topic questions (or Indic
+  // queries, which keep their previous behaviour untouched). For any other
+  // question they were filler at 84-89% (see lib/search/topicGate.ts).
+  const holidayEligible = /[\p{Script=Devanagari}\p{Script=Bengali}]/u.test(safeQ) || isHolidayTopic(safeQ);
+  const [circular, announcements, holidayPolicyAll] = await Promise.all([
     executeCircularRouter(dataSource, safeQ),
     executeAnnouncementSemanticSearch(dataSource, safeQ),
-    executeHolidayPolicySearch(dataSource, safeQ),
+    holidayEligible ? executeHolidayPolicySearch(dataSource, safeQ) : Promise.resolve([] as SearchResultRow[]),
   ]);
+
+  // No year in the question -> only the newest yearly copy of each holiday policy
+  // competes (the retrieval below now looks 12 deep so the newest is a candidate).
+  const holidayPolicy = collapseYearlyPolicyCopies(safeQ, holidayPolicyAll as any[]) as SearchResultRow[];
 
   // Neither additive source hit -> return the circular result untouched
   // (preserves the exact circular-only behaviour, including empty
