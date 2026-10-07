@@ -18,6 +18,10 @@ import { loadDocumentChunks, bestPassage } from "@/lib/search/documentText";
 import { findSailDepartmentInText } from "@/lib/employees/sailDepartments";
 import { normTerm } from "@/lib/employees/designations";
 
+// Vercel stops a serverless function after a time limit. A question can legitimately take
+// longer than the default (the language model may have to wait for its per-minute allowance),
+// so allow up to 60 seconds, as the nl2sql route does.
+export const maxDuration = 60;
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
