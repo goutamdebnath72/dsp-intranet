@@ -159,7 +159,7 @@ export async function answerQuestion(question: string, userKey: string | null, d
       const data = await deps.withClient((c) => runReadOnly(c, g.sql, deps.exec));
       const scope = await deps.withClient((c) => computeDepartmentScope(c, g.sql)).catch(() => null);
       return finish(
-        { ok: true, question: q, sql: g.sql, understoodAs: plan.understood_as, confidence: plan.confidence, data, scope, source: "nl2sql", attempts } as any,
+        { ok: true, question: q, sql: g.sql, understoodAs: plan.understood_as, confidence: plan.confidence, data, scope, display: plan.display, source: "nl2sql", attempts } as any,
         { ok: true, error: null, rowTotal: data.total, understoodAs: plan.understood_as, confidence: plan.confidence },
       );
     } catch (e) {

@@ -27,10 +27,12 @@ import { loadDynamicContext, clearContextCache, selectRelevantDepartments } from
 import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
-import { departmentScopeQueries, computeDepartmentScope } from "../scope";
-import { runOmnibar, peopleFor, parseRetry, MAX_ATTEMPTS, type OmnibarDeps } from "../omnibar";
+import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
+import { stableOrderSql, PAGE_SIZE } from "../paging";
+import { pageProgress, mergePage } from "../display";
+import { runOmnibar, peopleFor, parseRetry, MAX_ATTEMPTS, withDisplayCodes, type OmnibarDeps, peoplePage } from "../omnibar";
 import { answerFromVerified } from "../pipeline";
-import { parseFeedback, recordFeedback } from "../feedback";
+import { parseFeedback, recordFeedback, undoFeedback, countRecentVotes, VOTES_PER_HOUR } from "../feedback";
 import { findVerifiedSql, loadNegativeExamples, pickNegatives, retryHint, REASON_CODES } from "../learning";
 import { loadRejectedSql } from "../log";
 import { buildReport } from "./feedback-report";
@@ -388,8 +390,85 @@ async function main() {
   const cScope = await computeDepartmentScope(db, `SELECT 1 FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE code IN (98500, 98530, 98540))`);
   check("a code-based filter lists the C&IT departments by name", cScope !== null && cScope.total === 3 && cScope.departments.some((d) => d.name === "C & IT"), JSON.stringify(cScope));
   const corr = await computeDepartmentScope(db, `SELECT 1 FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE department_code IN (85000, 85110))`);
-  check("a sub-query that only works through the outer query (the real 'garage, no email' SQL) claims NO scope", corr === null, JSON.stringify(corr));
+  check("the correlated 'garage, no email' SQL now names the departments where those people actually work", corr !== null && corr.departments.map((d) => d.code).sort().join(",") === "85000,85110", JSON.stringify(corr));
   check("no department filter -> null", (await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees`)) === null);
+
+  // -- only departments that really hold people in the answer. Fixture = the C&IT situation: executives sit under ONE department
+  //    code, the granular sections hold only non-executives. (Removed again afterwards.)
+  await pg.query(`INSERT INTO public.sail_department (id, code, name, cohort_scope) VALUES
+    (29001, 970001, 'ZQ TESTDEPT', 'shared'), (29002, 970002, 'ZQ TESTDEPT (TECH)', 'shared'), (29003, 970003, 'ZQ TESTDEPT STAFF', 'shared')`);
+  await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
+    ('980001','ZQ EXEC ONE',(SELECT id FROM public.designation_grade WHERE track <> 'nonexec' ORDER BY id LIMIT 1),29001,'executive',98001,980001),
+    ('980002','ZQ EXEC TWO',(SELECT id FROM public.designation_grade WHERE track <> 'nonexec' ORDER BY id LIMIT 1),29001,'executive',98002,980002),
+    ('980003','ZQ STAFF ONE',(SELECT id FROM public.designation_grade WHERE track = 'nonexec' ORDER BY id LIMIT 1),29002,'nonexecutive',98003,980003),
+    ('980004','ZQ STAFF TWO',(SELECT id FROM public.designation_grade WHERE track = 'nonexec' ORDER BY id LIMIT 1),29002,'nonexecutive',98004,980004),
+    ('980005','ZQ STAFF THREE',(SELECT id FROM public.designation_grade WHERE track = 'nonexec' ORDER BY id LIMIT 1),29003,'nonexecutive',98005,980005)`);
+  try {
+    const FX = `SELECT id FROM nlq.departments WHERE code IN (970001, 970002, 970003)`;
+    const codesOf = (sc: any) => (sc ? sc.departments.map((d: any) => d.code).sort((a: number, b: number) => a - b) : null);
+    const execScope = await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (${FX})`);
+    check("EXECUTIVES in a department: only the department that has executives is named, not the empty sections", JSON.stringify(codesOf(execScope)) === "[970001]" && execScope!.total === 1, JSON.stringify(execScope));
+    const nonexScope = await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees WHERE cohort = 'nonexecutive' AND department_id IN (${FX})`);
+    check("NON-EXECUTIVES: only the sections that have non-executives, not the executive department", JSON.stringify(codesOf(nonexScope)) === "[970002,970003]", JSON.stringify(nonexScope));
+    const bothScope = await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees WHERE department_id IN (${FX})`);
+    check("both cohorts together: all three departments are named", JSON.stringify(codesOf(bothScope)) === "[970001,970002,970003]", JSON.stringify(bothScope));
+    const listScope = await computeDepartmentScope(db, `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'nonexecutive' AND department_id IN (${FX}) ORDER BY global_seniority_rank LIMIT 1`);
+    check("a LIMITed, ordered list still reports where ALL matching people work", JSON.stringify(codesOf(listScope)) === "[970002,970003]", JSON.stringify(listScope));
+    const groupScope = await computeDepartmentScope(db, `SELECT designation, count(*) AS n FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (${FX}) GROUP BY designation ORDER BY n DESC`);
+    check("a breakdown (GROUP BY designation) reports the departments of the people counted", JSON.stringify(codesOf(groupScope)) === "[970001]", JSON.stringify(groupScope));
+    const aliasScope = await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees e WHERE e.cohort = 'executive' AND e.department_id IN (${FX})`);
+    check("a table alias in the answer's SQL is handled", JSON.stringify(codesOf(aliasScope)) === "[970001]", JSON.stringify(aliasScope));
+    const nobody = await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees WHERE cohort = 'executive' AND designation = 'No Such Designation' AND department_id IN (${FX})`);
+    check("an answer with nobody in it names no department (total 0, so no line is shown)", nobody !== null && nobody.total === 0, JSON.stringify(nobody));
+    check("a CTE answer claims no scope (cannot be computed exactly)", (await computeDepartmentScope(db, `WITH d AS (${FX}) SELECT count(*) FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM d)`)) === null);
+    check("a HAVING answer claims no scope", (await computeDepartmentScope(db, `SELECT designation FROM nlq.employees WHERE department_id IN (${FX}) GROUP BY designation HAVING count(*) > 1`)) === null);
+    // the REAL SQL the model wrote for "list of employees in the C&IT department with department codes": a JOIN just to read the code
+    const joinSql = (cohort: string) => `SELECT e.ticket_no, e.name, e.designation, d.code AS department_code FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE ${cohort}e.department_id IN (${FX}) ORDER BY e.global_seniority_rank`;
+    const joinBoth = await computeDepartmentScope(db, joinSql(""));
+    check("a JOIN answer (the model's real 'with department codes' SQL) still reports the departments that hold its people", JSON.stringify(codesOf(joinBoth)) === "[970001,970002,970003]", JSON.stringify(joinBoth));
+    const joinExec = await computeDepartmentScope(db, joinSql("e.cohort = 'executive' AND "));
+    check("...and narrows to the executive department when only executives are asked for", JSON.stringify(codesOf(joinExec)) === "[970001]", JSON.stringify(joinExec));
+    const joinNoAlias = await computeDepartmentScope(db, `SELECT employees.ticket_no, d.code FROM nlq.employees JOIN nlq.departments d ON employees.department_id = d.id WHERE employees.cohort = 'nonexecutive' AND employees.department_id IN (${FX})`);
+    check("a JOIN without any alias on the person table is handled too", JSON.stringify(codesOf(joinNoAlias)) === "[970002,970003]", JSON.stringify(joinNoAlias));
+    check("a self-join of the person table claims no scope (cannot tell which row is 'the person')", (await computeDepartmentScope(db, `SELECT a.ticket_no FROM nlq.employees a JOIN nlq.employees b ON a.department_id = b.department_id WHERE a.department_id IN (${FX})`)) === null);
+    check("a sub-select in FROM claims no scope", (await computeDepartmentScope(db, `SELECT count(*) FROM (SELECT * FROM nlq.employees WHERE department_id IN (${FX})) x WHERE department_id IN (${FX})`)) === null);
+    // -- the department line follows WHERE THE PEOPLE WORK, however the model worded the department filter
+    const noSub = (cohort: string) => `SELECT e.ticket_no, e.name, e.designation, d.code AS department_code FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE ${cohort}d.code IN (970001, 970002, 970003) ORDER BY e.global_seniority_rank`;
+    check("JOIN + 'd.code IN (...)' with NO sub-query (the model's second real wording): all departments that hold people", JSON.stringify(codesOf(await computeDepartmentScope(db, noSub("")))) === "[970001,970002,970003]");
+    check("...executives only: just the department that has executives", JSON.stringify(codesOf(await computeDepartmentScope(db, noSub("e.cohort = 'executive' AND ")))) === "[970001]");
+    check("...non-executives only: just the sections that have non-executives", JSON.stringify(codesOf(await computeDepartmentScope(db, noSub("e.cohort = 'nonexecutive' AND ")))) === "[970002,970003]");
+    check("a filter on the department NAME (e.department ILIKE ...) is a department filter too", JSON.stringify(codesOf(await computeDepartmentScope(db, `SELECT ticket_no, name FROM nlq.employees e WHERE e.department ILIKE 'ZQ TESTDEPT%' AND e.cohort = 'executive'`))) === "[970001]");
+    check("a filter written with EXISTS is understood", JSON.stringify(codesOf(await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees e WHERE e.cohort = 'nonexecutive' AND EXISTS (SELECT 1 FROM nlq.departments d WHERE d.id = e.department_id AND d.code IN (970001, 970002, 970003))`))) === "[970002,970003]");
+    check("the department filter inside the JOIN condition (ON ... AND d.code IN ...) is understood", JSON.stringify(codesOf(await computeDepartmentScope(db, `SELECT e.ticket_no FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id AND d.code IN (970001)`))) === "[970001]");
+    check("a JOIN used only to READ the department code (no filter) shows NO line", (await computeDepartmentScope(db, `SELECT e.ticket_no, d.code AS department_code FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE e.cohort = 'executive'`)) === null);
+    check("an organisation-wide list (no department filter at all) shows NO line", (await computeDepartmentScope(db, `SELECT ticket_no, name FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 10`)) === null);
+    for (const [label, cond] of [
+      ["NOT IN", `department_id NOT IN (${FX})`],
+      ["NOT ( ... IN ...)", `NOT (department_id IN (${FX}))`],
+      ["d.code NOT IN", `department_id IN (SELECT id FROM nlq.departments d WHERE d.code NOT IN (970001))`],
+      ["<> a department", `department_id <> 29001`],
+      ["IS NULL", `department_id IS NULL`],
+    ] as const) {
+      check(`an EXCLUSION (${label}) shows NO line`, (await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees WHERE ${cond}`)) === null);
+    }
+    check("a JOIN with NOT IN on the joined table shows NO line", (await computeDepartmentScope(db, `SELECT e.ticket_no FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE d.code NOT IN (970001)`)) === null);
+    check("departmentFilterInfo: filter / no filter / exclusion / unreadable",
+      departmentFilterInfo(`SELECT 1 FROM nlq.employees WHERE department_code IN (1)`)?.has === true &&
+      departmentFilterInfo(`SELECT 1 FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id`)?.has === false &&
+      departmentFilterInfo(`SELECT 1 FROM nlq.employees WHERE department_code NOT IN (1)`)?.negated === true &&
+      departmentFilterInfo(`this is not sql`) === null);
+    check("a query that never touches the person table claims no scope", peopleFootprintQuery(`SELECT d.code FROM nlq.departments d JOIN nlq.departments d2 ON d.id = d2.id WHERE d.code = 1`) === null);
+    check("peopleFootprintQuery: a plain employees query gives a query, anything else gives null",
+      !!peopleFootprintQuery(`SELECT count(*) FROM nlq.employees WHERE cohort = 'executive'`) &&
+      peopleFootprintQuery(`SELECT 1 FROM nlq.departments WHERE code = 1`) === null &&
+      peopleFootprintQuery(`SELECT 1 FROM nlq.employees UNION SELECT 1 FROM nlq.employees`) === null &&
+      peopleFootprintQuery(`this is not sql`) === null);
+  } finally {
+    await pg.query(`DELETE FROM public.employee_roster WHERE ticket_no LIKE '98000_'`);
+    await pg.query(`DELETE FROM public.sail_department WHERE id IN (29001, 29002, 29003)`);
+  }
+  check("the scope fixture is removed again", (await pg.query(`SELECT count(*)::int n FROM public.sail_department WHERE id IN (29001,29002,29003)`)).rows[0].n === 0);
+
   const promptDept = buildPrompt({ question: "senior most DGM in electrical", context: ctx, examples: [] });
   check("the prompt explains abbreviated department words and the stem rule", promptDept.includes("ELECT") && promptDept.includes("LIKE '%elect%'") && promptDept.includes("SHORT STEM"));
 
@@ -738,6 +817,138 @@ async function main() {
   modelCalls = 0;
   const after: any = await runOmnibar(VQ, "V-4", mkDeps(callCounter(model(SQL_B))));
   check("after the revocation the model is asked again", modelCalls === 1 && after.source === "nl2sql");
+
+  // -- ROBUST VOTING: one voice per person, the latest vote wins, Undo, dispute, vote limit, late sign-in
+  const RV = "robust voting question";
+  const yesFor = async (q: string, u: string | null) => { const g = await ask(q, u, SQL_A); const f = await recordFeedback(db, { userKey: u, query: q, source: "nl2sql", verdict: "yes", nl2sqlLogId: g.nl2sql.logId, attempt: 1 }); return { g, f }; };
+  const noFor = async (q: string, u: string | null) => { const g = await ask(q, u, SQL_A); const f = await recordFeedback(db, { userKey: u, query: q, source: "nl2sql", verdict: "no", reasonCode: "wrong_result", nl2sqlLogId: g.nl2sql.logId, attempt: 1 }); return { g, f }; };
+  await yesFor(RV, "RV-1"); await yesFor(RV, "RV-1"); await yesFor(RV, "RV-1");
+  const oneVoice = await findVerifiedSql(db, RV, 1);
+  check("one person confirming three times counts as ONE voice", !!oneVoice && oneVoice.confirms === 1);
+  check("...so it is NOT verified when two different people are required", (await findVerifiedSql(db, RV, 2)) === null);
+  const rv2 = await yesFor(RV, "RV-2");
+  check("a second different person makes it two voices", (await findVerifiedSql(db, RV, 2))?.confirms === 2);
+  const rv3 = await noFor(RV, "RV-3");
+  check("Yes from some and a No from another person = DISPUTED: no longer verified", (await findVerifiedSql(db, RV, 1)) === null);
+  check("...and a disputed reading is NOT blocked either", !(await loadRejectedSql(db, "RV-9", RV)).some((x) => x.includes("LIMIT 4")));
+  const un = await undoFeedback(db, "RV-3", rv3.f.id, rv3.g.nl2sql.logId);
+  check("the voter can UNDO their No", un.undone === true);
+  check("after the Undo the dispute is gone: verified again by 2 people", (await findVerifiedSql(db, RV, 2))?.confirms === 2);
+  check("the undone vote row is gone from the feedback table", (await pg.query(`SELECT count(*)::int n FROM public.omnibar_feedback WHERE id = $1`, [rv3.f.id])).rows[0].n === 0);
+  check("another person CANNOT undo someone else's vote", (await undoFeedback(db, "RV-9", rv2.f.id, rv2.g.nl2sql.logId)).undone === false && (await findVerifiedSql(db, RV, 2))?.confirms === 2);
+  const rv2r = await noFor(RV, "RV-2"); // RV-2 is served the verified answer and reports it wrong ("Report wrong")
+  check("a person's LATEST vote wins: RV-2 said Yes, later No -> counted as a No (disputed)", (await findVerifiedSql(db, RV, 1)) === null);
+  check("a person who marked a reading wrong is not offered that reading again by the model", (await loadRejectedSql(db, "RV-2", RV)).some((x) => x.includes("LIMIT 4")));
+  await recordVerdict(db, rv2r.g.nl2sql.logId, "confirm", "RV-2"); // RV-2 changes their mind on the same answer
+  check("...changing their mind to Yes replaces the No: verified again with 2 voices", (await findVerifiedSql(db, RV, 2))?.confirms === 2);
+  check("...and that reading is no longer held against RV-2", !(await loadRejectedSql(db, "RV-2", RV)).some((x) => x.includes("LIMIT 4")));
+  const BQ = "blocked by one voice question";
+  const bq = await noFor(BQ, "B-1");
+  check("a lone No (nobody confirmed) blocks that reading for others", (await loadRejectedSql(db, "B-2", BQ)).some((x) => x.includes("LIMIT 4")));
+  await undoFeedback(db, "B-1", bq.f.id, bq.g.nl2sql.logId);
+  check("...and the block disappears when that person takes the No back", !(await loadRejectedSql(db, "B-2", BQ)).some((x) => x.includes("LIMIT 4")));
+  const LQ = "late sign in question";
+  const lq = await ask(LQ, null, SQL_A);
+  check("someone who signed in AFTER asking can rate an answer logged while signed out", await recordVerdict(db, lq.nl2sql.logId, "confirm", "LS-1"));
+  check("...and the answer then belongs to them: a different person cannot rate it", !(await recordVerdict(db, lq.nl2sql.logId, "reject", "LS-2")));
+  check("an answer logged for a person is still closed to a signed-out rater", !(await recordVerdict(db, rv2.g.nl2sql.logId, "reject", null)));
+  await yesFor("vote limit question", "LIM-1"); await yesFor("vote limit question two", "LIM-1"); await yesFor("vote limit question three", "LIM-1");
+  check("the hourly vote counter counts a person's votes", (await countRecentVotes(db, "LIM-1")) === 3 && (await countRecentVotes(db, "LIM-NONE")) === 0);
+  check("the limit is 30 votes per person per hour", VOTES_PER_HOUR === 30);
+
+  // -- columns the person asked for: codes go on the person's card, other extra columns get a table (never silently dropped)
+  const STD = `ticket_no, name, designation, department`;
+  const TAIL = `FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`;
+  const plainList: any = await ask("list executives plain columns test", "COL-1", `SELECT ${STD} ${TAIL}`);
+  check("a plain list: no codes on the cards, shown as cards, all four columns known", plainList.people.length === 3 && plainList.people.every((p: any) => p.departmentCode === undefined && p.designationCode === undefined) && plainList.nl2sql.display?.view === "cards" && plainList.nl2sql.display.columns.length === 4);
+  const codeList: any = await ask("list executives with department codes test", "COL-1", `SELECT ${STD}, department_code ${TAIL}`);
+  check("'with department codes': each person's card carries the department code", codeList.people.length === 3 && codeList.people.every((p: any) => /^\d+$/.test(String(p.departmentCode ?? ""))), JSON.stringify(codeList.people.map((p: any) => p.departmentCode)));
+  check("...and the code matches the database (the same person's real department code)", (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE ticket_no = ANY($1::text[]) AND department_code::text = ANY($2::text[])`, [codeList.people.map((p: any) => p.ticketNo), codeList.people.map((p: any) => p.departmentCode)])).rows[0].n >= 3);
+  check("...the department-code column is among the displayed columns with a readable title, and the table is there for the Cards/Table switch", codeList.nl2sql.display?.view === "cards" && codeList.nl2sql.display.columns.some((c: any) => c.key === "department_code" && c.label === "Dept code") && !!codeList.nl2sql.table);
+  check("designations of the SAME people are untouched by the code", codeList.people.every((p: any) => p.designationCode === undefined && !!p.designation));
+  const desigCodeList: any = await ask("list executives with designation codes test", "COL-1", `SELECT ${STD}, designation_code, department_code ${TAIL}`);
+  check("designation code and department code can both be shown", desigCodeList.people.every((p: any) => /^\d+$/.test(String(p.designationCode ?? "")) && /^\d+$/.test(String(p.departmentCode ?? ""))));
+  const rankList: any = await ask("list executives with rank order test", "COL-1", `SELECT ${STD}, rank_order ${TAIL}`);
+  check("a column the card cannot show (rank_order) is shown in a table, not dropped", !!rankList.nl2sql.table && rankList.nl2sql.table.columns.includes("rank_order") && rankList.nl2sql.table.rows.length === 3);
+  const chipSql = `SELECT ${STD}, rank_order, has_email ${TAIL}`;
+  const chipList: any = await ask("list executives with rank and email flag test", "COL-1", chipSql);
+  check("every column the cards do not show becomes a labelled chip on each person's card (Rank, Has email)", chipList.people.length === 3 && chipList.people.every((p: any) => Array.isArray(p.extraFields) && p.extraFields.map((f: any) => f.label).join() === "Rank,Has email"), JSON.stringify(chipList.people[0].extraFields));
+  check("...the chip values are the real values, formatted (Rank is a number; Has email is Yes or No)", chipList.people.every((p: any, i: number) => p.extraFields[0].value === String(chipList.nl2sql.table.rows.find((r: any) => String(r.ticket_no) === p.ticketNo).rank_order) && /^(Yes|No)$/.test(p.extraFields[1].value)));
+  check("a plain list has no chips, and the codes are NOT repeated as chips", plainList.people.every((p: any) => p.extraFields === undefined) && codeList.people.every((p: any) => p.extraFields === undefined));
+  // -- "Show more": stable order, consistent pages, nothing repeated, nothing skipped
+  const so = (q: string) => stableOrderSql(q);
+  check("stableOrderSql: with an ORDER BY the tie-breaker is APPENDED to it and the model's SQL is kept verbatim", so("SELECT ticket_no, name FROM nlq.employees ORDER BY designation DESC") === "SELECT ticket_no, name FROM nlq.employees ORDER BY designation DESC, 1, 2");
+  check("...without an ORDER BY one is added", so("SELECT ticket_no, name, designation FROM nlq.employees") === "SELECT ticket_no, name, designation FROM nlq.employees ORDER BY 1, 2, 3");
+  check("...it goes BEFORE a LIMIT / OFFSET, never after", so("SELECT ticket_no, name FROM nlq.employees ORDER BY name LIMIT 500 OFFSET 20") === "SELECT ticket_no, name FROM nlq.employees ORDER BY name, 1, 2 LIMIT 500 OFFSET 20" && so("SELECT ticket_no, name FROM nlq.employees LIMIT 5") === "SELECT ticket_no, name FROM nlq.employees ORDER BY 1, 2 LIMIT 5");
+  check("...an ORDER BY / LIMIT inside a sub-query or a window function is not mistaken for the outer one", so("SELECT ticket_no, name FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments ORDER BY id LIMIT 3)") === "SELECT ticket_no, name FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments ORDER BY id LIMIT 3) ORDER BY 1, 2" && so("SELECT ticket_no, rank() OVER (ORDER BY rank_order) AS r FROM nlq.employees") === "SELECT ticket_no, rank() OVER (ORDER BY rank_order) AS r FROM nlq.employees ORDER BY 1, 2");
+  check("...the word LIMIT inside a quoted string is not a LIMIT", so("SELECT ticket_no, name FROM nlq.employees WHERE name = 'X LIMIT 5'") === "SELECT ticket_no, name FROM nlq.employees WHERE name = 'X LIMIT 5' ORDER BY 1, 2");
+  check("...text such as = ANY(name_words) is untouched (the SQL is never rebuilt from its parse)", so("SELECT ticket_no FROM nlq.employees WHERE 'KUMAR' = ANY(name_words)") === "SELECT ticket_no FROM nlq.employees WHERE 'KUMAR' = ANY(name_words) ORDER BY 1");
+  check("...a trailing semicolon is dropped; a GROUP BY query gets the tie-breaker too", so("SELECT designation, count(*) AS n FROM nlq.employees GROUP BY designation;") === "SELECT designation, count(*) AS n FROM nlq.employees GROUP BY designation ORDER BY 1, 2");
+  check("...null for a CTE, a UNION, SELECT * and unparsable text (those run as written, with no Show more)", so("WITH a AS (SELECT 1) SELECT * FROM a") === null && so("SELECT ticket_no FROM nlq.employees UNION SELECT ticket_no FROM nlq.employees") === null && so("SELECT * FROM nlq.employees") === null && so("this is not sql") === null);
+  const ALLQ = `SELECT ticket_no, name, designation FROM nlq.employees ORDER BY designation`; // heavy ties on purpose
+  const fullSet = (await pg.query(`SELECT ticket_no FROM nlq.employees`)).rows.map((r: any) => String(r.ticket_no)).sort();
+  const seenT: string[] = []; let off = 0; let pagesN = 0; let allTotals = new Set<number>(); let lastTrunc = true;
+  while (lastTrunc && pagesN < 80) {
+    const pg1 = await withClient((c) => runReadOnly(c, ALLQ, { rowLimit: 37, offset: off }));
+    seenT.push(...pg1.rows.map((r: any) => String(r.ticket_no))); allTotals.add(pg1.total); lastTrunc = pg1.truncated; off += pg1.rows.length; pagesN++;
+    if (pagesN === 1) check("the first page reports the true total and says it can be paged", pg1.total === fullSet.length && pg1.truncated === true && pg1.pageable === true && pg1.rows.length === 37);
+  }
+  check("PAGING a list with heavy ties (ORDER BY designation) in pages of 37: every person exactly once, nobody repeated, nobody skipped", seenT.length === fullSet.length && new Set(seenT).size === fullSet.length && JSON.stringify([...seenT].sort()) === JSON.stringify(fullSet), `${seenT.length} of ${fullSet.length} in ${pagesN} pages`);
+  check("...the total is the same on every page, and the last page says there is no more", allTotals.size === 1 && lastTrunc === false);
+  const beyond = await withClient((c) => runReadOnly(c, ALLQ, { rowLimit: 37, offset: fullSet.length + 500 }));
+  check("an offset beyond the end gives no rows and no 'more'", beyond.rows.length === 0 && beyond.truncated === false && beyond.total === fullSet.length + 500);
+  const orderedA = await withClient((c) => runReadOnly(c, `SELECT ticket_no FROM nlq.employees ORDER BY global_seniority_rank`, { rowLimit: 20 }));
+  const orderedB = (await pg.query(`SELECT ticket_no FROM nlq.employees ORDER BY global_seniority_rank LIMIT 20`)).rows;
+  check("a query already ordered by a unique key keeps exactly the model's order on page one", JSON.stringify(orderedA.rows.map((r: any) => String(r.ticket_no))) === JSON.stringify(orderedB.map((r: any) => String(r.ticket_no))));
+  const cteRes = await withClient((c) => runReadOnly(c, `WITH d AS (SELECT ticket_no FROM nlq.employees) SELECT ticket_no FROM d ORDER BY ticket_no`, { rowLimit: 5 }));
+  check("a CTE answer still runs, but is not pageable", cteRes.rows.length === 5 && cteRes.pageable === false);
+  let refused = ""; try { await withClient((c) => runReadOnly(c, `SELECT 1; SELECT 2`, { rowLimit: 5, offset: 0 })); } catch (e: any) { refused = String(e.message); }
+  check("the single-statement protection still applies with paging", /single statement/i.test(refused));
+  const bigAsk: any = await ask("list every employee in seniority order for paging test", "PG-1", `SELECT ticket_no, name, designation, department FROM nlq.employees ORDER BY global_seniority_rank`);
+  check("a list longer than one page: the answer says 'Show more' is possible, 100 cards come first, and the true total is known", bigAsk.nl2sql.canPage === true && bigAsk.people.length === PAGE_SIZE && bigAsk.nl2sql.table.rows.length === PAGE_SIZE && bigAsk.nl2sql.table.total === fullSet.length && bigAsk.nl2sql.logId != null);
+  const smallAsk: any = await ask("list three executives for paging test", "PG-1", `SELECT ticket_no, name FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`);
+  check("a short list never offers 'Show more'", smallAsk.nl2sql.canPage === undefined);
+  const page2 = await withClient((c) => runReadOnly(c, `SELECT ticket_no, name, designation, department, rank_order FROM nlq.employees ORDER BY global_seniority_rank`, { rowLimit: PAGE_SIZE, offset: PAGE_SIZE }));
+  const cards2 = await withClient((c) => peoplePage(c, page2, [{ key: "rank_order", label: "Seniority grade" }, { key: "name", label: "x".repeat(300) }]));
+  check("peoplePage builds the SAME kind of cards for a later page: right people, in order, chips with the page-one titles", cards2.length === page2.rows.length && cards2.every((p, i) => p.ticketNo === String(page2.rows[i].ticket_no)) && cards2.every((p: any) => p.extraFields?.[0]?.label === "Seniority grade"));
+  const pp1 = pageProgress(100, 1133); const pp2 = pageProgress(1100, 1133); const pp3 = pageProgress(200, 250);
+  check("pageProgress: 'Show 100 more' while more than a page remains, 'Show the last N' at the end, with a running count", pp1.label === "Show 100 more" && pp1.progress === "100 of 1,133 shown" && pp2.label === "Show the last 33" && pp3.label === "Show the last 50" && pp1.remaining === 1033);
+  const mp = mergePage({ columns: ["a"], rows: [{ a: 1 }], total: 5, truncated: true as boolean }, { rows: [{ a: 2 }, { a: 3 }], total: 5, hasMore: false });
+  check("mergePage appends the page, updates 'more', and leaves the original untouched", mp.rows.length === 3 && mp.truncated === false && mp.total === 5);
+  const idList: any = await ask("list executives with seniority position test", "COL-1", `SELECT ${STD}, global_seniority_rank ${TAIL}`);
+  check("seniority position (global_seniority_rank) is shown too", !!idList.nl2sql.table && idList.nl2sql.table.columns.includes("global_seniority_rank"));
+  const ppl = [{ ticketNo: "1", name: "A" }, { ticketNo: "2", name: "B" }] as any[];
+  const same = withDisplayCodes(ppl, ["ticket_no", "name"], [{ ticket_no: "1" }, { ticket_no: "2" }]);
+  check("withDisplayCodes returns the people untouched when no code column was selected", same === ppl);
+  const coded = withDisplayCodes(ppl, ["ticket_no", "department_code"], [{ ticket_no: "1", department_code: 98500 }, { ticket_no: "9", department_code: 1 }]);
+  check("withDisplayCodes matches by ticket, leaves unmatched people alone, and does not mutate the input", coded[0].departmentCode === "98500" && coded[1].departmentCode === undefined && (ppl[0] as any).departmentCode === undefined);
+
+  // -- the model's presentation hint: it PROPOSES, display.ts VERIFIES against the real result; nothing can break or hide an answer
+  const withPlan = async (q: string, plan: object) => (await runOmnibar(q, "DSP-1", mkDeps(script([json(plan)])))) as any;
+  const LIST5 = `SELECT ticket_no, name, designation, department, department_code ${TAIL}`;
+  const hinted = await withPlan("list executives hinted view test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "table", title: "Senior executives, with codes", columns: [{ key: "department_code", label: "Code" }, { key: "name", label: "Officer" }] } });
+  check("a valid hint is followed: title and the column titles/order (a LIST OF PEOPLE still opens on the cards)", hinted.nl2sql.display.view === "cards" && hinted.nl2sql.display.title === "Senior executives, with codes" && hinted.nl2sql.display.columns[0].key === "department_code" && hinted.nl2sql.display.columns[0].label === "Code" && hinted.nl2sql.display.columns[1].label === "Officer");
+  check("...and still every selected column is shown, once", hinted.nl2sql.display.columns.length === 5 && new Set(hinted.nl2sql.display.columns.map((c: any) => c.key)).size === 5 && !!hinted.nl2sql.table);
+  const asTable = await withPlan("list executives as a table hinted test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "table" } });
+  check("a person who literally asks for a table gets the table first", asTable.nl2sql.display.view === "table" && !!asTable.nl2sql.table && asTable.people.length === 3);
+  check("a column the model titled in its hint uses that title on the chip", ((await withPlan("list executives titled chip test", { sql: `SELECT ${STD}, rank_order, has_email ${TAIL}`, understood_as: "x", confidence: "high", display: { columns: [{ key: "rank_order", label: "Seniority grade" }] } })) as any).people[0].extraFields[0].label === "Seniority grade");
+  const junkHint = await withPlan("list executives junk hint test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "hologram", title: 42, columns: [{ key: "nope" }, 7, null], bar: "x" } });
+  check("a garbage hint never breaks the answer: same people, a layout chosen from the data (cards)", junkHint.kind === "count" && junkHint.people.length === 3 && junkHint.nl2sql.display.view === "cards" && junkHint.nl2sql.display.columns.length === 5);
+  const BYDES = `SELECT designation, count(*) AS n FROM nlq.employees WHERE cohort = 'executive' GROUP BY designation ORDER BY n DESC LIMIT 6`;
+  const barHint = await withPlan("executives by designation bar test", { sql: BYDES, understood_as: "Executives per designation.", confidence: "high", display: { view: "bar", title: "Executives by designation", bar: { label: "designation", value: "n" } } });
+  check("a bar-chart hint on 'designation + count' is accepted, and the table travels with it", barHint.nl2sql.display.view === "bar" && barHint.nl2sql.display.bar.label === "designation" && barHint.nl2sql.display.bar.value === "n" && barHint.nl2sql.table.rows.length >= 2);
+  const autoBar = await withPlan("executives by designation auto test", { sql: BYDES, understood_as: "Executives per designation.", confidence: "high" });
+  check("with NO hint the same answer is still shown as a bar chart (chosen from the shape of the data)", autoBar.nl2sql.display.view === "bar" && autoBar.nl2sql.display.title === null);
+  const BYDES3 = `SELECT designation, count(*) AS n, min(rank_order) AS best_rank FROM nlq.employees WHERE cohort = 'executive' GROUP BY designation ORDER BY n DESC LIMIT 6`;
+  const badBar = await withPlan("executives by designation bad bar test", { sql: BYDES3, understood_as: "Executives per designation with best rank.", confidence: "high", display: { view: "bar", bar: { label: "designation", value: "designation" } } });
+  check("a bar hint over a text column is refused: a table with all three columns", badBar.nl2sql.display.view === "table" && badBar.nl2sql.display.columns.length === 3 && badBar.nl2sql.display.bar === null);
+  const oneNum = await withPlan("how many executives hint test", { sql: `SELECT count(*) FROM nlq.employees WHERE cohort = 'executive'`, understood_as: "Number of executives.", confidence: "high", display: { view: "table" } });
+  check("a single number stays a single number: no table, no display, whatever the hint says", oneNum.nl2sql.display === null && !oneNum.nl2sql.table && typeof oneNum.count === "number");
+  check("a verified answer (no hint is stored) is still presented well, chosen from its shape", vAns.nl2sql.display?.view === "cards" && vAns.nl2sql.display.columns.length >= 4);
+  const pp = (d: unknown) => parsePlan(JSON.stringify({ sql: "SELECT 1", understood_as: "x", confidence: "high", display: d }));
+  check("parsePlan: a hint of the wrong type (number, string, array) is dropped and the plan stays valid", [5, "x", [1, 2]].every((d) => { const r = pp(d); return !!r && r.display === undefined && r.sql === "SELECT 1"; }));
+  check("parsePlan: an oversized hint is dropped, a normal one is kept", pp({ title: "t".repeat(5000) })?.display === undefined && (pp({ view: "table" })?.display as any)?.view === "table");
+  check("the model's instructions describe the optional display hint, and still fit the budget", buildPrompt({ question: "list executives", context: ctx, examples: [] }).includes("display (optional") && buildPrompt({ question: "list executives", context: { ...ctx, departments: padded }, examples: [] }).length < 19000);
 
   // -- a No chooses a DIFFERENT way to answer
   const RQ = "retry question";

@@ -19,9 +19,13 @@ import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
 import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
 import { InterpretationNote, PatternFeedbackBar } from "@/components/AnalyticsFeedback";
-import { Nl2SqlAnswerExtras, Nl2SqlTable } from "@/components/Nl2SqlAnswerExtras";
+import { Nl2SqlAnswerExtras } from "@/components/Nl2SqlAnswerExtras";
+import { AnswerResult } from "@/components/AnswerResult";
+import { departmentGroups, mergePage } from "@/lib/nl2sql/display";
 import { AnswerFeedback, type AnswerSource } from "@/components/AnswerFeedback";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
+import { OmniLoginHint } from "@/components/OmniLoginHint";
+import { decideLoginHint, excludeShownPeople } from "@/lib/search/loginHints";
 import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
@@ -46,6 +50,7 @@ function PersonRow({
   copiedId,
   onReveal,
   onCopy,
+  hideDepartment = false,
 }: {
   emp: any;
   rev: { mobile?: string; email?: string };
@@ -53,6 +58,8 @@ function PersonRow({
   copiedId: string | null;
   onReveal: (id: string, field: "mobile" | "email") => void;
   onCopy: (emp: any) => void;
+  /** Inside a department heading the department is not repeated on every card. */
+  hideDepartment?: boolean;
 }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200">
@@ -69,10 +76,28 @@ function PersonRow({
           )}
         </p>
         <p className="text-xs text-neutral-500 truncate">
-          {[emp.ticketNo, emp.sailPNo, emp.designation, emp.department]
+          {[
+            emp.ticketNo,
+            emp.sailPNo,
+            emp.designation ? `${emp.designation}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
+            !hideDepartment && emp.department ? `${emp.department}${emp.departmentCode ? ` (${emp.departmentCode})` : ""}` : null,
+          ]
             .filter(Boolean)
             .join("  \u00b7  ")}
         </p>
+        {Array.isArray(emp.extraFields) && emp.extraFields.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {emp.extraFields.map((f: { label: string; value: string }) => (
+              <span
+                key={f.label}
+                className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600"
+              >
+                <span className="text-slate-400">{f.label}</span>
+                <span className="font-medium text-slate-700">{f.value}</span>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           {emp.hasMobile && (
             <button
@@ -194,6 +219,69 @@ export function OmnibarModal({
   // reveal endpoint unmasks + audits.
   const [employeeResults, setEmployeeResults] = useState<any[]>([]);
   const [employeeLoading, setEmployeeLoading] = useState(false);
+  // The directory name search can find the same person as the answer card: print each person once.
+  const extraEmployees = useMemo(
+    () => excludeShownPeople(analytics?.people, employeeResults),
+    [analytics, employeeResults],
+  );
+  // "Show more": further pages (100 at a time) of the SAME answer, appended below the first page. The browser sends only the
+  // answer's id and how many rows it already has; the server runs the stored, re-checked SQL (signed-in people only).
+  const [more, setMore] = useState<{
+    key: string;
+    people: any[];
+    rows: any[];
+    total: number | null;
+    hasMore: boolean;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
+  const moreNow = more && more.key === String(analytics?.nl2sql?.logId ?? "") ? more : null;
+  const loadMore = useCallback(async () => {
+    const nl = analytics?.nl2sql;
+    if (!nl?.logId || !nl.table || moreNow?.loading) return;
+    const key = String(nl.logId);
+    const cur = moreNow ?? { key, people: [], rows: [], total: nl.table.total, hasMore: true, loading: false, error: null };
+    setMore({ ...cur, loading: true, error: null });
+    try {
+      const res = await fetch("/api/omnibar/more", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          logId: nl.logId,
+          offset: nl.table.rows.length + cur.rows.length,
+          labels: nl.display?.columns?.map((c) => ({ key: c.key, label: c.label })),
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "Could not load more just now.");
+      setMore({
+        key,
+        people: [...cur.people, ...(j.people ?? [])],
+        rows: [...cur.rows, ...(j.rows ?? [])],
+        total: typeof j.total === "number" ? j.total : cur.total,
+        hasMore: !!j.hasMore,
+        loading: false,
+        error: null,
+      });
+    } catch (e: any) {
+      setMore({ ...cur, loading: false, error: e?.message || "Could not load more just now." });
+    }
+  }, [analytics, moreNow]);
+  // Suggest signing in (or using Executive Deep Synthesis) where that would help.
+  const loginHint = useMemo(
+    () =>
+      isLoading
+        ? null
+        : decideLoginHint({
+            query: submittedQuery || "",
+            authenticated: authStatus === "authenticated",
+            isExecutive,
+            mode,
+            circularShown: results.length > 0,
+            answerCardShown: !!analytics,
+          }),
+    [isLoading, submittedQuery, authStatus, isExecutive, mode, analytics, results],
+  );
   // id -> { mobile?: string; email?: string } once revealed in this session.
   const [revealed, setRevealed] = useState<Record<string, { mobile?: string; email?: string }>>({});
   // id of the row most recently copied (for a transient "Copied" confirmation).
@@ -315,7 +403,13 @@ export function OmnibarModal({
     async (emp: any) => {
       if (authStatus !== "authenticated") return; // button is disabled anyway
       const rev = revealed[emp.id] || {};
-      const line = [emp.name, emp.ticketNo, emp.sailPNo, emp.designation, emp.department]
+      const line = [
+        emp.name,
+        emp.ticketNo,
+        emp.sailPNo,
+        emp.designation ? `${emp.designation}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
+        emp.department ? `${emp.department}${emp.departmentCode ? ` (${emp.departmentCode})` : ""}` : null,
+      ]
         .filter(Boolean)
         .join("  \u00b7  ");
       const extra: string[] = [];
@@ -620,6 +714,8 @@ export function OmnibarModal({
                 </motion.div>
               </div>
 
+              {loginHint && <OmniLoginHint hint={loginHint} />}
+
               <div className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">
                 {isLoading && mode === "intellectual" ? (
                   <div className="py-12 flex flex-col items-center justify-center text-center">
@@ -705,7 +801,7 @@ export function OmnibarModal({
                             {analytics.interpretation && (
                               <InterpretationNote text={analytics.interpretation} />
                             )}
-                            {typeof analytics.pendingPatternId === "number" && (
+                            {typeof analytics.pendingPatternId === "number" && authStatus === "authenticated" && (
                               <PatternFeedbackBar
                                 key={analytics.pendingPatternId}
                                 patternId={analytics.pendingPatternId}
@@ -840,15 +936,31 @@ export function OmnibarModal({
                       </div>
                     )}
 
-                    {/* Table answer written by the language model (breakdowns etc.) */}
-                    {!isLoading && analytics?.nl2sql?.table && (
-                      <Nl2SqlTable table={analytics.nl2sql.table} />
-                    )}
-
-                    {/* Analytics people list (list/who queries) */}
+                    {/* The answer's rows: person cards, a table or a chart (AnswerResult adapts to what the SQL returned);
+                        answers from the older engines keep showing just the person cards. */}
                     {!isLoading &&
-                      analytics?.people &&
-                      analytics.people.length > 0 && (
+                      (() => {
+                        // the first page plus any pages fetched with "Show more"
+                        const nl = analytics?.nl2sql;
+                        const mergedTable =
+                          nl?.table && moreNow
+                            ? mergePage(nl.table, { rows: moreNow.rows, total: moreNow.total ?? nl.table.total, hasMore: moreNow.hasMore })
+                            : nl?.table;
+                        const mergedNl = nl ? { ...nl, ...(mergedTable ? { table: mergedTable } : {}), canPage: moreNow ? moreNow.hasMore : nl.canPage } : null;
+                        const mergedPeople: any[] = [...(analytics?.people ?? []), ...(moreNow?.people ?? [])];
+                        const morePanel =
+                          mergedNl?.canPage && mergedTable
+                            ? {
+                                shown: mergedTable.rows.length,
+                                total: mergedTable.total,
+                                loading: moreNow?.loading ?? false,
+                                error: moreNow?.error ?? null,
+                                locked: authStatus !== "authenticated",
+                                onMore: loadMore,
+                              }
+                            : null;
+                        const peopleBlock =
+                          mergedPeople.length > 0 ? (
                         <div
                           className={`flex flex-col gap-1 p-1 mb-2 ${
                             authStatus === "authenticated"
@@ -867,21 +979,61 @@ export function OmnibarModal({
                           }
                         >
                           <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                            People{analytics.listTruncated ? " (first 100)" : ""}
+                            People
+                            {mergedTable
+                              ? mergedTable.truncated
+                                ? ` (${mergedPeople.length.toLocaleString()} of ${mergedTable.total.toLocaleString()})`
+                                : ""
+                              : analytics?.listTruncated
+                                ? " (first 100)"
+                                : ""}
                           </h4>
-                          {analytics.people.map((emp: any) => (
-                            <PersonRow
-                              key={`ap-${emp.id}`}
-                              emp={emp}
-                              rev={revealed[emp.id] || {}}
-                              authStatus={authStatus}
-                              copiedId={copiedId}
-                              onReveal={revealContact}
-                              onCopy={copyRecord}
-                            />
-                          ))}
+                          {(() => {
+                            const list = mergedPeople;
+                            const row = (emp: any, hideDepartment: boolean) => (
+                              <PersonRow
+                                key={`ap-${emp.id}`}
+                                emp={emp}
+                                rev={revealed[emp.id] || {}}
+                                authStatus={authStatus}
+                                copiedId={copiedId}
+                                onReveal={revealContact}
+                                onCopy={copyRecord}
+                                hideDepartment={hideDepartment}
+                              />
+                            );
+                            const groups = departmentGroups(list);
+                            if (!groups) return list.map((emp) => row(emp, false));
+                            return groups.map((g, gi) => (
+                              <div key={`grp-${gi}`} className="flex flex-col gap-1">
+                                <div className="mt-2 flex items-center gap-2 border-b border-slate-200/80 px-2 pb-1 pt-1">
+                                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{g.label}</span>
+                                  {g.code && (
+                                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">{g.code}</span>
+                                  )}
+                                  <span className="ml-auto text-[11px] text-slate-400">
+                                    {g.people.length} {g.people.length === 1 ? "person" : "people"}
+                                  </span>
+                                </div>
+                                {g.people.map((emp) => row(emp, true))}
+                              </div>
+                            ));
+                          })()}
                         </div>
-                      )}
+                          ) : null;
+                        if (mergedNl && (mergedNl.table || peopleBlock)) {
+                          return (
+                            <AnswerResult
+                              key={mergedNl.logId ?? mergedNl.sql}
+                              nl2sql={mergedNl}
+                              authenticated={authStatus === "authenticated"}
+                              peopleView={peopleBlock}
+                              more={morePanel}
+                            />
+                          );
+                        }
+                        return peopleBlock;
+                      })()}
 
                     {/* Analytics holiday list (Stage 2 — holiday list/breakdown queries) */}
                     {!isLoading &&
@@ -1066,7 +1218,7 @@ export function OmnibarModal({
                       )}
 
                     {/* People (employee directory) — live ID lookups + Enter name search */}
-                    {employeeResults.length > 0 && (
+                    {extraEmployees.length > 0 && (
                       <div
                         className={`flex flex-col gap-1 p-1 mb-2 ${
                           authStatus === "authenticated"
@@ -1087,7 +1239,7 @@ export function OmnibarModal({
                         <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                           People
                         </h4>
-                        {employeeResults.map((emp) => (
+                        {extraEmployees.map((emp) => (
                           <PersonRow
                             key={`emp-${emp.id}`}
                             emp={emp}
@@ -1387,8 +1539,10 @@ export function OmnibarModal({
               </div>
 
               {/* Universal Yes / No for the answer on screen: the entry point of the learning loop.
-                  Not shown for a VERIFIED answer (source "cache"): it was already confirmed, so asking again only confuses. */}
-              {!isLoading && mode === "semantic" && submittedQuery.trim().length >= 3 && !error && analytics?.source !== "cache" && (
+                  Only for SIGNED-IN people (the feedback routes enforce this on the server as well).
+                  A VERIFIED answer (source "cache") shows only "Report this answer as wrong": it was already confirmed,
+                  so Yes/No would only confuse, but a wrong confirmation must always be challengeable. */}
+              {!isLoading && authStatus === "authenticated" && mode === "semantic" && submittedQuery.trim().length >= 3 && !error && (
                 <div className="border-t border-slate-200/70 bg-white/80">
                   <AnswerFeedback
                     query={submittedQuery}
@@ -1399,6 +1553,7 @@ export function OmnibarModal({
                     userKey={ticketNo ?? null}
                     attempt={attempt}
                     onRetry={requestRetry}
+                    reportOnly={analytics?.source === "cache"}
                   />
                 </div>
               )}

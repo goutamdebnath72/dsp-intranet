@@ -8,9 +8,12 @@
 
 import type { QueryResultData, SqlClient } from "./types";
 import { stripLiterals } from "./guard";
+import { stableOrderSql } from "./paging";
 
 export interface ExecOptions {
   rowLimit?: number;
+  /** Rows to skip (for "Show more"): page N starts at N * rowLimit. */
+  offset?: number;
   timeoutMs?: number;
   /** Role to assume for the query. Default "nlq_reader". Pass null only when
    *  the connection itself already logs in as a restricted role. */
@@ -37,6 +40,10 @@ export async function runReadOnly(client: SqlClient, sql: string, opts: ExecOpti
   }
 
   const rowLimit = opts.rowLimit ?? 200;
+  const offset = Math.max(0, Math.floor(opts.offset ?? 0));
+  // a total order, so that every page is cut from the same sequence (see paging.ts); the SQL as written when that is impossible
+  const ordered = stableOrderSql(sql);
+  const inner = ordered ?? sql;
   const timeoutMs = Math.max(100, Math.floor(opts.timeoutMs ?? 5000));
   const role = opts.role === undefined ? "nlq_reader" : opts.role;
 
@@ -48,11 +55,11 @@ export async function runReadOnly(client: SqlClient, sql: string, opts: ExecOpti
     if (role) await client.query(`SET LOCAL ROLE ${quoteIdent(role)}`);
     await client.query("SET LOCAL search_path = nlq, pg_catalog");
 
-    const res = await client.query(`SELECT * FROM (${sql}) AS nl2sql_q LIMIT ${rowLimit + 1}`);
+    const res = await client.query(`SELECT * FROM (${inner}) AS nl2sql_q OFFSET ${offset} LIMIT ${rowLimit + 1}`);
     const truncated = res.rows.length > rowLimit;
     const rowsRaw = truncated ? res.rows.slice(0, rowLimit) : res.rows;
 
-    let total = rowsRaw.length;
+    let total = offset + rowsRaw.length;
     if (truncated) {
       const c = await client.query(`SELECT count(*)::int AS n FROM (${sql}) AS nl2sql_c`);
       total = Number(c.rows[0]?.n ?? rowsRaw.length);
@@ -64,7 +71,7 @@ export async function runReadOnly(client: SqlClient, sql: string, opts: ExecOpti
       for (const k of Object.keys(r)) o[k] = jsonSafe(r[k]);
       return o;
     });
-    return { columns, rows, total, truncated };
+    return { columns, rows, total, truncated, pageable: ordered !== null };
   } finally {
     try {
       await client.query("ROLLBACK");

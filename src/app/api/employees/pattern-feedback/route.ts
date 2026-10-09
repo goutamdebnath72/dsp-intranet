@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { recordPatternFeedback, type PatternFeedback } from "@/lib/employees/patternCache";
+import { getSessionTicket } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -23,6 +24,10 @@ export const fetchCache = "force-no-store";
  * a user-facing action that should ever surface an error.
  */
 export async function POST(req: Request) {
+  // Signed-in people only: an anonymous tick or cross must not be able to train the pattern cache.
+  if (!(await getSessionTicket())) {
+    return NextResponse.json({ ok: false, error: "sign in to give feedback" }, { status: 401 });
+  }
   let body: any;
   try {
     body = await req.json();

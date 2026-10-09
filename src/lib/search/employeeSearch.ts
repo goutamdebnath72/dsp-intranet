@@ -9,6 +9,11 @@ export interface EmployeeResult {
   sailPNo: string | null;
   designation: string | null;
   department: string | null;
+  // Only set when the person asked for them (e.g. "... with department codes"): the codes of the department / designation.
+  departmentCode?: string | null;
+  designationCode?: string | null;
+  // Any other column the answer returned (rank, seniority position, "has NIC email" ...), shown as small labelled chips on the card.
+  extraFields?: { label: string; value: string }[];
   // Masked by default; the reveal endpoint returns the full values + logs access.
   mobileMasked: string | null;
   emailMasked: string | null;

@@ -1,0 +1,296 @@
+// src/lib/nl2sql/display.ts
+//
+// How an answer written by the language model is PRESENTED. Pure functions, no database, no React, safe to
+// import from both the server (omnibar.ts) and the browser (AnswerResult.tsx).
+//
+// The model may suggest a presentation (a "display" hint next to its SQL):
+//     {"view": "cards" | "table" | "bar", "title": "...", "columns": [{"key": "...", "label": "..."}],
+//      "bar": {"label": "<text column>", "value": "<numeric column>"}}
+// The model PROPOSES, this module VERIFIES against the real result and falls back to a layout chosen from
+// the shape of the data. So a missing, malformed or wrong hint can never break an answer, and:
+//
+//   GUARANTEE: every column the SQL returned is shown, exactly once. A hint can reorder and retitle the
+//   columns; it can never hide one.
+
+export type ColumnKind = "number" | "boolean" | "code" | "date" | "text";
+export type ViewKind = "cards" | "table" | "bar";
+
+export interface DisplayColumn {
+  key: string;
+  label: string;
+  kind: ColumnKind;
+}
+
+export interface ResolvedDisplay {
+  view: ViewKind;
+  title: string | null;
+  /** ALL result columns, in display order. */
+  columns: DisplayColumn[];
+  /** Set when a bar chart is possible (one text column + one numeric column, 2..40 rows). */
+  bar: { label: string; value: string } | null;
+}
+
+type Row = Record<string, unknown>;
+
+// ---- labels ------------------------------------------------------------------------------------------
+
+const KNOWN_LABELS: Record<string, string> = {
+  ticket_no: "Ticket no",
+  sail_pno: "P.No",
+  name: "Name",
+  designation: "Designation",
+  designation_code: "Desig. code",
+  designation_track: "Track",
+  department: "Department",
+  department_code: "Dept code",
+  department_id: "Dept id",
+  cohort: "Cohort",
+  rank_order: "Rank",
+  grade_id: "Grade id",
+  global_seniority_rank: "Seniority rank",
+  within_grade_position: "Position in grade",
+  has_mobile: "Has mobile",
+  has_email: "Has email",
+  has_email_nic: "Has NIC email",
+  has_webmail: "Has webmail",
+  has_address: "Has address",
+  n: "Count",
+  cnt: "Count",
+  count: "Count",
+  total: "Total",
+};
+
+/** A readable column title: a known title, else the column name with spaces and a capital. */
+export function defaultLabel(key: string): string {
+  const k = String(key).trim();
+  const known = KNOWN_LABELS[k.toLowerCase()];
+  if (known) return known;
+  const spaced = k.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+  if (!spaced) return "Column";
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/** Plain text only: no control characters, collapsed spaces, capped. (The page also escapes everything.) */
+export function cleanText(v: unknown, max: number): string {
+  if (typeof v !== "string") return "";
+  // eslint-disable-next-line no-control-regex
+  return v.replace(/[\u0000-\u001f\u007f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+// ---- column kinds --------------------------------------------------------------------------------------
+
+const NUMERIC_STRING = /^-?\d+(\.\d+)?$/;
+const CODE_NAME = /(^id$|_id$|_code$|_no$|^ticket|pno$)/i;
+
+function isNumberLike(v: unknown): boolean {
+  return (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && NUMERIC_STRING.test(v.trim()));
+}
+
+export function columnKind(key: string, rows: Row[]): ColumnKind {
+  if (CODE_NAME.test(key)) return "code";
+  const vals = rows.map((r) => r?.[key]).filter((v) => v !== null && v !== undefined);
+  if (vals.length === 0) return "text";
+  if (vals.every((v) => typeof v === "boolean")) return "boolean";
+  if (vals.every(isNumberLike)) return "number";
+  if (vals.every((v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/.test(v)) || v instanceof Date)) return "date";
+  return "text";
+}
+
+// ---- resolving a display -----------------------------------------------------------------------------
+
+function pickView(v: unknown): ViewKind | null {
+  const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+  if (s === "cards" || s === "list" || s === "people") return "cards";
+  if (s === "table") return "table";
+  if (s === "bar" || s === "chart" || s === "bars") return "bar";
+  return null;
+}
+
+function findColumn(name: unknown, columns: string[]): string | null {
+  if (typeof name !== "string") return null;
+  const n = name.trim().toLowerCase();
+  if (!n) return null;
+  return columns.find((c) => c.toLowerCase() === n) ?? null;
+}
+
+/** A bar chart needs a text column and a numeric column, and 2..40 rows. */
+function validBar(label: string | null, value: string | null, columns: DisplayColumn[], rows: Row[]) {
+  if (!label || !value || label === value) return null;
+  if (rows.length < 2 || rows.length > 40) return null;
+  const vk = columns.find((c) => c.key === value)?.kind;
+  const lk = columns.find((c) => c.key === label)?.kind;
+  if (vk !== "number" || !lk || lk === "boolean") return null;
+  if (!rows.every((r) => r[value] === null || r[value] === undefined || isNumberLike(r[value]))) return null;
+  return { label, value };
+}
+
+/**
+ * Decide how to present a result. `hint` is whatever the model sent (anything at all, even garbage).
+ * Returns null for a single plain number (the page shows that as the large figure, no table needed).
+ */
+export function resolveDisplay(
+  hint: unknown,
+  columnNames: string[],
+  rows: Row[],
+  hasPeople: boolean,
+  opts: { tableRequested?: boolean } = {},
+): ResolvedDisplay | null {
+  try {
+    if (!Array.isArray(columnNames) || columnNames.length === 0) return null;
+    const safeRows = Array.isArray(rows) ? rows : [];
+    if (safeRows.length === 1 && columnNames.length === 1 && isNumberLike(safeRows[0]?.[columnNames[0]])) return null;
+
+    const h: any = hint && typeof hint === "object" && !Array.isArray(hint) ? hint : {};
+    const kinds = new Map(columnNames.map((c) => [c, columnKind(c, safeRows)] as const));
+
+    // columns: the hint's order and titles for real columns first, then every remaining column
+    const order: { key: string; label: string }[] = [];
+    const used = new Set<string>();
+    const hinted: unknown[] = Array.isArray(h.columns) ? h.columns.slice(0, 40) : [];
+    for (const entry of hinted) {
+      const rawKey = typeof entry === "string" ? entry : (entry as any)?.key;
+      const key = findColumn(rawKey, columnNames);
+      if (!key || used.has(key)) continue;
+      const label = cleanText(typeof entry === "object" ? (entry as any)?.label : "", 40) || defaultLabel(key);
+      order.push({ key, label });
+      used.add(key);
+    }
+    for (const key of columnNames) if (!used.has(key)) order.push({ key, label: defaultLabel(key) });
+    const columns: DisplayColumn[] = order.map((o) => ({ key: o.key, label: o.label, kind: kinds.get(o.key) ?? "text" }));
+
+    // a bar chart: from the hint when valid, else detected when the result is exactly one text + one numeric column
+    const hb = h.bar && typeof h.bar === "object" ? h.bar : {};
+    let bar = validBar(findColumn(hb.label ?? hb.x, columnNames), findColumn(hb.value ?? hb.y, columnNames), columns, safeRows);
+    if (!bar && columnNames.length === 2 && safeRows.length >= 2 && safeRows.length <= 30) {
+      const num = columns.find((c) => c.kind === "number");
+      const txt = columns.find((c) => c.kind !== "number" && c.kind !== "boolean");
+      if (num && txt) bar = validBar(txt.key, num.key, columns, safeRows);
+    }
+
+    // the view: the model's choice when it is possible, else chosen from the shape of the data
+    // A list of PEOPLE always opens on the person cards (they carry the most: P.No, department, contact buttons, and
+    // every extra column as a labelled chip); the table is one click away. Only a person who literally asked for a
+    // table gets the table first.
+    let view: ViewKind | null = pickView(h.view);
+    if (hasPeople) {
+      view = opts.tableRequested ? "table" : "cards";
+    } else {
+      if (view === "cards") view = null;
+      if (view === "bar" && !bar) view = null;
+      if (!view) view = bar ? "bar" : "table";
+    }
+
+    const title = cleanText(h.title, 80) || null;
+    return { view, title, columns, bar };
+  } catch {
+    // never let a presentation problem break an answer: a plain table of everything
+    const cols = Array.isArray(columnNames) ? columnNames : [];
+    return cols.length ? { view: "table", title: null, columns: cols.map((c) => ({ key: c, label: defaultLabel(c), kind: "text" as ColumnKind })), bar: null } : null;
+  }
+}
+
+// ---- grouping a list of people under department headings ---------------------------------------------
+
+export interface DepartmentGroup<T> {
+  label: string;
+  code: string | null;
+  people: T[];
+}
+
+/**
+ * When a list of people falls into a few CONSECUTIVE department blocks (executives first under one code, then the
+ * sections), return those blocks so the page can show one heading per block instead of repeating the department on
+ * every card. Order is never changed. Returns null when grouping would not help: fewer than 4 people, someone with no
+ * department, more than 6 blocks, or blocks averaging fewer than 2 people.
+ */
+export function departmentGroups<T extends { department?: string | null; departmentCode?: string | null }>(people: T[]): DepartmentGroup<T>[] | null {
+  if (!Array.isArray(people) || people.length < 4) return null;
+  const runs: DepartmentGroup<T>[] = [];
+  for (const p of people) {
+    const dept = String(p?.department ?? "").trim();
+    if (!dept) return null;
+    const code = p.departmentCode ?? null;
+    const last = runs[runs.length - 1];
+    if (last && last.label === dept && last.code === code) last.people.push(p);
+    else runs.push({ label: dept, code, people: [p] });
+  }
+  if (runs.length > 6 || people.length / runs.length < 2) return null;
+  return runs;
+}
+
+// ---- cells ------------------------------------------------------------------------------------------
+
+export function formatCell(value: unknown, kind: ColumnKind): string {
+  if (value === null || value === undefined || value === "") return "\u2014";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (kind === "number" && isNumberLike(value)) {
+    const n = Number(value);
+    return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  }
+  if (kind === "date") {
+    const d = value instanceof Date ? value : new Date(String(value));
+    if (!Number.isNaN(d.getTime())) {
+      const dateOnly = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+      return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", ...(dateOnly ? { timeZone: "UTC" } : {}) });
+    }
+  }
+  return String(value);
+}
+
+// ---- "Show more" ---------------------------------------------------------------------------------------
+
+export function pageProgress(shown: number, total: number, pageSize = 100): { remaining: number; label: string; progress: string } {
+  const remaining = Math.max(0, total - shown);
+  const label = remaining <= pageSize ? `Show the last ${remaining.toLocaleString()}` : `Show ${pageSize.toLocaleString()} more`;
+  return { remaining, label, progress: `${shown.toLocaleString()} of ${total.toLocaleString()} shown` };
+}
+
+/** The table with one more page of rows appended (the original is not changed). */
+export function mergePage<T extends { rows: Row[]; total: number; truncated: boolean }>(table: T, page: { rows: Row[]; total?: number; hasMore: boolean }): T {
+  return { ...table, rows: [...table.rows, ...page.rows], total: typeof page.total === "number" ? page.total : table.total, truncated: page.hasMore };
+}
+
+// ---- table behaviour (pure, so it can be tested) -------------------------------------------------------
+
+export function sortRows(rows: Row[], key: string, kind: ColumnKind, dir: "asc" | "desc"): Row[] {
+  const sign = dir === "asc" ? 1 : -1;
+  const isNum = kind === "number";
+  return rows
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => {
+      const va = a.r[key];
+      const vb = b.r[key];
+      const na = va === null || va === undefined || va === "";
+      const nb = vb === null || vb === undefined || vb === "";
+      if (na || nb) return na && nb ? a.i - b.i : na ? 1 : -1; // empty cells always last
+      const c = isNum ? Number(va) - Number(vb) : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
+      return c !== 0 ? sign * c : a.i - b.i;
+    })
+    .map((x) => x.r);
+}
+
+export function filterRows(rows: Row[], columns: DisplayColumn[], query: string): Row[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((r) => columns.some((c) => formatCell(r[c.key], c.kind).toLowerCase().includes(q)));
+}
+
+// ---- export ----------------------------------------------------------------------------------------
+
+function csvCell(value: unknown, kind: ColumnKind): string {
+  let s = value === null || value === undefined ? "" : typeof value === "boolean" ? (value ? "Yes" : "No") : String(value);
+  // a spreadsheet would run a cell that starts with = + - @ as a formula: neutralise text cells (never plain numbers)
+  if (kind !== "number" && /^[=+\-@\t\r]/.test(s) && !NUMERIC_STRING.test(s.trim())) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+export function toCsv(columns: DisplayColumn[], rows: Row[]): string {
+  const head = columns.map((c) => csvCell(c.label, "text")).join(",");
+  const body = rows.map((r) => columns.map((c) => csvCell(r[c.key], c.kind)).join(","));
+  return "\ufeff" + [head, ...body].join("\r\n");
+}
+
+export function toTsv(columns: DisplayColumn[], rows: Row[]): string {
+  const cell = (v: string) => v.replace(/[\t\r\n]+/g, " ");
+  return [columns.map((c) => cell(c.label)).join("\t"), ...rows.map((r) => columns.map((c) => cell(formatCell(r[c.key], c.kind))).join("\t"))].join("\n");
+}

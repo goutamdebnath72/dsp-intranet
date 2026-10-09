@@ -26,6 +26,8 @@ export interface LlmPlan {
   unanswerable_reason?: string | null;
   /** True when the question is not about employees at all (circulars, policies, holidays ...). */
   out_of_scope?: boolean;
+  /** The model's optional SUGGESTION for presenting the result (display.ts verifies it; anything may be in here). */
+  display?: unknown;
 }
 
 export interface QueryResultData {
@@ -33,7 +35,10 @@ export interface QueryResultData {
   rows: Record<string, unknown>[];
   /** Total rows the query produces (rows may be capped for display). */
   total: number;
+  /** True when more rows exist beyond this page. */
   truncated: boolean;
+  /** True when the query has a total order, so a further page can be fetched consistently (paging.ts). */
+  pageable?: boolean;
 }
 
 /** The departments an answer's department filter matched (computed from the SQL by the system). */
@@ -52,6 +57,8 @@ export type PipelineResult =
       data: QueryResultData;
       /** Departments covered by the answer, or null when none/unknown. */
       scope: DepartmentScope | null;
+      /** The model's unverified presentation suggestion (absent for verified answers); see display.ts. */
+      display?: unknown;
       /** 'nl2sql' = the model wrote the SQL just now; 'cache' = a VERIFIED answer was re-run without the model. */
       source: "nl2sql" | "cache";
       /** For source 'cache': how many confirmations this answer has. */

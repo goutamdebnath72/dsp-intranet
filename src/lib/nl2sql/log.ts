@@ -1,5 +1,6 @@
 // src/lib/nl2sql/log.ts -- best-effort persistence; never breaks an answer.
 import type { SqlClient } from "./types";
+import { latestVotesCte } from "./votes";
 import { normalizeQuestion } from "./text";
 
 export interface LogEntry {
@@ -43,8 +44,10 @@ export async function recordVerdict(
 ): Promise<boolean> {
   try {
     const r = await client.query(
-      `UPDATE public.nl2sql_log SET verdict = $2, verdict_at = now(), reject_reason = $4, reject_note = $5
-        WHERE id = $1 AND user_key IS NOT DISTINCT FROM $3 RETURNING id`,
+      `UPDATE public.nl2sql_log SET verdict = $2, verdict_at = now(), reject_reason = $4, reject_note = $5,
+              user_key = COALESCE(user_key, $3::text)
+        WHERE id = $1 AND (user_key IS NOT DISTINCT FROM $3::text OR (user_key IS NULL AND $3::text IS NOT NULL))
+        RETURNING id`,
       [logId, verdict, userKey, verdict === "reject" ? reason?.code ?? null : null, verdict === "reject" ? reason?.note ?? null : null],
     );
     return r.rows.length > 0;
@@ -55,8 +58,10 @@ export async function recordVerdict(
 
 /**
  * SQL that must not be offered again for this exact question:
- *  - what THIS person already marked wrong (30 days), and
- *  - what anyone marked wrong and nobody confirmed (one "No" is final: blocked for everyone).
+ *  - what THIS person's latest vote marked wrong (30 days), and
+ *  - what at least one person marked wrong and nobody confirmed (blocked for everyone).
+ *  Votes are counted by votes.ts: one voice per person, the latest vote of each person wins. If one
+ *  person says Yes and another says No the reading is DISPUTED: neither pinned nor blocked.
  */
 export async function loadRejectedSql(client: SqlClient, userKey: string | null, question: string): Promise<string[]> {
   const qn = normalizeQuestion(question);
@@ -64,20 +69,24 @@ export async function loadRejectedSql(client: SqlClient, userKey: string | null,
   try {
     if (userKey) {
       const r = await client.query(
-        `SELECT DISTINCT sql FROM public.nl2sql_log
-          WHERE user_key = $1 AND question_norm = $2 AND verdict = 'reject' AND sql IS NOT NULL
-            AND created_at > now() - interval '30 days' LIMIT 5`,
+        `SELECT sql FROM (
+           SELECT DISTINCT ON (sql) sql, verdict
+             FROM public.nl2sql_log
+            WHERE user_key = $1 AND question_norm = $2 AND sql IS NOT NULL AND verdict IS NOT NULL
+              AND created_at > now() - interval '30 days'
+            ORDER BY sql, verdict_at DESC NULLS LAST, id DESC) mine
+          WHERE verdict = 'reject' LIMIT 5`,
         [userKey, qn],
       );
       out.push(...r.rows.map((x: any) => String(x.sql)));
     }
     const g = await client.query(
-      `SELECT sql FROM public.nl2sql_log
-        WHERE question_norm = $1 AND sql IS NOT NULL
-        GROUP BY sql
-       HAVING count(*) FILTER (WHERE verdict = 'reject') >= 1
-          AND count(*) FILTER (WHERE verdict = 'confirm') = 0
-        LIMIT 5`,
+      `WITH ${latestVotesCte(false)},
+       tally AS (SELECT sql,
+                        count(*) FILTER (WHERE verdict = 'confirm') AS confirms,
+                        count(*) FILTER (WHERE verdict = 'reject')  AS rejects
+                   FROM votes GROUP BY sql)
+       SELECT sql FROM tally WHERE rejects >= 1 AND confirms = 0 LIMIT 5`,
       [qn],
     );
     out.push(...g.rows.map((x: any) => String(x.sql)));

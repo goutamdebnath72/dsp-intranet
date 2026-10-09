@@ -57,3 +57,48 @@ export async function recordFeedback(client: SqlClient, f: FeedbackInput): Promi
   }
   return { id, verdictRecorded };
 }
+
+/** At most this many votes per person per hour (a brake on accidents and on abuse). */
+export const VOTES_PER_HOUR = 30;
+
+export async function countRecentVotes(client: SqlClient, userKey: string): Promise<number> {
+  try {
+    const r = await client.query(
+      `SELECT count(*)::int AS n FROM public.omnibar_feedback WHERE user_key = $1 AND created_at > now() - interval '1 hour'`,
+      [userKey],
+    );
+    return Number(r.rows[0]?.n) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Takes back a vote. Only the person who cast it can: their feedback row is removed and the verdict
+ * on the answer's log row is cleared, so the vote stops counting (votes.ts only counts rows with a verdict).
+ */
+export async function undoFeedback(
+  client: SqlClient,
+  userKey: string,
+  feedbackId: number | null,
+  nl2sqlLogId: number | null,
+): Promise<{ undone: boolean }> {
+  let undone = false;
+  try {
+    if (feedbackId) {
+      const r = await client.query(`DELETE FROM public.omnibar_feedback WHERE id = $1 AND user_key = $2 RETURNING id`, [feedbackId, userKey]);
+      if (r.rows.length > 0) undone = true;
+    }
+    if (nl2sqlLogId) {
+      const r = await client.query(
+        `UPDATE public.nl2sql_log SET verdict = NULL, verdict_at = NULL, reject_reason = NULL, reject_note = NULL
+          WHERE id = $1 AND user_key = $2 AND verdict IS NOT NULL RETURNING id`,
+        [nl2sqlLogId, userKey],
+      );
+      if (r.rows.length > 0) undone = true;
+    }
+  } catch {
+    /* best effort */
+  }
+  return { undone };
+}

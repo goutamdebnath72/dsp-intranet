@@ -20,6 +20,9 @@ import type { AnalyticsPayload } from "@/lib/employees/analytics";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import type { Nl2SqlExtras } from "./clientTypes";
+import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
+import { PAGE_SIZE } from "./paging";
+import type { QueryResultData } from "./types";
 import { answerFromVerified, answerQuestion, type PipelineExtra } from "./pipeline";
 import { loadLogRow } from "./log";
 import { isReasonCode, retryHint, verifiedMinConfirms, type AnswerSource, type ReasonCode } from "./learning";
@@ -77,11 +80,53 @@ export interface OmnibarDeps {
   verifiedMin: number;
 }
 
-const PERSON_COLUMNS = new Set([
-  "ticket_no", "name", "designation", "department", "sail_pno", "cohort", "id",
-  "department_code", "designation_code", "designation_track", "rank_order", "grade_id",
-  "department_id", "global_seniority_rank", "within_grade_position",
-]);
+// Columns the person card already shows (the codes appear in brackets after the designation / department).
+const CARD_SHOWS = new Set(["ticket_no", "name", "designation", "department", "sail_pno", "cohort", "id", "department_code", "designation_code"]);
+
+/** Every OTHER column the answer returned goes on the person's card as a labelled chip, so nothing the SQL returned is lost on the cards. */
+export function withExtraFields(people: EmployeeResult[], display: ResolvedDisplay | null, rows: any[]): EmployeeResult[] {
+  if (!display) return people;
+  const extra = display.columns.filter((c) => !CARD_SHOWS.has(c.key));
+  if (!extra.length) return people;
+  const byTicket = new Map<string, any>();
+  for (const r of rows) byTicket.set(String(r?.ticket_no ?? "").trim(), r);
+  return people.map((p) => {
+    const r = byTicket.get(String(p.ticketNo ?? "").trim());
+    if (!r) return p;
+    const fields = extra
+      .filter((c) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== "")
+      .map((c) => ({ label: c.label, value: formatCell(r[c.key], c.kind) }));
+    return fields.length ? { ...p, extraFields: fields } : p;
+  });
+}
+
+/**
+ * The person cards for one page of an answer's rows ("Show more"): same cards as the first page (codes, extra-field chips).
+ * `labelColumns` is the column titles the page already shows, [{key, label}]; display.ts sanitises it like any other hint.
+ */
+export async function peoplePage(client: SqlClient, data: QueryResultData, labelColumns?: unknown): Promise<EmployeeResult[]> {
+  let people = await peopleFor(client, data.rows.map((r) => String(r.ticket_no)));
+  people = withDisplayCodes(people, data.columns, data.rows);
+  const display = resolveDisplay({ columns: labelColumns }, data.columns, data.rows, true);
+  return withExtraFields(people, display, data.rows);
+}
+
+/** When the answer includes the department / designation CODE (the person asked for it), put the code on that person's card. */
+export function withDisplayCodes(people: EmployeeResult[], columns: string[], rows: any[]): EmployeeResult[] {
+  const wantDept = columns.includes("department_code");
+  const wantDesig = columns.includes("designation_code");
+  if (!wantDept && !wantDesig) return people;
+  const byTicket = new Map<string, any>();
+  for (const r of rows) byTicket.set(String(r?.ticket_no ?? "").trim(), r);
+  return people.map((p) => {
+    const r = byTicket.get(String(p.ticketNo ?? "").trim());
+    if (!r) return p;
+    const out: EmployeeResult = { ...p };
+    if (wantDept && r.department_code != null) out.departmentCode = String(r.department_code);
+    if (wantDesig && r.designation_code != null) out.designationCode = String(r.designation_code);
+    return out;
+  });
+}
 
 // ---- people cards ------------------------------------------------------------------------------
 
@@ -159,15 +204,22 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
   };
   const tag = { source: res.source as AnswerSource, attempt, feedbackLogId: res.logId };
   const table = { columns, rows, total, truncated };
+  // How to show it: the model's suggestion, verified against the real result (or a layout chosen from the data's shape).
+  // Every column the SQL returned stays visible. A single plain number needs no table.
+  const hasPeopleList = columns.includes("ticket_no") && !!people;
+  const tableRequested = /\b(table|tabular|spreadsheet|grid)\b/i.test(String((res as any).question ?? ""));
+  const display = resolveDisplay((res as any).display, columns, rows, hasPeopleList, { tableRequested });
+  extras.display = display;
+  if (display) extras.table = table;
+  if (res.data.pageable && truncated && res.logId != null) extras.canPage = true;
 
   // a list of people
   if (columns.includes("ticket_no") && people) {
-    if (columns.some((c) => !PERSON_COLUMNS.has(c))) extras.table = table; // extra columns: show them too
     return {
       kind: "count",
       count: total,
       answer: `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
-      people,
+      people: withExtraFields(people, display, rows),
       listTruncated: truncated,
       interpretation: res.understoodAs,
       nl2sql: extras,
@@ -183,7 +235,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
     }
   }
 
-  // anything else: a table
+  // anything else: a table (or a chart)
   extras.table = table;
   return {
     kind: "total",
@@ -220,7 +272,7 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
     if (holiday) return { ...holiday, source: "holiday", attempt };
 
     // 2. a VERIFIED answer (confirmed at least once, never rejected): re-run it, no model call
-    const verified = await answerFromVerified(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: 100 } }, deps.verifiedMin).catch(() => null);
+    const verified = await answerFromVerified(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.verifiedMin).catch(() => null);
     if (verified) return okToPayload(verified, userKey, deps, attempt);
   }
 
@@ -230,7 +282,7 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
     const prior = retry.logId ? await deps.withClient((c) => loadLogRow(c, retry.logId as number)).catch(() => null) : null;
     extra = { retryOf: retry.logId, rejectedSql: prior?.sql ? [prior.sql] : [], hint: retryHint(retry.reason, retry.note) };
   }
-  const res = await answerQuestion(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: 100 } }, extra);
+  const res = await answerQuestion(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, extra);
 
   if (res.ok) return okToPayload(res, userKey, deps, attempt);
 
@@ -261,6 +313,7 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
   if (res.data.columns.includes("ticket_no")) {
     const tickets = res.data.rows.map((r) => String(r.ticket_no));
     people = await deps.withClient((c) => peopleFor(c, tickets)).catch(() => null);
+    if (people) people = withDisplayCodes(people, res.data.columns, res.data.rows);
   }
   return toPayload(res, people, userKey, attempt);
 }

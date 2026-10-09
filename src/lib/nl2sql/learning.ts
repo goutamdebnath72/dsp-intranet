@@ -14,6 +14,7 @@
 //   eval/feedback-report.ts so a human can turn recurring failures into tests and rules.
 
 import type { SqlClient } from "./types";
+import { latestVotesCte } from "./votes";
 import { normalizeQuestion } from "./text";
 import { similarity } from "./examples";
 
@@ -102,22 +103,25 @@ export interface VerifiedAnswer {
 }
 
 /**
- * A stored SQL for this exact (normalized) question that at least `minConfirms` confirmations (one Yes is enough) exist for and
- * that NOBODY rejected. It is served by re-running the SQL (always fresh data), without calling the model.
+ * A stored SQL for this exact (normalized) question that at least `minConfirms` DIFFERENT PEOPLE confirmed (latest vote of each
+ * person, see votes.ts; one Yes is enough by default) and that NOBODY rejected. A Yes and a No from different people = disputed = not here. It is served by re-running the SQL (always fresh data), without calling the model.
  * A single later "No" removes it from this list, so a verified answer can always be revoked.
  */
 export async function findVerifiedSql(client: SqlClient, question: string, minConfirms: number): Promise<VerifiedAnswer | null> {
   try {
     const r = await client.query(
-      `SELECT sql,
-              count(*) FILTER (WHERE verdict = 'confirm')            AS confirms,
-              (array_agg(understood_as ORDER BY id DESC) FILTER (WHERE verdict = 'confirm'))[1] AS understood_as
-         FROM public.nl2sql_log
-        WHERE question_norm = $1 AND sql IS NOT NULL AND ok
-        GROUP BY sql
-       HAVING count(*) FILTER (WHERE verdict = 'confirm') >= $2
-          AND count(*) FILTER (WHERE verdict = 'reject') = 0
-        ORDER BY confirms DESC LIMIT 1`,
+      `WITH ${latestVotesCte(true)},
+       tally AS (SELECT sql,
+                        count(*) FILTER (WHERE verdict = 'confirm')::int AS confirms,
+                        count(*) FILTER (WHERE verdict = 'reject')::int  AS rejects
+                   FROM votes GROUP BY sql)
+       SELECT t.sql, t.confirms,
+              (SELECT l.understood_as FROM public.nl2sql_log l
+                WHERE l.question_norm = $1 AND l.sql = t.sql AND l.verdict = 'confirm'
+                ORDER BY l.id DESC LIMIT 1) AS understood_as
+         FROM tally t
+        WHERE t.confirms >= $2 AND t.rejects = 0
+        ORDER BY t.confirms DESC LIMIT 1`,
       [normalizeQuestion(question), minConfirms],
     );
     const x = r.rows[0];

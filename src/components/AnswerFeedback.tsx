@@ -12,6 +12,12 @@
 //          documents, or a different reading by the model told what was rejected and why). After 3 attempts it
 //          stops and keeps the case for review.
 // Only an explicit click counts; nothing is inferred from behaviour.
+//
+// Robustness (the page only shows this to SIGNED-IN people; the server enforces it too):
+//   * Undo      -- after a Yes or a "Just send feedback" the person can take the vote back.
+//   * Report    -- a VERIFIED answer (source "cache") shows "Report this answer as wrong" instead of Yes/No,
+//                  so a wrong confirmation can always be challenged; a report makes the answer disputed.
+//   * One person counts once and the latest vote wins (server side, lib/nl2sql/votes.ts).
 
 import { useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
@@ -43,15 +49,29 @@ const reasonsFor = (s: AnswerSource) => (s === "nl2sql" || s === "cache" ? REASO
 
 export const MAX_ATTEMPTS = 3;
 
-function post(body: Record<string, unknown>) {
+interface PostResult {
+  ok?: boolean;
+  id?: number | null;
+  error?: string;
+  status: number;
+}
+
+async function post(body: Record<string, unknown>): Promise<PostResult | null> {
   try {
-    void fetch("/api/omnibar/feedback", {
+    const res = await fetch("/api/omnibar/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).catch(() => {});
+    });
+    let j: any = null;
+    try {
+      j = await res.json();
+    } catch {
+      /* no body */
+    }
+    return { ...(j || {}), status: res.status };
   } catch {
-    /* best effort: never surface an error to the person */
+    return null; // best effort: a network hiccup is never shown to the person
   }
 }
 
@@ -63,10 +83,14 @@ interface Props {
   /** 1 for the first answer, 2 for the second attempt ... */
   attempt: number;
   onRetry: (r: { reason: ReasonCode; note: string; logId: number | null }) => void;
+  /** A verified answer: no Yes/No, only a way to report it wrong. */
+  reportOnly?: boolean;
 }
 
-export function AnswerFeedback({ query, source, nl2sqlLogId, userKey, attempt, onRetry }: Props) {
-  const [phase, setPhase] = useState<"ask" | "reason" | "yes" | "sent">("ask");
+export function AnswerFeedback({ query, source, nl2sqlLogId, userKey, attempt, onRetry, reportOnly = false }: Props) {
+  const [phase, setPhase] = useState<"ask" | "reason" | "yes" | "sent" | "error">("ask");
+  const [voteId, setVoteId] = useState<number | null>(null);
+  const [errorText, setErrorText] = useState("");
   const [reason, setReason] = useState<ReasonCode | null>(null);
   const [note, setNote] = useState("");
   const canRetry = attempt < MAX_ATTEMPTS;
@@ -77,21 +101,63 @@ export function AnswerFeedback({ query, source, nl2sqlLogId, userKey, attempt, o
     setPhase("ask");
     setReason(null);
     setNote("");
+    setVoteId(null);
+    setErrorText("");
   }, [query, source, nl2sqlLogId, attempt]);
 
+  // Sends a vote. The server may refuse it (not signed in, or too many votes this hour): say so plainly.
+  const sendVote = (body: Record<string, unknown>) => {
+    void post(body).then((r) => {
+      if (r && (r.status === 401 || r.status === 429)) {
+        setErrorText(r.error || "Your feedback could not be saved.");
+        setPhase("error");
+        return;
+      }
+      setVoteId(typeof r?.id === "number" ? r.id : null);
+    });
+  };
+
   const yes = () => {
-    post({ ...base, verdict: "yes" });
     setPhase("yes");
+    sendVote({ ...base, verdict: "yes" });
   };
   const submit = (retry: boolean) => {
     if (!reason) return;
-    post({ ...base, verdict: "no", reasonCode: reason, note: note.trim() });
-    if (retry && canRetry) onRetry({ reason, note: note.trim(), logId: nl2sqlLogId });
+    sendVote({ ...base, verdict: "no", reasonCode: reason, note: note.trim() });
+    if (retry && canRetry && !reportOnly) onRetry({ reason, note: note.trim(), logId: nl2sqlLogId });
     else setPhase("sent");
   };
+  // Takes back the person's own vote (the server removes it, and it stops counting).
+  const undo = () => {
+    const id = voteId;
+    setPhase("ask");
+    setReason(null);
+    setNote("");
+    setVoteId(null);
+    void post({ verdict: "undo", id, nl2sqlLogId, source, query });
+  };
+  const undoButton =
+    voteId !== null ? (
+      <button type="button" onClick={undo} className="ml-2 font-normal underline text-slate-500 hover:text-slate-700">
+        Undo
+      </button>
+    ) : null;
 
-  if (phase === "yes") return <p className="px-4 py-1.5 text-center text-xs font-medium text-emerald-700">Thanks — noted. Your confirmation helps the search learn.</p>;
-  if (phase === "sent") return <p className="px-4 py-1.5 text-center text-xs font-medium text-amber-700">Thanks — saved for the team to review.</p>;
+  if (phase === "error") return <p className="px-4 py-1.5 text-center text-xs font-medium text-red-600">{errorText}</p>;
+  if (phase === "yes")
+    return (
+      <p className="px-4 py-1.5 text-center text-xs font-medium text-emerald-700">
+        Thanks — noted. Your confirmation helps the search learn.
+        {undoButton}
+      </p>
+    );
+  if (phase === "sent")
+    return (
+      <p className="px-4 py-1.5 text-center text-xs font-medium text-amber-700">
+        {reportOnly ? "Thanks — reported. This answer will be checked again." : "Thanks — saved for the team to review."}
+        {undoButton}
+      </p>
+    );
 
   if (phase === "reason") {
     const options = reasonsFor(source);
@@ -119,7 +185,7 @@ export function AnswerFeedback({ query, source, nl2sqlLogId, userKey, attempt, o
           className="mt-2 w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 outline-none focus:border-blue-400"
         />
         <div className="mt-2 flex items-center gap-2">
-          {canRetry && (
+          {canRetry && !reportOnly && (
             <button
               type="button"
               disabled={!reason}
@@ -135,10 +201,33 @@ export function AnswerFeedback({ query, source, nl2sqlLogId, userKey, attempt, o
             onClick={() => submit(false)}
             className="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-600 disabled:opacity-40"
           >
-            {canRetry ? "Just send feedback" : "Send feedback"}
+            {reportOnly ? "Send report" : canRetry ? "Just send feedback" : "Send feedback"}
           </button>
-          {!canRetry && <span className="text-xs text-slate-500">No more automatic tries — this will be reviewed.</span>}
+          {reportOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                setPhase("ask");
+                setReason(null);
+                setNote("");
+              }}
+              className="text-xs text-slate-500 underline hover:text-slate-700"
+            >
+              Cancel
+            </button>
+          )}
+          {!canRetry && !reportOnly && <span className="text-xs text-slate-500">No more automatic tries — this will be reviewed.</span>}
         </div>
+      </div>
+    );
+  }
+
+  if (reportOnly) {
+    return (
+      <div className="flex items-center justify-center px-4 py-1.5">
+        <button type="button" onClick={() => setPhase("reason")} className="text-xs text-slate-500 underline hover:text-slate-700">
+          Report this answer as wrong
+        </button>
       </div>
     );
   }

@@ -1,0 +1,15 @@
+Circular battery — 3 questions against http://localhost:3000  (2026-10-07T06:08:51.116Z)
+
+ERROR A2   noise=0  how many days of casual leave and medical leave do contractor workers get
+        - fetch failed
+ERROR H8   noise=0  SAIL Foundation Day 5 km walk run
+        - fetch failed
+        evidence: AFTER TITLE FIX: id 33 = 2025_03: '5Km Walk/Run' on 24 January 2026
+ERROR I11  noise=0  list of nodal officers for submission of declaration
+        - fetch failed
+        evidence: 2025_05
+
+SUMMARY
+  passed 0   failed 0   errors 3   info-only 0
+  rank-1 correct: 0 of 2 questions that name a required #1
+  average noise (results that should not be there) per scored question: n/a

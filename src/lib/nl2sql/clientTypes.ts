@@ -3,6 +3,8 @@
 // Types shared by the server (omnibar.ts) and the browser (Nl2SqlAnswerExtras.tsx, useOmniSearch.ts).
 // Deliberately free of any server-only import so the browser bundle can use it.
 
+import type { ResolvedDisplay } from "./display";
+
 export interface Nl2SqlTable {
   columns: string[];
   rows: Record<string, unknown>[];
@@ -23,8 +25,12 @@ export interface Nl2SqlExtras {
   attempts: number;
   /** Departments the answer's department filter really matched (computed from the SQL by the system). */
   scope: { departments: string[]; total: number } | null;
-  /** Tabular result, present for breakdowns and any answer that is not a plain count or list of people. */
+  /** The rows and columns the SQL returned, present for every answer except a single plain number. */
   table?: Nl2SqlTable;
+  /** True when more rows exist beyond the ones sent and "Show more" can fetch them (a signed-in person, 100 at a time). */
+  canPage?: boolean;
+  /** How to present them: the model's suggestion VERIFIED against the real result (display.ts), or a layout chosen from the data's shape. */
+  display?: ResolvedDisplay | null;
   /** Set when the answer is a VERIFIED answer: how many confirmations it has (the model was not called). */
   verifiedBy?: number;
   /** 2, 3 ... when this is another attempt after a "No". */
