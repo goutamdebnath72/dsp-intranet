@@ -28,7 +28,7 @@ export interface HintInput {
 }
 
 export interface LoginHint {
-  kind: "synthesis";
+  kind: "synthesis" | "plain";
   text: string;
 }
 
@@ -75,8 +75,53 @@ export function looksAnalytical(query: string): boolean {
   return ANALYTICAL_RE.test(raw);
 }
 
+// Shapes the plain search answers directly from the records (employee counts and lists, seniority,
+// contact lookups, a ticket number, a holiday with a year). Deliberately NARROW: when unsure, say
+// nothing, because a wrong "use plain search" tip on a circular question is worse than no tip.
+const PEOPLE_NOUN = "(?:employees|executives|non-?executives|officers|staff|people)";
+const LOOKUP_RE = new RegExp(
+  "\\b(?:" +
+    [
+      "how many (?:" + PEOPLE_NOUN.slice(3, -1) + "|holidays|restricted|festival|closed)",
+      "number of (?:" + PEOPLE_NOUN.slice(3, -1) + "|holidays)",
+      "list (?:all )?(?:the )?(?:[a-z]+ )?" + PEOPLE_NOUN,
+      "(?:phone|mobile|email|contact) (?:number|no|of|for)",
+      "(?:more|most|less|least) (?:senior|junior)",
+      "(?:senior|junior) to",
+    ].join("|") +
+    ")\\b|\\b\\d{6}\\b",
+  "i",
+);
+const CIRCULAR_WORDS_RE = /\b(circulars?|contract(?:or|ors)?|polic(?:y|ies)|notice|letter|order|leaves?)\b/i;
+const HOLIDAY_YEAR_RE = /\bholidays?\b[^]*\b20\d\d\b|\b20\d\d\b[^]*\bholidays?\b/i;
+
+/** A direct lookup (name, count, seniority, contact, ticket, holiday-with-year), not an explanation. */
+export function looksLikeLookup(query: string): boolean {
+  const raw = (query || "").trim();
+  if (!raw) return false;
+  if (/["\u201c\u201d]/.test(raw)) return true; // quoted exact phrase = lookup
+  if (ANALYTICAL_RE.test(raw)) return false; // an explanatory word wins: never redirect
+  if (LOOKUP_RE.test(raw)) return true;
+  // A holiday + year is a calendar lookup only when the query is short and does not talk about a
+  // circular, a contractor or a policy document (those are answered from circulars).
+  const words = raw.split(/\s+/).filter(Boolean).length;
+  return words <= 12 && !CIRCULAR_WORDS_RE.test(raw) && HOLIDAY_YEAR_RE.test(raw);
+}
+
 export function decideLoginHint(i: HintInput): LoginHint | null {
-  if (i.mode === "intellectual") return null;
+  // Reverse tip: Executive Deep Synthesis was used on a lookup, which the normal search answers directly.
+  if (i.mode === "intellectual") {
+    if (looksLikeLookup(i.query)) {
+      return {
+        kind: "plain",
+        text:
+          "This looks like a direct lookup (a name, a count, seniority or a holiday). " +
+          "The normal search answers it straight from the records: press Enter. " +
+          "Executive Deep Synthesis is for explanations drawn from circulars.",
+      };
+    }
+    return null;
+  }
 
   if (i.circularShown && !i.answerCardShown && looksAnalytical(i.query)) {
     if (!i.authenticated) {

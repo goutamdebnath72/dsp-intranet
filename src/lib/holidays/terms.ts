@@ -68,7 +68,20 @@ export function resolveHolidayType(normalizedText: string): HolidayType | null {
 // does Category A get", which filter by WHO the entitlement applies to, not
 // by which kind of holiday it is.
 // ----------------------------------------------------------------------------
-const CATEGORY_RE = /\bcat(?:egory)?[.\s-]*([a-z0-9]+)\b/i;
+// "cat" / "category" must be a WHOLE word, so "categories", "catering" or "catalogue" can never be read as
+// "cat" + a token (that is how "which categories get it" used to become "Category EGORIES is not valid").
+const CATEGORY_RE = /\bcat(?:egory)?\b[.\s-]*([a-z0-9]+)\b/gi;
+// Ordinary English words that naturally follow the word "category" ("which category gets Diwali",
+// "category wise quota", "category of employees"). They are NOT an attempt to name a category.
+// A token outside this list (z, 5, ab, abc ...) is still an attempted category and is rejected loudly.
+const NOT_A_CATEGORY_TOKEN = new Set([
+  "of", "is", "are", "was", "were", "wise", "gets", "get", "getting", "can", "could", "does", "do", "did",
+  "has", "have", "had", "for", "in", "on", "at", "to", "and", "or", "as", "by", "with", "which", "what",
+  "who", "whom", "will", "would", "should", "may", "might", "must", "employees", "employee", "staff",
+  "people", "holidays", "holiday", "entitled", "entitlement", "eligible", "than", "that", "the", "this",
+  "these", "those", "if", "when", "how", "why", "only", "also", "not", "per", "number", "code", "name",
+  "type", "level", "list", "an", "any", "all", "each", "every", "both",
+]);
 const VALID_CATEGORIES = new Set(["A", "B", "C", "D"]);
 
 /** Result of trying to resolve a "Category X" mention: either a real,
@@ -102,13 +115,16 @@ export type CategoryResolution =
  *  plain unfiltered "how many RH", silently answering a question that was
  *  never asked instead of saying Category Z doesn't exist. */
 export function resolveCategory(normalizedText: string): CategoryResolution | null {
-  const m = normalizedText.match(CATEGORY_RE);
-  if (!m) return null;
-  const token = m[1].toUpperCase();
-  if (token.length === 1 && VALID_CATEGORIES.has(token)) {
-    return { valid: true, category: token };
+  // First mention whose token is not just an ordinary word following "category".
+  for (const m of normalizedText.matchAll(CATEGORY_RE)) {
+    if (NOT_A_CATEGORY_TOKEN.has(m[1].toLowerCase())) continue;
+    const token = m[1].toUpperCase();
+    if (token.length === 1 && VALID_CATEGORIES.has(token)) {
+      return { valid: true, category: token };
+    }
+    return { valid: false, input: token };
   }
-  return { valid: false, input: token };
+  return null;
 }
 
 // ----------------------------------------------------------------------------

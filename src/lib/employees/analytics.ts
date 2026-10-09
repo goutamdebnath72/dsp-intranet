@@ -12,6 +12,7 @@
 // (Stage 2, untouched) is unaffected by this and unchanged.
 
 import { DateTime } from "luxon";
+import { compareTotalSentence, compareTypeSentence } from "./compareSentence";
 import { getDb } from "@/lib/db";
 import { queryRoster, listByGrades, type RosterFilters } from "./rosterQuery";
 import { parseAnalytics, type AnalyticsIntent } from "./parser";
@@ -484,19 +485,19 @@ export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<Analy
       const c = res.compare!;
       if (intent.type) {
         const row = c.byType.find((t) => t.type === intent.type)!;
-        const diff = row.a - row.b;
-        const diffTxt = diff === 0 ? "no change" : diff > 0 ? `+${diff}` : `${diff}`;
+        // Tense follows each year (had / has / will have) and the difference is stated in words
+        // ("2 more in 2026"), so the order the person typed the years in cannot make it read wrongly.
         return {
           kind: "count",
           count: row.a,
-          answer: `${row.label} holidays: ${c.yearA} has ${row.a}, ${c.yearB} had ${row.b} (${diffTxt}).`,
+          answer: compareTypeSentence(row.label, c.yearA, row.a, c.yearB, row.b, DateTime.now().year),
         };
       }
       const parts = c.byType.map((t) => `${t.label} ${c.yearA}: ${t.a} vs ${c.yearB}: ${t.b}`);
       return {
         kind: "count",
         count: c.totalA,
-        answer: `${c.yearA} has ${c.totalA} holidays total vs ${c.yearB}'s ${c.totalB}. ${parts.join("; ")}.`,
+        answer: compareTotalSentence(c.yearA, c.totalA, c.yearB, c.totalB, DateTime.now().year, parts.join("; ")),
       };
     }
 

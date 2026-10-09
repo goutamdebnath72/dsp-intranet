@@ -139,7 +139,7 @@ function leftoverAfterStrip(q: string): string {
   t = t.replace(/\b20\d{2}\b/g, " ");
   t = t.replace(/\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b/g, " ");
   t = t.replace(/\b\d{1,2}(st|nd|rd|th)?\b/g, " ");
-  t = t.replace(/\bcat(?:egory)?[.\s-]*[abcd]\b/g, " ");
+  t = t.replace(/\bcat(?:egory)?\b[.\s-]*[abcd]\b/g, " ");
   t = t.replace(
     /\b(quota|entitled|entitlement|allowed|avail|availed|availing|choose|chosen|choosing|take|taken|takes)\b/g,
     " ",

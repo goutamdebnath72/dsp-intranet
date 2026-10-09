@@ -2,7 +2,7 @@
 
 // src/components/AnswerFeedback.tsx
 //
-// The omnibar's universal "Was this what you were looking for?  Yes / No", shown under EVERY answer: a
+// The omnibar's universal "Was this what you were looking for?" with a thumbs-up / thumbs-down, shown under EVERY answer: a
 // model-written answer, a verified answer, a holiday answer, an old-engine answer, circular results, or "no
 // results". It is the entry point of the learning loop:
 //   Yes -> recorded; for model answers the question + SQL becomes a worked example, and enough different
@@ -20,7 +20,7 @@
 //   * One person counts once and the latest vote wins (server side, lib/nl2sql/votes.ts).
 
 import { useEffect, useState } from "react";
-import { Check, X } from "lucide-react";
+import { ThumbsDown, ThumbsUp } from "lucide-react";
 
 export type AnswerSource = "nl2sql" | "cache" | "holiday" | "legacy" | "circular" | "none";
 export type ReasonCode = "wrong_result" | "wrong_department" | "wrong_name" | "wanted_documents" | "wanted_employees" | "other";
@@ -241,17 +241,19 @@ export function AnswerFeedback({ query, source, nl2sqlLogId, userKey, attempt, o
         type="button"
         onClick={yes}
         aria-label="Yes, this is what I was looking for"
-        className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-white px-2 py-0.5 text-xs text-emerald-700 transition-colors hover:bg-emerald-50"
+        title="Yes, this is what I was looking for"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
       >
-        <Check size={13} /> Yes
+        <ThumbsUp size={14} />
       </button>
       <button
         type="button"
         onClick={() => setPhase("reason")}
         aria-label="No, this is not what I was looking for"
-        className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-0.5 text-xs text-red-600 transition-colors hover:bg-red-50"
+        title="No, this is not what I was looking for"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
       >
-        <X size={13} /> No
+        <ThumbsDown size={14} />
       </button>
     </div>
   );
