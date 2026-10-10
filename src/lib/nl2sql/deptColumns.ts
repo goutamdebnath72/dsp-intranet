@@ -52,3 +52,34 @@ export function checkDepartmentColumns(sql: string): string | null {
     ? `The result shows a department's code without its name. ${how}`
     : `The result shows a department's name without its code. ${how}`;
 }
+
+/**
+ * Two DIFFERENT departments can share one number (101, 103, 21000, 40017, 83002, 98902: an executive-only department and
+ * a non-executive-only one). Matching rows to each other on department_code therefore merges them: "executives but no
+ * non-executives under the same code" then wrongly drops BLAST FURNACE (OPERATION) because a different department with
+ * the same number has non-executives. Departments are compared by department_id (a department ROW), never by number alone.
+ * Only comparisons BETWEEN TWO COLUMNS are judged; filtering on a list of codes is fine.
+ */
+export function checkDepartmentIdentity(sql: string): string | null {
+  let stmts;
+  try {
+    stmts = parse(sql);
+  } catch {
+    return null;
+  }
+  let bad = false;
+  const nameOf = (e: any) => (e && e.type === "ref" && typeof e.name === "string" ? e.name.toLowerCase() : null);
+  const visit = (n: any): void => {
+    if (!n || typeof n !== "object") return;
+    if (n.type === "binary" && n.op === "=") {
+      const l = nameOf(n.left);
+      const r = nameOf(n.right);
+      if ((l === "department_code" && (r === "department_code" || r === "code")) || (r === "department_code" && l === "code")) bad = true;
+    }
+    for (const k of Object.keys(n)) visit(n[k]);
+  };
+  visit(stmts);
+  return bad
+    ? "Departments are matched by NUMBER here (department_code = department_code, or department_code = code), but six numbers (101, 103, 21000, 40017, 83002, 98902) belong to two different departments, so this merges them. Match departments by department_id (the department row), e.g. NOT EXISTS (... ne.department_id = e.department_id ...) or GROUP BY department_id with conditional counts."
+    : null;
+}

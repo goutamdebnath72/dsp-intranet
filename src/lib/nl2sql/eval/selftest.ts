@@ -27,7 +27,7 @@ import { loadDynamicContext, clearContextCache, selectRelevantDepartments } from
 import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
-import { checkDepartmentColumns } from "../deptColumns";
+import { checkDepartmentColumns, checkDepartmentIdentity } from "../deptColumns";
 import { checkRankingAndOrder } from "../rankingCheck";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
@@ -523,6 +523,39 @@ async function main() {
   check("unparsable SQL cannot be judged -> accepted", checkDepartmentColumns("SELEKT department FROM") === null);
   check("a count with no department column -> accepted", checkDepartmentColumns("SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'") === null);
 
+  // -- Departments are compared by department ROW, not by number (six numbers belong to two different departments)
+  const ident: [string, string, boolean][] = [
+    ["D4 (10 Oct): NOT EXISTS matching ne.department_code = e.department_code -> flagged", "SELECT department_code, department, exec_count FROM (SELECT e.department_code, e.department, count(*) AS exec_count, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees e WHERE e.cohort = 'executive' AND NOT EXISTS (SELECT 1 FROM nlq.employees ne WHERE ne.department_code = e.department_code AND ne.cohort = 'nonexecutive') GROUP BY e.department_code, e.department) sub WHERE r <= 10", true],
+    ["the same question matched by department_id -> fine", "SELECT department_code, department, exec_count FROM (SELECT e.department_code, e.department, count(*) AS exec_count, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees e WHERE e.cohort = 'executive' AND NOT EXISTS (SELECT 1 FROM nlq.employees ne WHERE ne.department_id = e.department_id AND ne.cohort = 'nonexecutive') GROUP BY e.department_id, e.department_code, e.department) sub WHERE r <= 10", false],
+    ["JOIN nlq.departments ON e.department_code = d.code -> flagged", "SELECT e.ticket_no FROM nlq.employees e JOIN nlq.departments d ON e.department_code = d.code", true],
+    ["JOIN nlq.departments ON e.department_id = d.id -> fine", "SELECT e.ticket_no FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id", false],
+    ["filtering on a LIST of codes -> fine", "SELECT count(*) AS count FROM nlq.employees WHERE department_code IN (85000, 85070, 85110)", false],
+    ["filtering on one code -> fine", "SELECT count(*) AS count FROM nlq.employees WHERE department_code = 85110", false],
+    ["conditional counts per department (the first, correct D4) -> fine", "SELECT department_code, department, count(*) FILTER (WHERE cohort = 'executive') AS exec_count FROM nlq.employees GROUP BY department_id, department_code, department HAVING count(*) FILTER (WHERE cohort = 'executive') > 0 AND count(*) FILTER (WHERE cohort = 'nonexecutive') = 0", false],
+    ["unparsable -> cannot be judged -> fine", "SELEKT department_code = department_code", false],
+  ];
+  for (const [label, sqlText, expectProblem] of ident) {
+    const problem = checkDepartmentIdentity(sqlText);
+    check(label, expectProblem ? problem !== null : problem === null, String(problem));
+  }
+  check("the identity message names department_id and the six numbers", /department_id/.test(String(checkDepartmentIdentity(ident[0][1]))) && /21000/.test(String(checkDepartmentIdentity(ident[0][1]))));
+
+  // PROOF on the database: when two departments share a number, matching by number and matching by department row GIVE DIFFERENT ANSWERS
+  // (the BLAST FURNACE (OPERATION) / BLAST FURNACE (STOCK HOUSE & HL) situation). Rolled back afterwards.
+  await pg.query("BEGIN");
+  try {
+    await pg.query(`INSERT INTO public.sail_department (id, code, name, cohort_scope) VALUES (29101, 970100, 'ZQ SHARED (EXEC DEPT)', 'executive'), (29102, 970100, 'ZQ SHARED (NONEXEC DEPT)', 'nonexecutive')`);
+    await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
+      ('980101','ZQ BOSS ONE',(SELECT id FROM public.designation_grade WHERE track <> 'nonexec' ORDER BY id LIMIT 1),29101,'executive',98101,980101),
+      ('980102','ZQ WORKER ONE',20,29102,'nonexecutive',98102,980102)`);
+    const byNumber = (await pg.query(`SELECT DISTINCT department FROM nlq.employees e WHERE e.cohort = 'executive' AND e.department_code = 970100 AND NOT EXISTS (SELECT 1 FROM nlq.employees ne WHERE ne.department_code = e.department_code AND ne.cohort = 'nonexecutive')`)).rows;
+    const byRow = (await pg.query(`SELECT DISTINCT department FROM nlq.employees e WHERE e.cohort = 'executive' AND e.department_code = 970100 AND NOT EXISTS (SELECT 1 FROM nlq.employees ne WHERE ne.department_id = e.department_id AND ne.cohort = 'nonexecutive')`)).rows;
+    check("PROOF: matching by NUMBER drops the executive-only department (the Blast Furnace bug)", byNumber.length === 0, JSON.stringify(byNumber));
+    check("...matching by department ROW keeps it", byRow.length === 1 && byRow[0].department === "ZQ SHARED (EXEC DEPT)", JSON.stringify(byRow));
+  } finally {
+    await pg.query("ROLLBACK");
+  }
+
   // ==========================================================================
   section("G6. A percentage column is shown with a % sign (and still behaves as a number)");
   const kindOf = (key: string, vals: unknown[]) => columnKind(key, vals.map((v) => ({ [key]: v })));
@@ -616,6 +649,10 @@ async function main() {
   check("...and the corrected SQL returns a true share (above 0, below 100)", rightRun.rows.length >= 1 && rightRun.rows.every((x: any) => Number(x.percentage) > 0 && Number(x.percentage) < 100), JSON.stringify(rightRun.rows[0]));
   r = await answerQuestion("share of executives in the biggest department repair", "T1", { llm: script([json({ sql: pctWrong, understood_as: "x" }), json({ sql: pctRight, understood_as: "x" })]), withClient });
   check("the 100% trap is sent back once; attempt 2 returns the true share", r.ok && r.attempts === 2 && r.data.rows.every((x: any) => Number(x.percentage) < 100), r.ok ? JSON.stringify(r.data.rows[0]) : r.message);
+  const byNumSql = `SELECT department_code, department, exec_count FROM (SELECT e.department_code, e.department, count(*) AS exec_count, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees e WHERE e.cohort = 'executive' AND NOT EXISTS (SELECT 1 FROM nlq.employees ne WHERE ne.department_code = e.department_code AND ne.cohort = 'nonexecutive') GROUP BY e.department_code, e.department) sub WHERE r <= 10 ORDER BY r, department_code`;
+  const byRowSql = byNumSql.replace("ne.department_code = e.department_code", "ne.department_id = e.department_id").replace("GROUP BY e.department_code, e.department", "GROUP BY e.department_id, e.department_code, e.department");
+  r = await answerQuestion("executive only departments by number repair", "T1", { llm: script([json({ sql: byNumSql, understood_as: "x" }), json({ sql: byRowSql, understood_as: "x" })]), withClient });
+  check("matching departments by number is sent back once; attempt 2 matches by department_id", r.ok && r.attempts === 2 && /ne\.department_id = e\.department_id/.test(r.sql));
   r = await answerQuestion("two soft problems at once", "T1", { llm: script([json({ sql: `SELECT department, count(*) AS count FROM nlq.employees GROUP BY department`, understood_as: "x" }), json({ sql: `SELECT department_code, department, count(*) AS count FROM nlq.employees GROUP BY department_id, department_code, department ORDER BY count DESC`, understood_as: "x" })]), withClient });
   check("name-only AND unordered are fixed together by ONE repair", r.ok && r.attempts === 2 && /department_code/.test(r.sql) && /ORDER BY/i.test(r.sql));
 
