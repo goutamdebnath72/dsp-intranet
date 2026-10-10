@@ -6,8 +6,7 @@ import { getDb } from "@/lib/db";
 import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
-import Tesseract from "tesseract.js";
-import { reconstructTableFromTSV } from "@/lib/ingestion/tableReconstruction";
+import { createOcrWorkerPool, destroyOcrWorkerPool, ocrPageDualPass } from "@/lib/ingestion/ocr";
 import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
 
 // This route does two full Tesseract OCR passes PER PAGE (English, then
@@ -25,92 +24,6 @@ import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
 // case) work fine; a document that doesn't will fail with a clear error
 // rather than a silent background job that can be misleading about status.
 export const maxDuration = 300;
-
-const OCR_LANGS = ["eng", "hin+eng+ben"] as const;
-type OcrWorkerPool = Record<(typeof OCR_LANGS)[number], any>;
-
-/** Create both language workers ONCE per upload, reused across every page
- *  of a document -- a fresh worker per page/pass measurably added tens of
- *  seconds on multi-page documents. */
-async function createOcrWorkerPool(): Promise<OcrWorkerPool> {
-  const pool = {} as OcrWorkerPool;
-  for (const langs of OCR_LANGS) {
-    const worker = await Tesseract.createWorker(langs);
-    // PSM 3 = fully automatic page segmentation (the value the CLI uses).
-    await worker.setParameters({ tessedit_pageseg_mode: "3" as any });
-    pool[langs] = worker;
-  }
-  return pool;
-}
-
-async function destroyOcrWorkerPool(pool: OcrWorkerPool) {
-  await Promise.all(
-    OCR_LANGS.map((langs) => pool[langs]?.terminate().catch(() => {})),
-  );
-}
-
-/* ============================================================
-   Dual-pass OCR for one page/image.
-
-   Two hard-won facts drove this:
-   1) tesseract.js's DEFAULT page-seg mode differs from the tesseract CLI and
-      mangles dense tables — it silently drops values like "20995.30". We must
-      set PSM 3 (fully automatic) EXPLICITLY; the old Tesseract.recognize(buf,
-      langs) call could not set it, which is why those values were lost.
-   2) Running hin+eng+ben on an ENGLISH page corrupts Latin alphanumerics —
-      the Devanagari/Bengali models hallucinate on codes, so a policy number
-      like "0315054224P110856231" came out garbled. An eng-only pass reads it
-      cleanly.
-
-   So each page is OCR'd twice at PSM 3 — once "eng" (clean Latin codes/
-   numbers), once "hin+eng+ben" (Indic content) — and both texts are kept.
-   Slower, but every script and every code survives. Display/search dedupe
-   downstream; recall is what matters here.
-
-   A THIRD, hard-won fact, discovered after a real synthesis error (a
-   monthly wage TOTAL of Rs 20,995.30 was reported as if it were the DAILY
-   wage, Rs 808, from the adjacent column): fixing PSM 3 stopped the
-   pipeline from silently DROPPING dense-table values, but it does nothing
-   about a genuinely different failure -- Tesseract's own internal reading
-   order can interleave a wrapped, merged table header's fragments out of
-   column order relative to the data rows below it. The flattened `text` we
-   already kept has the numbers in the right left-to-right sequence, but
-   with the WRONG header words sitting near them, and nothing downstream had
-   any way to tell. See src/lib/ingestion/tableReconstruction.ts for the
-   full story and its validated scope/limits. Its output is added here
-   ADDITIVELY -- the original flattened text is never altered -- using the
-   ENGLISH pass's TSV specifically, since numeric-grid tables in this corpus
-   are overwhelmingly Latin-digit tables and the eng-only pass already reads
-   those digits more cleanly than the trilingual pass.
-============================================================ */
-async function ocrPageDualPass(
-  input: Buffer | Uint8Array,
-  label: string,
-  workers: OcrWorkerPool,
-): Promise<string> {
-  let combined = "";
-  for (const langs of OCR_LANGS) {
-    try {
-      const worker = workers[langs];
-      const {
-        data: { text, tsv },
-      } = await worker.recognize(input, {}, { text: true, tsv: langs === "eng" });
-      combined += (text || "") + "\n";
-      if (langs === "eng" && tsv) {
-        const table = reconstructTableFromTSV(tsv);
-        if (table) {
-          combined += "\n" + table + "\n";
-        }
-      }
-    } catch (err) {
-      console.error(
-        `OCR pass "${langs}" failed${label ? " on " + label : ""}:`,
-        (err as any)?.message || err,
-      );
-    }
-  }
-  return combined;
-}
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
