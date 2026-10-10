@@ -111,7 +111,7 @@ ORDER BY rank_order, designation`,
   {
     question: "who is more senior or junior, Sunil Kumar Das or Amit Sen",
     sql: `SELECT ticket_no, name, designation, department_code, department, global_seniority_rank FROM nlq.employees WHERE (nlq.word_like(name_words, name_codes, 'sunil') AND nlq.word_like(name_words, name_codes, 'das')) OR (nlq.word_like(name_words, name_codes, 'amit') AND nlq.word_like(name_words, name_codes, 'sen')) ORDER BY global_seniority_rank`,
-    understood_as: "Finds both people (similar spellings allowed) and lists them most senior first: the lower seniority rank is the more senior, so the first one listed is.",
+    understood_as: "Finds both people (similar spellings allowed) and lists them most senior first.",
     source: "seed",
   },
   {

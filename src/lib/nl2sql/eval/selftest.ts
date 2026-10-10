@@ -33,7 +33,7 @@ import { checkComparison, checkRankingAndOrder, comparisonVerdict } from "../ran
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
 import { pageProgress, mergePage, columnKind, formatCell, sortRows, toCsv, resolveDisplay } from "../display";
-import { runOmnibar, peopleFor, parseRetry, MAX_ATTEMPTS, withDisplayCodes, type OmnibarDeps, peoplePage } from "../omnibar";
+import { runOmnibar, peopleFor, parseRetry, MAX_ATTEMPTS, withDisplayCodes, withExtraFields, type OmnibarDeps, peoplePage } from "../omnibar";
 import { answerFromVerified } from "../pipeline";
 import { parseFeedback, recordFeedback, undoFeedback, countRecentVotes, VOTES_PER_HOUR } from "../feedback";
 import { findVerifiedSql, loadNegativeExamples, pickNegatives, retryHint, REASON_CODES } from "../learning";
@@ -632,19 +632,45 @@ async function main() {
     check(label, expectProblem ? problem !== null : problem === null, String(problem));
   }
 
-  // -- the sentence that STATES a comparison's answer (computed from the two ranks)
-  const mohdRana = [{ name: "MOHD ANWAR ULLAH", global_seniority_rank: 40121 }, { name: "RANA SAHA", global_seniority_rank: 40186 }];
-  const R = "seniority rank 40,121 against 40,186; a lower rank is more senior";
-  check("'who is more senior' states it", comparisonVerdict("who is more senior, Mohd Anwar Ullah or Rana Saha", mohdRana) === `MOHD ANWAR ULLAH is more senior than RANA SAHA (${R}).`);
-  check("...the same sentence whichever order the rows come in", comparisonVerdict("who is more senior, Mohd Anwar Ullah or Rana Saha", [...mohdRana].reverse()) === `MOHD ANWAR ULLAH is more senior than RANA SAHA (${R}).`);
-  check("'who is junior' names the junior", comparisonVerdict("who is junior, Mohd Anwar Ullah or Rana Saha", mohdRana) === `RANA SAHA is the junior: MOHD ANWAR ULLAH is more senior (${R}).`);
-  check("'which of A or B is more junior' and 'less senior' name the junior", /is the junior: MOHD/.test(String(comparisonVerdict("which of Rana Saha or Mohd Anwar Ullah is more junior", mohdRana))) && /is the junior: MOHD/.test(String(comparisonVerdict("who is less senior, Rana Saha or Mohd Anwar Ullah", mohdRana))));
-  check("'less junior' and 'more senior or junior' state the senior one", /is more senior than RANA/.test(String(comparisonVerdict("who is less junior, Rana Saha or Mohd Anwar Ullah", mohdRana))) && /is more senior than RANA/.test(String(comparisonVerdict("who is more senior or junior, Mohd Anwar Ullah or Rana Saha", mohdRana))));
-  check("ranks that arrive as text are handled", comparisonVerdict("who is more senior, A or B", [{ name: "A", global_seniority_rank: "40121" }, { name: "B", global_seniority_rank: "40186" }]) === `A is more senior than B (${R}).`);
-  check("one person found -> no verdict (the missing person stays visible)", comparisonVerdict("who is more senior, A or B", [mohdRana[0]]) === null);
-  check("three people found -> no verdict (the ambiguity stays visible)", comparisonVerdict("who is more senior, A or B", [...mohdRana, { name: "X", global_seniority_rank: 50000 }]) === null);
-  check("equal ranks, a missing rank or a missing name -> no verdict", comparisonVerdict("who is more senior, A or B", [{ name: "A", global_seniority_rank: 1 }, { name: "B", global_seniority_rank: 1 }]) === null && comparisonVerdict("who is more senior, A or B", [{ name: "A" }, { name: "B", global_seniority_rank: 2 }]) === null && comparisonVerdict("who is more senior, A or B", [{ global_seniority_rank: 1 }, { name: "B", global_seniority_rank: 2 }]) === null);
-  check("a question that is not a comparison -> no verdict", comparisonVerdict("who is the most senior roy or ray", mohdRana) === null && comparisonVerdict("list the two most senior people", mohdRana) === null);
+  // -- the sentence that STATES a comparison's answer, in plain words (grade level = rank / 10,000, position = rank % 10,000)
+  const gm1 = { name: "MOHD ANWAR ULLAH", ticket_no: "T1", global_seniority_rank: 40121 };
+  const gm2 = { name: "RANA SAHA", ticket_no: "T2", global_seniority_rank: 40186 };
+  const peopleGM = [{ ticketNo: "T1", designation: "General Manager", isExecutive: true }, { ticketNo: "T2", designation: "General Manager", isExecutive: true }];
+  const vSame = comparisonVerdict("who is more senior, Mohd Anwar Ullah or Rana Saha", [gm1, gm2], peopleGM);
+  check("two executives of one grade: states it in words (grade, position in HR's list), no raw rank number", vSame === "MOHD ANWAR ULLAH (General Manager) is more senior than RANA SAHA (General Manager): at the same grade level, listed earlier in HR's seniority list for that grade (121st against 186th).", String(vSame));
+  check("...the same sentence whichever order the rows come in", comparisonVerdict("who is more senior, Mohd Anwar Ullah or Rana Saha", [gm2, gm1], peopleGM) === vSame);
+  check("ordinals read naturally (1st, 2nd, 3rd, 11th, 12th, 13th, 21st, 112th)", [1, 2, 3, 11, 12, 13, 21, 112].map((n) => String(comparisonVerdict("who is more senior, A or B", [{ name: "A", ticket_no: "T1", global_seniority_rank: 40000 + n }, { name: "B", ticket_no: "T2", global_seniority_rank: 49999 }], peopleGM)).match(/\((\S+) against/)?.[1]).join(" ") === "1st 2nd 3rd 11th 12th 13th 21st 112th");
+  check("...and no internal number such as 40,121 ever appears", !/40,?121|40,?186|rank \d/.test(String(vSame)));
+  const vJun = comparisonVerdict("who is junior, Mohd Anwar Ullah or Rana Saha", [gm1, gm2], peopleGM);
+  check("'who is junior' names the junior, with the position the other way round", vJun === "RANA SAHA (General Manager) is junior to MOHD ANWAR ULLAH (General Manager): at the same grade level, listed later in HR's seniority list for that grade (186th against 121st).", String(vJun));
+  const gmAgm = [{ name: "A GM", ticket_no: "T1", global_seniority_rank: 40010 }, { name: "B AGM", ticket_no: "T2", global_seniority_rank: 70020 }];
+  const pGmAgm = [{ ticketNo: "T1", designation: "General Manager", isExecutive: true }, { ticketNo: "T2", designation: "Asst.General Manager", isExecutive: true }];
+  check("different grades: 'a higher grade', the designations shown", comparisonVerdict("who is more senior, A GM or B AGM", gmAgm, pGmAgm) === "A GM (General Manager) is more senior than B AGM (Asst.General Manager): a higher grade.");
+  check("different grades, 'who is junior': 'a lower grade'", comparisonVerdict("who is junior, A GM or B AGM", gmAgm, pGmAgm) === "B AGM (Asst.General Manager) is junior to A GM (General Manager): a lower grade.");
+  const exNon = [{ name: "AN EXEC", ticket_no: "T1", global_seniority_rank: 130010 }, { name: "A STAFF", ticket_no: "T2", global_seniority_rank: 160020 }];
+  check("an executive against a non-executive: decided by grade", /^AN EXEC \(Manager\) is more senior than A STAFF \(S-9\): a higher grade\.$/.test(String(comparisonVerdict("who is more senior, an exec or a staff", exNon, [{ ticketNo: "T1", designation: "Manager", isExecutive: true }, { ticketNo: "T2", designation: "S-9", isExecutive: false }]))));
+  const nn = [{ name: "STAFF ONE", ticket_no: "T1", global_seniority_rank: 160100 }, { name: "STAFF TWO", ticket_no: "T2", global_seniority_rank: 160200 }];
+  const vNon = comparisonVerdict("who is more senior, staff one or staff two", nn, [{ ticketNo: "T1", designation: "S-9", isExecutive: false }, { ticketNo: "T2", designation: "S-9", isExecutive: false }]);
+  check("RULE: two non-executives of one grade are NOT ranked against each other", vNon === "STAFF ONE and STAFF TWO are in the same grade (S-9). Within a non-executive grade there is no individual seniority order, so neither is more senior.", String(vNon));
+  check("...even when the question asks who is junior", comparisonVerdict("who is junior, staff one or staff two", nn, [{ ticketNo: "T1", designation: "S-9", isExecutive: false }, { ticketNo: "T2", designation: "S-9", isExecutive: false }]) === vNon);
+  check("same grade but the cohort is unknown -> no sentence (it will not guess)", comparisonVerdict("who is more senior, staff one or staff two", nn, []) === null);
+  check("ranks that arrive as text are handled", /is more senior than B/.test(String(comparisonVerdict("who is more senior, A or B", [{ name: "A", ticket_no: "T1", global_seniority_rank: "40121" }, { name: "B", ticket_no: "T2", global_seniority_rank: "40186" }], peopleGM))));
+  check("'less senior' and 'which of ... is more junior' name the junior", /is junior to/.test(String(comparisonVerdict("who is less senior, Rana Saha or Mohd Anwar Ullah", [gm1, gm2], peopleGM))) && /is junior to/.test(String(comparisonVerdict("which of Rana Saha or Mohd Anwar Ullah is more junior", [gm1, gm2], peopleGM))));
+  check("'less junior' and 'more senior or junior' state the senior one", /is more senior than RANA/.test(String(comparisonVerdict("who is less junior, Rana Saha or Mohd Anwar Ullah", [gm1, gm2], peopleGM))) && /is more senior than RANA/.test(String(comparisonVerdict("who is more senior or junior, Mohd Anwar Ullah or Rana Saha", [gm1, gm2], peopleGM))));
+  check("one person found -> no sentence (the missing person stays visible)", comparisonVerdict("who is more senior, A or B", [gm1], peopleGM) === null);
+  check("three people found -> no sentence (the ambiguity stays visible)", comparisonVerdict("who is more senior, A or B", [gm1, gm2, { name: "X", ticket_no: "T3", global_seniority_rank: 50000 }], peopleGM) === null);
+  check("equal ranks, a missing rank or a missing name -> no sentence", comparisonVerdict("who is more senior, A or B", [{ name: "A", ticket_no: "T1", global_seniority_rank: 1 }, { name: "B", ticket_no: "T2", global_seniority_rank: 1 }], peopleGM) === null && comparisonVerdict("who is more senior, A or B", [{ name: "A", ticket_no: "T1" }, gm2], peopleGM) === null && comparisonVerdict("who is more senior, A or B", [{ ticket_no: "T1", global_seniority_rank: 1 }, gm2], peopleGM) === null);
+  check("a question that is not a comparison -> no sentence", comparisonVerdict("who is the most senior roy or ray", [gm1, gm2], peopleGM) === null && comparisonVerdict("list the two most senior people", [gm1, gm2], peopleGM) === null);
+
+  // -- the card chip: the internal number becomes what it MEANS (executives only); tables and CSV keep the raw column
+  {
+    const rowsC = [{ ticket_no: "T1", name: "EXEC", global_seniority_rank: 40121 }, { ticket_no: "T2", name: "STAFF", global_seniority_rank: 160100 }];
+    const dispC = resolveDisplay(undefined, ["ticket_no", "name", "global_seniority_rank"], rowsC, true);
+    const out = withExtraFields([{ ticketNo: "T1", isExecutive: true }, { ticketNo: "T2", isExecutive: false }] as any, dispC, rowsC);
+    check("an executive's card shows 'Position in grade 121', not 40,121", JSON.stringify(out[0].extraFields) === JSON.stringify([{ label: "Position in grade", value: "121" }]), JSON.stringify(out[0].extraFields));
+    check("a non-executive's card shows no position (only grade order is meaningful)", !out[1].extraFields || out[1].extraFields.length === 0, JSON.stringify(out[1].extraFields));
+    check("the table and CSV still carry the raw column", !!dispC && dispC.columns.some((c) => c.key === "global_seniority_rank"));
+  }
 
   // PROOF on the database: the LIMIT 1 answer hides the other person and both ranks; the right form shows them. Rolled back.
   await pg.query("BEGIN");
@@ -998,9 +1024,10 @@ async function main() {
   const twoTop = (await pg.query(`SELECT ticket_no, name, global_seniority_rank FROM nlq.employees ORDER BY global_seniority_rank LIMIT 2`)).rows;
   const cmpSql2 = `SELECT ticket_no, name, designation, department_code, department, global_seniority_rank FROM nlq.employees WHERE ticket_no IN ('${twoTop[0].ticket_no}', '${twoTop[1].ticket_no}') ORDER BY global_seniority_rank`;
   o = await runOmnibar(`who is more senior, ${twoTop[1].name} or ${twoTop[0].name}`, "T-OMNI", mkDeps(model(cmpSql2)));
-  check("end to end: the answer states who is more senior (computed from the ranks)", typeof o.answer === "string" && o.answer.startsWith(`${twoTop[0].name} is more senior than ${twoTop[1].name} (seniority rank`) && o.people.length === 2, String(o.answer));
+  check("end to end: the answer states who is more senior, in words, with no internal number", typeof o.answer === "string" && o.answer.startsWith(`${twoTop[0].name} (`) && / is more senior than /.test(o.answer) && !/\d{2},\d{3}/.test(o.answer) && o.people.length === 2, String(o.answer));
   o = await runOmnibar(`who is junior, ${twoTop[1].name} or ${twoTop[0].name}`, "T-OMNI", mkDeps(model(cmpSql2)));
-  check("end to end: 'who is junior' names the junior", typeof o.answer === "string" && o.answer.startsWith(`${twoTop[1].name} is the junior: ${twoTop[0].name} is more senior`), String(o.answer));
+  check("end to end: 'who is junior' names the junior", typeof o.answer === "string" && o.answer.startsWith(`${twoTop[1].name} (`) && / is junior to /.test(o.answer), String(o.answer));
+  check("end to end: executives' cards show 'Position in grade', never the raw rank", o.people.every((pp: any) => !pp.extraFields || pp.extraFields.every((f: any) => f.label === "Position in grade" && !/,/.test(f.value))), JSON.stringify(o.people.map((pp: any) => pp.extraFields)));
   o = await runOmnibar("the two most senior people in the plant", "T-OMNI", mkDeps(model(cmpSql2)));
   check("end to end: an ordinary list keeps its plain '2 people found.'", o.answer === "2 people found.", String(o.answer));
   check("the payload carries the model-call count and the time taken (shown in the SQL panel)", o.nl2sql.attempts >= 1 && typeof o.nl2sql.elapsedMs === "number" && o.nl2sql.elapsedMs >= 0, JSON.stringify([o.nl2sql.attempts, o.nl2sql.elapsedMs]));

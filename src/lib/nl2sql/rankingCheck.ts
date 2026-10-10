@@ -176,33 +176,76 @@ export function checkComparison(question: string, sql: string): string | null {
   return (
     "A comparison of named people must show BOTH of them, not only the winner: remove LIMIT 1, SELECT global_seniority_rank " +
     "(it appears as a labelled chip), and ORDER BY global_seniority_rank (the first row is the more senior; lower rank = more senior). " +
-    "Say that in understood_as. Match each person with nlq.word_like(name_words, name_codes, 'first') AND nlq.word_like(name_words, name_codes, 'last'). " +
+    "Say in understood_as, in plain words, that they are listed most senior first (never mention column names). Match each person with nlq.word_like(name_words, name_codes, 'first') AND nlq.word_like(name_words, name_codes, 'last'). " +
     "If one of them does not exist the answer then visibly shows a single row instead of silently naming a winner."
   );
 }
 
 // ---------------------------------------------------------------------------------------------------
-// The sentence that STATES the answer of a comparison. Computed from the rows by code, never by the model:
-// lower global_seniority_rank = more senior, and ranks are unique per person, so it cannot be wrong.
+// The sentence that STATES the answer of a comparison, in plain words. Computed from the data by code, never by the model.
+//   global_seniority_rank = grade level x 10,000 + position within that grade (lower = more senior). The number itself means
+//   nothing to a reader, so the sentence speaks of grades and of position in the grade's seniority list instead.
+//   Domain rule: among EXECUTIVES the order within a grade is real (earlier in HR's list = more senior). Among
+//   NON-EXECUTIVES only the grade order is meaningful, so two non-executives of one grade are never ranked against each other.
 // ---------------------------------------------------------------------------------------------------
 const JUNIOR_CUE =
   /\b(?:more\s+junior|less\s+senior)\b|\bwho\s+is\s+junior\b|\bjunior\s+(?:between|among|out\s+of)\b|\bwhich\s+of\b[^?]*\bjunior\b/i;
 const SENIOR_CUE =
   /\b(?:more\s+senior|less\s+junior)\b|\bwho\s+is\s+senior\b|\bsenior\s+(?:between|among|out\s+of)\b|\bwhich\s+of\b[^?]*\bsenior\b/i;
 
-export function comparisonVerdict(question: string, rows: Array<Record<string, unknown>>): string | null {
+export interface PersonForVerdict {
+  ticketNo?: string | null;
+  designation?: string | null;
+  isExecutive?: boolean | null;
+}
+
+export function comparisonVerdict(
+  question: string,
+  rows: Array<Record<string, unknown>>,
+  people: PersonForVerdict[] = [],
+): string | null {
   const q = question || "";
   if (!JUNIOR_CUE.test(q) && !SENIOR_CUE.test(q)) return null;
   if (!Array.isArray(rows) || rows.length !== 2) return null; // 1 or 3+ people: the ambiguity must stay visible
-  const [a, b] = rows;
-  const ra = Number(a?.global_seniority_rank);
-  const rb = Number(b?.global_seniority_rank);
-  const na = typeof a?.name === "string" ? a.name.trim() : "";
-  const nb = typeof b?.name === "string" ? b.name.trim() : "";
-  if (!na || !nb || !Number.isFinite(ra) || !Number.isFinite(rb) || ra === rb) return null;
-  const [senior, junior, rs, rj] = ra < rb ? [na, nb, ra, rb] : [nb, na, rb, ra];
-  const n = (v: number) => v.toLocaleString("en-US");
-  const ranks = `seniority rank ${n(rs)} against ${n(rj)}; a lower rank is more senior`;
+  const info = rows.map((r) => {
+    const p = people.find((x) => String(x?.ticketNo ?? "").trim() === String(r?.ticket_no ?? "").trim());
+    const rank = Number(r?.global_seniority_rank);
+    return {
+      name: typeof r?.name === "string" ? r.name.trim() : "",
+      rank,
+      level: Math.floor(rank / 10000),
+      pos: rank % 10000,
+      desig: (p?.designation ?? (typeof r?.designation === "string" ? r.designation : "") ?? "").toString().trim(),
+      exec: typeof p?.isExecutive === "boolean" ? p.isExecutive : null,
+    };
+  });
+  const [a, b] = info;
+  if (!a.name || !b.name || !Number.isFinite(a.rank) || !Number.isFinite(b.rank) || a.rank === b.rank) return null;
+  const withD = (x: { name: string; desig: string }) => (x.desig ? `${x.name} (${x.desig})` : x.name);
   const asksJunior = JUNIOR_CUE.test(q) && !SENIOR_CUE.test(q);
-  return asksJunior ? `${junior} is the junior: ${senior} is more senior (${ranks}).` : `${senior} is more senior than ${junior} (${ranks}).`;
+
+  if (a.level === b.level) {
+    if (a.exec === null || b.exec === null) return null; // cannot tell executives from non-executives: say nothing rather than guess
+    if (!a.exec && !b.exec) {
+      const same = a.desig && a.desig === b.desig ? ` (${a.desig})` : "";
+      return `${a.name} and ${b.name} are in the same grade${same}. Within a non-executive grade there is no individual seniority order, so neither is more senior.`;
+    }
+  }
+  const [s, j] = a.rank < b.rank ? [a, b] : [b, a];
+  const ord = (n: number) => {
+    const v = n % 100;
+    const suffix = v >= 11 && v <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+    return `${n.toLocaleString("en-US")}${suffix}`;
+  };
+  const reason =
+    a.level !== b.level
+      ? asksJunior
+        ? "a lower grade"
+        : "a higher grade"
+      : asksJunior
+        ? `at the same grade level, listed later in HR's seniority list for that grade (${ord(j.pos)} against ${ord(s.pos)})`
+        : `at the same grade level, listed earlier in HR's seniority list for that grade (${ord(s.pos)} against ${ord(j.pos)})`;
+  return asksJunior
+    ? `${withD(j)} is junior to ${withD(s)}: ${reason}.`
+    : `${withD(s)} is more senior than ${withD(j)}: ${reason}.`;
 }

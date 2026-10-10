@@ -96,7 +96,14 @@ export function withExtraFields(people: EmployeeResult[], display: ResolvedDispl
     if (!r) return p;
     const fields = extra
       .filter((c) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== "")
-      .map((c) => ({ label: c.label, value: formatCell(r[c.key], c.kind) }));
+      // global_seniority_rank is an internal sort key (grade x 10,000 + position in the grade): a reader sees only what it MEANS.
+      // Executives: their position in the grade's seniority list. Non-executives: nothing (only the grade order is meaningful).
+      .filter((c) => c.key !== "global_seniority_rank" || p.isExecutive)
+      .map((c) =>
+        c.key === "global_seniority_rank"
+          ? { label: "Position in grade", value: String(Number(r[c.key]) % 10000) }
+          : { label: c.label, value: formatCell(r[c.key], c.kind) },
+      );
     return fields.length ? { ...p, extraFields: fields } : p;
   });
 }
@@ -221,7 +228,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
       kind: "count",
       count: total,
       // A comparison ("who is more senior, A or B") STATES its answer, computed from the two ranks (never by the model).
-      answer: comparisonVerdict(String((res as any).question ?? ""), rows as any) ?? `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
+      answer: comparisonVerdict(String((res as any).question ?? ""), rows as any, people) ?? `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
       people: withExtraFields(people, display, rows),
       listTruncated: truncated,
       interpretation: res.understoodAs,
