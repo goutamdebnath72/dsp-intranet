@@ -30,6 +30,7 @@ import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "../deptColumns";
 import { checkComparison, checkRankingAndOrder, comparisonVerdict } from "../rankingCheck";
+import { humanizeSeniority } from "../seniorityDisplay";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
 import { pageProgress, mergePage, columnKind, formatCell, sortRows, toCsv, resolveDisplay } from "../display";
@@ -662,14 +663,23 @@ async function main() {
   check("equal ranks, a missing rank or a missing name -> no sentence", comparisonVerdict("who is more senior, A or B", [{ name: "A", ticket_no: "T1", global_seniority_rank: 1 }, { name: "B", ticket_no: "T2", global_seniority_rank: 1 }], peopleGM) === null && comparisonVerdict("who is more senior, A or B", [{ name: "A", ticket_no: "T1" }, gm2], peopleGM) === null && comparisonVerdict("who is more senior, A or B", [{ ticket_no: "T1", global_seniority_rank: 1 }, gm2], peopleGM) === null);
   check("a question that is not a comparison -> no sentence", comparisonVerdict("who is the most senior roy or ray", [gm1, gm2], peopleGM) === null && comparisonVerdict("list the two most senior people", [gm1, gm2], peopleGM) === null);
 
-  // -- the card chip: the internal number becomes what it MEANS (executives only); tables and CSV keep the raw column
+  // -- the internal rank never reaches a screen, a card, a table or a CSV
   {
+    const cols = ["ticket_no", "name", "global_seniority_rank"];
     const rowsC = [{ ticket_no: "T1", name: "EXEC", global_seniority_rank: 40121 }, { ticket_no: "T2", name: "STAFF", global_seniority_rank: 160100 }];
-    const dispC = resolveDisplay(undefined, ["ticket_no", "name", "global_seniority_rank"], rowsC, true);
-    const out = withExtraFields([{ ticketNo: "T1", isExecutive: true }, { ticketNo: "T2", isExecutive: false }] as any, dispC, rowsC);
-    check("an executive's card shows 'Position in grade 121', not 40,121", JSON.stringify(out[0].extraFields) === JSON.stringify([{ label: "Position in grade", value: "121" }]), JSON.stringify(out[0].extraFields));
-    check("a non-executive's card shows no position (only grade order is meaningful)", !out[1].extraFields || out[1].extraFields.length === 0, JSON.stringify(out[1].extraFields));
-    check("the table and CSV still carry the raw column", !!dispC && dispC.columns.some((c) => c.key === "global_seniority_rank"));
+    const peopleC = [{ ticketNo: "T1", isExecutive: true }, { ticketNo: "T2", isExecutive: false }];
+    const hz = humanizeSeniority(cols, rowsC, peopleC);
+    check("the raw rank column is replaced, in the same place, by position_in_grade", hz.columns.join(",") === "ticket_no,name,position_in_grade", hz.columns.join(","));
+    check("an executive gets the position in the grade (121); a non-executive gets nothing", hz.rows[0].position_in_grade === 121 && hz.rows[1].position_in_grade === null, JSON.stringify(hz.rows));
+    check("no raw rank survives anywhere in the rows", hz.rows.every((r) => !("global_seniority_rank" in r)) && !JSON.stringify(hz.rows).includes("40121") && !JSON.stringify(hz.rows).includes("160100"));
+    check("a person who cannot be identified gets nothing (never a guess)", humanizeSeniority(cols, rowsC, []).rows.every((r) => r.position_in_grade === null));
+    check("nothing is changed without people, without ticket_no or without the rank column", humanizeSeniority(cols, rowsC, null).columns === cols && humanizeSeniority(["name", "global_seniority_rank"], rowsC, peopleC).columns[1] === "global_seniority_rank" && humanizeSeniority(["ticket_no", "name"], rowsC, peopleC).columns.length === 2);
+    const dispC = resolveDisplay(undefined, hz.columns, hz.rows, true);
+    check("the Table column is titled 'Position in grade'", !!dispC && dispC.columns.some((c) => c.key === "position_in_grade" && c.label === "Position in grade"), JSON.stringify(dispC?.columns));
+    const outC = withExtraFields(peopleC as any, dispC, hz.rows);
+    check("an executive's card shows 'Position in grade 121'; a non-executive's card shows no position", JSON.stringify(outC[0].extraFields) === JSON.stringify([{ label: "Position in grade", value: "121" }]) && (!outC[1].extraFields || outC[1].extraFields.length === 0), JSON.stringify(outC.map((x) => x.extraFields)));
+    const csvC = toCsv(dispC!.columns, hz.rows);
+    check("the CSV has 'Position in grade' and 121, and no 40,121 / 40121 / 160100", /Position in grade/.test(csvC) && /,121(\r|$)/m.test(csvC) && !/40,?121|160,?100/.test(csvC), csvC.slice(0, 160));
   }
 
   // PROOF on the database: the LIMIT 1 answer hides the other person and both ranks; the right form shows them. Rolled back.
@@ -1028,6 +1038,13 @@ async function main() {
   o = await runOmnibar(`who is junior, ${twoTop[1].name} or ${twoTop[0].name}`, "T-OMNI", mkDeps(model(cmpSql2)));
   check("end to end: 'who is junior' names the junior", typeof o.answer === "string" && o.answer.startsWith(`${twoTop[1].name} (`) && / is junior to /.test(o.answer), String(o.answer));
   check("end to end: executives' cards show 'Position in grade', never the raw rank", o.people.every((pp: any) => !pp.extraFields || pp.extraFields.every((f: any) => f.label === "Position in grade" && !/,/.test(f.value))), JSON.stringify(o.people.map((pp: any) => pp.extraFields)));
+  {
+    const tb: any = o.nl2sql.table;
+    check("end to end: the TABLE carries 'position_in_grade' and never the raw rank", tb.columns.includes("position_in_grade") && !tb.columns.includes("global_seniority_rank") && tb.rows.every((rr: any) => !("global_seniority_rank" in rr) && (rr.position_in_grade === null || Number(rr.position_in_grade) < 10000)), JSON.stringify(tb.rows[0]));
+    const pg2 = (await pg.query(`SELECT ticket_no, name, designation, department_code, department, global_seniority_rank FROM nlq.employees ORDER BY global_seniority_rank LIMIT 3`)).rows;
+    const cardsMore = await withClient((c) => peoplePage(c, { columns: ["ticket_no", "name", "designation", "department_code", "department", "global_seniority_rank"], rows: pg2, total: 3, truncated: false } as any, undefined));
+    check("'Show more': the page's cards carry 'Position in grade' (a small number), never the raw rank", cardsMore.length === 3 && cardsMore.every((cc: any) => !cc.extraFields || cc.extraFields.every((f: any) => f.label === "Position in grade" && Number(f.value) < 10000)), JSON.stringify(cardsMore.map((cc: any) => cc.extraFields)));
+  }
   o = await runOmnibar("the two most senior people in the plant", "T-OMNI", mkDeps(model(cmpSql2)));
   check("end to end: an ordinary list keeps its plain '2 people found.'", o.answer === "2 people found.", String(o.answer));
   check("the payload carries the model-call count and the time taken (shown in the SQL panel)", o.nl2sql.attempts >= 1 && typeof o.nl2sql.elapsedMs === "number" && o.nl2sql.elapsedMs >= 0, JSON.stringify([o.nl2sql.attempts, o.nl2sql.elapsedMs]));
@@ -1294,7 +1311,7 @@ async function main() {
   const mp = mergePage({ columns: ["a"], rows: [{ a: 1 }], total: 5, truncated: true as boolean }, { rows: [{ a: 2 }, { a: 3 }], total: 5, hasMore: false });
   check("mergePage appends the page, updates 'more', and leaves the original untouched", mp.rows.length === 3 && mp.truncated === false && mp.total === 5);
   const idList: any = await ask("list executives with seniority position test", "COL-1", `SELECT ${STD}, global_seniority_rank ${TAIL}`);
-  check("seniority position (global_seniority_rank) is shown too", !!idList.nl2sql.table && idList.nl2sql.table.columns.includes("global_seniority_rank"));
+  check("a requested seniority position is still shown -- as 'Position in grade' (a readable number), never as the internal rank", !!idList.nl2sql.table && idList.nl2sql.table.columns.includes("position_in_grade") && !idList.nl2sql.table.columns.includes("global_seniority_rank") && idList.nl2sql.table.rows.every((rr: any) => rr.position_in_grade === null || Number(rr.position_in_grade) < 10000));
   const ppl = [{ ticketNo: "1", name: "A" }, { ticketNo: "2", name: "B" }] as any[];
   const same = withDisplayCodes(ppl, ["ticket_no", "name"], [{ ticket_no: "1" }, { ticket_no: "2" }]);
   check("withDisplayCodes returns the people untouched when no code column was selected", same === ppl);

@@ -21,6 +21,7 @@ import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import type { Nl2SqlExtras } from "./clientTypes";
 import { comparisonVerdict } from "./rankingCheck";
+import { humanizeSeniority } from "./seniorityDisplay";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
 import { PAGE_SIZE } from "./paging";
 import type { QueryResultData } from "./types";
@@ -96,14 +97,7 @@ export function withExtraFields(people: EmployeeResult[], display: ResolvedDispl
     if (!r) return p;
     const fields = extra
       .filter((c) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== "")
-      // global_seniority_rank is an internal sort key (grade x 10,000 + position in the grade): a reader sees only what it MEANS.
-      // Executives: their position in the grade's seniority list. Non-executives: nothing (only the grade order is meaningful).
-      .filter((c) => c.key !== "global_seniority_rank" || p.isExecutive)
-      .map((c) =>
-        c.key === "global_seniority_rank"
-          ? { label: "Position in grade", value: String(Number(r[c.key]) % 10000) }
-          : { label: c.label, value: formatCell(r[c.key], c.kind) },
-      );
+      .map((c) => ({ label: c.label, value: formatCell(r[c.key], c.kind) }));
     return fields.length ? { ...p, extraFields: fields } : p;
   });
 }
@@ -115,8 +109,9 @@ export function withExtraFields(people: EmployeeResult[], display: ResolvedDispl
 export async function peoplePage(client: SqlClient, data: QueryResultData, labelColumns?: unknown): Promise<EmployeeResult[]> {
   let people = await peopleFor(client, data.rows.map((r) => String(r.ticket_no)));
   people = withDisplayCodes(people, data.columns, data.rows);
-  const display = resolveDisplay({ columns: labelColumns }, data.columns, data.rows, true);
-  return withExtraFields(people, display, data.rows);
+  const hz = humanizeSeniority(data.columns, data.rows, people);
+  const display = resolveDisplay({ columns: labelColumns }, hz.columns, hz.rows, true);
+  return withExtraFields(people, display, hz.rows);
 }
 
 /** When the answer includes the department / designation CODE (the person asked for it), put the code on that person's card. */
@@ -199,7 +194,10 @@ export async function peopleFor(client: SqlClient, tickets: string[]): Promise<E
 type Ok = Extract<PipelineResult, { ok: true }>;
 
 export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: string | null, attempt = 1): OmnibarPayload {
-  const { columns, rows, total, truncated } = res.data;
+  const { total, truncated } = res.data;
+  const rawRows = res.data.rows;
+  // The internal rank never reaches a screen, table or CSV: it becomes "Position in grade" (executives) or blank (see seniorityDisplay.ts).
+  const { columns, rows } = humanizeSeniority(res.data.columns, rawRows, people);
   const extras: Nl2SqlExtras = {
     logId: res.logId,
     userKey,
@@ -228,7 +226,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
       kind: "count",
       count: total,
       // A comparison ("who is more senior, A or B") STATES its answer, computed from the two ranks (never by the model).
-      answer: comparisonVerdict(String((res as any).question ?? ""), rows as any, people) ?? `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
+      answer: comparisonVerdict(String((res as any).question ?? ""), rawRows as any, people) ?? `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
       people: withExtraFields(people, display, rows),
       listTruncated: truncated,
       interpretation: res.understoodAs,

@@ -15,6 +15,7 @@ import { guardSql } from "@/lib/nl2sql/guard";
 import { runReadOnly } from "@/lib/nl2sql/executor";
 import { PAGE_SIZE } from "@/lib/nl2sql/paging";
 import { peoplePage } from "@/lib/nl2sql/omnibar";
+import { humanizeSeniority } from "@/lib/nl2sql/seniorityDisplay";
 
 export const dynamic = "force-dynamic";
 
@@ -44,10 +45,12 @@ export async function POST(req: Request) {
 
     const data = await withDefaultClient((c) => runReadOnly(c, g.sql, { rowLimit: PAGE_SIZE, offset, timeoutMs: 5000 }));
     const people = data.columns.includes("ticket_no") ? await withDefaultClient((c) => peoplePage(c, data, body?.labels)) : null;
+    // The internal rank never reaches the screen: the page's rows get the same "Position in grade" column as page one.
+    const hz = humanizeSeniority(data.columns, data.rows, people);
     return NextResponse.json({
       ok: true,
-      columns: data.columns,
-      rows: data.rows,
+      columns: hz.columns,
+      rows: hz.rows,
       people,
       total: data.total,
       hasMore: data.truncated,
