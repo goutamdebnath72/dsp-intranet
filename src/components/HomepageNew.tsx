@@ -157,8 +157,15 @@ export function HomepageNew({
           <div className="w-11/12 mx-auto mb-8">
             <h1 className="font-black text-5xl tracking-tight text-white">
               Welcome,{" "}
-              {/* Invisible (but space-reserving) until the session is verified, so nothing wrong ever flashes. */}
-              <span className={status === "loading" ? "opacity-0" : undefined}>{firstName}</span>!
+              {status === "loading" ? (
+                // A visible placeholder while the session is verified, so there is never a blank gap.
+                <span
+                  aria-hidden
+                  className="inline-block h-[0.65em] w-40 animate-pulse rounded-md bg-white/30 align-baseline"
+                />
+              ) : (
+                <>{firstName}!</>
+              )}
             </h1>
           </div>
           <div className="w-11/12 mx-auto relative h-full">

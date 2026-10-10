@@ -59,7 +59,17 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (rawStatus === "loading") {
-      setVerified({ data: null, status: "loading" });
+      // A tab with no live-login marker (a freshly opened tab) cannot be logged in, whatever any cookie says,
+      // so there is nothing to wait for: report "unauthenticated" at once instead of leaving the screen blank
+      // until the network answers. A tab WITH the marker really is logged in, so it waits for its session data.
+      const tabIsLive =
+        typeof window !== "undefined" &&
+        sessionStorage.getItem(TAB_MARKER_KEY) === "true";
+      setVerified(
+        tabIsLive
+          ? { data: null, status: "loading" }
+          : { data: null, status: "unauthenticated" },
+      );
       return;
     }
 

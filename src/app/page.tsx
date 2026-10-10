@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 import React from "react";
 import { getDb } from "@/lib/db";
+import { withDbRetry } from "@/lib/db/resilience";
 import { Link } from "@/lib/db/models";
 import { ACTIVE_UI_DESIGN } from "@/lib/config";
 import HomePageClient from "@/components/HomePageClient";
@@ -29,23 +30,18 @@ const cleanAndSortData = (links: any[]) => {
     );
 };
 
+// Each attempt asks getDb() again, so a retry after a dropped connection uses a fresh, healthy pool.
+const fetchLinks = (category: string) =>
+  withDbRetry(async () => {
+    const dataSource = await getDb();
+    // ✅ String-based entity lookup to survive Next.js HMR reloads
+    return dataSource.getRepository<Link>("Link").find({ where: { category } });
+  });
+
 export default async function Home() {
-  const dataSource = await getDb();
-
-  // ✅ Switched to string-based entity lookup to survive Next.js HMR reloads
-  const linkRepository = dataSource.getRepository<Link>("Link");
-
-  const quickLinksFromDb = await linkRepository.find({
-    where: { category: "quicklink" },
-  });
-
-  const departmentDataFromDb = await linkRepository.find({
-    where: { category: "department" },
-  });
-
-  const sailSitesDataFromDb = await linkRepository.find({
-    where: { category: "sail" },
-  });
+  const quickLinksFromDb = await fetchLinks("quicklink");
+  const departmentDataFromDb = await fetchLinks("department");
+  const sailSitesDataFromDb = await fetchLinks("sail");
 
   const quickLinksData = cleanAndSortData(quickLinksFromDb);
   const departmentData = cleanAndSortData(departmentDataFromDb);

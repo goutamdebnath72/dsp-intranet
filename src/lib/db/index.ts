@@ -2,6 +2,7 @@
 import "reflect-metadata"; // Required core decorator metadata initialization step for TypeORM
 import { DataSource, DataSourceOptions } from "typeorm";
 import { getOracleConfig } from "./config/oracle.config";
+import { TRANSIENT_DB_ERROR, retireDataSource, sleep } from "./resilience";
 
 // --- IMPORT TYPEORM ENTITIES ---
 import { Account } from "./models/account.model";
@@ -62,13 +63,7 @@ if (!global.cachedTypeORMInitPromise) {
   global.cachedTypeORMInitPromise = null;
 }
 
-// Transient connection errors that should trigger a one-shot re-init instead of
-// a 500 (Supabase's 6543 transaction pooler drops idle/over-loaded conns; dev
-// HMR tears pools down mid-flight).
-const TRANSIENT_DB_ERROR =
-  /connection terminated|driver not connected|timeout exceeded|connection timeout|econnreset|server closed the connection|terminating connection/i;
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Transient-error detection, retry and graceful pool retirement live in ./resilience (testable on its own).
 
 // Detects if the operational state is running under a production deployment compression phase
 const isBuildPhase =
@@ -103,24 +98,6 @@ const DUMMY_DATA_SOURCE = {
  * Centralized High-Performance Database Connection Manager Factory.
  * Manages pool recycling, handles Next.js dev HMR reloads safely, and dynamically switches drivers.
  */
-// Tears down a stale DataSource safely. Nulls the global reference FIRST so a
-// concurrent caller can't grab the same instance and destroy it a second time,
-// then swallows any pool-already-ended error from the actual destroy().
-async function safeDestroy(ds: DataSource | null): Promise<void> {
-  if (!ds) return;
-  global.cachedTypeORMDataSource = null;
-  global.cachedTypeORMInitPromise = null;
-  try {
-    if (ds.isInitialized) await ds.destroy();
-  } catch (e) {
-    // Double-destroy / already-ended pool during HMR churn — non-fatal.
-    console.warn(
-      "⚠️ TypeORM DataSource teardown noise (safe to ignore):",
-      (e as Error)?.message ?? e,
-    );
-  }
-}
-
 export async function getDb(): Promise<DataSource> {
   // 1. Manage globally cached DataSource instance if already connected and initialized
   if (
@@ -140,9 +117,15 @@ export async function getDb(): Promise<DataSource> {
 
       if (isHmrReloaded) {
         console.log(
-          "🔄 Next.js HMR reload detected. Re-initializing TypeORM DataSource pool...",
+          "🔄 Next.js HMR reload detected. Replacing the TypeORM DataSource pool (the old one finishes its work first)...",
         );
-        await safeDestroy(global.cachedTypeORMDataSource);
+        // Do NOT destroy the old pool now: requests that started a moment ago (the home page, announcements ...)
+        // are still running queries on it, and closing it under them is what crashed the page right after login.
+        // Detach it, let it drain, close it later.
+        const old = global.cachedTypeORMDataSource;
+        global.cachedTypeORMDataSource = null;
+        global.cachedTypeORMInitPromise = null;
+        retireDataSource(old);
         // fall through to (re)initialization below
       } else {
         return global.cachedTypeORMDataSource;

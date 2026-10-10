@@ -63,7 +63,7 @@ export default function LoginModal() {
       // Clear the password: it is masked, so a person cannot see that the wrong one is still in the box and
       // would otherwise TYPE THE CORRECT ONE AFTER IT, failing again until the modal is closed and reopened.
       setPassword("");
-      setError("Wrong ticket number or password. Re-enter the password, or press Back to change the ticket number.");
+      setError("Wrong ticket number or password.");
       setIsLoading(false);
     } else {
       // ✅ SET THE TAB-SESSION MARKER
