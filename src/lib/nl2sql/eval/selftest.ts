@@ -21,6 +21,7 @@ import { join } from "path";
 import { guardSql } from "../guard";
 import { runReadOnly } from "../executor";
 import { answerQuestion } from "../pipeline";
+import { groqLlm } from "../llm";
 import { parsePlan } from "../generator";
 import { buildPrompt } from "../prompt";
 import { loadDynamicContext, clearContextCache, selectRelevantDepartments } from "../context";
@@ -28,7 +29,7 @@ import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "../deptColumns";
-import { checkRankingAndOrder } from "../rankingCheck";
+import { checkComparison, checkRankingAndOrder } from "../rankingCheck";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
 import { pageProgress, mergePage, columnKind, formatCell, sortRows, toCsv, resolveDisplay } from "../display";
@@ -614,7 +615,44 @@ async function main() {
   }
   check("the LIMIT message tells the model to use rank()", /rank\(\) OVER/.test(String(checkRankingAndOrder("SELECT designation, count(*) AS c FROM nlq.employees GROUP BY designation ORDER BY c DESC LIMIT 1"))));
   check("the seed example for the right pattern passes both soft checks", SEED_EXAMPLES.filter((e) => e.sql && /rank\(\) OVER/.test(e.sql)).every((e) => checkRankingAndOrder(e.sql!) === null && checkDepartmentColumns(e.sql!) === null) && SEED_EXAMPLES.some((e) => e.sql && /rank\(\) OVER/.test(e.sql)));
-  check("EVERY seed example passes all the soft checks (department code+name, department identity, ranking/order)", SEED_EXAMPLES.filter((e) => e.sql).every((e) => checkDepartmentColumns(e.sql!) === null && checkDepartmentIdentity(e.sql!) === null && checkRankingAndOrder(e.sql!) === null), JSON.stringify(SEED_EXAMPLES.filter((e) => e.sql && (checkDepartmentColumns(e.sql) !== null || checkDepartmentIdentity(e.sql) !== null || checkRankingAndOrder(e.sql) !== null)).map((e) => e.question)));
+  // -- Step 7: comparing named people
+  const e4Sql = "SELECT ticket_no, name, designation, department FROM nlq.employees WHERE name_words = ARRAY['MOHD','ANWAR','ULLAH'] OR name_words = ARRAY['RANA','SAHA'] ORDER BY global_seniority_rank LIMIT 1";
+  const e4RevSql = "SELECT e.ticket_no, e.name, e.designation, e.department FROM nlq.employees e WHERE upper(e.name) LIKE '%MOHD ANWAR ULLAH%' OR upper(e.name) LIKE '%RANA SAHA%' ORDER BY e.global_seniority_rank DESC LIMIT 1";
+  const cmpRight = "SELECT ticket_no, name, designation, department_code, department, global_seniority_rank FROM nlq.employees WHERE (nlq.word_like(name_words, name_codes, 'anwar') AND nlq.word_like(name_words, name_codes, 'ullah')) OR (nlq.word_like(name_words, name_codes, 'rana') AND nlq.word_like(name_words, name_codes, 'saha')) ORDER BY global_seniority_rank";
+  const cmp: [string, string, string, boolean][] = [
+    ["E4 (10 Oct): 'who is more senior, A or B' answered with LIMIT 1 -> flagged", "who is more senior, Mohd Anwar Ullah or Rana Saha", e4Sql, true],
+    ["E4 reverse: 'who is junior, A or B' with ORDER BY ... DESC LIMIT 1 -> flagged", "who is junior, Mohd Anwar Ullah or Rana Saha", e4RevSql, true],
+    ["both people returned with their ranks, no LIMIT -> fine", "who is more senior, Mohd Anwar Ullah or Rana Saha", cmpRight, false],
+    ["'the most senior Roy or Ray' (a genuine LIMIT 1, no comparison cue) -> fine", "who is the most senior roy or ray", "SELECT ticket_no, name FROM nlq.employees WHERE nlq.last_word_like(name_words, name_codes, 'roy') OR nlq.last_word_like(name_words, name_codes, 'ray') ORDER BY global_seniority_rank LIMIT 1", false],
+    ["'who is senior to X' (a list, no LIMIT 1) -> fine", "who is senior to sanjay debnath", "SELECT ticket_no, name FROM nlq.employees WHERE global_seniority_rank < (SELECT global_seniority_rank FROM nlq.employees WHERE name_words = ARRAY['SANJAY','DEBNATH']) ORDER BY global_seniority_rank", false],
+    ["a comparison cue but no OR between names -> fine", "which of the two is more senior, the GM or the DGM", "SELECT ticket_no, name FROM nlq.employees WHERE designation = 'General Manager' ORDER BY global_seniority_rank LIMIT 1", false],
+  ];
+  for (const [label, qText, sqlText, expectProblem] of cmp) {
+    const problem = checkComparison(qText, sqlText);
+    check(label, expectProblem ? problem !== null : problem === null, String(problem));
+  }
+
+  // PROOF on the database: the LIMIT 1 answer hides the other person and both ranks; the right form shows them. Rolled back.
+  await pg.query("BEGIN");
+  try {
+    await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
+      ('970301','ZQ ALPHA ONE',20,1,'nonexecutive',97301,960001), ('970302','ZQ BETA TWO',20,1,'nonexecutive',97302,960002)`);
+    const both = (a: string) => `(nlq.word_like(name_words, name_codes, 'alpha') AND nlq.word_like(name_words, name_codes, 'one')) OR (nlq.word_like(name_words, name_codes, '${a}') AND nlq.word_like(name_words, name_codes, '${a === "beta" ? "two" : "nobody"}'))`;
+    const limitOne = (await pg.query(`SELECT ticket_no, name FROM nlq.employees WHERE ${both("beta")} ORDER BY global_seniority_rank LIMIT 1`)).rows;
+    const shown = (await pg.query(`SELECT ticket_no, name, global_seniority_rank FROM nlq.employees WHERE ${both("beta")} ORDER BY global_seniority_rank`)).rows;
+    check("PROOF: LIMIT 1 returns ONE person and no rank (the other person is invisible)", limitOne.length === 1 && !("global_seniority_rank" in limitOne[0]), JSON.stringify(limitOne));
+    check("...the right form returns BOTH, most senior first, with their ranks", shown.length === 2 && shown[0].name === "ZQ ALPHA ONE" && Number(shown[0].global_seniority_rank) < Number(shown[1].global_seniority_rank), JSON.stringify(shown));
+    const ghost = (await pg.query(`SELECT ticket_no, name, global_seniority_rank FROM nlq.employees WHERE ${both("ghost")} ORDER BY global_seniority_rank`)).rows;
+    check("...and when the second person does not exist the answer visibly shows a single row", ghost.length === 1 && ghost[0].name === "ZQ ALPHA ONE", JSON.stringify(ghost));
+  } finally {
+    await pg.query("ROLLBACK");
+  }
+
+  // The worked examples must actually be CHOSEN for these questions, or they teach nothing.
+  const pickedFor = (qText: string) => pickExamples(qText, []).map((x) => x.question);
+  check("the comparison example is chosen for four different phrasings (more senior, junior, between, which of)", ["who is more senior, Mohd Anwar Ullah or Rana Saha", "who is junior, Mohd Anwar Ullah or Rana Saha", "who is senior between Rahul Roy and Tapan Das", "which of Amit Sen or Rana Saha is more junior"].every((qq) => pickedFor(qq).some((x) => x.startsWith("who is more senior or junior"))), JSON.stringify(pickedFor("who is junior, Mohd Anwar Ullah or Rana Saha")));
+  check("the side-by-side example is chosen for the CO & CC question", pickedFor("how many executives and non-executives work in each section of CO & CC").slice(0, 2).some((x) => /each blast furnace section/.test(x)), JSON.stringify(pickedFor("how many executives and non-executives work in each section of CO & CC")));
+  check("EVERY seed example passes all the soft checks (department code+name, department identity, ranking/order, comparison)", SEED_EXAMPLES.filter((e) => e.sql).every((e) => checkDepartmentColumns(e.sql!) === null && checkDepartmentIdentity(e.sql!) === null && checkRankingAndOrder(e.sql!) === null && checkComparison(e.question, e.sql!) === null), JSON.stringify(SEED_EXAMPLES.filter((e) => e.sql && (checkDepartmentColumns(e.sql) !== null || checkDepartmentIdentity(e.sql) !== null || checkRankingAndOrder(e.sql) !== null)).map((e) => e.question)));
   // PROOF on the database: ranking BEFORE the population filter returns fewer rows than asked for. Rolled back afterwards.
   //   6 executive-only/mixed departments: A (6 executives + 1 non-executive), B (5 + 1), C 4, D 3, E 2, F 1 (executives only).
   //   "top 3 departments with executives but no non-executives" must be C, D, E.
@@ -635,6 +673,94 @@ async function main() {
     check("the check flags the wrong form and accepts the right one", checkRankingAndOrder(wrongSql) !== null && checkRankingAndOrder(rightSql) === null);
   } finally {
     await pg.query("ROLLBACK");
+  }
+
+  // ==========================================================================
+  section("M. The model adapter: tokens logged, backup models, per-minute waits, the daily allowance (the network is stubbed)");
+  {
+    const realFetch = globalThis.fetch;
+    const saved: Record<string, string | undefined> = { GROQ_API_KEY: process.env.GROQ_API_KEY, GROQ_MODEL: process.env.GROQ_MODEL, GROQ_FALLBACK_MODELS: process.env.GROQ_FALLBACK_MODELS, GROQ_REASONING_EFFORT: process.env.GROQ_REASONING_EFFORT };
+    const quietInfo = console.info, quietWarn = console.warn;
+    const lines: string[] = [];
+    console.info = (...a: any[]) => { lines.push(a.join(" ")); };
+    console.warn = (...a: any[]) => { lines.push(a.join(" ")); };
+    const okRes = (content: string) => new Response(JSON.stringify({ choices: [{ message: { content } }], usage: { prompt_tokens: 4400, completion_tokens: 600, total_tokens: 5000 } }), { status: 200, headers: { "x-ratelimit-remaining-tokens": "3000" } });
+    const limited = (msg: string, retryAfter?: string) => new Response(JSON.stringify({ error: { message: msg } }), { status: 429, headers: retryAfter ? { "retry-after": retryAfter } : {} });
+    const MIN = "Rate limit reached for model `x` on tokens per minute (TPM): Limit 8000, Used 6000, Requested 4400. Please try again in 20s.";
+    const DAY = "Rate limit reached for model `x` on tokens per day (TPD): Limit 200000, Used 199000, Requested 4400. Please try again in 12m3s.";
+    const calls: { model: string; effort?: string }[] = [];
+    const stub = (script: Response[] | ((n: number) => Response)) => {
+      calls.length = 0;
+      let n = 0;
+      (globalThis as any).fetch = async (_u: any, init: any) => {
+        const b = JSON.parse(init.body);
+        calls.push({ model: b.model, effort: b.reasoning_effort });
+        const r = typeof script === "function" ? script(n) : script[Math.min(n, script.length - 1)];
+        n++;
+        return r;
+      };
+    };
+    try {
+      process.env.GROQ_API_KEY = "test-key";
+      delete process.env.GROQ_MODEL; delete process.env.GROQ_FALLBACK_MODELS; delete process.env.GROQ_REASONING_EFFORT;
+
+      stub([okRes('{"a":1}')]);
+      let out = await groqLlm()("hi");
+      check("default: the main model, no reasoning_effort sent, text returned", out === '{"a":1}' && calls.length === 1 && calls[0].model === "openai/gpt-oss-120b" && calls[0].effort === undefined);
+      check("each call logs its tokens and the minute's remaining allowance", lines.some((l) => /openai\/gpt-oss-120b: 4400 prompt \+ 600 completion = 5000 tokens.*3000 tokens left this minute/.test(l)), lines.join(" | "));
+
+      process.env.GROQ_REASONING_EFFORT = "low";
+      stub([okRes("{}")]);
+      await groqLlm()("hi");
+      check("GROQ_REASONING_EFFORT=low is passed to the model", calls[0].effort === "low");
+      delete process.env.GROQ_REASONING_EFFORT;
+
+      process.env.GROQ_FALLBACK_MODELS = "openai/gpt-oss-20b, qwen/qwen3.8-27b";
+      let t0 = Date.now();
+      stub((n) => (n === 0 ? limited(MIN, "20") : okRes('{"b":2}')));
+      out = await groqLlm()("hi");
+      check("a 20 s per-minute limit switches to the backup model AT ONCE (no waiting)", out === '{"b":2}' && calls.length === 2 && calls[1].model === "openai/gpt-oss-20b" && Date.now() - t0 < 1500, JSON.stringify(calls));
+      check("...and the log marks the answer as coming from the backup", lines.some((l) => /BACKUP MODEL/.test(l)));
+
+      stub((n) => (n < 2 ? limited(MIN, "20") : okRes("{}")));
+      await groqLlm()("hi");
+      check("the second model limited too: the third is used", calls.map((c) => c.model).join(",") === "openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b", JSON.stringify(calls));
+
+      stub((n) => (n === 0 ? limited(DAY) : okRes("{}")));
+      await groqLlm()("hi");
+      check("a DAILY limit on the main model moves to the backup immediately", calls.length === 2 && calls[1].model === "openai/gpt-oss-20b");
+
+      t0 = Date.now();
+      stub((n) => (n === 0 ? limited(MIN, "0.2") : okRes("{}")));
+      await groqLlm()("hi");
+      check("a 0.2 s wait is simply waited out on the SAME model (backups are for long waits)", calls.length === 2 && calls[1].model === "openai/gpt-oss-120b" && Date.now() - t0 >= 600, JSON.stringify(calls));
+      delete process.env.GROQ_FALLBACK_MODELS;
+
+      t0 = Date.now();
+      stub([limited(DAY)]);
+      let err = "";
+      try { await groqLlm()("hi"); } catch (e: any) { err = String(e.message); }
+      check("a daily limit with no backup stops at once with a plain explanation", /free daily allowance/.test(err) && calls.length === 1 && Date.now() - t0 < 800, err.slice(0, 100));
+
+      stub((n) => (n === 0 ? limited(MIN, "0.1") : okRes('{"c":3}')));
+      out = await groqLlm()("hi");
+      check("per-minute limit, no backups: waits as told, then succeeds on the same model", out === '{"c":3}' && calls.length === 2 && calls[1].model === "openai/gpt-oss-120b");
+
+      stub([limited(MIN, "20")]);
+      err = "";
+      try { await groqLlm({ maxWaitSeconds: 1 })("hi"); } catch (e: any) { err = String(e.message); }
+      check("a wait longer than the maximum fails with the Groq message (no endless sleep)", /Groq API failed \(429\)/.test(err) && calls.length === 1, err.slice(0, 80));
+
+      stub([new Response("boom", { status: 500 })]);
+      err = "";
+      try { await groqLlm()("hi"); } catch (e: any) { err = String(e.message); }
+      check("a server error is reported, not retried", /Groq API failed \(500\)/.test(err) && calls.length === 1);
+    } finally {
+      (globalThis as any).fetch = realFetch;
+      console.info = quietInfo;
+      console.warn = quietWarn;
+      for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
   }
 
   // ==========================================================================
@@ -683,6 +809,12 @@ async function main() {
   const filterFirst = `SELECT department_code, exec_count FROM (SELECT department_code, count(*) FILTER (WHERE cohort='executive') AS exec_count, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort='executive') DESC) AS r FROM nlq.employees GROUP BY department_code HAVING count(*) FILTER (WHERE cohort='nonexecutive') = 0) sub WHERE r <= 10 ORDER BY exec_count DESC, department_code`;
   r = await answerQuestion("top departments with executives only repair", "T1", { llm: script([json({ sql: rankFirst, understood_as: "x" }), json({ sql: filterFirst, understood_as: "x" })]), withClient });
   check("ranking before the population filter is sent back once; attempt 2 filters first (HAVING)", r.ok && r.attempts === 2 && /HAVING/i.test(r.sql));
+  const cmpWrong = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE (nlq.word_like(name_words, name_codes, 'sunil') AND nlq.word_like(name_words, name_codes, 'das')) OR (nlq.word_like(name_words, name_codes, 'amit') AND nlq.word_like(name_words, name_codes, 'sen')) ORDER BY global_seniority_rank LIMIT 1`;
+  const cmpFixed = cmpWrong.replace("department FROM", "department, global_seniority_rank FROM").replace(" LIMIT 1", "");
+  r = await answerQuestion("who is more senior, Sunil Das or Amit Sen", "T1", { llm: script([json({ sql: cmpWrong, understood_as: "x" }), json({ sql: cmpFixed, understood_as: "x" })]), withClient });
+  check("a LIMIT 1 comparison is sent back once; attempt 2 shows both people with their ranks", r.ok && r.attempts === 2 && !/LIMIT/i.test(r.sql) && /global_seniority_rank FROM/.test(r.sql));
+  r = await answerQuestion("who is the most senior sunil das or amit sen", "T1", { llm: script([json({ sql: cmpWrong, understood_as: "x" })]), withClient });
+  check("a genuine 'most senior of A or B' LIMIT 1 is NOT sent back", r.ok && r.attempts === 1);
   r = await answerQuestion("two soft problems at once", "T1", { llm: script([json({ sql: `SELECT department, count(*) AS count FROM nlq.employees GROUP BY department`, understood_as: "x" }), json({ sql: `SELECT department_code, department, count(*) AS count FROM nlq.employees GROUP BY department_id, department_code, department ORDER BY count DESC`, understood_as: "x" })]), withClient });
   check("name-only AND unordered are fixed together by ONE repair", r.ok && r.attempts === 2 && /department_code/.test(r.sql) && /ORDER BY/i.test(r.sql));
 

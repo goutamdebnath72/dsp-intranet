@@ -151,3 +151,32 @@ export function checkRankingAndOrder(sql: string): string | null {
   }
   return null;
 }
+
+/**
+ * "Who is more senior, A or B?" answered with ORDER BY ... LIMIT 1 shows ONE person: nobody can see whether the other
+ * was found, or either rank. The answer must show BOTH people with their global_seniority_rank (lower = more senior).
+ * Judged only when the QUESTION is an explicit comparison ("more/less senior", "who is senior/junior", "senior/junior
+ * between/among", "which of ... senior"), so "the most senior Roy or Ray" (a genuine LIMIT 1) is left alone.
+ */
+const COMPARISON_CUE =
+  /\b(?:more|less)\s+(?:senior|junior)\b|\bwho\s+is\s+(?:senior|junior)\b|\b(?:senior|junior)\s+(?:between|among|out\s+of)\b|\bwhich\s+of\b[^?]*\b(?:senior|junior)\b/i;
+
+export function checkComparison(question: string, sql: string): string | null {
+  if (!COMPARISON_CUE.test(question || "")) return null;
+  const st = topSelect(sql);
+  if (!st) return null;
+  const cols: any[] = Array.isArray(st.columns) ? st.columns : [];
+  const isPeopleList = cols.some((c) => (c.alias?.name ?? refName(c.expr)) === "ticket_no");
+  const limitIsOne = st.limit?.limit?.type === "integer" && Number(st.limit.limit.value) === 1;
+  let hasOr = false;
+  walk(st.where, (x) => {
+    if (x.type === "binary" && String(x.op).toUpperCase() === "OR") hasOr = true;
+  });
+  if (!(isPeopleList && limitIsOne && hasOr)) return null;
+  return (
+    "A comparison of named people must show BOTH of them, not only the winner: remove LIMIT 1, SELECT global_seniority_rank " +
+    "(it appears as a labelled chip), and ORDER BY global_seniority_rank (the first row is the more senior; lower rank = more senior). " +
+    "Say that in understood_as. Match each person with nlq.word_like(name_words, name_codes, 'first') AND nlq.word_like(name_words, name_codes, 'last'). " +
+    "If one of them does not exist the answer then visibly shows a single row instead of silently naming a winner."
+  );
+}

@@ -109,6 +109,18 @@ ORDER BY rank_order, designation`,
     source: "seed",
   },
   {
+    question: "who is more senior or junior, Sunil Kumar Das or Amit Sen",
+    sql: `SELECT ticket_no, name, designation, department_code, department, global_seniority_rank FROM nlq.employees WHERE (nlq.word_like(name_words, name_codes, 'sunil') AND nlq.word_like(name_words, name_codes, 'das')) OR (nlq.word_like(name_words, name_codes, 'amit') AND nlq.word_like(name_words, name_codes, 'sen')) ORDER BY global_seniority_rank`,
+    understood_as: "Finds both people (similar spellings allowed) and lists them most senior first: the lower seniority rank is the more senior, so the first one listed is.",
+    source: "seed",
+  },
+  {
+    question: "how many executives and non-executives work in each blast furnace section",
+    sql: `SELECT department_code, department, count(*) FILTER (WHERE cohort = 'executive') AS executives, count(*) FILTER (WHERE cohort = 'nonexecutive') AS non_executives FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace%') GROUP BY department_id, department_code, department ORDER BY department_code`,
+    understood_as: "Each department whose name contains BLAST FURNACE, one row per department with its code and name, executives and non-executives side by side.",
+    source: "seed",
+  },
+  {
     question: 'find names which contain "nath" but not at the end, as a whole word or as part of a word',
     sql: `SELECT ${PEOPLE}
 FROM nlq.employees

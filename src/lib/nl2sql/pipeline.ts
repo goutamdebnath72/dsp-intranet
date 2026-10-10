@@ -20,7 +20,7 @@ import { checkQuotedTerms } from "./quoted";
 import { checkNormPatterns, checkVocabulary } from "./vocabulary";
 import { computeDepartmentScope } from "./scope";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "./deptColumns";
-import { checkRankingAndOrder } from "./rankingCheck";
+import { checkComparison, checkRankingAndOrder } from "./rankingCheck";
 
 /** Context for a second attempt after a "No", and other optional inputs. */
 export interface PipelineExtra {
@@ -160,6 +160,7 @@ export async function answerQuestion(question: string, userKey: string | null, d
         ["department code+name", checkDepartmentColumns(g.sql)],
         ["department identity", checkDepartmentIdentity(g.sql)],
         ["ranking / order", checkRankingAndOrder(g.sql)],
+        ["comparison of people", checkComparison(q, g.sql)],
       ];
       const hit = checks.filter((c): c is [string, string] => c[1] !== null);
       const soft = hit.map((c) => c[1]);
