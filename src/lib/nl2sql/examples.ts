@@ -97,9 +97,9 @@ ORDER BY rank_order, designation`,
     source: "seed",
   },
   {
-    question: "which department has the most executives",
-    sql: `SELECT department_code, department, executives FROM (SELECT department_code, department, count(*) AS executives, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort = 'executive' GROUP BY department_id, department_code, department) t WHERE r = 1 ORDER BY department_code`,
-    understood_as: "The department(s) with the most executives (ties included), with code and name.",
+    question: "which department has the most executives and what share of all executives is that",
+    sql: `SELECT department_code, department, executives, round(executives * 100.0 / total, 2) AS percentage FROM (SELECT department_code, department, count(*) AS executives, sum(count(*)) OVER () AS total, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort = 'executive' GROUP BY department_id, department_code, department) t WHERE r = 1`,
+    understood_as: "The department(s) with the most executives (ties included): code, name, count, share of all executives.",
     source: "seed",
   },
   {

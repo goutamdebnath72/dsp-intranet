@@ -541,6 +541,8 @@ async function main() {
   const pctRows2 = [{ department: "A", percentage: "57.56" }, { department: "B", percentage: "40.1" }];
   const pctDisp = resolveDisplay({ view: "bar", bar: { label: "department", value: "percentage" } }, ["department", "percentage"], pctRows2, false);
   check("a bar chart of percentages is still allowed", pctDisp?.view === "bar" && pctDisp.bar?.value === "percentage");
+  check("a list in one cell reads 'A, B, C' (with spaces), an empty list is a dash", formatCell(["A", "B", "C"], "text") === "A, B, C" && formatCell([], "text") === "\u2014");
+  check("the CSV writes a list as one quoted cell 'A, B'", /"A, B"/.test(toCsv([{ key: "n", label: "Names", kind: "text" }], [{ n: ["A", "B"] }])));
 
   // ==========================================================================
   section("G7. Rankings keep ties, groups come in an order, people come in seniority order (read from the SQL)");
@@ -560,6 +562,13 @@ async function main() {
     ["D2 people list built on a sub-query: cannot be judged -> fine", "SELECT ticket_no, name FROM (SELECT e.ticket_no, e.name, row_number() OVER (PARTITION BY e.department_id ORDER BY e.global_seniority_rank) AS rn FROM nlq.employees e) sub WHERE rn <= 5", false],
     ["the rank() way: ties kept, top level not grouped -> fine", "SELECT designation, executives FROM (SELECT designation, count(*) AS executives, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort='executive' GROUP BY designation) t WHERE r = 1", false],
     ["a plain count -> fine", "SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'", false],
+    ["D5 (10 Oct): sum(cnt) OVER () in the OUTER query after WHERE r = 1 -> flagged (a share of the total becomes 100%)", "SELECT department_code, department, cnt AS nonexecutive_count, round(cnt * 100.0 / sum(cnt) OVER (), 2) AS percentage FROM (SELECT e.department_code, e.department, count(*) AS cnt, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees e WHERE e.cohort = 'nonexecutive' GROUP BY e.department_id, e.department_code, e.department) s WHERE r = 1 ORDER BY department_code", true],
+    ["D5 done right: the total is computed INSIDE, beside rank() -> fine", "SELECT department_code, department, cnt, round(cnt * 100.0 / total, 2) AS percentage FROM (SELECT department_code, department, count(*) AS cnt, sum(count(*)) OVER () AS total, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort = 'nonexecutive' GROUP BY department_id, department_code, department) s WHERE r = 1", false],
+    ["an outer window with NO filter on a window result -> fine", "SELECT department_code, department, cnt, sum(cnt) OVER () AS total FROM (SELECT department_code, department, count(*) AS cnt FROM nlq.employees GROUP BY department_id, department_code, department) t WHERE cnt > 20 ORDER BY cnt DESC", false],
+    ["E5 (10 Oct): array_agg(name) with no ORDER BY -> flagged", "SELECT designation, count(*) AS count, array_agg(name) AS names FROM nlq.employees WHERE cohort = 'executive' AND has_webmail AND NOT has_email_nic GROUP BY designation, rank_order ORDER BY rank_order, designation", true],
+    ["array_agg(name ORDER BY global_seniority_rank) -> fine", "SELECT designation, count(*) AS count, array_agg(name ORDER BY global_seniority_rank) AS names FROM nlq.employees WHERE cohort = 'executive' GROUP BY designation, rank_order ORDER BY rank_order, designation", false],
+    ["string_agg(name, ', ') with no ORDER BY -> flagged", "SELECT designation, string_agg(name, ', ') AS names FROM nlq.employees GROUP BY designation ORDER BY designation", true],
+    ["string_agg(name, ', ' ORDER BY global_seniority_rank) -> fine", "SELECT designation, string_agg(name, ', ' ORDER BY global_seniority_rank) AS names FROM nlq.employees GROUP BY designation ORDER BY designation", false],
     ["SELECT * / unparsable -> cannot be judged -> fine", "SELEKT nonsense FROM", false],
   ];
   for (const [label, sqlText, expectProblem] of rk) {
@@ -599,6 +608,14 @@ async function main() {
   check("a LIMIT over groups is sent back once; attempt 2 uses rank() and the answer ran", r.ok && r.attempts === 2 && /rank\(\) OVER/.test(r.sql));
   r = await answerQuestion("which department has the most executives stubborn", "T1", { llm: script([json({ sql: tieBlind, understood_as: "x" }), json({ sql: tieBlind, understood_as: "x" })]), withClient });
   check("a model that insists on LIMIT 1 is still answered (never fail a question over this)", r.ok && r.attempts === 2);
+  const pctWrong = `SELECT department_code, department, cnt AS executives, round(cnt * 100.0 / sum(cnt) OVER (), 2) AS percentage FROM (SELECT department_code, department, count(*) AS cnt, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort = 'executive' GROUP BY department_id, department_code, department) s WHERE r = 1 ORDER BY department_code`;
+  const pctRight = `SELECT department_code, department, executives, round(executives * 100.0 / total, 2) AS percentage FROM (SELECT department_code, department, count(*) AS executives, sum(count(*)) OVER () AS total, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort = 'executive' GROUP BY department_id, department_code, department) t WHERE r = 1 ORDER BY department_code`;
+  const wrongRun: any = await runReadOnly(db, pctWrong);
+  check("PROOF of the bug: the outer-window SQL really returns 100 on the database", wrongRun.rows.length >= 1 && wrongRun.rows.every((x: any) => Number(x.percentage) === 100), JSON.stringify(wrongRun.rows[0]));
+  const rightRun: any = await runReadOnly(db, pctRight);
+  check("...and the corrected SQL returns a true share (above 0, below 100)", rightRun.rows.length >= 1 && rightRun.rows.every((x: any) => Number(x.percentage) > 0 && Number(x.percentage) < 100), JSON.stringify(rightRun.rows[0]));
+  r = await answerQuestion("share of executives in the biggest department repair", "T1", { llm: script([json({ sql: pctWrong, understood_as: "x" }), json({ sql: pctRight, understood_as: "x" })]), withClient });
+  check("the 100% trap is sent back once; attempt 2 returns the true share", r.ok && r.attempts === 2 && r.data.rows.every((x: any) => Number(x.percentage) < 100), r.ok ? JSON.stringify(r.data.rows[0]) : r.message);
   r = await answerQuestion("two soft problems at once", "T1", { llm: script([json({ sql: `SELECT department, count(*) AS count FROM nlq.employees GROUP BY department`, understood_as: "x" }), json({ sql: `SELECT department_code, department, count(*) AS count FROM nlq.employees GROUP BY department_id, department_code, department ORDER BY count DESC`, understood_as: "x" })]), withClient });
   check("name-only AND unordered are fixed together by ONE repair", r.ok && r.attempts === 2 && /department_code/.test(r.sql) && /ORDER BY/i.test(r.sql));
 

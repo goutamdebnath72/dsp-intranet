@@ -6,6 +6,10 @@
 //   2. A grouped result with no ORDER BY: the rows come back in an arbitrary order.
 //   3. A list of PEOPLE not in seniority order (global_seniority_rank): people in the same grade come back in
 //      whatever order the database happens to use.
+//   4. A window function in the OUTER query next to a filter on a window result from the sub-query
+//      (rank() ... WHERE r = 1 together with  sum(cnt) OVER () ). The outer window runs AFTER the filter, so the
+//      "total" is only the winners' own count and a percentage of the total comes out as 100.
+//   5. A list of names inside one cell (array_agg / string_agg) with no ORDER BY: the names come in arbitrary order.
 // The pipeline gives the model ONE chance to fix it (first attempt only) and never fails a question over it.
 
 import { parse } from "pgsql-ast-parser";
@@ -26,6 +30,27 @@ function topSelect(sql: string): any | null {
   }
   return st && st.type === "select" ? st : null;
 }
+
+function walk(n: any, f: (x: any) => void): void {
+  if (n && typeof n === "object") {
+    f(n);
+    for (const k of Object.keys(n)) walk(n[k], f);
+  }
+}
+const hasRef = (expr: any, name: string): boolean => {
+  let found = false;
+  walk(expr, (x) => {
+    if (x.type === "ref" && typeof x.name === "string" && x.name.toLowerCase() === name) found = true;
+  });
+  return found;
+};
+const hasWindowCall = (expr: any): boolean => {
+  let found = false;
+  walk(expr, (x) => {
+    if (x.type === "call" && x.over) found = true;
+  });
+  return found;
+};
 
 /** The column name an ORDER BY key refers to (qualified or not), or null for any other kind of expression. */
 function refName(e: any): string | null {
@@ -51,6 +76,30 @@ export function checkRankingAndOrder(sql: string): string | null {
       "A grouped result needs an ORDER BY so the rows come in a stable, meaningful order: counts -> ORDER BY count DESC, then the group's code or name; " +
       "designations -> ORDER BY rank_order."
     );
+  }
+
+  // Rule 4: ranking in a sub-query, then a window total in the OUTER query (a share of the total becomes 100%).
+  if (Array.isArray(st.from) && st.from.length === 1 && st.from[0].type === "statement" && st.where) {
+    const inner: any = st.from[0].statement;
+    const windowAliases: string[] = (Array.isArray(inner?.columns) ? inner.columns : [])
+      .filter((c: any) => c.expr?.type === "call" && c.expr.over && c.alias?.name)
+      .map((c: any) => String(c.alias.name).toLowerCase());
+    if (windowAliases.some((a) => hasRef(st.where, a)) && hasWindowCall(st.columns)) {
+      return (
+        "A window function in the OUTER query (such as sum(cnt) OVER ()) runs AFTER the WHERE that keeps only the ranked rows, so it only sees the winners: " +
+        "a percentage of the total comes out as 100. Compute the total INSIDE the ranked sub-query, next to rank(): " +
+        "sum(count(*)) OVER () AS total, rank() OVER (ORDER BY count(*) DESC) AS r -- then select cnt * 100.0 / total in the outer query."
+      );
+    }
+  }
+
+  // Rule 5: names collected into one cell must be in seniority order.
+  let unorderedList = false;
+  walk(st, (x) => {
+    if (x.type === "call" && ["array_agg", "string_agg"].includes(String(x.function?.name).toLowerCase()) && !x.over && !(Array.isArray(x.orderBy) && x.orderBy.length > 0)) unorderedList = true;
+  });
+  if (unorderedList) {
+    return "Names collected into one cell must be in seniority order: array_agg(name ORDER BY global_seniority_rank) (or string_agg(name, ', ' ORDER BY global_seniority_rank)).";
   }
 
   // A list of people: judged only when the columns can be resolved (no sub-query in FROM).

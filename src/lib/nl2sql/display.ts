@@ -225,6 +225,8 @@ export function departmentGroups<T extends { department?: string | null; departm
 
 export function formatCell(value: unknown, kind: ColumnKind): string {
   if (value === null || value === undefined || value === "") return "\u2014";
+  // a list in one cell (array_agg of names) reads "A, B, C" -- the default String() gives "A,B,C" with no space
+  if (Array.isArray(value)) return value.length ? value.map((v) => String(v)).join(", ") : "\u2014";
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (kind === "number" && isNumberLike(value)) {
     const n = Number(value);
@@ -284,7 +286,7 @@ export function filterRows(rows: Row[], columns: DisplayColumn[], query: string)
 // ---- export ----------------------------------------------------------------------------------------
 
 function csvCell(value: unknown, kind: ColumnKind): string {
-  let s = value === null || value === undefined ? "" : typeof value === "boolean" ? (value ? "Yes" : "No") : String(value);
+  let s = value === null || value === undefined ? "" : typeof value === "boolean" ? (value ? "Yes" : "No") : Array.isArray(value) ? value.map((v) => String(v)).join(", ") : String(value);
   // a spreadsheet would run a cell that starts with = + - @ as a formula: neutralise text cells (never plain numbers)
   if (kind !== "number" && kind !== "percent" && /^[=+\-@\t\r]/.test(s) && !NUMERIC_STRING.test(s.trim())) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
