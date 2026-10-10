@@ -32,7 +32,7 @@ WHERE nlq.word_like(name_words, name_codes, 'kumar')
   AND NOT nlq.last_word_like(name_words, name_codes, 'kumar')
 ORDER BY global_seniority_rank`,
     understood_as:
-      'Employees whose name has "kumar" (or a similar spelling) as a word, but not as the first word and not as the last word.',
+      'Names with "kumar" (or a similar spelling) as a word, but not the first and not the last word.',
     source: "seed",
   },
   {
@@ -43,7 +43,7 @@ WHERE name_words[cardinality(name_words)] = 'DEBNATH'
   AND NOT ('NATH' = ANY(name_words))
 ORDER BY global_seniority_rank`,
     understood_as:
-      'Employees whose last word is exactly DEBNATH and who have no word that is exactly NATH. Both names are matched exactly, because one is wanted and the other excluded.',
+      'Last word exactly DEBNATH, and no word exactly NATH. Both matched exactly, because one is wanted and the other excluded.',
     source: "seed",
   },
   {
@@ -53,7 +53,7 @@ FROM nlq.employees
 WHERE name_words[cardinality(name_words)] = 'KUMAR'
 ORDER BY global_seniority_rank`,
     understood_as:
-      'Employees whose last word is exactly KUMAR, letter for letter (no similar spellings), because the name is in double quotes.',
+      'Last word exactly KUMAR, letter for letter, because the name is in double quotes.',
     source: "seed",
   },
   {
@@ -74,7 +74,7 @@ WHERE designation = 'General Manager'
   AND nlq.last_word_like(name_words, name_codes, 'nath')
 ORDER BY global_seniority_rank`,
     understood_as:
-      'General Managers in the C&IT department (all its sections) whose last word is "nath" or a similar spelling (such as Debnath).',
+      'General Managers in C&IT (all its sections) whose last word is "nath" or similar (e.g. Debnath).',
     source: "seed",
   },
   {
@@ -97,13 +97,9 @@ ORDER BY rank_order, designation`,
     source: "seed",
   },
   {
-    question: "how many people work in each blast furnace section",
-    sql: `SELECT department_code, department, count(*) AS count
-FROM nlq.employees
-WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace%')
-GROUP BY department_id, department_code, department
-ORDER BY department_code`,
-    understood_as: "Employees counted per department whose name contains BLAST FURNACE, each with its code and name.",
+    question: "which department has the most executives",
+    sql: `SELECT department_code, department, executives FROM (SELECT department_code, department, count(*) AS executives, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort = 'executive' GROUP BY department_id, department_code, department) t WHERE r = 1 ORDER BY department_code`,
+    understood_as: "The department(s) with the most executives (ties included), with code and name.",
     source: "seed",
   },
   {
@@ -114,7 +110,7 @@ WHERE upper(name) LIKE '%NATH%'
   AND NOT (upper(btrim(name)) LIKE '%NATH')
 ORDER BY global_seniority_rank`,
     understood_as:
-      'Employees whose name contains the text "nath" but does not end with "nath" (neither as a whole last word nor as the end of a word). Matched exactly, as literal text.',
+      'Names containing the text "nath" but not ending with it (not as a last word, not as a word ending). Exact literal text.',
     source: "seed",
   },
   {
@@ -124,7 +120,7 @@ FROM nlq.employees
 WHERE designation = 'Dy. General Manager'
   AND department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%mech%')`,
     understood_as:
-      "The number of Dy. General Managers in every department whose name contains MECH (mechanical, including abbreviated names such as '(MECH)'); matched on the stem because department names abbreviate the word.",
+      "Dy. General Managers in every department whose name contains MECH (the stem, since names abbreviate it, e.g. '(MECH)').",
     source: "seed",
   },
   {

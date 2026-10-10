@@ -20,6 +20,7 @@ import { checkQuotedTerms } from "./quoted";
 import { checkNormPatterns, checkVocabulary } from "./vocabulary";
 import { computeDepartmentScope } from "./scope";
 import { checkDepartmentColumns } from "./deptColumns";
+import { checkRankingAndOrder } from "./rankingCheck";
 
 /** Context for a second attempt after a "No", and other optional inputs. */
 export interface PipelineExtra {
@@ -150,13 +151,14 @@ export async function answerQuestion(question: string, userKey: string | null, d
       repair = { previousSql: g.sql, problem: senseProblem };
       continue;
     }
-    // A department shown by its code alone, or its name alone, is half an answer. ONE repair chance (first attempt
-    // only): if the model still leaves one out, the answer is shown as it is -- never fail a question over this.
+    // Two "soft" rules about what a correct answer SHOWS: a department with BOTH its code and name (deptColumns), and
+    // rankings that keep ties / results in a meaningful order (rankingCheck). ONE repair chance covers both (first
+    // attempt only): if the model still gets it wrong, the answer is shown as it is -- never fail a question over this.
     if (attempts === 1) {
-      const deptProblem = checkDepartmentColumns(g.sql);
-      if (deptProblem) {
-        lastProblem = deptProblem;
-        repair = { previousSql: g.sql, problem: deptProblem };
+      const soft = [checkDepartmentColumns(g.sql), checkRankingAndOrder(g.sql)].filter((x): x is string => !!x);
+      if (soft.length) {
+        lastProblem = soft.join(" ALSO: ");
+        repair = { previousSql: g.sql, problem: lastProblem };
         continue;
       }
     }

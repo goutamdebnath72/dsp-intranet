@@ -12,7 +12,7 @@
 //   GUARANTEE: every column the SQL returned is shown, exactly once. A hint can reorder and retitle the
 //   columns; it can never hide one.
 
-export type ColumnKind = "number" | "boolean" | "code" | "date" | "text";
+export type ColumnKind = "number" | "percent" | "boolean" | "code" | "date" | "text";
 export type ViewKind = "cards" | "table" | "bar";
 
 export interface DisplayColumn {
@@ -81,6 +81,8 @@ export function cleanText(v: unknown, max: number): string {
 
 const NUMERIC_STRING = /^-?\d+(\.\d+)?$/;
 const CODE_NAME = /(^id$|_id$|_code$|_no$|^ticket|pno$)/i;
+// A numeric column named percent / percentage / pct (e.g. percent_of_garage, pct_of_total) is shown with a % sign.
+const PERCENT_NAME = /(^|_)(percent|percentage|pct)(_|$)/i;
 
 function isNumberLike(v: unknown): boolean {
   return (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && NUMERIC_STRING.test(v.trim()));
@@ -91,7 +93,7 @@ export function columnKind(key: string, rows: Row[]): ColumnKind {
   const vals = rows.map((r) => r?.[key]).filter((v) => v !== null && v !== undefined);
   if (vals.length === 0) return "text";
   if (vals.every((v) => typeof v === "boolean")) return "boolean";
-  if (vals.every(isNumberLike)) return "number";
+  if (vals.every(isNumberLike)) return PERCENT_NAME.test(key) ? "percent" : "number";
   if (vals.every((v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/.test(v)) || v instanceof Date)) return "date";
   return "text";
 }
@@ -119,7 +121,7 @@ function validBar(label: string | null, value: string | null, columns: DisplayCo
   if (rows.length < 2 || rows.length > 40) return null;
   const vk = columns.find((c) => c.key === value)?.kind;
   const lk = columns.find((c) => c.key === label)?.kind;
-  if (vk !== "number" || !lk || lk === "boolean") return null;
+  if ((vk !== "number" && vk !== "percent") || !lk || lk === "boolean") return null;
   if (!rows.every((r) => r[value] === null || r[value] === undefined || isNumberLike(r[value]))) return null;
   return { label, value };
 }
@@ -162,8 +164,9 @@ export function resolveDisplay(
     const hb = h.bar && typeof h.bar === "object" ? h.bar : {};
     let bar = validBar(findColumn(hb.label ?? hb.x, columnNames), findColumn(hb.value ?? hb.y, columnNames), columns, safeRows);
     if (!bar && columnNames.length === 2 && safeRows.length >= 2 && safeRows.length <= 30) {
-      const num = columns.find((c) => c.kind === "number");
-      const txt = columns.find((c) => c.kind !== "number" && c.kind !== "boolean");
+      const isNum = (k: ColumnKind) => k === "number" || k === "percent";
+      const num = columns.find((c) => isNum(c.kind));
+      const txt = columns.find((c) => !isNum(c.kind) && c.kind !== "boolean");
       if (num && txt) bar = validBar(txt.key, num.key, columns, safeRows);
     }
 
@@ -227,6 +230,9 @@ export function formatCell(value: unknown, kind: ColumnKind): string {
     const n = Number(value);
     return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
   }
+  if (kind === "percent" && isNumberLike(value)) {
+    return `${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
+  }
   if (kind === "date") {
     const d = value instanceof Date ? value : new Date(String(value));
     if (!Number.isNaN(d.getTime())) {
@@ -254,7 +260,7 @@ export function mergePage<T extends { rows: Row[]; total: number; truncated: boo
 
 export function sortRows(rows: Row[], key: string, kind: ColumnKind, dir: "asc" | "desc"): Row[] {
   const sign = dir === "asc" ? 1 : -1;
-  const isNum = kind === "number";
+  const isNum = kind === "number" || kind === "percent";
   return rows
     .map((r, i) => ({ r, i }))
     .sort((a, b) => {
@@ -280,12 +286,15 @@ export function filterRows(rows: Row[], columns: DisplayColumn[], query: string)
 function csvCell(value: unknown, kind: ColumnKind): string {
   let s = value === null || value === undefined ? "" : typeof value === "boolean" ? (value ? "Yes" : "No") : String(value);
   // a spreadsheet would run a cell that starts with = + - @ as a formula: neutralise text cells (never plain numbers)
-  if (kind !== "number" && /^[=+\-@\t\r]/.test(s) && !NUMERIC_STRING.test(s.trim())) s = `'${s}`;
+  if (kind !== "number" && kind !== "percent" && /^[=+\-@\t\r]/.test(s) && !NUMERIC_STRING.test(s.trim())) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export function toCsv(columns: DisplayColumn[], rows: Row[]): string {
-  const head = columns.map((c) => csvCell(c.label, "text")).join(",");
+  // Numbers stay raw in the file (a spreadsheet can use them); a percentage column says so in its heading.
+  const head = columns
+    .map((c) => csvCell(c.kind === "percent" && !/%|percent/i.test(c.label) ? `${c.label} (%)` : c.label, "text"))
+    .join(",");
   const body = rows.map((r) => columns.map((c) => csvCell(r[c.key], c.kind)).join(","));
   return "\ufeff" + [head, ...body].join("\r\n");
 }

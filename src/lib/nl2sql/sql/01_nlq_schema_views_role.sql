@@ -33,16 +33,19 @@ $$;
 -- ending after the stems Mukho-, Bando-/Bandyo-, Chatto-, Gango- is treated as the full "-padhyay"
 -- form, for typed words AND for stored names. Only those four stems, so Upadhyay, Padhi etc. are
 -- untouched. (Mukherji / Banerji / Chatterji / Ganguli already share a code with their family.)
+-- Also Bhattacharya = Bhattacharyya = Bhattacharjee = Bhattacharji = Bhattacharjya (and the typo Bhattacharyay).
 CREATE OR REPLACE FUNCTION nlq.spelling_fix(t text) RETURNS text
 LANGUAGE sql IMMUTABLE AS $$
   SELECT regexp_replace(
+         regexp_replace(
          regexp_replace(
          regexp_replace(
          regexp_replace(coalesce(t, ''),
            '\mMUKH?[OA]PADH[AY]{1,5}\M',    'MUKHOPADHYAY',  'gi'),
            '\mBAND[YH]?OPADH[AY]{1,5}\M',   'BANDYOPADHYAY', 'gi'),
            '\mCHATT?OPADH[AY]{1,5}\M',      'CHATTOPADHYAY', 'gi'),
-           '\mGANG[OA]PADH[AY]{1,5}\M',     'GANGOPADHYAY',  'gi')
+           '\mGANG[OA]PADH[AY]{1,5}\M',     'GANGOPADHYAY',  'gi'),
+           '\mBHATT?ACHAR(?:Y+A?Y*|J+(?:EE+|I|Y+A)?)\M', 'BHATTACHARYA', 'gi')
 $$;
 
 -- Phonetic code of ONE word, the same code stored in nlq.employees.name_codes.

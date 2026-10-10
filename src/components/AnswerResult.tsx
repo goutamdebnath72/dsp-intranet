@@ -143,7 +143,7 @@ export function ResultTable({ table, columns, authenticated }: { table: Nl2SqlTa
                     key={c.key}
                     scope="col"
                     aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
-                    className={`whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 ${c.kind === "number" ? "text-right" : ""}`}
+                    className={`whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 ${c.kind === "number" || c.kind === "percent" ? "text-right" : ""}`}
                   >
                     <button type="button" onClick={() => toggleSort(c.key)} className="inline-flex items-center gap-1 hover:text-slate-800">
                       {c.label}
@@ -158,7 +158,7 @@ export function ResultTable({ table, columns, authenticated }: { table: Nl2SqlTa
             {shown.map((r, i) => (
               <tr key={i} className="border-t border-slate-100 transition-colors odd:bg-white even:bg-slate-50/50 hover:bg-blue-50/40">
                 {columns.map((c) => (
-                  <td key={c.key} className={`px-3 py-1.5 text-slate-700 ${c.kind === "number" ? "text-right tabular-nums" : ""}`}>
+                  <td key={c.key} className={`px-3 py-1.5 text-slate-700 ${c.kind === "number" || c.kind === "percent" ? "text-right tabular-nums" : ""}`}>
                     <Cell value={r[c.key]} col={c} />
                   </td>
                 ))}
@@ -208,7 +208,7 @@ export function BarChartView({ table, columns, bar }: { table: Nl2SqlTable; colu
                 style={{ width: `${it.value > 0 ? Math.max(2, (it.value / max) * 100) : 0}%` }}
               />
             </span>
-            <span className="w-14 shrink-0 text-right text-xs font-semibold tabular-nums text-slate-700">{it.value.toLocaleString()}</span>
+            <span className="w-14 shrink-0 text-right text-xs font-semibold tabular-nums text-slate-700">{valueCol?.kind === "percent" ? formatCell(it.value, "percent") : it.value.toLocaleString()}</span>
           </li>
         ))}
       </ul>

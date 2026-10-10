@@ -2,6 +2,8 @@
 -- Teaches the name search that spelling variants of the -padhyay surnames are the same name:
 -- Mukhopadhya / Mukhopadhayay -> Mukhopadhyay (= Mukherjee), Gangopadhya -> Gangopadhyay
 -- (= Ganguly = Ganguli), likewise Bandyopadhya (= Banerjee) and Chattopadhya (= Chatterjee).
+-- Also: Bhattacharya = Bhattacharyya = Bhattacharjee = Bhattacharji = Bhattacharjya (and the typo Bhattacharyay).
+-- Only words that START with Bhattachar and END in a -ya / -yya / -jee / -ji / -jya form are touched; Bhatia, Bhattar etc. are not.
 -- Works for typed words and for stored names. Stays inside the nlq schema: your phonetic functions
 -- in schema public are NOT changed, so the old omnibar search is unaffected.
 -- Run this whole file once. Safe to re-run. (A fresh install needs only 01, which now includes this.)
@@ -11,11 +13,13 @@ LANGUAGE sql IMMUTABLE AS $$
   SELECT regexp_replace(
          regexp_replace(
          regexp_replace(
+         regexp_replace(
          regexp_replace(coalesce(t, ''),
            '\mMUKH?[OA]PADH[AY]{1,5}\M',    'MUKHOPADHYAY',  'gi'),
            '\mBAND[YH]?OPADH[AY]{1,5}\M',   'BANDYOPADHYAY', 'gi'),
            '\mCHATT?OPADH[AY]{1,5}\M',      'CHATTOPADHYAY', 'gi'),
-           '\mGANG[OA]PADH[AY]{1,5}\M',     'GANGOPADHYAY',  'gi')
+           '\mGANG[OA]PADH[AY]{1,5}\M',     'GANGOPADHYAY',  'gi'),
+           '\mBHATT?ACHAR(?:Y+A?Y*|J+(?:EE+|I|Y+A)?)\M', 'BHATTACHARYA', 'gi')
 $$;
 
 CREATE OR REPLACE FUNCTION nlq.code(word text, as_last boolean DEFAULT false) RETURNS text
@@ -59,10 +63,14 @@ BEGIN
   IF nlq.code('gangopadhya', true)  <> nlq.code('ganguly', true)
   OR nlq.code('mukhopadhya', true)  <> nlq.code('mukherjee', true)
   OR nlq.code('bandyopadhya', true) <> nlq.code('banerjee', true)
-  OR nlq.code('chattopadhya', true) <> nlq.code('chatterjee', true) THEN
+  OR nlq.code('chattopadhya', true) <> nlq.code('chatterjee', true)
+  OR nlq.code('bhattacharjee', true) <> nlq.code('bhattacharya', true)
+  OR nlq.code('bhattacharyya', true) <> nlq.code('bhattacharya', true)
+  OR nlq.code('bhattacharji', true)  <> nlq.code('bhattacharya', true) THEN
     RAISE EXCEPTION 'spelling families are not matching';
   END IF;
-  IF nlq.code('mukherjee', true) = nlq.code('banerjee', true) THEN
+  IF nlq.code('mukherjee', true) = nlq.code('banerjee', true)
+  OR nlq.code('bhattacharya', true) = nlq.code('bhatia', true) THEN
     RAISE EXCEPTION 'different families must stay different';
   END IF;
   RESET ROLE;

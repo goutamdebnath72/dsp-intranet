@@ -28,9 +28,10 @@ import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
 import { checkDepartmentColumns } from "../deptColumns";
+import { checkRankingAndOrder } from "../rankingCheck";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
-import { pageProgress, mergePage } from "../display";
+import { pageProgress, mergePage, columnKind, formatCell, sortRows, toCsv, resolveDisplay } from "../display";
 import { runOmnibar, peopleFor, parseRetry, MAX_ATTEMPTS, withDisplayCodes, type OmnibarDeps, peoplePage } from "../omnibar";
 import { answerFromVerified } from "../pipeline";
 import { parseFeedback, recordFeedback, undoFeedback, countRecentVotes, VOTES_PER_HOUR } from "../feedback";
@@ -234,6 +235,13 @@ async function main() {
     ["bandyopadhya", "banerjee"], ["bandhopadhyay", "banerjee"], ["bandopadhyay", "banerjee"], ["banerji", "banerjee"],
     ["chattopadhya", "chatterjee"], ["chatopadhyay", "chatterjee"], ["chatterji", "chatterjee"],
   ]) check(`typed "${variant}" matches the ${family} family`, await sameCode(variant, family));
+  for (const variant of ["bhattacharyya", "bhattacharyay", "bhattacharjee", "bhattacharji", "bhattacharjya", "bhattacharjyya", "bhatacharya", "bhattacharjeee"]) {
+    check(`typed "${variant}" matches the bhattacharya family`, await sameCode(variant, "bhattacharya"));
+  }
+  for (const [x, y] of [["bhattacharya", "bhatia"], ["bhattacharya", "bhattar"], ["bhattacharya", "bhat"], ["bhattacharya", "mukherjee"], ["bhattacharjee", "banerjee"]]) {
+    check(`different surnames stay different: ${x} / ${y}`, !(await sameCode(x, y)));
+  }
+  check("words that merely CONTINUE past the family are untouched (BHATTACHARJEEVAN, BHATIA)", (await pg.query(`SELECT nlq.spelling_fix('BHATTACHARJEEVAN') AS a, nlq.spelling_fix('BHATIA') AS b`)).rows[0].a === "BHATTACHARJEEVAN" && (await pg.query(`SELECT nlq.spelling_fix('BHATIA') AS b`)).rows[0].b === "BHATIA");
   for (const [x, y] of [["mukherjee", "banerjee"], ["mukherjee", "chatterjee"], ["banerjee", "chatterjee"], ["ganguly", "mukherjee"], ["upadhyay", "mukherjee"], ["gangadhar", "ganguly"], ["mukund", "mukherjee"]]) {
     check(`different surnames stay different: ${x} / ${y}`, !(await sameCode(x, y)));
   }
@@ -252,6 +260,21 @@ async function main() {
     check("EXACT matching still sees the literal spelling only (the real words are never rewritten)", exact.length === 1 && exact[0] === "ZZ ONE MUKHOPADHYA", JSON.stringify(exact));
     const drift = (await pg.query(`SELECT count(*)::int n FROM nlq.employee_name_codes nc JOIN public.employee_roster er ON er.id = nc.id AND er.name = nc.name WHERE nc.codes IS DISTINCT FROM coalesce(nlq.name_codes_of(er.name), ARRAY[]::text[])`)).rows[0].n;
     check("stored codes equal live codes after the refresh", drift === 0, String(drift));
+
+    // -- the Bhattacharya family: Bhattacharyya / Bhattacharjee / Bhattacharji / Bhattacharjya and the typo Bhattacharyay
+    await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
+      ('990005','ZZ FIVE BHATTACHARJEE',20,1,'nonexecutive',99005,990005), ('990006','ZZ SIX BHATTACHARJYA',20,1,'nonexecutive',99006,990006),
+      ('990007','ZZ SEVEN BHATTACHARYAY',20,1,'nonexecutive',99007,990007), ('990008','ZZ EIGHT BHATTACHARYYA',20,1,'nonexecutive',99008,990008),
+      ('990009','ZZ BHATTACHARJI NINE',20,1,'nonexecutive',99009,990009), ('990010','ZZ TEN BHATIA',20,1,'nonexecutive',99010,990010)`);
+    await pg.query(`SELECT nlq.refresh_name_codes()`);
+    const bhLast = (await pg.query(`SELECT name FROM nlq.employees WHERE name LIKE 'ZZ %' AND nlq.last_word_like(name_words, name_codes, 'bhattacharya') ORDER BY name`)).rows.map((r: any) => r.name);
+    check("surname 'bhattacharya' finds Bhattacharjee, Bhattacharjya, the typo Bhattacharyay and Bhattacharyya", bhLast.length === 4 && ["ZZ FIVE BHATTACHARJEE", "ZZ SIX BHATTACHARJYA", "ZZ SEVEN BHATTACHARYAY", "ZZ EIGHT BHATTACHARYYA"].every((n) => bhLast.includes(n)), JSON.stringify(bhLast));
+    const bhAny = (await pg.query(`SELECT name FROM nlq.employees WHERE name LIKE 'ZZ %' AND nlq.word_like(name_words, name_codes, 'bhattacharjee') ORDER BY name`)).rows.map((r: any) => r.name);
+    check("typing 'bhattacharjee' finds the whole family wherever the word sits, and not Bhatia", bhAny.length === 5 && bhAny.includes("ZZ BHATTACHARJI NINE") && !bhAny.includes("ZZ TEN BHATIA"), JSON.stringify(bhAny));
+    const bhExact = (await pg.query(`SELECT name FROM nlq.employees WHERE name LIKE 'ZZ %' AND 'BHATTACHARJEE' = ANY(name_words)`)).rows.map((r: any) => r.name);
+    check("EXACT matching still sees only the literal spelling", bhExact.length === 1 && bhExact[0] === "ZZ FIVE BHATTACHARJEE", JSON.stringify(bhExact));
+    const drift2 = (await pg.query(`SELECT count(*)::int n FROM nlq.employee_name_codes nc JOIN public.employee_roster er ON er.id = nc.id AND er.name = nc.name WHERE nc.codes IS DISTINCT FROM coalesce(nlq.name_codes_of(er.name), ARRAY[]::text[])`)).rows[0].n;
+    check("stored codes still equal live codes after the Bhattacharya rows", drift2 === 0, String(drift2));
   } finally {
     await pg.query("ROLLBACK");
   }
@@ -501,6 +524,52 @@ async function main() {
   check("a count with no department column -> accepted", checkDepartmentColumns("SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'") === null);
 
   // ==========================================================================
+  section("G6. A percentage column is shown with a % sign (and still behaves as a number)");
+  const kindOf = (key: string, vals: unknown[]) => columnKind(key, vals.map((v) => ({ [key]: v })));
+  check("a numeric column named percentage is 'percent'", kindOf("percentage", ["57.56", "40.1"]) === "percent");
+  check("percent_of_garage and pct_of_total are 'percent' too", kindOf("percent_of_garage", [57.6, 40.1]) === "percent" && kindOf("pct_of_total", ["1"]) === "percent");
+  check("an ordinary count stays 'number'", kindOf("count", ["5", "6"]) === "number");
+  check("'percentile' is NOT a percentage", kindOf("percentile", ["90"]) === "number");
+  check("a TEXT column named percentage is not 'percent'", kindOf("percentage", ["high", "low"]) === "text");
+  check("57.56 is shown as 57.56%", formatCell("57.56", "percent") === "57.56%");
+  check("40.1 -> 40.1%, 100 -> 100%, 33.3333 -> 33.33%", formatCell(40.1, "percent") === "40.1%" && formatCell(100, "percent") === "100%" && formatCell(33.3333, "percent") === "33.33%");
+  check("an empty percentage is a dash, a non-number is left alone", formatCell(null, "percent") === "\u2014" && formatCell("n/a", "percent") === "n/a");
+  check("percentages sort as numbers (100 > 10 > 9), not as text", sortRows([{ p: "9" }, { p: "100" }, { p: "10" }], "p", "percent", "desc").map((r) => r.p).join(",") === "100,10,9");
+  const csv = toCsv([{ key: "pc", label: "Share", kind: "percent" }], [{ pc: "57.56" }]);
+  check("the CSV keeps the raw number and says % in the heading", /Share \(%\)/.test(csv) && /57\.56(\r|$)/.test(csv) && !/57\.56%/.test(csv));
+  check("a heading that already says % is not changed", /% of garage/.test(toCsv([{ key: "pc", label: "% of garage", kind: "percent" }], [{ pc: "1" }])) && !/\(%\)/.test(toCsv([{ key: "pc", label: "% of garage", kind: "percent" }], [{ pc: "1" }])));
+  const pctRows2 = [{ department: "A", percentage: "57.56" }, { department: "B", percentage: "40.1" }];
+  const pctDisp = resolveDisplay({ view: "bar", bar: { label: "department", value: "percentage" } }, ["department", "percentage"], pctRows2, false);
+  check("a bar chart of percentages is still allowed", pctDisp?.view === "bar" && pctDisp.bar?.value === "percentage");
+
+  // ==========================================================================
+  section("G7. Rankings keep ties, groups come in an order, people come in seniority order (read from the SQL)");
+  // The SQL the real model wrote on the 8-9 Oct 2026 test sheet, and the right way to write each.
+  const rk: [string, string, boolean][] = [
+    ["D5 'which section has the most': ORDER BY count DESC LIMIT 1 over groups -> flagged", "SELECT e.department_code, e.department, COUNT(*) AS count FROM nlq.employees e WHERE e.cohort='nonexecutive' GROUP BY e.department_code, e.department ORDER BY count DESC LIMIT 1", true],
+    ["E1 'which designation has the most': LIMIT 1 over groups -> flagged", "SELECT e.designation AS designation, count(*) AS count FROM nlq.employees e WHERE e.cohort='executive' GROUP BY e.designation ORDER BY count DESC LIMIT 1", true],
+    ["D4 'top 10 departments': single count key + LIMIT 10 -> flagged", "SELECT department_code, department, COUNT(*) FILTER (WHERE cohort='executive') AS exec_count FROM nlq.employees GROUP BY department_code, department HAVING COUNT(*) FILTER (WHERE cohort='executive')>0 ORDER BY exec_count DESC LIMIT 10", true],
+    ["D3 first run: grouped with no ORDER BY -> flagged", "SELECT department, count(*) AS count FROM nlq.employees WHERE cohort = 'nonexecutive' GROUP BY department HAVING count(*) > 20", true],
+    ["D3 second run: grouped, ORDER BY count DESC, no LIMIT -> fine", "SELECT department_code, department, count(*) AS count FROM nlq.employees WHERE cohort = 'nonexecutive' GROUP BY department_id, department_code, department HAVING count(*) > 20 ORDER BY count DESC", false],
+    ["E5 follow-up: people in grade order only -> flagged", "SELECT designation, count(*) OVER (PARTITION BY designation) AS count, ticket_no, name FROM nlq.employees WHERE cohort='executive' AND has_webmail ORDER BY rank_order, designation", true],
+    ["E2 people list ordered by global_seniority_rank -> fine", "SELECT e.ticket_no, e.name, e.designation, e.department_code, e.department FROM nlq.employees e WHERE e.cohort='executive' AND e.has_email_nic AND NOT e.has_mobile ORDER BY e.global_seniority_rank", false],
+    ["E3 CASE first, then global_seniority_rank -> fine", "SELECT e.ticket_no, e.name FROM nlq.employees e WHERE nlq.last_word_like(e.name_words, e.name_codes, 'roy') ORDER BY (CASE WHEN e.cohort='executive' THEN 0 ELSE 1 END), e.global_seniority_rank", false],
+    ["people list ordered through an alias of global_seniority_rank -> fine", "SELECT e.ticket_no, e.name, e.global_seniority_rank AS sr FROM nlq.employees e ORDER BY sr", false],
+    ["E4 single person with LIMIT 1 (no groups) -> fine", "SELECT ticket_no, name FROM nlq.employees WHERE name_words = ARRAY['RANA','SAHA'] ORDER BY global_seniority_rank LIMIT 1", false],
+    ["people list with NO ORDER BY -> flagged", "SELECT ticket_no, name FROM nlq.employees WHERE cohort = 'executive'", true],
+    ["D2 people list built on a sub-query: cannot be judged -> fine", "SELECT ticket_no, name FROM (SELECT e.ticket_no, e.name, row_number() OVER (PARTITION BY e.department_id ORDER BY e.global_seniority_rank) AS rn FROM nlq.employees e) sub WHERE rn <= 5", false],
+    ["the rank() way: ties kept, top level not grouped -> fine", "SELECT designation, executives FROM (SELECT designation, count(*) AS executives, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort='executive' GROUP BY designation) t WHERE r = 1", false],
+    ["a plain count -> fine", "SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'", false],
+    ["SELECT * / unparsable -> cannot be judged -> fine", "SELEKT nonsense FROM", false],
+  ];
+  for (const [label, sqlText, expectProblem] of rk) {
+    const problem = checkRankingAndOrder(sqlText);
+    check(label, expectProblem ? problem !== null : problem === null, String(problem));
+  }
+  check("the LIMIT message tells the model to use rank()", /rank\(\) OVER/.test(String(checkRankingAndOrder("SELECT designation, count(*) AS c FROM nlq.employees GROUP BY designation ORDER BY c DESC LIMIT 1"))));
+  check("the seed example for the right pattern passes both soft checks", SEED_EXAMPLES.filter((e) => e.sql && /rank\(\) OVER/.test(e.sql)).every((e) => checkRankingAndOrder(e.sql!) === null && checkDepartmentColumns(e.sql!) === null) && SEED_EXAMPLES.some((e) => e.sql && /rank\(\) OVER/.test(e.sql)));
+
+  // ==========================================================================
   section("H. Full pipeline with a scripted stand-in model");
   const json = (o: object) => JSON.stringify(o);
   const script = (replies: string[]): LlmFn => {
@@ -524,6 +593,14 @@ async function main() {
   check("a department shown by name alone is sent back once: attempt 2 returns code AND name", r.ok && r.attempts === 2 && /department_code/.test(r.sql));
   r = await answerQuestion("kumar department columns stubborn", "T1", { llm: script([json({ sql: nameOnly, understood_as: "x" }), json({ sql: nameOnly, understood_as: "x" })]), withClient });
   check("a model that insists on the name alone is still answered (never fail a question over this)", r.ok && r.attempts === 2);
+  const tieBlind = `SELECT department_code, department, count(*) AS count FROM nlq.employees WHERE cohort = 'executive' GROUP BY department_id, department_code, department ORDER BY count DESC LIMIT 1`;
+  const tieSafe = `SELECT department_code, department, count FROM (SELECT department_code, department, count(*) AS count, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort = 'executive' GROUP BY department_id, department_code, department) t WHERE r = 1 ORDER BY department_code`;
+  r = await answerQuestion("which department has the most executives repair", "T1", { llm: script([json({ sql: tieBlind, understood_as: "x" }), json({ sql: tieSafe, understood_as: "x" })]), withClient });
+  check("a LIMIT over groups is sent back once; attempt 2 uses rank() and the answer ran", r.ok && r.attempts === 2 && /rank\(\) OVER/.test(r.sql));
+  r = await answerQuestion("which department has the most executives stubborn", "T1", { llm: script([json({ sql: tieBlind, understood_as: "x" }), json({ sql: tieBlind, understood_as: "x" })]), withClient });
+  check("a model that insists on LIMIT 1 is still answered (never fail a question over this)", r.ok && r.attempts === 2);
+  r = await answerQuestion("two soft problems at once", "T1", { llm: script([json({ sql: `SELECT department, count(*) AS count FROM nlq.employees GROUP BY department`, understood_as: "x" }), json({ sql: `SELECT department_code, department, count(*) AS count FROM nlq.employees GROUP BY department_id, department_code, department ORDER BY count DESC`, understood_as: "x" })]), withClient });
+  check("name-only AND unordered are fixed together by ONE repair", r.ok && r.attempts === 2 && /department_code/.test(r.sql) && /ORDER BY/i.test(r.sql));
 
   r = await answerQuestion("q2", "T1", { llm: script([json({ sql: "SELECT nosuchcol FROM nlq.employees", understood_as: "x" }), goodPlan]), withClient });
   check("a database error is repaired on attempt 2", r.ok && r.attempts === 2);
@@ -594,7 +671,7 @@ async function main() {
   check("one person's cross is final: the same SQL is refused for everyone else too", r.ok && r.attempts === 2 && r.sql.includes("LIMIT 5"), r.ok ? `attempts ${r.attempts}` : r.message);
 
   // confirmed answers become worked examples
-  r = await answerQuestion("employees called zzqx", "USER-A", { llm: script([json({ sql: `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE 'ZZQX' = ANY(name_words)`, understood_as: "zzqx" })]), withClient });
+  r = await answerQuestion("employees called zzqx", "USER-A", { llm: script([json({ sql: `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE 'ZZQX' = ANY(name_words) ORDER BY global_seniority_rank`, understood_as: "zzqx" })]), withClient });
   if (r.ok && r.logId) await recordVerdict(db, r.logId, "confirm", "USER-A");
   const { loadConfirmedExamples } = await import("../examples");
   const confirmed = await loadConfirmedExamples(db);
@@ -685,13 +762,13 @@ async function main() {
   check("the table headline counts its rows", new RegExp(`^${o.nl2sql.table.total.toLocaleString()} rows\\.`).test(o.answer), o.answer);
 
   // departments covered
-  o = await runOmnibar("garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%')`)));
+  o = await runOmnibar("garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%') ORDER BY global_seniority_rank`)));
   check("departments covered travel with the answer", o.nl2sql.scope && o.nl2sql.scope.total === 3 && o.nl2sql.scope.departments.every((d: string) => /GARAGE/.test(d)), JSON.stringify(o.nl2sql.scope));
 
   // extra columns next to ticket_no
   o = await runOmnibar("with email flag", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, has_email_nic FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`)));
   check("a people list with an extra column also gets the table", o.people.length === 3 && o.nl2sql.table && o.nl2sql.table.columns.includes("has_email_nic"));
-  o = await runOmnibar("nobody", "T-OMNI", mkDeps(model(`SELECT ticket_no, name FROM nlq.employees WHERE name = 'NO SUCH PERSON'`)));
+  o = await runOmnibar("nobody", "T-OMNI", mkDeps(model(`SELECT ticket_no, name FROM nlq.employees WHERE name = 'NO SUCH PERSON' ORDER BY global_seniority_rank`)));
   check("an empty list says so", o.kind === "count" && o.count === 0 && Array.isArray(o.people) && o.people.length === 0 && /0 people found/.test(o.answer));
 
   // routing decisions
@@ -819,6 +896,7 @@ async function main() {
   const longHint = retryHint("wrong_name", "n".repeat(900));
   const bigNeg = pickNegatives("global reject question", negs, 2).map((n) => ({ ...n, sql: n.sql + " ".repeat(10) + "x".repeat(900) }));
   const ppBig = buildPrompt({ question: "global reject question", context: { ...ctx, departments: padded }, examples: pickExamples("global reject question", []), negatives: bigNeg, hint: longHint, rejectedSql: [SQL_A] });
+  console.log(`  worst-case prompt: ${ppBig.length} of 19000 characters`);
   check("with lessons and a correction the prompt still fits the budget (300 departments)", ppBig.length < 19000, `${ppBig.length} chars`);
 
   // -- Yes teaches: the verified answer lifecycle
@@ -967,12 +1045,12 @@ async function main() {
   check("a column the model titled in its hint uses that title on the chip", ((await withPlan("list executives titled chip test", { sql: `SELECT ${STD}, rank_order, has_email ${TAIL}`, understood_as: "x", confidence: "high", display: { columns: [{ key: "rank_order", label: "Seniority grade" }] } })) as any).people[0].extraFields[0].label === "Seniority grade");
   const junkHint = await withPlan("list executives junk hint test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "hologram", title: 42, columns: [{ key: "nope" }, 7, null], bar: "x" } });
   check("a garbage hint never breaks the answer: same people, a layout chosen from the data (cards)", junkHint.kind === "count" && junkHint.people.length === 3 && junkHint.nl2sql.display.view === "cards" && junkHint.nl2sql.display.columns.length === 5);
-  const BYDES = `SELECT designation, count(*) AS n FROM nlq.employees WHERE cohort = 'executive' GROUP BY designation ORDER BY n DESC LIMIT 6`;
+  const BYDES = `SELECT designation, count(*) AS n FROM nlq.employees WHERE cohort = 'executive' GROUP BY designation ORDER BY n DESC`;
   const barHint = await withPlan("executives by designation bar test", { sql: BYDES, understood_as: "Executives per designation.", confidence: "high", display: { view: "bar", title: "Executives by designation", bar: { label: "designation", value: "n" } } });
   check("a bar-chart hint on 'designation + count' is accepted, and the table travels with it", barHint.nl2sql.display.view === "bar" && barHint.nl2sql.display.bar.label === "designation" && barHint.nl2sql.display.bar.value === "n" && barHint.nl2sql.table.rows.length >= 2);
   const autoBar = await withPlan("executives by designation auto test", { sql: BYDES, understood_as: "Executives per designation.", confidence: "high" });
   check("with NO hint the same answer is still shown as a bar chart (chosen from the shape of the data)", autoBar.nl2sql.display.view === "bar" && autoBar.nl2sql.display.title === null);
-  const BYDES3 = `SELECT designation, count(*) AS n, min(rank_order) AS best_rank FROM nlq.employees WHERE cohort = 'executive' GROUP BY designation ORDER BY n DESC LIMIT 6`;
+  const BYDES3 = `SELECT designation, count(*) AS n, min(rank_order) AS best_rank FROM nlq.employees WHERE cohort = 'executive' GROUP BY designation ORDER BY n DESC`;
   const badBar = await withPlan("executives by designation bad bar test", { sql: BYDES3, understood_as: "Executives per designation with best rank.", confidence: "high", display: { view: "bar", bar: { label: "designation", value: "designation" } } });
   check("a bar hint over a text column is refused: a table with all three columns", badBar.nl2sql.display.view === "table" && badBar.nl2sql.display.columns.length === 3 && badBar.nl2sql.display.bar === null);
   const oneNum = await withPlan("how many executives hint test", { sql: `SELECT count(*) FROM nlq.employees WHERE cohort = 'executive'`, understood_as: "Number of executives.", confidence: "high", display: { view: "table" } });
