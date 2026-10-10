@@ -305,3 +305,24 @@ export function toTsv(columns: DisplayColumn[], rows: Row[]): string {
   const cell = (v: string) => v.replace(/[\t\r\n]+/g, " ");
   return [columns.map((c) => cell(c.label)).join("\t"), ...rows.map((r) => columns.map((c) => cell(formatCell(r[c.key], c.kind))).join("\t"))].join("\n");
 }
+
+// ---- honest row counts and export labels ------------------------------------------------------------
+// A long list is loaded 100 rows at a time. The header and the Copy / CSV buttons must say how much they cover, so nobody
+// takes the first 100 rows of 259 for the whole list.
+
+const fmt = (n: number) => n.toLocaleString("en-US");
+
+/** "2 rows" / "12 of 100 rows" / "100 loaded rows (259 in all)" / "12 of 100 loaded rows (259 in all)". */
+export function rowCountLabel(shown: number, loaded: number, total: number, truncated: boolean): string {
+  if (!truncated || total <= loaded) return shown === loaded ? `${fmt(shown)} ${shown === 1 ? "row" : "rows"}` : `${fmt(shown)} of ${fmt(loaded)} rows`;
+  return `${shown === loaded ? fmt(loaded) : `${fmt(shown)} of ${fmt(loaded)}`} loaded rows (${fmt(total)} in all)`;
+}
+
+/** What Copy and CSV cover: a visible suffix like " (100 of 259)" and a tooltip, only when the list is not fully loaded. */
+export function exportNote(shown: number, total: number, truncated: boolean): { suffix: string; title: string } {
+  if (!truncated || total <= shown) return { suffix: "", title: "" };
+  return {
+    suffix: ` (${fmt(shown)} of ${fmt(total)})`,
+    title: `Only the ${fmt(shown)} rows shown so far, not all ${fmt(total)}. Use "Show more" first to include the rest.`,
+  };
+}

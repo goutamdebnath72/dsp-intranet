@@ -41,3 +41,38 @@ export function humanizeSeniority(
     }),
   };
 }
+
+/**
+ * A list of people gets a "cohort" column (Executive / Non-executive) when the SQL did not return one: without it a table or CSV
+ * cannot tell the two groups apart (a designation such as "S-9" is not self-explanatory). It goes right after "designation"
+ * (else after "name", else last). A person who cannot be identified gets a blank, never a guess.
+ */
+export function addCohortColumn(
+  columns: string[],
+  rows: Array<Record<string, any>>,
+  people: PersonLike[] | null | undefined,
+): { columns: string[]; rows: Array<Record<string, any>> } {
+  if (!people || !columns.includes("ticket_no") || columns.includes("cohort")) return { columns, rows };
+  const byTicket = new Map<string, PersonLike>();
+  for (const p of people) byTicket.set(String(p?.ticketNo ?? "").trim(), p);
+  const at = columns.includes("designation") ? columns.indexOf("designation") + 1 : columns.includes("name") ? columns.indexOf("name") + 1 : columns.length;
+  const outColumns = [...columns.slice(0, at), "cohort", ...columns.slice(at)];
+  const outRows = rows.map((r) => {
+    const p = byTicket.get(String(r.ticket_no ?? "").trim());
+    const cohort = p?.isExecutive === true ? "Executive" : p?.isExecutive === false ? "Non-executive" : null;
+    const out: Record<string, any> = {};
+    for (const k of outColumns) out[k] = k === "cohort" ? cohort : r[k];
+    return out;
+  });
+  return { columns: outColumns, rows: outRows };
+}
+
+/** Everything a list of people needs before it is shown or exported: no internal rank, and a cohort column. */
+export function presentPeople(
+  columns: string[],
+  rows: Array<Record<string, any>>,
+  people: PersonLike[] | null | undefined,
+): { columns: string[]; rows: Array<Record<string, any>> } {
+  const a = humanizeSeniority(columns, rows, people);
+  return addCohortColumn(a.columns, a.rows, people);
+}

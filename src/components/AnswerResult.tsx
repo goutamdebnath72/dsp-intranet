@@ -14,7 +14,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Check, ChevronDown, Copy, Download, LayoutList, Loader2, Search, Table2 } from "lucide-react";
 import type { Nl2SqlExtras, Nl2SqlTable } from "@/lib/nl2sql/clientTypes";
-import { filterRows, formatCell, pageProgress, sortRows, toCsv, toTsv, type DisplayColumn, type ViewKind } from "@/lib/nl2sql/display";
+import { exportNote, filterRows, formatCell, pageProgress, rowCountLabel, sortRows, toCsv, toTsv, type DisplayColumn, type ViewKind } from "@/lib/nl2sql/display";
 
 const VIEW_META: Record<ViewKind, { label: string; Icon: typeof Table2 }> = {
   cards: { label: "Cards", Icon: LayoutList },
@@ -85,6 +85,7 @@ export function ResultTable({ table, columns, authenticated }: { table: Nl2SqlTa
   };
 
   const locked = !authenticated;
+  const note = exportNote(shown.length, table.total, table.truncated);
   return (
     <div
       className={locked ? "select-none" : "select-text"}
@@ -104,29 +105,25 @@ export function ResultTable({ table, columns, authenticated }: { table: Nl2SqlTa
             />
           </label>
         )}
-        <span className="text-xs text-slate-500">
-          {shown.length === table.rows.length
-            ? `${shown.length.toLocaleString()} ${shown.length === 1 ? "row" : "rows"}`
-            : `${shown.length.toLocaleString()} of ${table.rows.length.toLocaleString()} rows`}
-        </span>
+        <span className="text-xs text-slate-500">{rowCountLabel(shown.length, table.rows.length, table.total, table.truncated)}</span>
         <span className="ml-auto flex items-center gap-1.5">
           <button
             type="button"
             onClick={copy}
             disabled={locked}
-            title={locked ? "Log in to copy" : "Copy the rows (paste into a spreadsheet)"}
+            title={locked ? "Log in to copy" : note.title || "Copy the rows (paste into a spreadsheet)"}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
+            {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : `Copy${note.suffix}`}
           </button>
           <button
             type="button"
             onClick={download}
             disabled={locked}
-            title={locked ? "Log in to download" : "Download as a CSV file"}
+            title={locked ? "Log in to download" : note.title || "Download as a CSV file"}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Download size={13} /> CSV
+            <Download size={13} /> {`CSV${note.suffix}`}
           </button>
         </span>
       </div>

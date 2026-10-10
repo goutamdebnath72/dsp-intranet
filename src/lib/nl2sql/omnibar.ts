@@ -21,7 +21,7 @@ import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import type { Nl2SqlExtras } from "./clientTypes";
 import { comparisonVerdict } from "./rankingCheck";
-import { humanizeSeniority } from "./seniorityDisplay";
+import { presentPeople } from "./seniorityDisplay";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
 import { PAGE_SIZE } from "./paging";
 import type { QueryResultData } from "./types";
@@ -109,7 +109,7 @@ export function withExtraFields(people: EmployeeResult[], display: ResolvedDispl
 export async function peoplePage(client: SqlClient, data: QueryResultData, labelColumns?: unknown): Promise<EmployeeResult[]> {
   let people = await peopleFor(client, data.rows.map((r) => String(r.ticket_no)));
   people = withDisplayCodes(people, data.columns, data.rows);
-  const hz = humanizeSeniority(data.columns, data.rows, people);
+  const hz = presentPeople(data.columns, data.rows, people);
   const display = resolveDisplay({ columns: labelColumns }, hz.columns, hz.rows, true);
   return withExtraFields(people, display, hz.rows);
 }
@@ -197,7 +197,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
   const { total, truncated } = res.data;
   const rawRows = res.data.rows;
   // The internal rank never reaches a screen, table or CSV: it becomes "Position in grade" (executives) or blank (see seniorityDisplay.ts).
-  const { columns, rows } = humanizeSeniority(res.data.columns, rawRows, people);
+  const { columns, rows } = presentPeople(res.data.columns, rawRows, people);
   const extras: Nl2SqlExtras = {
     logId: res.logId,
     userKey,
@@ -222,11 +222,13 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
 
   // a list of people
   if (columns.includes("ticket_no") && people) {
+    const verdictText = comparisonVerdict(String((res as any).question ?? ""), rawRows as any, people);
     return {
       kind: "count",
-      count: total,
-      // A comparison ("who is more senior, A or B") STATES its answer, computed from the two ranks (never by the model).
-      answer: comparisonVerdict(String((res as any).question ?? ""), rawRows as any, people) ?? `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
+      count: verdictText ? undefined : total,
+      // A comparison ("who is more senior, A or B") STATES its answer, computed from the data (never by the model). The sentence
+      // is then the whole headline: a bare row count above it ("2") would be a number with nothing to say what it counts.
+      answer: verdictText ?? `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
       people: withExtraFields(people, display, rows),
       listTruncated: truncated,
       interpretation: res.understoodAs,

@@ -30,10 +30,10 @@ import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "../deptColumns";
 import { checkComparison, checkRankingAndOrder, comparisonVerdict } from "../rankingCheck";
-import { humanizeSeniority } from "../seniorityDisplay";
+import { addCohortColumn, humanizeSeniority, presentPeople } from "../seniorityDisplay";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
-import { pageProgress, mergePage, columnKind, formatCell, sortRows, toCsv, resolveDisplay } from "../display";
+import { pageProgress, mergePage, columnKind, formatCell, sortRows, toCsv, resolveDisplay, rowCountLabel, exportNote } from "../display";
 import { runOmnibar, peopleFor, parseRetry, MAX_ATTEMPTS, withDisplayCodes, withExtraFields, type OmnibarDeps, peoplePage } from "../omnibar";
 import { answerFromVerified } from "../pipeline";
 import { parseFeedback, recordFeedback, undoFeedback, countRecentVotes, VOTES_PER_HOUR } from "../feedback";
@@ -682,6 +682,24 @@ async function main() {
     check("the CSV has 'Position in grade' and 121, and no 40,121 / 40121 / 160100", /Position in grade/.test(csvC) && /,121(\r|$)/m.test(csvC) && !/40,?121|160,?100/.test(csvC), csvC.slice(0, 160));
   }
 
+  // -- Step 8: the cohort column, the headline number, honest labels
+  {
+    const cols = ["ticket_no", "name", "designation", "department_code", "department", "global_seniority_rank"];
+    const rowsC = [{ ticket_no: "T1", name: "EXEC", designation: "General Manager", department_code: 1, department: "D", global_seniority_rank: 40121 }, { ticket_no: "T2", name: "STAFF", designation: "S-9", department_code: 2, department: "E", global_seniority_rank: 160100 }];
+    const peopleC = [{ ticketNo: "T1", isExecutive: true }, { ticketNo: "T2", isExecutive: false }];
+    const ch = addCohortColumn(cols, rowsC, peopleC);
+    check("the cohort column goes right after 'designation'", ch.columns.join(",") === "ticket_no,name,designation,cohort,department_code,department,global_seniority_rank", ch.columns.join(","));
+    check("Executive / Non-executive; a person who cannot be identified gets a blank (never a guess)", ch.rows[0].cohort === "Executive" && ch.rows[1].cohort === "Non-executive" && addCohortColumn(cols, rowsC, []).rows.every((r) => r.cohort === null));
+    check("without 'designation' it goes after 'name'; with neither it goes last", addCohortColumn(["ticket_no", "name", "x"], [{ ticket_no: "T1", name: "A", x: 1 }], peopleC).columns.join(",") === "ticket_no,name,cohort,x" && addCohortColumn(["ticket_no", "x"], [{ ticket_no: "T1", x: 1 }], peopleC).columns.join(",") === "ticket_no,x,cohort");
+    check("nothing is added when the SQL already returned 'cohort', has no ticket_no, or there are no people", addCohortColumn([...cols, "cohort"], rowsC, peopleC).columns.length === 7 && addCohortColumn(["name"], [{ name: "A" }], peopleC).columns.length === 1 && addCohortColumn(cols, rowsC, null).columns === cols);
+    const pp = presentPeople(cols, rowsC, peopleC);
+    check("presentPeople: no raw rank, a cohort column, a position for executives only", pp.columns.join(",") === "ticket_no,name,designation,cohort,department_code,department,position_in_grade" && pp.rows[0].position_in_grade === 121 && pp.rows[1].position_in_grade === null && pp.rows[0].cohort === "Executive" && !JSON.stringify(pp.rows).includes("40121"));
+    const csvP = toCsv(resolveDisplay(undefined, pp.columns, pp.rows, true)!.columns, pp.rows);
+    check("the CSV has a 'Cohort' column that tells executives from non-executives", /Cohort/.test(csvP) && /Executive/.test(csvP) && /Non-executive/.test(csvP), csvP.slice(0, 200));
+    check("a row count says what is loaded and what is not (rowCountLabel)", rowCountLabel(2, 2, 2, false) === "2 rows" && rowCountLabel(1, 1, 1, false) === "1 row" && rowCountLabel(12, 100, 100, false) === "12 of 100 rows" && rowCountLabel(100, 100, 259, true) === "100 loaded rows (259 in all)" && rowCountLabel(12, 100, 259, true) === "12 of 100 loaded rows (259 in all)", [rowCountLabel(100, 100, 259, true), rowCountLabel(12, 100, 259, true)].join(" | "));
+    check("Copy and CSV say what they cover only when the list is not fully loaded (exportNote)", exportNote(100, 259, true).suffix === " (100 of 259)" && /Show more/.test(exportNote(100, 259, true).title) && exportNote(2, 2, false).suffix === "" && exportNote(259, 259, true).suffix === "");
+  }
+
   // PROOF on the database: the LIMIT 1 answer hides the other person and both ranks; the right form shows them. Rolled back.
   await pg.query("BEGIN");
   try {
@@ -1046,6 +1064,15 @@ async function main() {
     check("'Show more': the page's cards carry 'Position in grade' (a small number), never the raw rank", cardsMore.length === 3 && cardsMore.every((cc: any) => !cc.extraFields || cc.extraFields.every((f: any) => f.label === "Position in grade" && Number(f.value) < 10000)), JSON.stringify(cardsMore.map((cc: any) => cc.extraFields)));
   }
   o = await runOmnibar("the two most senior people in the plant", "T-OMNI", mkDeps(model(cmpSql2)));
+  check("end to end: an ordinary list keeps its headline number and its caption", o.count === 2 && o.answer === "2 people found.", JSON.stringify([o.count, o.answer]));
+  {
+    const tb2: any = o.nl2sql.table;
+    const dIdx = tb2.columns.indexOf("designation");
+    check("end to end: the table has a 'cohort' column right after designation, 'Executive' for the two most senior", tb2.columns[dIdx + 1] === "cohort" && tb2.rows.every((rr: any) => rr.cohort === "Executive"), tb2.columns.join(","));
+    check("end to end: the cards do NOT repeat the cohort as a chip", o.people.every((pp: any) => !pp.extraFields || pp.extraFields.every((f: any) => f.label !== "Cohort")));
+  }
+  const oCmp: any = await runOmnibar(`who is more senior, ${twoTop[1].name} or ${twoTop[0].name}`, "T-OMNI", mkDeps(model(cmpSql2)));
+  check("end to end: a comparison has no bare headline number, and its sentence states the answer", oCmp.count === undefined && typeof oCmp.answer === "string" && / is more senior than /.test(oCmp.answer), JSON.stringify([oCmp.count, oCmp.answer]));
   check("end to end: an ordinary list keeps its plain '2 people found.'", o.answer === "2 people found.", String(o.answer));
   check("the payload carries the model-call count and the time taken (shown in the SQL panel)", o.nl2sql.attempts >= 1 && typeof o.nl2sql.elapsedMs === "number" && o.nl2sql.elapsedMs >= 0, JSON.stringify([o.nl2sql.attempts, o.nl2sql.elapsedMs]));
 
@@ -1255,7 +1282,7 @@ async function main() {
   const STD = `ticket_no, name, designation, department_code, department`;
   const TAIL = `FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`;
   const plainList: any = await ask("list executives plain columns test", "COL-1", `SELECT ${STD} ${TAIL}`);
-  check("a plain list now carries each person's department code AND name on the card (designation code still not shown), shown as cards, all five columns known", plainList.people.length === 3 && plainList.people.every((p: any) => /^\d+$/.test(String(p.departmentCode ?? "")) && p.designationCode === undefined) && plainList.nl2sql.display?.view === "cards" && plainList.nl2sql.display.columns.length === 5);
+  check("a plain list now carries each person's department code AND name on the card (designation code still not shown), shown as cards, the five selected columns plus Cohort", plainList.people.length === 3 && plainList.people.every((p: any) => /^\d+$/.test(String(p.departmentCode ?? "")) && p.designationCode === undefined) && plainList.nl2sql.display?.view === "cards" && plainList.nl2sql.display.columns.length === 6 && plainList.nl2sql.display.columns.some((c: any) => c.key === "cohort"));
   const codeList: any = await ask("list executives with department codes test", "COL-1", `SELECT ticket_no, name, designation, department, department_code ${TAIL}`);
   check("'with department codes': each person's card carries the department code", codeList.people.length === 3 && codeList.people.every((p: any) => /^\d+$/.test(String(p.departmentCode ?? ""))), JSON.stringify(codeList.people.map((p: any) => p.departmentCode)));
   check("...and the code matches the database (the same person's real department code)", (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE ticket_no = ANY($1::text[]) AND department_code::text = ANY($2::text[])`, [codeList.people.map((p: any) => p.ticketNo), codeList.people.map((p: any) => p.departmentCode)])).rows[0].n >= 3);
@@ -1323,12 +1350,12 @@ async function main() {
   const LIST5 = `SELECT ticket_no, name, designation, department, department_code ${TAIL}`;
   const hinted = await withPlan("list executives hinted view test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "table", title: "Senior executives, with codes", columns: [{ key: "department_code", label: "Code" }, { key: "name", label: "Officer" }] } });
   check("a valid hint is followed: title and the column titles/order (a LIST OF PEOPLE still opens on the cards)", hinted.nl2sql.display.view === "cards" && hinted.nl2sql.display.title === "Senior executives, with codes" && hinted.nl2sql.display.columns[0].key === "department_code" && hinted.nl2sql.display.columns[0].label === "Code" && hinted.nl2sql.display.columns[1].label === "Officer");
-  check("...and still every selected column is shown, once", hinted.nl2sql.display.columns.length === 5 && new Set(hinted.nl2sql.display.columns.map((c: any) => c.key)).size === 5 && !!hinted.nl2sql.table);
+  check("...and still every selected column is shown, once (plus the Cohort column)", hinted.nl2sql.display.columns.length === 6 && new Set(hinted.nl2sql.display.columns.map((c: any) => c.key)).size === 6 && hinted.nl2sql.display.columns.some((c: any) => c.key === "cohort") && !!hinted.nl2sql.table);
   const asTable = await withPlan("list executives as a table hinted test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "table" } });
   check("a person who literally asks for a table gets the table first", asTable.nl2sql.display.view === "table" && !!asTable.nl2sql.table && asTable.people.length === 3);
   check("a column the model titled in its hint uses that title on the chip", ((await withPlan("list executives titled chip test", { sql: `SELECT ${STD}, rank_order, has_email ${TAIL}`, understood_as: "x", confidence: "high", display: { columns: [{ key: "rank_order", label: "Seniority grade" }] } })) as any).people[0].extraFields[0].label === "Seniority grade");
   const junkHint = await withPlan("list executives junk hint test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "hologram", title: 42, columns: [{ key: "nope" }, 7, null], bar: "x" } });
-  check("a garbage hint never breaks the answer: same people, a layout chosen from the data (cards)", junkHint.kind === "count" && junkHint.people.length === 3 && junkHint.nl2sql.display.view === "cards" && junkHint.nl2sql.display.columns.length === 5);
+  check("a garbage hint never breaks the answer: same people, a layout chosen from the data (cards)", junkHint.kind === "count" && junkHint.people.length === 3 && junkHint.nl2sql.display.view === "cards" && junkHint.nl2sql.display.columns.length === 6);
   const BYDES = `SELECT designation, count(*) AS n FROM nlq.employees WHERE cohort = 'executive' GROUP BY designation ORDER BY n DESC`;
   const barHint = await withPlan("executives by designation bar test", { sql: BYDES, understood_as: "Executives per designation.", confidence: "high", display: { view: "bar", title: "Executives by designation", bar: { label: "designation", value: "n" } } });
   check("a bar-chart hint on 'designation + count' is accepted, and the table travels with it", barHint.nl2sql.display.view === "bar" && barHint.nl2sql.display.bar.label === "designation" && barHint.nl2sql.display.bar.value === "n" && barHint.nl2sql.table.rows.length >= 2);
