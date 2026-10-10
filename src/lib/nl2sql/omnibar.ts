@@ -21,7 +21,7 @@ import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import type { Nl2SqlExtras } from "./clientTypes";
 import { comparisonVerdict } from "./rankingCheck";
-import { presentPeople } from "./seniorityDisplay";
+import { presentPeople, withCohortInHint } from "./seniorityDisplay";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
 import { PAGE_SIZE } from "./paging";
 import type { QueryResultData } from "./types";
@@ -215,7 +215,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
   // Every column the SQL returned stays visible. A single plain number needs no table.
   const hasPeopleList = columns.includes("ticket_no") && !!people;
   const tableRequested = /\b(table|tabular|spreadsheet|grid)\b/i.test(String((res as any).question ?? ""));
-  const display = resolveDisplay((res as any).display, columns, rows, hasPeopleList, { tableRequested });
+  const display = resolveDisplay(withCohortInHint((res as any).display, columns), columns, rows, hasPeopleList, { tableRequested });
   extras.display = display;
   if (display) extras.table = table;
   if (res.data.pageable && truncated && res.logId != null) extras.canPage = true;

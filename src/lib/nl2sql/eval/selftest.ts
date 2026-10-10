@@ -30,7 +30,7 @@ import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "../deptColumns";
 import { checkComparison, checkRankingAndOrder, comparisonVerdict } from "../rankingCheck";
-import { addCohortColumn, humanizeSeniority, presentPeople } from "../seniorityDisplay";
+import { addCohortColumn, humanizeSeniority, presentPeople, withCohortInHint } from "../seniorityDisplay";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
 import { pageProgress, mergePage, columnKind, formatCell, sortRows, toCsv, resolveDisplay, rowCountLabel, exportNote } from "../display";
@@ -700,6 +700,16 @@ async function main() {
     check("Copy and CSV say what they cover only when the list is not fully loaded (exportNote)", exportNote(100, 259, true).suffix === " (100 of 259)" && /Show more/.test(exportNote(100, 259, true).title) && exportNote(2, 2, false).suffix === "" && exportNote(259, 259, true).suffix === "");
   }
 
+  // -- the cohort column in the model's own column order
+  {
+    const colsH = ["ticket_no", "name", "designation", "cohort", "department_code", "department"];
+    const keys = (h: any) => (h.columns as any[]).map((e) => (typeof e === "string" ? e : e.key)).join(",");
+    check("a column hint gets 'cohort' right after 'designation'", keys(withCohortInHint({ columns: [{ key: "ticket_no" }, { key: "name" }, { key: "designation" }, { key: "department_code" }, { key: "department" }] }, colsH)) === "ticket_no,name,designation,cohort,department_code,department");
+    check("...or after 'name' when designation is not listed; plain string entries work", keys(withCohortInHint({ columns: ["name", "department"] }, colsH)) === "name,cohort,department");
+    check("a hint that already mentions cohort, names neither column, has no columns, or is not an object is left untouched", (() => { const h1 = { columns: ["name", "cohort"] }; const h2 = { columns: ["department"] }; return withCohortInHint(h1, colsH) === h1 && withCohortInHint(h2, colsH) === h2 && withCohortInHint({ title: "x" }, colsH) !== null && withCohortInHint(undefined, colsH) === undefined && withCohortInHint("x", colsH) === "x" && withCohortInHint({ columns: ["name"] }, ["name"]) !== null; })());
+    check("nothing is added to a hint when the table has no cohort column", keys(withCohortInHint({ columns: ["name", "designation"] }, ["name", "designation"])) === "name,designation");
+  }
+
   // PROOF on the database: the LIMIT 1 answer hides the other person and both ranks; the right form shows them. Rolled back.
   await pg.query("BEGIN");
   try {
@@ -1351,6 +1361,8 @@ async function main() {
   const hinted = await withPlan("list executives hinted view test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "table", title: "Senior executives, with codes", columns: [{ key: "department_code", label: "Code" }, { key: "name", label: "Officer" }] } });
   check("a valid hint is followed: title and the column titles/order (a LIST OF PEOPLE still opens on the cards)", hinted.nl2sql.display.view === "cards" && hinted.nl2sql.display.title === "Senior executives, with codes" && hinted.nl2sql.display.columns[0].key === "department_code" && hinted.nl2sql.display.columns[0].label === "Code" && hinted.nl2sql.display.columns[1].label === "Officer");
   check("...and still every selected column is shown, once (plus the Cohort column)", hinted.nl2sql.display.columns.length === 6 && new Set(hinted.nl2sql.display.columns.map((c: any) => c.key)).size === 6 && hinted.nl2sql.display.columns.some((c: any) => c.key === "cohort") && !!hinted.nl2sql.table);
+  const hintedOrder = await withPlan("list executives hinted order test", { sql: `SELECT ${STD} ${TAIL}`, understood_as: "Three senior executives.", confidence: "high", display: { columns: [{ key: "ticket_no" }, { key: "name" }, { key: "designation" }, { key: "department_code" }, { key: "department" }] } });
+  check("end to end: with a model column hint, the Cohort column still sits right after Designation (not last)", hintedOrder.nl2sql.display.columns.map((c: any) => c.key).join(",") === "ticket_no,name,designation,cohort,department_code,department", hintedOrder.nl2sql.display.columns.map((c: any) => c.key).join(","));
   const asTable = await withPlan("list executives as a table hinted test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "table" } });
   check("a person who literally asks for a table gets the table first", asTable.nl2sql.display.view === "table" && !!asTable.nl2sql.table && asTable.people.length === 3);
   check("a column the model titled in its hint uses that title on the chip", ((await withPlan("list executives titled chip test", { sql: `SELECT ${STD}, rank_order, has_email ${TAIL}`, understood_as: "x", confidence: "high", display: { columns: [{ key: "rank_order", label: "Seniority grade" }] } })) as any).people[0].extraFields[0].label === "Seniority grade");

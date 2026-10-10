@@ -76,3 +76,20 @@ export function presentPeople(
   const a = humanizeSeniority(columns, rows, people);
   return addCohortColumn(a.columns, a.rows, people);
 }
+
+/**
+ * When the model lists the columns it wants (a display hint), that order wins and any column it did not mention is added at the
+ * END. The cohort column is added by the system, so it would always land last. This slips it into the hint right after
+ * "designation" (else after "name"), where it reads naturally. A hint that already mentions cohort, or names neither, is untouched.
+ */
+export function withCohortInHint(hint: unknown, columns: string[]): unknown {
+  if (!hint || typeof hint !== "object" || Array.isArray(hint)) return hint;
+  const h: any = hint;
+  if (!Array.isArray(h.columns) || !columns.includes("cohort")) return hint;
+  const keyOf = (e: unknown) => String(typeof e === "string" ? e : (e as any)?.key ?? "").toLowerCase();
+  if (h.columns.some((e: unknown) => keyOf(e) === "cohort")) return hint;
+  let at = h.columns.findIndex((e: unknown) => keyOf(e) === "designation");
+  if (at < 0) at = h.columns.findIndex((e: unknown) => keyOf(e) === "name");
+  if (at < 0) return hint;
+  return { ...h, columns: [...h.columns.slice(0, at + 1), { key: "cohort", label: "Cohort" }, ...h.columns.slice(at + 1)] };
+}
