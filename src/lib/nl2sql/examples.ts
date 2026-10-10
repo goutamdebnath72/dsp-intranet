@@ -103,6 +103,12 @@ ORDER BY rank_order, designation`,
     source: "seed",
   },
   {
+    question: "top 5 departments that have non executives but no executives under the same code",
+    sql: `SELECT department_code, department, nonexecutives FROM (SELECT department_code, department, count(*) FILTER (WHERE cohort = 'nonexecutive') AS nonexecutives, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort = 'nonexecutive') DESC) AS r FROM nlq.employees GROUP BY department_id, department_code, department HAVING count(*) FILTER (WHERE cohort = 'executive') = 0) t WHERE r <= 5 ORDER BY r, department_code`,
+    understood_as: "Departments (the same department row, not just the same number) with non-executives and no executives; top 5 by non-executives, ties included.",
+    source: "seed",
+  },
+  {
     question: 'find names which contain "nath" but not at the end, as a whole word or as part of a word',
     sql: `SELECT ${PEOPLE}
 FROM nlq.employees

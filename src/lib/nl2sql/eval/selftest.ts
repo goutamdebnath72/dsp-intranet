@@ -614,6 +614,7 @@ async function main() {
   }
   check("the LIMIT message tells the model to use rank()", /rank\(\) OVER/.test(String(checkRankingAndOrder("SELECT designation, count(*) AS c FROM nlq.employees GROUP BY designation ORDER BY c DESC LIMIT 1"))));
   check("the seed example for the right pattern passes both soft checks", SEED_EXAMPLES.filter((e) => e.sql && /rank\(\) OVER/.test(e.sql)).every((e) => checkRankingAndOrder(e.sql!) === null && checkDepartmentColumns(e.sql!) === null) && SEED_EXAMPLES.some((e) => e.sql && /rank\(\) OVER/.test(e.sql)));
+  check("EVERY seed example passes all the soft checks (department code+name, department identity, ranking/order)", SEED_EXAMPLES.filter((e) => e.sql).every((e) => checkDepartmentColumns(e.sql!) === null && checkDepartmentIdentity(e.sql!) === null && checkRankingAndOrder(e.sql!) === null), JSON.stringify(SEED_EXAMPLES.filter((e) => e.sql && (checkDepartmentColumns(e.sql) !== null || checkDepartmentIdentity(e.sql) !== null || checkRankingAndOrder(e.sql) !== null)).map((e) => e.question)));
   // PROOF on the database: ranking BEFORE the population filter returns fewer rows than asked for. Rolled back afterwards.
   //   6 executive-only/mixed departments: A (6 executives + 1 non-executive), B (5 + 1), C 4, D 3, E 2, F 1 (executives only).
   //   "top 3 departments with executives but no non-executives" must be C, D, E.

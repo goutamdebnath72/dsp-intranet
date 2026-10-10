@@ -156,10 +156,16 @@ export async function answerQuestion(question: string, userKey: string | null, d
     // chance covers all of them (first attempt only): if the model still gets it wrong, the answer is shown as it is --
     // never fail a question over this.
     if (attempts === 1) {
-      const soft = [checkDepartmentColumns(g.sql), checkDepartmentIdentity(g.sql), checkRankingAndOrder(g.sql)].filter((x): x is string => !!x);
+      const checks: [string, string | null][] = [
+        ["department code+name", checkDepartmentColumns(g.sql)],
+        ["department identity", checkDepartmentIdentity(g.sql)],
+        ["ranking / order", checkRankingAndOrder(g.sql)],
+      ];
+      const hit = checks.filter((c): c is [string, string] => c[1] !== null);
+      const soft = hit.map((c) => c[1]);
       if (soft.length) {
         lastProblem = soft.join(" ALSO: ");
-        console.info(`[nl2sql] attempt 1 sent back for a second model call (${soft.length} rule${soft.length > 1 ? "s" : ""}): ${lastProblem.slice(0, 140)}`);
+        console.info(`[nl2sql] attempt 1 sent back for a second model call; rules: ${hit.map((c) => c[0]).join(" + ")}`);
         repair = { previousSql: g.sql, problem: lastProblem };
         continue;
       }
