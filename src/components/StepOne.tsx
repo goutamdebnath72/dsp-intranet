@@ -24,6 +24,7 @@ export const StepOne = ({ ticketNo, setTicketNo, onNext, error }: any) => {
                     onChange={(e: any) => setTicketNo(e.target.value)}
                     onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); onNext(); } }}
                     autoFocus
+                    selectOnFocus
                 />
             </div>
 

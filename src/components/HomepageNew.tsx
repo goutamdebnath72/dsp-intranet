@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { PlayCircle, ArrowRight, PauseCircle } from "lucide-react";
 import { TopBar } from "./TopBar";
+import { useVerifiedSession } from "./SessionGuard";
 import Header from "@/components/Header";
 import { QuickAccessBar } from "./QuickAccessBar";
 import { CircularsModal } from "./CircularsModal";
@@ -35,7 +36,6 @@ interface HomepageProps {
   quickLinksData: Link[];
   departmentData: Link[];
   sailSitesData: Link[];
-  userName: string;
 }
 
 const newsItems = [
@@ -63,10 +63,12 @@ export function HomepageNew({
   quickLinksData,
   departmentData,
   sailSitesData,
-  userName,
 }: HomepageProps) {
-  // ✅ REPLACED legacy splitting logic with our smart, prefix-aware name parser
-  const firstName = getFriendlyFirstName(userName);
+  // The name comes from the SAME verified session the header uses -- never from the server. The server can only
+  // see the persistent login cookie, so it used to print a previous user's name next to a "Login" button.
+  const { data: session, status } = useVerifiedSession();
+  const firstName =
+    status === "authenticated" ? getFriendlyFirstName(session?.user?.name) : "Guest";
 
   const [isPaused, setIsPaused] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
@@ -154,7 +156,9 @@ export function HomepageNew({
         <main className="flex-1 relative z-20 px-4 sm:px-6 lg:px-8 pt-28 pb-12 h-full">
           <div className="w-11/12 mx-auto mb-8">
             <h1 className="font-black text-5xl tracking-tight text-white">
-              Welcome, {firstName}!
+              Welcome,{" "}
+              {/* Invisible (but space-reserving) until the session is verified, so nothing wrong ever flashes. */}
+              <span className={status === "loading" ? "opacity-0" : undefined}>{firstName}</span>!
             </h1>
           </div>
           <div className="w-11/12 mx-auto relative h-full">

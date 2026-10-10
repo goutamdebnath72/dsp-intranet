@@ -47,12 +47,15 @@ export async function getAuthOptions(): Promise<AuthOptions> {
           }
 
           if (!credentials?.ticketNo || !credentials.password) return null;
+          // A stray space (typed, or added by autofill) must not make a correct ticket number "unknown".
+          const ticketNo = credentials.ticketNo.trim();
+          if (!ticketNo) return null;
 
           try {
             // Target the strictly typed TypeORM user entity repository matching the active model layer
             const userRepository = dataSource.getRepository<User>("User");
             const user = await userRepository.findOne({
-              where: { ticketNo: credentials.ticketNo },
+              where: { ticketNo },
             });
 
             if (!user || !user.password) return null;

@@ -49,17 +49,21 @@ export default function LoginModal() {
 
   // --- MODIFIED: handleSubmit with Tab-Session marker ---
   const handleSubmit = async () => {
+    if (isLoading) return; // Enter pressed twice / button clicked while a sign-in is already running
     setIsLoading(true);
     setError("");
 
     const res = await signIn("credentials", {
-      ticketNo,
+      ticketNo: ticketNo.trim(),
       password,
       redirect: false,
     });
 
     if (res?.error) {
-      setError("Invalid credentials. Please try again.");
+      // Clear the password: it is masked, so a person cannot see that the wrong one is still in the box and
+      // would otherwise TYPE THE CORRECT ONE AFTER IT, failing again until the modal is closed and reopened.
+      setPassword("");
+      setError("Wrong ticket number or password. Re-enter the password, or press Back to change the ticket number.");
       setIsLoading(false);
     } else {
       // ✅ SET THE TAB-SESSION MARKER

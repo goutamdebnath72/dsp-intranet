@@ -1,14 +1,16 @@
 // src/app/page.tsx
 export const dynamic = "force-dynamic";
 
+// NOTE: this page deliberately does NOT read the server-side login session. The server can only see the
+// persistent login cookie, not whether this browser tab is still a live session (see SessionGuard), so any
+// user name rendered from here could belong to someone who is no longer logged in.
+
 import React from "react";
 import { getDb } from "@/lib/db";
 import { Link } from "@/lib/db/models";
 import { ACTIVE_UI_DESIGN } from "@/lib/config";
 import HomePageClient from "@/components/HomePageClient";
 import { HomepageNew } from "@/components/HomepageNew";
-import { getServerSession } from "next-auth/next";
-import { getAuthOptions } from "@/lib/auth";
 
 const cleanAndSortData = (links: any[]) => {
   return links
@@ -29,7 +31,6 @@ const cleanAndSortData = (links: any[]) => {
 
 export default async function Home() {
   const dataSource = await getDb();
-  const authOptions = await getAuthOptions();
 
   // ✅ Switched to string-based entity lookup to survive Next.js HMR reloads
   const linkRepository = dataSource.getRepository<Link>("Link");
@@ -50,15 +51,12 @@ export default async function Home() {
   const departmentData = cleanAndSortData(departmentDataFromDb);
   const sailSitesData = cleanAndSortData(sailSitesDataFromDb);
 
-  const session = await getServerSession(authOptions);
-
   if (ACTIVE_UI_DESIGN === "new") {
     return (
       <HomepageNew
         quickLinksData={quickLinksData}
         departmentData={departmentData}
         sailSitesData={sailSitesData}
-        userName={session?.user?.name ?? "Guest"}
       />
     );
   }

@@ -1,11 +1,18 @@
 // src/components/StepTwo.tsx
 'use client';
 
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { AnimatedInput } from './AnimatedInput';
 
 export const StepTwo = ({ ticketNo, password, setPassword, onSubmit, error, isLoading, onBack }: any) => {
+  // After a failed attempt the password is cleared (see LoginModal); put the cursor back in the empty field
+  // so the next thing typed is the whole password, not an addition to the old one.
+  useEffect(() => {
+    if (error) document.getElementById('password')?.focus();
+  }, [error]);
+
   return (
     <motion.div
       key="step2"
@@ -32,6 +39,7 @@ export const StepTwo = ({ ticketNo, password, setPassword, onSubmit, error, isLo
           onChange={(e: any) => setPassword(e.target.value)}
           onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); onSubmit(e); } }}
           autoFocus
+          selectOnFocus
         />
       </div>
 
