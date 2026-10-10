@@ -1,4 +1,5 @@
 // src/hooks/useOmniSearch.ts
+import type { HolidayDetail } from "@/lib/holidays/format";
 import { useState, useEffect } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
 import type { SynthesisResult } from "@/lib/search/executiveSynthesis";
@@ -45,6 +46,10 @@ export interface AnalyticsAnswer {
   listTruncated?: boolean;
   /** Stage 2: holiday rows for a holiday list query. */
   holidays?: AnalyticsHolidayRow[];
+  /** Structured "when is X" / "is this a holiday" layout. Mirrors AnalyticsPayload.holidayDetails. */
+  holidayDetails?: HolidayDetail[];
+  /** One-line lead above the holiday card. Mirrors AnalyticsPayload.lead. */
+  lead?: string;
   /** Per-type (RH/CH/FH) tally for a holiday list query, only present when
    *  no single type was already filtered on. `count` above is the
    *  DISTINCT-holiday number; rawEntryCount is the raw (date,type) row

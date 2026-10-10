@@ -20,7 +20,7 @@ import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { queryHolidays, type HolidayRow } from "@/lib/holidays/analytics";
 import { HolidayType } from "@/lib/db/models/holiday-master.model";
 import { TYPE_LABEL as HOLIDAY_TYPE_LABEL, CATEGORY_LABEL, MONTH_LABEL } from "@/lib/holidays/terms";
-import { labelWithCategories, notesSuffix } from "@/lib/holidays/format";
+import { buildHolidayDetails, labelWithCategories, notesSuffix, type HolidayDetail } from "@/lib/holidays/format";
 
 // ============================================================================
 // Headcount / list helpers -- thin wrappers over rosterQuery for the cases
@@ -89,6 +89,11 @@ export interface AnalyticsPayload {
   listTruncated?: boolean;
   /** Stage 2: holiday rows for a holiday list query (rendered like People). */
   holidays?: HolidayRow[];
+  /** Structured layout for "when is X" / "is this date a holiday" answers; the screen draws a card from it
+   *  instead of one long sentence. `answer` still carries the same facts as plain text. */
+  holidayDetails?: HolidayDetail[];
+  /** One-line lead shown above the holiday card, e.g. "Yes — 23 October 2025 is a holiday." */
+  lead?: string;
   typeBreakdown?: { type: string; label: string; count: number }[];
   rawEntryCount?: number;
   rhQuotaByCategory?: { category: string; quota: number }[];
@@ -144,6 +149,8 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
  * than assert "no employees found" -- this must survive the split, not get
  * papered over into a forced non-null return.
  */
+const HOLIDAY_TYPE_LABELS = HOLIDAY_TYPE_LABEL as unknown as Record<string, string>;
+
 export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<AnalyticsPayload | null> {
   const holidayYearNotLoaded = (year: number): AnalyticsPayload => ({
     kind: "pending",
@@ -528,6 +535,7 @@ export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<Analy
         return {
           kind: "count",
           answer: `${r.name} falls on ${d.toFormat("d LLLL yyyy")} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)}).${noteText}`,
+          holidayDetails: buildHolidayDetails(rows, HOLIDAY_TYPE_LABELS),
         };
       }
       // Several rows (e.g. the same day is a Festival holiday for some categories and a Restricted one for
@@ -539,6 +547,7 @@ export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<Analy
       return {
         kind: "count",
         answer: `${intent.name}: ${lines.join("; ")}.${notesSuffix(rows.map((r) => r.note))}`,
+        holidayDetails: buildHolidayDetails(rows, HOLIDAY_TYPE_LABELS),
       };
     }
 
@@ -556,7 +565,11 @@ export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<Analy
         return { kind: "pending", answer: `${what} isn't a holiday in the loaded calendar.` };
       }
       const lines = rows.map((r) => `${r.name} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)})`);
-      return { kind: "count", answer: `${lines.join(" and ")}.${notesSuffix(rows.map((r) => r.note))}` };
+      return {
+        kind: "count",
+        answer: `${lines.join(" and ")}.${notesSuffix(rows.map((r) => r.note))}`,
+        holidayDetails: buildHolidayDetails(rows, HOLIDAY_TYPE_LABELS),
+      };
     }
 
     case "holidayExists": {
@@ -570,7 +583,12 @@ export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<Analy
       const names = rows
         .map((r) => `${r.name} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)})`)
         .join(" and ");
-      return { kind: "count", answer: `Yes — ${dateLabel} is ${names}.${notesSuffix(rows.map((r) => r.note))}` };
+      return {
+        kind: "count",
+        answer: `Yes — ${dateLabel} is ${names}.${notesSuffix(rows.map((r) => r.note))}`,
+        lead: `Yes — ${dateLabel} is a holiday.`,
+        holidayDetails: buildHolidayDetails(rows, HOLIDAY_TYPE_LABELS),
+      };
     }
 
     case "holidayInvalidCategory":

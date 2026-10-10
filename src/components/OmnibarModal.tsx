@@ -25,6 +25,7 @@ import { departmentGroups, mergePage } from "@/lib/nl2sql/display";
 import { AnswerFeedback, type AnswerSource } from "@/components/AnswerFeedback";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { OmniLoginHint } from "@/components/OmniLoginHint";
+import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
 import { decideLoginHint, excludeShownPeople } from "@/lib/search/loginHints";
 import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
@@ -788,16 +789,23 @@ export function OmnibarModal({
                                   {analytics.count.toLocaleString()}
                                 </div>
                               )}
-                            <p
-                              className={`text-sm ${
-                                analytics.kind === "error"
-                                  ? "font-semibold text-red-700"
-                                  : "text-neutral-700"
-                              }`}
-                            >
-                              {analytics.kind === "error" && "Bad query: "}
-                              {analytics.answer}
-                            </p>
+                            {analytics.lead && (
+                              <p className="mb-2 text-sm font-semibold text-neutral-800">{analytics.lead}</p>
+                            )}
+                            {analytics.holidayDetails && analytics.holidayDetails.length > 0 ? (
+                              <HolidayAnswerCard details={analytics.holidayDetails} />
+                            ) : (
+                              <p
+                                className={`text-sm ${
+                                  analytics.kind === "error"
+                                    ? "font-semibold text-red-700"
+                                    : "text-neutral-700"
+                                }`}
+                              >
+                                {analytics.kind === "error" && "Bad query: "}
+                                {analytics.answer}
+                              </p>
+                            )}
                             {analytics.interpretation && (
                               <InterpretationNote text={analytics.interpretation} />
                             )}
