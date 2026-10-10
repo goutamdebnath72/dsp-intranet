@@ -20,6 +20,7 @@ import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { queryHolidays, type HolidayRow } from "@/lib/holidays/analytics";
 import { HolidayType } from "@/lib/db/models/holiday-master.model";
 import { TYPE_LABEL as HOLIDAY_TYPE_LABEL, CATEGORY_LABEL, MONTH_LABEL } from "@/lib/holidays/terms";
+import { coveredByDetails, unansweredNotice } from "@/lib/holidays/compound";
 import { buildHolidayDetails, labelWithCategories, notesSuffix, type HolidayDetail } from "@/lib/holidays/format";
 
 // ============================================================================
@@ -94,6 +95,8 @@ export interface AnalyticsPayload {
   holidayDetails?: HolidayDetail[];
   /** One-line lead shown above the holiday card, e.g. "Yes — 23 October 2025 is a holiday." */
   lead?: string;
+  /** Set when the question had a second part that was not answered ("Not answered: ..."). */
+  notice?: string;
   typeBreakdown?: { type: string; label: string; count: number }[];
   rawEntryCount?: number;
   rhQuotaByCategory?: { category: string; quota: number }[];
@@ -152,6 +155,15 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
 const HOLIDAY_TYPE_LABELS = HOLIDAY_TYPE_LABEL as unknown as Record<string, string>;
 
 export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<AnalyticsPayload | null> {
+  const payload = await runAnalyticsIntentCore(intent);
+  // A holiday question can carry a second part the engine does not answer. Say so, unless the card
+  // already shows what that part asked for (e.g. "which categories" when the chips list the categories).
+  const unanswered = "unanswered" in intent ? intent.unanswered : undefined;
+  if (!payload || !unanswered || coveredByDetails(unanswered, payload.holidayDetails)) return payload;
+  return { ...payload, notice: unansweredNotice(unanswered) };
+}
+
+async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<AnalyticsPayload | null> {
   const holidayYearNotLoaded = (year: number): AnalyticsPayload => ({
     kind: "pending",
     answer: `I don't have holiday data loaded for ${year} yet.`,

@@ -50,6 +50,8 @@ export interface AnalyticsAnswer {
   holidayDetails?: HolidayDetail[];
   /** One-line lead above the holiday card. Mirrors AnalyticsPayload.lead. */
   lead?: string;
+  /** Set when the question had a second part that was not answered. Mirrors AnalyticsPayload.notice. */
+  notice?: string;
   /** Per-type (RH/CH/FH) tally for a holiday list query, only present when
    *  no single type was already filtered on. `count` above is the
    *  DISTINCT-holiday number; rawEntryCount is the raw (date,type) row

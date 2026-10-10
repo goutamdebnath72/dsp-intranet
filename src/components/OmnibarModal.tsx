@@ -806,6 +806,12 @@ export function OmnibarModal({
                                 {analytics.answer}
                               </p>
                             )}
+                            {analytics.notice && (
+                              <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+                                <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
+                                <span>{analytics.notice}</span>
+                              </p>
+                            )}
                             {analytics.interpretation && (
                               <InterpretationNote text={analytics.interpretation} />
                             )}

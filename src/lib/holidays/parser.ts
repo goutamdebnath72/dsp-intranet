@@ -21,6 +21,8 @@
 import { DateTime } from "luxon";
 import { HolidayType } from "@/lib/db/models/holiday-master.model";
 import { normTerm } from "@/lib/employees/designations";
+import { findSecondQuestion } from "./compound";
+
 import {
   resolveHolidayType,
   resolveCategory,
@@ -36,7 +38,7 @@ import {
   findHolidayNamePhonetic,
 } from "./terms";
 
-export type HolidayIntent =
+type HolidayIntentBase =
   | { kind: "holidayCount"; year: number; type: HolidayType | null; category: string | null }
   | {
       kind: "holidayList";
@@ -165,10 +167,35 @@ export function bareNameLeftover(q: string, names: { name: string; aliases?: str
   return leftoverAfterStrip(rest).replace(/\b(or|vs|versus|type|kind|date|dates|day)\b/g, " ").replace(/\s+/g, " ").trim();
 }
 
+/** A parsed holiday intent. `unanswered` is set when the question had a second part this engine does not answer. */
+export type HolidayIntent = HolidayIntentBase & { unanswered?: string };
+
+/**
+ * Parse a holiday question. When the question has TWO parts ("... and which of them fall in November"),
+ * the first is answered and the second is recorded on the intent, so the answer can say what was left out
+ * instead of silently looking complete.
+ */
 export async function parseHolidayIntent(
   query: string,
   now: DateTime = DateTime.now(),
 ): Promise<HolidayIntent | null> {
+  const intent = await parseHolidayIntentCore(query, now);
+  if (!intent) return null;
+  if (
+    intent.kind === "holidayBadQuery" ||
+    intent.kind === "holidayInvalidCategory" ||
+    intent.kind === "holidayNotificationRequest"
+  ) {
+    return intent;
+  }
+  const second = findSecondQuestion(query);
+  return second ? { ...intent, unanswered: second } : intent;
+}
+
+async function parseHolidayIntentCore(
+  query: string,
+  now: DateTime = DateTime.now(),
+): Promise<HolidayIntentBase | null> {
   const q = normTerm(query);
   const hasHolidayWord = HOLIDAY_WORD.test(q);
   const type = resolveHolidayType(q);
