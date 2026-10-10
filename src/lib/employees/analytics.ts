@@ -20,6 +20,7 @@ import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { queryHolidays, type HolidayRow } from "@/lib/holidays/analytics";
 import { HolidayType } from "@/lib/db/models/holiday-master.model";
 import { TYPE_LABEL as HOLIDAY_TYPE_LABEL, CATEGORY_LABEL, MONTH_LABEL } from "@/lib/holidays/terms";
+import { labelWithCategories, notesSuffix } from "@/lib/holidays/format";
 
 // ============================================================================
 // Headcount / list helpers -- thin wrappers over rosterQuery for the cases
@@ -523,17 +524,22 @@ export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<Analy
       if (rows.length === 1) {
         const r = rows[0];
         const d = DateTime.fromISO(r.date);
-        const noteText = r.note ? ` ${r.note}` : "";
+        const noteText = notesSuffix([r.note]);
         return {
           kind: "count",
-          answer: `${r.name} falls on ${d.toFormat("d LLLL yyyy")} (${HOLIDAY_TYPE_LABEL[r.type]}).${noteText}`,
+          answer: `${r.name} falls on ${d.toFormat("d LLLL yyyy")} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)}).${noteText}`,
         };
       }
+      // Several rows (e.g. the same day is a Festival holiday for some categories and a Restricted one for
+      // the rest): show each row with ITS categories, then the explanation once.
       const lines = rows.map((r) => {
         const d = DateTime.fromISO(r.date);
-        return `${d.toFormat("d LLLL yyyy")} (${HOLIDAY_TYPE_LABEL[r.type]})`;
+        return `${d.toFormat("d LLLL yyyy")} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)})`;
       });
-      return { kind: "count", answer: `${intent.name}: ${lines.join("; ")}.` };
+      return {
+        kind: "count",
+        answer: `${intent.name}: ${lines.join("; ")}.${notesSuffix(rows.map((r) => r.note))}`,
+      };
     }
 
     case "holidayTypeLookup": {
@@ -549,10 +555,8 @@ export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<Analy
           : `“${intent.name}” in ${intent.year}`;
         return { kind: "pending", answer: `${what} isn't a holiday in the loaded calendar.` };
       }
-      const lines = rows.map((r) => `${r.name} (${HOLIDAY_TYPE_LABEL[r.type]})`);
-      const notes = Array.from(new Set(rows.map((r) => r.note).filter((n): n is string => !!n)));
-      const noteText = notes.length ? ` ${notes.join(" ")}` : "";
-      return { kind: "count", answer: `${lines.join(" and ")}.${noteText}` };
+      const lines = rows.map((r) => `${r.name} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)})`);
+      return { kind: "count", answer: `${lines.join(" and ")}.${notesSuffix(rows.map((r) => r.note))}` };
     }
 
     case "holidayExists": {
@@ -563,10 +567,10 @@ export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<Analy
       if (rows.length === 0) {
         return { kind: "count", answer: `No, ${dateLabel} is not a holiday.` };
       }
-      const names = rows.map((r) => `${r.name} (${HOLIDAY_TYPE_LABEL[r.type]})`).join(" and ");
-      const notes = Array.from(new Set(rows.map((r) => r.note).filter((n): n is string => !!n)));
-      const noteText = notes.length ? ` ${notes.join(" ")}` : "";
-      return { kind: "count", answer: `Yes — ${dateLabel} is ${names}.${noteText}` };
+      const names = rows
+        .map((r) => `${r.name} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)})`)
+        .join(" and ");
+      return { kind: "count", answer: `Yes — ${dateLabel} is ${names}.${notesSuffix(rows.map((r) => r.note))}` };
     }
 
     case "holidayInvalidCategory":

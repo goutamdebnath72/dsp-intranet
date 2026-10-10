@@ -1195,9 +1195,11 @@ export function OmnibarModal({
                             <p className="px-2 pt-1 text-[11px] text-neutral-400">
                               A–D columns show Closed and Festival holiday
                               eligibility only. Restricted Holidays are a
-                              shared pool every category can pick from — see
-                              the RH quota above for how many each category
-                              gets.
+                              shared pool every category can pick from
+                              {analytics.rhQuotaByCategory &&
+                              analytics.rhQuotaByCategory.length > 0
+                                ? " — see the RH quota above for how many each category gets."
+                                : "."}
                             </p>
                           </div>
                         );
