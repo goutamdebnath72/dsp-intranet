@@ -27,6 +27,7 @@ import { loadDynamicContext, clearContextCache, selectRelevantDepartments } from
 import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
+import { checkDepartmentColumns } from "../deptColumns";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
 import { pageProgress, mergePage } from "../display";
@@ -473,6 +474,33 @@ async function main() {
   check("the prompt explains abbreviated department words and the stem rule", promptDept.includes("ELECT") && promptDept.includes("LIKE '%elect%'") && promptDept.includes("SHORT STEM"));
 
   // ==========================================================================
+  section("G5. A department is shown with BOTH its code and its name (checked from the SQL, not by the model)");
+  // The SQL the real model wrote for the 10 database questions of the 8-9 Oct 2026 test sheet (see the test ledger).
+  const modelWrote: [string, string, boolean][] = [
+    ["D1 code only", "SELECT d.code AS department_code, e.cohort, COUNT(*) AS count FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE d.code IN (98500,98530,98540) GROUP BY d.code, e.cohort ORDER BY d.code, e.cohort", true],
+    ["D2 name only", "SELECT ticket_no, name, designation, department FROM (SELECT e.ticket_no, e.name, e.designation, d.name AS department, e.global_seniority_rank AS sr, row_number() OVER (PARTITION BY e.department_id ORDER BY e.global_seniority_rank) AS rn FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE e.cohort = 'executive') sub WHERE rn <= 5 ORDER BY department, sr", true],
+    ["D3 name only", "SELECT department, count(*) AS count FROM nlq.employees WHERE cohort = 'nonexecutive' GROUP BY department HAVING count(*) > 20", true],
+    ["D4 both (already right)", "SELECT d.code AS department_code,d.name AS department_name,COUNT(*) FILTER (WHERE e.cohort='executive') AS exec_count FROM nlq.employees e JOIN nlq.departments d ON e.department_id=d.id GROUP BY d.code,d.name HAVING COUNT(*) FILTER (WHERE e.cohort='executive')>0 ORDER BY exec_count DESC LIMIT 10", false],
+    ["D5 name only", "SELECT d.name AS department, count(*) AS count FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id GROUP BY d.id, d.name ORDER BY count DESC LIMIT 1", true],
+    ["E1 no department at all", "SELECT e.designation AS designation, count(*) AS count FROM nlq.employees e WHERE e.cohort='executive' GROUP BY e.designation ORDER BY count DESC LIMIT 1", false],
+    ["E2 code only", "SELECT e.ticket_no, e.name, e.designation, d.code AS department_code FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE e.cohort='executive' ORDER BY e.global_seniority_rank", true],
+    ["E4 name only", "SELECT ticket_no, name, designation, department FROM nlq.employees WHERE name_words = ARRAY['RANA','SAHA'] ORDER BY global_seniority_rank LIMIT 1", true],
+    ["E5 no department at all", "SELECT designation, count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND has_webmail GROUP BY designation ORDER BY rank_order", false],
+  ];
+  for (const [label, sqlText, expectProblem] of modelWrote) {
+    const problem = checkDepartmentColumns(sqlText);
+    check(`${label}: ${expectProblem ? "flagged" : "accepted"}`, expectProblem ? problem !== null : problem === null, String(problem));
+  }
+  check("the message names both columns", /department_code/.test(String(checkDepartmentColumns("SELECT department, count(*) AS count FROM nlq.employees GROUP BY department"))) && /JOIN nlq\.departments/.test(String(checkDepartmentColumns("SELECT department, count(*) AS count FROM nlq.employees GROUP BY department"))));
+  check("people list with code AND name is accepted", checkDepartmentColumns("SELECT ticket_no, name, designation, department_code, department FROM nlq.employees ORDER BY global_seniority_rank") === null);
+  check("a per-department count with both is accepted", checkDepartmentColumns("SELECT department_code, department, count(*) AS count FROM nlq.employees GROUP BY department_id, department_code, department") === null);
+  check("aliases count (d.code AS dept_code + d.name AS dept_name)", checkDepartmentColumns("SELECT d.code AS dept_code, d.name AS dept_name FROM nlq.departments d") === null);
+  check("a WITH query is judged by its final SELECT", checkDepartmentColumns("WITH t AS (SELECT department_code, department, ticket_no FROM nlq.employees) SELECT department FROM t") !== null);
+  check("SELECT * cannot be judged -> accepted", checkDepartmentColumns("SELECT * FROM nlq.employees") === null);
+  check("unparsable SQL cannot be judged -> accepted", checkDepartmentColumns("SELEKT department FROM") === null);
+  check("a count with no department column -> accepted", checkDepartmentColumns("SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'") === null);
+
+  // ==========================================================================
   section("H. Full pipeline with a scripted stand-in model");
   const json = (o: object) => JSON.stringify(o);
   const script = (replies: string[]): LlmFn => {
@@ -482,7 +510,7 @@ async function main() {
       return replies[i++];
     };
   };
-  const good = `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE 'KUMAR' = ANY(name_words) ORDER BY global_seniority_rank`;
+  const good = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE 'KUMAR' = ANY(name_words) ORDER BY global_seniority_rank`;
   const goodPlan = json({ sql: good, understood_as: "People with the word KUMAR.", confidence: "high" });
 
   let r = await answerQuestion("kumar anywhere", "T1", { llm: script([goodPlan]), withClient });
@@ -491,6 +519,11 @@ async function main() {
 
   r = await answerQuestion("q1", "T1", { llm: script([json({ sql: "DROP TABLE nlq.employees", understood_as: "x" }), goodPlan]), withClient });
   check("a guard rejection is repaired on attempt 2", r.ok && r.attempts === 2);
+  const nameOnly = `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE 'KUMAR' = ANY(name_words) ORDER BY global_seniority_rank`;
+  r = await answerQuestion("kumar department columns repair", "T1", { llm: script([json({ sql: nameOnly, understood_as: "x" }), goodPlan]), withClient });
+  check("a department shown by name alone is sent back once: attempt 2 returns code AND name", r.ok && r.attempts === 2 && /department_code/.test(r.sql));
+  r = await answerQuestion("kumar department columns stubborn", "T1", { llm: script([json({ sql: nameOnly, understood_as: "x" }), json({ sql: nameOnly, understood_as: "x" })]), withClient });
+  check("a model that insists on the name alone is still answered (never fail a question over this)", r.ok && r.attempts === 2);
 
   r = await answerQuestion("q2", "T1", { llm: script([json({ sql: "SELECT nosuchcol FROM nlq.employees", understood_as: "x" }), goodPlan]), withClient });
   check("a database error is repaired on attempt 2", r.ok && r.attempts === 2);
@@ -537,7 +570,7 @@ async function main() {
   // the three real failures, through the whole pipeline: wrong first try, corrected on the second
   const cases3: [string, string, string][] = [
     ["count of officers in the C&IT department", bad1, `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM nlq.departments WHERE code IN (98500,98530,98540))`],
-    ["top 10 senior staff", bad2, `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'nonexecutive' ORDER BY global_seniority_rank LIMIT 10`],
+    ["top 10 senior staff", bad2, `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'nonexecutive' ORDER BY global_seniority_rank LIMIT 10`],
     ["number of people working in BLAST FURNACE (OPERATION)", `SELECT count(*) AS count FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace (operation)%')`, `SELECT count(*) AS count FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace operation%')`],
   ];
   for (const [qq, badSql, goodSql2] of cases3) {
@@ -561,7 +594,7 @@ async function main() {
   check("one person's cross is final: the same SQL is refused for everyone else too", r.ok && r.attempts === 2 && r.sql.includes("LIMIT 5"), r.ok ? `attempts ${r.attempts}` : r.message);
 
   // confirmed answers become worked examples
-  r = await answerQuestion("employees called zzqx", "USER-A", { llm: script([json({ sql: `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE 'ZZQX' = ANY(name_words)`, understood_as: "zzqx" })]), withClient });
+  r = await answerQuestion("employees called zzqx", "USER-A", { llm: script([json({ sql: `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE 'ZZQX' = ANY(name_words)`, understood_as: "zzqx" })]), withClient });
   if (r.ok && r.logId) await recordVerdict(db, r.logId, "confirm", "USER-A");
   const { loadConfirmedExamples } = await import("../examples");
   const confirmed = await loadConfirmedExamples(db);
@@ -613,7 +646,7 @@ async function main() {
     enabled: true, llm, withClient, holiday: nothing, legacy: async () => { legacyCalls++; return null; }, verifiedMin: 2, ...over,
   });
   const model = (sql: string, understood = "the reading") => script([json({ sql, understood_as: understood, confidence: "high" })]);
-  const PEOPLE5 = `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 5`;
+  const PEOPLE5 = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 5`;
 
   let o: any = await runOmnibar("list five senior executives", "T-OMNI", mkDeps(model(PEOPLE5, "Five most senior executives.")));
   const expectTickets = (await pg.query(`SELECT ticket_no FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 5`)).rows.map((r: any) => r.ticket_no);
@@ -626,7 +659,7 @@ async function main() {
   check("the omnibar answer is logged for that person", logged && logged.user_key === "T-OMNI" && logged.ok === true);
 
   // contact details stay masked; passwords never appear
-  const many: any = await runOmnibar("sixty executives", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 60`)));
+  const many: any = await runOmnibar("sixty executives", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 60`)));
   const withMobile = many.people.find((p: any) => p.hasMobile);
   check("some people have a phone on file (test data)", !!withMobile);
   const raw = (await pg.query(`SELECT u."contactNo" AS c, u.email AS e FROM public.employee_roster r JOIN public."user" u ON u.id = r.user_id WHERE r.ticket_no = $1`, [withMobile.ticketNo])).rows[0];
@@ -637,7 +670,7 @@ async function main() {
   check("no password hash and no full contact value is in the payload", !blob.includes("HASHED-SECRET") && !blob.includes(raw.c) && !(raw.e && blob.includes(raw.e)));
 
   // long lists: first 100 shown, true total reported
-  const longList: any = await runOmnibar("all non executives", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'nonexecutive' ORDER BY global_seniority_rank`)));
+  const longList: any = await runOmnibar("all non executives", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'nonexecutive' ORDER BY global_seniority_rank`)));
   const nonExecTotal = (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE cohort = 'nonexecutive'`)).rows[0].n;
   check("a long list shows 100 people but reports the true total", longList.people.length === 100 && longList.listTruncated === true && longList.count === nonExecTotal, `${longList.people.length}/${longList.count} vs ${nonExecTotal}`);
 
@@ -652,7 +685,7 @@ async function main() {
   check("the table headline counts its rows", new RegExp(`^${o.nl2sql.table.total.toLocaleString()} rows\\.`).test(o.answer), o.answer);
 
   // departments covered
-  o = await runOmnibar("garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%')`)));
+  o = await runOmnibar("garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%')`)));
   check("departments covered travel with the answer", o.nl2sql.scope && o.nl2sql.scope.total === 3 && o.nl2sql.scope.departments.every((d: string) => /GARAGE/.test(d)), JSON.stringify(o.nl2sql.scope));
 
   // extra columns next to ticket_no
@@ -731,8 +764,8 @@ async function main() {
   check("every reason code has a hint", REASON_CODES.every((c) => retryHint(c, null).length > 20));
 
   // -- Yes / No on a model answer, on someone else's answer, and on a non-model answer
-  const SQL_A = `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 4`;
-  const SQL_B = `SELECT ticket_no, name, designation, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`;
+  const SQL_A = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 4`;
+  const SQL_B = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`;
   const ask = async (qq: string, user: string | null, sql: string, over: Partial<OmnibarDeps> = {}) => {
     const out = (await runOmnibar(qq, user, mkDeps(model(sql), over))) as any;
     if (!out || !out.nl2sql) throw new Error(`ask() got no model answer for "${qq}" (user ${user}): ${JSON.stringify(out)}`);
@@ -857,11 +890,11 @@ async function main() {
   check("the limit is 30 votes per person per hour", VOTES_PER_HOUR === 30);
 
   // -- columns the person asked for: codes go on the person's card, other extra columns get a table (never silently dropped)
-  const STD = `ticket_no, name, designation, department`;
+  const STD = `ticket_no, name, designation, department_code, department`;
   const TAIL = `FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`;
   const plainList: any = await ask("list executives plain columns test", "COL-1", `SELECT ${STD} ${TAIL}`);
-  check("a plain list: no codes on the cards, shown as cards, all four columns known", plainList.people.length === 3 && plainList.people.every((p: any) => p.departmentCode === undefined && p.designationCode === undefined) && plainList.nl2sql.display?.view === "cards" && plainList.nl2sql.display.columns.length === 4);
-  const codeList: any = await ask("list executives with department codes test", "COL-1", `SELECT ${STD}, department_code ${TAIL}`);
+  check("a plain list now carries each person's department code AND name on the card (designation code still not shown), shown as cards, all five columns known", plainList.people.length === 3 && plainList.people.every((p: any) => /^\d+$/.test(String(p.departmentCode ?? "")) && p.designationCode === undefined) && plainList.nl2sql.display?.view === "cards" && plainList.nl2sql.display.columns.length === 5);
+  const codeList: any = await ask("list executives with department codes test", "COL-1", `SELECT ticket_no, name, designation, department, department_code ${TAIL}`);
   check("'with department codes': each person's card carries the department code", codeList.people.length === 3 && codeList.people.every((p: any) => /^\d+$/.test(String(p.departmentCode ?? ""))), JSON.stringify(codeList.people.map((p: any) => p.departmentCode)));
   check("...and the code matches the database (the same person's real department code)", (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE ticket_no = ANY($1::text[]) AND department_code::text = ANY($2::text[])`, [codeList.people.map((p: any) => p.ticketNo), codeList.people.map((p: any) => p.departmentCode)])).rows[0].n >= 3);
   check("...the department-code column is among the displayed columns with a readable title, and the table is there for the Cards/Table switch", codeList.nl2sql.display?.view === "cards" && codeList.nl2sql.display.columns.some((c: any) => c.key === "department_code" && c.label === "Dept code") && !!codeList.nl2sql.table);
@@ -904,7 +937,7 @@ async function main() {
   check("a CTE answer still runs, but is not pageable", cteRes.rows.length === 5 && cteRes.pageable === false);
   let refused = ""; try { await withClient((c) => runReadOnly(c, `SELECT 1; SELECT 2`, { rowLimit: 5, offset: 0 })); } catch (e: any) { refused = String(e.message); }
   check("the single-statement protection still applies with paging", /single statement/i.test(refused));
-  const bigAsk: any = await ask("list every employee in seniority order for paging test", "PG-1", `SELECT ticket_no, name, designation, department FROM nlq.employees ORDER BY global_seniority_rank`);
+  const bigAsk: any = await ask("list every employee in seniority order for paging test", "PG-1", `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees ORDER BY global_seniority_rank`);
   check("a list longer than one page: the answer says 'Show more' is possible, 100 cards come first, and the true total is known", bigAsk.nl2sql.canPage === true && bigAsk.people.length === PAGE_SIZE && bigAsk.nl2sql.table.rows.length === PAGE_SIZE && bigAsk.nl2sql.table.total === fullSet.length && bigAsk.nl2sql.logId != null);
   const smallAsk: any = await ask("list three executives for paging test", "PG-1", `SELECT ticket_no, name FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`);
   check("a short list never offers 'Show more'", smallAsk.nl2sql.canPage === undefined);

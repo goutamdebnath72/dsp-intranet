@@ -19,6 +19,7 @@ import { normalizeSql } from "./text";
 import { checkQuotedTerms } from "./quoted";
 import { checkNormPatterns, checkVocabulary } from "./vocabulary";
 import { computeDepartmentScope } from "./scope";
+import { checkDepartmentColumns } from "./deptColumns";
 
 /** Context for a second attempt after a "No", and other optional inputs. */
 export interface PipelineExtra {
@@ -148,6 +149,16 @@ export async function answerQuestion(question: string, userKey: string | null, d
       lastProblem = senseProblem;
       repair = { previousSql: g.sql, problem: senseProblem };
       continue;
+    }
+    // A department shown by its code alone, or its name alone, is half an answer. ONE repair chance (first attempt
+    // only): if the model still leaves one out, the answer is shown as it is -- never fail a question over this.
+    if (attempts === 1) {
+      const deptProblem = checkDepartmentColumns(g.sql);
+      if (deptProblem) {
+        lastProblem = deptProblem;
+        repair = { previousSql: g.sql, problem: deptProblem };
+        continue;
+      }
     }
     if (rejectedNorm.has(normalizeSql(g.sql))) {
       lastProblem = "This is the same SQL the person already marked wrong.";

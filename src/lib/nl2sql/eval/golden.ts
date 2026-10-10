@@ -18,7 +18,7 @@ export interface GoldenCase {
   note?: string;
 }
 
-const P = "ticket_no, name, designation, department";
+const P = "ticket_no, name, designation, department_code, department";
 const CIT = "(SELECT id FROM nlq.departments WHERE code IN (98500, 98530, 98540))";
 const GARAGE = "(SELECT id FROM nlq.departments WHERE code IN (85000, 85070, 85110, 85200, 85330, 85430))";
 

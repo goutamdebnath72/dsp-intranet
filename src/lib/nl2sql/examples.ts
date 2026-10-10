@@ -20,7 +20,7 @@ export interface Example {
   source: "seed" | "confirmed";
 }
 
-const PEOPLE = "ticket_no, name, designation, department";
+const PEOPLE = "ticket_no, name, designation, department_code, department";
 
 export const SEED_EXAMPLES: Example[] = [
   {
@@ -94,6 +94,16 @@ WHERE department_id IN (SELECT id FROM nlq.departments WHERE code IN (85000, 850
 GROUP BY designation, rank_order
 ORDER BY rank_order, designation`,
     understood_as: "Employees of Plant Garage (all six garage sections) counted by designation, most senior designation first.",
+    source: "seed",
+  },
+  {
+    question: "how many people work in each blast furnace section",
+    sql: `SELECT department_code, department, count(*) AS count
+FROM nlq.employees
+WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace%')
+GROUP BY department_id, department_code, department
+ORDER BY department_code`,
+    understood_as: "Employees counted per department whose name contains BLAST FURNACE, each with its code and name.",
     source: "seed",
   },
   {
