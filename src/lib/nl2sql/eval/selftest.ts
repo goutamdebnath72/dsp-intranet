@@ -29,7 +29,7 @@ import { SEED_EXAMPLES, pickExamples, similarity } from "../examples";
 import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "../deptColumns";
-import { checkComparison, checkRankingAndOrder } from "../rankingCheck";
+import { checkComparison, checkRankingAndOrder, comparisonVerdict } from "../rankingCheck";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
 import { pageProgress, mergePage, columnKind, formatCell, sortRows, toCsv, resolveDisplay } from "../display";
@@ -632,6 +632,20 @@ async function main() {
     check(label, expectProblem ? problem !== null : problem === null, String(problem));
   }
 
+  // -- the sentence that STATES a comparison's answer (computed from the two ranks)
+  const mohdRana = [{ name: "MOHD ANWAR ULLAH", global_seniority_rank: 40121 }, { name: "RANA SAHA", global_seniority_rank: 40186 }];
+  const R = "seniority rank 40,121 against 40,186; a lower rank is more senior";
+  check("'who is more senior' states it", comparisonVerdict("who is more senior, Mohd Anwar Ullah or Rana Saha", mohdRana) === `MOHD ANWAR ULLAH is more senior than RANA SAHA (${R}).`);
+  check("...the same sentence whichever order the rows come in", comparisonVerdict("who is more senior, Mohd Anwar Ullah or Rana Saha", [...mohdRana].reverse()) === `MOHD ANWAR ULLAH is more senior than RANA SAHA (${R}).`);
+  check("'who is junior' names the junior", comparisonVerdict("who is junior, Mohd Anwar Ullah or Rana Saha", mohdRana) === `RANA SAHA is the junior: MOHD ANWAR ULLAH is more senior (${R}).`);
+  check("'which of A or B is more junior' and 'less senior' name the junior", /is the junior: MOHD/.test(String(comparisonVerdict("which of Rana Saha or Mohd Anwar Ullah is more junior", mohdRana))) && /is the junior: MOHD/.test(String(comparisonVerdict("who is less senior, Rana Saha or Mohd Anwar Ullah", mohdRana))));
+  check("'less junior' and 'more senior or junior' state the senior one", /is more senior than RANA/.test(String(comparisonVerdict("who is less junior, Rana Saha or Mohd Anwar Ullah", mohdRana))) && /is more senior than RANA/.test(String(comparisonVerdict("who is more senior or junior, Mohd Anwar Ullah or Rana Saha", mohdRana))));
+  check("ranks that arrive as text are handled", comparisonVerdict("who is more senior, A or B", [{ name: "A", global_seniority_rank: "40121" }, { name: "B", global_seniority_rank: "40186" }]) === `A is more senior than B (${R}).`);
+  check("one person found -> no verdict (the missing person stays visible)", comparisonVerdict("who is more senior, A or B", [mohdRana[0]]) === null);
+  check("three people found -> no verdict (the ambiguity stays visible)", comparisonVerdict("who is more senior, A or B", [...mohdRana, { name: "X", global_seniority_rank: 50000 }]) === null);
+  check("equal ranks, a missing rank or a missing name -> no verdict", comparisonVerdict("who is more senior, A or B", [{ name: "A", global_seniority_rank: 1 }, { name: "B", global_seniority_rank: 1 }]) === null && comparisonVerdict("who is more senior, A or B", [{ name: "A" }, { name: "B", global_seniority_rank: 2 }]) === null && comparisonVerdict("who is more senior, A or B", [{ global_seniority_rank: 1 }, { name: "B", global_seniority_rank: 2 }]) === null);
+  check("a question that is not a comparison -> no verdict", comparisonVerdict("who is the most senior roy or ray", mohdRana) === null && comparisonVerdict("list the two most senior people", mohdRana) === null);
+
   // PROOF on the database: the LIMIT 1 answer hides the other person and both ranks; the right form shows them. Rolled back.
   await pg.query("BEGIN");
   try {
@@ -980,6 +994,15 @@ async function main() {
   // departments covered
   o = await runOmnibar("garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%') ORDER BY global_seniority_rank`)));
   check("departments covered travel with the answer", o.nl2sql.scope && o.nl2sql.scope.total === 3 && o.nl2sql.scope.departments.every((d: string) => /GARAGE/.test(d)), JSON.stringify(o.nl2sql.scope));
+  // a comparison STATES its answer, computed from the ranks of two real people
+  const twoTop = (await pg.query(`SELECT ticket_no, name, global_seniority_rank FROM nlq.employees ORDER BY global_seniority_rank LIMIT 2`)).rows;
+  const cmpSql2 = `SELECT ticket_no, name, designation, department_code, department, global_seniority_rank FROM nlq.employees WHERE ticket_no IN ('${twoTop[0].ticket_no}', '${twoTop[1].ticket_no}') ORDER BY global_seniority_rank`;
+  o = await runOmnibar(`who is more senior, ${twoTop[1].name} or ${twoTop[0].name}`, "T-OMNI", mkDeps(model(cmpSql2)));
+  check("end to end: the answer states who is more senior (computed from the ranks)", typeof o.answer === "string" && o.answer.startsWith(`${twoTop[0].name} is more senior than ${twoTop[1].name} (seniority rank`) && o.people.length === 2, String(o.answer));
+  o = await runOmnibar(`who is junior, ${twoTop[1].name} or ${twoTop[0].name}`, "T-OMNI", mkDeps(model(cmpSql2)));
+  check("end to end: 'who is junior' names the junior", typeof o.answer === "string" && o.answer.startsWith(`${twoTop[1].name} is the junior: ${twoTop[0].name} is more senior`), String(o.answer));
+  o = await runOmnibar("the two most senior people in the plant", "T-OMNI", mkDeps(model(cmpSql2)));
+  check("end to end: an ordinary list keeps its plain '2 people found.'", o.answer === "2 people found.", String(o.answer));
   check("the payload carries the model-call count and the time taken (shown in the SQL panel)", o.nl2sql.attempts >= 1 && typeof o.nl2sql.elapsedMs === "number" && o.nl2sql.elapsedMs >= 0, JSON.stringify([o.nl2sql.attempts, o.nl2sql.elapsedMs]));
 
   // extra columns next to ticket_no

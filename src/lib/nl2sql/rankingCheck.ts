@@ -180,3 +180,29 @@ export function checkComparison(question: string, sql: string): string | null {
     "If one of them does not exist the answer then visibly shows a single row instead of silently naming a winner."
   );
 }
+
+// ---------------------------------------------------------------------------------------------------
+// The sentence that STATES the answer of a comparison. Computed from the rows by code, never by the model:
+// lower global_seniority_rank = more senior, and ranks are unique per person, so it cannot be wrong.
+// ---------------------------------------------------------------------------------------------------
+const JUNIOR_CUE =
+  /\b(?:more\s+junior|less\s+senior)\b|\bwho\s+is\s+junior\b|\bjunior\s+(?:between|among|out\s+of)\b|\bwhich\s+of\b[^?]*\bjunior\b/i;
+const SENIOR_CUE =
+  /\b(?:more\s+senior|less\s+junior)\b|\bwho\s+is\s+senior\b|\bsenior\s+(?:between|among|out\s+of)\b|\bwhich\s+of\b[^?]*\bsenior\b/i;
+
+export function comparisonVerdict(question: string, rows: Array<Record<string, unknown>>): string | null {
+  const q = question || "";
+  if (!JUNIOR_CUE.test(q) && !SENIOR_CUE.test(q)) return null;
+  if (!Array.isArray(rows) || rows.length !== 2) return null; // 1 or 3+ people: the ambiguity must stay visible
+  const [a, b] = rows;
+  const ra = Number(a?.global_seniority_rank);
+  const rb = Number(b?.global_seniority_rank);
+  const na = typeof a?.name === "string" ? a.name.trim() : "";
+  const nb = typeof b?.name === "string" ? b.name.trim() : "";
+  if (!na || !nb || !Number.isFinite(ra) || !Number.isFinite(rb) || ra === rb) return null;
+  const [senior, junior, rs, rj] = ra < rb ? [na, nb, ra, rb] : [nb, na, rb, ra];
+  const n = (v: number) => v.toLocaleString("en-US");
+  const ranks = `seniority rank ${n(rs)} against ${n(rj)}; a lower rank is more senior`;
+  const asksJunior = JUNIOR_CUE.test(q) && !SENIOR_CUE.test(q);
+  return asksJunior ? `${junior} is the junior: ${senior} is more senior (${ranks}).` : `${senior} is more senior than ${junior} (${ranks}).`;
+}

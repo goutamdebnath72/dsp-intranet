@@ -20,6 +20,7 @@ import type { AnalyticsPayload } from "@/lib/employees/analytics";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import type { Nl2SqlExtras } from "./clientTypes";
+import { comparisonVerdict } from "./rankingCheck";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
 import { PAGE_SIZE } from "./paging";
 import type { QueryResultData } from "./types";
@@ -219,7 +220,8 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
     return {
       kind: "count",
       count: total,
-      answer: `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
+      // A comparison ("who is more senior, A or B") STATES its answer, computed from the two ranks (never by the model).
+      answer: comparisonVerdict(String((res as any).question ?? ""), rows as any) ?? `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
       people: withExtraFields(people, display, rows),
       listTruncated: truncated,
       interpretation: res.understoodAs,
