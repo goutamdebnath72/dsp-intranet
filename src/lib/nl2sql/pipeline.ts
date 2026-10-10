@@ -159,6 +159,7 @@ export async function answerQuestion(question: string, userKey: string | null, d
       const soft = [checkDepartmentColumns(g.sql), checkDepartmentIdentity(g.sql), checkRankingAndOrder(g.sql)].filter((x): x is string => !!x);
       if (soft.length) {
         lastProblem = soft.join(" ALSO: ");
+        console.info(`[nl2sql] attempt 1 sent back for a second model call (${soft.length} rule${soft.length > 1 ? "s" : ""}): ${lastProblem.slice(0, 140)}`);
         repair = { previousSql: g.sql, problem: lastProblem };
         continue;
       }

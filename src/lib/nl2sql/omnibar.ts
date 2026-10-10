@@ -198,6 +198,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
     sql: res.sql,
     confidence: res.confidence,
     attempts: res.attempts,
+    elapsedMs: res.elapsedMs,
     scope: res.scope && res.scope.total > 0 ? { departments: res.scope.departments.map((d) => d.name), total: res.scope.total } : null,
     ...(res.source === "cache" ? { verifiedBy: res.verifiedBy } : {}),
     ...(attempt > 1 ? { retryAttempt: attempt } : {}),

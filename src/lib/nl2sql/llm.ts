@@ -63,6 +63,7 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
       if (res.status === 429 && attempt < 2) {
         const wait = retryAfterSeconds(res, text);
         if (wait !== null && wait <= maxWait) {
+          console.warn(`[nl2sql] Groq rate limit (429): waiting ${wait.toFixed(1)} s before retry ${attempt + 1} of 2 -- this is why an answer can take long`);
           await sleep(Math.ceil(wait * 1000) + 500);
           continue;
         }

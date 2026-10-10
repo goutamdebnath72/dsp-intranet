@@ -23,6 +23,8 @@ export interface Nl2SqlExtras {
   sql: string;
   confidence: string;
   attempts: number;
+  /** How long the whole answer took (model call(s) + database), in milliseconds. */
+  elapsedMs?: number;
   /** Departments the answer's department filter really matched (computed from the SQL by the system). */
   scope: { departments: string[]; total: number } | null;
   /** The rows and columns the SQL returned, present for every answer except a single plain number. */

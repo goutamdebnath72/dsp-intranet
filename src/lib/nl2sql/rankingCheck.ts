@@ -10,6 +10,9 @@
 //      (rank() ... WHERE r = 1 together with  sum(cnt) OVER () ). The outer window runs AFTER the filter, so the
 //      "total" is only the winners' own count and a percentage of the total comes out as 100.
 //   5. A list of names inside one cell (array_agg / string_agg) with no ORDER BY: the names come in arbitrary order.
+//   6. Ranking BEFORE the population is decided: the outer WHERE holds both the rank cut (r <= 10) and another condition
+//      (nonexec_count = 0). The rank was computed over ALL rows, so the top 10 of everyone is cut first and then thinned:
+//      fewer than 10 rows come back. The condition that decides who competes belongs in HAVING/WHERE of the ranking query.
 // The pipeline gives the model ONE chance to fix it (first attempt only) and never fails a question over it.
 
 import { parse } from "pgsql-ast-parser";
@@ -89,6 +92,28 @@ export function checkRankingAndOrder(sql: string): string | null {
         "A window function in the OUTER query (such as sum(cnt) OVER ()) runs AFTER the WHERE that keeps only the ranked rows, so it only sees the winners: " +
         "a percentage of the total comes out as 100. Compute the total INSIDE the ranked sub-query, next to rank(): " +
         "sum(count(*)) OVER () AS total, rank() OVER (ORDER BY count(*) DESC) AS r -- then select cnt * 100.0 / total in the outer query."
+      );
+    }
+  }
+
+  // Rule 6: the rank cut and ANOTHER condition together in the outer WHERE (the other condition is applied after ranking).
+  if (Array.isArray(st.from) && st.from.length === 1 && st.from[0].type === "statement" && st.where) {
+    const inner: any = st.from[0].statement;
+    const windowAliases: string[] = (Array.isArray(inner?.columns) ? inner.columns : [])
+      .filter((c: any) => c.expr?.type === "call" && c.expr.over && c.alias?.name)
+      .map((c: any) => String(c.alias.name).toLowerCase());
+    const refs = new Set<string>();
+    walk(st.where, (x) => {
+      if (x.type === "ref" && typeof x.name === "string") refs.add(x.name.toLowerCase());
+    });
+    const usesRank = windowAliases.some((a) => refs.has(a));
+    const others = [...refs].filter((n) => !windowAliases.includes(n));
+    if (usesRank && others.length > 0) {
+      return (
+        `The outer WHERE cuts the ranking (${windowAliases.filter((a) => refs.has(a)).join(", ")}) and ALSO filters on ${others.join(", ")}. ` +
+        "rank() was computed over ALL rows first, so the top N of everyone is taken and only then thinned: fewer than N rows come back. " +
+        "Put the condition that decides WHICH rows compete in HAVING (or WHERE) of the query that computes rank() -- e.g. " +
+        "HAVING count(*) FILTER (WHERE cohort = 'nonexecutive') = 0 -- and keep ONLY the rank filter (r <= N) in the outer WHERE."
       );
     }
   }

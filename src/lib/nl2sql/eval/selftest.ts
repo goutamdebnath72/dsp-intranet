@@ -596,6 +596,10 @@ async function main() {
     ["the rank() way: ties kept, top level not grouped -> fine", "SELECT designation, executives FROM (SELECT designation, count(*) AS executives, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort='executive' GROUP BY designation) t WHERE r = 1", false],
     ["a plain count -> fine", "SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'", false],
     ["D5 (10 Oct): sum(cnt) OVER () in the OUTER query after WHERE r = 1 -> flagged (a share of the total becomes 100%)", "SELECT department_code, department, cnt AS nonexecutive_count, round(cnt * 100.0 / sum(cnt) OVER (), 2) AS percentage FROM (SELECT e.department_code, e.department, count(*) AS cnt, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees e WHERE e.cohort = 'nonexecutive' GROUP BY e.department_id, e.department_code, e.department) s WHERE r = 1 ORDER BY department_code", true],
+    ["D4 (10 Oct): rank over ALL departments, then WHERE nonexec_count = 0 AND r <= 10 -> flagged (only 8 rows come back)", "SELECT department_code, department, exec_count FROM ( SELECT e.department_code, e.department, count(*) FILTER (WHERE cohort='executive') AS exec_count, count(*) FILTER (WHERE cohort='nonexecutive') AS nonexec_count, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort='executive') DESC) AS r FROM nlq.employees e GROUP BY e.department_code, e.department ) sub WHERE nonexec_count = 0 AND r <= 10 ORDER BY exec_count DESC, department_code", true],
+    ["D4 done right: the condition is in HAVING, only r <= 10 outside -> fine", "SELECT department_code, department, exec_count FROM ( SELECT e.department_code, e.department, count(*) FILTER (WHERE cohort='executive') AS exec_count, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort='executive') DESC) AS r FROM nlq.employees e GROUP BY e.department_id, e.department_code, e.department HAVING count(*) FILTER (WHERE cohort='nonexecutive') = 0 ) sub WHERE r <= 10 ORDER BY r, department_code", false],
+    ["rank cut plus another population filter (r <= 5 AND exec_count > 0) -> flagged", "SELECT department_code, exec_count FROM (SELECT department_code, count(*) AS exec_count, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort = 'executive' GROUP BY department_id, department_code) t WHERE r <= 5 AND exec_count > 0", true],
+    ["a sub-query filter with no window result involved -> fine", "SELECT department_code, department, c FROM (SELECT department_code, department, count(*) AS c FROM nlq.employees GROUP BY department_id, department_code, department) t WHERE c > 20 ORDER BY c DESC", false],
     ["D5 done right: the total is computed INSIDE, beside rank() -> fine", "SELECT department_code, department, cnt, round(cnt * 100.0 / total, 2) AS percentage FROM (SELECT department_code, department, count(*) AS cnt, sum(count(*)) OVER () AS total, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees WHERE cohort = 'nonexecutive' GROUP BY department_id, department_code, department) s WHERE r = 1", false],
     ["an outer window with NO filter on a window result -> fine", "SELECT department_code, department, cnt, sum(cnt) OVER () AS total FROM (SELECT department_code, department, count(*) AS cnt FROM nlq.employees GROUP BY department_id, department_code, department) t WHERE cnt > 20 ORDER BY cnt DESC", false],
     ["E5 (10 Oct): array_agg(name) with no ORDER BY -> flagged", "SELECT designation, count(*) AS count, array_agg(name) AS names FROM nlq.employees WHERE cohort = 'executive' AND has_webmail AND NOT has_email_nic GROUP BY designation, rank_order ORDER BY rank_order, designation", true],
@@ -610,6 +614,27 @@ async function main() {
   }
   check("the LIMIT message tells the model to use rank()", /rank\(\) OVER/.test(String(checkRankingAndOrder("SELECT designation, count(*) AS c FROM nlq.employees GROUP BY designation ORDER BY c DESC LIMIT 1"))));
   check("the seed example for the right pattern passes both soft checks", SEED_EXAMPLES.filter((e) => e.sql && /rank\(\) OVER/.test(e.sql)).every((e) => checkRankingAndOrder(e.sql!) === null && checkDepartmentColumns(e.sql!) === null) && SEED_EXAMPLES.some((e) => e.sql && /rank\(\) OVER/.test(e.sql)));
+  // PROOF on the database: ranking BEFORE the population filter returns fewer rows than asked for. Rolled back afterwards.
+  //   6 executive-only/mixed departments: A (6 executives + 1 non-executive), B (5 + 1), C 4, D 3, E 2, F 1 (executives only).
+  //   "top 3 departments with executives but no non-executives" must be C, D, E.
+  await pg.query("BEGIN");
+  try {
+    await pg.query(`INSERT INTO public.sail_department (id, code, name, cohort_scope) VALUES (29201,970201,'ZQ RANK A','shared'),(29202,970202,'ZQ RANK B','shared'),(29203,970203,'ZQ RANK C','shared'),(29204,970204,'ZQ RANK D','shared'),(29205,970205,'ZQ RANK E','shared'),(29206,970206,'ZQ RANK F','shared')`);
+    await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank)
+      SELECT '97' || lpad(v.d::text,2,'0') || lpad(g::text,2,'0'), 'ZQ P ' || v.d || '-' || g, (SELECT id FROM public.designation_grade WHERE track <> 'nonexec' ORDER BY id LIMIT 1), 29200 + v.d, 'executive', 97000 + v.d*100 + g, 950000 + v.d*100 + g
+      FROM (VALUES (1,6),(2,5),(3,4),(4,3),(5,2),(6,1)) v(d,n) CROSS JOIN LATERAL generate_series(1, v.n) g`);
+    await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
+      ('979101','ZQ N A',20,29201,'nonexecutive',97901,959101), ('979201','ZQ N B',20,29202,'nonexecutive',97902,959201)`);
+    const wrongSql = `SELECT department_code, exec_count FROM (SELECT department_code, count(*) FILTER (WHERE cohort='executive') AS exec_count, count(*) FILTER (WHERE cohort='nonexecutive') AS nonexec_count, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort='executive') DESC) AS r FROM nlq.employees WHERE department_code BETWEEN 970201 AND 970206 GROUP BY department_code) sub WHERE nonexec_count = 0 AND r <= 3 ORDER BY exec_count DESC`;
+    const rightSql = `SELECT department_code, exec_count FROM (SELECT department_code, count(*) FILTER (WHERE cohort='executive') AS exec_count, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort='executive') DESC) AS r FROM nlq.employees WHERE department_code BETWEEN 970201 AND 970206 GROUP BY department_code HAVING count(*) FILTER (WHERE cohort='nonexecutive') = 0) sub WHERE r <= 3 ORDER BY exec_count DESC`;
+    const wrongRows = (await pg.query(wrongSql)).rows.map((x: any) => Number(x.department_code));
+    const rightRows = (await pg.query(rightSql)).rows.map((x: any) => Number(x.department_code));
+    check("PROOF: ranking before filtering returns only 1 row where 3 were asked for (C)", wrongRows.length === 1 && wrongRows[0] === 970203, JSON.stringify(wrongRows));
+    check("...filtering first returns the true top 3 (C, D, E)", rightRows.join(",") === "970203,970204,970205", JSON.stringify(rightRows));
+    check("the check flags the wrong form and accepts the right one", checkRankingAndOrder(wrongSql) !== null && checkRankingAndOrder(rightSql) === null);
+  } finally {
+    await pg.query("ROLLBACK");
+  }
 
   // ==========================================================================
   section("H. Full pipeline with a scripted stand-in model");
@@ -653,6 +678,10 @@ async function main() {
   const byRowSql = byNumSql.replace("ne.department_code = e.department_code", "ne.department_id = e.department_id").replace("GROUP BY e.department_code, e.department", "GROUP BY e.department_id, e.department_code, e.department");
   r = await answerQuestion("executive only departments by number repair", "T1", { llm: script([json({ sql: byNumSql, understood_as: "x" }), json({ sql: byRowSql, understood_as: "x" })]), withClient });
   check("matching departments by number is sent back once; attempt 2 matches by department_id", r.ok && r.attempts === 2 && /ne\.department_id = e\.department_id/.test(r.sql));
+  const rankFirst = `SELECT department_code, exec_count FROM (SELECT department_code, count(*) FILTER (WHERE cohort='executive') AS exec_count, count(*) FILTER (WHERE cohort='nonexecutive') AS nonexec_count, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort='executive') DESC) AS r FROM nlq.employees GROUP BY department_code) sub WHERE nonexec_count = 0 AND r <= 10 ORDER BY exec_count DESC, department_code`;
+  const filterFirst = `SELECT department_code, exec_count FROM (SELECT department_code, count(*) FILTER (WHERE cohort='executive') AS exec_count, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort='executive') DESC) AS r FROM nlq.employees GROUP BY department_code HAVING count(*) FILTER (WHERE cohort='nonexecutive') = 0) sub WHERE r <= 10 ORDER BY exec_count DESC, department_code`;
+  r = await answerQuestion("top departments with executives only repair", "T1", { llm: script([json({ sql: rankFirst, understood_as: "x" }), json({ sql: filterFirst, understood_as: "x" })]), withClient });
+  check("ranking before the population filter is sent back once; attempt 2 filters first (HAVING)", r.ok && r.attempts === 2 && /HAVING/i.test(r.sql));
   r = await answerQuestion("two soft problems at once", "T1", { llm: script([json({ sql: `SELECT department, count(*) AS count FROM nlq.employees GROUP BY department`, understood_as: "x" }), json({ sql: `SELECT department_code, department, count(*) AS count FROM nlq.employees GROUP BY department_id, department_code, department ORDER BY count DESC`, understood_as: "x" })]), withClient });
   check("name-only AND unordered are fixed together by ONE repair", r.ok && r.attempts === 2 && /department_code/.test(r.sql) && /ORDER BY/i.test(r.sql));
 
@@ -818,6 +847,7 @@ async function main() {
   // departments covered
   o = await runOmnibar("garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%') ORDER BY global_seniority_rank`)));
   check("departments covered travel with the answer", o.nl2sql.scope && o.nl2sql.scope.total === 3 && o.nl2sql.scope.departments.every((d: string) => /GARAGE/.test(d)), JSON.stringify(o.nl2sql.scope));
+  check("the payload carries the model-call count and the time taken (shown in the SQL panel)", o.nl2sql.attempts >= 1 && typeof o.nl2sql.elapsedMs === "number" && o.nl2sql.elapsedMs >= 0, JSON.stringify([o.nl2sql.attempts, o.nl2sql.elapsedMs]));
 
   // extra columns next to ticket_no
   o = await runOmnibar("with email flag", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, has_email_nic FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`)));
