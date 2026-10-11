@@ -1,6 +1,7 @@
 // src/lib/search/executiveSynthesis.ts
 import { Agent } from "undici";
 import { SearchResultRow } from "./titleSearch";
+import { buildSourceNames, sanitizeSourceRefs } from "./sourceRefs";
 
 const ollamaDispatcher = new Agent({
   headersTimeout: 10 * 60 * 1000,
@@ -247,6 +248,8 @@ function filterSourcesForRelevance(
 export async function executeExecutiveSynthesis(
   q: string,
   records: SearchResultRow[],
+  // circular id -> "Circular 007 (2026)" (the number the circulars modal shows, plus the year). Used to name a circular to the reader.
+  labels?: Map<number, string>,
 ): Promise<SynthesisResult> {
   const relevanceFiltered = filterSourcesForRelevance(q, records);
   const sources = relevanceFiltered.slice(0, 5);
@@ -262,7 +265,7 @@ export async function executeExecutiveSynthesis(
   const contextData = sources
     .map(
       (r) =>
-        `[Circular id=${r.id}] Title: ${r.headline} (Date: ${
+        `[Circular id=${r.id}${labels?.get(r.id) ? ` | cite as: ${labels.get(r.id)}` : ""}] Title: ${r.headline} (Date: ${
           r.publishedAt || "N/A"
         })\nContent:\n${condenseForSynthesis(r.chunkText || "")}`,
     )
@@ -315,6 +318,7 @@ HARD ACCURACY RULES:
 - FIGURES MUST EXIST IN THE TEXT: Only build a table row, a chart item, or a numeric finding from a number that literally appears in the provided circular text. If the records contain only narrative prose and NOT the actual figures the inquiry asks for (e.g. the rate table was not captured), do NOT manufacture numbers, a components table, or a chart. Instead: give a short overview of what the prose DOES say, and state plainly in one finding that the specific figures are not present in the retrieved text. An honest "the rate table is not in the retrieved circular text" is REQUIRED over an invented table.
 - If a comparison value is genuinely absent, put "Not stated in circular" in the TABLE cell — do NOT copy a number across periods, and do NOT fabricate a dataset item for it.
 - Every keyFinding.sources id MUST be one of the provided [Circular id=...] values. Cite the circular the fact actually came from.
+- NEVER write a circular's id number in any text (no "Circular 49", no "id=49"). To name a circular in text, write its "cite as" label exactly as shown in its header (e.g. "Circular 007 (2026)"), or its title. The id belongs only in the "sources" arrays.
 - 2 or 3 table columns only. Keep the table to the rows that matter.
 - Output strictly parseable JSON. No prose outside the JSON.`;
 
@@ -394,7 +398,7 @@ JSON Output:`;
     }
 
     const sourceText = sources.map((r) => r.chunkText || "").join("\n");
-    return buildResult(rawPayload, citations, validIds, sourceText);
+    return buildResult(rawPayload, citations, validIds, sourceText, labels);
   } catch (synthErr: any) {
     return emptyResult(
       `Executive synthesis network error: ${
@@ -717,6 +721,7 @@ function buildResult(
   citations: SynthesisCitation[],
   validIds: Set<number>,
   sourceText: string,
+  labels?: Map<number, string>,
 ): SynthesisResult {
   if (!rawJson) return emptyResult("No synthesis could be derived.");
 
@@ -733,6 +738,9 @@ function buildResult(
   } catch {
     return emptyResult("Synthesis output could not be parsed.");
   }
+  // The model sometimes copies a source's internal id into its wording ("per Circular 49"). Replace any such reference by the circular's
+  // archive label ("Circular 007 (2026)"; its title if the serial is unknown) now, before the figure-grounding checks below (they would otherwise drop a finding for containing the "ungrounded number" 49).
+  parsed = sanitizeSourceRefs(parsed, buildSourceNames(citations, labels));
 
   const overview = (parsed.overview || "").toString().trim();
 
@@ -909,3 +917,6 @@ function groundChart(
   if (items.length < (min[chart.type] ?? 1)) return null;
   return { ...chart, items };
 }
+
+// For tests only: the pure result builder.
+export { buildResult as buildSynthesisResultForTest };

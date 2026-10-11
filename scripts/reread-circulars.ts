@@ -16,6 +16,10 @@
 //   OCR (about 26 minutes for the whole archive) is not repeated. --no-cache reads everything again.
 //   --dump-text also saves each circular's old and new text under reread-reports/text/ so you can compare them.
 //
+//   Google's embedding service has per-minute limits. The tool spaces its calls out (--embed-delay-ms, default 1200), and if the service
+//   still answers "429 quota" it WAITS for the minute to clear (--quota-wait-ms, default 65000) and tries that circular again, up to
+//   twice; if it is still refused it stops and says so. Nothing is ever half-written. Run the same command later and it carries on.
+//
 // Safe to run again: a circular that already matches is reported "unchanged" and skipped. Apply refuses a circular whose re-read
 // looks wrong (an empty English reading, a failed image, far less text than stored) and says why.
 //
@@ -26,6 +30,7 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { createOcrWorkerPool, destroyOcrWorkerPool, ocrPageDual } from "../src/lib/ingestion/ocr";
 import { cachedReadPage } from "../src/lib/ingestion/pageCache";
+import { applyWithQuotaWait, memoized, throttled } from "../src/lib/ingestion/embedThrottle";
 import { applyReread, planReread, restoreFromBackup, type Backup, type CircularRow, type OldChunk, type RereadDeps, type RereadPlan } from "../src/lib/ingestion/reread";
 
 function arg(name: string): string | undefined {
@@ -84,12 +89,20 @@ async function main() {
     // It is the Google-only module, called exactly as the upload calls it (one argument, no normalising), so the new vectors are made
     // the same way as the ones an upload stores.
     let realEmbed: ((text: string) => Promise<number[]>) | null = null;
-    const embed = process.env.REREAD_FAKE_EMBEDDINGS
-      ? async (t: string) => Array.from({ length: 768 }, (_, i) => ((t.length * 31 + i * 7) % 1000) / 1000)
+    let fakeQuotaLeft = Number(process.env.REREAD_FAKE_QUOTA_ERRORS || 0); // test aid: the first N embedding calls answer "429 quota"
+    const baseEmbed = process.env.REREAD_FAKE_EMBEDDINGS
+      ? async (t: string) => {
+          if (fakeQuotaLeft-- > 0) throw new Error('Gemini API HTTP 429: {"error":{"code":429,"message":"You exceeded your current quota","status":"RESOURCE_EXHAUSTED"}}');
+          return Array.from({ length: 768 }, (_, i) => ((t.length * 31 + i * 7) % 1000) / 1000);
+        }
       : async (t: string) => {
           realEmbed ??= (await import("../src/lib/ai/geminiEmbedding")).generateEmbedding;
           return realEmbed(t);
         };
+    // spaced out, one at a time, and a vector already computed is never paid for twice (a retried circular reuses its earlier chunks)
+    const embedDelayMs = arg("embed-delay-ms") !== undefined ? Number(arg("embed-delay-ms")) : 1200;
+    const embed = memoized(throttled(baseEmbed, embedDelayMs));
+    const quotaWaitMs = arg("quota-wait-ms") !== undefined ? Number(arg("quota-wait-ms")) : 65000;
     const cacheDir = arg("cache-dir") || "reread-cache";
     let cacheHits = 0;
     const readPage = cachedReadPage({
@@ -108,6 +121,7 @@ async function main() {
     const plans: RereadPlan[] = [];
     const applied: string[] = [];
     const errors: string[] = [];
+    let stoppedForQuota = false;
     const started = Date.now();
     try {
       for (let n = 0; n < rows.length; n++) {
@@ -129,13 +143,23 @@ async function main() {
           writeFileSync(join(dir, `circular-${row.id}-new.txt`), fmt(plan.newChunks) + "\n");
         }
         if (apply && plan.status === "would-change") {
-          try {
-            const r = await applyReread(client, deps, plan, backupDir);
+          const res = await applyWithQuotaWait(() => applyReread(client, deps, plan, backupDir), {
+            waitsMs: [quotaWaitMs, quotaWaitMs],
+            onWait: (ms, attempt, total) =>
+              console.log(`        embedding quota reached: waiting ${(ms / 1000).toFixed(ms < 1000 ? 2 : 0)} s for the per-minute limit to clear (wait ${attempt} of ${total}), then trying this circular again`),
+          });
+          if (res.ok) {
+            const r = res.value!;
             applied.push(`${row.id}`);
             console.log(`        applied: ${r.chunksBefore} -> ${r.chunksAfter} chunks. Backup: ${r.backupFile}`);
-          } catch (e) {
-            errors.push(`id ${row.id}: ${(e as Error).message}`);
-            console.log(`        NOT APPLIED (nothing changed for this circular): ${(e as Error).message}`);
+          } else {
+            errors.push(`id ${row.id}: ${res.error!.message.split("\n")[0]}`);
+            console.log(`        NOT APPLIED (nothing changed for this circular): ${res.error!.message.split("\n")[0]}`);
+            if (res.quotaExhausted) {
+              stoppedForQuota = true;
+              console.log("\nSTOPPING: the embedding service is still refusing on quota after waiting. Everything applied so far is saved and safe. Run the same command again later (the minute or the day's allowance must clear) and it carries on with the rest.");
+              break;
+            }
           }
         }
       }
@@ -166,7 +190,7 @@ async function main() {
     const grew2 = plans.filter((p) => p.oldChars && p.newChars > p.oldChars * 2);
     const withNew = plans.filter((p) => p.onlyInNew.length > 0);
     console.log(`\nSUMMARY: ${plans.length} looked at | ${damaged.length} held a second, partly wrong copy of numbers | would change/changed ${by("would-change").length} | unchanged ${by("unchanged").length} | suspicious ${by("suspicious").length} | skipped ${by("skipped").length} | grew more than 2x: ${grew2.length} | with NEW numbers: ${withNew.length} | ${((Date.now() - started) / 60000).toFixed(1)} min${cacheHits ? ` (${cacheHits} page(s) reused from reread-cache)` : ""}`);
-    if (apply) console.log(`Applied ${applied.length}, errors ${errors.length}.`);
+    if (apply) console.log(`Applied ${applied.length}, errors ${errors.length}.${stoppedForQuota ? " STOPPED EARLY because of the embedding quota (the rest were not tried)." : ""}`);
     console.log(`Report: ${reportFile}`);
     if (errors.length) process.exitCode = 1;
   } finally {

@@ -8,6 +8,7 @@ import {
   executeExecutiveSynthesis,
   type SynthesisResult,
 } from "@/lib/search/executiveSynthesis";
+import { fetchCircularLabels } from "@/lib/search/circularLabels";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
 import { answerOmnibar, parseRetry } from "@/lib/nl2sql/omnibar";
@@ -537,7 +538,12 @@ export async function GET(request: Request) {
         ...r,
         chunkText: fullText.get(r.id) || r.chunkText,
       }));
-      synthesis = await executeExecutiveSynthesis(q, synthesisSources);
+      // The reader names a circular by the number the archive shows ("007") and its year, never by the database id.
+      const labels = await fetchCircularLabels(
+        dataSource,
+        topPrimarySources.filter((r) => r.type === "circular").map((r) => r.id),
+      );
+      synthesis = await executeExecutiveSynthesis(q, synthesisSources, labels);
     } else {
       synthesis = emptyBriefing(
         "No relevant circular records found to synthesize.",
