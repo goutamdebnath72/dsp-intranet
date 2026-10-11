@@ -10,6 +10,10 @@ import { overlayColumn, splitAtRules, wordsFromTsv, rowsFromWords, type Word } f
 import { judgeDate, parsePrintedDate, parseScheduleMonth, repairPrintedDate } from "./dates";
 import { cleanTicket, cropCellText, extractSchedule, isEmployeeRow, maskRules } from "./extractSchedule";
 import { nameFit, verifyAgainstHr, type HrEmployee } from "./importSchedule";
+import { extractorFingerprint } from "./fingerprint";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join as pjoin } from "node:path";
 
 let pass = 0;
 let fail = 0;
@@ -275,6 +279,25 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   const spaced = verifyAgainstHr([mk("242956", "BISHNUPADA MONDAL", "14000", 1)], [["bisnupada", "mandal"]], [{ ticket: "242956", name: "BISHNU PADA MONDAL", codes: ["bisnu", "pada", "mandal"], departmentCode: "14000" }])[0];
   check("a name cut differently from HR's is verified on its ticket", spaced.status === "verified");
   check("every row keeps what was read from the page (ticket as printed, name as printed)", v.every((r, i) => r.ticket === rowsH[i].ticket && r.name === rowsH[i].name));
+
+  // ================================================================== a saved reading must not outlive the code that made it
+  const fdir = mkdtempSync(pjoin(tmpdir(), "fp-"));
+  try {
+    writeFileSync(pjoin(fdir, "a.ts"), "export const a = 1;\n");
+    writeFileSync(pjoin(fdir, "b.ts"), "export const b = 2;\n");
+    const f1 = extractorFingerprint(fdir);
+    check("the fingerprint is the same for the same code", extractorFingerprint(fdir) === f1 && /^[0-9a-f]{16}$/.test(f1));
+    writeFileSync(pjoin(fdir, "b.ts"), "export const b = 3;\n");
+    check("...and different as soon as ANY reader file changes (so a saved reading made by the old code is read again)", extractorFingerprint(fdir) !== f1);
+    writeFileSync(pjoin(fdir, "b.ts"), "export const b = 2;\n");
+    check("...and back to the same when the change is undone", extractorFingerprint(fdir) === f1);
+    writeFileSync(pjoin(fdir, "x.selftest.ts"), "// a test\n");
+    check("a self-test file is not part of the reader (editing a test does not throw saved readings away)", extractorFingerprint(fdir) === f1);
+    writeFileSync(pjoin(fdir, "c.ts"), "export const c = 1;\n");
+    check("a new reader file changes it too", extractorFingerprint(fdir) !== f1);
+  } finally {
+    rmSync(fdir, { recursive: true, force: true });
+  }
 
   console.log(`\nschedule selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

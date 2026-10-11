@@ -26,6 +26,7 @@ import { Client } from "pg";
 import { extractSchedule, EXTRACT_VERSION, type ExtractedSchedule } from "../src/lib/ingestion/schedule/extractSchedule";
 import { verifyAgainstHr, type HrEmployee, type VerifiedRow } from "../src/lib/ingestion/schedule/importSchedule";
 import { circularLabel } from "../src/lib/search/circularLabels";
+import { extractorFingerprint } from "../src/lib/ingestion/schedule/fingerprint";
 
 const args = process.argv.slice(2);
 const flag = (n: string) => args.includes(`--${n}`);
@@ -113,10 +114,12 @@ async function main() {
       // ---- read the pages (a saved reading is reused when the pages and the reader are the same)
       const cachePath = join("health-cache", `circular-${id}.json`);
       let res: ExtractedSchedule | null = null;
-      const key = JSON.stringify({ v: EXTRACT_VERSION, urls: c.fileUrls, dir: arg("pages-dir") ?? null });
+      let reused = false;
+      // the saved reading belongs to the reader that made it: any change to the reader's code (fingerprint) or to the pages makes it stale
+      const key = JSON.stringify({ v: EXTRACT_VERSION, code: extractorFingerprint(join(__dirname, "..", "src", "lib", "ingestion", "schedule")), urls: c.fileUrls, dir: arg("pages-dir") ?? null });
       if (!flag("fresh") && existsSync(cachePath)) {
         const saved = JSON.parse(readFileSync(cachePath, "utf8"));
-        if (saved.key === key) res = saved.res;
+        if (saved.key === key) { res = saved.res; reused = true; }
       }
       if (!res) {
         const pages = await loadPages(c);
@@ -134,11 +137,11 @@ async function main() {
       if (rows.length === 0) problems.push("no employee rows were read");
       if (!res.scheduleMonth) problems.push("the month this schedule is for could not be read from the page title");
 
-      const line = `[${id}] ${label} "${String(c.headline).slice(0, 48)}": ${month} | ${rows.length} rows in ${res.groups.length} days | verified ${count("verified")}, corrected ${count("corrected")}, unverified ${count("unverified")} | ${problems.length ? "PROBLEMS: " + problems.length : "no problems"} | ${((Date.now() - t0) / 1000).toFixed(0)} s`;
+      const line = `[${id}] ${label} "${String(c.headline).slice(0, 48)}": ${month} | ${rows.length} rows in ${res.groups.length} days | verified ${count("verified")}, corrected ${count("corrected")}, unverified ${count("unverified")} | ${problems.length ? "PROBLEMS: " + problems.length : "no problems"} | ${reused ? "saved reading reused (--fresh reads the pages again)" : `read the pages in ${((Date.now() - t0) / 1000).toFixed(0)} s`}`;
       console.log(line);
       for (const p of problems) console.log("      ! " + p);
 
-      report.push(`## ${label} (circular id ${id}) - ${String(c.headline)}`, "", `- Schedule month: **${month}**`, `- Roster rows read: **${rows.length}** in **${res.groups.length}** days (rows per day: ${[...new Set(res.groups.map((g) => g.rows))].join(", ")})`, `- HR check: verified ${count("verified")} | corrected ${count("corrected")} | unverified ${count("unverified")}`, `- Pages that are not roster pages: ${res.info.length ? res.info.join("; ") : "none"}`);
+      report.push(`## ${label} (circular id ${id}) - ${String(c.headline)}`, "", `- Schedule month: **${month}**`, `- Roster rows read: **${rows.length}** in **${res.groups.length}** days (rows per day: ${[...new Set(res.groups.map((g) => g.rows))].join(", ")})`, `- HR check: verified ${count("verified")} | corrected ${count("corrected")} | unverified ${count("unverified")}`, `- Pages that are not roster pages: ${res.info.length ? res.info.join("; ") : "none"}`, `- Source of the rows: ${reused ? "a saved reading of the pages (made by this same reader)" : "the pages were read now"}`);
       report.push("", "Days (date: rows): " + res.groups.map((g) => `${g.date ?? "??"}: ${g.rows}`).join(" | "), "");
       if (problems.length) report.push("**Problems (the circular is NOT applied until you have looked, then --accept-warnings):**", ...problems.map((p) => `- ${p}`), "");
       const notes = [...new Set(rows.filter((r) => r.dateNote).map((r) => `${r.checkupDate}: ${r.dateNote}`))];
