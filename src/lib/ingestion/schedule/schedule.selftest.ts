@@ -9,7 +9,8 @@ import { findDateCells, findFrame } from "./dateCells";
 import { overlayColumn, splitAtRules, wordsFromTsv, rowsFromWords, type Word } from "./rosterRows";
 import { judgeDate, parsePrintedDate, parseScheduleMonth, repairPrintedDate } from "./dates";
 import { cleanTicket, cropCellText, extractSchedule, isEmployeeRow, maskRules, type ScheduleRow } from "./extractSchedule";
-import { fixCodesByDepartment, nameFit, verifyAgainstHr, type HrEmployee } from "./importSchedule";
+import { fixCodesByDepartment, nameClose, nameFit, verifyAgainstHr, type HrEmployee } from "./importSchedule";
+import { isConnectionError, withConnection } from "./dbRetry";
 import { cleanCode, voteDigits } from "./digits";
 import { extractorFingerprint } from "./fingerprint";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
@@ -365,6 +366,64 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   check("when the first reading is right it is kept, with no note", vb.status === "verified" && vb.ticketNo === "242591" && vb.statusNote === null);
   const vc = verifyAgainstHr([{ ...mk("242599", "NOBODY LIKE THEM", "44000", 1), ticketAlt: ["242501"] }], [["nobodi", "laik", "tem"]], hrAlt)[0];
   check("an alternative that is an employee with a DIFFERENT name is not accepted", vc.status === "unverified" && vc.ticketNo === null);
+
+  // ================================================================== the safeguard: a code is never overridden when ITS department is the printed one (12 Oct report, rows 35 and 322)
+  const zpairs = [{ code: "57500", name: "WHEEL & AXLE PLANT (OPRN - ZONE I)" }, { code: "58500", name: "WHEEL & AXLE PLANT (OPRN - ZONE II)" }, { code: "3301", name: "M&HS(1)" }, { code: "10001", name: "CO & CC (MECH)" }];
+  const zr = fixCodesByDepartment([rw("58500", "WHEEL & AXLE PLANT (OPRN - ZONE I"), rw("58500", "WHEEL & AXLE PLANT (OPRN - ZONE [i"), rw("57500", "WHEEL & AXLE PLANT (OPRN - ZONE I)"), rw("58500", "WHEEL & AXLE PLANT (OPRN - ZONE II")], zpairs);
+  check("a right code is NOT 'corrected' when the printed department is clipped (ZONE II printed as ZONE I, which is the exact name of the OTHER department): 58500 stays", zr[0].departmentCode === "58500" && !zr[0].codeNote && zr[1].departmentCode === "58500" && !zr[1].codeNote && zr[3].departmentCode === "58500", JSON.stringify(zr.map((r) => [r.departmentCode, r.codeNote])));
+  check("...and the neighbouring department keeps its own code too (57500 for ZONE I)", zr[2].departmentCode === "57500" && !zr[2].codeNote);
+  const zs = fixCodesByDepartment([rw("58504", "WHEEL & AXLE PLANT (OPRN - ZONE II"), rw("3301", "CO & CC (MECH)"), rw("40001", "CO & CC (MECH)")], zpairs);
+  check("a misread code that is not any department's is still corrected (58504 -> 58500), and so is a code that belongs to a far-away department (3301, M&HS, printed with CO & CC (MECH) -> 10001)", zs[0].departmentCode === "58500" && zs[1].departmentCode === "10001" && zs[2].departmentCode === "10001", JSON.stringify(zs.map((r) => r.departmentCode)));
+
+  // ================================================================== a name a letter or two off, with the same ticket and department (12 Oct report: 12 people)
+  check("close names: AVUIT MAJI / AVIJIT MAJI, RUB SAHA / RUBI SAHA, DEBJIT DATTA / DEBJIT DUTTA, BISWADEEP GORA / BISWADEEP GORAI, ISUMIT BHATTACHARYYA / SUMIT BHATTACHARYYA", nameClose("AVUIT MAJI", "AVIJIT MAJI") && nameClose("RUB SAHA", "RUBI SAHA") && nameClose("DEBJIT DATTA", "DEBJIT DUTTA") && nameClose("BISWADEEP GORA", "BISWADEEP GORAI") && nameClose("ISUMIT BHATTACHARYYA", "SUMIT BHATTACHARYYA"));
+  check("NOT close: SUBIR KUMAR ROY / SUBHAS KUMAR ROY (3 letters), AMIT DAS / AMIT BOSE, and very short names (ROY / ROY)", !nameClose("SUBIR KUMAR ROY", "SUBHAS KUMAR ROY") && !nameClose("AMIT DAS", "AMIT BOSE") && !nameClose("ROY", "ROY"));
+  const hrC: HrEmployee[] = [{ ticket: "241296", name: "AVIJIT MAJI", codes: ["abijit", "maji"], departmentCode: "26001" }];
+  const cl1 = verifyAgainstHr([mk("241296", "AVUIT MAJI", "26001", 1)], [["abuit", "maji"]], hrC)[0];
+  check("a real ticket, a name two letters off and the SAME department: verified, and the note says the name differs slightly", cl1.status === "verified" && cl1.ticketNo === "241296" && /differs slightly/.test(String(cl1.statusNote)), JSON.stringify(cl1));
+  const cl2 = verifyAgainstHr([mk("241296", "AVUIT MAJI", "99999", 1)], [["abuit", "maji"]], hrC)[0];
+  check("...but with a DIFFERENT department it stays unverified (a close name alone is not enough)", cl2.status === "unverified" && cl2.ticketNo === null, JSON.stringify(cl2));
+  const cl3 = verifyAgainstHr([mk("241296", "SOMEONE ELSE ENTIRELY", "26001", 1)], [["samion", "alsa"]], hrC)[0];
+  check("a name that is not close is not accepted even in the same department", cl3.status === "unverified");
+
+  // ================================================================== a dropped database connection must not kill a long run
+  class FakeClient {
+    static ends = 0;
+    static connects = 0;
+    handlers: Array<(e: Error) => void> = [];
+    constructor(private failConnect = false) {}
+    async connect() { FakeClient.connects++; if (this.failConnect) throw Object.assign(new Error("read ETIMEDOUT"), { code: "ETIMEDOUT" }); }
+    async end() { FakeClient.ends++; }
+    on(_e: "error", cb: (e: Error) => void) { this.handlers.push(cb); return this; }
+    emitError() { for (const h of this.handlers) h(new Error("read ETIMEDOUT")); }
+  }
+  const reset = () => { FakeClient.ends = 0; FakeClient.connects = 0; };
+  const noWait = async () => undefined;
+  reset();
+  check("a step that works runs once, and its connection is closed", (await withConnection(() => new FakeClient(), async () => 42, { sleep: noWait })) === 42 && FakeClient.connects === 1 && FakeClient.ends === 1);
+  reset();
+  let created = 0;
+  const retries: number[] = [];
+  const r2 = await withConnection(() => new FakeClient(++created <= 2), async () => "ok", { sleep: noWait, onRetry: (n) => retries.push(n) });
+  check("the connection fails twice (read ETIMEDOUT, as in your run), then works: the step is done, after 2 retries, and every connection was closed", r2 === "ok" && retries.join() === "1,2" && FakeClient.ends === 3, JSON.stringify([retries, FakeClient.ends]));
+  reset();
+  let calls = 0;
+  const r3 = await withConnection(() => new FakeClient(), async () => { if (++calls === 1) throw new Error("Connection terminated unexpectedly"); return "done"; }, { sleep: noWait });
+  check("a connection that breaks in the middle of a step: the step is run again on a new connection", r3 === "done" && calls === 2 && FakeClient.connects === 2);
+  reset();
+  let sqlCalls = 0;
+  let err1: unknown;
+  await withConnection(() => new FakeClient(), async () => { sqlCalls++; throw new Error('relation "x" does not exist'); }, { sleep: noWait }).catch((e) => { err1 = e; });
+  check("a real SQL error is NOT retried: it comes out at once", sqlCalls === 1 && /does not exist/.test(String((err1 as Error)?.message)));
+  reset();
+  let err2: unknown;
+  await withConnection(() => new FakeClient(true), async () => 1, { sleep: noWait, retries: 2 }).catch((e) => { err2 = e; });
+  check("if the network stays down it gives up after the retries (3 tries) and says why", FakeClient.connects === 3 && /ETIMEDOUT/.test(String((err2 as Error)?.message)), String((err2 as Error)?.message));
+  const idle = new FakeClient();
+  let idleSurvived = true;
+  try { await withConnection(() => idle, async () => { idle.emitError(); return 1; }, { sleep: noWait }); } catch { idleSurvived = false; }
+  check("an 'error' event on a connection (the one that crashed your first run) is absorbed, not thrown", idleSurvived && idle.handlers.length >= 1);
+  check("what counts as a connection problem: ETIMEDOUT, ECONNRESET, 'Connection terminated', 'timeout exceeded when trying to connect' -- and what does not: a wrong password, a missing table", ["read ETIMEDOUT", "read ECONNRESET", "Connection terminated unexpectedly", "timeout exceeded when trying to connect", "getaddrinfo ENOTFOUND db.example.com"].every((m) => isConnectionError(new Error(m))) && !isConnectionError(new Error("password authentication failed")) && !isConnectionError(new Error('relation "public.x" does not exist')));
 
   // ================================================================== a saved reading must not outlive the code that made it
   const fdir = mkdtempSync(pjoin(tmpdir(), "fp-"));

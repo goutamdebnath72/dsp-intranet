@@ -24,6 +24,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 
 import { join } from "node:path";
 import { Client } from "pg";
 import { extractSchedule, EXTRACT_VERSION, type ExtractedSchedule } from "../src/lib/ingestion/schedule/extractSchedule";
+import { withConnection } from "../src/lib/ingestion/schedule/dbRetry";
 import { fixCodesByDepartment, verifyAgainstHr, type DeptPair, type HrEmployee, type VerifiedRow } from "../src/lib/ingestion/schedule/importSchedule";
 import { circularLabel } from "../src/lib/search/circularLabels";
 import { extractorFingerprint } from "../src/lib/ingestion/schedule/fingerprint";
@@ -62,17 +63,22 @@ async function loadPages(c: CircularRow): Promise<Buffer[]> {
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set (run with: npx tsx --env-file=.env.local scripts/import-health-checkups.ts)");
   const apply = flag("apply");
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  await client.connect();
+  // The database is used in SHORT steps (a new connection each, retried if the network drops it): the OCR between the steps takes minutes and a
+  // connection held open all that time can be dropped (a run once died with "read ETIMEDOUT").
+  const db = <T,>(fn: (c: Client) => Promise<T>) =>
+    withConnection(() => new Client({ connectionString: process.env.DATABASE_URL }), fn, {
+      onRetry: (n, e) => console.log(`      (database connection problem: ${String((e as Error).message).split("\n")[0]}; trying again, attempt ${n} ...)`),
+    });
+  const q = (text: string, params?: unknown[]) => db((c) => c.query(text, params));
   try {
     const ids = (arg("ids") ?? "").split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isInteger(n));
     if (ids.length === 0) {
-      const r = await client.query(`SELECT id, "serialNumber", EXTRACT(YEAR FROM "publishedAt")::int AS year, headline, coalesce(array_length("fileUrls", 1), 0) AS pages FROM public.circulars WHERE headline ILIKE '%health%check%' OR headline ILIKE '%check%up%' ORDER BY "publishedAt"`);
+      const r = await q(`SELECT id, "serialNumber", EXTRACT(YEAR FROM "publishedAt")::int AS year, headline, coalesce(array_length("fileUrls", 1), 0) AS pages FROM public.circulars WHERE headline ILIKE '%health%check%' OR headline ILIKE '%check%up%' ORDER BY "publishedAt"`);
       console.log("Circulars that look like health check-up schedules (pass their ids with --ids):\n");
       for (const x of r.rows) console.log(`  id ${String(x.id).padEnd(4)} ${circularLabel(x.serialNumber, x.year) ?? "(no serial)"}  ${x.pages} page(s)  ${String(x.headline).slice(0, 80)}`);
       return;
     }
-    if (apply && !(await client.query(`SELECT to_regclass('public.health_checkup_schedule') AS t`)).rows[0].t) {
+    if (apply && !(await q(`SELECT to_regclass('public.health_checkup_schedule') AS t`)).rows[0].t) {
       throw new Error("the table public.health_checkup_schedule does not exist: run src/lib/nl2sql/sql/08_health_checkups.sql in the Supabase SQL editor first");
     }
 
@@ -98,11 +104,11 @@ async function main() {
 
     // ---- the HR directory, with the phonetic codes of the names. EVERYONE, not only non-executives: a person on a December 2024 roster may have
     // been promoted to executive since, and is still the same person (ticket and name agree).
-    const hrRes = await client.query(`SELECT ticket_no, name, name_codes, department_code FROM nlq.employees`);
+    const hrRes = await q(`SELECT ticket_no, name, name_codes, department_code FROM nlq.employees`);
     const hr: HrEmployee[] = hrRes.rows.map((r: any) => ({ ticket: String(r.ticket_no).trim(), name: String(r.name), codes: (r.name_codes ?? []).map(String), departmentCode: r.department_code == null ? null : String(r.department_code) }));
     console.log(`HR directory: ${hr.length} employees.\n`);
     // which department code belongs to which department name (used to check the codes read from the pages)
-    const pairRes = await client.query(`SELECT DISTINCT department_code::text AS code, department AS name FROM nlq.employees WHERE department_code IS NOT NULL AND department IS NOT NULL`);
+    const pairRes = await q(`SELECT DISTINCT department_code::text AS code, department AS name FROM nlq.employees WHERE department_code IS NOT NULL AND department IS NOT NULL`);
     const deptPairs: DeptPair[] = pairRes.rows.map((r: any) => ({ code: String(r.code), name: String(r.name) }));
 
     const stamp = Date.now();
@@ -112,7 +118,7 @@ async function main() {
     let blocked = 0;
 
     for (const id of ids) {
-      const cr = await client.query(`SELECT id, headline, "fileUrls", "publishedAt", "serialNumber" FROM public.circulars WHERE id = $1`, [id]);
+      const cr = await q(`SELECT id, headline, "fileUrls", "publishedAt", "serialNumber" FROM public.circulars WHERE id = $1`, [id]);
       if (cr.rowCount === 0) { console.log(`circular ${id}: not found`); blocked++; continue; }
       const c: CircularRow = cr.rows[0];
       const label = circularLabel(c.serialNumber, c.publishedAt ? new Date(c.publishedAt).getFullYear() : null) ?? `id ${id}`;
@@ -135,7 +141,7 @@ async function main() {
       }
 
       // ---- check every row against HR
-      const codesRes = await client.query(`SELECT nlq.name_codes_of(n) AS codes FROM unnest($1::text[]) WITH ORDINALITY AS t(n, i) ORDER BY i`, [res.rows.map((r) => r.name)]);
+      const codesRes = await q(`SELECT nlq.name_codes_of(n) AS codes FROM unnest($1::text[]) WITH ORDINALITY AS t(n, i) ORDER BY i`, [res.rows.map((r) => r.name)]);
       const printed: string[][] = codesRes.rows.map((r: any) => (r.codes ?? []).map(String));
       // the department code is checked against the department NAME printed on the same row, then the people against HR
       const withCodes = fixCodesByDepartment(res.rows, deptPairs);
@@ -157,6 +163,8 @@ async function main() {
       const notes = [...new Set(rows.filter((r) => r.dateNote).map((r) => `${r.checkupDate}: ${r.dateNote}`))];
       if (notes.length) report.push("**Dates that were corrected (typos in the circular itself):**", ...notes.map((n) => `- ${n}`), "");
       if (codeFixes.length) report.push("**Department codes changed (the code read from the page did not belong to the department printed on the row):**", ...codeFixes.map((r) => `- row ${r.seq} (page ${r.page}): ${r.codeNote}`), "");
+      const slight = rows.filter((r) => r.status === "verified" && r.statusNote && /differs slightly/.test(r.statusNote));
+      if (slight.length) report.push(`**Verified although the printed name differs slightly from HR's (same ticket, same department; please glance at them):**`, ...slight.map((r) => `- row ${r.seq} (page ${r.page}): ${r.statusNote}`), "");
       const viaAlt = rows.filter((r) => r.status === "verified" && r.statusNote && /HR confirms/.test(r.statusNote));
       if (viaAlt.length) report.push("**Tickets confirmed from a second reading (the first reading was not an employee with this name):**", ...viaAlt.map((r) => `- row ${r.seq} (page ${r.page}): ${r.statusNote}`), "");
       const corrected = rows.filter((r) => r.status === "corrected");
@@ -176,28 +184,34 @@ async function main() {
           blocked++;
           continue;
         }
-        await client.query("BEGIN");
         try {
-          await client.query(`DELETE FROM public.health_checkup_schedule WHERE circular_id = $1`, [id]);
-          const sm = res.scheduleMonth!;
-          for (let i = 0; i < rows.length; i += 150) {
-            const batch = rows.slice(i, i + 150);
-            const vals: unknown[] = [];
-            const ph = batch.map((r, k) => {
-              const b = k * 15;
-              const note = [r.codeNote, r.statusNote].filter(Boolean).join("; ") || null;
-              vals.push(id, sm.year, sm.month, r.seq, r.page, r.ticket, r.ticketNo, r.name, r.departmentCode == null ? null : parseInt(r.departmentCode, 10), r.department, r.checkupDate, r.datePrinted, r.dateNote, r.status, note);
-              return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14},$${b + 15})`;
-            });
-            await client.query(
-              `INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, page_number, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, date_printed, date_note, status, status_note) VALUES ${ph.join(",")}`,
-              vals,
-            );
-          }
-          await client.query("COMMIT");
+          await db(async (client) => {
+            await client.query("BEGIN");
+            try {
+              await client.query(`DELETE FROM public.health_checkup_schedule WHERE circular_id = $1`, [id]);
+              const sm = res.scheduleMonth!;
+              for (let i = 0; i < rows.length; i += 150) {
+                const batch = rows.slice(i, i + 150);
+                const vals: unknown[] = [];
+                const ph = batch.map((r, k) => {
+                  const b = k * 15;
+                  const note = [r.codeNote, r.statusNote].filter(Boolean).join("; ") || null;
+                  vals.push(id, sm.year, sm.month, r.seq, r.page, r.ticket, r.ticketNo, r.name, r.departmentCode == null ? null : parseInt(r.departmentCode, 10), r.department, r.checkupDate, r.datePrinted, r.dateNote, r.status, note);
+                  return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14},$${b + 15})`;
+                });
+                await client.query(
+                  `INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, page_number, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, date_printed, date_note, status, status_note) VALUES ${ph.join(",")}`,
+                  vals,
+                );
+              }
+              await client.query("COMMIT");
+            } catch (e) {
+              await client.query("ROLLBACK").catch(() => undefined);
+              throw e;
+            }
+          });
           console.log(`      applied: ${rows.length} rows stored.`);
         } catch (e) {
-          await client.query("ROLLBACK");
           console.log(`      NOT APPLIED (nothing changed): ${String((e as Error).message).split("\n")[0]}`);
           blocked++;
         }
@@ -209,7 +223,7 @@ async function main() {
     await Promise.all([pageWorker.terminate(), dateWorker.terminate(), digitWorker.terminate(), cellWorker.terminate()]);
     if (blocked) process.exitCode = 1;
   } finally {
-    await client.end();
+    // nothing to close: every database step opened and closed its own connection
   }
 }
 

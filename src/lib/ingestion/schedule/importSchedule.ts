@@ -36,6 +36,17 @@ export type Fit = "exact" | "partial" | "none";
  */
 const squash = (s: string) => (s || "").toUpperCase().replace(/[^A-Z]/g, "");
 
+/**
+ * Two spellings a letter or two apart ("AVUIT MAJI" / "AVIJIT MAJI", "RUB SAHA" / "RUBI SAHA", "DEBJIT DATTA" / "DEBJIT DUTTA"): an OCR slip or a spelling
+ * variant, not another person -- but this is weak evidence on its own, so it is only used together with the same ticket AND the same department code.
+ */
+export function nameClose(printed: string, hr: string): boolean {
+  const a = squash(printed);
+  const b = squash(hr);
+  if (Math.min(a.length, b.length) < 6) return false;
+  return lev(a, b, 2) <= 2;
+}
+
 export function nameFit(printed: string[], hr: string[], printedName?: string, hrName?: string): Fit {
   // the same letters in the same order are the same name, however the spaces fall: "SATYA BRATA BOSE" = "SATYABRATA BOSE", and a name
   // whose phonetic codes are few (SARGAM KUMARI: KUMARI is dropped as a title) is still the same person when the whole name is the same
@@ -62,12 +73,20 @@ export function verifyAgainstHr(rows: ScheduleRow[], printedCodes: string[][], h
     const P = printedCodes[i] ?? [];
     // The ticket was read more than once and the readings may differ ("1" read as "4" ...): HR judges each. The first that is an employee whose name
     // fits is the ticket.
-    for (const t of [r.ticket, ...(r.ticketAlt ?? [])]) {
+    const tickets = [r.ticket, ...(r.ticketAlt ?? [])];
+    for (const t of tickets) {
       const cand = t ? byTicket.get(t) : undefined;
       if (!cand) continue;
       const fit = nameFit(P, cand.codes, r.name, cand.name);
       if (fit === "exact" || (fit === "partial" && same(r.departmentCode, cand.departmentCode))) {
         return { ...base, ticketNo: cand.ticket, status: "verified", statusNote: t !== r.ticket ? `the ticket was read as ${r.ticket ?? "nothing"} and as ${t}: HR confirms ${t} for ${cand.name}` : null };
+      }
+    }
+    // no ticket gave a good name fit: a name a letter or two off is accepted when the ticket is an employee in the SAME department (and it is noted)
+    for (const t of tickets) {
+      const cand = t ? byTicket.get(t) : undefined;
+      if (cand && nameClose(r.name, cand.name) && same(r.departmentCode, cand.departmentCode)) {
+        return { ...base, ticketNo: cand.ticket, status: "verified", statusNote: `the printed name "${r.name}" differs slightly from HR's "${cand.name}"; same ticket (${cand.ticket}) and same department` };
       }
     }
     const e = r.ticket ? byTicket.get(r.ticket) : undefined;
@@ -133,9 +152,22 @@ export function fixCodesByDepartment<R extends ScheduleRow>(rows: R[], pairs: De
     byName.get(n)!.add(String(p.code).trim());
   }
   const names = [...byName.keys()];
+  const namesOfCode = new Map<string, string[]>();
+  for (const p of pairs) {
+    const k = String(p.code).trim();
+    if (!namesOfCode.has(k)) namesOfCode.set(k, []);
+    namesOfCode.get(k)!.push(dnorm(p.name));
+  }
   return rows.map((r) => {
     const nd = dnorm(r.department);
     if (nd.length < 3) return r;
+    // THE SAFEGUARD: when the department of the code that was read is (nearly) the department printed, the code is probably right and the printed
+    // text probably clipped or misread -- never override it. (A real case: "...(OPRN - ZONE II" is printed clipped by its cell and read as "...ZONE I",
+    // which is the EXACT name of another department, 57500; the code read, 58500, was right.)
+    if (r.departmentCode && namesOfCode.has(r.departmentCode)) {
+      const tol = nd.length >= 14 ? 2 : 1;
+      if (namesOfCode.get(r.departmentCode)!.some((n) => lev(n, nd, tol) <= tol)) return r;
+    }
     let codes = byName.get(nd);
     if (!codes) {
       // the name was read with a small error: the one name that is within a letter or two (never a guess between two)
