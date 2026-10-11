@@ -60,10 +60,18 @@ export function verifyAgainstHr(rows: ScheduleRow[], printedCodes: string[][], h
   const out: VerifiedRow[] = rows.map((r, i) => {
     const base = { ...r, ticketNo: null as string | null, status: "unverified" as RowStatus, statusNote: null as string | null };
     const P = printedCodes[i] ?? [];
+    // The ticket was read more than once and the readings may differ ("1" read as "4" ...): HR judges each. The first that is an employee whose name
+    // fits is the ticket.
+    for (const t of [r.ticket, ...(r.ticketAlt ?? [])]) {
+      const cand = t ? byTicket.get(t) : undefined;
+      if (!cand) continue;
+      const fit = nameFit(P, cand.codes, r.name, cand.name);
+      if (fit === "exact" || (fit === "partial" && same(r.departmentCode, cand.departmentCode))) {
+        return { ...base, ticketNo: cand.ticket, status: "verified", statusNote: t !== r.ticket ? `the ticket was read as ${r.ticket ?? "nothing"} and as ${t}: HR confirms ${t} for ${cand.name}` : null };
+      }
+    }
     const e = r.ticket ? byTicket.get(r.ticket) : undefined;
     if (e) {
-      const fit = nameFit(P, e.codes, r.name, e.name);
-      if (fit === "exact" || (fit === "partial" && same(r.departmentCode, e.departmentCode))) return { ...base, ticketNo: e.ticket, status: "verified" };
       // the ticket is an employee, but the name does not fit: the ticket may have been misread into someone else's. Try to find the person by name.
       base.statusNote = `ticket ${r.ticket} belongs to ${e.name} in HR, which does not fit the printed name "${r.name}"`;
     } else if (r.ticket) base.statusNote = `ticket ${r.ticket} is not in the HR directory`;
@@ -90,4 +98,60 @@ export function verifyAgainstHr(rows: ScheduleRow[], printedCodes: string[][], h
     seen.set(out[winner].ticketNo!, winner);
   });
   return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+// The department code against the department NAME printed on the same row.
+// A code is read from small digits and is wrong now and then ("40001" for "10001", "3304" for "3301"); the NAME is plain text and is read far
+// better. The HR directory knows which codes belong to which department name, so a code that does not belong to the department printed on its
+// row is replaced by the one that does -- when there is exactly one such code. Nothing is guessed when the name is unknown or ambiguous.
+
+export interface DeptPair {
+  code: string;
+  name: string;
+}
+
+const dnorm = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+function lev(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+export function fixCodesByDepartment<R extends ScheduleRow>(rows: R[], pairs: DeptPair[]): R[] {
+  const byName = new Map<string, Set<string>>();
+  for (const p of pairs) {
+    const n = dnorm(p.name);
+    if (!n) continue;
+    if (!byName.has(n)) byName.set(n, new Set());
+    byName.get(n)!.add(String(p.code).trim());
+  }
+  const names = [...byName.keys()];
+  return rows.map((r) => {
+    const nd = dnorm(r.department);
+    if (nd.length < 3) return r;
+    let codes = byName.get(nd);
+    if (!codes) {
+      // the name was read with a small error: the one name that is within a letter or two (never a guess between two)
+      const tol = nd.length >= 14 ? 2 : 1;
+      const near = names.filter((n) => lev(n, nd, tol) <= tol);
+      if (near.length === 1) codes = byName.get(near[0]);
+    }
+    if (!codes || codes.size === 0) return r;
+    if (r.departmentCode && codes.has(r.departmentCode)) return r;
+    const viaAlt = (r.codeAlt ?? []).filter((c) => codes!.has(c));
+    const pick = viaAlt.length === 1 ? viaAlt[0] : codes.size === 1 ? [...codes][0] : null;
+    if (!pick) return r;
+    return {
+      ...r,
+      departmentCode: pick,
+      codeNote: `department code read as ${r.departmentCode ?? "nothing"}, but the department printed on the row ("${r.department}") has code ${pick}`,
+    };
+  });
 }

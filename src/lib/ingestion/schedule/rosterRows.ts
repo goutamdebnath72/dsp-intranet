@@ -47,12 +47,22 @@ export function splitAtRules(words: Word[], rules: number[]): Word[] {
     }
     out.push(rest);
   }
-  return out.filter((w) => w.text.replace(/[^A-Za-z0-9]/g, "") !== "");
+  return out.filter(keepWord);
+}
+
+/**
+ * A word made only of punctuation is usually a rule mark ("|", "[", "!") and is dropped; but "&" and a lone "-" or "/" are part of department names
+ * ("CO & CC (BATTERY)", "OPRN - ZONE II") and are kept (a hyphen left over at the start or end of a cell is trimmed later).
+ */
+export function keepWord(w: Word): boolean {
+  return /[A-Za-z0-9]/.test(w.text) || /^[&\-\/]$/.test(w.text.trim());
 }
 
 export interface RosterRow {
   /** vertical centre of the row (straightened page, pixels) */
   y: number;
+  /** other readings of a number cell that lost the vote (column -> readings), for the HR directory to judge */
+  alt?: Record<number, string[]>;
   /** the text of each column, left to right (same count as the table's columns) */
   cells: string[];
 }
@@ -70,7 +80,7 @@ export function rowsFromWords(words: Word[], rules: number[], top: number, botto
   const inside = splitAtRules(words, rules).filter((w) => {
     const cy = w.top + w.height / 2;
     const cx = w.left + w.width / 2;
-    return cy > top && cy < bottom && cx > rules[0] && cx < rules[rules.length - 1] && /[A-Za-z0-9]/.test(w.text);
+    return cy > top && cy < bottom && cx > rules[0] && cx < rules[rules.length - 1] && keepWord(w);
   });
   if (inside.length === 0) return [];
   const mh = median(inside.map((w) => w.height));
@@ -93,7 +103,7 @@ export function rowsFromWords(words: Word[], rules: number[], top: number, botto
       for (let i = 0; i < ncol; i++) if (cx < rules[i + 1]) { c = i; break; }
       cells[c].push(w.text);
     }
-    rows.push({ y: median(g.map((x) => x.top + x.height / 2)), cells: cells.map((t) => t.join(" ").replace(/\s+/g, " ").trim()) });
+    rows.push({ y: median(g.map((x) => x.top + x.height / 2)), cells: cells.map((t) => t.join(" ").replace(/\s+/g, " ").replace(/^[\s&\-\/]+|[\s\-\/]+$/g, "").trim()) });
   }
   return rows;
 }
@@ -105,6 +115,29 @@ export function rowsFromWords(words: Word[], rules: number[], top: number, botto
  * With `onlyFill`, the strip is used only where the page-wide reading is missing or has the wrong shape.
  * Returns how many rows got a new value for the column.
  */
+/** Which text of a column strip belongs to which row: row index -> the digits read at that row's height (words far from every row are ignored). */
+export function assignStripWords(rows: RosterRow[], words: Array<{ text: string; cy: number }>): Map<number, string> {
+  const out = new Map<number, string>();
+  if (rows.length === 0 || words.length === 0) return out;
+  const gaps: number[] = [];
+  for (let i = 1; i < rows.length; i++) gaps.push(rows[i].y - rows[i - 1].y);
+  const pitch = gaps.length ? median(gaps.filter((g) => g > 5)) || median(gaps) : 40;
+  const perRow = new Map<number, Array<{ text: string; cy: number }>>();
+  for (const w of words) {
+    let best = -1;
+    let bd = Infinity;
+    for (let i = 0; i < rows.length; i++) {
+      const d = Math.abs(rows[i].y - w.cy);
+      if (d < bd) { bd = d; best = i; }
+    }
+    if (best < 0 || bd > 0.6 * pitch) continue;
+    if (!perRow.has(best)) perRow.set(best, []);
+    perRow.get(best)!.push(w);
+  }
+  for (const [i, ws] of perRow) out.set(i, ws.sort((a, b) => a.cy - b.cy).map((w) => w.text.replace(/\D/g, "")).join(""));
+  return out;
+}
+
 export function overlayColumn(rows: RosterRow[], col: number, words: Array<{ text: string; cy: number }>, accept: (t: string) => boolean, onlyFill = false): number {
   if (rows.length === 0 || words.length === 0) return 0;
   const gaps: number[] = [];

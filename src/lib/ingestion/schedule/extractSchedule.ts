@@ -6,11 +6,12 @@
 import { findHorizontalLines, loadGray, type Gray } from "./lines";
 import { deskewPng, estimateTilt } from "./deskew";
 import { findDateCells, findFrame, type DateCell, type Frame } from "./dateCells";
-import { overlayColumn, rowsFromWords, wordsFromTsv } from "./rosterRows";
+import { assignStripWords, overlayColumn, rowsFromWords, wordsFromTsv } from "./rosterRows";
+import { cleanCode, voteDigits } from "./digits";
 import { judgeDate, parsePrintedDate, parseScheduleMonth, repairPrintedDate } from "./dates";
 
 /** Bump when the reading changes what it returns: a saved reading made by an older version is then ignored. */
-export const EXTRACT_VERSION = 2; // 2: the serial, ticket and department-code columns are also read on their own, digits only
+export const EXTRACT_VERSION = 4; // 4: numbers voted from three readings (cell, strip, page) // 2: the serial, ticket and department-code columns are also read on their own, digits only
 
 export interface ScheduleDeps {
   /** English OCR of a whole page image, as tesseract TSV (word boxes) */
@@ -19,6 +20,8 @@ export interface ScheduleDeps {
   ocrDateText(png: Buffer): Promise<string>;
   /** optional: OCR (tesseract TSV) of a picture holding ONE column of numbers: only digits are read. Used for the serial, ticket and department-code columns. */
   ocrDigitsTsv?(png: Buffer): Promise<string>;
+  /** optional: OCR of ONE number cell cut out on its own and enlarged (a ticket or a department code): the most accurate of the three readings. */
+  ocrDigitCell?(png: Buffer): Promise<string>;
   /** optional: a line of detail per date cell (for the import report and for finding out why a date was not read) */
   trace?: (message: string) => void;
 }
@@ -36,6 +39,14 @@ export interface ScheduleRow {
   dateNote: string | null; // set when the date was corrected or is odd
   /** true when the date is printed on the other side of a page break (the cell goes on over it) */
   dateFromOtherPage: boolean;
+  /** height of the row on the straightened page image (for looking at the row again) */
+  y?: number;
+  /** other readings of the ticket (they lost the vote): the HR directory may confirm one of them */
+  ticketAlt?: string[];
+  /** other readings of the department code (they lost the vote) */
+  codeAlt?: string[];
+  /** set when the department code was changed because it did not belong to the department printed on the row */
+  codeNote?: string | null;
 }
 
 export interface ExtractedSchedule {
@@ -198,7 +209,7 @@ export async function extractSchedule(pages: Buffer[], deps: ScheduleDeps, known
   let scheduleMonth = knownMonth ?? null;
 
   // ---------- pass 1: per page, the rows (with their height) and the date cells
-  interface RawRow { y: number; cells: string[] }
+  interface RawRow { y: number; cells: string[]; alt?: Record<number, string[]> }
   const pageData: Array<{ pageNo: number; rows: RawRow[]; cells: PageCell[]; png: Buffer; g: Gray; band: { xL: number; xR: number } }> = [];
   for (let p = 0; p < pages.length; p++) {
     const pageNo = p + 1;
@@ -212,21 +223,46 @@ export async function extractSchedule(pages: Buffer[], deps: ScheduleDeps, known
     const maskedPng = await maskRules(png, g, frame);
     const words = wordsFromTsv(await deps.ocrPageTsv(maskedPng));
     const rows = rowsFromWords(words, frame.rules, frame.top, frame.bottom);
-    // the narrow numeric columns are also read on their own, digits only (the page-wide reading drops them on some pages)
-    if (deps.ocrDigitsTsv) {
+    // The numbers are read three ways (see digits.ts): the cell on its own and enlarged, the column as a digits-only strip, and the page as a whole.
+    // They vote; the readings that lose are kept as alternatives. The serial number is read best by the page-wide pass (a strip only fills a gap).
+    if (deps.ocrDigitsTsv || deps.ocrDigitCell) {
       const sharpMod = (await import("sharp")).default;
-      // [column, shape of a valid reading, strip only fills what is missing?]: the serial number is read better by the page-wide pass
-      const shape: Array<[number, (t: string) => boolean, boolean]> = [[0, (t) => /^\d{1,4}$/.test(t), true], [1, (t) => /^\d{6}$/.test(t), false], [3, (t) => /^\d{3,5}$/.test(t), false]];
-      for (const [col, accept, onlyFill] of shape) {
+      const maskedG = deps.ocrDigitCell ? await loadGray(maskedPng) : null;
+      const stripFor = async (col: number): Promise<Array<{ text: string; cy: number }>> => {
+        if (!deps.ocrDigitsTsv) return [];
         const x0 = Math.round(frame.rules[col] + 4);
         const x1 = Math.round(frame.rules[col + 1] - 4);
         const y0 = Math.max(0, Math.round(frame.top + 4));
         const y1 = Math.min(g.height, Math.round(frame.bottom - 4));
-        if (x1 - x0 < 20 || y1 - y0 < 40) continue;
+        if (x1 - x0 < 20 || y1 - y0 < 40) return [];
         const strip = await sharpMod(maskedPng).extract({ left: x0, top: y0, width: x1 - x0, height: y1 - y0 }).withMetadata({ density: 300 }).png().toBuffer();
-        const sw = wordsFromTsv(await deps.ocrDigitsTsv(strip)).map((w) => ({ text: w.text, cy: y0 + w.top + w.height / 2 }));
-        const n = overlayColumn(rows, col, sw, accept, onlyFill);
-        deps.trace?.(`page ${pageNo}: column ${col} read on its own: ${sw.length} words, ${n} rows updated`);
+        return wordsFromTsv(await deps.ocrDigitsTsv(strip)).map((w) => ({ text: w.text, cy: y0 + w.top + w.height / 2 }));
+      };
+      overlayColumn(rows, 0, await stripFor(0), (t) => /^\d{1,4}$/.test(t), true);
+      for (const col of [1, 3]) {
+        const clean = col === 1 ? cleanTicket : cleanCode;
+        const stripRead = assignStripWords(rows, await stripFor(col));
+        let changed = 0;
+        let alts = 0;
+        for (let i = 0; i < rows.length; i++) {
+          let cellRead: string | null = null;
+          if (deps.ocrDigitCell && maskedG) {
+            const x0 = Math.max(0, Math.round(frame.rules[col] + 8));
+            const x1 = Math.min(maskedG.width, Math.round(frame.rules[col + 1] - 8));
+            const y0 = Math.max(0, Math.round(rows[i].y - 21));
+            const y1 = Math.min(maskedG.height, Math.round(rows[i].y + 21));
+            if (x1 - x0 > 20 && y1 - y0 > 15) {
+              const sub = new Uint8Array((x1 - x0) * (y1 - y0));
+              for (let y = 0; y < y1 - y0; y++) for (let x = 0; x < x1 - x0; x++) sub[y * (x1 - x0) + x] = maskedG.data[(y0 + y) * maskedG.width + (x0 + x)];
+              const cellPng = await sharpMod(Buffer.from(sub), { raw: { width: x1 - x0, height: y1 - y0, channels: 1 } }).extend({ top: 12, bottom: 12, left: 12, right: 12, background: "#ffffff" }).resize({ height: 110 }).withMetadata({ density: 300 }).png().toBuffer();
+              cellRead = clean(await deps.ocrDigitCell(cellPng));
+            }
+          }
+          const v = voteDigits([cellRead, clean(stripRead.get(i) ?? ""), clean(rows[i].cells[col] ?? "")]);
+          if (v.value && rows[i].cells[col] !== v.value) { rows[i].cells[col] = v.value; changed++; }
+          if (v.alts.length) { (rows[i].alt ??= {})[col] = v.alts; alts++; }
+        }
+        deps.trace?.(`page ${pageNo}: column ${col}: ${rows.length} rows, ${changed} changed by the vote, ${alts} with an alternative reading`);
       }
     }
     if (!scheduleMonth) scheduleMonth = parseScheduleMonth(words.map((w) => w.text).join(" "));
@@ -303,14 +339,14 @@ export async function extractSchedule(pages: Buffer[], deps: ScheduleDeps, known
       // a rule next to the first letter is read as a character ("|ATIT", "\\JAYANTA"): only letters, digits and the usual name marks are kept
       const name = (r.cells[2] ?? "").replace(/[^A-Za-z .'\-]/g, " ").replace(/^[\s.'\-]+/, "").replace(/\s+/g, " ").trim();
       const department = (r.cells[4] ?? "").replace(/^[\s|\\\[\]]+/, "").trim();
-      const rawCode = (r.cells[3] ?? "").replace(/\D/g, "");
-      const code = /^\d{3,5}$/.test(rawCode) ? rawCode : rawCode.length === 6 && rawCode[0] === "1" ? rawCode.slice(1) : null; // a department code has 3-5 digits
+      const code = cleanCode(r.cells[3] ?? ""); // a department code has 3-5 digits
       if (!isEmployeeRow(ticket, name, code, department)) continue; // titles, headings, the signature: not employees
       const cell = pd.cells.find((c) => r.y >= c.y0 && r.y < c.y1) ?? pd.cells.find((c) => r.y >= c.y0 - 4 && r.y < c.y1 + 4) ?? null;
       seq++;
       rows.push({
         page: pd.pageNo, seq, serial, ticket, name, departmentCode: code, department,
-        datePrinted: cell?.printed ?? null, checkupDate: cell?.date ?? null, dateNote: cell?.note ?? null, dateFromOtherPage: cell?.fromOtherPage ?? false,
+        datePrinted: cell?.printed ?? null, checkupDate: cell?.date ?? null, dateNote: cell?.note ?? null, dateFromOtherPage: cell?.fromOtherPage ?? false, y: Math.round(r.y),
+        ticketAlt: (r.alt?.[1] ?? []).filter((t) => t !== ticket), codeAlt: (r.alt?.[3] ?? []).filter((c) => c !== code),
       });
       const d = cell?.date ?? null;
       if (d === null) noDate.push(`${seq}`);

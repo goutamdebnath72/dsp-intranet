@@ -8,8 +8,9 @@ import { deskewPng, estimateTilt } from "./deskew";
 import { findDateCells, findFrame } from "./dateCells";
 import { overlayColumn, splitAtRules, wordsFromTsv, rowsFromWords, type Word } from "./rosterRows";
 import { judgeDate, parsePrintedDate, parseScheduleMonth, repairPrintedDate } from "./dates";
-import { cleanTicket, cropCellText, extractSchedule, isEmployeeRow, maskRules } from "./extractSchedule";
-import { nameFit, verifyAgainstHr, type HrEmployee } from "./importSchedule";
+import { cleanTicket, cropCellText, extractSchedule, isEmployeeRow, maskRules, type ScheduleRow } from "./extractSchedule";
+import { fixCodesByDepartment, nameFit, verifyAgainstHr, type HrEmployee } from "./importSchedule";
+import { cleanCode, voteDigits } from "./digits";
 import { extractorFingerprint } from "./fingerprint";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -139,6 +140,15 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   overlayColumn(split, 1, [{ text: "1000", cy: 320 }, { text: "01", cy: 322 }], (t) => /^\d{6}$/.test(t));
   check("a number the strip read in two pieces on one row is joined", split[0].cells[1] === "100001");
 
+  // ================================================================== punctuation that belongs to a department name
+  const deptWords: Word[] = [["30001", 840], ["CO", 920], ["&", 950], ["CC", 975], ["(BATTERY)", 1005], ["|", 1090], ["WHEEL", 1100]].map(([t, x]) => ({ text: String(t), left: Number(x), top: 308, width: 24, height: 24, conf: 90 }));
+  const rowD = rowsFromWords(deptWords, RULES, 260, 700)[0];
+  check("'&' is kept in a department name (CO & CC (BATTERY)) while a rule mark ('|') is dropped", rowD.cells[4] === "CO & CC (BATTERY)", JSON.stringify(rowD.cells));
+  const dash: Word[] = [["30001", 840], ["WHEEL", 920], ["(OPRN", 960], ["-", 990], ["ZONE", 1000], ["II)", 1030]].map(([t, x]) => ({ text: String(t), left: Number(x), top: 308, width: 24, height: 24, conf: 90 }));
+  check("a hyphen between words is kept (OPRN - ZONE II)", rowsFromWords(dash, RULES, 260, 700)[0].cells[4] === "WHEEL (OPRN - ZONE II)");
+  const edgeDash: Word[] = [["-", 905], ["SMS", 920], ["-", 1000]].map(([t, x]) => ({ text: String(t), left: Number(x), top: 308, width: 24, height: 24, conf: 90 }));
+  check("...but a hyphen left at the start or end of a cell (a rule's remains) is trimmed", rowsFromWords(edgeDash, RULES, 260, 700)[0].cells[4] === "SMS");
+
   // ================================================================== lines, tilt, frame
   const px0 = blank();
   for (const x of RULES) rect(px0, x - 1, 260, x + 2, 900);
@@ -225,6 +235,45 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   check("with the code column dropped by the page-wide OCR, every row still gets its department code (from the digit strips)", viaStrips.rows.length === 25 && viaStrips.rows.every((r, i) => r.departmentCode === String(30001 + i)), JSON.stringify(viaStrips.rows.slice(0, 2).map((r) => r.departmentCode)));
   check("...and the dates and groups are unaffected", viaStrips.groups.length === 5 && viaStrips.warnings.length === 0);
 
+  // -- the three readings vote: the cell on its own wins ties, a reading the other two contradict loses, and the loser is kept as an alternative
+  asked.length = 0;
+  const q4 = ["01-01-25", "02-01-25", "11/012/25", "13-01-25", "14-01-25"];
+  stripCalls = 0;
+  const wrongStrip = (first: number, n: number, col: number, i0: number) => {
+    // the strip reads row 3 of page 1's code column wrongly (30003 as 30043)
+    return col === 3 && first === 1 && i0 === 2 ? "30043" : null;
+  };
+  void wrongStrip;
+  const cellQueue: string[] = [];
+  for (const [first, n] of [[1, 12], [13, 13]] as Array<[number, number]>) {
+    for (let i = 0; i < n; i++) cellQueue.push(first === 1 && i === 4 ? "100095" : String(100000 + first + i)); // tickets: row 5 of page 1 misread by the cell reader (100005 -> 100095)
+    for (let i = 0; i < n; i++) cellQueue.push(String(30000 + first + i)); // codes: all right
+  }
+  const stripFor2 = (png: Buffer) => {
+    const page = Math.floor(stripCalls / 3);
+    const col = [0, 1, 3][stripCalls % 3];
+    stripCalls++;
+    const [first, n] = [[1, 12], [13, 13]][page];
+    const lines = ["1\t1\t0\t0\t0\t0\t0\t0\t90\t1200\t-1\t"];
+    for (let i = 0; i < n; i++) {
+      const sno = first + i;
+      let text = col === 0 ? String(sno) : col === 1 ? String(100000 + sno) : String(30000 + sno);
+      if (col === 3 && page === 0 && i === 2) text = "30043"; // the strip misreads the code of row 3
+      lines.push(`5\t1\t1\t1\t1\t${i + 1}\t5\t${4 + 40 * i}\t60\t24\t90\t${text}`);
+    }
+    void png;
+    return Promise.resolve(lines.join("\n"));
+  };
+  const voted = await extractSchedule([p1, p2], {
+    ocrPageTsv: async () => (asked.push("page"), asked.length === 1 ? tsvFor(1, 12, "HEALTH CHECK UP SCHEDULE FOR THE MONTH OF JANUARY 2025", false) : tsvFor(13, 13, undefined, false)),
+    ocrDateText: async () => q4.shift() ?? "",
+    ocrDigitsTsv: stripFor2,
+    ocrDigitCell: async () => cellQueue.shift() ?? "",
+  });
+  check("the cell reading wins a tie: row 3's code is 30003 although the strip read 30043; the strip's reading is kept as an alternative", voted.rows[2].departmentCode === "30003" && (voted.rows[2].codeAlt ?? []).includes("30043"), JSON.stringify([voted.rows[2].departmentCode, voted.rows[2].codeAlt]));
+  check("the cell reader's own mistake loses: row 5's ticket stays 100005 (the strip and the page agree), and 100095 is kept as an alternative", voted.rows[4].ticket === "100005" && (voted.rows[4].ticketAlt ?? []).includes("100095"), JSON.stringify([voted.rows[4].ticket, voted.rows[4].ticketAlt]));
+  check("every other row is read right (25 tickets, 25 codes) and the dates and groups are unaffected", voted.rows.every((r, i) => (i === 4 ? true : r.ticket === String(100001 + i)) && r.departmentCode === String(30001 + i)) && voted.groups.length === 5 && voted.warnings.length === 0);
+
   // -- a date that does not fit the schedule is never stored as if it were fine
   const q2 = ["01-01-25", "02-02-25", "02-02-25" /* the second try of the same cell */, "11/012/25", "13-01-25", "14-01-25"];
   asked.length = 0;
@@ -279,6 +328,43 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   const spaced = verifyAgainstHr([mk("242956", "BISHNUPADA MONDAL", "14000", 1)], [["bisnupada", "mandal"]], [{ ticket: "242956", name: "BISHNU PADA MONDAL", codes: ["bisnu", "pada", "mandal"], departmentCode: "14000" }])[0];
   check("a name cut differently from HR's is verified on its ticket", spaced.status === "verified");
   check("every row keeps what was read from the page (ticket as printed, name as printed)", v.every((r, i) => r.ticket === rowsH[i].ticket && r.name === rowsH[i].name));
+
+  // ================================================================== numbers read three ways, and voted
+  check("a department code: 3-5 digits; a ruled line read as a 6th digit in front is dropped; anything else is refused", cleanCode("10001") === "10001" && cleanCode("3301") === "3301" && cleanCode("115") === "115" && cleanCode("110001") === "10001" && cleanCode("12") === null && cleanCode("123456") === "23456" && cleanCode("") === null && cleanCode("ab") === null);
+  const v1 = voteDigits(["242591", "242501", "242591"]);
+  check("two of three readings agree: that is the answer, and the odd one out is kept as an alternative (the 12 Oct audit: 242591 read as 242501)", v1.value === "242591" && v1.alts.join() === "242501", JSON.stringify(v1));
+  const v2 = voteDigits(["10001", "40001", null]);
+  check("two readings that disagree: the one listed FIRST (the cell on its own, the most accurate) wins and the other is an alternative", v2.value === "10001" && v2.alts.join() === "40001", JSON.stringify(v2));
+  check("three different readings: the first; one reading: that one; none: nothing", voteDigits(["1", "2", "3"]).value === "1" && voteDigits([null, "77", null]).value === "77" && voteDigits([null, undefined, null]).value === null && voteDigits([null, undefined]).alts.length === 0);
+  check("a reading that appears twice beats a better-ranked reading that appears once", voteDigits(["A1", "B2", "B2"]).value === "B2");
+
+  // ================================================================== the department code against the department NAME on the same row
+  const pairs = [{ code: "10001", name: "CO & CC (MECH)" }, { code: "12000", name: "CO & CC (BATTERY)" }, { code: "3301", name: "M&HS(1)" }, { code: "103", name: "LAW" }, { code: "103", name: "P.R.O." }, { code: "85110", name: "PLANT GARAGE (M.H.E.O.D.)" }];
+  const rw = (code: string | null, dept: string, alt: string[] = []): ScheduleRow => ({ ...mk("100001", "A B", code ?? "", 1), departmentCode: code, department: dept, codeAlt: alt });
+  const fx = fixCodesByDepartment([rw("40001", "CO & CC (MECH)"), rw("10001", "CO & CC (MECH)"), rw("42000", "CO & CC (BATTERY)"), rw("13301", "M&HS(1)"), rw(null, "CO & CC (MECH)")], pairs);
+  check("a code that does not belong to the printed department is replaced by the one that does (40001 -> 10001, 42000 -> 12000, 13301 -> 3301), and it says so", fx[0].departmentCode === "10001" && fx[2].departmentCode === "12000" && fx[3].departmentCode === "3301" && /has code 10001/.test(String(fx[0].codeNote)) && /read as 40001/.test(String(fx[0].codeNote)), JSON.stringify(fx.map((r) => r.departmentCode)));
+  check("a code that already belongs to the department is left alone (no note)", fx[1].departmentCode === "10001" && !fx[1].codeNote);
+  check("a missing code is filled from the department name", fx[4].departmentCode === "10001");
+  const fz = fixCodesByDepartment([rw("85101", "PLANT GARAGE (MHEOD)"), rw("85100", "PLANT GARAGE (M.H.E.O.D.)")], pairs);
+  check("the department name is matched ignoring punctuation and spaces (PLANT GARAGE (MHEOD) = (M.H.E.O.D.))", fz[0].departmentCode === "85110" && fz[1].departmentCode === "85110");
+  const fq = fixCodesByDepartment([rw("45110", "PLANT GARAGE (M.H.E.O.D")], pairs);
+  check("a department name read with a small error is still found when exactly one name is that close", fq[0].departmentCode === "85110");
+  const fu = fixCodesByDepartment([rw("40001", "SOME NEW UNKNOWN SECTION"), rw("40001", "")], pairs);
+  check("an unknown or empty department name changes nothing (no guessing)", fu[0].departmentCode === "40001" && fu[1].departmentCode === "40001" && !fu[0].codeNote);
+  const fa = fixCodesByDepartment([rw("107", "LAW", ["103"]), rw("999", "LAW")], pairs);
+  check("a name with one code: the code is set; a stored alternative reading that fits is preferred and used", fa[0].departmentCode === "103" && fa[1].departmentCode === "103");
+  const two = fixCodesByDepartment([rw("9", "SHARED NAME")], [{ code: "1", name: "SHARED NAME" }, { code: "2", name: "SHARED NAME" }]);
+  check("a department name that two codes share is NOT resolved by guessing (the row keeps its code)", two[0].departmentCode === "9" && !two[0].codeNote);
+
+  // ================================================================== HR judges the alternative readings of a ticket
+  const hrAlt: HrEmployee[] = [{ ticket: "242591", name: "PURNA CHANDRA PAL", codes: ["purna", "candra", "pal"], departmentCode: "44000" }, { ticket: "242501", name: "SOMEONE ELSE ENTIRELY", codes: ["samion", "alsa"], departmentCode: "12000" }];
+  const rowAlt = { ...mk("242501", "PURNA CHANDRA PAL", "44000", 1), ticketAlt: ["242591"] };
+  const va = verifyAgainstHr([rowAlt], [["purna", "candra", "pal"]], hrAlt)[0];
+  check("the ticket read as 242501 is not that person; the other reading, 242591, is: HR confirms the other (and the note says so)", va.status === "verified" && va.ticketNo === "242591" && /HR confirms 242591/.test(String(va.statusNote)), JSON.stringify(va));
+  const vb = verifyAgainstHr([{ ...mk("242591", "PURNA CHANDRA PAL", "44000", 1), ticketAlt: ["242501"] }], [["purna", "candra", "pal"]], hrAlt)[0];
+  check("when the first reading is right it is kept, with no note", vb.status === "verified" && vb.ticketNo === "242591" && vb.statusNote === null);
+  const vc = verifyAgainstHr([{ ...mk("242599", "NOBODY LIKE THEM", "44000", 1), ticketAlt: ["242501"] }], [["nobodi", "laik", "tem"]], hrAlt)[0];
+  check("an alternative that is an employee with a DIFFERENT name is not accepted", vc.status === "unverified" && vc.ticketNo === null);
 
   // ================================================================== a saved reading must not outlive the code that made it
   const fdir = mkdtempSync(pjoin(tmpdir(), "fp-"));

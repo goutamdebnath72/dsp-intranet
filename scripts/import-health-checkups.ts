@@ -24,7 +24,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 
 import { join } from "node:path";
 import { Client } from "pg";
 import { extractSchedule, EXTRACT_VERSION, type ExtractedSchedule } from "../src/lib/ingestion/schedule/extractSchedule";
-import { verifyAgainstHr, type HrEmployee, type VerifiedRow } from "../src/lib/ingestion/schedule/importSchedule";
+import { fixCodesByDepartment, verifyAgainstHr, type DeptPair, type HrEmployee, type VerifiedRow } from "../src/lib/ingestion/schedule/importSchedule";
 import { circularLabel } from "../src/lib/search/circularLabels";
 import { extractorFingerprint } from "../src/lib/ingestion/schedule/fingerprint";
 
@@ -85,11 +85,15 @@ async function main() {
     await dateWorker.setParameters({ tessedit_char_whitelist: "0123456789-./ ", tessedit_pageseg_mode: "7" });
     const digitWorker = wopts ? await Tesseract.createWorker("eng", 1, wopts) : await Tesseract.createWorker("eng");
     await digitWorker.setParameters({ tessedit_char_whitelist: "0123456789", tessedit_pageseg_mode: "6" });
+    // one number cell at a time (a ticket or a department code), cut out and enlarged: the most accurate of the three readings
+    const cellWorker = wopts ? await Tesseract.createWorker("eng", 1, wopts) : await Tesseract.createWorker("eng");
+    await cellWorker.setParameters({ tessedit_char_whitelist: "0123456789", tessedit_pageseg_mode: "7" });
     const deps = {
       ocrPageTsv: async (png: Buffer) => ((await pageWorker.recognize(png, {}, { text: false, tsv: true })).data.tsv as string) || "",
       ocrDateText: async (png: Buffer) => ((await dateWorker.recognize(png)).data.text as string) || "",
       // the narrow numeric columns (serial, ticket, department code) are also read on their own, digits only
       ocrDigitsTsv: async (png: Buffer) => ((await digitWorker.recognize(png, {}, { text: false, tsv: true })).data.tsv as string) || "",
+      ocrDigitCell: async (png: Buffer) => ((await cellWorker.recognize(png)).data.text as string) || "",
     };
 
     // ---- the HR directory, with the phonetic codes of the names. EVERYONE, not only non-executives: a person on a December 2024 roster may have
@@ -97,6 +101,9 @@ async function main() {
     const hrRes = await client.query(`SELECT ticket_no, name, name_codes, department_code FROM nlq.employees`);
     const hr: HrEmployee[] = hrRes.rows.map((r: any) => ({ ticket: String(r.ticket_no).trim(), name: String(r.name), codes: (r.name_codes ?? []).map(String), departmentCode: r.department_code == null ? null : String(r.department_code) }));
     console.log(`HR directory: ${hr.length} employees.\n`);
+    // which department code belongs to which department name (used to check the codes read from the pages)
+    const pairRes = await client.query(`SELECT DISTINCT department_code::text AS code, department AS name FROM nlq.employees WHERE department_code IS NOT NULL AND department IS NOT NULL`);
+    const deptPairs: DeptPair[] = pairRes.rows.map((r: any) => ({ code: String(r.code), name: String(r.name) }));
 
     const stamp = Date.now();
     mkdirSync("health-reports", { recursive: true });
@@ -130,7 +137,10 @@ async function main() {
       // ---- check every row against HR
       const codesRes = await client.query(`SELECT nlq.name_codes_of(n) AS codes FROM unnest($1::text[]) WITH ORDINALITY AS t(n, i) ORDER BY i`, [res.rows.map((r) => r.name)]);
       const printed: string[][] = codesRes.rows.map((r: any) => (r.codes ?? []).map(String));
-      const rows: VerifiedRow[] = verifyAgainstHr(res.rows, printed, hr);
+      // the department code is checked against the department NAME printed on the same row, then the people against HR
+      const withCodes = fixCodesByDepartment(res.rows, deptPairs);
+      const codeFixes = withCodes.filter((r) => r.codeNote);
+      const rows: VerifiedRow[] = verifyAgainstHr(withCodes, printed, hr);
       const count = (s: string) => rows.filter((r) => r.status === s).length;
       const month = res.scheduleMonth ? `${MONTHS[res.scheduleMonth.month - 1]} ${res.scheduleMonth.year}` : "UNKNOWN";
       const problems = [...res.warnings];
@@ -141,11 +151,14 @@ async function main() {
       console.log(line);
       for (const p of problems) console.log("      ! " + p);
 
-      report.push(`## ${label} (circular id ${id}) - ${String(c.headline)}`, "", `- Schedule month: **${month}**`, `- Roster rows read: **${rows.length}** in **${res.groups.length}** days (rows per day: ${[...new Set(res.groups.map((g) => g.rows))].join(", ")})`, `- HR check: verified ${count("verified")} | corrected ${count("corrected")} | unverified ${count("unverified")}`, `- Pages that are not roster pages: ${res.info.length ? res.info.join("; ") : "none"}`, `- Source of the rows: ${reused ? "a saved reading of the pages (made by this same reader)" : "the pages were read now"}`);
+      report.push(`## ${label} (circular id ${id}) - ${String(c.headline)}`, "", `- Schedule month: **${month}**`, `- Roster rows read: **${rows.length}** in **${res.groups.length}** days (rows per day: ${[...new Set(res.groups.map((g) => g.rows))].join(", ")})`, `- HR check: verified ${count("verified")} | corrected ${count("corrected")} | unverified ${count("unverified")}`, `- Department codes changed because they did not belong to the department printed on the row: ${codeFixes.length}`, `- Pages that are not roster pages: ${res.info.length ? res.info.join("; ") : "none"}`, `- Source of the rows: ${reused ? "a saved reading of the pages (made by this same reader)" : "the pages were read now"}`);
       report.push("", "Days (date: rows): " + res.groups.map((g) => `${g.date ?? "??"}: ${g.rows}`).join(" | "), "");
       if (problems.length) report.push("**Problems (the circular is NOT applied until you have looked, then --accept-warnings):**", ...problems.map((p) => `- ${p}`), "");
       const notes = [...new Set(rows.filter((r) => r.dateNote).map((r) => `${r.checkupDate}: ${r.dateNote}`))];
       if (notes.length) report.push("**Dates that were corrected (typos in the circular itself):**", ...notes.map((n) => `- ${n}`), "");
+      if (codeFixes.length) report.push("**Department codes changed (the code read from the page did not belong to the department printed on the row):**", ...codeFixes.map((r) => `- row ${r.seq} (page ${r.page}): ${r.codeNote}`), "");
+      const viaAlt = rows.filter((r) => r.status === "verified" && r.statusNote && /HR confirms/.test(r.statusNote));
+      if (viaAlt.length) report.push("**Tickets confirmed from a second reading (the first reading was not an employee with this name):**", ...viaAlt.map((r) => `- row ${r.seq} (page ${r.page}): ${r.statusNote}`), "");
       const corrected = rows.filter((r) => r.status === "corrected");
       if (corrected.length) report.push("**Corrected rows:**", ...corrected.map((r) => `- row ${r.seq} (page ${r.page}): ${r.statusNote}`), "");
       const unver = rows.filter((r) => r.status === "unverified");
@@ -171,12 +184,13 @@ async function main() {
             const batch = rows.slice(i, i + 150);
             const vals: unknown[] = [];
             const ph = batch.map((r, k) => {
-              const b = k * 14;
-              vals.push(id, sm.year, sm.month, r.seq, r.page, r.ticket, r.ticketNo, r.name, r.departmentCode == null ? null : parseInt(r.departmentCode, 10), r.department, r.checkupDate, r.datePrinted, r.dateNote, r.status);
-              return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14})`;
+              const b = k * 15;
+              const note = [r.codeNote, r.statusNote].filter(Boolean).join("; ") || null;
+              vals.push(id, sm.year, sm.month, r.seq, r.page, r.ticket, r.ticketNo, r.name, r.departmentCode == null ? null : parseInt(r.departmentCode, 10), r.department, r.checkupDate, r.datePrinted, r.dateNote, r.status, note);
+              return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14},$${b + 15})`;
             });
             await client.query(
-              `INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, page_number, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, date_printed, date_note, status) VALUES ${ph.join(",")}`,
+              `INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, page_number, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, date_printed, date_note, status, status_note) VALUES ${ph.join(",")}`,
               vals,
             );
           }
@@ -192,7 +206,7 @@ async function main() {
     const file = join("health-reports", `health-${apply ? "apply" : "dry"}-${stamp}.md`);
     writeFileSync(file, report.join("\n"));
     console.log(`\n${blocked ? `${blocked} circular(s) need attention. ` : ""}Report: ${file}`);
-    await Promise.all([pageWorker.terminate(), dateWorker.terminate(), digitWorker.terminate()]);
+    await Promise.all([pageWorker.terminate(), dateWorker.terminate(), digitWorker.terminate(), cellWorker.terminate()]);
     if (blocked) process.exitCode = 1;
   } finally {
     await client.end();
