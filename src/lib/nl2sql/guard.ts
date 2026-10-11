@@ -16,7 +16,7 @@ import { parse } from "pgsql-ast-parser";
 export type GuardResult = { ok: true; sql: string } | { ok: false; reason: string };
 
 /** The only relations the model may read. */
-export const ALLOWED_RELATIONS = new Set(["employees", "designations", "departments"]);
+export const ALLOWED_RELATIONS = new Set(["employees", "designations", "departments", "health_checkups"]);
 export const ALLOWED_SCHEMA = "nlq";
 
 /** Our own helper functions, callable as nlq.<name>. */
@@ -121,10 +121,10 @@ export function guardSql(rawSql: string): GuardResult {
         const schema = nm?.schema ? String(nm.schema).toLowerCase() : null;
         if (schema) {
           if (schema !== ALLOWED_SCHEMA || !ALLOWED_RELATIONS.has(rel)) {
-            problems.push(`Table "${schema}.${rel}" is not available. Use only nlq.employees, nlq.designations, nlq.departments.`);
+            problems.push(`Table "${schema}.${rel}" is not available. Use only nlq.employees, nlq.designations, nlq.departments, nlq.health_checkups.`);
           }
         } else if (!ALLOWED_RELATIONS.has(rel) && !cteNames.has(rel)) {
-          problems.push(`Table "${rel}" is not available. Use only nlq.employees, nlq.designations, nlq.departments.`);
+          problems.push(`Table "${rel}" is not available. Use only nlq.employees, nlq.designations, nlq.departments, nlq.health_checkups.`);
         }
       }
 

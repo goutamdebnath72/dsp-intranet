@@ -60,6 +60,15 @@ function refName(e: any): string | null {
   return e && e.type === "ref" && typeof e.name === "string" ? e.name.toLowerCase() : null;
 }
 
+/** ticket_no = '<one literal>', alone or ANDed with other conditions (never OR, never IN: those can return several people). */
+function pinsOneTicket(w: any): boolean {
+  if (!w || w.type !== "binary") return false;
+  if (w.op === "AND") return pinsOneTicket(w.left) || pinsOneTicket(w.right);
+  if (w.op !== "=") return false;
+  const lit = (e: any) => e && ["string", "integer", "numeric", "constant"].includes(e.type);
+  return (refName(w.left) === "ticket_no" && lit(w.right)) || (refName(w.right) === "ticket_no" && lit(w.left));
+}
+
 export function checkRankingAndOrder(sql: string): string | null {
   const st = topSelect(sql);
   if (!st) return null;
@@ -134,7 +143,10 @@ export function checkRankingAndOrder(sql: string): string | null {
     cols.some((c) => (c.alias?.name ?? refName(c.expr)) === "ticket_no") &&
     Array.isArray(st.from) &&
     st.from.length > 0 &&
-    st.from.every((f: any) => f.type === "table");
+    // (the check-up schedule view has no seniority column: its rows come in date order, not seniority order)
+    st.from.every((f: any) => f.type === "table" && String(f.name?.name ?? "").toLowerCase() !== "health_checkups");
+  // ONE person looked up by an exact ticket number (ticket_no = '228757') can return at most one row: there is no order to get wrong.
+  if (isPeopleList && pinsOneTicket(st.where)) return null;
   if (isPeopleList) {
     // aliases of the SELECT list that really are global_seniority_rank (e.g.  e.global_seniority_rank AS sr)
     const rankAliases = new Set(

@@ -21,6 +21,7 @@ import { checkNormPatterns, checkVocabulary } from "./vocabulary";
 import { computeDepartmentScope } from "./scope";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "./deptColumns";
 import { checkComparison, checkRankingAndOrder } from "./rankingCheck";
+import { checkHealthColumns, checkPersonIdentity } from "./identityCheck";
 
 /** Context for a second attempt after a "No", and other optional inputs. */
 export interface PipelineExtra {
@@ -152,7 +153,8 @@ export async function answerQuestion(question: string, userKey: string | null, d
       continue;
     }
     // "Soft" rules about what a correct answer SHOWS: a department with BOTH its code and name, identified by its row and
-    // not by its number (deptColumns); rankings that keep ties and results in a meaningful order (rankingCheck). ONE repair
+    // not by its number (deptColumns); rankings that keep ties and results in a meaningful order (rankingCheck); a row about a
+    // specific person always carrying that person's ticket number and name (identityCheck). ONE repair
     // chance covers all of them (first attempt only): if the model still gets it wrong, the answer is shown as it is --
     // never fail a question over this.
     if (attempts === 1) {
@@ -161,6 +163,8 @@ export async function answerQuestion(question: string, userKey: string | null, d
         ["department identity", checkDepartmentIdentity(g.sql)],
         ["ranking / order", checkRankingAndOrder(g.sql)],
         ["comparison of people", checkComparison(q, g.sql)],
+        ["person identity (ticket + name)", checkPersonIdentity(g.sql)],
+        ["health check-up date", checkHealthColumns(g.sql)],
       ];
       const hit = checks.filter((c): c is [string, string] => c[1] !== null);
       const soft = hit.map((c) => c[1]);

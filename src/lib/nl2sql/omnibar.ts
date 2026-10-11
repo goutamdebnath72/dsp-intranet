@@ -320,12 +320,25 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
 
 async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, attempt: number): Promise<OmnibarPayload> {
   let people: EmployeeResult[] | null = null;
-  if (res.data.columns.includes("ticket_no")) {
+  // A health check-up SCHEDULE (nlq.health_checkups) is shown as the table it is -- ticket, name, department, DATE, circular -- not as person
+  // cards (which would show who, but not when).
+  const isSchedule = /\bhealth_checkups\b/i.test(String(res.sql ?? ""));
+  if (res.data.columns.includes("ticket_no") && !isSchedule) {
     const tickets = res.data.rows.map((r) => String(r.ticket_no));
     people = await deps.withClient((c) => peopleFor(c, tickets)).catch(() => null);
     if (people) people = withDisplayCodes(people, res.data.columns, res.data.rows);
   }
-  return toPayload(res, people, userKey, attempt);
+  const payload = toPayload(res, people, userKey, attempt);
+  // A schedule question with NO row ("ticket 228757 in the January 2025 schedule" when that ticket is only in January 2026) is not just "0 rows":
+  // it says which schedules exist, so the person can see whether the month was wrong or the person is not on the list.
+  if (isSchedule && res.data.total === 0) {
+    const have = await deps
+      .withClient(async (c) => (await c.query(`SELECT DISTINCT schedule, schedule_year, schedule_month_no FROM nlq.health_checkups ORDER BY schedule_year, schedule_month_no`)).rows as Array<{ schedule: string }>)
+      .catch(() => null);
+    if (have && have.length) payload.answer = `No row matches. The health check-up schedules in the system are: ${have.map((h) => h.schedule).join(", ")}.`;
+    else if (have) payload.answer = "No health check-up schedule has been loaded yet.";
+  }
+  return payload;
 }
 
 /** Entry point used by the search route: wires the real model, database and existing engines. */

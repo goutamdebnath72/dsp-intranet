@@ -171,6 +171,50 @@ ORDER BY global_seniority_rank`,
     source: "seed",
   },
   {
+    question: "which department is ticket 228757 in",
+    sql: `SELECT ticket_no, name, department_code, department
+FROM nlq.employees
+WHERE ticket_no = '228757'`,
+    understood_as: "The ticket number, name and department (code and name) of the employee whose ticket number is 228757.",
+    source: "seed",
+  },
+  {
+    question: "designation of ticket numbers 228757 and 241391",
+    sql: `SELECT ticket_no, name, designation
+FROM nlq.employees
+WHERE ticket_no IN ('228757', '241391')
+ORDER BY global_seniority_rank`,
+    understood_as: "The ticket number, name and designation of the employees with ticket numbers 228757 and 241391, most senior first.",
+    source: "seed",
+  },
+  {
+    question: "which department is ticket 228757 in for the January 2025 health check-up",
+    sql: `SELECT ticket_no, name, department_code, department, checkup_date, circular
+FROM nlq.health_checkups
+WHERE ticket_no = '228757' AND schedule_year = 2025 AND schedule_month_no = 1
+ORDER BY checkup_date`,
+    understood_as: "The ticket number, name, department (as printed in that schedule), check-up date and circular for ticket 228757 in the January 2025 health check-up schedule.",
+    source: "seed",
+  },
+  {
+    question: "when is the health check-up of sanjay debnath",
+    sql: `SELECT ticket_no, name, department_code, department, checkup_date, schedule, circular
+FROM nlq.health_checkups
+WHERE nlq.word_like(name_words, name_codes, 'sanjay') AND nlq.last_word_like(name_words, name_codes, 'debnath')
+ORDER BY schedule_year, schedule_month_no, checkup_date`,
+    understood_as: "Every health check-up schedule that lists a SANJAY ... DEBNATH (or a similar spelling), with the date, the department as printed and the circular.",
+    source: "seed",
+  },
+  {
+    question: "who has the health check-up on 15 January 2025",
+    sql: `SELECT ticket_no, name, department_code, department, checkup_date, circular
+FROM nlq.health_checkups
+WHERE checkup_date = '2025-01-15'
+ORDER BY name`,
+    understood_as: "Everyone called for a health check-up on 15 January 2025, with their ticket number, name and department as printed.",
+    source: "seed",
+  },
+  {
     question: "what is the leave policy for contract workers",
     sql: null,
     understood_as: "A question about a policy, not about employees in the directory.",

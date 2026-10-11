@@ -22,11 +22,11 @@ OUTPUT -- a single JSON object and nothing else:
  "unanswerable_reason": null | "<why the data cannot answer this>",
  "out_of_scope": true | false,
  "display": {"view": "cards" | "table" | "bar", "title": "<short heading>", "columns": [{"key": "<a column you SELECT>", "label": "<short column title>"}], "bar": {"label": "<text column>", "value": "<number column>"}}}
-- sql = null with needs_clarification ONLY when the question is genuinely ambiguous in a way that changes the answer. Otherwise make the most reasonable reading and say it in understood_as.
+- sql = null with needs_clarification ONLY when the question is truly ambiguous in a way that changes the answer; otherwise take the most reasonable reading and say it in understood_as.
 - sql = null with unanswerable_reason when the question is about employees but needs data these views do not hold (salary, leave balances, attendance, phone numbers or e-mail addresses themselves, home addresses).
-- sql = null with out_of_scope = true when the question is NOT about employees at all: circulars, notices, policies, rules, holidays, leave rules, forms, announcements, general knowledge. The application then searches the circulars instead. Also out_of_scope: asking WHO holds a role that a circular or notice itself defines (nodal officers, coordinators, selection committee members, coaches, team members, authorised signatories, contact persons): those names are printed in the circular, the employee views only know designation and department. Do not invent an employee query for such a question.
-- display (optional, leave it out when unsure) suggests how to show the result: view "cards" for a list of people (SELECT ticket_no first), "bar" for a count per group (one text column + one number column), otherwise "table". title = a short heading. columns = friendly titles for the columns you SELECT (key = the column name or your alias). Never use display to leave out or hide a column.
-- understood_as must describe your conditions faithfully -- including whether names are matched exactly or by similar spelling. It is shown to the person so they can catch a misreading.
+- sql = null with out_of_scope = true when the question is NOT about employees at all: circulars, notices, policies, rules, holidays, leave rules, forms, announcements, general knowledge. The application then searches the circulars instead. Also out_of_scope: anything a circular itself defines: WHO holds a role it names (nodal officers, coordinators, selection committee members, coaches, authorised signatories, contact persons) and any schedule, date or list printed in one (training schedules, selection lists); the employee views only hold designation and department. Do not invent an employee query for it, and never drop that part of a question to answer the rest from the directory.
+- display (optional, leave it out when unsure) suggests how to show the result: view "cards" for a list of people (ticket_no first), "bar" for a count per group (one text + one number column), otherwise "table"; title = short heading; columns = friendly titles for columns you SELECT (key = column name or alias). Never use display to hide a column.
+- understood_as states your conditions faithfully (including exact or similar-spelling name matching); the person reads it to catch a misreading.
 
 THE ONLY TABLES YOU MAY USE (views in schema nlq):
 
@@ -49,17 +49,17 @@ BUILT-IN FUNCTIONS YOU MAY CALL: count, sum, avg, min, max, array_agg, string_ag
 NOT ALLOWED: any other function, comments (-- or /* */), semicolons, more than one statement, FOR UPDATE, any table other than the three above. The SQL reader also cannot parse: array slices like a[2:5], SELECT INTO, IS [NOT] DISTINCT FROM, SIMILAR TO, EXCEPT, INTERSECT, trim(both ... from ...) -- write these another way (use NOT IN / NOT EXISTS instead of EXCEPT, ILIKE or ~* instead of SIMILAR TO). Use plain standard PostgreSQL.
 
 DOMAIN RULES
-- "executive", "executives", "exec", "officer", "officers" -> cohort = 'executive'. This is the meaning even though some designation titles contain the word Officer (e.g. 'Medical Officer'): match such a title only when the question names it ("medical officer"). "non-executive(s)", "non executive(s)", "non-ex", "nonex", "staff", "worker(s)" -> cohort = 'nonexecutive'. Singular and plural mean the same. "employees", "people", "names", "persons" with no other qualifier -> everyone: NO cohort filter, and this is NOT a designation.
+- "executive", "executives", "exec", "officer", "officers" -> cohort = 'executive'. Some titles contain Officer (e.g. 'Medical Officer'): match those only when the question names the title. "non-executive(s)", "non executive(s)", "non-ex", "nonex", "staff", "worker(s)" -> cohort = 'nonexecutive'. Singular and plural mean the same. "employees", "people", "names", "persons" with no other qualifier -> everyone: NO cohort filter, and this is NOT a designation.
 - A designation given by title or short form (GM, DGM, AGM, ED, CGM, "Sr. Manager", "S-7") -> match nlq.employees.designation against the exact stored title from the designation list below. The title "Asst. Manager" exists at TWO grades; matching designation = 'Asst. Manager' correctly returns both.
 - "Director(M&HS)", "Joint Director" etc. are medical-track designations; managerial and medical grades with the same rank_order are equivalent in seniority.
 - A designation and a name condition together are BOTH required ("GMs whose name ends with nath" = grade General Manager AND the name condition). Never drop one.
 - A department the person names -> use the department list below. Resolve it to department rows and filter with  department_id IN (SELECT id FROM nlq.departments WHERE ...)  using code IN (...) or a name match  nlq.norm(name) LIKE '%...%'  (nlq.norm output is only lowercase letters, digits and single spaces: 'C & IT' and 'C&IT' both become 'c and it', 'BLAST FURNACE (OPERATION)' becomes 'blast furnace operation'. Write the pattern the same way -- NO brackets, punctuation or capitals -- e.g. nlq.norm(name) LIKE '%blast furnace operation%', or wrap the typed text: LIKE '%' || nlq.norm('BLAST FURNACE (OPERATION)') || '%'). A department made of several rows (C&IT, Plant Garage) must include ALL its rows. Words like DSP, SAIL, plant, company mean "no department filter".
 - Department codes 101, 103, 21000, 40017, 83002 and 98902 each exist twice (one executive-only name, one non-executive-only name): filter by department_id, not by code alone, when it matters.
 - DEPARTMENTS in results: SELECT BOTH department_code and department (code first) from nlq.employees; one without the other is half an answer. Per-department counts: GROUP BY department_id, department_code, department. Never JOIN nlq.departments to read a code or name; use it only to FILTER: department_id IN (SELECT id FROM nlq.departments WHERE ...).
-- Lists of people: SELECT ticket_no, name, designation, department_code, department (in that order, plus anything specifically asked), ORDER BY global_seniority_rank unless another order is requested. Do not SELECT *; never select name_words or name_codes. Names in one cell: array_agg(name ORDER BY global_seniority_rank).
+- People: a list, OR facts about specific people given by ticket number or name ("department of ticket 228757"), ALWAYS SELECT ticket_no, name FIRST, then designation, department_code, department (plus anything asked): no row without who it is about. ORDER BY global_seniority_rank unless another order is requested. Never SELECT *, name_words or name_codes. Names in one cell: array_agg(name ORDER BY global_seniority_rank).
 - Counts: one column named count. Breakdowns: label(s) + count, ORDER BY count DESC then code/name (designations: rank_order). "N most senior" people: ORDER BY global_seniority_rank LIMIT N. Ranking GROUPS ("which department has the most"): never LIMIT over groups (hides ties); use a sub-query with rank() OVER (ORDER BY count(*) DESC) AS r, then WHERE r = 1 (or r <= N). A share/percentage: compute the total INSIDE that sub-query (sum(count(*)) OVER () AS total, beside rank()), not in the outer query.
 - "who is senior to X": rows with a smaller global_seniority_rank than X's. Find X by exact name words: name_words = ARRAY['FIRST','LAST'].
-- Do not add a LIMIT to ordinary lists or counts; the system caps the rows shown and reports the true total.
+- No LIMIT on ordinary lists or counts; the system caps the rows shown and reports the true total.
 
 NAME MATCHING -- THE PHONETIC LAYER
 The same person's name is spelled many ways in DSP records: Roy/Ray, Mazumdar/Majumdar/Majumder, Ghosh/Ghose, Basu/Bose, Dutta/Dutt, Sinha/Singha, Debnath/Nath (as a surname) and more. So a typed name normally matches its spelling variants. Three helpers do this; they are NULL-safe and take the employee's name_words and name_codes columns:
@@ -80,8 +80,18 @@ Two modes:
     exact middle: 'KUMAR' = ANY(name_words) AND name_words[1] <> 'KUMAR' AND name_words[cardinality(name_words)] <> 'KUMAR'
   When a name is exact, apply exact to EVERY use of that name in the query, wanted or excluded.
 TEXT matching, not whole words (always literal): the name STARTS WITH text: upper(btrim(name)) LIKE 'SANJ%'; ENDS WITH text: upper(btrim(name)) LIKE '%NATH'; CONTAINS text: upper(name) LIKE '%NATH%'. "not at the end, as a whole word or as part of a word" = NOT (upper(btrim(name)) LIKE '%NATH'). A word that starts/ends with text: EXISTS (SELECT 1 FROM unnest(name_words) AS w WHERE w LIKE 'KUMAR%').
-Number of words in a name: cardinality(name_words).
-Remember: initials ('G', 'D') are words in name_words but the phonetic helpers ignore them, which is intended.`;
+Number of words in a name: cardinality(name_words).`;
+
+// Described to the model ONLY when the question is about a health check-up (the rest of the time the prompt is exactly what it was).
+const HEALTH_DOC = `nlq.health_checkups -- the monthly HEALTH CHECK-UP schedules of NON-EXECUTIVES printed in circulars: one row per employee per schedule
+  ticket_no (NULL when the printed ticket could not be confirmed), name, department_code and department (AS PRINTED in that schedule), checkup_date (text 'YYYY-MM-DD'),
+  schedule_year, schedule_month_no (the month the schedule is for), schedule ('January 2025'), circular ('Circular 003 (2024)'), verified (boolean),
+  name_words, name_codes (the same name helpers work on them as on nlq.employees)
+  A person is in several schedules (months): a month named -> filter schedule_year AND schedule_month_no; otherwise return every schedule, ORDER BY schedule_year, schedule_month_no.
+  A check-up question ALWAYS SELECTs ticket_no, name, department_code, department, checkup_date, circular (no designation here). display view "table".
+`;
+const HEALTH_WORDS = /check[\s-]?up|\bhealth\b|\bmedical\s+(?:exam|test)/i;
+export const isHealthQuestion = (q: string): boolean => HEALTH_WORDS.test(q || "");
 
 function formatExample(e: Example): string {
   const plan = {
@@ -110,11 +120,15 @@ export interface PromptInput {
 }
 
 export function buildPrompt(input: PromptInput): string {
-  const parts: string[] = [SCHEMA_AND_RULES];
+  const health = isHealthQuestion(input.question);
+  const rules = health
+    ? SCHEMA_AND_RULES.replace("nlq.departments -- id, code, name, cohort_scope ('shared' | 'executive' | 'nonexecutive')\n", (m) => m + HEALTH_DOC).replace("any table other than the three above", "any table other than the four listed")
+    : SCHEMA_AND_RULES;
+  const parts: string[] = [rules];
   parts.push("DESIGNATIONS (live):\n" + formatDesignations(input.context.designations));
   const shown = selectRelevantDepartments(input.question, input.context.departments);
   parts.push("DEPARTMENTS (live):\n" + formatDepartments(shown, input.context.departments.length));
-  parts.push("WORKED EXAMPLES (each answer is a valid, verified output):\n\n" + input.examples.map(formatExample).join("\n\n"));
+  parts.push("WORKED EXAMPLES (each answer is a valid, verified output):\n\n" + (health ? input.examples.slice(0, 2) : input.examples).map(formatExample).join("\n\n"));
 
   if (input.rejectedSql?.length) {
     parts.push(

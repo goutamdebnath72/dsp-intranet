@@ -44,3 +44,5 @@ nl2sql-eval-*
 reread-backups/
 reread-reports/
 reread-cache/
+health-reports/
+health-cache/

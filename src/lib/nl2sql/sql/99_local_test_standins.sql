@@ -96,3 +96,12 @@ $$;
 -- Match Supabase: the public schema is NOT open to arbitrary roles. (A stock local Postgres
 -- lets everyone in, which hid a real permission bug during the first round of local tests.)
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
+
+-- the circulars table, reduced to what the health check-up schedule view reads (serial number and published date make "Circular 003 (2024)")
+CREATE TABLE IF NOT EXISTS public.circulars (
+  id            serial PRIMARY KEY,
+  headline      text,
+  "serialNumber" integer,
+  "publishedAt" timestamp,
+  "fileUrls"    text[]
+);

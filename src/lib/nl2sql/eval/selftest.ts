@@ -30,6 +30,8 @@ import { recordVerdict } from "../log";
 import { extractQuotedTerms, checkQuotedTerms } from "../quoted";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "../deptColumns";
 import { checkComparison, checkRankingAndOrder, comparisonVerdict } from "../rankingCheck";
+import { checkHealthColumns, checkPersonIdentity } from "../identityCheck";
+import { isHealthQuestion } from "../prompt";
 import { addCohortColumn, humanizeSeniority, presentPeople, withCohortInHint } from "../seniorityDisplay";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
@@ -80,7 +82,7 @@ async function main() {
   await pg.connect();
   for (const f of ["99_local_test_standins.sql"]) await pg.query(readFileSync(join(SQL_DIR, f), "utf8"));
   await pg.query(buildSeedSql());
-  for (const f of ["01_nlq_schema_views_role.sql", "02_nl2sql_log_tables.sql"]) await pg.query(readFileSync(join(SQL_DIR, f), "utf8"));
+  for (const f of ["01_nlq_schema_views_role.sql", "02_nl2sql_log_tables.sql", "08_health_checkups.sql"]) await pg.query(readFileSync(join(SQL_DIR, f), "utf8"));
   const db: SqlClient = { query: (t, p) => pg.query(t, p) as any };
   const withClient = async <T,>(fn: (c: SqlClient) => Promise<T>) => fn(db);
   const roster = (await pg.query(`SELECT ticket_no, name FROM public.employee_roster ORDER BY id`)).rows as { ticket_no: string; name: string }[];
@@ -608,6 +610,11 @@ async function main() {
     ["array_agg(name ORDER BY global_seniority_rank) -> fine", "SELECT designation, count(*) AS count, array_agg(name ORDER BY global_seniority_rank) AS names FROM nlq.employees WHERE cohort = 'executive' GROUP BY designation, rank_order ORDER BY rank_order, designation", false],
     ["string_agg(name, ', ') with no ORDER BY -> flagged", "SELECT designation, string_agg(name, ', ') AS names FROM nlq.employees GROUP BY designation ORDER BY designation", true],
     ["string_agg(name, ', ' ORDER BY global_seniority_rank) -> fine", "SELECT designation, string_agg(name, ', ' ORDER BY global_seniority_rank) AS names FROM nlq.employees GROUP BY designation ORDER BY designation", false],
+    ["12 Oct: ONE person by an exact ticket number, no ORDER BY -> fine (at most one row: no order to get wrong)", "SELECT e.ticket_no, e.name, e.department_code, e.department FROM nlq.employees e WHERE e.ticket_no = '228757'", false],
+    ["the same with the literal on the left and an extra AND condition -> fine", "SELECT ticket_no, name FROM nlq.employees WHERE '228757' = ticket_no AND cohort = 'nonexecutive'", false],
+    ["SEVERAL tickets (IN) with no ORDER BY -> still flagged", "SELECT ticket_no, name FROM nlq.employees WHERE ticket_no IN ('228757','241391')", true],
+    ["a ticket OR another condition with no ORDER BY -> still flagged (can return many)", "SELECT ticket_no, name FROM nlq.employees WHERE ticket_no = '228757' OR cohort = 'executive'", true],
+    ["a ticket compared with another column (not a literal) -> still flagged", "SELECT ticket_no, name FROM nlq.employees WHERE ticket_no = sail_pno", true],
     ["SELECT * / unparsable -> cannot be judged -> fine", "SELEKT nonsense FROM", false],
   ];
   for (const [label, sqlText, expectProblem] of rk) {
@@ -632,6 +639,36 @@ async function main() {
     const problem = checkComparison(qText, sqlText);
     check(label, expectProblem ? problem !== null : problem === null, String(problem));
   }
+
+  // -- a lookup of specific people must say WHO (ticket_no AND name), counts and breakdowns need not
+  const ID_TICKET_OK = "SELECT e.ticket_no, e.name, e.department_code, e.department FROM nlq.employees e WHERE e.ticket_no = '228757'";
+  const idRules: [string, string, boolean][] = [
+    ["12 Oct screenshot: department of ticket 228757 with NO ticket and NO name -> flagged", "SELECT e.department_code, e.department FROM nlq.employees e WHERE e.ticket_no = '228757'", true],
+    ["the same lookup with ticket_no and name first -> fine", ID_TICKET_OK, false],
+    ["ticket_no shown but not the name -> flagged", "SELECT ticket_no, department_code, department FROM nlq.employees WHERE ticket_no = '228757'", true],
+    ["name shown but not the ticket number -> flagged", "SELECT name, department_code, department FROM nlq.employees WHERE ticket_no = '228757'", true],
+    ["a list of tickets (IN) without who they are -> flagged", "SELECT designation FROM nlq.employees WHERE ticket_no IN ('228757','241391')", true],
+    ["a list of tickets with ticket_no and name -> fine", "SELECT ticket_no, name, designation FROM nlq.employees WHERE ticket_no IN ('228757','241391') ORDER BY global_seniority_rank", false],
+    ["a person looked up by a similar-spelling name, department only -> flagged", "SELECT department_code, department FROM nlq.employees WHERE nlq.word_like(name_words, name_codes, 'roy') AND nlq.first_word_like(name_words, name_codes, 'sanjay')", true],
+    ["a person looked up by exact name words, designation only -> flagged", "SELECT designation FROM nlq.employees WHERE name_words = ARRAY['SANJAY','DEBNATH']", true],
+    ["the exact-name lookup with ticket_no and name -> fine", "SELECT ticket_no, name, designation FROM nlq.employees WHERE name_words = ARRAY['SANJAY','DEBNATH']", false],
+    ["SELECT DISTINCT of a department for a ticket -> flagged", "SELECT DISTINCT department_code, department FROM nlq.employees WHERE ticket_no = '228757'", true],
+    ["aliases count (e.ticket_no AS ticket, e.name AS employee) -> fine", "SELECT e.ticket_no AS ticket, e.name AS employee, e.department FROM nlq.employees e WHERE e.ticket_no = '228757'", false],
+    ["a COUNT of people matching a name -> fine (not a row per person)", "SELECT count(*) AS count FROM nlq.employees WHERE nlq.last_word_like(name_words, name_codes, 'roy')", false],
+    ["a breakdown (GROUP BY) of people matching a name -> fine", "SELECT designation, count(*) AS count FROM nlq.employees WHERE nlq.word_like(name_words, name_codes, 'kumar') GROUP BY designation, rank_order ORDER BY rank_order", false],
+    ["array_agg of the names in one cell -> fine", "SELECT designation, array_agg(name ORDER BY global_seniority_rank) AS names FROM nlq.employees WHERE nlq.word_like(name_words, name_codes, 'kumar') GROUP BY designation", false],
+    ["no specific person involved (a department list of executives) -> fine", "SELECT department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank", false],
+    ["'who is senior to X': the person X is found inside a sub-query, the list shows ticket_no and name -> fine", "SELECT ticket_no, name FROM nlq.employees WHERE global_seniority_rank < (SELECT global_seniority_rank FROM nlq.employees WHERE name_words = ARRAY['SANJAY','DEBNATH']) ORDER BY global_seniority_rank", false],
+    ["...but a list without the names is flagged", "SELECT ticket_no FROM nlq.employees WHERE global_seniority_rank < (SELECT global_seniority_rank FROM nlq.employees WHERE ticket_no = '1') ORDER BY global_seniority_rank", true],
+    ["SELECT * cannot be judged -> fine", "SELECT * FROM nlq.employees WHERE ticket_no = '228757'", false],
+    ["unparsable SQL cannot be judged -> fine", "SELEKT nonsense FROM", false],
+  ];
+  for (const [label, sqlText, expectProblem] of idRules) {
+    const problem = checkPersonIdentity(sqlText);
+    check(label, expectProblem ? problem !== null : problem === null, String(problem));
+  }
+  check("the message says what is missing and what to write (both missing: 'ticket_no and name are missing')", /ticket_no and name are missing/.test(String(checkPersonIdentity("SELECT department FROM nlq.employees WHERE ticket_no = '1'"))) && /e\.ticket_no, e\.name/.test(String(checkPersonIdentity("SELECT department FROM nlq.employees WHERE ticket_no = '1'"))));
+  check("...and names only the missing one when one is shown ('name is missing')", /name is missing/.test(String(checkPersonIdentity("SELECT ticket_no, department FROM nlq.employees WHERE ticket_no = '1'"))) && /: name is missing from the SELECT list/.test(String(checkPersonIdentity("SELECT ticket_no, department FROM nlq.employees WHERE ticket_no = '1'"))));
 
   // -- the sentence that STATES a comparison's answer, in plain words (grade level = rank / 10,000, position = rank % 10,000)
   const gm1 = { name: "MOHD ANWAR ULLAH", ticket_no: "T1", global_seniority_rank: 40121 };
@@ -730,7 +767,7 @@ async function main() {
   const pickedFor = (qText: string) => pickExamples(qText, []).map((x) => x.question);
   check("the comparison example is chosen for four different phrasings (more senior, junior, between, which of)", ["who is more senior, Mohd Anwar Ullah or Rana Saha", "who is junior, Mohd Anwar Ullah or Rana Saha", "who is senior between Rahul Roy and Tapan Das", "which of Amit Sen or Rana Saha is more junior"].every((qq) => pickedFor(qq).some((x) => x.startsWith("who is more senior or junior"))), JSON.stringify(pickedFor("who is junior, Mohd Anwar Ullah or Rana Saha")));
   check("the side-by-side example is chosen for the CO & CC question", pickedFor("how many executives and non-executives work in each section of CO & CC").slice(0, 2).some((x) => /each blast furnace section/.test(x)), JSON.stringify(pickedFor("how many executives and non-executives work in each section of CO & CC")));
-  check("EVERY seed example passes all the soft checks (department code+name, department identity, ranking/order, comparison)", SEED_EXAMPLES.filter((e) => e.sql).every((e) => checkDepartmentColumns(e.sql!) === null && checkDepartmentIdentity(e.sql!) === null && checkRankingAndOrder(e.sql!) === null && checkComparison(e.question, e.sql!) === null), JSON.stringify(SEED_EXAMPLES.filter((e) => e.sql && (checkDepartmentColumns(e.sql) !== null || checkDepartmentIdentity(e.sql) !== null || checkRankingAndOrder(e.sql) !== null)).map((e) => e.question)));
+  check("EVERY seed example passes all the soft checks (department code+name, department identity, ranking/order, comparison, person identity)", SEED_EXAMPLES.filter((e) => e.sql).every((e) => checkDepartmentColumns(e.sql!) === null && checkDepartmentIdentity(e.sql!) === null && checkRankingAndOrder(e.sql!) === null && checkComparison(e.question, e.sql!) === null && checkPersonIdentity(e.sql!) === null && checkHealthColumns(e.sql!) === null), JSON.stringify(SEED_EXAMPLES.filter((e) => e.sql && (checkDepartmentColumns(e.sql) !== null || checkDepartmentIdentity(e.sql) !== null || checkRankingAndOrder(e.sql) !== null)).map((e) => e.question)));
   // PROOF on the database: ranking BEFORE the population filter returns fewer rows than asked for. Rolled back afterwards.
   //   6 executive-only/mixed departments: A (6 executives + 1 non-executive), B (5 + 1), C 4, D 3, E 2, F 1 (executives only).
   //   "top 3 departments with executives but no non-executives" must be C, D, E.
@@ -887,6 +924,17 @@ async function main() {
   const filterFirst = `SELECT department_code, exec_count FROM (SELECT department_code, count(*) FILTER (WHERE cohort='executive') AS exec_count, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort='executive') DESC) AS r FROM nlq.employees GROUP BY department_code HAVING count(*) FILTER (WHERE cohort='nonexecutive') = 0) sub WHERE r <= 10 ORDER BY exec_count DESC, department_code`;
   r = await answerQuestion("top departments with executives only repair", "T1", { llm: script([json({ sql: rankFirst, understood_as: "x" }), json({ sql: filterFirst, understood_as: "x" })]), withClient });
   check("ranking before the population filter is sent back once; attempt 2 filters first (HAVING)", r.ok && r.attempts === 2 && /HAVING/i.test(r.sql));
+  // -- 12 Oct: "which department is ticket N in" came back as a department with no person. Sent back once; ticket_no and name come first.
+  const tkRow = await withClient(async (c) => (await c.query("SELECT ticket_no FROM nlq.employees ORDER BY ticket_no LIMIT 1")).rows[0] as { ticket_no: string });
+  const idBlind = `SELECT e.department_code, e.department FROM nlq.employees e WHERE e.ticket_no = '${tkRow.ticket_no}'`;
+  const idRight = `SELECT e.ticket_no, e.name, e.department_code, e.department FROM nlq.employees e WHERE e.ticket_no = '${tkRow.ticket_no}'`;
+  r = await answerQuestion("which department is that ticket in repair", "T1", { llm: script([json({ sql: idBlind, understood_as: "x" }), json({ sql: idRight, understood_as: "x" })]), withClient });
+  check("a ticket lookup that does not say WHO is sent back once: attempt 2 has ticket_no and name FIRST and the one row ran", r.ok && r.attempts === 2 && r.data.columns[0] === "ticket_no" && r.data.columns[1] === "name" && r.data.total === 1, r.ok ? r.data.columns.join(",") : r.message);
+  check("...the row carries the ticket number and the employee's name together", r.ok && String(r.data.rows[0].ticket_no) === tkRow.ticket_no && String(r.data.rows[0].name).length > 0);
+  r = await answerQuestion("which department is that ticket in stubborn", "T1", { llm: script([json({ sql: idBlind, understood_as: "x" }), json({ sql: idBlind, understood_as: "x" })]), withClient });
+  check("a model that insists on the department alone is still answered (never fail a question over this)", r.ok && r.attempts === 2);
+  r = await answerQuestion("which department is that ticket in right first time", "T1", { llm: script([json({ sql: idRight, understood_as: "x" })]), withClient });
+  check("an answer that already says who it is about is accepted at once (1 attempt)", r.ok && r.attempts === 1);
   const cmpWrong = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE (nlq.word_like(name_words, name_codes, 'sunil') AND nlq.word_like(name_words, name_codes, 'das')) OR (nlq.word_like(name_words, name_codes, 'amit') AND nlq.word_like(name_words, name_codes, 'sen')) ORDER BY global_seniority_rank LIMIT 1`;
   const cmpFixed = cmpWrong.replace("department FROM", "department, global_seniority_rank FROM").replace(" LIMIT 1", "");
   r = await answerQuestion("who is more senior, Sunil Das or Amit Sen", "T1", { llm: script([json({ sql: cmpWrong, understood_as: "x" }), json({ sql: cmpFixed, understood_as: "x" })]), withClient });
@@ -1319,7 +1367,7 @@ async function main() {
   check("...null for a CTE, a UNION, SELECT * and unparsable text (those run as written, with no Show more)", so("WITH a AS (SELECT 1) SELECT * FROM a") === null && so("SELECT ticket_no FROM nlq.employees UNION SELECT ticket_no FROM nlq.employees") === null && so("SELECT * FROM nlq.employees") === null && so("this is not sql") === null);
   const ALLQ = `SELECT ticket_no, name, designation FROM nlq.employees ORDER BY designation`; // heavy ties on purpose
   const fullSet = (await pg.query(`SELECT ticket_no FROM nlq.employees`)).rows.map((r: any) => String(r.ticket_no)).sort();
-  const seenT: string[] = []; let off = 0; let pagesN = 0; let allTotals = new Set<number>(); let lastTrunc = true;
+  const seenT: string[] = []; let off = 0; let pagesN = 0; const allTotals = new Set<number>(); let lastTrunc = true;
   while (lastTrunc && pagesN < 80) {
     const pg1 = await withClient((c) => runReadOnly(c, ALLQ, { rowLimit: 37, offset: off }));
     seenT.push(...pg1.rows.map((r: any) => String(r.ticket_no))); allTotals.add(pg1.total); lastTrunc = pg1.truncated; off += pg1.rows.length; pagesN++;
@@ -1448,7 +1496,112 @@ async function main() {
   const healed = await runReadOnly(db, `SELECT ticket_no FROM nlq.employees WHERE name = 'ZZ RENAMED MAZUMDAR' AND nlq.last_word_like(name_words, name_codes, 'majumdar')`);
   check("a renamed employee is matched correctly with NO refresh (stored codes never go stale)", healed.total === 1);
 
+
   // ==========================================================================
+  section("N. The health check-up schedule: the date comes from the circular, the person from HR");
+  await pg.query(`INSERT INTO public.circulars (id, headline, "serialNumber", "publishedAt") VALUES (901, 'HEALTH CHECK UP SCHEDULE JAN 2025', 3, '2024-12-28 10:00'), (902, 'HEALTH CHECK UP SCHEDULE DEC 2024', 9, '2024-11-27 10:00')`);
+  const nx = (await pg.query(`SELECT r.ticket_no, r.name, d.code AS dcode, d.name AS dname FROM public.employee_roster r JOIN public.sail_department d ON d.id = r.sail_department_id WHERE r.cohort = 'nonexecutive' ORDER BY r.id LIMIT 6`)).rows as { ticket_no: string; name: string; dcode: number; dname: string }[];
+  const insH = (cid: number, y: number, m: number, seq: number, printedTicket: string | null, ticket: string | null, namePrinted: string, code: number, dept: string, date: string, status: string, note: string | null = null) =>
+    pg.query(
+      `INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, date_printed, status, status_note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [cid, y, m, seq, printedTicket, ticket, namePrinted, code, dept, date, date, status, note],
+    );
+  await insH(901, 2025, 1, 1, nx[0].ticket_no, nx[0].ticket_no, `${nx[0].name} (as printed)`, nx[0].dcode, nx[0].dname, "2025-01-13", "verified");
+  await insH(901, 2025, 1, 2, nx[1].ticket_no, nx[1].ticket_no, nx[1].name, nx[1].dcode, nx[1].dname, "2025-01-13", "verified");
+  await insH(901, 2025, 1, 3, nx[2].ticket_no, nx[2].ticket_no, nx[2].name, nx[2].dcode, nx[2].dname, "2025-01-14", "verified");
+  await insH(901, 2025, 1, 4, "999999", nx[3].ticket_no, nx[3].name, nx[3].dcode, nx[3].dname, "2025-01-14", "corrected", "ticket misread");
+  await insH(901, 2025, 1, 5, "888888", null, "ZZ NOBODY KNOWN", 12345, "SOME SECTION", "2025-01-14", "unverified", "not in HR");
+  await insH(902, 2024, 12, 1, nx[0].ticket_no, nx[0].ticket_no, nx[0].name, 99999, "OLD DEPARTMENT NAME", "2024-12-05", "verified");
+
+  const HQ_COLS = "ticket_no, name, department_code, department, checkup_date, schedule, circular, verified";
+  const one = await runReadOnly(db, `SELECT ${HQ_COLS} FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 1`);
+  const r0: any = one.rows[0];
+  check("a ticket + month gives exactly its one row, with the date, the schedule and the circular label", one.total === 1 && r0.checkup_date === "2025-01-13" && r0.schedule === "January 2025" && r0.circular === "Circular 003 (2024)" && r0.verified === true, JSON.stringify(r0));
+  check("the NAME is HR's, not the text read from the page (the page read was '... (as printed)')", r0.name === nx[0].name, String(r0.name));
+  check("the date is plain text YYYY-MM-DD (no time zone to shift a day)", typeof r0.checkup_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r0.checkup_date));
+  const both: any = await runReadOnly(db, `SELECT ${HQ_COLS} FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' ORDER BY schedule_year, schedule_month_no, checkup_date`);
+  check("with no month named, every schedule of the person comes back (two), earliest first", both.total === 2 && both.rows[0].checkup_date === "2024-12-05" && both.rows[1].checkup_date === "2025-01-13", JSON.stringify(both.rows.map((x: any) => x.checkup_date)));
+  check("the department is the one PRINTED in that schedule (it differs between the two)", both.rows[0].department === "OLD DEPARTMENT NAME" && Number(both.rows[0].department_code) === 99999 && both.rows[1].department === nx[0].dname, JSON.stringify(both.rows.map((x: any) => x.department)));
+  check("each schedule names its own circular", both.rows[0].circular === "Circular 009 (2024)" && both.rows[1].circular === "Circular 003 (2024)");
+  const corrRow: any = await runReadOnly(db, `SELECT ${HQ_COLS} FROM nlq.health_checkups WHERE ticket_no = '${nx[3].ticket_no}'`);
+  check("a row whose ticket was corrected is found by the HR ticket and counts as verified", corrRow.total === 1 && corrRow.rows[0].verified === true);
+  const ghost: any = await runReadOnly(db, `SELECT ${HQ_COLS} FROM nlq.health_checkups WHERE nlq.word_like(name_words, name_codes, 'nobody')`);
+  check("an unconfirmed row has NO ticket and verified = false, and is still found by its printed name (the name helpers work on the view)", ghost.total === 1 && ghost.rows[0].ticket_no === null && ghost.rows[0].verified === false, JSON.stringify(ghost.rows));
+  const byName: any = await runReadOnly(db, `SELECT ticket_no, name, checkup_date FROM nlq.health_checkups WHERE nlq.word_like(name_words, name_codes, '${nx[2].name.split(" ")[0].toLowerCase()}') AND nlq.last_word_like(name_words, name_codes, '${nx[2].name.split(" ").slice(-1)[0].toLowerCase()}')`);
+  check("a confirmed person is found by name too (HR's name words)", byName.rows.some((x: any) => x.ticket_no === nx[2].ticket_no && x.checkup_date === "2025-01-14"));
+
+  // -- security: the question-answering role sees the view, never the table
+  const gOk = guardSql(`SELECT ${HQ_COLS} FROM nlq.health_checkups WHERE ticket_no = '1'`);
+  check("the guard accepts the schedule view", gOk.ok === true, JSON.stringify(gOk));
+  const gBad = guardSql("SELECT * FROM public.health_checkup_schedule");
+  check("the guard refuses the underlying table", gBad.ok === false);
+  let denied = false;
+  await pg.query("BEGIN");
+  try {
+    await pg.query("SET LOCAL ROLE nlq_reader");
+    await pg.query("SELECT count(*) FROM nlq.health_checkups");
+    try { await pg.query("SELECT 1 FROM public.health_checkup_schedule LIMIT 1"); } catch (e: any) { denied = /permission denied/i.test(String(e.message)); }
+  } finally { await pg.query("ROLLBACK"); }
+  check("the read-only role can read the view but is refused the table (permission denied)", denied);
+
+  // -- the rules
+  const hr: [string, string, boolean][] = [
+    ["a check-up list WITHOUT the date -> flagged", "SELECT ticket_no, name, department_code, department FROM nlq.health_checkups WHERE ticket_no = '1'", true],
+    ["a check-up list with the date -> fine", "SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE ticket_no = '1'", false],
+    ["a COUNT of a day's check-ups -> fine", "SELECT count(*) AS count FROM nlq.health_checkups WHERE checkup_date = '2025-01-15'", false],
+    ["a per-day breakdown -> fine", "SELECT checkup_date, count(*) AS count FROM nlq.health_checkups WHERE schedule_year = 2025 GROUP BY checkup_date ORDER BY checkup_date", false],
+    ["a query that does not touch the schedule -> not this rule's business", "SELECT ticket_no, name FROM nlq.employees WHERE ticket_no = '1'", false],
+  ];
+  for (const [label, sqlText, expect] of hr) {
+    const problem = checkHealthColumns(sqlText);
+    check(label, expect ? problem !== null : problem === null, String(problem));
+  }
+  check("a schedule lookup by ticket with no name is flagged by the identity rule too", checkPersonIdentity("SELECT department, checkup_date FROM nlq.health_checkups WHERE ticket_no = '1'") !== null);
+  check("a schedule list in date order needs no seniority order (the view has none)", checkRankingAndOrder("SELECT ticket_no, name, checkup_date FROM nlq.health_checkups WHERE checkup_date = '2025-01-15' ORDER BY name") === null);
+  check("...while a list of employees still must be in seniority order", checkRankingAndOrder("SELECT ticket_no, name FROM nlq.employees WHERE cohort = 'executive'") !== null);
+
+  // -- the whole question, through the pipeline with a scripted model
+  const HQ = `which department is ticket ${nx[0].ticket_no} in for the January 2025 health check-up`;
+  const hNoDate = `SELECT ticket_no, name, department_code, department FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 1`;
+  const hRight = `SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 1 ORDER BY checkup_date`;
+  let hr1 = await answerQuestion(HQ, "T1", { llm: script([json({ sql: hNoDate, understood_as: "x" }), json({ sql: hRight, understood_as: "x" })]), withClient });
+  check("a check-up answer without the date is sent back once; attempt 2 has ticket, name, department, DATE and circular", hr1.ok && hr1.attempts === 2 && hr1.data.columns.join(",") === "ticket_no,name,department_code,department,checkup_date,circular", hr1.ok ? hr1.data.columns.join(",") : hr1.message);
+  check("...and the one row carries the person, their department as printed and the right date", hr1.ok && hr1.data.total === 1 && hr1.data.rows[0].name === nx[0].name && hr1.data.rows[0].checkup_date === "2025-01-13");
+  hr1 = await answerQuestion(HQ + " stubborn", "T1", { llm: script([json({ sql: hNoDate, understood_as: "x" }), json({ sql: hNoDate, understood_as: "x" })]), withClient });
+  check("a model that insists is still answered (never fail a question over this)", hr1.ok && hr1.attempts === 2);
+  hr1 = await answerQuestion(HQ + " right first time", "T1", { llm: script([json({ sql: hRight, understood_as: "x" })]), withClient });
+  check("an answer with the date is accepted at once", hr1.ok && hr1.attempts === 1);
+
+  // -- what the omnibar shows: a TABLE with the date, not person cards
+  const oh: any = await runOmnibar(HQ, "T-HEALTH", mkDeps(model(hRight, "The check-up schedule row of one ticket.")));
+  const ohCols: string[] = oh?.nl2sql?.table?.columns ?? [];
+  check("the schedule is shown as a table (not person cards)", oh && oh.kind === "total" && !oh.people && ohCols.length > 0, JSON.stringify(oh && { kind: oh.kind, people: !!oh.people }));
+  check("...with the ticket, name, department, DATE and circular, and no cohort column", ["ticket_no", "name", "department_code", "department", "checkup_date", "circular"].every((c) => ohCols.includes(c)) && !ohCols.includes("cohort"), ohCols.join(","));
+
+  // -- no row: the answer says which schedules exist (the month may be wrong, or the person is not on that list)
+  const hNone = `SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 2 ORDER BY checkup_date`;
+  const ohn: any = await runOmnibar(`which department is ticket ${nx[0].ticket_no} in for the February 2025 health check-up`, "T-HEALTH", mkDeps(model(hNone, "The schedule row of one ticket.")));
+  check("a schedule question with no row says which schedules exist (December 2024, January 2025) instead of a bare '0 rows'", !!ohn && /No row matches/.test(String(ohn.answer)) && /December 2024, January 2025/.test(String(ohn.answer)), String(ohn && ohn.answer));
+  check("...and a question with a row keeps its normal headline", !!oh && /1 row/.test(String(oh.answer)), String(oh && oh.answer));
+
+  // -- the prompt: the schedule is described only when the question is about a check-up, and it still fits the size limit
+  check("a check-up question is recognised; ordinary questions are not", isHealthQuestion(HQ) && isHealthQuestion("health checkup date of ticket 1") && isHealthQuestion("medical examination schedule") && !isHealthQuestion("list executives in C&IT") && !isHealthQuestion("who is the most senior roy"));
+  const pHealth = buildPrompt({ question: HQ, context: ctx, examples: [] });
+  const pPlain = buildPrompt({ question: "list executives in c&it", context: ctx, examples: [] });
+  check("the schedule view is described for a check-up question, and the table list says four", pHealth.includes("nlq.health_checkups --") && pHealth.includes("any table other than the four listed"));
+  check("...and not for any other question (their prompt is unchanged)", !pPlain.includes("health_checkups") && pPlain.includes("any table other than the three above"));
+  const hq2 = "which department is that ticket in for the health check-up";
+  const hBig = buildPrompt({ question: hq2, context: { ...ctx, departments: padded }, examples: pickExamples(hq2, []), negatives: bigNeg, hint: longHint, rejectedSql: [SQL_A] });
+  console.log(`  worst-case HEALTH prompt: ${hBig.length} of 19000 characters`);
+  check("with lessons, a correction and 300 departments the HEALTH prompt still fits the size limit", hBig.length < 19000, `${hBig.length} chars`);
+  check("the check-up examples are the ones chosen for a check-up question", pickExamples(HQ, []).slice(0, 2).some((e) => /health_checkups/.test(String(e.sql))));
+
+  // ==========================================================================
+  // Leave the scratch database as it was found: the stand-in circulars table and the schedule objects would make the other self-tests
+  // (circularLabels, reread) refuse to run, which they do whenever a "circulars" table exists (their guard against a real database).
+  await pg.query(`DROP VIEW IF EXISTS nlq.health_checkups`);
+  await pg.query(`DROP TABLE IF EXISTS public.health_checkup_schedule`);
+  await pg.query(`DROP TABLE IF EXISTS public.circulars`);
   await pg.end();
   console.log(`\n${"=".repeat(60)}\nRESULT: ${passed} checks passed, ${failed} failed`);
   if (failed) {
