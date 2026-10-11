@@ -14,6 +14,9 @@
 // letter and digit it produced is thrown away. Hindi and Bengali stay searchable; no contradicting copy of a number can
 // be stored.
 
+/** Bump this whenever the merge rules below change: a saved reading made by an older rule is then ignored by the re-read tool's cache. */
+export const OCR_MERGE_VERSION = 1;
+
 /** Devanagari, Bengali, Vedic extensions, Devanagari Extended, zero-width joiners (needed inside conjuncts). */
 const INDIC_CHAR = /[\u0900-\u097F\u0980-\u09FF\u1CD0-\u1CFF\uA8E0-\uA8FF\u200C\u200D]/;
 /** An actual letter (not a vowel sign, digit or punctuation): what proves a token is a word. */

@@ -43,3 +43,4 @@ next-env.d.ts
 nl2sql-eval-*
 reread-backups/
 reread-reports/
+reread-cache/

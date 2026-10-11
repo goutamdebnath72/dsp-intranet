@@ -33,8 +33,8 @@ export interface OldChunk {
   text: string;
 }
 export interface RereadDeps {
-  fetchImage(url: string): Promise<Uint8Array>;
-  ocrPage(image: Uint8Array, label: string): Promise<OcrPageResult>;
+  /** Fetch one page image and read it (the tool wraps this in a disk cache). Throws if the image cannot be fetched or read. */
+  readPage(url: string, label: string): Promise<OcrPageResult>;
   embed(text: string): Promise<number[]>;
 }
 export interface SqlClient {
@@ -64,10 +64,16 @@ export interface RereadPlan {
   extractedText: string;
 }
 
+/** Rebuilt tables can legitimately make a table-heavy circular several times longer; beyond this it is treated as a runaway. */
+export const MAX_NEW_TO_OLD_RATIO = 8;
+
 /** The new text must be at least this share of the old. The old text held two reads of each page, so about half is normal. */
 export const MIN_NEW_TO_OLD_RATIO = 0.25;
 
 const uniq = (xs: string[]) => [...new Set(xs)];
+
+/** The numbers in a text, NOT counting the "col1:", "col2:" ... labels that the table rebuilding adds (they are not on the page). */
+export const numbersOf = (text: string): string[] => numericTokens((text || "").replace(/\bcol\d+:/g, " "));
 
 export async function planReread(deps: RereadDeps, row: CircularRow, oldChunks: OldChunk[]): Promise<RereadPlan> {
   const base = {
@@ -92,8 +98,7 @@ export async function planReread(deps: RereadDeps, row: CircularRow, oldChunks: 
   for (let i = 0; i < row.fileUrls.length; i++) {
     const label = `circular ${row.id} page ${i + 1}`;
     try {
-      const image = await deps.fetchImage(row.fileUrls[i]);
-      const r = await deps.ocrPage(image, label);
+      const r = await deps.readPage(row.fileUrls[i], label);
       pageTexts[i] = r.text;
       if (r.fellBackToIndicPass || r.englishChars === 0) problems.push(`page ${i + 1}: the English reading was empty`);
     } catch (e) {
@@ -107,8 +112,8 @@ export async function planReread(deps: RereadDeps, row: CircularRow, oldChunks: 
   const newChunks = planChunks(buildPageUnits(pageTexts, extractedText));
   const oldText = oldChunks.map((c) => c.text).join(" ");
   const newText = newChunks.map((c) => c.text).join(" ");
-  const oldNums = uniq(numericTokens(oldText));
-  const newNums = uniq(numericTokens(newText));
+  const oldNums = uniq(numbersOf(oldText));
+  const newNums = uniq(numbersOf(newText));
   const newSet = new Set(newNums);
   const oldSet = new Set(oldNums);
   const plan: RereadPlan = {
@@ -127,6 +132,9 @@ export async function planReread(deps: RereadDeps, row: CircularRow, oldChunks: 
   if (newChunks.length === 0) return { ...plan, status: "suspicious", reason: "the re-read produced no text at all" };
   if (plan.oldChars > 0 && plan.newChars < plan.oldChars * MIN_NEW_TO_OLD_RATIO) {
     return { ...plan, status: "suspicious", reason: `the new text is only ${plan.newChars} characters against ${plan.oldChars} stored (less than ${MIN_NEW_TO_OLD_RATIO * 100}%): the re-read probably failed` };
+  }
+  if (plan.oldChars > 0 && plan.newChars > plan.oldChars * MAX_NEW_TO_OLD_RATIO) {
+    return { ...plan, status: "suspicious", reason: `the new text is ${(plan.newChars / plan.oldChars).toFixed(1)}x the stored text (more than ${MAX_NEW_TO_OLD_RATIO}x): probably runaway table text` };
   }
   const same = newChunks.length === oldChunks.length && newChunks.every((c, i) => c.text === oldChunks[i].text);
   if (same) return { ...plan, status: "unchanged" };

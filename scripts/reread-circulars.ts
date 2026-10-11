@@ -12,6 +12,10 @@
 //   npx tsx --env-file=.env.local scripts/reread-circulars.ts --ids 49 --apply      REALLY replace (saves a backup file first)
 //   npx tsx --env-file=.env.local scripts/reread-circulars.ts --restore reread-backups/circular-49-123.json
 //
+//   The dry run SAVES what it read to reread-cache/, and --apply REUSES it: what you apply is exactly what you reviewed, and the
+//   OCR (about 26 minutes for the whole archive) is not repeated. --no-cache reads everything again.
+//   --dump-text also saves each circular's old and new text under reread-reports/text/ so you can compare them.
+//
 // Safe to run again: a circular that already matches is reported "unchanged" and skipped. Apply refuses a circular whose re-read
 // looks wrong (an empty English reading, a failed image, far less text than stored) and says why.
 //
@@ -21,6 +25,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Client } from "pg";
 import { createOcrWorkerPool, destroyOcrWorkerPool, ocrPageDual } from "../src/lib/ingestion/ocr";
+import { cachedReadPage } from "../src/lib/ingestion/pageCache";
 import { applyReread, planReread, restoreFromBackup, type Backup, type CircularRow, type OldChunk, type RereadDeps, type RereadPlan } from "../src/lib/ingestion/reread";
 
 function arg(name: string): string | undefined {
@@ -85,15 +90,19 @@ async function main() {
           realEmbed ??= (await import("../src/lib/ai/geminiEmbedding")).generateEmbedding;
           return realEmbed(t);
         };
-    const deps: RereadDeps = {
-      fetchImage: async (url) => {
+    const cacheDir = arg("cache-dir") || "reread-cache";
+    let cacheHits = 0;
+    const readPage = cachedReadPage({
+      dir: cacheDir,
+      enabled: !flag("no-cache"),
+      onHit: () => cacheHits++,
+      read: async (url, label) => {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
-        return new Uint8Array(await res.arrayBuffer());
+        return ocrPageDual(new Uint8Array(await res.arrayBuffer()), label, pool);
       },
-      ocrPage: (img, label) => ocrPageDual(img, label, pool),
-      embed,
-    };
+    });
+    const deps: RereadDeps = { readPage, embed };
 
     // ---- go ----
     const plans: RereadPlan[] = [];
@@ -108,7 +117,17 @@ async function main() {
         const plan = await planReread(deps, row, old);
         plans.push(plan);
         const removed = plan.onlyInOld.length ? ` | numbers that disappear: ${plan.onlyInOld.slice(0, 8).join(", ")}${plan.onlyInOld.length > 8 ? ", ..." : ""}` : "";
-        console.log(`[${n + 1}/${rows.length}] id ${row.id} (serial ${row.serialNumber}) "${row.headline.slice(0, 50)}": ${plan.status.toUpperCase()}${plan.reason ? " (" + plan.reason + ")" : ""} | ${plan.pages} page(s), ${plan.oldChars} -> ${plan.newChars} chars${removed} | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+        const growth = plan.oldChars ? plan.newChars / plan.oldChars : 1;
+        const grew = growth > 2 ? ` GREW x${growth.toFixed(1)} (rebuilt tables)` : "";
+        const fresh = plan.onlyInNew.length ? ` | NEW numbers the stored text lacked: ${plan.onlyInNew.slice(0, 6).join(", ")}${plan.onlyInNew.length > 6 ? ", ..." : ""}` : "";
+        console.log(`[${n + 1}/${rows.length}] id ${row.id} (serial ${row.serialNumber}) "${row.headline.slice(0, 50)}": ${plan.status.toUpperCase()}${plan.reason ? " (" + plan.reason + ")" : ""} | ${plan.pages} page(s), ${plan.oldChars} -> ${plan.newChars} chars${grew}${removed}${fresh} | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+        if (flag("dump-text")) {
+          const dir = join(reportDir, "text");
+          mkdirSync(dir, { recursive: true });
+          const fmt = (cs: Array<{ page?: number; page_number?: number; index?: number; chunk_index?: number; text: string }>) => cs.map((c) => `--- chunk ${c.index ?? c.chunk_index} (page ${c.page ?? c.page_number}) ---\n${c.text}`).join("\n\n");
+          writeFileSync(join(dir, `circular-${row.id}-old.txt`), fmt(old) + "\n");
+          writeFileSync(join(dir, `circular-${row.id}-new.txt`), fmt(plan.newChunks) + "\n");
+        }
         if (apply && plan.status === "would-change") {
           try {
             const r = await applyReread(client, deps, plan, backupDir);
@@ -132,6 +151,8 @@ async function main() {
       "",
       `- Circulars looked at: **${plans.length}**`,
       `- Holding numbers that the fixed reading does not contain (a second, partly wrong copy): **${damaged.length}**`,
+      `- Text grew more than 2x (rebuilt tables): ${plans.filter((p) => p.oldChars && p.newChars > p.oldChars * 2).map((p) => p.id).join(", ") || "none"}`,
+      `- Circulars where the fixed reading holds NEW numbers the stored text lacked (look at these): ${plans.filter((p) => p.onlyInNew.length > 0).map((p) => p.id).join(", ") || "none"}`,
       `- Would change / changed: ${by("would-change").length} | unchanged: ${by("unchanged").length} | suspicious (not applied): ${by("suspicious").length} | skipped: ${by("skipped").length}`,
       apply ? `- Applied: ${applied.length}; errors: ${errors.length}` : "- Nothing was written to the database.",
       "",
@@ -142,7 +163,9 @@ async function main() {
     mkdirSync(reportDir, { recursive: true });
     const reportFile = join(reportDir, `reread-${apply ? "apply" : "dry"}-${Date.now()}.md`);
     writeFileSync(reportFile, lines.join("\n") + "\n");
-    console.log(`\nSUMMARY: ${plans.length} looked at | ${damaged.length} held a second, partly wrong copy of numbers | would change/changed ${by("would-change").length} | unchanged ${by("unchanged").length} | suspicious ${by("suspicious").length} | skipped ${by("skipped").length} | ${((Date.now() - started) / 60000).toFixed(1)} min`);
+    const grew2 = plans.filter((p) => p.oldChars && p.newChars > p.oldChars * 2);
+    const withNew = plans.filter((p) => p.onlyInNew.length > 0);
+    console.log(`\nSUMMARY: ${plans.length} looked at | ${damaged.length} held a second, partly wrong copy of numbers | would change/changed ${by("would-change").length} | unchanged ${by("unchanged").length} | suspicious ${by("suspicious").length} | skipped ${by("skipped").length} | grew more than 2x: ${grew2.length} | with NEW numbers: ${withNew.length} | ${((Date.now() - started) / 60000).toFixed(1)} min${cacheHits ? ` (${cacheHits} page(s) reused from reread-cache)` : ""}`);
     if (apply) console.log(`Applied ${applied.length}, errors ${errors.length}.`);
     console.log(`Report: ${reportFile}`);
     if (errors.length) process.exitCode = 1;

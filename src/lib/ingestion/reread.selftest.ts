@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { Client } from "pg";
 import { mergeOcrPasses } from "./ocrMerge";
 import { buildPageUnits, planChunks } from "./chunking";
-import { applyReread, planReread, restoreFromBackup, type Backup, type CircularRow, type OldChunk, type RereadDeps, type SqlClient } from "./reread";
+import { MAX_NEW_TO_OLD_RATIO, applyReread, numbersOf, planReread, restoreFromBackup, type Backup, type CircularRow, type OldChunk, type RereadDeps, type SqlClient } from "./reread";
 import type { OcrPageResult } from "./ocr";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -46,16 +46,15 @@ const fakeVec = (text: string) => {
   return Array.from({ length: 8 }, (_, i) => ((h + i * 97) % 1000) / 1000);
 };
 const deps = (opts: { failEmbedOnCall?: number } = {}): RereadDeps => ({
-  fetchImage: async (u) => {
+  readPage: async (u) => {
     if (u.includes("MISSING")) throw new Error("404 not found");
-    return enc(u.split("/").pop() || "");
-  },
-  ocrPage: async (img) => {
-    const k = dec(img);
+    const k = u.split("/").pop() || "";
     if (k === "P1") return asResult(mergedP1, engP1);
     if (k === "P2") return asResult(mergedP2, engP2);
     if (k === "EMPTY") return { text: "वेतन रु दैनिक", englishChars: 0, indicLetters: 9, discarded: [], fellBackToIndicPass: true };
     if (k === "TINY") return { text: "Rs. 15,000", englishChars: 10, indicLetters: 0, discarded: [], fellBackToIndicPass: false };
+    if (k === "BIG") return { text: ("Rs. 99,999 table row col1: 7 | col2: 8 ").repeat(400), englishChars: 15000, indicLetters: 0, discarded: [], fellBackToIndicPass: false };
+    if (k === "NEWNUM") return { text: "Rs. 15,000/- and a figure 424242 that the stored text never had", englishChars: 60, indicLetters: 0, discarded: [], fellBackToIndicPass: false };
     throw new Error("unknown test image " + k);
   },
   embed: async (t) => {
@@ -196,6 +195,23 @@ const deps = (opts: { failEmbedOnCall?: number } = {}): RereadDeps => ({
       errJ = e.message;
     }
     check("J. a database error halfway through rolls everything back (old chunks intact)", /connection lost/.test(errJ) && JSON.stringify(await snapshot(idJ)) === JSON.stringify(beforeJ));
+
+    // ===================== L. growth: legitimate table growth passes, runaway growth is refused =====================
+    const idL1 = await seed("Table heavy", ["http://blob/BIG"], ["Rs. 99,999 x ".repeat(120)]); // ~1.5k chars stored
+    const pL1 = await planReread(deps(), await rowOf(idL1), await oldChunksOf(idL1));
+    check("L. a new text more than 8x the stored text is 'suspicious' (runaway table text), not applied", pL1.status === "suspicious" && /probably runaway table text/.test(pL1.reason || "") && pL1.newChars > pL1.oldChars * MAX_NEW_TO_OLD_RATIO, `${pL1.status} ${pL1.reason}`);
+    const idL2 = await seed("Table a bit longer", ["http://blob/P1", "http://blob/P2"], [engP1.slice(0, 150), engP2.slice(0, 150)]); // new text ~ 3-4x of a short stored text
+    const pL2 = await planReread(deps(), await rowOf(idL2), await oldChunksOf(idL2));
+    check("L. growth under the limit (here several times) is allowed and reported, not blocked", pL2.status === "would-change" && pL2.newChars > pL2.oldChars * 2 && pL2.newChars < pL2.oldChars * MAX_NEW_TO_OLD_RATIO, `${pL2.status} ${pL2.oldChars}->${pL2.newChars}`);
+
+    // ===================== N. table labels are not numbers on the page =====================
+    check("N. the col1:/col2: labels of a rebuilt table are not counted as numbers", numbersOf("[TABLE]\ncol1: 1 | col2: 30-34 | col7: 1,637.00").join(" ") === "1 30-34 1,637.00", numbersOf("[TABLE]\ncol1: 1 | col2: 30-34 | col7: 1,637.00").join(" "));
+    check("N. ... but a real number next to a word that merely contains 'col' is kept", numbersOf("protocol 12 and col 5").join(" ") === "12 5");
+
+    // ===================== M. numbers the fixed reading holds that the stored text lacked =====================
+    const idM = await seed("Different engine", ["http://blob/NEWNUM"], ["Rs. 15,000/- and some other words that are long enough to avoid the length guard ".repeat(2)]);
+    const pM = await planReread(deps(), await rowOf(idM), await oldChunksOf(idM));
+    check("M. a number the stored text never had is reported in onlyInNew (the sign of a different reading, to be looked at)", pM.onlyInNew.includes("424242"), JSON.stringify(pM.onlyInNew));
 
     // ===================== K. the shared chunking behaves like the old inline code =====================
     const oldInline = (perPage: string[], extracted: string) => {
