@@ -33,6 +33,7 @@
 
 import { DataSource } from "typeorm";
 import { generateEmbedding, normalizeVector } from "@/lib/ai/embedding.service";
+import { hybridWithFallback } from "./searchResilience";
 import {
   SearchResultRow,
   formatLuxonDate,
@@ -220,10 +221,17 @@ export async function executePolicySearch(
   const tsq = toOrTsquery(safeQ);
   const detectedYear = safeQ.match(/\b(20\d{2})\b/)?.[1] || null;
 
-  try {
-    const rawEmbedding = await generateEmbedding(safeQ, "search_query");
-    const queryVector = normalizeVector(rawEmbedding);
-    const vectorString = `[${queryVector.join(",")}]`;
+  // The query is embedded ONCE: a retry after a transient database error must not spend another embedding call.
+  let queryVectorString: string | null = null;
+
+  // A transient database error (e.g. a connection that took too long to open) is retried; if the pipeline still fails, the title
+  // search is used, and if THAT finds nothing the search is reported as FAILED, never as "no results" (see searchResilience.ts).
+  return hybridWithFallback<SearchResultRow>(async () => {
+    if (queryVectorString === null) {
+      const rawEmbedding = await generateEmbedding(safeQ, "search_query");
+      queryVectorString = `[${normalizeVector(rawEmbedding).join(",")}]`;
+    }
+    const vectorString: string = queryVectorString;
 
     const [vec, lex] = await Promise.all([
       armVector(dataSource, vectorString),
@@ -336,10 +344,5 @@ export async function executePolicySearch(
     });
 
     return { uniqueResults, isFallback: false };
-  } catch (err) {
-    console.error("[Policy] hybrid pipeline error:", err);
-  }
-
-  const titleFallback = await executeTitleSearch(dataSource, safeQ);
-  return { uniqueResults: titleFallback, isFallback: true };
+  }, () => executeTitleSearch(dataSource, safeQ));
 }

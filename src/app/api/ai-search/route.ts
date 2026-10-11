@@ -9,6 +9,7 @@ import {
   type SynthesisResult,
 } from "@/lib/search/executiveSynthesis";
 import { fetchCircularLabels } from "@/lib/search/circularLabels";
+import { SearchUnavailableError } from "@/lib/search/searchResilience";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
 import { answerOmnibar, parseRetry } from "@/lib/nl2sql/omnibar";
@@ -556,6 +557,14 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("Search API error:", error);
+    // The search itself failed (database/service problem) and nothing was found to show: say so (the screen shows its red
+    // "Failed to perform search. Please try again." banner) instead of letting an empty list read as "No results found".
+    if (error instanceof SearchUnavailableError) {
+      return NextResponse.json(
+        { error: "search_unavailable", message: error.message },
+        { status: 503 },
+      );
+    }
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },
