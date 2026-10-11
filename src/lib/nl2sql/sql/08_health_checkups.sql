@@ -5,7 +5,10 @@
 --
 -- status: 'verified'   ticket and name agree with the HR directory
 --         'corrected'  the ticket was misread; the one HR employee with this name and department was used (status_note says so)
---         'unverified' not confirmed: kept for a person to look at, never shown as confirmed (ticket_no stays NULL)
+--         'unverified' not confirmed against HR (usually a person no longer in the HR directory). The table keeps ticket_no NULL for these;
+--                      the VIEW below still shows the ticket as PRINTED in the circular, with verified = false (Yes/No on screen), so a person
+--                      is never shown without their ticket. Two cases are NOT shown with a ticket, because it may belong to someone else:
+--                      the printed ticket is another HR employee's (status_note "belongs to") or appears twice in the schedule.
 
 CREATE TABLE IF NOT EXISTS public.health_checkup_schedule (
   id                      serial PRIMARY KEY,
@@ -36,7 +39,11 @@ CREATE INDEX IF NOT EXISTS health_checkup_date_idx     ON public.health_checkup_
 -- ticket is confirmed, so the name helpers work exactly as on nlq.employees.
 CREATE OR REPLACE VIEW nlq.health_checkups AS
 SELECT
-  h.ticket_no,
+  CASE
+    WHEN h.ticket_no IS NOT NULL THEN h.ticket_no
+    WHEN h.status_note ILIKE '%belongs to%' OR h.status_note ILIKE '%appears twice%' THEN NULL
+    ELSE h.ticket_printed
+  END                                                                           AS ticket_no,
   coalesce(e.name, h.name_printed)                                              AS name,
   h.department_code_printed                                                     AS department_code,
   h.department_printed                                                          AS department,
@@ -47,7 +54,11 @@ SELECT
   'Circular ' || lpad(c."serialNumber"::text, 3, '0') || ' (' || extract(year FROM c."publishedAt")::int || ')' AS circular,
   (h.status IN ('verified', 'corrected'))                                       AS verified,
   coalesce(e.name_words, regexp_split_to_array(upper(btrim(h.name_printed)), '\s+')) AS name_words,
-  coalesce(e.name_codes, nlq.name_codes_of(h.name_printed))                     AS name_codes
+  coalesce(e.name_codes, nlq.name_codes_of(h.name_printed))                     AS name_codes,
+  -- appended for the answer's "Source" line (a click opens the circular at the page of the person); the question-answering model is not told about them
+  c.id                                                                          AS circular_id,
+  c.headline                                                                    AS circular_title,
+  h.page_number::int                                                            AS page_number
 FROM public.health_checkup_schedule h
 JOIN public.circulars c ON c.id = h.circular_id
 LEFT JOIN nlq.employees e ON e.ticket_no = h.ticket_no;

@@ -181,6 +181,9 @@ export function OmnibarModal({
   const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
     null,
   );
+  // Set when the circular was opened from an answer's "Source" line: the pages on which the people of the answer are listed (the viewer scrolls to
+  // the first and marks them all). Cleared when the viewer closes.
+  const [sourceViewer, setSourceViewer] = useState<{ pages: number[] } | null>(null);
   // Whether the user has dismissed the "Target Clause Reference" banner for the
   // currently-open circular. Reset each time a new circular is opened/closed.
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -455,6 +458,7 @@ export function OmnibarModal({
 
   const handleCloseLightbox = () => {
     setSelectedCircularId(null);
+    setSourceViewer(null);
     setBannerDismissed(false);
   };
 
@@ -1043,6 +1047,11 @@ export function OmnibarModal({
                               authenticated={authStatus === "authenticated"}
                               peopleView={peopleBlock}
                               more={morePanel}
+                              onOpenCircular={(circularId, pages) => {
+                                setBannerDismissed(false);
+                                setSourceViewer({ pages });
+                                setSelectedCircularId(circularId);
+                              }}
                             />
                           );
                         }
@@ -1632,10 +1641,18 @@ export function OmnibarModal({
       <CircularViewerLightbox
         circularId={selectedCircularId}
         scrollToPage={
-          mode === "semantic" ? activeMatchedCircular?.matchPage ?? null : null
+          sourceViewer
+            ? sourceViewer.pages[0] ?? null
+            : mode === "semantic"
+              ? activeMatchedCircular?.matchPage ?? null
+              : null
         }
         matchPages={
-          mode === "semantic" ? activeMatchedCircular?.matchPages ?? [] : []
+          sourceViewer
+            ? sourceViewer.pages
+            : mode === "semantic"
+              ? activeMatchedCircular?.matchPages ?? []
+              : []
         }
         onClose={handleCloseLightbox}
       />

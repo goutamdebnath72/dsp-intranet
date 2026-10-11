@@ -14,6 +14,18 @@ export interface Nl2SqlTable {
 }
 
 /** Extra information that travels with an answer written by the language model. */
+/** A circular an answer was read from, for the "Source" line under the answer: a click opens it in the circular viewer. */
+export interface CircularSource {
+  /** public.circulars.id: what the viewer opens */
+  circularId: number;
+  /** "Circular 003 (2024)": the number the archive shows, and its year */
+  label: string;
+  /** the circular's headline */
+  title: string;
+  /** 1-based pages of the circular on which the people in the answer are listed (the viewer scrolls to the first and marks them all); empty = unknown */
+  pages: number[];
+}
+
 export interface Nl2SqlExtras {
   /** Row in public.nl2sql_log, used by the tick/cross. */
   logId: number | null;
@@ -37,4 +49,6 @@ export interface Nl2SqlExtras {
   verifiedBy?: number;
   /** 2, 3 ... when this is another attempt after a "No". */
   retryAttempt?: number;
+  /** The circular(s) a health check-up answer was read from (one per circular, in the order they appear in the answer). */
+  sources?: CircularSource[];
 }

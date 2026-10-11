@@ -189,7 +189,7 @@ ORDER BY global_seniority_rank`,
   },
   {
     question: "which department is ticket 228757 in for the January 2025 health check-up",
-    sql: `SELECT ticket_no, name, department_code, department, checkup_date, circular
+    sql: `SELECT ticket_no, name, department_code, department, checkup_date, circular, verified
 FROM nlq.health_checkups
 WHERE ticket_no = '228757' AND schedule_year = 2025 AND schedule_month_no = 1
 ORDER BY checkup_date`,
@@ -198,7 +198,7 @@ ORDER BY checkup_date`,
   },
   {
     question: "when is the health check-up of sanjay debnath",
-    sql: `SELECT ticket_no, name, department_code, department, checkup_date, schedule, circular
+    sql: `SELECT ticket_no, name, department_code, department, checkup_date, circular, verified
 FROM nlq.health_checkups
 WHERE nlq.word_like(name_words, name_codes, 'sanjay') AND nlq.last_word_like(name_words, name_codes, 'debnath')
 ORDER BY schedule_year, schedule_month_no, checkup_date`,
@@ -207,7 +207,7 @@ ORDER BY schedule_year, schedule_month_no, checkup_date`,
   },
   {
     question: "who has the health check-up on 15 January 2025",
-    sql: `SELECT ticket_no, name, department_code, department, checkup_date, circular
+    sql: `SELECT ticket_no, name, department_code, department, checkup_date, circular, verified
 FROM nlq.health_checkups
 WHERE checkup_date = '2025-01-15'
 ORDER BY name`,

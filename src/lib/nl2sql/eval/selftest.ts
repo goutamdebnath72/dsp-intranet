@@ -1501,17 +1501,19 @@ async function main() {
   section("N. The health check-up schedule: the date comes from the circular, the person from HR");
   await pg.query(`INSERT INTO public.circulars (id, headline, "serialNumber", "publishedAt") VALUES (901, 'HEALTH CHECK UP SCHEDULE JAN 2025', 3, '2024-12-28 10:00'), (902, 'HEALTH CHECK UP SCHEDULE DEC 2024', 9, '2024-11-27 10:00')`);
   const nx = (await pg.query(`SELECT r.ticket_no, r.name, d.code AS dcode, d.name AS dname FROM public.employee_roster r JOIN public.sail_department d ON d.id = r.sail_department_id WHERE r.cohort = 'nonexecutive' ORDER BY r.id LIMIT 6`)).rows as { ticket_no: string; name: string; dcode: number; dname: string }[];
-  const insH = (cid: number, y: number, m: number, seq: number, printedTicket: string | null, ticket: string | null, namePrinted: string, code: number, dept: string, date: string, status: string, note: string | null = null) =>
+  const insH = (cid: number, y: number, m: number, seq: number, printedTicket: string | null, ticket: string | null, namePrinted: string, code: number, dept: string, date: string, status: string, note: string | null = null, page: number | null = null) =>
     pg.query(
-      `INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, date_printed, status, status_note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-      [cid, y, m, seq, printedTicket, ticket, namePrinted, code, dept, date, date, status, note],
+      `INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, date_printed, status, status_note, page_number) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [cid, y, m, seq, printedTicket, ticket, namePrinted, code, dept, date, date, status, note, page],
     );
-  await insH(901, 2025, 1, 1, nx[0].ticket_no, nx[0].ticket_no, `${nx[0].name} (as printed)`, nx[0].dcode, nx[0].dname, "2025-01-13", "verified");
-  await insH(901, 2025, 1, 2, nx[1].ticket_no, nx[1].ticket_no, nx[1].name, nx[1].dcode, nx[1].dname, "2025-01-13", "verified");
-  await insH(901, 2025, 1, 3, nx[2].ticket_no, nx[2].ticket_no, nx[2].name, nx[2].dcode, nx[2].dname, "2025-01-14", "verified");
+  await insH(901, 2025, 1, 1, nx[0].ticket_no, nx[0].ticket_no, `${nx[0].name} (as printed)`, nx[0].dcode, nx[0].dname, "2025-01-13", "verified", null, 3);
+  await insH(901, 2025, 1, 2, nx[1].ticket_no, nx[1].ticket_no, nx[1].name, nx[1].dcode, nx[1].dname, "2025-01-13", "verified", null, 4);
+  await insH(901, 2025, 1, 3, nx[2].ticket_no, nx[2].ticket_no, nx[2].name, nx[2].dcode, nx[2].dname, "2025-01-14", "verified", null, 3);
   await insH(901, 2025, 1, 4, "999999", nx[3].ticket_no, nx[3].name, nx[3].dcode, nx[3].dname, "2025-01-14", "corrected", "ticket misread");
   await insH(901, 2025, 1, 5, "888888", null, "ZZ NOBODY KNOWN", 12345, "SOME SECTION", "2025-01-14", "unverified", "not in HR");
-  await insH(902, 2024, 12, 1, nx[0].ticket_no, nx[0].ticket_no, nx[0].name, 99999, "OLD DEPARTMENT NAME", "2024-12-05", "verified");
+  await insH(901, 2025, 1, 6, "777777", null, "SOMEONE ELSE ZETA", 12345, "SOME SECTION", "2025-01-14", "unverified", "ticket 777777 belongs to ANOTHER PERSON in HR, which does not fit the printed name");
+  await insH(901, 2025, 1, 7, "666666", null, "TWICE LISTED OMEGA", 12345, "SOME SECTION", "2025-01-14", "unverified", "ticket 666666 appears twice in this schedule (rows 3 and 7); this row is the weaker match");
+  await insH(902, 2024, 12, 1, nx[0].ticket_no, nx[0].ticket_no, nx[0].name, 99999, "OLD DEPARTMENT NAME", "2024-12-05", "verified", null, 8);
 
   const HQ_COLS = "ticket_no, name, department_code, department, checkup_date, schedule, circular, verified";
   const one = await runReadOnly(db, `SELECT ${HQ_COLS} FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 1`);
@@ -1526,7 +1528,13 @@ async function main() {
   const corrRow: any = await runReadOnly(db, `SELECT ${HQ_COLS} FROM nlq.health_checkups WHERE ticket_no = '${nx[3].ticket_no}'`);
   check("a row whose ticket was corrected is found by the HR ticket and counts as verified", corrRow.total === 1 && corrRow.rows[0].verified === true);
   const ghost: any = await runReadOnly(db, `SELECT ${HQ_COLS} FROM nlq.health_checkups WHERE nlq.word_like(name_words, name_codes, 'nobody')`);
-  check("an unconfirmed row has NO ticket and verified = false, and is still found by its printed name (the name helpers work on the view)", ghost.total === 1 && ghost.rows[0].ticket_no === null && ghost.rows[0].verified === false, JSON.stringify(ghost.rows));
+  check("an unconfirmed row (a person HR does not know) SHOWS the ticket as printed, with verified = false, and is found by its printed name (the name helpers work on the view)", ghost.total === 1 && ghost.rows[0].ticket_no === "888888" && ghost.rows[0].verified === false, JSON.stringify(ghost.rows));
+  const unconf: any = await runReadOnly(db, `SELECT ticket_no, name, verified FROM nlq.health_checkups WHERE ticket_no = '888888'`);
+  check("...and is found by that printed ticket too, flagged verified = false (shown as 'No' on screen), never as a dash", unconf.total === 1 && unconf.rows[0].name === "ZZ NOBODY KNOWN" && unconf.rows[0].verified === false, JSON.stringify(unconf.rows));
+  const hiddenTk: any = await runReadOnly(db, `SELECT ticket_no FROM nlq.health_checkups WHERE ticket_no IN ('777777', '666666')`);
+  check("a printed ticket that is ANOTHER HR employee's, or is listed twice in the schedule, is NOT shown as a ticket (it may belong to someone else)", hiddenTk.total === 0, String(hiddenTk.total));
+  const hiddenNm: any = await runReadOnly(db, `SELECT ticket_no, name, verified FROM nlq.health_checkups WHERE nlq.word_like(name_words, name_codes, 'omega') OR nlq.word_like(name_words, name_codes, 'zeta')`);
+  check("...but those two people are still found by name, with no ticket and verified = false", hiddenNm.total === 2 && hiddenNm.rows.every((x: any) => x.ticket_no === null && x.verified === false), JSON.stringify(hiddenNm.rows));
   const byName: any = await runReadOnly(db, `SELECT ticket_no, name, checkup_date FROM nlq.health_checkups WHERE nlq.word_like(name_words, name_codes, '${nx[2].name.split(" ")[0].toLowerCase()}') AND nlq.last_word_like(name_words, name_codes, '${nx[2].name.split(" ").slice(-1)[0].toLowerCase()}')`);
   check("a confirmed person is found by name too (HR's name words)", byName.rows.some((x: any) => x.ticket_no === nx[2].ticket_no && x.checkup_date === "2025-01-14"));
 
@@ -1583,6 +1591,28 @@ async function main() {
   const ohn: any = await runOmnibar(`which department is ticket ${nx[0].ticket_no} in for the February 2025 health check-up`, "T-HEALTH", mkDeps(model(hNone, "The schedule row of one ticket.")));
   check("a schedule question with no row says which schedules exist (December 2024, January 2025) instead of a bare '0 rows'", !!ohn && /No row matches/.test(String(ohn.answer)) && /December 2024, January 2025/.test(String(ohn.answer)), String(ohn && ohn.answer));
   check("...and a question with a row keeps its normal headline", !!oh && /1 row/.test(String(oh.answer)), String(oh && oh.answer));
+
+  // -- the "Source" line: which circular(s) the answer was read from, and the page of the people listed (looked up by the system, not asked of the model)
+  const srcCols: any = await runReadOnly(db, `SELECT circular_id, circular_title, page_number FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 1`);
+  check("the view carries the circular's id, title and the page of the row (appended columns)", srcCols.total === 1 && Number(srcCols.rows[0].circular_id) === 901 && srcCols.rows[0].circular_title === "HEALTH CHECK UP SCHEDULE JAN 2025" && Number(srcCols.rows[0].page_number) === 3, JSON.stringify(srcCols.rows));
+  check("the model is NOT told about them (nor about the redundant 'schedule' column): they are not in its prompt", !pHealth_probe().includes("circular_id") && !pHealth_probe().includes("page_number") && !pHealth_probe().includes("circular_title") && !pHealth_probe().includes("schedule ('January"));
+  function pHealth_probe() { return buildPrompt({ question: HQ, context: ctx, examples: pickExamples(HQ, []) }); }
+  check("...and the worked examples do not select it either", pickExamples(HQ, []).every((e) => !/\bschedule\b[,\s]/.test(String(e.sql).split("FROM")[0])));
+  check("a ticket + month answer carries ONE source: Circular 003 (2024), its title, page 3", Array.isArray(oh?.nl2sql?.sources) && oh.nl2sql.sources.length === 1 && oh.nl2sql.sources[0].circularId === 901 && oh.nl2sql.sources[0].label === "Circular 003 (2024)" && oh.nl2sql.sources[0].title === "HEALTH CHECK UP SCHEDULE JAN 2025" && oh.nl2sql.sources[0].pages.join() === "3", JSON.stringify(oh?.nl2sql?.sources));
+  const hBoth = `SELECT ticket_no, name, department_code, department, checkup_date, circular, verified FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' ORDER BY schedule_year, schedule_month_no`;
+  const obo: any = await runOmnibar(`when are the health check-ups of ticket ${nx[0].ticket_no}`, "T-HEALTH", mkDeps(model(hBoth, "Every schedule the ticket is in.")));
+  check("a person on two schedules: two sources, in the order of the answer (December 2024 first: Circular 009 page 8, then Circular 003 page 3)", obo?.nl2sql?.sources?.length === 2 && obo.nl2sql.sources[0].label === "Circular 009 (2024)" && obo.nl2sql.sources[0].pages.join() === "8" && obo.nl2sql.sources[1].label === "Circular 003 (2024)" && obo.nl2sql.sources[1].pages.join() === "3", JSON.stringify(obo?.nl2sql?.sources));
+  const hDay = `SELECT ticket_no, name, department_code, department, checkup_date, circular, verified FROM nlq.health_checkups WHERE checkup_date = '2025-01-13' ORDER BY name`;
+  const odd: any = await runOmnibar("who has the health check-up on 13 January 2025", "T-HEALTH", mkDeps(model(hDay, "Everyone called on that day.")));
+  check("a day's list: ONE source for the circular, with the pages of all the people listed (3 and 4), so the viewer can mark them all", odd?.nl2sql?.sources?.length === 1 && odd.nl2sql.sources[0].pages.join() === "3,4", JSON.stringify(odd?.nl2sql?.sources));
+  const oemp: any = await runOmnibar("list executives", "T-EMP", mkDeps(model("SELECT ticket_no, name FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank", "Executives.")));
+  check("an answer that is not a health check-up schedule has no source line", !!oemp && (oemp.nl2sql?.sources === undefined));
+  check("a schedule answer with NO row has no source line either (just the 'which schedules exist' sentence)", !!ohn && ohn.nl2sql?.sources === undefined);
+  const dFail = mkDeps(model(hRight, "The check-up schedule row of one ticket."));
+  const origWith = dFail.withClient;
+  dFail.withClient = ((fn: (c: any) => Promise<any>) => origWith((c: any) => fn({ query: async (sql: string, p?: unknown[]) => { if (/circular_title/.test(sql)) throw new Error("lookup failed"); return c.query(sql, p); } }))) as typeof dFail.withClient;
+  const ofail: any = await runOmnibar(HQ, "T-HEALTH", dFail);
+  check("if the source lookup fails the ANSWER is unaffected (same table, no source line, no error)", !!ofail && ofail.kind === "total" && (ofail.nl2sql?.table?.rows?.length ?? 0) === 1 && ofail.nl2sql?.sources === undefined, JSON.stringify(ofail && { kind: ofail.kind, rows: ofail.nl2sql?.table?.rows?.length, src: ofail.nl2sql?.sources }));
 
   // -- the prompt: the schedule is described only when the question is about a check-up, and it still fits the size limit
   check("a check-up question is recognised; ordinary questions are not", isHealthQuestion(HQ) && isHealthQuestion("health checkup date of ticket 1") && isHealthQuestion("medical examination schedule") && !isHealthQuestion("list executives in C&IT") && !isHealthQuestion("who is the most senior roy"));

@@ -14,6 +14,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Check, ChevronDown, Copy, Download, LayoutList, Loader2, Search, Table2 } from "lucide-react";
 import type { Nl2SqlExtras, Nl2SqlTable } from "@/lib/nl2sql/clientTypes";
+import { SourceFooter } from "@/components/SourceFooter";
 import { exportNote, filterRows, formatCell, pageProgress, rowCountLabel, sortRows, toCsv, toTsv, type DisplayColumn, type ViewKind } from "@/lib/nl2sql/display";
 
 const VIEW_META: Record<ViewKind, { label: string; Icon: typeof Table2 }> = {
@@ -251,6 +252,7 @@ export function AnswerResult({
   authenticated,
   peopleView,
   more = null,
+  onOpenCircular,
 }: {
   nl2sql: Nl2SqlExtras;
   authenticated: boolean;
@@ -258,6 +260,8 @@ export function AnswerResult({
   peopleView: ReactNode | null;
   /** Set while more rows exist beyond the ones shown ("Show more", 100 at a time). */
   more?: MoreState | null;
+  /** Opens a circular in the viewer (at the given 1-based pages): used by the "Source" line of a health check-up answer. */
+  onOpenCircular?: (circularId: number, pages: number[]) => void;
 }) {
   const display = nl2sql.display ?? null;
   const table = nl2sql.table ?? null;
@@ -304,6 +308,7 @@ export function AnswerResult({
       {current === "table" && table && display && <ResultTable table={table} columns={display.columns} authenticated={authenticated} />}
       {current === "bar" && table && display?.bar && <BarChartView table={table} columns={display.columns} bar={display.bar} />}
       {more && current !== "bar" && <ShowMore more={more} />}
+      {current === "table" && onOpenCircular && nl2sql.sources && nl2sql.sources.length > 0 && <SourceFooter sources={nl2sql.sources} onOpen={onOpenCircular} />}
     </div>
   );
 }
