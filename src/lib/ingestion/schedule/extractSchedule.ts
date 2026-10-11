@@ -49,6 +49,19 @@ export interface ExtractedSchedule {
   groups: Array<{ date: string | null; rows: number }>;
 }
 
+/** The table's own heading cells ("SL.NO", "T.NO", "NAME", "DEPTT. CODE", "DEPARTMENT", "DATE") are not people. */
+const HEADING = /^(?:sl\.?\s*no\.?|t\.?\s*no\.?|name(?:\s+of\s+employee)?|deptt?\.?\s*code|department|date)$/i;
+
+/**
+ * Is this row an employee? Yes when it has a readable ticket, or a name together with a department code. A row with only a serial number (the
+ * digit strip can put one on the heading row) or whose "name" is a column heading is not.
+ */
+export function isEmployeeRow(ticket: string | null, name: string, code: string | null, department: string): boolean {
+  if (HEADING.test(name.trim())) return false;
+  if (ticket) return true;
+  return !!name && !!code && /[A-Za-z]{2}/.test(name) && !HEADING.test(department.trim());
+}
+
 /** 6 digits, or null. A rule next to the digits is often read as a 7th character ("[333787", "1318839"): dropped when that is what it is. */
 export function cleanTicket(raw: string): string | null {
   const t = (raw || "").trim();
@@ -131,6 +144,7 @@ export async function cropCellText(g: Gray, band: { xL: number; xR: number }, ce
   const top = Math.max(0, minY - pad);
   const cw = Math.min(w - left, maxX - minX + 1 + 2 * pad);
   const ch = Math.min(h - top, maxY - minY + 1 + 2 * pad);
+  if (cw < 40 || ch < 30) return null; // a few specks, not a printed date (the OCR would only complain "image too small")
   // only the line's own ink goes into the crop: everything else is painted white
   const sub = new Uint8Array(cw * ch).fill(255);
   for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
@@ -291,8 +305,7 @@ export async function extractSchedule(pages: Buffer[], deps: ScheduleDeps, known
       const department = (r.cells[4] ?? "").replace(/^[\s|\\\[\]]+/, "").trim();
       const rawCode = (r.cells[3] ?? "").replace(/\D/g, "");
       const code = /^\d{3,5}$/.test(rawCode) ? rawCode : rawCode.length === 6 && rawCode[0] === "1" ? rawCode.slice(1) : null; // a department code has 3-5 digits
-      if (!ticket && serial === null && !(name && code)) continue; // titles, headings, the signature: not employees
-      if (!ticket && !name && !department) continue;
+      if (!isEmployeeRow(ticket, name, code, department)) continue; // titles, headings, the signature: not employees
       const cell = pd.cells.find((c) => r.y >= c.y0 && r.y < c.y1) ?? pd.cells.find((c) => r.y >= c.y0 - 4 && r.y < c.y1 + 4) ?? null;
       seq++;
       rows.push({

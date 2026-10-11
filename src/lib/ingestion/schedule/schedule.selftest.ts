@@ -8,7 +8,7 @@ import { deskewPng, estimateTilt } from "./deskew";
 import { findDateCells, findFrame } from "./dateCells";
 import { overlayColumn, splitAtRules, wordsFromTsv, rowsFromWords, type Word } from "./rosterRows";
 import { judgeDate, parsePrintedDate, parseScheduleMonth, repairPrintedDate } from "./dates";
-import { cleanTicket, cropCellText, extractSchedule, maskRules } from "./extractSchedule";
+import { cleanTicket, cropCellText, extractSchedule, isEmployeeRow, maskRules } from "./extractSchedule";
 import { nameFit, verifyAgainstHr, type HrEmployee } from "./importSchedule";
 
 let pass = 0;
@@ -92,6 +92,12 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   check("'11/012/25' (a stray digit in the circular) is read as 11 Jan 2025: the only reading that fits, and it is said", rep?.date === "2025-01-11" && /only reading that fits/.test(String(rep?.note)), JSON.stringify(rep));
   check("a repair is REFUSED when two readings fit ('0110125' could be 1 Jan or 11 Jan): it never picks one", repairPrintedDate("01/10125", jan25) === null);
   check("...and when none fits, when the schedule is unknown, and for a 6-digit non-date such as 43-01-25", repairPrintedDate("11/032/25", jan25) === null && repairPrintedDate("11/012/25", null) === null && repairPrintedDate("43-01-25", jan25) === null);
+
+  // ================================================================== which rows are people (the 12 Oct dry run on the real pages: the heading row was kept)
+  check("the table's own heading row is NOT an employee, even if a serial number was put on it (NAME / no ticket / no code)", isEmployeeRow(null, "NAME", null, "") === false && isEmployeeRow(null, "NAME", null, "DEPARTMENT") === false && isEmployeeRow(null, "T.NO", null, "") === false && isEmployeeRow(null, "DEPTT. CODE", null, "DATE") === false);
+  check("a row with a readable ticket is an employee; so is a row with a name AND a department code but a ticket that could not be read", isEmployeeRow("241391", "AMAR SANKAR DAS", "32100", "SMS-CCP") && isEmployeeRow(null, "SATRUGHNA PANDA", "20000", "SECTION MILL"));
+  check("a row with only a name, only a code, or one letter is not", !isEmployeeRow(null, "SATRUGHNA PANDA", null, "SECTION MILL") && !isEmployeeRow(null, "", "20000", "X") && !isEmployeeRow(null, "A", "20000", "X"));
+  check("a name that merely starts like a heading is still a person (NAMITA, DATE-less)", isEmployeeRow(null, "NAMITA GOPE", "91230", "ED (WORKS) OFFICE") && isEmployeeRow("129145", "NAMITA GOPE", null, ""));
 
   // ================================================================== tickets and words
   check("a ticket: 6 digits; a rule read as a 7th character is dropped ('[333787', '1318839'); anything else is refused", cleanTicket("241391") === "241391" && cleanTicket("[333787") === "333787" && cleanTicket("1318839") === "318839" && cleanTicket("62|329551") === null && cleanTicket("24139") === null && cleanTicket("") === null);
@@ -233,6 +239,10 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   ];
   const mk = (ticket: string | null, name: string, code: string, seq: number) => ({ page: 1, seq, serial: seq, ticket, name, departmentCode: code, department: "X", datePrinted: null, checkupDate: "2025-01-13", dateNote: null, dateFromOtherPage: false });
   check("name fit: same words = exact; one shared word of a one-word name = partial; unrelated = none", nameFit(["sanjai", "roi"], ["sanjai", "roi"]) === "exact" && nameFit(["pere", "paden", "ouseph", "roi"], ["roi"]) === "partial" && nameFit(["rita", "sen"], ["amit", "kumar", "das"]) === "none" && nameFit([], ["roi"]) === "none");
+  check("the same name with the spaces cut differently is the SAME name: SATYA BRATA BOSE = SATYABRATA BOSE, BISHNUPADA MONDAL = BISHNU PADA MONDAL", nameFit(["satya", "brata", "bos"], ["satyabrata", "bos"], "SATYA BRATA BOSE", "SATYABRATA BOSE") === "exact" && nameFit(["bisnupada", "mandal"], ["bisnu", "pada", "mandal"], "BISHNUPADA MONDAL", "BISHNU PADA MONDAL") === "exact");
+  check("an identical name is exact even when its phonetic codes are few (SARGAM KUMARI: KUMARI is dropped as a title)", nameFit(["sargam"], ["sargam"], "SARGAM KUMARI", "SARGAM KUMARI") === "exact");
+  check("...but a very short name is not made 'exact' by spelling alone (ROY / ROY stays partial)", nameFit(["roi"], ["roi"], "ROY", "ROY") === "partial");
+  check("...and two different people are not merged by this rule (SUBIR / SUBHAS)", nameFit(["subir", "kumar", "roi"], ["subhas", "kumar", "roi"], "SUBIR KUMAR ROY", "SUBHAS KUMAR ROY") === "partial");
   check("...and two of three words is only partial (SUBIR KUMAR ROY is not SUBHAS KUMAR ROY)", nameFit(["subir", "kumar", "roi"], ["subhas", "kumar", "roi"]) === "partial");
   const rowsH = [
     mk("100001", "SANJAY ROY", "32100", 1), // verified
@@ -260,6 +270,10 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   check("no readable ticket at all, but a unique name+department: corrected from the name", noTicket.status === "corrected" && noTicket.ticketNo === "100002");
   const dup = v.filter((r) => r.ticketNo === "100001");
   check("one person is never called twice in a schedule: the stronger row keeps the ticket, the other is flagged as a duplicate", dup.length === 1 && v[0].ticketNo === "100001" && v[3].status === "unverified" && /appears twice/.test(String(v[3].statusNote)), JSON.stringify(st));
+  const sarg = verifyAgainstHr([mk("367193", "SARGAM KUMARI", "10370", 1)], [["sargam"]], [{ ticket: "367193", name: "SARGAM KUMARI", codes: ["sargam"], departmentCode: "44000" }])[0];
+  check("an identical name on a real ticket is VERIFIED even if the person's department has changed since (the 12 Oct report's SARGAM KUMARI)", sarg.status === "verified" && sarg.ticketNo === "367193", JSON.stringify(sarg));
+  const spaced = verifyAgainstHr([mk("242956", "BISHNUPADA MONDAL", "14000", 1)], [["bisnupada", "mandal"]], [{ ticket: "242956", name: "BISHNU PADA MONDAL", codes: ["bisnu", "pada", "mandal"], departmentCode: "14000" }])[0];
+  check("a name cut differently from HR's is verified on its ticket", spaced.status === "verified");
   check("every row keeps what was read from the page (ticket as printed, name as printed)", v.every((r, i) => r.ticket === rowsH[i].ticket && r.name === rowsH[i].name));
 
   console.log(`\nschedule selftest: ${pass} passed, ${fail} failed`);

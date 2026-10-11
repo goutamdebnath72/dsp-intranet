@@ -34,7 +34,13 @@ export type Fit = "exact" | "partial" | "none";
  *             longer name matches (a first letter spoilt by a rule mark)
  *   none    : otherwise
  */
-export function nameFit(printed: string[], hr: string[]): Fit {
+const squash = (s: string) => (s || "").toUpperCase().replace(/[^A-Z]/g, "");
+
+export function nameFit(printed: string[], hr: string[], printedName?: string, hrName?: string): Fit {
+  // the same letters in the same order are the same name, however the spaces fall: "SATYA BRATA BOSE" = "SATYABRATA BOSE", and a name
+  // whose phonetic codes are few (SARGAM KUMARI: KUMARI is dropped as a title) is still the same person when the whole name is the same
+  if (printedName && hrName && squash(printedName).length >= 4 && squash(printedName) === squash(hrName)) return "exact";
+  if (printed.length >= 2 && printed.join("") === hr.join("")) return "exact"; // the same codes, only cut differently ("BISHNUPADA" = "BISHNU PADA")
   const P = [...new Set(printed)];
   const H = [...new Set(hr)];
   const min = Math.min(P.length, H.length);
@@ -56,14 +62,14 @@ export function verifyAgainstHr(rows: ScheduleRow[], printedCodes: string[][], h
     const P = printedCodes[i] ?? [];
     const e = r.ticket ? byTicket.get(r.ticket) : undefined;
     if (e) {
-      const fit = nameFit(P, e.codes);
+      const fit = nameFit(P, e.codes, r.name, e.name);
       if (fit === "exact" || (fit === "partial" && same(r.departmentCode, e.departmentCode))) return { ...base, ticketNo: e.ticket, status: "verified" };
       // the ticket is an employee, but the name does not fit: the ticket may have been misread into someone else's. Try to find the person by name.
       base.statusNote = `ticket ${r.ticket} belongs to ${e.name} in HR, which does not fit the printed name "${r.name}"`;
     } else if (r.ticket) base.statusNote = `ticket ${r.ticket} is not in the HR directory`;
     else base.statusNote = "no readable ticket number";
 
-    const cands = hr.filter((h) => nameFit(P, h.codes) === "exact" && same(r.departmentCode, h.departmentCode));
+    const cands = hr.filter((h) => nameFit(P, h.codes, r.name, h.name) === "exact" && same(r.departmentCode, h.departmentCode));
     if (cands.length === 1) {
       return { ...base, ticketNo: cands[0].ticket, status: "corrected", statusNote: `ticket read as ${r.ticket ?? "nothing"}; the only HR employee with this name and department is ${cands[0].name} (${cands[0].ticket})` };
     }

@@ -91,10 +91,11 @@ async function main() {
       ocrDigitsTsv: async (png: Buffer) => ((await digitWorker.recognize(png, {}, { text: false, tsv: true })).data.tsv as string) || "",
     };
 
-    // ---- the HR directory: non-executives, with the phonetic codes of their names
-    const hrRes = await client.query(`SELECT ticket_no, name, name_codes, department_code FROM nlq.employees WHERE cohort = 'nonexecutive'`);
+    // ---- the HR directory, with the phonetic codes of the names. EVERYONE, not only non-executives: a person on a December 2024 roster may have
+    // been promoted to executive since, and is still the same person (ticket and name agree).
+    const hrRes = await client.query(`SELECT ticket_no, name, name_codes, department_code FROM nlq.employees`);
     const hr: HrEmployee[] = hrRes.rows.map((r: any) => ({ ticket: String(r.ticket_no).trim(), name: String(r.name), codes: (r.name_codes ?? []).map(String), departmentCode: r.department_code == null ? null : String(r.department_code) }));
-    console.log(`HR directory: ${hr.length} non-executive employees.\n`);
+    console.log(`HR directory: ${hr.length} employees.\n`);
 
     const stamp = Date.now();
     mkdirSync("health-reports", { recursive: true });
