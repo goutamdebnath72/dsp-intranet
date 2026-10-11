@@ -50,7 +50,20 @@ export async function destroyOcrWorkerPool(pool: OcrWorkerPool) {
    kept. The numbers that only the Hindi/Bengali pass "saw" are discarded and
    reported in the log.
 ============================================================ */
-export async function ocrPageDualPass(input: Buffer | Uint8Array, label: string, workers: OcrWorkerPool): Promise<string> {
+export interface OcrPageResult {
+  /** The text to store for this page. */
+  text: string;
+  /** Characters the English pass produced (0 = the English pass failed or found nothing). */
+  englishChars: number;
+  indicLetters: number;
+  /** Numbers only the Hindi/Bengali pass saw (discarded as probable misreadings). */
+  discarded: string[];
+  /** The English pass was empty and the Hindi/Bengali text had to be used in full: its Latin digits are NOT trustworthy. */
+  fellBackToIndicPass: boolean;
+}
+
+/** The OCR of one page with the details the archive re-read needs. The upload route uses ocrPageDualPass (just the text). */
+export async function ocrPageDual(input: Buffer | Uint8Array, label: string, workers: OcrWorkerPool): Promise<OcrPageResult> {
   let eng = "";
   let table = "";
   let tri = "";
@@ -79,5 +92,10 @@ export async function ocrPageDualPass(input: Buffer | Uint8Array, label: string,
           ? `${merged.discarded.length} number(s) seen only by the Hindi/Bengali pass were discarded as probable misreadings (e.g. ${merged.discarded.slice(0, 4).join(" | ")})`
           : "the two passes agree on every number"),
   );
-  return merged.text;
+  return { text: merged.text, englishChars: eng.length, indicLetters: merged.indicLetters, discarded: merged.discarded, fellBackToIndicPass: merged.fellBackToIndicPass };
+}
+
+/** The upload route's entry point: the text only. */
+export async function ocrPageDualPass(input: Buffer | Uint8Array, label: string, workers: OcrWorkerPool): Promise<string> {
+  return (await ocrPageDual(input, label, workers)).text;
 }

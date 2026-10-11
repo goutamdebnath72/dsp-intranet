@@ -7,6 +7,7 @@ import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
 import { createOcrWorkerPool, destroyOcrWorkerPool, ocrPageDualPass } from "@/lib/ingestion/ocr";
+import { buildPageUnits, planChunks } from "@/lib/ingestion/chunking";
 import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
 
 // This route does two full Tesseract OCR passes PER PAGE (English, then
@@ -358,38 +359,15 @@ export async function POST(req: Request) {
     const preparedChunks: PreparedChunk[] = [];
 
     if (!skipOcrAndEmbedding) {
-      const chunkSize = 200;
-      let chunkIndex = 0;
-
-      // Build the list of (page, pageText) to chunk. Prefer per-page OCR text so
-      // each chunk keeps its page number. If no per-page text exists (e.g. a
-      // born-digital PDF whose text came from extractTextFromPDF, not OCR), fall
-      // back to the whole document as a single page-less unit (page 0).
-      const pageUnits: Array<{ page: number; text: string }> = [];
-      const havePageText = perPageText.some((t) => t && t.trim().length > 0);
-      if (havePageText) {
-        for (let pi = 0; pi < perPageText.length; pi++) {
-          const t = (perPageText[pi] || "").replace(/\s+/g, " ").trim();
-          if (t.length > 0) pageUnits.push({ page: pi + 1, text: t });
-        }
-      } else if (extractedText && extractedText.length > 0) {
-        pageUnits.push({ page: 0, text: extractedText });
-      }
-
-      for (const unit of pageUnits) {
-        const words = unit.text.split(/\s+/);
-        for (let i = 0; i < words.length; i += chunkSize) {
-          const chunkText = words.slice(i, i + chunkSize).join(" ");
-          if (!chunkText.trim()) continue;
-          const rawVector = await generateEmbedding(chunkText); // fatal on throw
-          preparedChunks.push({
-            index: chunkIndex,
-            page: unit.page,
-            text: chunkText,
-            embedding: `[${rawVector.join(",")}]`,
-          });
-          chunkIndex++;
-        }
+      // Same chunking as the archive re-read tool: see src/lib/ingestion/chunking.ts
+      for (const c of planChunks(buildPageUnits(perPageText, extractedText))) {
+        const rawVector = await generateEmbedding(c.text); // fatal on throw
+        preparedChunks.push({
+          index: c.index,
+          page: c.page,
+          text: c.text,
+          embedding: `[${rawVector.join(",")}]`,
+        });
       }
       console.log("DEBUG: Prepared", preparedChunks.length, "chunk embeddings");
     }
