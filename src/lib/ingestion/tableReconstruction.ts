@@ -81,6 +81,13 @@
 // returns null rather than guessing), the worst case is no additional
 // block -- never a regression of something that currently works.
 
+/** A header is a label of a few lines, never a page of data. */
+export const MAX_HEADER_ROWS = 4;
+/** A header cell longer than this is not a label (it swallowed data rows): that column falls back to "colN". */
+export const MAX_HEADER_CELL_CHARS = 60;
+/** One page's table block can never exceed this: past it the block is dropped (the page's plain text is always kept). */
+export const MAX_TABLE_CHARS = 30000;
+
 interface Word {
   left: number;
   top: number;
@@ -253,12 +260,19 @@ function reconstructTable(
   // (mostly numeric-looking) by CONTENT -- a fragmented, wrapped header can
   // otherwise have more cells than a clean data row and get mistaken for
   // one if picked purely by cell count.
+  // A data row is mostly numeric OR has at least two numbers. The old test (mostly numeric) alone failed on any table whose data rows
+  // carry multi-word text cells (names, departments): "1 330996 SUBRATA CHANDRA PAL 3301 M&HS(1)" is only 3 numbers in 8 words, so
+  // it was not "data", and every row before the first one that happened to be 50% numeric was swallowed into the HEADER -- a
+  // 250-character header that was then repeated as the label of every cell of every following row.
   const rowIsData = runRows.map((r) => {
     const numericCount = r.filter((w) => looksNumeric(w.text)).length;
-    return numericCount / r.length >= 0.5;
+    return numericCount / r.length >= 0.5 || numericCount >= 2;
   });
 
-  const firstDataIdx = rowIsData.indexOf(true);
+  let firstDataIdx = rowIsData.indexOf(true);
+  // A header is a few lines at most: if the first data-like row comes later than that, the rows before it are DATA with
+  // text-heavy cells, not a header. No header is then assumed (columns are labelled col1, col2, ...).
+  if (firstDataIdx > MAX_HEADER_ROWS) firstDataIdx = -1;
   const headerRowRange =
     firstDataIdx === -1 ? [] : Array.from({ length: firstDataIdx }, (_, i) => i);
 
@@ -268,6 +282,9 @@ function reconstructTable(
       if (table[i][c]) headers[c] = (headers[c] + " " + table[i][c]).trim();
     }
   }
+
+  // Belt and braces: a "header" that is not a short label has swallowed data; use colN for that column instead of repeating it per row.
+  for (let c = 0; c < numCols; c++) if (headers[c].length > MAX_HEADER_CELL_CHARS) headers[c] = "";
 
   const dataRows = firstDataIdx === -1 ? table : table.slice(firstDataIdx);
 
@@ -317,7 +334,10 @@ export function reconstructTableFromTSV(tsv: string): string | null {
     const bigGap = medianHeight * 1.8;
     const rows = groupIntoRows(words);
     const table = reconstructTable(rows, { bigGap });
-    return table ? serializeTable(table) : null;
+    if (!table) return null;
+    const block = serializeTable(table);
+    // A table block this big is a misfire, not a table: keep only the page's plain text rather than append it.
+    return block.length > MAX_TABLE_CHARS ? null : block;
   } catch {
     // Reconstruction is a best-effort ADDITION to the OCR text, never a
     // replacement -- a failure here must never break or block the upload.
