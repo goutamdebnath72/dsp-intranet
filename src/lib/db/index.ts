@@ -3,6 +3,7 @@ import "reflect-metadata"; // Required core decorator metadata initialization st
 import { DataSource, DataSourceOptions } from "typeorm";
 import { getOracleConfig } from "./config/oracle.config";
 import { TRANSIENT_DB_ERROR, retireDataSource, sleep } from "./resilience";
+import { hasExactMetadata, installDevEntityNameFallback } from "./hmrEntities";
 
 // --- IMPORT TYPEORM ENTITIES ---
 import { Account } from "./models/account.model";
@@ -107,9 +108,11 @@ export async function getDb(): Promise<DataSource> {
     // 💡 HMR Safety: In local development, check if modules/classes have reloaded in memory.
     // If a class reference has changed, we must safely close the old pool and instantiate a fresh one.
     if (process.env.NODE_ENV === "development") {
+      // STRICT identity check on purpose: installDevEntityNameFallback (below) makes hasMetadata() answer "yes" for a reloaded
+      // copy of a class, which would hide a real reload from this test.
       const isHmrReloaded = entities.some((entity) => {
         try {
-          return !global.cachedTypeORMDataSource!.hasMetadata(entity);
+          return !hasExactMetadata(global.cachedTypeORMDataSource!, entity);
         } catch {
           return true;
         }
@@ -212,6 +215,9 @@ export async function getDb(): Promise<DataSource> {
         const ds = new DataSource(dataSourceOptions);
         try {
           await ds.initialize();
+          // Dev only: a route file compiled on demand brings its own copy of the entity classes; accept it by name
+          // instead of failing the first request (see hmrEntities.ts).
+          if (process.env.NODE_ENV === "development") installDevEntityNameFallback(ds);
           console.log(
             `✅ TypeORM DataSource context authenticated and synchronized successfully using [${dbType}] driver.`,
           );
