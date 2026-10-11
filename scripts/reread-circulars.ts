@@ -29,6 +29,8 @@ function arg(name: string): string | undefined {
 }
 const flag = (name: string) => process.argv.includes(`--${name}`);
 
+process.env.OCR_QUIET = "1"; // one summary line per circular is enough here; the per-page OCR lines would bury it
+
 async function main() {
   if (flag("help") || flag("h")) {
     console.log(readFileSync(__filename, "utf8").split("\n").slice(2, 20).join("\n").replace(/^\/\/ ?/gm, ""));
@@ -73,9 +75,16 @@ async function main() {
     // ---- dependencies ----
     const workerOptions = process.env.OCR_LANG_PATH ? { langPath: process.env.OCR_LANG_PATH, gzip: false, cacheMethod: "none" } : undefined;
     const pool = await createOcrWorkerPool(workerOptions);
+    // The embedding code is loaded only when the FIRST embedding is needed, so a dry run (which embeds nothing) never loads it.
+    // It is the Google-only module, called exactly as the upload calls it (one argument, no normalising), so the new vectors are made
+    // the same way as the ones an upload stores.
+    let realEmbed: ((text: string) => Promise<number[]>) | null = null;
     const embed = process.env.REREAD_FAKE_EMBEDDINGS
       ? async (t: string) => Array.from({ length: 768 }, (_, i) => ((t.length * 31 + i * 7) % 1000) / 1000)
-      : (await import("../src/lib/ai/embedding.service")).generateEmbedding;
+      : async (t: string) => {
+          realEmbed ??= (await import("../src/lib/ai/geminiEmbedding")).generateEmbedding;
+          return realEmbed(t);
+        };
     const deps: RereadDeps = {
       fetchImage: async (url) => {
         const res = await fetch(url);

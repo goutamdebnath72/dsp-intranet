@@ -84,7 +84,8 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
     }
   }
   const merged = mergeOcrPasses(eng, table, tri);
-  console.info(
+  // OCR_QUIET is set by the archive re-read tool (hundreds of pages; it prints its own summary). Uploads keep this line.
+  if (!process.env.OCR_QUIET) console.info(
     `[ocr] ${label || "page"}: English pass ${eng.length} chars; Indic words kept ${merged.indicLetters} letters; ` +
       (merged.fellBackToIndicPass
         ? "ENGLISH PASS EMPTY, used the Hindi/Bengali text in full (its digits are NOT trustworthy)"
