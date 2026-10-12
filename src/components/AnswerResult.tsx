@@ -14,7 +14,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Check, ChevronDown, Copy, Download, LayoutList, Loader2, Search, Table2 } from "lucide-react";
 import type { Nl2SqlExtras, Nl2SqlTable } from "@/lib/nl2sql/clientTypes";
-import { SourceFooter } from "@/components/SourceFooter";
+import { SourceBar } from "@/components/SourceBar";
 import { exportNote, filterRows, formatCell, pageProgress, rowCountLabel, sortRows, toCsv, toTsv, type DisplayColumn, type ViewKind } from "@/lib/nl2sql/display";
 
 const VIEW_META: Record<ViewKind, { label: string; Icon: typeof Table2 }> = {
@@ -304,11 +304,11 @@ export function AnswerResult({
           )}
         </div>
       )}
+      {current === "table" && onOpenCircular && nl2sql.sources && nl2sql.sources.length > 0 && <SourceBar sources={nl2sql.sources} note={nl2sql.sourceNote} onOpen={onOpenCircular} />}
       {current === "cards" && peopleView}
       {current === "table" && table && display && <ResultTable table={table} columns={display.columns} authenticated={authenticated} />}
       {current === "bar" && table && display?.bar && <BarChartView table={table} columns={display.columns} bar={display.bar} />}
       {more && current !== "bar" && <ShowMore more={more} />}
-      {current === "table" && onOpenCircular && nl2sql.sources && nl2sql.sources.length > 0 && <SourceFooter sources={nl2sql.sources} onOpen={onOpenCircular} />}
     </div>
   );
 }

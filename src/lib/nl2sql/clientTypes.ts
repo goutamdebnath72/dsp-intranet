@@ -51,4 +51,6 @@ export interface Nl2SqlExtras {
   retryAttempt?: number;
   /** The circular(s) a health check-up answer was read from (one per circular, in the order they appear in the answer). */
   sources?: CircularSource[];
+  /** Shown with the Source line when someone listed is not in the HR directory (their ticket is as printed in the circular). Absent when everybody is. */
+  sourceNote?: string;
 }

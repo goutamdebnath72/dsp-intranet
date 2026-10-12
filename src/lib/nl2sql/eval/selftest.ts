@@ -32,6 +32,7 @@ import { checkDepartmentColumns, checkDepartmentIdentity } from "../deptColumns"
 import { checkComparison, checkRankingAndOrder, comparisonVerdict } from "../rankingCheck";
 import { checkHealthColumns, checkPersonIdentity } from "../identityCheck";
 import { isHealthQuestion } from "../prompt";
+import { isSingleRowTable } from "../display";
 import { addCohortColumn, humanizeSeniority, presentPeople, withCohortInHint } from "../seniorityDisplay";
 import { departmentScopeQueries, computeDepartmentScope, peopleFootprintQuery, departmentFilterInfo } from "../scope";
 import { stableOrderSql, PAGE_SIZE } from "../paging";
@@ -1613,6 +1614,22 @@ async function main() {
   dFail.withClient = ((fn: (c: any) => Promise<any>) => origWith((c: any) => fn({ query: async (sql: string, p?: unknown[]) => { if (/circular_title/.test(sql)) throw new Error("lookup failed"); return c.query(sql, p); } }))) as typeof dFail.withClient;
   const ofail: any = await runOmnibar(HQ, "T-HEALTH", dFail);
   check("if the source lookup fails the ANSWER is unaffected (same table, no source line, no error)", !!ofail && ofail.kind === "total" && (ofail.nl2sql?.table?.rows?.length ?? 0) === 1 && ofail.nl2sql?.sources === undefined, JSON.stringify(ofail && { kind: ofail.kind, rows: ofail.nl2sql?.table?.rows?.length, src: ofail.nl2sql?.sources }));
+
+  // -- who is not confirmed against HR: said under the Source line ONLY when it applies (instead of a Yes/No column on every row)
+  const hDay14 = `SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE checkup_date = '2025-01-14' ORDER BY name`;
+  const o14: any = await runOmnibar("who has the health check-up on 14 January 2025", "T-HEALTH", mkDeps(model(hDay14, "Everyone called on that day.")));
+  const note14 = String(o14?.nl2sql?.sourceNote ?? "");
+  check("a day that includes people HR does not know says so, with their names: '3 of the 5 people listed are not in the HR directory ...'", /^3 of the 5 people listed are not in the HR directory \(the ticket shown is as printed in the circular\): /.test(note14) && ["SOMEONE ELSE ZETA", "TWICE LISTED OMEGA", "ZZ NOBODY KNOWN"].every((n) => note14.includes(n)), note14);
+  check("...and the people HR does know (including the one whose ticket was corrected) are NOT named", !note14.includes(nx[2].name) && !note14.includes(nx[3].name), note14);
+  check("a day of confirmed people has NO such note (nothing appears on screen)", odd?.nl2sql?.sourceNote === undefined && oh?.nl2sql?.sourceNote === undefined && obo?.nl2sql?.sourceNote === undefined);
+  const hGhost = `SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE ticket_no = '888888'`;
+  const og: any = await runOmnibar("which department is ticket 888888 in for the health check-up", "T-HEALTH", mkDeps(model(hGhost, "One ticket.")));
+  check("one person HR does not know: 'This person is not in the HR directory; the ticket shown is as printed in the circular.' (the printed ticket is still shown)", og?.nl2sql?.sourceNote === "This person is not in the HR directory; the ticket shown is as printed in the circular." && String(og?.nl2sql?.table?.rows?.[0]?.ticket_no) === "888888", String(og?.nl2sql?.sourceNote));
+  check("the model is no longer asked for the Verified column: not in the standard select list, not in any worked example", !/ALWAYS SELECTs[^\n]*verified/.test(pHealth_probe()) && pickExamples(HQ, []).every((e) => !/\bverified\b/.test(String(e.sql))) && /do not select it unless asked/.test(pHealth_probe()));
+
+  // -- the big number and "N rows." at the top: hidden ONLY for a one-row table (a lookup of one person or ticket)
+  check("a one-row table answer hides the big number; a count answer ('how many'), a list of 2 or more, and everything else keep it", isSingleRowTable("total", 1, true) === true && isSingleRowTable("total", 15, true) === false && isSingleRowTable("count", 1, true) === false && isSingleRowTable("total", 1, false) === false && isSingleRowTable("total", 2, true) === false && isSingleRowTable("clarify", 1, true) === false && isSingleRowTable(undefined, undefined, true) === false);
+  check("...and the real one-ticket answer is exactly that case (kind total, 1 row, with a table)", oh?.kind === "total" && oh?.count === 1 && !!oh?.nl2sql?.table);
 
   // -- the prompt: the schedule is described only when the question is about a check-up, and it still fits the size limit
   check("a check-up question is recognised; ordinary questions are not", isHealthQuestion(HQ) && isHealthQuestion("health checkup date of ticket 1") && isHealthQuestion("medical examination schedule") && !isHealthQuestion("list executives in C&IT") && !isHealthQuestion("who is the most senior roy"));

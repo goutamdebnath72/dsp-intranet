@@ -85,10 +85,10 @@ Number of words in a name: cardinality(name_words).`;
 // Described to the model ONLY when the question is about a health check-up (the rest of the time the prompt is exactly what it was).
 const HEALTH_DOC = `nlq.health_checkups -- the monthly HEALTH CHECK-UP schedules of NON-EXECUTIVES printed in circulars: one row per employee per schedule
   ticket_no (as printed), name, department_code and department (AS PRINTED in that schedule), checkup_date (text 'YYYY-MM-DD'),
-  schedule_year, schedule_month_no (the month the schedule is for), circular ('Circular 003 (2024)'), verified (boolean: false = HR could not confirm the person),
+  schedule_year, schedule_month_no (the month the schedule is for), circular ('Circular 003 (2024)'), verified (false = HR does not know the person; the system reports that, do not select it unless asked),
   name_words, name_codes (the same name helpers work on them as on nlq.employees)
   A person is in several schedules (months): a month named -> filter schedule_year AND schedule_month_no; otherwise return every schedule, ORDER BY schedule_year, schedule_month_no.
-  A check-up question ALWAYS SELECTs ticket_no, name, department_code, department, checkup_date, circular, verified (no designation here). display view "table".
+  A check-up question ALWAYS SELECTs ticket_no, name, department_code, department, checkup_date, circular (no designation here). display view "table".
 `;
 const HEALTH_WORDS = /check[\s-]?up|\bhealth\b|\bmedical\s+(?:exam|test)/i;
 export const isHealthQuestion = (q: string): boolean => HEALTH_WORDS.test(q || "");

@@ -1,6 +1,6 @@
 // src/lib/nl2sql/circularSources.selftest.ts
 // Run:  npx tsx src/lib/nl2sql/circularSources.selftest.ts      (no database: the lookups are answered by stand-ins)
-import { buildCircularSources, type RunQuery } from "./circularSources";
+import { buildCircularSources, buildSourceInfo, unconfirmedNote, type RunQuery } from "./circularSources";
 
 let pass = 0;
 let fail = 0;
@@ -19,18 +19,20 @@ const META = [
   { circular: L9, circular_id: 30, circular_title: "CIRCULAR-HEALTH CHECK-UP FOR NON-EXECUTIVE EMPLOYEES DURING THE MONTH OF DECEMBER-2024" },
 ];
 const PAGES = [
-  { circular: L3, ticket_no: "100001", name: "AMIT BANERJEE", page_number: 3 },
-  { circular: L3, ticket_no: "100002", name: "RITA SEN", page_number: 4 },
-  { circular: L3, ticket_no: "100099", name: "SOMEONE NOT IN THE ANSWER", page_number: 7 }, // must not add page 7
-  { circular: L9, ticket_no: "100001", name: "AMIT BANERJEE", page_number: 8 },
-  { circular: L3, ticket_no: null, name: "NO TICKET PERSON", page_number: 5 },
+  { circular: L3, ticket_no: "100001", name: "AMIT BANERJEE", page_number: 3, verified: true },
+  { circular: L3, ticket_no: "100002", name: "RITA SEN", page_number: 4, verified: true },
+  { circular: L3, ticket_no: "100099", name: "SOMEONE NOT IN THE ANSWER", page_number: 7, verified: false }, // must not add page 7, nor count as unconfirmed
+  { circular: L9, ticket_no: "100001", name: "AMIT BANERJEE", page_number: 8, verified: true },
+  { circular: L3, ticket_no: null, name: "NO TICKET PERSON", page_number: 5, verified: false },
+  { circular: L3, ticket_no: "200001", name: "GHOST ONE", page_number: 6, verified: false },
+  { circular: L3, ticket_no: "200002", name: "GHOST TWO", page_number: 6, verified: false },
 ];
-function fake(meta = META, pages = PAGES) {
+function fake(meta: Array<Record<string, unknown>> = META, pages: Array<Record<string, unknown>> = PAGES) {
   const seen: Array<{ sql: string; params: unknown[] }> = [];
   const run: RunQuery = async (sql, params) => {
     seen.push({ sql, params });
-    if (/SELECT DISTINCT circular, circular_id/.test(sql)) return meta.filter((m) => (params[0] as string[]).includes(m.circular));
-    if (/page_number IS NOT NULL/.test(sql)) return pages.filter((p) => (params[0] as string[]).includes(p.circular));
+    if (/SELECT DISTINCT circular, circular_id/.test(sql)) return meta.filter((m) => (params[0] as string[]).includes(m.circular as string));
+    if (/page_number, verified/.test(sql)) return pages.filter((p) => (params[0] as string[]).includes(p.circular as string));
     return [];
   };
   return { run, seen };
@@ -85,6 +87,23 @@ const row = (ticket_no: string | null, name: string, circular: string) => ({ tic
     await buildCircularSources(cols, [row("100001", "AMIT BANERJEE", L3)], f.run);
     check("both lookups read only nlq.health_checkups, and the values travel as parameters (nothing from the answer is pasted into the SQL)", f.seen.length === 2 && f.seen.every((q) => /FROM nlq\.health_checkups/.test(q.sql) && !/public\./.test(q.sql) && !q.sql.includes(L3) && !q.sql.includes("100001") && !q.sql.includes("AMIT")), JSON.stringify(f.seen.map((q) => q.sql.slice(0, 60))));
   }
+  // 8. who is NOT in the HR directory (the answer says so only when it applies)
+  {
+    const info = await buildSourceInfo(cols, [row("100001", "AMIT BANERJEE", L3), row("200001", "GHOST ONE", L3), row("100002", "RITA SEN", L3), row(null, "NO TICKET PERSON", L3)], fake().run);
+    check("people HR does not know are named, in the order of the answer (found by ticket, or by name when there is no ticket)", info.unconfirmed.join("|") === "GHOST ONE|NO TICKET PERSON", JSON.stringify(info.unconfirmed));
+    const none = await buildSourceInfo(cols, [row("100001", "AMIT BANERJEE", L3), row("100002", "RITA SEN", L3)], fake().run);
+    check("when everybody is confirmed there is nobody to name", none.unconfirmed.length === 0);
+    const other = await buildSourceInfo(cols, [row("100001", "AMIT BANERJEE", L3)], fake().run);
+    check("someone unconfirmed who is NOT in the answer (100099) is never named", other.unconfirmed.length === 0);
+    const noFlag = await buildSourceInfo(cols, [row("100001", "AMIT BANERJEE", L3)], fake(META, [{ circular: L3, ticket_no: "100001", name: "AMIT BANERJEE", page_number: 3 } as never]).run);
+    check("a row with no 'verified' value is not called unconfirmed (only an explicit false is)", noFlag.unconfirmed.length === 0);
+  }
+  check("the note: nobody -> none", unconfirmedNote([], 15) === null);
+  check("the note: one person looked up -> 'This person is not in the HR directory ...' (no counts)", unconfirmedNote(["GOUTAM BISWAS"], 1) === "This person is not in the HR directory; the ticket shown is as printed in the circular.");
+  check("the note: one of a list -> '1 of the 15 people listed is not ...' (singular verb) with the name", unconfirmedNote(["GOUTAM BISWAS"], 15) === "1 of the 15 people listed is not in the HR directory (the ticket shown is as printed in the circular): GOUTAM BISWAS.");
+  check("the note: several -> plural verb, all names", unconfirmedNote(["A B", "C D"], 15) === "2 of the 15 people listed are not in the HR directory (the ticket shown is as printed in the circular): A B, C D.");
+  check("the note: more than five names -> five and 'and N more' (the line stays short)", unconfirmedNote(["A", "B", "C", "D", "E", "F", "G"], 20) === "7 of the 20 people listed are not in the HR directory (the ticket shown is as printed in the circular): A, B, C, D, E and 2 more.");
+
   console.log(`\ncircularSources selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

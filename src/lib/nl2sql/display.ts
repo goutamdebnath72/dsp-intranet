@@ -326,3 +326,11 @@ export function exportNote(shown: number, total: number, truncated: boolean): { 
     title: `Only the ${fmt(shown)} rows shown so far, not all ${fmt(total)}. Use "Show more" first to include the rest.`,
   };
 }
+
+/**
+ * The big number and "N rows." at the top of a table answer say how many rows there are. For ONE row (a lookup of one person or one ticket) that is
+ * noise: the table already shows it. Only that case is hidden: a count answer ("how many ...", a single number) and any list of 2 or more keep theirs.
+ */
+export function isSingleRowTable(kind: string | undefined, count: number | undefined, hasTable: boolean): boolean {
+  return kind === "total" && count === 1 && hasTable;
+}

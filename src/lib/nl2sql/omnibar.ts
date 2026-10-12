@@ -20,7 +20,7 @@ import type { AnalyticsPayload } from "@/lib/employees/analytics";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import type { Nl2SqlExtras } from "./clientTypes";
-import { buildCircularSources } from "./circularSources";
+import { buildSourceInfo, unconfirmedNote } from "./circularSources";
 import { comparisonVerdict } from "./rankingCheck";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
@@ -342,8 +342,13 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
   // The circular(s) the answer was read from, for the "Source" line (a click opens the circular at the page of the people listed). Looked up by the
   // system, not asked of the model; if anything goes wrong there is simply no source line.
   if (isSchedule && res.data.total > 0 && payload.nl2sql) {
-    const sources = await buildCircularSources(res.data.columns, res.data.rows as Array<Record<string, unknown>>, (sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>)).catch(() => []);
-    if (sources.length) payload.nl2sql.sources = sources;
+    const info = await buildSourceInfo(res.data.columns, res.data.rows as Array<Record<string, unknown>>, (sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>)).catch(() => ({ sources: [], unconfirmed: [] as string[] }));
+    if (info.sources.length) {
+      payload.nl2sql.sources = info.sources;
+      // Who is not confirmed against HR is said ONLY when it applies (a column of "Yes" on every row would be noise for nearly every answer)
+      const note = unconfirmedNote(info.unconfirmed, res.data.rows.length);
+      if (note) payload.nl2sql.sourceNote = note;
+    }
   }
   return payload;
 }

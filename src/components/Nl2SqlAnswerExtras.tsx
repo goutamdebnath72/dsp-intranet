@@ -10,6 +10,7 @@
 //   * Nl2SqlTable -- a plain table for breakdowns and other non-list answers.
 
 import type { Nl2SqlExtras, Nl2SqlTable as TableData } from "@/lib/nl2sql/clientTypes";
+import { formatSqlForDisplay } from "@/lib/nl2sql/sqlFormat";
 
 // Same name appearing twice means two department records with different codes; show it once with a count.
 function groupNames(names: string[]): string[] {
@@ -45,7 +46,7 @@ export function Nl2SqlAnswerExtras({ nl2sql }: { nl2sql: Nl2SqlExtras }) {
       {nl2sql.retryAttempt ? <p className="mt-1 text-xs font-medium text-blue-700">A different reading (attempt {nl2sql.retryAttempt}), after your feedback.</p> : null}
       <details className="mt-2">
         <summary className="cursor-pointer text-xs font-medium text-slate-500">{nl2sql.verifiedBy ? "SQL (stored, confirmed answer)" : "SQL the model wrote"}</summary>
-        <pre className="mt-1 overflow-x-auto rounded-md bg-slate-900 p-2 text-[11px] leading-snug text-slate-100">{nl2sql.sql}</pre>
+        <pre className="mt-1 overflow-x-auto rounded-md bg-slate-900 p-2 text-[11px] leading-snug text-slate-100">{formatSqlForDisplay(nl2sql.sql)}</pre>
         {nl2sql.attempts > 0 && typeof nl2sql.elapsedMs === "number" ? (
           <p className="mt-1 text-[11px] text-slate-400">
             {nl2sql.attempts} model {nl2sql.attempts === 1 ? "call" : "calls"} · {(nl2sql.elapsedMs / 1000).toFixed(1)} s

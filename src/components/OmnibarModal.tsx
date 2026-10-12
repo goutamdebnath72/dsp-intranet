@@ -21,7 +21,7 @@ import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
 import { InterpretationNote, PatternFeedbackBar } from "@/components/AnalyticsFeedback";
 import { Nl2SqlAnswerExtras } from "@/components/Nl2SqlAnswerExtras";
 import { AnswerResult } from "@/components/AnswerResult";
-import { departmentGroups, mergePage } from "@/lib/nl2sql/display";
+import { departmentGroups, isSingleRowTable, mergePage } from "@/lib/nl2sql/display";
 import { AnswerFeedback, type AnswerSource } from "@/components/AnswerFeedback";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { OmniLoginHint } from "@/components/OmniLoginHint";
@@ -550,12 +550,14 @@ export function OmnibarModal({
   const activeMatchedCircular = selectedCircularId
     ? results.find((r) => r.id === selectedCircularId)
     : null;
+  // One row (a lookup of one person or one ticket): the big number and "1 row." add nothing, the table shows it.
+  const hideRowCount = !!analytics && isSingleRowTable(analytics.kind, analytics.count, !!analytics.nl2sql?.table);
 
   return (
     <>
       <AnimatePresence>
         {isOpen && !selectedCircularId && !selectedAnnouncement && (
-          <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 sm:pt-24 px-4">
+          <div className="fixed inset-0 z-[100] flex items-start justify-center pt-12 sm:pt-14 px-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -578,7 +580,7 @@ export function OmnibarModal({
                 layout: { type: "spring", stiffness: 380, damping: 26 },
                 duration: 0.25,
               }}
-              className="relative w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-neutral-200 flex flex-col max-h-[82vh]"
+              className="relative w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-neutral-200 flex flex-col max-h-[calc(100vh-5.5rem)]"
             >
               {/* Multiline Search Input Header */}
               <div className="flex items-start px-4 py-3.5 border-b border-neutral-200 gap-3">
@@ -788,7 +790,8 @@ export function OmnibarModal({
                           </div>
                           <div className="min-w-0 flex-1">
                             {typeof analytics.count === "number" &&
-                              analytics.kind !== "breakdown" && (
+                              analytics.kind !== "breakdown" &&
+                              !hideRowCount && (
                                 <div className="text-2xl font-bold leading-tight text-blue-900">
                                   {analytics.count.toLocaleString()}
                                 </div>
@@ -798,7 +801,7 @@ export function OmnibarModal({
                             )}
                             {analytics.holidayDetails && analytics.holidayDetails.length > 0 ? (
                               <HolidayAnswerCard details={analytics.holidayDetails} />
-                            ) : (
+                            ) : hideRowCount ? null : (
                               <p
                                 className={`text-sm ${
                                   analytics.kind === "error"
