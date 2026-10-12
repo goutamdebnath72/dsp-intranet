@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { extractSchedule, EXTRACT_VERSION, type ExtractedSchedule } from "../src/lib/ingestion/schedule/extractSchedule";
 import { withConnection } from "../src/lib/ingestion/schedule/dbRetry";
-import { fixCodesByDepartment, verifyAgainstHr, type DeptPair, type HrEmployee, type VerifiedRow } from "../src/lib/ingestion/schedule/importSchedule";
+import { createScheduleOcr, loadHrContext, logIngest, prepareSchedule, stageDetail, storeSchedule, type PreparedSchedule, type Sql } from "../src/lib/ingestion/schedule/ingest";
 import { circularLabel } from "../src/lib/search/circularLabels";
 import { extractorFingerprint } from "../src/lib/ingestion/schedule/fingerprint";
 
@@ -73,43 +73,38 @@ async function main() {
   try {
     const ids = (arg("ids") ?? "").split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isInteger(n));
     if (ids.length === 0) {
-      const r = await q(`SELECT id, "serialNumber", EXTRACT(YEAR FROM "publishedAt")::int AS year, headline, coalesce(array_length("fileUrls", 1), 0) AS pages FROM public.circulars WHERE headline ILIKE '%health%check%' OR headline ILIKE '%check%up%' ORDER BY "publishedAt"`);
+      // every circular that looks like a health check-up schedule by its headline, or that the upload recognised as one, or that has rows stored
+      const head = `SELECT c.id, c."serialNumber", EXTRACT(YEAR FROM c."publishedAt")::int AS year, c.headline, coalesce(array_length(c."fileUrls", 1), 0) AS pages,
+        (SELECT count(*) FROM public.health_checkup_schedule h WHERE h.circular_id = c.id)::int AS stored_rows`;
+      const where = `c.headline ILIKE '%health%check%' OR c.headline ILIKE '%check%up%' OR EXISTS (SELECT 1 FROM public.health_checkup_schedule h WHERE h.circular_id = c.id)`;
+      let r;
+      try {
+        r = await q(`${head}, (SELECT l.kind || ': ' || l.status FROM public.circular_ingest_log l WHERE l.circular_id = c.id ORDER BY l.id DESC LIMIT 1) AS decision
+          FROM public.circulars c WHERE ${where} OR EXISTS (SELECT 1 FROM public.circular_ingest_log l WHERE l.circular_id = c.id AND l.kind = 'health-schedule') ORDER BY c."publishedAt", c.id`);
+      } catch {
+        r = await q(`${head}, NULL AS decision FROM public.circulars c WHERE ${where} ORDER BY c."publishedAt", c.id`); // the log table does not exist yet
+      }
       console.log("Circulars that look like health check-up schedules (pass their ids with --ids):\n");
-      for (const x of r.rows) console.log(`  id ${String(x.id).padEnd(4)} ${circularLabel(x.serialNumber, x.year) ?? "(no serial)"}  ${x.pages} page(s)  ${String(x.headline).slice(0, 80)}`);
+      for (const x of r.rows) {
+        console.log(`  id ${String(x.id).padEnd(4)} ${circularLabel(x.serialNumber, x.year) ?? "(no serial)"}  ${x.pages} page(s)  schedule rows stored: ${x.stored_rows}  ${x.decision ? `| the upload decided: ${x.decision}` : "| no upload decision recorded"}`);
+        console.log(`        ${String(x.headline).slice(0, 100)}`);
+      }
+      if (r.rows.length === 0) console.log("  (none)");
       return;
     }
     if (apply && !(await q(`SELECT to_regclass('public.health_checkup_schedule') AS t`)).rows[0].t) {
       throw new Error("the table public.health_checkup_schedule does not exist: run src/lib/nl2sql/sql/08_health_checkups.sql in the Supabase SQL editor first");
     }
 
-    // ---- the OCR engines: one for whole pages, one for the printed dates (digits and - . / only, one line)
-    const Tesseract: any = (await import("tesseract.js")).default;
+    // ---- the OCR engines (the same four the upload uses: see src/lib/ingestion/schedule/ingest.ts)
     const wopts = process.env.OCR_LANG_PATH ? { langPath: process.env.OCR_LANG_PATH, gzip: false, cacheMethod: "none" } : undefined;
-    const pageWorker = wopts ? await Tesseract.createWorker("eng", 1, wopts) : await Tesseract.createWorker("eng");
-    await pageWorker.setParameters({ tessedit_pageseg_mode: "3" });
-    const dateWorker = wopts ? await Tesseract.createWorker("eng", 1, wopts) : await Tesseract.createWorker("eng");
-    await dateWorker.setParameters({ tessedit_char_whitelist: "0123456789-./ ", tessedit_pageseg_mode: "7" });
-    const digitWorker = wopts ? await Tesseract.createWorker("eng", 1, wopts) : await Tesseract.createWorker("eng");
-    await digitWorker.setParameters({ tessedit_char_whitelist: "0123456789", tessedit_pageseg_mode: "6" });
-    // one number cell at a time (a ticket or a department code), cut out and enlarged: the most accurate of the three readings
-    const cellWorker = wopts ? await Tesseract.createWorker("eng", 1, wopts) : await Tesseract.createWorker("eng");
-    await cellWorker.setParameters({ tessedit_char_whitelist: "0123456789", tessedit_pageseg_mode: "7" });
-    const deps = {
-      ocrPageTsv: async (png: Buffer) => ((await pageWorker.recognize(png, {}, { text: false, tsv: true })).data.tsv as string) || "",
-      ocrDateText: async (png: Buffer) => ((await dateWorker.recognize(png)).data.text as string) || "",
-      // the narrow numeric columns (serial, ticket, department code) are also read on their own, digits only
-      ocrDigitsTsv: async (png: Buffer) => ((await digitWorker.recognize(png, {}, { text: false, tsv: true })).data.tsv as string) || "",
-      ocrDigitCell: async (png: Buffer) => ((await cellWorker.recognize(png)).data.text as string) || "",
-    };
+    const ocr = await createScheduleOcr(wopts);
+    const deps = ocr.deps;
 
-    // ---- the HR directory, with the phonetic codes of the names. EVERYONE, not only non-executives: a person on a December 2024 roster may have
-    // been promoted to executive since, and is still the same person (ticket and name agree).
-    const hrRes = await q(`SELECT ticket_no, name, name_codes, department_code FROM nlq.employees`);
-    const hr: HrEmployee[] = hrRes.rows.map((r: any) => ({ ticket: String(r.ticket_no).trim(), name: String(r.name), codes: (r.name_codes ?? []).map(String), departmentCode: r.department_code == null ? null : String(r.department_code) }));
-    console.log(`HR directory: ${hr.length} employees.\n`);
-    // which department code belongs to which department name (used to check the codes read from the pages)
-    const pairRes = await q(`SELECT DISTINCT department_code::text AS code, department AS name FROM nlq.employees WHERE department_code IS NOT NULL AND department IS NOT NULL`);
-    const deptPairs: DeptPair[] = pairRes.rows.map((r: any) => ({ code: String(r.code), name: String(r.name) }));
+    // ---- the HR directory (EVERYONE, not only non-executives) and which department code belongs to which department name
+    const sql: Sql = async (text, params) => (await q(text, params)).rows;
+    const ctx = await loadHrContext(sql);
+    console.log(`HR directory: ${ctx.hr.length} employees.\n`);
 
     const stamp = Date.now();
     mkdirSync("health-reports", { recursive: true });
@@ -140,18 +135,13 @@ async function main() {
         writeFileSync(cachePath, JSON.stringify({ key, res }));
       }
 
-      // ---- check every row against HR
-      const codesRes = await q(`SELECT nlq.name_codes_of(n) AS codes FROM unnest($1::text[]) WITH ORDINALITY AS t(n, i) ORDER BY i`, [res.rows.map((r) => r.name)]);
-      const printed: string[][] = codesRes.rows.map((r: any) => (r.codes ?? []).map(String));
-      // the department code is checked against the department NAME printed on the same row, then the people against HR
-      const withCodes = fixCodesByDepartment(res.rows, deptPairs);
-      const codeFixes = withCodes.filter((r) => r.codeNote);
-      const rows: VerifiedRow[] = verifyAgainstHr(withCodes, printed, hr);
+      // ---- check every row (department code against the printed department, people against HR): the same code the upload runs
+      const prepared: PreparedSchedule = await prepareSchedule(res, ctx, sql);
+      const rows = prepared.rows;
+      const codeFixes = prepared.codeFixes;
+      const problems = prepared.problems;
       const count = (s: string) => rows.filter((r) => r.status === s).length;
       const month = res.scheduleMonth ? `${MONTHS[res.scheduleMonth.month - 1]} ${res.scheduleMonth.year}` : "UNKNOWN";
-      const problems = [...res.warnings];
-      if (rows.length === 0) problems.push("no employee rows were read");
-      if (!res.scheduleMonth) problems.push("the month this schedule is for could not be read from the page title");
 
       const line = `[${id}] ${label} "${String(c.headline).slice(0, 48)}": ${month} | ${rows.length} rows in ${res.groups.length} days | verified ${count("verified")}, corrected ${count("corrected")}, unverified ${count("unverified")} | ${problems.length ? "PROBLEMS: " + problems.length : "no problems"} | ${reused ? "saved reading reused (--fresh reads the pages again)" : `read the pages in ${((Date.now() - t0) / 1000).toFixed(0)} s`}`;
       console.log(line);
@@ -186,30 +176,17 @@ async function main() {
         }
         try {
           await db(async (client) => {
+            const tx: Sql = async (text, params) => (await client.query(text, params)).rows;
             await client.query("BEGIN");
             try {
-              await client.query(`DELETE FROM public.health_checkup_schedule WHERE circular_id = $1`, [id]);
-              const sm = res.scheduleMonth!;
-              for (let i = 0; i < rows.length; i += 150) {
-                const batch = rows.slice(i, i + 150);
-                const vals: unknown[] = [];
-                const ph = batch.map((r, k) => {
-                  const b = k * 15;
-                  const note = [r.codeNote, r.statusNote].filter(Boolean).join("; ") || null;
-                  vals.push(id, sm.year, sm.month, r.seq, r.page, r.ticket, r.ticketNo, r.name, r.departmentCode == null ? null : parseInt(r.departmentCode, 10), r.department, r.checkupDate, r.datePrinted, r.dateNote, r.status, note);
-                  return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14},$${b + 15})`;
-                });
-                await client.query(
-                  `INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, page_number, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, date_printed, date_note, status, status_note) VALUES ${ph.join(",")}`,
-                  vals,
-                );
-              }
+              await storeSchedule(tx, id, prepared);
               await client.query("COMMIT");
             } catch (e) {
               await client.query("ROLLBACK").catch(() => undefined);
               throw e;
             }
           });
+          await logIngest(sql, id, "health-schedule", "applied", { ...stageDetail({ status: "ready", prepared, problems, seconds: Math.round((Date.now() - t0) / 100) / 10 }, []), by: "import tool", acceptedWarnings: problems.length > 0 });
           console.log(`      applied: ${rows.length} rows stored.`);
         } catch (e) {
           console.log(`      NOT APPLIED (nothing changed): ${String((e as Error).message).split("\n")[0]}`);
@@ -220,7 +197,7 @@ async function main() {
     const file = join("health-reports", `health-${apply ? "apply" : "dry"}-${stamp}.md`);
     writeFileSync(file, report.join("\n"));
     console.log(`\n${blocked ? `${blocked} circular(s) need attention. ` : ""}Report: ${file}`);
-    await Promise.all([pageWorker.terminate(), dateWorker.terminate(), digitWorker.terminate(), cellWorker.terminate()]);
+    await ocr.close();
     if (blocked) process.exitCode = 1;
   } finally {
     // nothing to close: every database step opened and closed its own connection

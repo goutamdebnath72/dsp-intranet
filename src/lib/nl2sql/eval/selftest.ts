@@ -83,7 +83,7 @@ async function main() {
   await pg.connect();
   for (const f of ["99_local_test_standins.sql"]) await pg.query(readFileSync(join(SQL_DIR, f), "utf8"));
   await pg.query(buildSeedSql());
-  for (const f of ["01_nlq_schema_views_role.sql", "02_nl2sql_log_tables.sql", "08_health_checkups.sql"]) await pg.query(readFileSync(join(SQL_DIR, f), "utf8"));
+  for (const f of ["01_nlq_schema_views_role.sql", "02_nl2sql_log_tables.sql", "08_health_checkups.sql", "09_circular_ingest_log.sql"]) await pg.query(readFileSync(join(SQL_DIR, f), "utf8"));
   const db: SqlClient = { query: (t, p) => pg.query(t, p) as any };
   const withClient = async <T,>(fn: (c: SqlClient) => Promise<T>) => fn(db);
   const roster = (await pg.query(`SELECT ticket_no, name FROM public.employee_roster ORDER BY id`)).rows as { ticket_no: string; name: string }[];
@@ -1592,6 +1592,16 @@ async function main() {
   const ohn: any = await runOmnibar(`which department is ticket ${nx[0].ticket_no} in for the February 2025 health check-up`, "T-HEALTH", mkDeps(model(hNone, "The schedule row of one ticket.")));
   check("a schedule question with no row says which schedules exist (December 2024, January 2025) instead of a bare '0 rows'", !!ohn && /No row matches/.test(String(ohn.answer)) && /December 2024, January 2025/.test(String(ohn.answer)), String(ohn && ohn.answer));
   check("...and a question with a row keeps its normal headline", !!oh && /1 row/.test(String(oh.answer)), String(oh && oh.answer));
+  // a schedule whose circular was uploaded but not read: the empty answer says so (from the upload's decision log)
+  await pg.query(`INSERT INTO public.circulars (id, headline, "serialNumber", "publishedAt") VALUES (903, 'CIRCULAR-HEALTH CHECK UP FEB-2025', 7, '2025-01-30')`);
+  await pg.query(`INSERT INTO public.circular_ingest_log (circular_id, kind, status, detail) VALUES (903, 'health-schedule', 'timeout', '{}')`);
+  const ohp: any = await runOmnibar(`which department is ticket ${nx[0].ticket_no} in for the February 2025 health check-up`, "T-HEALTH", mkDeps(model(hNone, "The schedule row of one ticket.")));
+  check("an empty answer says which uploaded schedule has not been read yet: '... Circular 007 (2025) has not been read yet, so it is not included.'", !!ohp && /No row matches/.test(String(ohp.answer)) && /The health check-up schedule of Circular 007 \(2025\) has not been read yet, so it is not included\./.test(String(ohp.answer)), String(ohp && ohp.answer));
+  await pg.query(`INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, page_number, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, status) VALUES (903, 2025, 2, 1, 3, '777001', NULL, 'LATE PERSON', 1, 'X', '2025-02-03', 'unverified')`);
+  const ohq: any = await runOmnibar(`which department is ticket 000000 in for the March 2025 health check-up`, "T-HEALTH", mkDeps(model(`SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE ticket_no = '000000'`, "One ticket.")));
+  check("once the schedule's rows ARE in the system (the tool was run) the sentence is gone", !!ohq && /No row matches/.test(String(ohq.answer)) && !/has not been read yet/.test(String(ohq.answer)), String(ohq && ohq.answer));
+  await pg.query(`DELETE FROM public.health_checkup_schedule WHERE circular_id = 903`);
+  await pg.query(`DELETE FROM public.circulars WHERE id = 903`);
 
   // -- the "Source" line: which circular(s) the answer was read from, and the page of the people listed (looked up by the system, not asked of the model)
   const srcCols: any = await runReadOnly(db, `SELECT circular_id, circular_title, page_number FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 1`);
@@ -1647,6 +1657,7 @@ async function main() {
   // Leave the scratch database as it was found: the stand-in circulars table and the schedule objects would make the other self-tests
   // (circularLabels, reread) refuse to run, which they do whenever a "circulars" table exists (their guard against a real database).
   await pg.query(`DROP VIEW IF EXISTS nlq.health_checkups`);
+  await pg.query(`DROP TABLE IF EXISTS public.circular_ingest_log`);
   await pg.query(`DROP TABLE IF EXISTS public.health_checkup_schedule`);
   await pg.query(`DROP TABLE IF EXISTS public.circulars`);
   await pg.end();

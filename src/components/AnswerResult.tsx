@@ -194,6 +194,8 @@ export function BarChartView({ table, columns, bar }: { table: Nl2SqlTable; colu
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
         {valueCol?.label ?? "Value"} by {(labelCol?.label ?? "group").toLowerCase()}
       </p>
+      {/* role="list" is deliberate: with list-style removed, Safari's screen reader stops announcing this as a list unless the role is explicit */}
+      {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
       <ul role="list" className="flex flex-col gap-1.5">
         {items.map((it, i) => (
           <li key={i} className="flex items-center gap-3">

@@ -22,8 +22,18 @@ export interface ScheduleDeps {
   ocrDigitsTsv?(png: Buffer): Promise<string>;
   /** optional: OCR of ONE number cell cut out on its own and enlarged (a ticket or a department code): the most accurate of the three readings. */
   ocrDigitCell?(png: Buffer): Promise<string>;
+  /** optional: asked between pages and between rows; true = the time budget (the upload's 300 seconds) is nearly used up, stop now (ScheduleTimeBudgetError). */
+  shouldStop?: () => boolean;
   /** optional: a line of detail per date cell (for the import report and for finding out why a date was not read) */
   trace?: (message: string) => void;
+}
+
+/** Thrown by extractSchedule when deps.shouldStop() says the time is up. Nothing was stored; the caller decides what to do (the upload saves the circular anyway). */
+export class ScheduleTimeBudgetError extends Error {
+  constructor() {
+    super("the time budget for reading the schedule ran out");
+    this.name = "ScheduleTimeBudgetError";
+  }
 }
 
 export interface ScheduleRow {
@@ -213,6 +223,7 @@ export async function extractSchedule(pages: Buffer[], deps: ScheduleDeps, known
   const pageData: Array<{ pageNo: number; rows: RawRow[]; cells: PageCell[]; png: Buffer; g: Gray; band: { xL: number; xR: number } }> = [];
   for (let p = 0; p < pages.length; p++) {
     const pageNo = p + 1;
+    if (deps.shouldStop?.()) throw new ScheduleTimeBudgetError();
     const tilt = estimateTilt(await loadGray(pages[p]));
     const { png } = await deskewPng(pages[p], tilt.k);
     const g = await loadGray(png);
@@ -245,6 +256,7 @@ export async function extractSchedule(pages: Buffer[], deps: ScheduleDeps, known
         let changed = 0;
         let alts = 0;
         for (let i = 0; i < rows.length; i++) {
+          if (i % 20 === 0 && deps.shouldStop?.()) throw new ScheduleTimeBudgetError();
           let cellRead: string | null = null;
           if (deps.ocrDigitCell && maskedG) {
             const x0 = Math.max(0, Math.round(frame.rules[col] + 8));

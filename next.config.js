@@ -97,6 +97,8 @@ const nextConfig = {
       // Externalizing pdf-to-img keeps it as a plain, unbundled require()
       // from its real file location, where the relative resolution is valid.
       "pdf-to-img",
+      // sharp is native: it must stay an external require(), never bundled (see outputFileTracingIncludes below)
+      "sharp",
     ],
     // serverComponentsExternalPackages alone does NOT get every file these
     // two packages need at runtime into the traced serverless bundle —
@@ -110,6 +112,12 @@ const nextConfig = {
       "/api/circulars": [
         "./node_modules/@napi-rs/canvas*/**/*",
         "./node_modules/pdfjs-dist/**/*",
+        // sharp (and its platform binaries under @img) is used by the roster check and the health check-up schedule reading that now run inside
+        // the upload (src/lib/ingestion/schedule/*). Like @napi-rs/canvas above it is a native module that the build-time tracer can leave out
+        // of the deployed route, which would silently turn that feature off (the roster check would fail and every page would be read as an
+        // ordinary one), so it is force-included here.
+        "./node_modules/sharp/**/*",
+        "./node_modules/@img/**/*",
       ],
       // pg has been in serverComponentsExternalPackages since long before
       // tonight's changes, and the homepage/every DB-backed route worked

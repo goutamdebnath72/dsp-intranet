@@ -9,6 +9,8 @@ import { generateEmbedding } from "@/lib/ai/embedding.service";
 import { createOcrWorkerPool, destroyOcrWorkerPool, ocrPageDualPass } from "@/lib/ingestion/ocr";
 import { buildPageUnits, planChunks } from "@/lib/ingestion/chunking";
 import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
+import { createRosterProbe } from "@/lib/ingestion/schedule/rosterProbe";
+import { applyScheduleStage, logIngest, runScheduleStage, stageDetail, type IngestKind, type IngestStatus, type ScheduleStage, type Sql } from "@/lib/ingestion/schedule/ingest";
 
 // This route does two full Tesseract OCR passes PER PAGE (English, then
 // Hindi+English+Bengali) plus an embedding call per ~200-word chunk, so a
@@ -25,6 +27,14 @@ import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
 // case) work fine; a document that doesn't will fail with a clear error
 // rather than a silent background job that can be misleading about status.
 export const maxDuration = 300;
+
+// ---- Time budget of a roster circular (a health check-up schedule). The schedule is read inside this same request, and these numbers keep that from
+// ever costing the upload: the reading stops (status "timeout") once the request has run SCHEDULE_STOP_AFTER_MS; the roster pages are read the normal
+// way afterwards only if there is clearly time for it. The circular itself is saved whatever happens to the schedule.
+const SCHEDULE_STOP_AFTER_MS = 235_000;
+const MAX_UPLOAD_MS = 270_000;
+const FALLBACK_MS_PER_PAGE = 20_000;
+const FALLBACK_RESERVE_MS = 40_000;
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
@@ -92,6 +102,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 ============================================================ */
 export async function POST(req: Request) {
   const dataSource = await getDb();
+  const startedAt = Date.now();
 
   // Every blob byte written this request, for compensating cleanup on failure.
   const uploadedBlobUrls: string[] = [];
@@ -200,6 +211,14 @@ export async function POST(req: Request) {
     // circular embedding (whole-document vector), unchanged.
     const perPageText: string[] = [];
 
+    // ROSTER CIRCULARS (a health check-up schedule): decided from the PAGES, not from the headline (see rosterProbe.ts). The pages that hold the
+    // roster table skip the slow generic OCR (their text would be a second, unstructured copy of data that is stored properly as rows) and the
+    // schedule is read, checked against HR and stored (see ingest.ts). Ordinary circulars never get here: every page is read exactly as before.
+    const rosterProbe = createRosterProbe();
+    const rosterPageNumbers: number[] = [];
+    const pagePngs: Buffer[] = []; // kept only while the circular could still turn out to be a roster
+    let scheduleStage: ScheduleStage | null = null;
+
     /* ============================================================
        PHASE A — persist blobs + run every fallible step. Any throw
        here jumps to the catch, which deletes all tracked blobs. No DB
@@ -266,7 +285,25 @@ export async function POST(req: Request) {
           uploadedBlobUrls.push(url);
           fileUrls.push(url);
 
+          // Is this page the roster table of a health check-up schedule? (An image check of the first pages, then one small OCR of the table's
+          // headings: see rosterProbe.ts. A failure of the check just means "an ordinary page".)
+          let isRosterPage = false;
           if (ocrWorkers) {
+            try {
+              const verdict = await rosterProbe.classify(pngBuffer, page, async (png) => {
+                const r = await ocrWorkers.eng.recognize(png, {}, { text: false, tsv: true });
+                return (r?.data?.tsv as string) || "";
+              });
+              isRosterPage = verdict.roster;
+            } catch (err) {
+              console.warn(`UPLOAD: the roster check failed on page ${page} (treated as an ordinary page):`, (err as any)?.message || err);
+            }
+            if (rosterProbe.isRoster === false) pagePngs.length = 0; // not a roster: the images kept so far are not needed
+            else pagePngs[page - 1] = pngBuffer;
+            if (isRosterPage) rosterPageNumbers.push(page);
+          }
+
+          if (ocrWorkers && !isRosterPage) {
             try {
               console.log(
                 `DEBUG: Running dual-pass OCR (PSM 3) on PDF page ${page}...`,
@@ -286,6 +323,39 @@ export async function POST(req: Request) {
       } finally {
         if (ocrWorkers) await destroyOcrWorkerPool(ocrWorkers);
         await doc.destroy();
+      }
+
+      if (rosterPageNumbers.length > 0) {
+        const sql: Sql = (text, params) => dataSource.query(text, params);
+        scheduleStage = await runScheduleStage({ pages: pagePngs, sql, deadlineAt: startedAt + SCHEDULE_STOP_AFTER_MS });
+        console.log(
+          `UPLOAD: roster circular (roster pages ${rosterPageNumbers.join(",")}): schedule ${scheduleStage.status} after ${scheduleStage.seconds}s` +
+            (scheduleStage.prepared ? `, ${scheduleStage.prepared.rows.length} rows` : "") +
+            (scheduleStage.problems.length ? `, problems: ${scheduleStage.problems.slice(0, 3).join(" | ")}` : "") +
+            (scheduleStage.error ? `, error: ${scheduleStage.error}` : ""),
+        );
+        if (scheduleStage.status !== "ready") {
+          // The schedule could not be stored now. Keep the circular fully searchable: read its roster pages the normal way, if clearly there is time.
+          const timeLeft = startedAt + MAX_UPLOAD_MS - Date.now();
+          if (timeLeft > rosterPageNumbers.length * FALLBACK_MS_PER_PAGE + FALLBACK_RESERVE_MS) {
+            const fallbackWorkers = await createOcrWorkerPool();
+            try {
+              for (const pn of rosterPageNumbers) {
+                try {
+                  const text = await ocrPageDualPass(pagePngs[pn - 1], `page ${pn}`, fallbackWorkers);
+                  ocrAccumulatedText += text + " \n";
+                  perPageText[pn - 1] = text;
+                } catch (err) {
+                  console.error(`OCR failed on roster page ${pn}:`, err);
+                }
+              }
+            } finally {
+              await destroyOcrWorkerPool(fallbackWorkers);
+            }
+          } else {
+            console.warn("UPLOAD: no time left to read the roster pages the normal way; the schedule can be read afterwards with scripts/import-health-checkups.ts");
+          }
+        }
       }
     } else {
       console.warn("Unsupported file type:", file.type);
@@ -333,6 +403,10 @@ export async function POST(req: Request) {
     ============================ */
     let embedding: number[] | null = null;
     if (skipOcrAndEmbedding) {
+      embedding = await generateEmbedding(headline);
+    } else if (scheduleStage?.status === "ready" && !(extractedText && extractedText.length > 20)) {
+      // A schedule circular with no letter pages: its rows are stored, but it still needs one semantic signal to be findable, so, like a holiday
+      // list, it gets a headline-only embedding (headlineEmbeddingSearch.ts reads it for circulars with no chunks).
       embedding = await generateEmbedding(headline);
     } else if (extractedText && extractedText.length > 20) {
       const safeEmbeddingText =
@@ -480,11 +554,39 @@ export async function POST(req: Request) {
     // holidays/circularDetection.ts and holidays/extraction.ts, both still
     // present but unused.
 
+    // ---- What the backend decided about this circular: store its schedule if it is a roster circular, and write the decision to the log.
+    // The circular is already committed: nothing in this block can make the upload fail.
+    let ingest: { kind: IngestKind; status: IngestStatus } = { kind: holidayDetection.isHolidayListCircular ? "holiday-list" : "general", status: "saved" };
+    try {
+      const sql: Sql = (text, params) => dataSource.query(text, params);
+      let detail: Record<string, unknown> = { pages: fileUrls.length, chunks: preparedChunks.length };
+      if (scheduleStage) {
+        const stage: ScheduleStage = scheduleStage;
+        let status: IngestStatus = stage.status === "ready" ? "applied" : stage.status;
+        detail = { ...detail, ...stageDetail(stage, rosterPageNumbers) };
+        if (stage.status === "ready") {
+          try {
+            const stored = await applyScheduleStage((fn) => dataSource.transaction((manager) => fn((text, params) => manager.query(text, params))), circular.id, stage);
+            detail.stored = stored.stored;
+          } catch (e: any) {
+            status = "failed";
+            detail.error = String(e?.message || e).split("\n")[0];
+            console.error("UPLOAD: the schedule could not be stored (the circular is saved; run scripts/import-health-checkups.ts):", e?.message || e);
+          }
+        }
+        ingest = { kind: "health-schedule", status };
+      }
+      await logIngest(sql, circular.id, ingest.kind, ingest.status, detail);
+    } catch (e: any) {
+      console.error("UPLOAD: the schedule/log step failed (the circular itself is saved):", e?.message || e);
+    }
+
     await cleanupTempFiles();
 
     return NextResponse.json({
       message: "Circular uploaded successfully",
       circular,
+      ingest,
     });
   } catch (err: any) {
     console.error(

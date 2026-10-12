@@ -20,7 +20,7 @@ import type { AnalyticsPayload } from "@/lib/employees/analytics";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import type { Nl2SqlExtras } from "./clientTypes";
-import { buildSourceInfo, unconfirmedNote } from "./circularSources";
+import { buildSourceInfo, pendingScheduleNote, unconfirmedNote } from "./circularSources";
 import { comparisonVerdict } from "./rankingCheck";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
@@ -338,6 +338,9 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
       .catch(() => null);
     if (have && have.length) payload.answer = `No row matches. The health check-up schedules in the system are: ${have.map((h) => h.schedule).join(", ")}.`;
     else if (have) payload.answer = "No health check-up schedule has been loaded yet.";
+    // a schedule whose circular was uploaded but could not be read yet: say so, so the person knows why it is missing
+    const pending = await pendingScheduleNote((sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>));
+    if (have && pending) payload.answer += ` ${pending}`;
   }
   // The circular(s) the answer was read from, for the "Source" line (a click opens the circular at the page of the people listed). Looked up by the
   // system, not asked of the model; if anything goes wrong there is simply no source line.

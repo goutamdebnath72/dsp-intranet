@@ -1,6 +1,6 @@
 // src/lib/nl2sql/circularSources.selftest.ts
 // Run:  npx tsx src/lib/nl2sql/circularSources.selftest.ts      (no database: the lookups are answered by stand-ins)
-import { buildCircularSources, buildSourceInfo, unconfirmedNote, type RunQuery } from "./circularSources";
+import { buildCircularSources, buildSourceInfo, pendingScheduleNote, unconfirmedNote, type RunQuery } from "./circularSources";
 
 let pass = 0;
 let fail = 0;
@@ -103,6 +103,20 @@ const row = (ticket_no: string | null, name: string, circular: string) => ({ tic
   check("the note: one of a list -> '1 of the 15 people listed is not ...' (singular verb) with the name", unconfirmedNote(["GOUTAM BISWAS"], 15) === "1 of the 15 people listed is not in the HR directory (the ticket shown is as printed in the circular): GOUTAM BISWAS.");
   check("the note: several -> plural verb, all names", unconfirmedNote(["A B", "C D"], 15) === "2 of the 15 people listed are not in the HR directory (the ticket shown is as printed in the circular): A B, C D.");
   check("the note: more than five names -> five and 'and N more' (the line stays short)", unconfirmedNote(["A", "B", "C", "D", "E", "F", "G"], 20) === "7 of the 20 people listed are not in the HR directory (the ticket shown is as printed in the circular): A, B, C, D, E and 2 more.");
+
+  // 9. schedules whose circular is in the archive but whose rows are not (the upload could not finish reading them)
+  {
+    const q = (rows: Array<Record<string, unknown>>): RunQuery => async () => rows;
+    check("nothing pending: no sentence", (await pendingScheduleNote(q([]))) === null);
+    check("one schedule not read yet: named by its archive label", (await pendingScheduleNote(q([{ serial: 3, year: 2024, headline: "H" }]))) === "The health check-up schedule of Circular 003 (2024) has not been read yet, so it is not included.");
+    check("two: 'A and B', plural", (await pendingScheduleNote(q([{ serial: 3, year: 2024, headline: "H" }, { serial: 9, year: 2024, headline: "H" }]))) === "The health check-up schedules of Circular 003 (2024) and Circular 009 (2024) have not been read yet, so they are not included.");
+    check("three: 'A, B and C'", (await pendingScheduleNote(q([{ serial: 1, year: 2025, headline: "H" }, { serial: 2, year: 2025, headline: "H" }, { serial: 3, year: 2025, headline: "H" }]))) === "The health check-up schedules of Circular 001 (2025), Circular 002 (2025) and Circular 003 (2025) have not been read yet, so they are not included.");
+    check("a circular with no serial number is named by its headline", /"CIRCULAR-HEALTH CHECK UP"/.test(String(await pendingScheduleNote(q([{ serial: null, year: 2025, headline: "CIRCULAR-HEALTH CHECK UP" }])))));
+    const boom: RunQuery = async () => {
+      throw new Error('relation "public.circular_ingest_log" does not exist');
+    };
+    check("if the log table does not exist yet: no sentence, no error", (await pendingScheduleNote(boom)) === null);
+  }
 
   console.log(`\ncircularSources selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

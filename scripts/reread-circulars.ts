@@ -128,7 +128,14 @@ async function main() {
         const row = rows[n];
         const t0 = Date.now();
         const old: OldChunk[] = (await client.query(`SELECT chunk_index, page_number, text FROM public.circular_chunks WHERE circular_id = $1 ORDER BY chunk_index`, [row.id])).rows;
-        const plan = await planReread(deps, row, old);
+        // pages whose content is stored as schedule rows (roster pages) are not read: a fresh upload does not read them either
+        let structured = new Set<number>();
+        try {
+          structured = new Set<number>((await client.query(`SELECT DISTINCT page_number FROM public.health_checkup_schedule WHERE circular_id = $1 AND page_number IS NOT NULL`, [row.id])).rows.map((r: any) => Number(r.page_number)));
+        } catch {
+          structured = new Set<number>(); // the table does not exist: no schedules
+        }
+        const plan = await planReread(deps, row, old, structured);
         plans.push(plan);
         const removed = plan.onlyInOld.length ? ` | numbers that disappear: ${plan.onlyInOld.slice(0, 8).join(", ")}${plan.onlyInOld.length > 8 ? ", ..." : ""}` : "";
         const growth = plan.oldChars ? plan.newChars / plan.oldChars : 1;

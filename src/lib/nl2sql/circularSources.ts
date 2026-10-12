@@ -5,6 +5,7 @@
 // to forget); the SYSTEM looks it up from what the answer returned: the circular label is a column of every check-up answer, and the page comes
 // from the same view. Anything that goes wrong gives NO source line; the answer itself is never affected.
 import type { CircularSource } from "./clientTypes";
+import { circularLabel } from "../search/circularLabels";
 
 export type RunQuery = (sql: string, params: unknown[]) => Promise<Array<Record<string, unknown>>>;
 
@@ -94,5 +95,31 @@ export async function buildSourceInfo(columns: string[], rows: Array<Record<stri
     return { sources: out, unconfirmed };
   } catch {
     return none;
+  }
+}
+
+/**
+ * A sentence for when an answer is empty: health check-up schedules whose circular was uploaded but whose rows are NOT in the system (the upload
+ * could not finish reading them, see circular_ingest_log), so a person is told why instead of being left to wonder. null when there are none, and when
+ * anything goes wrong (the log table may not exist yet).
+ */
+export async function pendingScheduleNote(run: RunQuery): Promise<string | null> {
+  try {
+    const rows = await run(
+      `SELECT DISTINCT ON (l.circular_id) l.circular_id, c."serialNumber" AS serial, EXTRACT(YEAR FROM c."publishedAt")::int AS year, c.headline
+       FROM public.circular_ingest_log l JOIN public.circulars c ON c.id = l.circular_id
+       WHERE l.kind = 'health-schedule' AND l.status IN ('needs-review', 'timeout', 'failed')
+         AND NOT EXISTS (SELECT 1 FROM public.health_checkup_schedule h WHERE h.circular_id = l.circular_id)
+       ORDER BY l.circular_id, l.id DESC`,
+      [],
+    );
+    const labels = rows.map((r) => circularLabel(r.serial as number | null, r.year as number | null) ?? `"${String(r.headline ?? "").slice(0, 60)}"`);
+    if (labels.length === 0) return null;
+    const list = labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+    return labels.length === 1
+      ? `The health check-up schedule of ${list} has not been read yet, so it is not included.`
+      : `The health check-up schedules of ${list} have not been read yet, so they are not included.`;
+  } catch {
+    return null;
   }
 }

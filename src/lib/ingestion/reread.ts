@@ -75,7 +75,15 @@ const uniq = (xs: string[]) => [...new Set(xs)];
 /** The numbers in a text, NOT counting the "col1:", "col2:" ... labels that the table rebuilding adds (they are not on the page). */
 export const numbersOf = (text: string): string[] => numericTokens((text || "").replace(/\bcol\d+:/g, " "));
 
-export async function planReread(deps: RereadDeps, row: CircularRow, oldChunks: OldChunk[]): Promise<RereadPlan> {
+/**
+ * `structuredPages`: pages whose content is stored as structured rows (the roster pages of a health check-up schedule, see schedule/ingest.ts). A fresh
+ * upload does not read or chunk them (their text would be a second, unstructured copy of the rows), so neither does a re-read: they are not read, their
+ * old chunks are left out of the comparison, and a circular that still has such old chunks is a "would-change" (applying it drops them).
+ */
+export async function planReread(deps: RereadDeps, row: CircularRow, oldChunks: OldChunk[], structuredPages: ReadonlySet<number> = new Set()): Promise<RereadPlan> {
+  const keptOld = oldChunks.filter((c) => !structuredPages.has(c.page_number));
+  const staleStructured = oldChunks.length - keptOld.length;
+  const keptOldChars = keptOld.reduce((n, c) => n + c.text.length, 0);
   const base = {
     id: row.id,
     serialNumber: row.serialNumber,
@@ -92,11 +100,18 @@ export async function planReread(deps: RereadDeps, row: CircularRow, oldChunks: 
   };
   if (oldChunks.length === 0) return { ...base, status: "skipped", reason: "no stored text (a holiday list or a display-only circular): nothing to re-read" };
   if (!base.pages) return { ...base, status: "skipped", reason: "no page images stored for this circular" };
+  if (structuredPages.size > 0 && Array.from({ length: base.pages }, (_, i) => i + 1).every((p) => structuredPages.has(p))) {
+    return { ...base, status: "skipped", reason: "every page is a roster page whose content is stored as rows: nothing to read" };
+  }
 
   const pageTexts: string[] = [];
   const problems: string[] = [];
   for (let i = 0; i < row.fileUrls.length; i++) {
     const label = `circular ${row.id} page ${i + 1}`;
+    if (structuredPages.has(i + 1)) {
+      pageTexts[i] = ""; // a roster page: its content is stored as rows, so it is not read
+      continue;
+    }
     try {
       const r = await deps.readPage(row.fileUrls[i], label);
       pageTexts[i] = r.text;
@@ -110,7 +125,7 @@ export async function planReread(deps: RereadDeps, row: CircularRow, oldChunks: 
   // The same assembly as the upload: pages joined, spaces cleaned, then chunked per page.
   const extractedText = pageTexts.map((t) => t + " \n").join("").replace(/\s+/g, " ").trim();
   const newChunks = planChunks(buildPageUnits(pageTexts, extractedText));
-  const oldText = oldChunks.map((c) => c.text).join(" ");
+  const oldText = keptOld.map((c) => c.text).join(" ");
   const newText = newChunks.map((c) => c.text).join(" ");
   const oldNums = uniq(numbersOf(oldText));
   const newNums = uniq(numbersOf(newText));
@@ -130,13 +145,13 @@ export async function planReread(deps: RereadDeps, row: CircularRow, oldChunks: 
 
   if (problems.length) return { ...plan, status: "suspicious", reason: problems.join("; ") };
   if (newChunks.length === 0) return { ...plan, status: "suspicious", reason: "the re-read produced no text at all" };
-  if (plan.oldChars > 0 && plan.newChars < plan.oldChars * MIN_NEW_TO_OLD_RATIO) {
-    return { ...plan, status: "suspicious", reason: `the new text is only ${plan.newChars} characters against ${plan.oldChars} stored (less than ${MIN_NEW_TO_OLD_RATIO * 100}%): the re-read probably failed` };
+  if (keptOldChars > 0 && plan.newChars < keptOldChars * MIN_NEW_TO_OLD_RATIO) {
+    return { ...plan, status: "suspicious", reason: `the new text is only ${plan.newChars} characters against ${keptOldChars} stored (less than ${MIN_NEW_TO_OLD_RATIO * 100}%): the re-read probably failed` };
   }
-  if (plan.oldChars > 0 && plan.newChars > plan.oldChars * MAX_NEW_TO_OLD_RATIO) {
-    return { ...plan, status: "suspicious", reason: `the new text is ${(plan.newChars / plan.oldChars).toFixed(1)}x the stored text (more than ${MAX_NEW_TO_OLD_RATIO}x): probably runaway table text` };
+  if (keptOldChars > 0 && plan.newChars > keptOldChars * MAX_NEW_TO_OLD_RATIO) {
+    return { ...plan, status: "suspicious", reason: `the new text is ${(plan.newChars / keptOldChars).toFixed(1)}x the stored text (more than ${MAX_NEW_TO_OLD_RATIO}x): probably runaway table text` };
   }
-  const same = newChunks.length === oldChunks.length && newChunks.every((c, i) => c.text === oldChunks[i].text);
+  const same = staleStructured === 0 && newChunks.length === keptOld.length && newChunks.every((c, i) => c.text === keptOld[i].text);
   if (same) return { ...plan, status: "unchanged" };
   return plan;
 }
