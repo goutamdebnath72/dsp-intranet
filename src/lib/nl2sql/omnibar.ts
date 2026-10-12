@@ -20,7 +20,7 @@ import type { AnalyticsPayload } from "@/lib/employees/analytics";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import type { Nl2SqlExtras } from "./clientTypes";
-import { buildSourceInfo, pendingScheduleNote, unconfirmedNote } from "./circularSources";
+import { buildSourceInfo, pendingScheduleNote, ticketLookupNote, ticketsAsked, unconfirmedNote } from "./circularSources";
 import { comparisonVerdict } from "./rankingCheck";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
@@ -336,8 +336,11 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
     const have = await deps
       .withClient(async (c) => (await c.query(`SELECT DISTINCT schedule, schedule_year, schedule_month_no FROM nlq.health_checkups ORDER BY schedule_year, schedule_month_no`)).rows as Array<{ schedule: string }>)
       .catch(() => null);
-    if (have && have.length) payload.answer = `No row matches. The health check-up schedules in the system are: ${have.map((h) => h.schedule).join(", ")}.`;
-    else if (have) payload.answer = "No health check-up schedule has been loaded yet.";
+    // A question about a TICKET that matches nothing is never a dead end: say who the ticket belongs to and which schedules it IS on.
+    const asked = ticketsAsked(String((res as { question?: unknown }).question ?? ""), String(res.sql ?? ""));
+    const person = asked.length ? await ticketLookupNote((sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>), asked) : null;
+    if (have && have.length) payload.answer = `No row matches. ${person ? `${person} ` : ""}The health check-up schedules in the system are: ${have.map((h) => h.schedule).join(", ")}.`;
+    else if (have) payload.answer = `No health check-up schedule has been loaded yet.${person ? ` ${person}` : ""}`;
     // a schedule whose circular was uploaded but could not be read yet: say so, so the person knows why it is missing
     const pending = await pendingScheduleNote((sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>));
     if (have && pending) payload.answer += ` ${pending}`;

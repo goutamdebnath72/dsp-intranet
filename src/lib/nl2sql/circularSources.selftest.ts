@@ -1,6 +1,6 @@
 // src/lib/nl2sql/circularSources.selftest.ts
 // Run:  npx tsx src/lib/nl2sql/circularSources.selftest.ts      (no database: the lookups are answered by stand-ins)
-import { buildCircularSources, buildSourceInfo, pendingScheduleNote, unconfirmedNote, type RunQuery } from "./circularSources";
+import { buildCircularSources, buildSourceInfo, pendingScheduleNote, ticketLookupNote, ticketsAsked, unconfirmedNote, type RunQuery } from "./circularSources";
 
 let pass = 0;
 let fail = 0;
@@ -116,6 +116,31 @@ const row = (ticket_no: string | null, name: string, circular: string) => ({ tic
       throw new Error('relation "public.circular_ingest_log" does not exist');
     };
     check("if the log table does not exist yet: no sentence, no error", (await pendingScheduleNote(boom)) === null);
+  }
+
+  // 10. which tickets a question is about
+  check("the ticket is read from the SQL that ran: ticket_no = '228757'", JSON.stringify(ticketsAsked("anything", "SELECT a FROM nlq.health_checkups WHERE ticket_no = '228757' AND schedule_year = 2025")) === '["228757"]');
+  check("...also an IN list, and two tickets are both kept", JSON.stringify(ticketsAsked("", "SELECT a FROM nlq.health_checkups WHERE ticket_no IN ('228757', '240463')")) === '["228757","240463"]');
+  check("with no ticket in the SQL, a six-digit number in the question is used; a number of another length is not", JSON.stringify(ticketsAsked("which department is ticket 228757 in for 2025 and page 12345", "SELECT a FROM t")) === '["228757"]');
+  check("the SQL wins over the question, and at most three tickets are kept", JSON.stringify(ticketsAsked("ticket 111111", "WHERE ticket_no = '222222'")) === '["222222"]' && ticketsAsked("111111 222222 333333 444444 555555", "").length === 3);
+  check("no ticket anywhere: nothing", ticketsAsked("who has the health check-up on 5 January 2026", "WHERE checkup_date = '2026-01-05'").length === 0);
+
+  // 11. an empty answer about a ticket: who it belongs to, and where it IS
+  {
+    const mk = (hr: Array<Record<string, unknown>>, on: Array<Record<string, unknown>>): RunQuery => async (sql) => (/nlq\.employees/.test(sql) ? hr : on);
+    const onJan26 = [{ schedule: "January 2026", d: "01 Jan 2026", circular: "Circular 010 (2025)", name: "BISWAJIT BHATTACHARJEE" }];
+    check("a ticket HR knows that is on another schedule: name, department and where it is (the 12 Oct case, ticket 228757 asked for January 2025)", (await ticketLookupNote(mk([{ name: "BISWAJIT BHATTACHARJEE", department: "CO & CC (BATTERY)" }], onJan26), ["228757"])) === "Ticket 228757 belongs to BISWAJIT BHATTACHARJEE (CO & CC (BATTERY)), who is on the January 2026 schedule (01 Jan 2026, Circular 010 (2025)).");
+    check("on two schedules: both are listed, in order", (await ticketLookupNote(mk([{ name: "A B", department: "D" }], [{ schedule: "December 2024", d: "05 Dec 2024", circular: "Circular 009 (2024)", name: "A B" }, ...onJan26]), ["1"]))?.includes("the December 2024 schedule (05 Dec 2024, Circular 009 (2024)); the January 2026 schedule (01 Jan 2026, Circular 010 (2025))") === true);
+    check("a ticket HR knows that is on no schedule", (await ticketLookupNote(mk([{ name: "A B", department: "D" }], []), ["1"])) === "Ticket 1 belongs to A B (D) but is not on any health check-up schedule in the system.");
+    check("HR's department may be missing: the name alone is given", (await ticketLookupNote(mk([{ name: "A B", department: null }], onJan26), ["1"]))?.startsWith("Ticket 1 belongs to A B, who is on") === true);
+    check("a ticket on a schedule that HR does not know (a person who has left)", (await ticketLookupNote(mk([], onJan26), ["1"])) === "Ticket 1 (BISWAJIT BHATTACHARJEE) is on the January 2026 schedule (01 Jan 2026, Circular 010 (2025)); it is not in the HR directory.");
+    check("a ticket nobody knows", (await ticketLookupNote(mk([], []), ["000000"])) === "Ticket 000000 is not in the HR directory and is not on any health check-up schedule in the system.");
+    check("two tickets: one sentence each", ((await ticketLookupNote(mk([], []), ["1", "2"])) ?? "").split("Ticket ").length === 3);
+    const boom: RunQuery = async () => {
+      throw new Error("connection lost");
+    };
+    check("if the lookup fails: nothing is added, no error (the answer stays as it was)", (await ticketLookupNote(boom, ["1"])) === null);
+    check("no tickets: nothing", (await ticketLookupNote(mk([], []), [])) === null);
   }
 
   console.log(`\ncircularSources selftest: ${pass} passed, ${fail} failed`);

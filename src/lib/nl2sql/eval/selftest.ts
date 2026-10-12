@@ -1592,6 +1592,10 @@ async function main() {
   const ohn: any = await runOmnibar(`which department is ticket ${nx[0].ticket_no} in for the February 2025 health check-up`, "T-HEALTH", mkDeps(model(hNone, "The schedule row of one ticket.")));
   check("a schedule question with no row says which schedules exist (December 2024, January 2025) instead of a bare '0 rows'", !!ohn && /No row matches/.test(String(ohn.answer)) && /December 2024, January 2025/.test(String(ohn.answer)), String(ohn && ohn.answer));
   check("...and a question with a row keeps its normal headline", !!oh && /1 row/.test(String(oh.answer)), String(oh && oh.answer));
+  // a ticket that matches nothing is not a dead end: who the ticket belongs to, and every schedule it IS on (12 Oct: ticket 228757 asked for January 2025)
+  const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  check("an empty answer about a ticket says who it belongs to (HR name) and which schedules it is on: 'Ticket N belongs to NAME (...), who is on the December 2024 schedule (...); the January 2025 schedule (...)'", !!ohn && new RegExp(`Ticket ${nx[0].ticket_no} belongs to ${escRe(nx[0].name)}`).test(String(ohn.answer)) && /who is on the December 2024 schedule \(05 Dec 2024, Circular 009 \(2024\)\); the January 2025 schedule/.test(String(ohn.answer)), String(ohn && ohn.answer));
+  check("...and it keeps 'No row matches' and the list of schedules in the system after it", !!ohn && /^No row matches\. Ticket /.test(String(ohn.answer)) && /The health check-up schedules in the system are: December 2024, January 2025\./.test(String(ohn.answer)), String(ohn && ohn.answer));
   // a schedule whose circular was uploaded but not read: the empty answer says so (from the upload's decision log)
   await pg.query(`INSERT INTO public.circulars (id, headline, "serialNumber", "publishedAt") VALUES (903, 'CIRCULAR-HEALTH CHECK UP FEB-2025', 7, '2025-01-30')`);
   await pg.query(`INSERT INTO public.circular_ingest_log (circular_id, kind, status, detail) VALUES (903, 'health-schedule', 'timeout', '{}')`);
@@ -1599,6 +1603,7 @@ async function main() {
   check("an empty answer says which uploaded schedule has not been read yet: '... Circular 007 (2025) has not been read yet, so it is not included.'", !!ohp && /No row matches/.test(String(ohp.answer)) && /The health check-up schedule of Circular 007 \(2025\) has not been read yet, so it is not included\./.test(String(ohp.answer)), String(ohp && ohp.answer));
   await pg.query(`INSERT INTO public.health_checkup_schedule (circular_id, schedule_year, schedule_month, seq, page_number, ticket_printed, ticket_no, name_printed, department_code_printed, department_printed, checkup_date, status) VALUES (903, 2025, 2, 1, 3, '777001', NULL, 'LATE PERSON', 1, 'X', '2025-02-03', 'unverified')`);
   const ohq: any = await runOmnibar(`which department is ticket 000000 in for the March 2025 health check-up`, "T-HEALTH", mkDeps(model(`SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE ticket_no = '000000'`, "One ticket.")));
+  check("a ticket nobody knows: 'Ticket 000000 is not in the HR directory and is not on any health check-up schedule in the system.'", !!ohq && /Ticket 000000 is not in the HR directory and is not on any health check-up schedule in the system\./.test(String(ohq.answer)), String(ohq && ohq.answer));
   check("once the schedule's rows ARE in the system (the tool was run) the sentence is gone", !!ohq && /No row matches/.test(String(ohq.answer)) && !/has not been read yet/.test(String(ohq.answer)), String(ohq && ohq.answer));
   await pg.query(`DELETE FROM public.health_checkup_schedule WHERE circular_id = 903`);
   await pg.query(`DELETE FROM public.circulars WHERE id = 903`);

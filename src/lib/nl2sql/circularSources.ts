@@ -123,3 +123,46 @@ export async function pendingScheduleNote(run: RunQuery): Promise<string | null>
     return null;
   }
 }
+
+/**
+ * The ticket numbers a health check-up question is about: the ones the SQL that ran filters on (ticket_no = '228757', or an IN list), and, when the
+ * SQL has none, six-digit numbers in the question itself. At most three.
+ */
+export function ticketsAsked(question: string, sql: string): string[] {
+  const out: string[] = [];
+  const add = (t: string) => {
+    if (!out.includes(t)) out.push(t);
+  };
+  for (const m of (sql || "").matchAll(/ticket_no\s*(?:=|IN)\s*\(?\s*((?:'\d{6}'\s*,?\s*)+)/gi)) for (const t of m[1].match(/\d{6}/g) ?? []) add(t);
+  if (out.length === 0) for (const t of (question || "").match(/\b\d{6}\b/g) ?? []) add(t);
+  return out.slice(0, 3);
+}
+
+/**
+ * For an EMPTY health check-up answer about a ticket: who the ticket belongs to (the HR directory) and every schedule it IS on, so that "no row" is
+ * never a dead end. (Ticket 228757 is not on the January 2025 list, but it is on the January 2026 one: the answer says so, with the name and department.)
+ * null when there is nothing to say or anything goes wrong; the answer then stays as it was.
+ */
+export async function ticketLookupNote(run: RunQuery, tickets: string[]): Promise<string | null> {
+  try {
+    const parts: string[] = [];
+    for (const t of tickets) {
+      const hr = await run(`SELECT name, department FROM nlq.employees WHERE ticket_no = $1 LIMIT 1`, [t]);
+      const on = await run(
+        `SELECT schedule, to_char(checkup_date::date, 'DD Mon YYYY') AS d, circular, name FROM nlq.health_checkups WHERE ticket_no = $1 ORDER BY schedule_year, schedule_month_no, checkup_date`,
+        [t],
+      );
+      const items = on.map((r) => `the ${String(r.schedule)} schedule (${String(r.d)}, ${String(r.circular)})`);
+      const who = hr[0] ? `${String(hr[0].name)}${hr[0].department ? ` (${String(hr[0].department)})` : ""}` : null;
+      if (who && items.length) parts.push(`Ticket ${t} belongs to ${who}, who is on ${items.join("; ")}.`);
+      else if (who) parts.push(`Ticket ${t} belongs to ${who} but is not on any health check-up schedule in the system.`);
+      else if (items.length) parts.push(`Ticket ${t} (${String(on[0].name)}) is on ${items.join("; ")}; it is not in the HR directory.`);
+      else parts.push(`Ticket ${t} is not in the HR directory and is not on any health check-up schedule in the system.`);
+    }
+    return parts.length ? parts.join(" ") : null;
+  } catch (e) {
+    // The answer stays as it was, but the reason is written to the server log: a silent failure here once hid a wrong query.
+    console.warn(`TICKET LOOKUP: could not add who the ticket belongs to (${String((e as Error)?.message ?? e).split("\n")[0]})`);
+    return null;
+  }
+}
