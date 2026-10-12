@@ -1,6 +1,7 @@
 // src/components/OmnibarModal.tsx
 "use client";
 
+import { formatCircularTitle } from "@/lib/circularTitle";
 import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -1353,7 +1354,7 @@ export function OmnibarModal({
                                               : "text-neutral-900 group-hover:text-primary-700"
                                           }`}
                                         >
-                                          {result.headline}
+                                          {formatCircularTitle(result.headline)}
                                         </span>
                                         {/* Clean Match Percentage Badge */}
                                         {typeof (result as any)
@@ -1438,7 +1439,7 @@ export function OmnibarModal({
                                               : "text-neutral-900 group-hover:text-primary-700"
                                           }`}
                                         >
-                                          {result.headline}
+                                          {formatCircularTitle(result.headline)}
                                         </span>
                                         {/* Clean Match Percentage Badge */}
                                         {typeof (result as any)

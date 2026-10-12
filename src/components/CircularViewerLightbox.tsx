@@ -1,6 +1,7 @@
 // src/components/CircularViewerLightbox.tsx
 "use client";
 
+import { formatCircularTitle } from "@/lib/circularTitle";
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Loader2, AlertCircle, Sparkles } from "lucide-react";
@@ -171,7 +172,7 @@ export function CircularViewerLightbox({
               <h1 className="text-lg font-semibold truncate">
                 {isLoading && !circular
                   ? "Loading circular..."
-                  : circular?.headline || "Circular"}
+                  : formatCircularTitle(circular?.headline) || "Circular"}
               </h1>
             </div>
           </header>
@@ -218,7 +219,7 @@ export function CircularViewerLightbox({
                     >
                       <img
                         src={url}
-                        alt={`Page ${pageNo} of ${circular.headline}`}
+                        alt={`Page ${pageNo} of ${formatCircularTitle(circular.headline)}`}
                         onLoad={() => markLoaded(index)}
                         onError={() => markLoaded(index)}
                         className={`w-full rounded-md bg-white ${

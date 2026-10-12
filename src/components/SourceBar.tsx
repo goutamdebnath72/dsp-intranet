@@ -4,6 +4,7 @@
 // with a plain "Open circular" button. A click opens the circular in the SAME viewer the archive and the search use, at the page where the people in
 // the answer are listed, with a marker on that page: one click to check the answer against the original. It sits above the table, not under it, so it
 // is seen without scrolling and nobody has to find it by chance. When someone listed is not in the HR directory it says so, here, and only then.
+import { formatCircularTitle } from "@/lib/circularTitle";
 import { AlertTriangle, ExternalLink, FileText } from "lucide-react";
 import type { CircularSource } from "@/lib/nl2sql/clientTypes";
 
@@ -28,7 +29,7 @@ export function SourceBar({ sources, note, onOpen }: { sources: CircularSource[]
                   <span className="font-semibold text-slate-500">Source: </span>
                   <span className="font-semibold text-slate-800">{s.label}</span>
                   <span aria-hidden="true"> · </span>
-                  <span className="break-words">{s.title}</span>
+                  <span className="break-words">{formatCircularTitle(s.title)}</span>
                   {where ? <span className="text-slate-400"> — {where}</span> : null}
                 </span>
               </div>
@@ -36,7 +37,7 @@ export function SourceBar({ sources, note, onOpen }: { sources: CircularSource[]
                 type="button"
                 onClick={() => onOpen(s.circularId, s.pages)}
                 title={`Open ${s.label}${where ? ` at ${where}` : ""} to check this answer against the original`}
-                aria-label={`Open ${s.label}, ${s.title}${where ? `, ${where}` : ""}`}
+                aria-label={`Open ${s.label}, ${formatCircularTitle(s.title)}${where ? `, ${where}` : ""}`}
                 className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary-200 bg-white px-2.5 py-1 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
               >
                 Open circular <ExternalLink size={12} aria-hidden="true" />

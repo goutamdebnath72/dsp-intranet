@@ -1,6 +1,7 @@
 // src/components/ExecutiveBriefing.tsx
 "use client";
 
+import { formatCircularTitle } from "@/lib/circularTitle";
 import React from "react";
 import { motion } from "framer-motion";
 import { DateTime } from "luxon";
@@ -499,7 +500,7 @@ function CitationChips({
             key={id}
             type="button"
             onClick={() => onOpenCircular?.(id)}
-            title={c.headline}
+            title={formatCircularTitle(c.headline)}
             className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 transition-colors hover:border-amber-400 hover:bg-amber-100 hover:text-amber-900"
           >
             <FileText size={10} />
@@ -668,11 +669,11 @@ export function ExecutiveBriefing({
                 key={c.id}
                 type="button"
                 onClick={() => onOpenCircular?.(c.id)}
-                title={c.headline}
+                title={formatCircularTitle(c.headline)}
                 className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-300 hover:text-amber-800 hover:shadow"
               >
                 <FileText size={11} className="shrink-0 text-amber-500" />
-                <span className="truncate">{c.headline}</span>
+                <span className="truncate">{formatCircularTitle(c.headline)}</span>
               </button>
             ))}
           </div>

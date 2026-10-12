@@ -1,6 +1,7 @@
 // src/components/CircularsModal.tsx
 "use client";
 
+import { formatCircularTitle } from "@/lib/circularTitle";
 import { useState, useMemo, useRef, useEffect } from "react";
 import useSWR, { preload } from "swr";
 import { AnimatePresence, motion } from "framer-motion";
@@ -380,7 +381,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
                               "0",
                             )}
                           </span>
-                          {circular.headline}
+                          {formatCircularTitle(circular.headline)}
                         </p>
                         <p className="text-sm text-neutral-500 mt-1 pl-4">
                           {DateTime.fromISO(circular.publishedAt).toFormat(
