@@ -21,6 +21,24 @@ export function mergeUnread(server: readonly number[], justOpened: ReadonlySet<n
   return server.filter((id) => !justOpened.has(id));
 }
 
+export type VerifiedStatus = "loading" | "authenticated" | "unauthenticated";
+
+/**
+ * What to show BEFORE the server has answered the first "which are unread for me" question: for a visitor who is known to be logged out, every recent
+ * circular is new (that is the rule for them), and the page already carries that list from the server, so the red badge can show at once. Nothing is
+ * shown early for anyone logged in (their list needs their own answer, and a wrong number must never flash) or while it is not yet known who is
+ * looking, and nothing once a real answer has arrived. null = show nothing early.
+ */
+export function seedFor(status: VerifiedStatus, guestSeed: readonly number[] | null | undefined, alreadyAnswered: boolean): number[] | null {
+  if (alreadyAnswered || status !== "unauthenticated" || !guestSeed) return null;
+  return [...guestSeed];
+}
+
+/** What the page starts with, even before any script runs: the server's list for a visitor who is CERTAINLY logged out (no login cookie), otherwise nothing. */
+export function initialUnread(guestSeed: readonly number[] | null | undefined, certainlyLoggedOut: boolean): number[] {
+  return certainlyLoggedOut && guestSeed ? [...guestSeed] : [];
+}
+
 export interface CircularStatus {
   hasNewCircular: boolean;
   newCircularCount: number;
@@ -32,10 +50,12 @@ export interface CircularStatus {
   markOpened: (id: number) => Promise<boolean>;
 }
 
-export function useCircularStatus(isLoggedIn: boolean): CircularStatus {
-  const [serverUnread, setServerUnread] = useState<number[]>([]);
+export function useCircularStatus(status: VerifiedStatus, guestSeed?: readonly number[] | null, certainlyLoggedOut = false): CircularStatus {
+  const isLoggedIn = status === "authenticated";
+  const [serverUnread, setServerUnread] = useState<number[]>(() => initialUnread(guestSeed, certainlyLoggedOut));
   const [justOpened, setJustOpened] = useState<ReadonlySet<number>>(() => new Set());
   const newest = useRef(0);
+  const answered = useRef(false); // true once a real answer from the server has been used
 
   const refresh = useCallback(async () => {
     const mine = ++newest.current;
@@ -44,11 +64,18 @@ export function useCircularStatus(isLoggedIn: boolean): CircularStatus {
       if (!res.ok) return;
       const data = await res.json();
       if (mine !== newest.current) return; // a newer question was asked after this one: its answer is the one to use
+      answered.current = true;
       setServerUnread(Array.isArray(data?.unreadIds) ? data.unreadIds.map(Number) : []);
     } catch {
       // a passing network error: leave the screen as it is
     }
   }, []);
+
+  // as soon as it is known that the visitor is logged out, show the server's list straight away (the first answer then confirms or corrects it)
+  useEffect(() => {
+    const seed = seedFor(status, guestSeed, answered.current);
+    if (seed) setServerUnread(seed);
+  }, [status, guestSeed]);
 
   // on the first load, and again whenever someone logs in or out (the answer depends on who is asking)
   useEffect(() => {

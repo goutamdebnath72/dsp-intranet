@@ -37,6 +37,10 @@ interface HomepageProps {
   quickLinksData: Link[];
   departmentData: Link[];
   sailSitesData: Link[];
+  /** the circulars uploaded in the last 24 hours (from the server; the same for everyone), so a logged-out visitor sees the red badge at once */
+  recentCircularIds?: number[] | null;
+  /** true when the visitor has no login cookie at all (certainly logged out): the badge is then part of the first HTML */
+  visitorHasNoLoginCookie?: boolean;
 }
 
 const newsItems = [
@@ -64,6 +68,8 @@ export function HomepageNew({
   quickLinksData,
   departmentData,
   sailSitesData,
+  recentCircularIds,
+  visitorHasNoLoginCookie,
 }: HomepageProps) {
   // The name comes from the SAME verified session the header uses -- never from the server. The server can only
   // see the persistent login cookie, so it used to print a previous user's name next to a "Login" button.
@@ -81,7 +87,7 @@ export function HomepageNew({
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
 
   // The "new circular" state (the red circle on the thumbnail AND the highlighted rows in the modal) is owned by ONE hook, so they always agree.
-  const circularStatus = useCircularStatus(status === "authenticated");
+  const circularStatus = useCircularStatus(status, recentCircularIds, visitorHasNoLoginCookie);
 
   // Opening the modal asks the server again, so a circular uploaded since the page loaded shows up.
   const handleCircularsClick = () => {

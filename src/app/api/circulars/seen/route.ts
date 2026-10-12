@@ -3,10 +3,8 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
-import { Circular } from "@/lib/db/models/circular.model";
+import { getRecentCircularIds } from "@/lib/circulars/newStatus";
 import { CircularReadStatus } from "@/lib/db/models/circular-read-status.model";
-import { DateTime } from "luxon";
-import { CIRCULAR_NEW_THRESHOLD_HOURS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -32,21 +30,9 @@ export async function GET(request: Request) {
 
   try {
     const dataSource = await getDb();
-    const circularRepo = dataSource.getRepository(Circular);
 
-    const now = DateTime.now();
-    const thresholdDate = now.minus({ hours: CIRCULAR_NEW_THRESHOLD_HOURS });
-
-    // Candidate set: circulars uploaded within the window.
-    const recentCirculars = await circularRepo
-      .createQueryBuilder("c")
-      .select(["c.id"])
-      .where("c.uploadedAt > :threshold", {
-        threshold: thresholdDate.toJSDate(),
-      })
-      .getMany();
-
-    const recentIds = recentCirculars.map((c) => c.id);
+    // Candidate set: circulars uploaded within the window (the one shared definition of "new").
+    const recentIds = await getRecentCircularIds(dataSource);
 
     // No recent circulars at all -> nothing new for anyone.
     if (recentIds.length === 0) {

@@ -31,15 +31,19 @@ type HomePageClientProps = {
   quickLinksData: Link[];
   departmentData: Link[];
   sailSitesData: Link[]; // <-- ADDED
+  recentCircularIds?: number[] | null; // the circulars uploaded in the last 24 hours (from the server)
+  visitorHasNoLoginCookie?: boolean; // certainly logged out: the badge is part of the first HTML
 };
 
 export default function HomePageClient({
   quickLinksData,
   departmentData,
   sailSitesData, // <-- 4. ADDED
+  recentCircularIds,
+  visitorHasNoLoginCookie,
 }: HomePageClientProps) {
   const { status } = useVerifiedSession();
-  const circularStatus = useCircularStatus(status === "authenticated");
+  const circularStatus = useCircularStatus(status, recentCircularIds, visitorHasNoLoginCookie);
   const [isCircularsModalOpen, setCircularsModalOpen] = useState(false);
   const [viewingCircularId, setViewingCircularId] = useState<number | null>(
     null
