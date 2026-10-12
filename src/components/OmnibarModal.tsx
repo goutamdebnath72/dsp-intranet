@@ -552,6 +552,8 @@ export function OmnibarModal({
     : null;
   // One row (a lookup of one person or one ticket): the big number and "1 row." add nothing, the table shows it.
   const hideRowCount = !!analytics && isSingleRowTable(analytics.kind, analytics.count, !!analytics.nl2sql?.table);
+  // An answer that is a sentence written for the question (an empty health check-up answer) keeps its text but has no big number above it.
+  const hideCountNumber = hideRowCount || !!analytics?.nl2sql?.plainAnswer;
 
   return (
     <>
@@ -791,7 +793,7 @@ export function OmnibarModal({
                           <div className="min-w-0 flex-1">
                             {typeof analytics.count === "number" &&
                               analytics.kind !== "breakdown" &&
-                              !hideRowCount && (
+                              !hideCountNumber && (
                                 <div className="text-2xl font-bold leading-tight text-blue-900">
                                   {analytics.count.toLocaleString()}
                                 </div>

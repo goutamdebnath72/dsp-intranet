@@ -138,12 +138,26 @@ export function ticketsAsked(question: string, sql: string): string[] {
   return out.slice(0, 3);
 }
 
+const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** The schedule a question asked about, as the schedules are named ("January 2025"), read from the SQL that ran; null when the SQL does not name one. */
+export function scheduleAsked(sql: string): string | null {
+  const text = sql || "";
+  const named = /\bschedule\s*=\s*'([A-Za-z]+ \d{4})'/i.exec(text);
+  if (named) return named[1];
+  const y = /schedule_year\s*=\s*(\d{4})/i.exec(text);
+  const m = /schedule_month_no\s*=\s*(\d{1,2})/i.exec(text);
+  if (!y || !m) return null;
+  const month = Number(m[1]);
+  return month >= 1 && month <= 12 ? `${MONTH_FULL[month - 1]} ${y[1]}` : null;
+}
+
 /**
- * For an EMPTY health check-up answer about a ticket: who the ticket belongs to (the HR directory) and every schedule it IS on, so that "no row" is
- * never a dead end. (Ticket 228757 is not on the January 2025 list, but it is on the January 2026 one: the answer says so, with the name and department.)
- * null when there is nothing to say or anything goes wrong; the answer then stays as it was.
+ * For an EMPTY health check-up answer about a ticket: said the way a person would say it. What was asked comes first ("Ticket 228757 is not on the
+ * January 2025 health check-up list."), then who the ticket belongs to (the HR directory) and every list it IS on, so that an empty answer is never a
+ * dead end. null when there is nothing to say or anything goes wrong (the reason is written to the server log; the answer then stays as it was).
  */
-export async function ticketLookupNote(run: RunQuery, tickets: string[]): Promise<string | null> {
+export async function ticketLookupNote(run: RunQuery, tickets: string[], askedLabel: string | null = null): Promise<string | null> {
   try {
     const parts: string[] = [];
     for (const t of tickets) {
@@ -152,12 +166,14 @@ export async function ticketLookupNote(run: RunQuery, tickets: string[]): Promis
         `SELECT schedule, to_char(checkup_date::date, 'DD Mon YYYY') AS d, circular, name FROM nlq.health_checkups WHERE ticket_no = $1 ORDER BY schedule_year, schedule_month_no, checkup_date`,
         [t],
       );
-      const items = on.map((r) => `the ${String(r.schedule)} schedule (${String(r.d)}, ${String(r.circular)})`);
-      const who = hr[0] ? `${String(hr[0].name)}${hr[0].department ? ` (${String(hr[0].department)})` : ""}` : null;
-      if (who && items.length) parts.push(`Ticket ${t} belongs to ${who}, who is on ${items.join("; ")}.`);
-      else if (who) parts.push(`Ticket ${t} belongs to ${who} but is not on any health check-up schedule in the system.`);
-      else if (items.length) parts.push(`Ticket ${t} (${String(on[0].name)}) is on ${items.join("; ")}; it is not in the HR directory.`);
-      else parts.push(`Ticket ${t} is not in the HR directory and is not on any health check-up schedule in the system.`);
+      const lead = `Ticket ${t} is not on ${askedLabel ? `the ${askedLabel} health check-up list` : "that health check-up list"}.`;
+      const items = on.map((r) => `the ${String(r.schedule)} list, on ${String(r.d)} (${String(r.circular)})`);
+      const where = items.join("; ");
+      const who = hr[0] ? `${String(hr[0].name)}${hr[0].department ? `, department ${String(hr[0].department)}` : ""}` : null;
+      if (who && items.length) parts.push(`${lead} It belongs to ${who}. This ticket is on ${where}.`);
+      else if (who) parts.push(`${lead} It belongs to ${who}, but it is not on any health check-up list in the system.`);
+      else if (items.length) parts.push(`${lead} The name printed for it is ${String(on[0].name)}. This ticket is on ${where}. It is not in the HR directory.`);
+      else parts.push(`${lead} It is not in the HR directory and is not on any other health check-up list in the system.`);
     }
     return parts.length ? parts.join(" ") : null;
   } catch (e) {
@@ -165,4 +181,18 @@ export async function ticketLookupNote(run: RunQuery, tickets: string[]): Promis
     console.warn(`TICKET LOOKUP: could not add who the ticket belongs to (${String((e as Error)?.message ?? e).split("\n")[0]})`);
     return null;
   }
+}
+
+/**
+ * The whole text of an EMPTY health check-up answer. `person` is the ticket sentence (or null), `askedLabel` the schedule the question named (or null),
+ * `have` the schedules that exist. The list of schedules is given only when it helps: when the month asked about does not exist, or when nothing
+ * else can be said.
+ */
+export function emptyScheduleAnswer(args: { person: string | null; askedLabel: string | null; have: string[] }): string {
+  const { person, askedLabel, have } = args;
+  if (have.length === 0) return `No health check-up list has been loaded yet.${person ? ` ${person}` : ""}`;
+  const lists = have.join(", ");
+  const missing = askedLabel && !have.includes(askedLabel) ? `There is no health check-up list for ${askedLabel} in the system.` : "";
+  if (person) return missing ? `${person} ${missing} The lists in the system are: ${lists}.` : person;
+  return `Nothing was found. ${missing ? `${missing} ` : ""}The health check-up lists in the system are: ${lists}.`;
 }
