@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Loader2, AlertCircle, Sparkles } from "lucide-react";
+import { isAligned, whenImagesSettled } from "@/lib/ui/scrollWhenSettled";
 
 type Circular = {
   id: number;
@@ -31,13 +32,20 @@ export function CircularViewerLightbox({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const didScrollRef = useRef(false);
+  const tookOverRef = useRef(false); // the person scrolled by themselves: the automatic scroll has stopped
+  const pinIdxRef = useRef<number | null>(null); // the page being kept in place while the pages above it load
+  // Pages whose image has arrived. Until then a page holds a page-shaped (A4) space, so the pages do not jump around while they load.
+  const [loadedPages, setLoadedPages] = useState<Set<number>>(() => new Set());
+  const markLoaded = (i: number) => setLoadedPages((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
 
   useEffect(() => {
     if (circularId) {
       setIsLoading(true);
       setError(null);
       didScrollRef.current = false;
+      setLoadedPages(new Set());
       fetch(`/api/circulars/${circularId}`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch circular data.");
@@ -52,30 +60,84 @@ export function CircularViewerLightbox({
   }, [circularId]);
 
 
-  // Scroll to the matched page once the circular is loaded. Waits for the
-  // target page image to finish loading so the scroll offset is accurate.
+  // Scroll to the matched page once the circular is loaded.
+  //
+  // On a FIRST visit the page images all load at the same time and a page has no height until its image arrives, so every page above the target pushes
+  // it down as it loads (a second visit is cached and works). So the page is not scrolled to once and left: it lands at once, using the page-shaped
+  // spaces reserved for the pages that have not arrived, and is then KEPT in place (the effect below) as the pages above it load. When every image at and
+  // above the target has loaded (or failed) the position is checked a last time. The images below the target cannot move it and are not waited for.
+  // If the person scrolls (wheel, touch, mouse, keys) the automatic scroll stops at once and never fights them.
   useEffect(() => {
     if (!circular || didScrollRef.current) return;
     const page = scrollToPage ?? 0;
-    if (!page || page < 1) return; // no target -> stay at top (page 1)
-    const idx = page - 1;
-    const wrapper = pageRefs.current[idx];
-    if (!wrapper) return;
-    const img = wrapper.querySelector("img");
+    if (!page || page <= 1) return; // no target, or page 1 -> stay at the top (page 1 is already in view)
+    const idx = Math.min(page, circular.fileUrls.length) - 1;
+    const scroller = scrollerRef.current;
+    const target = pageRefs.current[idx];
+    if (!scroller || !target) return;
 
-    const doScroll = () => {
-      if (didScrollRef.current) return;
-      didScrollRef.current = true;
-      wrapper.scrollIntoView({ behavior: "smooth", block: "start" });
+    const imgs = pageRefs.current
+      .slice(0, idx + 1)
+      .map((w) => w?.querySelector("img"))
+      .filter((i): i is HTMLImageElement => !!i);
+    const cached = imgs.every((i) => i.complete); // everything is already there (a second visit): nothing will shift, so a smooth scroll is fine
+
+    tookOverRef.current = false;
+    const takeOver = () => {
+      tookOverRef.current = true;
+      pinIdxRef.current = null;
     };
+    scroller.addEventListener("wheel", takeOver, { passive: true });
+    scroller.addEventListener("touchstart", takeOver, { passive: true });
+    scroller.addEventListener("mousedown", takeOver);
+    window.addEventListener("keydown", takeOver);
 
-    if (!img || img.complete) {
-      requestAnimationFrame(doScroll); // cached / no img -> scroll next frame
-    } else {
-      img.addEventListener("load", doScroll, { once: true });
-      return () => img.removeEventListener("load", doScroll);
-    }
+    pinIdxRef.current = cached ? null : idx;
+    const frame = requestAnimationFrame(() => {
+      if (tookOverRef.current) return;
+      didScrollRef.current = true;
+      target.scrollIntoView({ behavior: cached ? "smooth" : "auto", block: "start" });
+    });
+
+    let verifyTimer: ReturnType<typeof setTimeout> | undefined;
+    const cancelWait = whenImagesSettled(imgs, () => {
+      pinIdxRef.current = null; // every page that can move the target has arrived
+      if (tookOverRef.current) return;
+      // a last look once the page has been laid out (and, after a smooth scroll, once it has ended)
+      verifyTimer = setTimeout(() => {
+        if (tookOverRef.current) return;
+        const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+        if (!isAligned(target.getBoundingClientRect().top, scroller.getBoundingClientRect().top, margin)) {
+          target.scrollIntoView({ behavior: "auto", block: "start" });
+        }
+      }, cached ? 1000 : 150);
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelWait();
+      if (verifyTimer) clearTimeout(verifyTimer);
+      pinIdxRef.current = null;
+      scroller.removeEventListener("wheel", takeOver);
+      scroller.removeEventListener("touchstart", takeOver);
+      scroller.removeEventListener("mousedown", takeOver);
+      window.removeEventListener("keydown", takeOver);
+    };
   }, [circular, scrollToPage]);
+
+  // Keeps the target page in place while the pages above it load: each time a page arrives (its reserved space is replaced by the real page, which may
+  // be a little taller or shorter) the target is put back at the top if it moved.
+  useEffect(() => {
+    const idx = pinIdxRef.current;
+    if (idx === null || tookOverRef.current) return;
+    const target = pageRefs.current[idx];
+    const scroller = scrollerRef.current;
+    if (!target || !scroller) return;
+    const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+    if (!isAligned(target.getBoundingClientRect().top, scroller.getBoundingClientRect().top, margin, 2)) {
+      target.scrollIntoView({ behavior: "auto", block: "start" });
+    }
+  }, [loadedPages]);
 
   const matchPageSet = new Set(
     (matchPages || []).filter((n) => Number.isFinite(n) && n > 0),
@@ -116,6 +178,7 @@ export function CircularViewerLightbox({
 
           {/* Main Scrollable Canvas */}
           <div
+            ref={scrollerRef}
             role="presentation"
             className="relative flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
@@ -150,11 +213,14 @@ export function CircularViewerLightbox({
                       ref={(el) => {
                         pageRefs.current[index] = el;
                       }}
-                      className="relative w-full scroll-mt-4"
+                      className={`relative w-full scroll-mt-4 ${loadedPages.has(index) ? "" : "rounded-md bg-white/10"}`}
+                      style={loadedPages.has(index) ? undefined : { aspectRatio: "210 / 297" }}
                     >
                       <img
                         src={url}
                         alt={`Page ${pageNo} of ${circular.headline}`}
+                        onLoad={() => markLoaded(index)}
+                        onError={() => markLoaded(index)}
                         className={`w-full rounded-md bg-white ${
                           isMatch
                             ? "shadow-[0_0_0_2px_rgba(250,204,21,0.9)] shadow-2xl"

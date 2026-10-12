@@ -3,6 +3,7 @@
 import React, { useState, useTransition, useEffect } from "react";
 import { mutate } from "swr";
 import toast from "react-hot-toast";
+import { stickySuccess } from "@/lib/ui/stickyToast";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 import RichTextEditor from "@/components/RichTextEditor";
 
@@ -69,12 +70,11 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
 
       if (response.ok) {
         if (!isEdit) {
-          toast.success(
+          stickySuccess(
             `✅ Announcement published! You can modify or delete this for the next ${EDIT_DELETE_WINDOW_HOURS} hours.`,
-            { duration: 6000 },
-          );
+          ); // stays until its cross is clicked
         } else {
-          toast.success("✅ Announcement updated successfully!");
+          stickySuccess("✅ Announcement updated successfully!"); // stays until its cross is clicked
         }
 
         // Reset form fields

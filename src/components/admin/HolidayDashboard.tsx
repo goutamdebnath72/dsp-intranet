@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CalendarDays, ChevronDown, AlertTriangle } from "lucide-react";
 import { HolidayUploadModal } from "./HolidayUploadModal";
 import { toast } from "react-hot-toast";
+import { stickySuccess } from "@/lib/ui/stickyToast";
 import { HOLIDAY_REVIEW_YEAR_MIN, HOLIDAY_REVIEW_YEAR_MAX } from "@/lib/constants";
 
 interface StagedHolidayEntry {
@@ -283,7 +284,7 @@ export function HolidayDashboard() {
         onClose={() => setIsModalOpen(false)}
         year={selectedYear || 0}
         onSeedSuccess={(data) => {
-          toast.success(data.message || "Holidays seeded successfully!");
+          stickySuccess(data.message || "Holidays seeded successfully!"); // stays until its cross is clicked
           setIsModalOpen(false);
         }}
       />

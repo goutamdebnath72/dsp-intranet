@@ -1,6 +1,7 @@
 // src/components/QuickAccessBar.tsx
 "use client";
 
+import { NewCircularBadge } from "./NewCircularBadge";
 import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -36,7 +37,6 @@ const iconMap: { [key: string]: React.ElementType } = {
 // --- "New circular" badge color. Swap this one value to compare:
 //   Adobe red  -> "#FA0F00"
 //   macOS red  -> "#FF3B30"
-const NEW_BADGE_COLOR = "#FF3B30";
 
 // --- MODIFIED: Define the 8 priority links to pull ---
 const priorityLinkTitles = [
@@ -117,51 +117,7 @@ const AccessButton: React.FC<{
         whileHover={{ y: -5 }}
         transition={{ type: "spring", stiffness: 300 }}
       >
-        {hasNewCircular &&
-          (() => {
-            const count = newCircularCount ?? 0;
-            const label = count > 9 ? "9+" : count > 0 ? String(count) : "";
-            const isWide = label.length > 1;
-            // ~25% inside / ~75% outside the top-right corner.
-            return (
-              <span className="absolute -top-2 -right-2 flex items-center justify-center">
-                {/* soft ping halo */}
-                <span
-                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
-                  style={{ backgroundColor: NEW_BADGE_COLOR }}
-                />
-                {/* badge body — perfect square (or pill for 2 digits) so the
-                    numeral optically centers; SF-style thin, sharp numerals. */}
-                <span
-                  className="relative flex items-center justify-center rounded-full text-white"
-                  style={{
-                    backgroundColor: NEW_BADGE_COLOR,
-                    height: "20px",
-                    width: isWide ? "auto" : "20px",
-                    minWidth: "20px",
-                    padding: isWide ? "0 6px" : "0",
-                    fontFamily:
-                      '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Segoe UI", Roboto, sans-serif',
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    lineHeight: "20px",
-                    letterSpacing: "-0.02em",
-                    fontVariantNumeric: "tabular-nums",
-                    textAlign: "center",
-                  }}
-                >
-                  <span
-                    style={{
-                      transform: "translateX(-1.0px)",
-                      display: "inline-block",
-                    }}
-                  >
-                    {label}
-                  </span>
-                </span>
-              </span>
-            );
-          })()}
+        {hasNewCircular && <NewCircularBadge count={newCircularCount ?? 0} />}
         <Icon
           size={28}
           className="transition-transform duration-300 

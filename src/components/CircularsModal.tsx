@@ -32,7 +32,10 @@ type Circular = {
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  onCircularClick: (id: number) => void;
+  /** Called when a circular is opened. The home page (useCircularStatus) saves the read and updates the "new" state. */
+  onCircularClick: (id: number) => unknown;
+  /** The circulars to show as new (highlighted). Owned by the home page, so the modal and the red circle always agree. */
+  unreadIds: ReadonlySet<number>;
 };
 
 const NUM_RECENT_YEARS = 2;
@@ -43,7 +46,7 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
-export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
+export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: Props) {
   const { data: session } = useVerifiedSession();
 
   // Cheap, rarely-changing: just which years actually have circulars.
@@ -60,7 +63,6 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
   const archiveButtonRef = useRef<HTMLDivElement>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [unreadIds, setUnreadIds] = useState<Set<number>>(new Set());
 
   // Once the years list arrives, default to the latest year that actually
   // has data -- mirrors the old "jump to the most recent year with
@@ -106,22 +108,6 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
     }
   }, [isOpen, selectedYear, availableYears]);
 
-  // Fetch which recent circulars are still unread for this session, so we can
-  // bold their titles (Gmail-style). Source of truth is /api/circulars/seen.
-  // Independent of which year is selected -- unchanged from before.
-  const fetchUnread = () => {
-    fetch("/api/circulars/seen", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && Array.isArray(data.unreadIds)) {
-          setUnreadIds(new Set<number>(data.unreadIds));
-        }
-      })
-      .catch(() => {
-        // Non-fatal: titles just won't be bolded.
-      });
-  };
-
   // Lock background page scroll while the modal is open so mouse-wheel
   // scrolling inside it (including over the fixed header) never bleeds through
   // to the home page behind. NOTE: the page scroller in this app is <html>
@@ -139,10 +125,6 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
       html.style.overflow = prevOverflow;
       html.style.paddingRight = prevPaddingRight;
     };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen) fetchUnread();
   }, [isOpen]);
 
   const recentYears = useMemo(
@@ -370,14 +352,9 @@ export function CircularsModal({ isOpen, onClose, onCircularClick }: Props) {
                       />
                       <button
                         onClick={() => {
-                          onCircularClick(circular.id);
-                          // Optimistically clear the unread mark, then reconcile.
-                          setUnreadIds((prev) => {
-                            const next = new Set(prev);
-                            next.delete(circular.id);
-                            return next;
-                          });
-                          setTimeout(fetchUnread, 800);
+                          // The home page owns the "new" state (useCircularStatus): for a logged-in person it clears this row at once and keeps
+                          // it cleared while the read is being saved. Nothing to do here but open the circular.
+                          void onCircularClick(circular.id);
                         }}
                         className="flex-1 text-left"
                       >

@@ -13,7 +13,8 @@ import Header from "@/components/Header";
 import OldHeader from "@/components/OldHeader";
 import { HolidayDashboard } from "@/components/admin/HolidayDashboard";
 import { ADMIN_TITLE_AREA_HEIGHT, ADMIN_CARDS_AREA_HEIGHT } from "@/lib/constants";
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster } from "react-hot-toast";
+import { stickySuccess } from "@/lib/ui/stickyToast";
 
 function AdminContent() {
   const { data: session, status } = useVerifiedSession();
@@ -51,7 +52,7 @@ function AdminContent() {
     // embedded and committed, not merely queued. The modal's own "Upload
     // successful!" message disappears when it auto-closes, so this toast
     // is the only feedback left once that happens.
-    toast.success("✅ Circular upload is successful!");
+    stickySuccess("✅ Circular upload is successful!"); // stays until its cross is clicked
     setIsCircularModalOpen(false);
   };
 

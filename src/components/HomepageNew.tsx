@@ -1,11 +1,12 @@
 // src/components/HomepageNew.tsx
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { PlayCircle, ArrowRight, PauseCircle } from "lucide-react";
 import { TopBar } from "./TopBar";
 import { useVerifiedSession } from "./SessionGuard";
+import { useCircularStatus } from "@/hooks/useCircularStatus";
 import Header from "@/components/Header";
 import { QuickAccessBar } from "./QuickAccessBar";
 import { CircularsModal } from "./CircularsModal";
@@ -79,44 +80,24 @@ export function HomepageNew({
   );
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
 
-  // ✅ ADDED: red-dot ("new circular") state + fetcher
-  const [hasNewCircular, setHasNewCircular] = useState(false);
-  const [newCircularCount, setNewCircularCount] = useState(0);
+  // The "new circular" state (the red circle on the thumbnail AND the highlighted rows in the modal) is owned by ONE hook, so they always agree.
+  const circularStatus = useCircularStatus(status === "authenticated");
 
-  const refreshCircularStatus = useCallback(async () => {
-    try {
-      const res = await fetch("/api/circulars/seen", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
-      setHasNewCircular(Boolean(data?.hasNewCircular));
-      setNewCircularCount(Number(data?.newCount) || 0);
-    } catch {
-      // Fail safe: leave the dot as-is on transient errors
-    }
-  }, []);
-
-  // Compute the dot on first load
-  useEffect(() => {
-    refreshCircularStatus();
-  }, [refreshCircularStatus]);
-
-  const handleCircularsClick = () => setIsCircularModalOpen(true);
-
-  // ✅ MODIFIED: opening a circular marks it read (logged-in), then we
-  // re-check the dot. The POST is a no-op / 401 for logged-out users.
-  const handleCircularSelect = (id: number) => {
-    setSelectedCircularId(id);
-    fetch(`/api/circulars/${id}/read`, { method: "POST" })
-      .catch(() => {})
-      .finally(() => {
-        refreshCircularStatus();
-      });
+  // Opening the modal asks the server again, so a circular uploaded since the page loaded shows up.
+  const handleCircularsClick = () => {
+    setIsCircularModalOpen(true);
+    void circularStatus.refresh();
   };
 
-  // ✅ MODIFIED: re-check the dot after the viewer closes too
+  // Opening a circular: for a logged-in person it stops being new at once (and the read is saved); for a logged-out person nothing changes.
+  const handleCircularSelect = (id: number) => {
+    setSelectedCircularId(id);
+    return circularStatus.markOpened(id);
+  };
+
   const handleCloseLightbox = () => {
     setSelectedCircularId(null);
-    refreshCircularStatus();
+    void circularStatus.refresh();
   };
 
   const handleMoreAppsClick = () => setIsAppDrawerOpen(true);
@@ -274,8 +255,8 @@ export function HomepageNew({
         <QuickAccessBar
           onCircularsClick={handleCircularsClick}
           onMoreAppsClick={handleMoreAppsClick}
-          hasNewCircular={hasNewCircular}
-          newCircularCount={newCircularCount}
+          hasNewCircular={circularStatus.hasNewCircular}
+          newCircularCount={circularStatus.newCircularCount}
         />
       </div>
 
@@ -320,6 +301,7 @@ export function HomepageNew({
         isOpen={isCircularModalOpen}
         onClose={() => setIsCircularModalOpen(false)}
         onCircularClick={handleCircularSelect}
+        unreadIds={circularStatus.unreadIds}
       />
       {selectedCircularId && (
         <CircularViewerLightbox

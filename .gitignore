@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -46,3 +47,13 @@ reread-reports/
 reread-cache/
 health-reports/
 health-cache/
+
+# Windows download markers
+*Zone.Identifier
+
+# local output of test tools
+circular-battery-report.txt
+
+# large originals and OCR language data stay outside git (the curated Holidays/*.json files DO stay)
+*.traineddata
+/Holidays/**/*.pdf

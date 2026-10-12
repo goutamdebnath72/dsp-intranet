@@ -41,44 +41,35 @@ export async function POST(
     const userRepo = dataSource.getRepository(User);
     const readStatusRepo = dataSource.getRepository(CircularReadStatus);
 
-    // 1. Verify the target circular exists
-    const circularExists = await circularRepo.findOne({
-      where: { id: circularId },
-    });
-    if (!circularExists) {
-      return NextResponse.json(
-        { error: "Circular not found" },
-        { status: 404 },
-      );
+    // The three checks do not depend on each other, so they run AT ONCE (one round trip to the database instead of three one after another:
+    // saving a read used to take 2-3 seconds on a remote database, and the screen waits for it).
+    const [circularCount, userCount, alreadyRead] = await Promise.all([
+      circularRepo.count({ where: { id: circularId } }),
+      userRepo.count({ where: { id: userId } }),
+      readStatusRepo.count({ where: { userId, circularId } }),
+    ]);
+    if (circularCount === 0) {
+      return NextResponse.json({ error: "Circular not found" }, { status: 404 });
+    }
+    if (userCount === 0) {
+      return NextResponse.json({ error: "User not found in records" }, { status: 404 });
     }
 
-    // 2. Verify the active session user exists in the DB
-    const userExists = await userRepo.findOne({
-      where: { id: userId },
-    });
-    if (!userExists) {
-      return NextResponse.json(
-        { error: "User not found in records" },
-        { status: 404 },
-      );
-    }
-
-    // 3. Prevent duplicate read rows
-    let status = await readStatusRepo.findOne({
-      where: {
-        userId,
-        circularId,
-      },
-    });
-
-    if (!status) {
-      status = readStatusRepo.create({
-        id: crypto.randomUUID(),
-        userId,
-        circularId,
-        readAt: DateTime.now(),
-      });
-      await readStatusRepo.save(status);
+    // Prevent duplicate read rows (the unique index on userId + circularId is the final guard: two opens at the same moment is not an error).
+    if (alreadyRead === 0) {
+      try {
+        await readStatusRepo.save(
+          readStatusRepo.create({
+            id: crypto.randomUUID(),
+            userId,
+            circularId,
+            readAt: DateTime.now(),
+          }),
+        );
+      } catch (e: any) {
+        const duplicate = e?.code === "23505" || /duplicate key value|unique constraint/i.test(e?.message || "");
+        if (!duplicate) throw e;
+      }
     }
 
     return NextResponse.json({

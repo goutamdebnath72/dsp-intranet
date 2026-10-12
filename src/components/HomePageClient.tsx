@@ -10,6 +10,8 @@ import Announcements from "@/components/Announcements";
 import DepartmentSites from "@/components/DepartmentSites";
 import { CircularsModal } from "@/components/CircularsModal";
 import { CircularViewerLightbox } from "./CircularViewerLightbox";
+import { useVerifiedSession } from "./SessionGuard";
+import { useCircularStatus } from "@/hooks/useCircularStatus";
 
 // --- 2. ADDED NEW LINK TYPE ---
 // This type matches the data we cleaned in page.tsx (undefined -> null)
@@ -36,6 +38,8 @@ export default function HomePageClient({
   departmentData,
   sailSitesData, // <-- 4. ADDED
 }: HomePageClientProps) {
+  const { status } = useVerifiedSession();
+  const circularStatus = useCircularStatus(status === "authenticated");
   const [isCircularsModalOpen, setCircularsModalOpen] = useState(false);
   const [viewingCircularId, setViewingCircularId] = useState<number | null>(
     null
@@ -63,10 +67,14 @@ export default function HomePageClient({
     };
   }, [viewingCircularId]);
 
-  const openCircularsModal = () => setCircularsModalOpen(true);
+  const openCircularsModal = () => {
+    setCircularsModalOpen(true);
+    void circularStatus.refresh();
+  };
   const closeCircularsModal = () => setCircularsModalOpen(false);
   const handleViewCircular = (id: number) => {
     setViewingCircularId(id);
+    return circularStatus.markOpened(id);
   };
 
   return (
@@ -99,6 +107,7 @@ export default function HomePageClient({
         isOpen={isCircularsModalOpen}
         onClose={closeCircularsModal}
         onCircularClick={handleViewCircular}
+        unreadIds={circularStatus.unreadIds}
       />
       <CircularViewerLightbox
         circularId={viewingCircularId}
