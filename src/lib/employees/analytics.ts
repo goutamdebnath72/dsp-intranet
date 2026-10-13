@@ -520,7 +520,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
             ? `I can only compare years already loaded in the holiday calendar.${available}`
             : missing.length === 1
               ? `I don't have holiday data loaded for ${missing[0]} yet, so I can't compare it with ${other}.${available}`
-              : `I don't have holiday data loaded for ${missing[0]} or ${missing[1]} yet, so I can't compare them.${available}`;
+              : `I don't have holiday data loaded for both ${missing[0]} and ${missing[1]} yet, so I can't compare them.${available}`;
         return { kind: "pending", answer };
       }
       const c = res.compare!;

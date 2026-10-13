@@ -1288,7 +1288,7 @@
    "source": "H",
    "lastKnown": "✔",
    "expectedFacts": [
-    "don't have holiday data loaded for 2027 or 2028",
+    "don't have holiday data loaded for both 2027 and 2028",
     "can't compare them"
    ],
    "notes": "Derived (not in the log): both years missing."
