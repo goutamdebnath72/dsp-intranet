@@ -19,7 +19,10 @@ import { queryTokenWeights, weightedCoverage } from "@/lib/search/tokenWeights";
 import { loadDocumentChunks, bestPassage } from "@/lib/search/documentText";
 import { findSailDepartmentInText } from "@/lib/employees/sailDepartments";
 import { normTerm } from "@/lib/employees/designations";
-import { routeFromReply, startTrace, summarizeTrace, traceHeaders, traceLine, traceStep, withTrace } from "@/lib/search/frontPathTrace";
+import { routeFromReply, setTraceGate, setTraceSynth, startTrace, summarizeTrace, traceHeaders, traceLine, traceStep, withTrace } from "@/lib/search/frontPathTrace";
+import { detectSynthesisIntent } from "@/lib/search/synthesisIntent";
+import { decideModelSkip, frontGateEnabled, loadDirectoryNameWords } from "@/lib/search/frontGate";
+import { getSessionTicket } from "@/lib/apiAuth";
 
 // Vercel stops a serverless function after a time limit. A question can legitimately take
 // longer than the default (the language model may have to wait for its per-minute allowance),
@@ -192,7 +195,11 @@ async function handleSearch(request: Request) {
     // single cleaned value so they can never disagree.
     const q = cleanQueryString(searchParams.get("q") || "");
     let mode = searchParams.get("mode") || "semantic";
-    const userTicket = searchParams.get("ticket")?.trim();
+    // WHO is calling comes from the login SESSION only (security audit #3 and #6). The browser's `ticket` parameter is
+    // IGNORED: anybody can type any ticket number into a URL, and executive numbers (4xxxxx) are easy to guess.
+    const endSession = traceStep("session");
+    const userTicket = (await getSessionTicket()) ?? undefined;
+    endSession();
 
     if (!q || q.length < 2) {
       return NextResponse.json([]);
@@ -214,6 +221,7 @@ async function handleSearch(request: Request) {
     // name ("goutam debnath") from a document phrase that happens to be two
     // Latin words ("leave policy") — the latter keeps the normal semantic floor.
     let isNameShaped = false;
+    let deptMentioned = false; // read by the front-path gate (frontGate.ts)
     if (looksLikeName) {
       try {
         const nameHit = await dataSource.query(
@@ -238,6 +246,7 @@ async function handleSearch(request: Request) {
       try {
         const dept = await findSailDepartmentInText(q);
         if (dept) {
+          deptMentioned = true;
           const fragment = normTerm(q)
             .split(dept.phrase)
             .join(" ")
@@ -269,6 +278,13 @@ async function handleSearch(request: Request) {
       return NextResponse.json(results.slice(0, 5));
     }
 
+    // SYNTHESIS INTENT (step 26a, src/lib/search/synthesisIntent.ts): does the question need several circulars built into one
+    // answer (compare / trace / contrast / correlate / what is hidden / what changed between ...)? Only RECORDED here, for the trace
+    // and the harness. The SCREEN decides (step 27a, OmnibarModal.tsx): for a logged-in executive an EDS-type question is sent as
+    // mode=intellectual, exactly like the old button; this route then verifies the executive below and never upgrades by itself.
+    const synthIntent = mode === "semantic" ? detectSynthesisIntent(q) : null;
+    if (synthIntent) setTraceSynth(synthIntent.level, synthIntent.score);
+
     // --- TIER 3 EXECUTIVE AUTHORIZATION GATE ---
     if (mode === "intellectual") {
       let isAuthorizedExecutive = false;
@@ -287,7 +303,10 @@ async function handleSearch(request: Request) {
         }
       }
 
-      if (!isAuthorizedExecutive && userTicket) {
+      // Not a verified executive (no login, a non-executive, or someone no longer in the directory): the plain search.
+      // (Until step 25a this downgrade only happened when a `ticket` parameter was present, so a request without one
+      // went straight to synthesis, and any executive's ticket typed into the URL passed.)
+      if (!isAuthorizedExecutive) {
         mode = "semantic";
       }
     }
@@ -302,16 +321,50 @@ async function handleSearch(request: Request) {
     // employee/holiday answer path -- and with it every model call -- so the circular
     // search can be measured on its own, for free and repeatably (scripts/circular-battery.mjs).
     const retrievalOnly = process.env.NODE_ENV !== "production" && searchParams.get("retrievalOnly") === "1";
+    // FRONT-PATH GATE (step 24a; OFF unless FRONT_PATH_SKIP_MODEL=true; src/lib/search/frontGate.ts). A question that mentions
+    // no one in the directory, no department, no ticket and no people-data word cannot be an employee question, so the slow,
+    // token-hungry model call is skipped and circular search answers first. If circular search then finds nothing, or fails,
+    // rescueWithModel asks the model after all: a wrong skip costs time, never a wrong answer.
+    const retryInfo = parseRetry(searchParams);
+    let modelSkipped = false;
+    if (mode === "semantic" && !retrievalOnly && !retryInfo && frontGateEnabled()) {
+      const endGate = traceStep("gate");
+      try {
+        const directoryWords = await loadDirectoryNameWords((sql) => dataSource.query(sql));
+        modelSkipped = decideModelSkip({ q, isNameShaped, deptMentioned, directoryWords }).skip;
+      } catch {
+        modelSkipped = false; // the directory's word list is unavailable: behave exactly as before
+      }
+      endGate();
+      setTraceGate(modelSkipped ? "skipped" : "model");
+    }
+    const rescueWithModel = async () => {
+      if (!modelSkipped) return null;
+      setTraceGate("fallback");
+      const endRescue = traceStep("model-fallback");
+      const rescued = await answerOmnibar(q, userTicket || null, retryInfo, { skipModel: false });
+      endRescue();
+      return rescued ? NextResponse.json({ analytics: rescued }) : null;
+    };
     if (mode === "semantic" && !retrievalOnly) {
       const endOmnibar = traceStep("omnibar");
-      const payload = await answerOmnibar(q, userTicket || null, parseRetry(searchParams));
+      const payload = await answerOmnibar(q, userTicket || null, retryInfo, { skipModel: modelSkipped });
       endOmnibar();
       if (payload) return NextResponse.json({ analytics: payload });
     }
 
     // --- RETRIEVE BEST MATCHING CIRCULARS ---
     const endCircular = traceStep("circular-search");
-    const { uniqueResults } = await executeSmartSemanticRouter(dataSource, q);
+    let routed: Awaited<ReturnType<typeof executeSmartSemanticRouter>>;
+    try {
+      routed = await executeSmartSemanticRouter(dataSource, q);
+    } catch (routerErr) {
+      endCircular();
+      const rescued = await rescueWithModel(); // the gate skipped the model but circular search is unavailable
+      if (rescued) return rescued;
+      throw routerErr;
+    }
+    const { uniqueResults } = routed;
     endCircular();
 
     // Quoted-query classification (double-quote only; Latin-only gets
@@ -462,7 +515,7 @@ async function handleSearch(request: Request) {
           results: [],
         });
       }
-      return NextResponse.json([]);
+      return (await rescueWithModel()) ?? NextResponse.json([]);
     }
 
     // Rank by match percentage. Intellectual (synthesis) mode gets a wider

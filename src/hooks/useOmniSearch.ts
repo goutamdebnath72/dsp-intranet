@@ -104,6 +104,8 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   // A "No" on an answer asks for another attempt: the request carries the reason (see AnswerFeedback.tsx).
   const [retry, setRetry] = useState<{ attempt: number; reason: string; note: string; logId: number | null } | null>(null);
   const [attempt, setAttempt] = useState(1); // the attempt number of the answer now on screen
+  // true when the ENTER KEY (not the old button) sent the question to Executive Deep Synthesis (step 27a)
+  const [autoRouted, setAutoRouted] = useState(false);
 
   // Wipe all state when modal closes
   useEffect(() => {
@@ -113,6 +115,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
       setMode(null);
       setRetry(null);
       setAttempt(1);
+      setAutoRouted(false);
       globalMutate(
         (key) => typeof key === "string" && key.startsWith("/api/ai-search"),
         undefined,
@@ -122,8 +125,9 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   }, [isOpen]);
 
   // ONLY executed when a mode button is explicitly clicked
-  const triggerSearch = (selectedMode: SearchMode) => {
+  const triggerSearch = (selectedMode: SearchMode, opts?: { auto?: boolean }) => {
     if (!selectedMode) return;
+    setAutoRouted(!!opts?.auto && selectedMode === "intellectual");
     setMode(selectedMode);
     setRetry(null);
     setAttempt(1);
@@ -174,6 +178,18 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
 
   const isLoading = shouldFetch && isSwrLoading;
 
+  // An EDS-type question that the ENTER KEY sent to Executive Deep Synthesis (step 27a) but that found no relevant circular to build
+  // an answer from must not end as an empty briefing: quietly run the normal search instead, exactly as Enter did before.
+  useEffect(() => {
+    if (!autoRouted || mode !== "intellectual" || isLoading || !data) return;
+    const syn = !Array.isArray(data) ? (data as OmniSearchResponse).synthesis : null;
+    const empty = !syn || !!syn.error || ((syn.keyFindings?.length ?? 0) === 0 && (syn.citations?.length ?? 0) === 0);
+    if (empty) {
+      setAutoRouted(false);
+      setMode("semantic");
+    }
+  }, [autoRouted, mode, isLoading, data]);
+
   // "No" -> ask for another attempt in a different way (the server chooses it from the reason).
   const requestRetry = (r: { reason: string; note: string; logId: number | null }) => {
     setRetry({ ...r, attempt });
@@ -186,7 +202,8 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     attempt,
     requestRetry,
     setQuery,
-    mode,
+    // A synthesis that arrives on the plain Enter path (the engine chose it, step 26a) is shown as one: the screen follows the answer.
+    mode: synthesis ? ("intellectual" as SearchMode) : mode,
     triggerSearch,
     results,
     synthesis,

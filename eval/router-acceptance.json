@@ -1,6 +1,6 @@
 {
  "version": 1,
- "_about": "Seed set for scripts/omnibar-acceptance.mjs. Built from HANDOFF_dsp-intranet_query-log.md (A, B, K, H, F, HC), HANDOFF_dsp-intranet_master.md section 5.1 (S), scripts/circular-battery.mjs (CB) and six new observe-only probes (G). Edit freely: prune, add, correct. Fields: id, query, area, expectedRoute (route | [routes] | 'ANY'), expectedFacts (all must appear; an inner list = any one), forbiddenFacts, rowHas (rows of tokens that must sit in ONE row of the answer), expectedCount {of: count|rows|people|holidays|details|results, n}, circular (the battery's rules), lastKnown, source, regression (verified on screen: must never break), timeSensitive, pendingDecision (observed, not judged), requires (flags for --with), run {mode, ticket}, notes.",
+ "_about": "Seed set for scripts/omnibar-acceptance.mjs. Built from DSP_Circulars_Query_Test_Set.pdf (SS, EDS, INT),  HANDOFF_dsp-intranet_query-log.md (A, B, K, H, F, HC), HANDOFF_dsp-intranet_master.md section 5.1 (S), scripts/circular-battery.mjs (CB) and six new observe-only probes (G). Edit freely: prune, add, correct. Fields: id, query, area, expectedRoute (route | [routes] | 'ANY'), expectedFacts (all must appear; an inner list = any one), forbiddenFacts, rowHas (rows of tokens that must sit in ONE row of the answer), expectedCount {of: count|rows|people|holidays|details|results, n}, synthesis (true = the question must be recognised as EDS-type; every other record must NOT be), circular (the battery's rules), lastKnown, source, regression (verified on screen: must never break), timeSensitive, pendingDecision (observed, not judged), requires (flags for --with), run {mode, auth: exec|none, ticket (only to probe a spoofed ticket)}, forbiddenRoutes, notes.",
  "_routes": [
   "HOLIDAY",
   "EMP-SQL",
@@ -265,9 +265,10 @@
    "source": "A",
    "lastKnown": "❌",
    "notes": "No content check. Per the battery's evidence (A1) the leave rules (4 casual + 7 medical days) are identical across the yearly circulars; only holiday dates differ, so an answer that claims a change in leave days is wrong. Needs eyes.",
+   "synthesis": true,
    "run": {
     "mode": "intellectual",
-    "ticket": "$EXEC"
+    "auth": "exec"
    }
   },
   {
@@ -290,9 +291,10 @@
     ]
    ],
    "notes": "Battery E1 evidence: the extension circular (20.08.2026) says till 31.08.2026; the earlier one (11-08-2026) only says up to 20-08-2026. Ledger 50: the earlier circular was never named. Two near-identical Mediclaim circulars exist (title '(2026-2027)' and uppercase '(26-27)').",
+   "synthesis": true,
    "run": {
     "mode": "intellectual",
-    "ticket": "$EXEC"
+    "auth": "exec"
    }
   },
   {
@@ -323,9 +325,10 @@
     ]
    ],
    "notes": "Battery E3 evidence: the original circular says Rs.15,000; the corrigendum says Rs.15,000 is to be read as Rs.14,999. The synthesis once invented 75,000 -> 74,999 (ledger 51).",
+   "synthesis": true,
    "run": {
     "mode": "intellectual",
-    "ticket": "$EXEC"
+    "auth": "exec"
    }
   },
   {
@@ -345,9 +348,10 @@
    "source": "A",
    "lastKnown": "❌",
    "notes": "No content check. Ledger 47/48: one chunk per circular, and a circular cited that was not listed as a source. Battery evidence: football trial 5 Dec 2024 (ASP Stadium), table tennis trial 12.12.2024. Needs eyes.",
+   "synthesis": true,
    "run": {
     "mode": "intellectual",
-    "ticket": "$EXEC"
+    "auth": "exec"
    }
   },
   {
@@ -3353,6 +3357,378 @@
    "lastKnown": "❓",
    "notes": "Bengali: 'Durga Puja holiday 2026'.",
    "pendingDecision": "new probe, no agreed expectation: observe"
+  },
+  {
+   "id": "SEC-1",
+   "query": "what is the leave policy for contract workers",
+   "area": "security",
+   "expectedRoute": "ANY",
+   "source": "SEC",
+   "lastKnown": "❓",
+   "notes": "Security audit #3. Synthesis asked for WITHOUT a login. The server must answer with the normal search and NEVER with a synthesis. Before step 25a a request without a ticket went straight to synthesis.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "run": {
+    "mode": "intellectual",
+    "auth": "none"
+   }
+  },
+  {
+   "id": "SEC-2",
+   "query": "what is the leave policy for contract workers",
+   "area": "security",
+   "expectedRoute": "ANY",
+   "source": "SEC",
+   "lastKnown": "❓",
+   "notes": "Security audit #3 and #6. Synthesis asked for with an executive's ticket TYPED INTO THE URL but no login. The browser's ticket parameter must be ignored. Before step 25a this passed.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "run": {
+    "mode": "intellectual",
+    "auth": "none",
+    "ticket": "$EXEC"
+   }
+  },
+  {
+   "id": "SS-1",
+   "query": "How do I return my provident fund advance before the due date?",
+   "area": "circular",
+   "expectedRoute": "CIRCULAR",
+   "source": "SS",
+   "lastKnown": "❓",
+   "circular": {
+    "expect": [
+     42
+    ],
+    "topIs": 42
+   },
+   "notes": "Smart Semantic Query 1 of the old query document. Expected match: Pre-Mature (Part/Full) Repayment of Refundable PF Loan. One question, one circular: it must NOT be taken for an EDS question."
+  },
+  {
+   "id": "SS-2",
+   "query": "Can a retired employee keep their company quarters in Kolkata or Mumbai?",
+   "area": "circular",
+   "expectedRoute": "CIRCULAR",
+   "source": "SS",
+   "lastKnown": "❓",
+   "circular": {
+    "expect": [
+     6
+    ],
+    "topIs": 6
+   },
+   "notes": "Smart Semantic Query 2 of the old query document. Expected match: Rules for Retention of Company Accommodation by Ex-employees at City locations. One question, one circular: it must NOT be taken for an EDS question."
+  },
+  {
+   "id": "SS-3",
+   "query": "What is the punishment if I am caught using my mobile phone while walking on the shop floor?",
+   "area": "circular",
+   "expectedRoute": "CIRCULAR",
+   "source": "SS",
+   "lastKnown": "❓",
+   "circular": {
+    "expect": [
+     29
+    ],
+    "topIs": 29
+   },
+   "notes": "Smart Semantic Query 3 of the old query document. Expected match: Zero Tolerance Safety Rules (Revised Consequence Management). One question, one circular: it must NOT be taken for an EDS question."
+  },
+  {
+   "id": "SS-4",
+   "query": "Does the company provide money or study leave to do an MBA or engineering degree?",
+   "area": "circular",
+   "expectedRoute": "CIRCULAR",
+   "source": "SS",
+   "lastKnown": "❓",
+   "circular": {
+    "expect": [
+     3
+    ],
+    "topIs": 3
+   },
+   "notes": "Smart Semantic Query 4 of the old query document. Expected match: Scheme for Sponsoring Executives for Higher Specialised Education/Training. One question, one circular: it must NOT be taken for an EDS question."
+  },
+  {
+   "id": "SS-5",
+   "query": "How to get the cash reward for passing Hindi language exams?",
+   "area": "circular",
+   "expectedRoute": "CIRCULAR",
+   "source": "SS",
+   "lastKnown": "❓",
+   "circular": {
+    "expectAny": [
+     20,
+     31
+    ]
+   },
+   "notes": "Smart Semantic Query 5 of the old query document. Expected match: DSP Hindi Teaching Scheme (HTS). One question, one circular: it must NOT be taken for an EDS question."
+  },
+  {
+   "id": "EDS-T1",
+   "query": "Trace the evolution of DSP's attendance and access control policies from 2023 to 2024. Specifically, contrast the Contactless Face Recognition System rollout for executives with the phased RFID biometric implementation for contract workers, and detail the Gate Pass #13 transition from Pink to Blue.",
+   "area": "eds",
+   "expectedRoute": "EDS",
+   "source": "EDS",
+   "lastKnown": "❓",
+   "notes": "Executive Deep Synthesis test 1 of the old query document. Attendance and access evolution. Pulls three timelines: the Contactless Face Recognition System for executives (2023_03), the phased RFID / biometric attendance for contract workers (2024_06), and Gate Pass 13 from Pink to Blue (2023_06). The expected FACTS are added from the verified truth set (step 3); until then this record checks only the route.",
+   "synthesis": true,
+   "run": {
+    "mode": "intellectual",
+    "auth": "exec"
+   }
+  },
+  {
+   "id": "INT-T1",
+   "query": "Trace the evolution of DSP's attendance and access control policies from 2023 to 2024. Specifically, contrast the Contactless Face Recognition System rollout for executives with the phased RFID biometric implementation for contract workers, and detail the Gate Pass #13 transition from Pink to Blue.",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "The same question as EDS-T1, typed as a plain Enter by someone who is not logged in: the engine must RECOGNISE it as an EDS-type question (synthesis intent) but must not produce a synthesis.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "EDS-T2",
+   "query": "Synthesize the financial and welfare adjustments made for contract workers between 2022 and 2025. Detail the revised GPAIS premium structures, the January 2024 minimum wage calculations for the Works area, and their specific eligibility under DSP's Motivational Award Schemes, specifically the Kaushal Award.",
+   "area": "eds",
+   "expectedRoute": "EDS",
+   "source": "EDS",
+   "lastKnown": "❓",
+   "notes": "Executive Deep Synthesis test 2 of the old query document. Contract worker financial synthesis. Bridges the GPAIS insurance memos, the wage notice effective 01.01.2024, and the Motivational Award Schemes (2022_10, Kaushal Award). The expected FACTS are added from the verified truth set (step 3); until then this record checks only the route.",
+   "synthesis": true,
+   "run": {
+    "mode": "intellectual",
+    "auth": "exec"
+   }
+  },
+  {
+   "id": "INT-T2",
+   "query": "Synthesize the financial and welfare adjustments made for contract workers between 2022 and 2025. Detail the revised GPAIS premium structures, the January 2024 minimum wage calculations for the Works area, and their specific eligibility under DSP's Motivational Award Schemes, specifically the Kaushal Award.",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "The same question as EDS-T2, typed as a plain Enter by someone who is not logged in: the engine must RECOGNISE it as an EDS-type question (synthesis intent) but must not produce a synthesis.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "EDS-T3",
+   "query": "Compare the financial assistance and bond requirements for an executive pursuing a 2-year non-medical higher education course with the cash incentive structures provided under the 2024 and 2025 DSP Hindi Teaching Schemes for the Pragya and Parangat levels.",
+   "area": "eds",
+   "expectedRoute": "EDS",
+   "source": "EDS",
+   "lastKnown": "❓",
+   "notes": "Executive Deep Synthesis test 3 of the old query document. Capability building and HR investments. Compares bond amounts (the higher education sponsorship scheme, 2022_03) with cash prizes (Hindi Teaching Scheme circulars of 2023_10 / 2025_01). The expected FACTS are added from the verified truth set (step 3); until then this record checks only the route.",
+   "synthesis": true,
+   "run": {
+    "mode": "intellectual",
+    "auth": "exec"
+   }
+  },
+  {
+   "id": "INT-T3",
+   "query": "Compare the financial assistance and bond requirements for an executive pursuing a 2-year non-medical higher education course with the cash incentive structures provided under the 2024 and 2025 DSP Hindi Teaching Schemes for the Pragya and Parangat levels.",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "The same question as EDS-T3, typed as a plain Enter by someone who is not logged in: the engine must RECOGNISE it as an EDS-type question (synthesis intent) but must not produce a synthesis.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "EDS-T4",
+   "query": "Provide a briefing on mandatory employee compliance by cross-referencing the Zero Tolerance Safety Rules (ZTSR) revised consequence management steps with the Special Intensive Revision (SIR) Format B declaration requirements.",
+   "area": "eds",
+   "expectedRoute": "EDS",
+   "source": "EDS",
+   "lastKnown": "❓",
+   "notes": "Executive Deep Synthesis test 4 of the old query document. Strict compliance and disciplinary action. Juxtaposes workplace safety penalties (ZTSR, 2024_09, e.g. the fourth-stage financial penalties) with the SIR Format B declaration (2025_08 / 2025_05). The expected FACTS are added from the verified truth set (step 3); until then this record checks only the route.",
+   "synthesis": true,
+   "run": {
+    "mode": "intellectual",
+    "auth": "exec"
+   }
+  },
+  {
+   "id": "INT-T4",
+   "query": "Provide a briefing on mandatory employee compliance by cross-referencing the Zero Tolerance Safety Rules (ZTSR) revised consequence management steps with the Special Intensive Revision (SIR) Format B declaration requirements.",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "The same question as EDS-T4, typed as a plain Enter by someone who is not logged in: the engine must RECOGNISE it as an EDS-type question (synthesis intent) but must not produce a synthesis.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-C1",
+   "query": "did the casual and medical leave days for contractor workers change between the 2023 and 2025 holiday and leave circulars",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "The same question as A-C1, typed as a plain Enter by someone who is not logged in: recognised as EDS-type, never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-C2",
+   "query": "what is the last date to renew SAIL Mediclaim after the extension and which earlier circular gave the original deadline",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "The same question as A-C2, typed as a plain Enter by someone who is not logged in: recognised as EDS-type, never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-C3",
+   "query": "employees can choose a gift card online, what amount was first announced and what was it corrected to",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "The same question as A-C3, typed as a plain Enter by someone who is not logged in: recognised as EDS-type, never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-C5",
+   "query": "list the sports events employees were invited to in December 2024 and the trial dates",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "The same question as A-C5, typed as a plain Enter by someone who is not logged in: recognised as EDS-type, never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-D1",
+   "query": "What hidden patterns emerge from the circulars issued for contract workers between 2022 and 2025?",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "A 'data mining' question in the style of a policy maker (find what is hidden, correlate the apparently unrelated), written by me from the definition of EDS; not from your log. Typed as a plain Enter without a login: it must be RECOGNISED as EDS-type but never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-D2",
+   "query": "Correlate the safety compliance rules with the welfare schemes announced for contractor workers and tell me what we are missing.",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "A 'data mining' question in the style of a policy maker (find what is hidden, correlate the apparently unrelated), written by me from the definition of EDS; not from your log. Typed as a plain Enter without a login: it must be RECOGNISED as EDS-type but never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-D3",
+   "query": "Are there any inconsistencies or gaps between the leave entitlements and the holiday lists issued for contract workers?",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "A 'data mining' question in the style of a policy maker (find what is hidden, correlate the apparently unrelated), written by me from the definition of EDS; not from your log. Typed as a plain Enter without a login: it must be RECOGNISED as EDS-type but never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-D4",
+   "query": "Which circulars place obligations on executives that are not obvious from their headlines?",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "A 'data mining' question in the style of a policy maker (find what is hidden, correlate the apparently unrelated), written by me from the definition of EDS; not from your log. Typed as a plain Enter without a login: it must be RECOGNISED as EDS-type but never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-D5",
+   "query": "What are the policy implications of introducing biometric attendance for contract workers on wages and insurance?",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "A 'data mining' question in the style of a policy maker (find what is hidden, correlate the apparently unrelated), written by me from the definition of EDS; not from your log. Typed as a plain Enter without a login: it must be RECOGNISED as EDS-type but never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-D6",
+   "query": "What is the relationship between the sports selection circulars and the motivational award schemes?",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "A 'data mining' question in the style of a policy maker (find what is hidden, correlate the apparently unrelated), written by me from the definition of EDS; not from your log. Typed as a plain Enter without a login: it must be RECOGNISED as EDS-type but never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-D7",
+   "query": "Show me the overall picture of employee welfare benefits announced since 2022.",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "A 'data mining' question in the style of a policy maker (find what is hidden, correlate the apparently unrelated), written by me from the definition of EDS; not from your log. Typed as a plain Enter without a login: it must be RECOGNISED as EDS-type but never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
+  },
+  {
+   "id": "INT-D8",
+   "query": "Find connections between the Hindi teaching scheme and the executive training sponsorship scheme.",
+   "area": "intent",
+   "expectedRoute": "ANY",
+   "source": "INT",
+   "lastKnown": "❓",
+   "notes": "A 'data mining' question in the style of a policy maker (find what is hidden, correlate the apparently unrelated), written by me from the definition of EDS; not from your log. Typed as a plain Enter without a login: it must be RECOGNISED as EDS-type but never synthesised.",
+   "forbiddenRoutes": [
+    "EDS"
+   ],
+   "synthesis": true
   }
  ]
 }

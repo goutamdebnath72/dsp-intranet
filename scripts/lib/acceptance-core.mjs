@@ -229,6 +229,10 @@ export function parseTraceHeaders(headers) {
   return {
     route: String(h["x-omni-route"]),
     kind: h["x-omni-kind"] ? String(h["x-omni-kind"]) : null,
+    /** The front-path gate's decision (step 24a): skipped | model | fallback; null when the gate is off. */
+    gate: h["x-omni-gate"] ? String(h["x-omni-gate"]) : null,
+    /** The synthesis-intent verdict (step 26a), "level;score", e.g. "synthesis;6". null when the server did not ask. */
+    synth: h["x-omni-synth"] ? String(h["x-omni-synth"]) : null,
     ms: num("x-omni-ms"),
     modelCalls: num("x-omni-model-calls"),
     tokens: num("x-omni-tokens"),
@@ -282,6 +286,8 @@ export function judge(rec, resp) {
   const trace = parseTraceHeaders(resp.headers);
   if (trace) {
     base.serverRoute = trace.route;
+    base.gate = trace.gate;
+    base.synth = trace.synth;
     base.serverMs = trace.ms;
     base.modelCalls = trace.modelCalls;
     base.tokens = trace.tokens;
@@ -316,7 +322,18 @@ export function judge(rec, resp) {
     if (!routeOk) notes.push(`route: expected ${[].concat(rec.expectedRoute).join(" or ")}, got ${inf.route}${inf.via ? ` (via ${inf.via})` : ""}`);
   }
   if (inf.via === "legacy") notes.push("answered by the old rule-based engine (the model path failed or declined)");
-  if (run.mode === "intellectual" && inf.route !== "EDS") notes.push("asked for synthesis but did not get it: the executive check may have downgraded the request (is the ticket a real 4xxxxx executive?)");
+  // a route that must NEVER answer this request (the security probes: synthesis without a login)
+  const forbidden = [].concat(rec.forbiddenRoutes ?? []);
+  if (forbidden.length) {
+    if (!checked.includes("route")) checked.push("route");
+    if (forbidden.includes(inf.route)) {
+      routeOk = false;
+      notes.push(`SECURITY: the server answered with ${inf.route}, which this request must never get`);
+    }
+  }
+  if (run.mode === "intellectual" && (run.auth ?? "exec") !== "none" && inf.route !== "EDS") {
+    notes.push("asked for synthesis as a logged-in executive but did not get it: is the --cookie a valid, current session of an executive (ticket 4xxxxx, still in the directory)?");
+  }
 
   // 2. content
   const contentFails = [];
@@ -350,7 +367,18 @@ export function judge(rec, resp) {
   }
   if (contentFails.length) notes.push(...contentFails);
 
-  if (!routeOk) failLabel = "route";
+  // the engine's own opinion on whether this is an EDS-type question (synthesisIntent.ts): every record says what it should be
+  // (`synthesis: true`) and EVERY OTHER record must NOT be taken for one. Only asked of servers that report it.
+  let intentFail = null;
+  const intentLevel = trace?.synth ? trace.synth.split(";")[0] : null;
+  if (intentLevel) {
+    const wants = rec.synthesis === true;
+    if (wants && intentLevel !== "synthesis") intentFail = `synthesis intent: this should be recognised as an EDS-type question, the engine says '${trace.synth}'`;
+    if (!wants && intentLevel === "synthesis") intentFail = `synthesis intent: this is NOT an EDS-type question, but the engine says '${trace.synth}'`;
+    if (intentFail) notes.push(intentFail);
+  }
+
+  if (!routeOk || intentFail) failLabel = "route";
   else if (contentFails.length) failLabel = "engine";
 
   let outcome;
@@ -382,7 +410,8 @@ export function judge(rec, resp) {
     notes,
     answerText,
     top,
-    leaksSailPNo: containsSailPNo(payload) && !run.ticket,
+    // a ticket in the URL proves nothing since step 25a: only a login session counts as "signed in"
+    leaksSailPNo: containsSailPNo(payload) && (run.auth ?? (run.mode === "intellectual" ? "exec" : "none")) === "none",
   };
 }
 
@@ -444,6 +473,12 @@ export function summarize(results) {
     tokensTotal: results.reduce((n, r) => n + (typeof r.tokens === "number" ? r.tokens : 0), 0),
     waitedMsTotal: results.reduce((n, r) => n + (typeof r.waitedMs === "number" ? r.waitedMs : 0), 0),
     routeDisagreements: results.filter((r) => r.routeDisagreement).map((r) => r.id),
+    synthesisFlagged: results.filter((r) => typeof r.synth === "string" && r.synth.startsWith("synthesis")).map((r) => r.id),
+    gate: {
+      skipped: results.filter((r) => r.gate === "skipped").length,
+      model: results.filter((r) => r.gate === "model").length,
+      fallback: results.filter((r) => r.gate === "fallback").length,
+    },
     modelUse: modelUseByRoute(results),
     stagesByRoute: stagesByRoute(results),
   };
@@ -531,6 +566,10 @@ export function renderReport(run) {
     L.push(`- Model calls: ${s.modelCallsLowerBound}, tokens used: ${s.tokensTotal.toLocaleString()}${s.waitedMsTotal ? `, time spent waiting for Groq's per-minute limit: ${sec(s.waitedMsTotal)}` : ""} (exact, from the server's own trace of ${s.traced} of ${t.total} answers).`);
   } else {
     L.push(`- Model calls (lower bound, inferred from the answers; this server does not send the step-23a trace headers): ${s.modelCallsLowerBound}`);
+  }
+  if (s.synthesisFlagged.length) L.push(`- The engine recognised ${s.synthesisFlagged.length} question(s) as EDS-type (synthesis intent): ${s.synthesisFlagged.join(", ")}.`);
+  if (s.gate.skipped + s.gate.model + s.gate.fallback > 0) {
+    L.push(`- Front-path gate is ON: it skipped the model for ${s.gate.skipped} question(s) (circular search answered first), asked it as before for ${s.gate.model}, and had to ask it after all for ${s.gate.fallback} (circular search found nothing or failed).`);
   }
   L.push(`- DISPLAY correctness is not judged here. Only the API is exercised (the screen's parallel people search is not).`);
   if (s.routeDisagreements.length) L.push(`- **Harness check failed for ${s.routeDisagreements.join(", ")}**: the server's route and the one inferred from the answer disagree (see the failure notes).`);

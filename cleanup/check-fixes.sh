@@ -18,6 +18,9 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { grep -q "buildHolidayCompareView" src/lib/employees/analytics.ts && grep -q "HolidayCompareCard" src/components/OmnibarModal.tsx && test -f src/components/HolidayCompareCard.tsx; } 2>/dev/null; report "year comparisons are drawn as a card, and name the year that has no data" $?
 { grep -q "Holiday reminders already exist" src/lib/employees/analytics.ts; } 2>/dev/null; report "the notification answer describes the working login reminder" $?
 { test -f src/lib/search/frontPathTrace.ts && grep -q "traceHeaders" src/app/api/ai-search/route.ts && grep -q "traceModelCall" src/lib/nl2sql/llm.ts; } 2>/dev/null; report "every search is traced (route, stages, model calls and tokens)" $?
+{ test -f src/lib/search/frontGate.ts && grep -q "rescueWithModel" src/app/api/ai-search/route.ts && grep -q "skipModel" src/lib/nl2sql/omnibar.ts; } 2>/dev/null; report "the front-path gate is built (off unless FRONT_PATH_SKIP_MODEL=true)" $?
+{ grep -q "getSessionTicket" src/app/api/ai-search/route.ts && ! grep -q 'searchParams.get("ticket")' src/app/api/ai-search/route.ts; } 2>/dev/null; report "synthesis is allowed only for an executive found in the login session" $?
+{ test -f src/lib/search/synthesisIntent.ts && grep -q "autoEdsEnabled" src/components/OmnibarModal.tsx && ! grep -q "autoEdsEnabled()" src/app/api/ai-search/route.ts; } 2>/dev/null; report "the Enter key sends an EDS-type question from a logged-in executive to Executive Deep Synthesis (off unless NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=true)" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad

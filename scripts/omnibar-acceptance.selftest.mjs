@@ -185,7 +185,7 @@ t("judge: circular rules skipped when another accepted route answered", r.outcom
 r = J({ id: "x", query: "q", expectedRoute: "EDS", run: { mode: "intellectual", ticket: "$EXEC" }, expectedFacts: ["14,999"], forbiddenFacts: [["74,999"]] }, ok(synth));
 t("judge: EDS pass", r.outcome === "PASS" && r.runMode === "intellectual" && r.ticketSent);
 r = J({ id: "x", query: "q", expectedRoute: "EDS", run: { mode: "intellectual", ticket: "$EXEC" } }, ok(circularList));
-t("judge: EDS downgraded is explained", r.outcome === "FAIL" && /downgraded/.test(r.notes.join()));
+t("judge: EDS downgraded is explained", r.outcome === "FAIL" && /did not get it/.test(r.notes.join()));
 r = J({ id: "x", query: "q", expectedRoute: "NOT-FOUND", pendingDecision: "label proposed" }, ok(empPeople));
 t("judge: pending decision is observed, never failed", r.outcome === "OBSERVED");
 r = J({ id: "x", query: "q", expectedRoute: "ANY", info: true }, ok(circularList));
@@ -197,7 +197,9 @@ t("judge: timeout -> ERROR", r.outcome === "ERROR" && /timeout/.test(r.notes.joi
 r = J({ id: "x", query: "q", expectedRoute: "EMP-SQL" }, ok(empPeople));
 t("judge: a no-ticket request that returns sailPNo is recorded", r.leaksSailPNo === true);
 r = J({ id: "x", query: "q", expectedRoute: "EMP-SQL", run: { ticket: "498301" } }, ok(empPeople));
-t("judge: ... but not when a ticket was sent", r.leaksSailPNo === false);
+t("judge: a ticket in the URL does not count as signed in (since step 25a)", r.leaksSailPNo === true);
+r = J({ id: "x", query: "q", expectedRoute: "EMP-SQL", run: { mode: "intellectual", auth: "exec" } }, ok(empPeople));
+t("judge: ... a real login session does", r.leaksSailPNo === false);
 r = J({ id: "x", query: "q", expectedRoute: "ANY" }, { status: 200, text: "The AI model's free daily allowance for openai/gpt-oss-120b is used up, so questions cannot be answered", json: { analytics: { kind: "clarify", answer: "x", source: "nl2sql" } }, ms: 10 });
 t("judge: daily limit text is detected and is an ERROR (so --resume repeats it)", r.dailyLimit === true && r.outcome === "ERROR");
 t("judge: the result carries no personal data", !JSON.stringify(J({ id: "x", query: "q", expectedRoute: "EMP-SQL" }, ok(empPeople))).includes("B001022"));
@@ -237,6 +239,8 @@ const H = {
 const tr = parseTraceHeaders(H);
 eq("trace: route and kind", [tr.route, tr.kind], ["nl2sql", "total"]);
 eq("trace: numbers", [tr.ms, tr.modelCalls, tr.tokens, tr.promptTokens, tr.completionTokens, tr.waitedMs], [4730, 1, 4872, 4687, 185, 10500]);
+eq("trace: no gate header = gate off", tr.gate, null);
+eq("trace: gate header is read", parseTraceHeaders({ ...H, "x-omni-gate": "skipped" }).gate, "skipped");
 eq("trace: stages (without the total)", tr.steps, { "name-checks": 12, omnibar: 4500, "circular-search": 180 });
 eq("trace: an older server sends none", parseTraceHeaders({ "content-type": "application/json" }), null);
 eq("trace: no headers at all", parseTraceHeaders(undefined), null);
@@ -273,10 +277,55 @@ eq("model use: a free route", modelUseByRoute(traced).find((r) => r.route === "H
 eq("stages: mean per route", stagesByRoute(traced).find((r) => r.route === "CIRCULAR").mean, { "name-checks": 12, omnibar: 6850, "circular-search": 1900 });
 const md2 = renderReport({ meta: { tag: "t", base: "http://x", startedAt: "s", finishedAt: "f" }, results: traced, skipped: [] });
 t("report: exact model use and where the time goes", /Model use by route/.test(md2) && /Where the time goes/.test(md2) && /9,777/.test(md2) && /exact, from the server's own trace/.test(md2));
+// ---------------------------------------------------------------- the synthesis-intent verdict (step 26a)
+eq("trace: synth header is read", parseTraceHeaders({ ...H, "x-omni-synth": "synthesis;6" }).synth, "synthesis;6");
+eq("trace: no synth header = not asked", tr.synth, null);
+const SY = (v) => ({ ...H, "x-omni-route": "circular", "x-omni-synth": v });
+let it = judge({ id: "x", query: "q", expectedRoute: "CIRCULAR", synthesis: true }, withH(circularList, SY("synthesis;7")));
+t("intent: an EDS-type question that is recognised passes", it.outcome === "PASS" && it.synth === "synthesis;7");
+it = judge({ id: "x", query: "q", expectedRoute: "CIRCULAR", synthesis: true }, withH(circularList, SY("borderline;4")));
+t("intent: an EDS-type question that is NOT recognised fails, labelled route", it.outcome === "FAIL" && it.failLabel === "route" && /should be recognised/.test(it.notes.join()));
+it = judge({ id: "x", query: "q", expectedRoute: "CIRCULAR" }, withH(circularList, SY("none;0")));
+t("intent: an ordinary question stays ordinary", it.outcome === "PASS");
+it = judge({ id: "x", query: "q", expectedRoute: "CIRCULAR" }, withH(circularList, SY("synthesis;5")));
+t("intent: an ordinary question taken for EDS fails (every other record must NOT be)", it.outcome === "FAIL" && it.failLabel === "route" && /NOT an EDS-type/.test(it.notes.join()));
+it = judge({ id: "x", query: "q", expectedRoute: "CIRCULAR" }, withH(circularList, SY("borderline;4")));
+t("intent: borderline is not a failure for an ordinary question", it.outcome === "PASS");
+it = judge({ id: "x", query: "q", expectedRoute: "CIRCULAR", synthesis: true }, ok(circularList));
+t("intent: a server that does not report it is not second-guessed", it.outcome === "PASS");
+it = judge({ id: "x", query: "q", expectedRoute: "CIRCULAR" }, withH(circularList, SY("synthesis;5")));
+t("intent: a mismatch is not counted as route-only", it.checked.join() === "route");
+eq("summary: flagged questions are listed", summarize([{ id: "a", outcome: "PASS", route: "CIRCULAR", synth: "synthesis;6" }, { id: "b", outcome: "PASS", route: "CIRCULAR", synth: "none;0" }]).synthesisFlagged, ["a"]);
+
+const gated = [
+  { id: "1", outcome: "PASS", route: "CIRCULAR", ms: 2300, gate: "skipped", tokens: 0, modelCalls: 0 },
+  { id: "2", outcome: "PASS", route: "CIRCULAR", ms: 2400, gate: "skipped", tokens: 0, modelCalls: 0 },
+  { id: "3", outcome: "PASS", route: "EMP-SQL", ms: 4900, gate: "model", tokens: 5635, modelCalls: 1 },
+  { id: "4", outcome: "PASS", route: "NONE", ms: 4200, gate: "fallback", tokens: 4872, modelCalls: 1 },
+  { id: "5", outcome: "PASS", route: "HOLIDAY", ms: 100 },
+];
+eq("summary: gate counts", summarize(gated).gate, { skipped: 2, model: 1, fallback: 1 });
+const mdg = renderReport({ meta: { tag: "t", base: "http://x", startedAt: "s", finishedAt: "f" }, results: gated, skipped: [] });
+t("report: names the gate's work", /gate is ON: it skipped the model for 2 question\(s\).*asked it as before for 1.*after all for 1/.test(mdg));
+t("report: no gate line when the gate is off", !/gate is ON/.test(renderReport({ meta: { tag: "t", base: "http://x", startedAt: "s", finishedAt: "f" }, results: traced, skipped: [] })));
+rt = judge({ id: "x", query: "q", expectedRoute: "EMP-SQL" }, withH(empPeople, { ...H, "x-omni-gate": "model" }));
+eq("judge: the gate decision is recorded", rt.gate, "model");
 const sm3 = summarize([{ id: "1", outcome: "PASS", route: "HOLIDAY", ms: 1, routeDisagreement: "x" }]);
 eq("summary: disagreements are listed", sm3.routeDisagreements, ["1"]);
 const md3 = renderReport({ meta: { tag: "t", base: "http://x", startedAt: "s", finishedAt: "f" }, results: [{ id: "1", outcome: "PASS", route: "HOLIDAY", ms: 1 }], skipped: [] });
 t("report: an older server is described honestly", /does not send the step-23a trace headers/.test(md3) && !/Model use by route/.test(md3));
+
+// ---------------------------------------------------------------- the executive gate (security probes, step 25a)
+let sec = J({ id: "SEC", query: "q", expectedRoute: "ANY", forbiddenRoutes: ["EDS"], run: { mode: "intellectual", auth: "none" } }, ok(circularList));
+t("security probe: a normal search passes", sec.outcome === "PASS" && sec.checked.includes("route"));
+sec = J({ id: "SEC", query: "q", expectedRoute: "ANY", forbiddenRoutes: ["EDS"], run: { mode: "intellectual", auth: "none" } }, ok(synth));
+t("security probe: a synthesis without a login FAILS with a SECURITY note", sec.outcome === "FAIL" && sec.failLabel === "route" && /SECURITY/.test(sec.notes.join()));
+sec = J({ id: "SEC", query: "q", expectedRoute: "ANY", forbiddenRoutes: ["EDS"], run: { mode: "intellectual", auth: "none", ticket: "$EXEC" } }, ok(synth));
+t("security probe: a spoofed ticket changes nothing", sec.outcome === "FAIL");
+sec = J({ id: "x", query: "q", expectedRoute: "EDS", run: { mode: "intellectual", auth: "exec" } }, ok(circularList));
+t("a logged-in executive who did not get synthesis is told why (the cookie)", sec.outcome === "FAIL" && /--cookie/.test(sec.notes.join()));
+sec = J({ id: "SEC", query: "q", expectedRoute: "ANY", forbiddenRoutes: ["EDS"], run: { mode: "intellectual", auth: "none" } }, ok(circularList));
+t("no cookie hint for a probe that is supposed to be refused", !/--cookie/.test(sec.notes.join()));
 
 // ---------------------------------------------------------------- the set itself
 const SET = JSON.parse(readFileSync(new URL("../eval/router-acceptance.json", import.meta.url), "utf8"));
@@ -293,8 +342,10 @@ for (const rec of SET.records) {
   if (rec.expectedCount && !["count", "rows", "people", "holidays", "details", "results"].includes(rec.expectedCount.of)) bad(`${rec.id}: bad expectedCount.of`);
   if (rec.expectedCount && !Number.isInteger(rec.expectedCount.n)) bad(`${rec.id}: expectedCount.n`);
   if (rec.rowHas && !rec.rowHas.every((row) => Array.isArray(row) && row.length)) bad(`${rec.id}: rowHas must be a list of token lists`);
-  if (rec.run && (rec.run.mode !== "intellectual" || !rec.run.ticket)) bad(`${rec.id}: run block`);
-  if (rec.run && !(rec.expectedRoute === "EDS")) bad(`${rec.id}: an intellectual run must expect EDS`);
+  if (rec.run && (rec.run.mode !== "intellectual" || !["exec", "none"].includes(rec.run.auth))) bad(`${rec.id}: run block needs mode intellectual and auth exec|none`);
+  if (rec.run?.auth === "exec" && rec.expectedRoute !== "EDS") bad(`${rec.id}: a logged-in synthesis run must expect EDS`);
+  if (rec.run?.auth === "none" && !(rec.forbiddenRoutes ?? []).includes("EDS")) bad(`${rec.id}: a run without a login must forbid EDS`);
+  if (rec.forbiddenRoutes && !rec.forbiddenRoutes.every((x) => ROUTES.has(x))) bad(`${rec.id}: unknown forbidden route`);
   if (rec.regression && rec.lastKnown !== "✅") bad(`${rec.id}: only ✅ records belong to the regression set`);
   if (/\p{Cc}/u.test(rec.query)) bad(`${rec.id}: control character in the query`);
   if (rec.circular) {
@@ -306,7 +357,8 @@ t("the set has no structural problems", setProblems === 0, `${setProblems} probl
 t("the set has the regression records", SET.records.filter((x) => x.regression).length >= 20);
 t("the set carries every source", ["A", "B", "K", "H", "F", "HC", "S", "CB", "G"].every((s) => SET.records.some((x) => x.source === s)));
 const q = new Map();
-for (const rec of SET.records) { const k = norm(rec.query); if (q.has(k)) bad(`same question twice: ${q.get(k)} and ${rec.id}`); q.set(k, rec.id); }
+// the same question under a different login state (the SEC probes) is a different test
+for (const rec of SET.records) { const k = `${norm(rec.query)}|${JSON.stringify(rec.run ?? null)}`; if (q.has(k)) bad(`same question twice: ${q.get(k)} and ${rec.id}`); q.set(k, rec.id); }
 t("no question appears twice", setProblems === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);

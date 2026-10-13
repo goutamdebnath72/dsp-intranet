@@ -81,6 +81,9 @@ export interface OmnibarDeps {
   legacy: (q: string) => Promise<AnalyticsPayload | null>;
   /** Different people who must confirm an answer before it is served without the model. */
   verifiedMin: number;
+  /** Front-path gate (src/lib/search/frontGate.ts): the question cannot be an employee question, so skip the model (and the
+   *  old engine) and let the app continue with circular search. The holiday parser and verified answers still go first. */
+  skipModel?: boolean;
 }
 
 // Columns the person card already shows (the codes appear in brackets after the designation / department).
@@ -287,6 +290,9 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
     if (verified) return okToPayload(verified, userKey, deps, attempt);
   }
 
+  // 2b. front-path gate: not an employee question, so do not spend a model call on it (the app continues with circular search)
+  if (deps.skipModel && !retry) return null;
+
   // 3. the model writes the SQL (on a retry: told what was rejected and why)
   let extra: PipelineExtra | undefined;
   if (retry) {
@@ -363,12 +369,13 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
 }
 
 /** Entry point used by the search route: wires the real model, database and existing engines. */
-export async function answerOmnibar(q: string, userKey: string | null, retry: RetryInfo | null = null): Promise<OmnibarPayload | null> {
+export async function answerOmnibar(q: string, userKey: string | null, retry: RetryInfo | null = null, opts: { skipModel?: boolean } = {}): Promise<OmnibarPayload | null> {
   const { groqLlm } = await import("./llm");
   const { withDefaultClient } = await import("./db");
   return runOmnibar(q, userKey, {
     enabled: process.env.NL2SQL_OMNIBAR_ENABLED !== "false",
     verifiedMin: verifiedMinConfirms(),
+    skipModel: opts.skipModel,
     llm: groqLlm(),
     withClient: withDefaultClient,
     holiday: async (qq) => {

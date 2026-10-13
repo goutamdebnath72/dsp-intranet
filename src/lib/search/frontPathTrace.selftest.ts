@@ -2,7 +2,7 @@
 // No database, no network, no real model: the Groq endpoint is faked.
 
 import {
-  startTrace, withTrace, traceStep, traceModelCall, traceWait, setTraceRoute, summarizeTrace,
+  startTrace, withTrace, traceStep, traceModelCall, traceWait, setTraceRoute, setTraceGate, setTraceSynth, summarizeTrace,
   routeFromReply, traceHeaders, traceLine,
 } from "./frontPathTrace";
 import { groqLlm } from "../nl2sql/llm";
@@ -35,6 +35,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     traceModelCall({ model: "m", prompt: 100, completion: 20, total: 120, cached: 40, ms: 300 });
     traceWait(10_500);
     setTraceRoute("circular", null);
+    setTraceGate("skipped");
+    setTraceSynth("synthesis", 7);
   });
   const s = summarizeTrace(t, 6_000);
   eq("route", s.route, "circular");
@@ -44,6 +46,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   eq("model calls", s.modelCalls, 2);
   eq("tokens", s.tokens, { prompt: 4787, completion: 205, total: 4992, cached: 40 });
   eq("waited", s.waitedMs, 10_500);
+  eq("gate", s.gate, "skipped");
+  eq("synthesis intent", s.synth, "synthesis;7");
+  eq("an intent that was never asked is null", summarizeTrace(startTrace()).synth, null);
+  eq("a gate that never ran is null", summarizeTrace(startTrace()).gate, null);
 
   // ---- two requests at once never mix (the whole point of AsyncLocalStorage)
   const t1 = startTrace(), t2 = startTrace();
@@ -68,7 +74,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   eq("a shape we do not know", routeFromReply(200, "semantic", { something: 1 }), { route: "unknown", kind: null });
 
   // ---- headers and the console line
-  const sum = { route: "nl2sql", kind: "total", totalMs: 4_730, steps: [{ name: "omnibar", ms: 4_500 }], modelCalls: 1, tokens: { prompt: 4687, completion: 185, total: 4872, cached: 0 }, waitedMs: 0 };
+  const sum = { route: "nl2sql", kind: "total", gate: null as string | null, synth: null as string | null, totalMs: 4_730, steps: [{ name: "omnibar", ms: 4_500 }], modelCalls: 1, tokens: { prompt: 4687, completion: 185, total: 4872, cached: 0 }, waitedMs: 0 };
   const h = traceHeaders(sum);
   eq("route header", h["x-omni-route"], "nl2sql");
   eq("kind header", h["x-omni-kind"], "total");
@@ -76,6 +82,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   eq("server-timing", h["server-timing"], "omnibar;dur=4500, total;dur=4730");
   ok("headers are plain ASCII", Object.values(h).every((v) => /^[\x20-\x7E]*$/.test(v)));
   eq("no kind header when there is none", "x-omni-kind" in traceHeaders({ ...sum, kind: null }), false);
+  eq("no gate header when the gate is off", "x-omni-gate" in h, false);
+  eq("gate header", traceHeaders({ ...sum, gate: "fallback" })["x-omni-gate"], "fallback");
+  eq("no synth header when it was not asked", "x-omni-synth" in h, false);
+  eq("synth header", traceHeaders({ ...sum, synth: "borderline;4" })["x-omni-synth"], "borderline;4");
+  ok("console line mentions a synthesis-type question", traceLine({ ...sum, synth: "synthesis;7" }, "q").includes("| synth synthesis 7 |"));
+  ok("console line stays quiet for an ordinary question", !traceLine({ ...sum, synth: "none;0" }, "q").includes("synth"));
+  ok("console line names the gate", traceLine({ ...sum, gate: "skipped" }, "q").includes("| gate skipped |"));
   eq("console line", traceLine(sum, "how many executives in C&IT"), '[front-path] nl2sql/total 4.7s | model 1 call, 4872 tokens (4687 in + 185 out) | omnibar 4.5s | q="how many executives in C&IT"');
   ok("console line shortens a long question", traceLine({ ...sum, steps: [] }, "x".repeat(200)).includes('..."'));
   ok("console line mentions the rate-limit wait", /waited 10\.5s/.test(traceLine({ ...sum, waitedMs: 10_500 }, "q")));

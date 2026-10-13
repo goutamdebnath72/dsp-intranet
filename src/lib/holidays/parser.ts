@@ -283,6 +283,10 @@ async function parseHolidayIntentCore(
 
   // ---- compare (needs the holiday word; two related years) ----
   if (hasHolidayWord && COMPARE_WORD.test(q)) {
+    // Hijack guard, as in the count/list branch: "compare the leave entitlements for contractor workers in the 2023 and 2025 holiday and
+    // leave circulars" is about CIRCULARS, not the calendar. Any topic word left once the holiday vocabulary and the compare word are
+    // stripped means this is not a calendar comparison: hand it on (circular search or synthesis) instead of answering with holiday counts.
+    if (leftoverAfterStrip(q.replace(new RegExp(COMPARE_WORD.source, "g"), " "))) return null; // ALL compare words, not just the first
     const yearA = years[0] ?? explicitYearFromDate ?? now.year;
     const yearB = years[1] ?? yearA - 1;
     return { kind: "holidayCompare", yearA, yearB, type };
@@ -290,6 +294,7 @@ async function parseHolidayIntentCore(
 
   // ---- breakdown (needs the holiday word) ----
   if (hasHolidayWord && BREAKDOWN_WORD.test(q)) {
+    if (leftoverAfterStrip(q.replace(new RegExp(BREAKDOWN_WORD.source, "g"), " "))) return null; // same hijack guard: "holiday breakdown for contract workers" is not the calendar
     const year = years[0] ?? explicitYearFromDate ?? now.year;
     return { kind: "holidayBreakdown", year };
   }

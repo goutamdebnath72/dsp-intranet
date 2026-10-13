@@ -29,6 +29,7 @@ import { OmniLoginHint } from "@/components/OmniLoginHint";
 import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
 import { HolidayCompareCard } from "@/components/HolidayCompareCard";
 import { decideLoginHint, excludeShownPeople } from "@/lib/search/loginHints";
+import { autoEdsEnabled, detectSynthesisIntent } from "@/lib/search/synthesisIntent";
 import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
@@ -604,12 +605,24 @@ export function OmnibarModal({
                       // Smart Enter: fire ALL deterministic channels at once —
                       // employee name search + employee/department analytics +
                       // circular/announcement Smart Semantic. IDs & sites are
-                      // already live as you type; Executive Deep stays a
-                      // deliberate button click, never Enter.
-                      if (query.trim().length >= 2) {
-                        runEmployeeNameSearch();
+                      // already live as you type.
+                      // Step 27a (off unless NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=true): for a LOGGED-IN EXECUTIVE a question that needs
+                      // several circulars built into one answer (compare / correlate / what is hidden / what changed ...: see
+                      // src/lib/search/synthesisIntent.ts) starts Executive Deep Synthesis BY ITSELF, exactly like the button:
+                      // same processing panel, same briefing. The server verifies the executive again. Anyone else, and every
+                      // other question, takes the normal Enter path.
+                      if (
+                        isExecutive &&
+                        autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) &&
+                        detectSynthesisIntent(query).synthesis
+                      ) {
+                        if (!isLoading) triggerSearch("intellectual", { auto: true });
+                      } else {
+                        if (query.trim().length >= 2) {
+                          runEmployeeNameSearch();
+                        }
+                        triggerSearch("semantic");
                       }
-                      triggerSearch("semantic");
                     }
                   }}
                   placeholder="Search people, departments, circulars, announcements & sites — press Enter…"

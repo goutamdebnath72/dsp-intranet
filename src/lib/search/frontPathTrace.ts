@@ -28,6 +28,12 @@ export interface Trace {
   route: string | null;
   /** The analytics kind (count, clarify, error ...) when the answer was one. */
   kind: string | null;
+  /** What the front-path gate (frontGate.ts) decided: "skipped" (model skipped, circular search first), "model" (asked as
+   *  before) or "fallback" (it skipped, circular search found nothing or failed, so the model was asked after all).
+   *  null = the gate is off. */
+  gate: string | null;
+  /** The synthesis-intent verdict for the question (synthesisIntent.ts), "level;score", e.g. "synthesis;7". null = not asked. */
+  synth: string | null;
   steps: Map<string, number>;
   calls: ModelCall[];
   /** Milliseconds spent sleeping because Groq said "too many tokens this minute". */
@@ -37,6 +43,8 @@ export interface Trace {
 export interface TraceSummary {
   route: string;
   kind: string | null;
+  gate: string | null;
+  synth: string | null;
   totalMs: number;
   steps: { name: string; ms: number }[];
   modelCalls: number;
@@ -47,7 +55,7 @@ export interface TraceSummary {
 const store = new AsyncLocalStorage<Trace>();
 
 export function startTrace(now: number = Date.now()): Trace {
-  return { startedAt: now, route: null, kind: null, steps: new Map(), calls: [], waitedMs: 0 };
+  return { startedAt: now, route: null, kind: null, gate: null, synth: null, steps: new Map(), calls: [], waitedMs: 0 };
 }
 
 /** Run `fn` with `trace` as the current request's trace (everything it awaits sees it). */
@@ -84,6 +92,16 @@ export function setTraceRoute(route: string, kind?: string | null): void {
   if (kind !== undefined) t.kind = kind;
 }
 
+export function setTraceGate(gate: "skipped" | "model" | "fallback"): void {
+  const t = store.getStore();
+  if (t) t.gate = gate;
+}
+
+export function setTraceSynth(level: string, score: number): void {
+  const t = store.getStore();
+  if (t) t.synth = `${level};${score}`;
+}
+
 export function summarizeTrace(t: Trace, now: number = Date.now()): TraceSummary {
   const tokens = { prompt: 0, completion: 0, total: 0, cached: 0 };
   for (const c of t.calls) {
@@ -95,6 +113,8 @@ export function summarizeTrace(t: Trace, now: number = Date.now()): TraceSummary
   return {
     route: t.route ?? "unknown",
     kind: t.kind,
+    gate: t.gate,
+    synth: t.synth,
     totalMs: Math.max(0, now - t.startedAt),
     steps: Array.from(t.steps, ([name, ms]) => ({ name, ms })),
     modelCalls: t.calls.length,
@@ -131,6 +151,8 @@ export function traceHeaders(s: TraceSummary): Record<string, string> {
     "x-omni-waited-ms": String(Math.round(s.waitedMs)),
   };
   if (s.kind) h["x-omni-kind"] = s.kind;
+  if (s.gate) h["x-omni-gate"] = s.gate;
+  if (s.synth) h["x-omni-synth"] = s.synth;
   const timing = [...s.steps.map((x) => `${x.name};dur=${Math.round(x.ms)}`), `total;dur=${Math.round(s.totalMs)}`];
   h["server-timing"] = timing.join(", ");
   return h;
@@ -145,5 +167,8 @@ export function traceLine(s: TraceSummary, query: string): string {
     : "model 0 calls";
   const waited = s.waitedMs > 0 ? `, waited ${fixed(s.waitedMs)}s for Groq's per-minute limit` : "";
   const steps = s.steps.length ? ` | ${s.steps.map((x) => `${x.name} ${fixed(x.ms)}s`).join(", ")}` : "";
-  return `[front-path] ${s.route}${s.kind ? `/${s.kind}` : ""} ${fixed(s.totalMs)}s | ${model}${waited}${steps} | q="${shown}"`;
+  const gate = s.gate ? ` | gate ${s.gate}` : "";
+  // only worth a mention when the question looks like a synthesis one
+  const synth = s.synth && !s.synth.startsWith("none") ? ` | synth ${s.synth.replace(";", " ")}` : "";
+  return `[front-path] ${s.route}${s.kind ? `/${s.kind}` : ""} ${fixed(s.totalMs)}s | ${model}${waited}${steps}${gate}${synth} | q="${shown}"`;
 }

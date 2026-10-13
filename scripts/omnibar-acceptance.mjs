@@ -21,7 +21,12 @@
 //                           Use 0 to let the app wait by itself.
 //     The server console prints the real token count of every call ("Every call prints one line with the tokens").
 //   * Executive Deep Synthesis questions send up to ten circulars to the model (the most expensive): they run only
-//     with --eds, as the executive ticket given by --exec-ticket (default 498301).
+//     with --eds AND --cookie. Since step 25a the server takes WHO is calling from the login session, never from the
+//     browser's ticket parameter, so the harness needs a real executive session: log in to the app in your browser, open
+//     the developer tools > Application > Cookies, and pass the value like this:
+//         --cookie "next-auth.session-token=PASTE-THE-VALUE"
+//     (it is sent only with the synthesis questions, never written to the results). The two SEC- security probes need no
+//     cookie: they check that synthesis is REFUSED without a login.
 //
 // USAGE (from the project root, with `npm run dev` running in another terminal):
 //   node scripts/omnibar-acceptance.mjs --list                       what is in the set
@@ -53,11 +58,14 @@ const val = (n, d) => {
 };
 const list = (n) => (val(n, "") || "").split(",").map((s) => s.trim()).filter(Boolean);
 
+// The command line as it may be WRITTEN or ECHOED: the session cookie's value is a login secret and never leaves this process.
+const safeArgv = argv.map((a, i) => (argv[i - 1] === "--cookie" ? "[hidden]" : a));
 const BASE = val("base", "http://localhost:3000").replace(/\/+$/, "");
 const TAG = val("tag", "run").replace(/[^A-Za-z0-9_.-]/g, "-");
 const PAUSE = Math.max(0, parseInt(val("pause", "1500"), 10) || 0);
 const MODEL_PAUSE = Math.max(0, parseInt(val("model-pause", "40000"), 10) || 0);
-const EXEC = val("exec-ticket", "498301");
+const EXEC = val("exec-ticket", "498301"); // only used to send a SPOOFED ticket in the SEC- probes (the server must ignore it)
+const COOKIE = val("cookie", "");
 const OUT = val("out", "eval/results");
 const SET_FILE = val("set", "eval/router-acceptance.json");
 const MAX_MODEL = parseInt(val("max-model-calls", "0"), 10) || 0;
@@ -98,7 +106,9 @@ const modelFree = (r) => {
   const e = [].concat(r.expectedRoute ?? []);
   return e.length > 0 && e.every((x) => x === "HOLIDAY" || x === "BAD-QUERY");
 };
-const isEds = (r) => r.run?.mode === "intellectual";
+const authOf = (r) => r.run?.auth ?? (r.run?.mode === "intellectual" ? "exec" : "none");
+const isEds = (r) => r.run?.mode === "intellectual" && authOf(r) !== "none"; // an expensive synthesis is expected
+const needsCookie = (r) => r.run?.mode === "intellectual" && authOf(r) === "exec";
 
 const selected = [];
 const skipped = [];
@@ -110,6 +120,7 @@ for (const r of records) {
   const missing = (r.requires || []).filter((f) => !withFlags.has(f));
   if (missing.length) { skipped.push({ id: r.id, why: `needs --with ${missing.join(",")}` }); continue; }
   if (isEds(r) && !WANT_EDS && !only.has(r.id)) { skipped.push({ id: r.id, why: "Executive Deep Synthesis is expensive: add --eds" }); continue; }
+  if (needsCookie(r) && !COOKIE) { skipped.push({ id: r.id, why: "needs --cookie (an executive's login session: the server no longer trusts the ticket parameter)" }); continue; }
   if (NO_MODEL && !modelFree(r)) { skipped.push({ id: r.id, why: "--no-model" }); continue; }
   selected.push(r);
 }
@@ -137,7 +148,7 @@ const estModel = todo.filter((r) => !modelFree(r)).length;
 console.log(`Omnibar acceptance run "${TAG}" against ${BASE}`);
 console.log(`  records in the set: ${records.length}   selected: ${selected.length}   to run now: ${todo.length}   carried over: ${carried.size}   not run: ${skipped.length}`);
 console.log(`  expected to make a model call: about ${estModel} (everything except holiday-parser questions)${MAX_MODEL ? `   budget: stop after ~${MAX_MODEL}` : ""}`);
-console.log(`  pause between questions: ${PAUSE} ms (${MODEL_PAUSE} ms after one that used the model)   executive ticket for synthesis: ${EXEC}`);
+console.log(`  pause between questions: ${PAUSE} ms (${MODEL_PAUSE} ms after one that used the model)   executive session cookie: ${COOKIE ? "given" : "not given"}`);
 if (estModel > 0 && MODEL_PAUSE > 0) console.log(`  the model questions alone will take about ${Math.round((estModel * MODEL_PAUSE) / 60000)} minutes at that pace (--model-pause 0 to let the app wait by itself)`);
 if (estModel > 25 && !MAX_MODEL) console.log(`  NOTE: ${estModel} model calls will probably exceed one day of the free Groq allowance (200,000 tokens). Consider --no-model, --max-model-calls, then --resume tomorrow.`);
 if (has("dry-run")) {
@@ -160,13 +171,15 @@ process.on("SIGINT", () => { if (stopping) process.exit(130); stopping = true; c
 async function ask(rec) {
   const run = rec.run || {};
   const mode = run.mode || "semantic";
-  const ticket = run.ticket === "$EXEC" ? EXEC : run.ticket || "";
+  const ticket = run.ticket === "$EXEC" ? EXEC : run.ticket || ""; // only the SEC- probes send one, to prove it is ignored
   const url = `${BASE}/api/ai-search?q=${encodeURIComponent(rec.query)}&mode=${mode}${ticket ? `&ticket=${encodeURIComponent(ticket)}` : ""}`;
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   const t0 = performance.now();
   try {
-    const r = await fetch(url, { signal: ctl.signal, headers: { "x-acceptance-run": TAG } });
+    const headers = { "x-acceptance-run": TAG };
+    if (needsCookie(rec) && COOKIE) headers.cookie = COOKIE; // the login session, only for the synthesis questions
+    const r = await fetch(url, { signal: ctl.signal, headers });
     const text = await r.text();
     const ms = Math.round(performance.now() - t0);
     let json = null;
@@ -234,11 +247,10 @@ const order = new Map(records.map((r, i) => [r.id, i]));
 const merged = [...carried.values(), ...results].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 const finishedAt = stoppedBecause ? null : new Date().toISOString();
 const runObj = {
-  meta: { tag: TAG, base: BASE, startedAt, finishedAt, stoppedBecause, args: argv.join(" "), setVersion: SET.version ?? null, node: process.version, resumedFrom: val("resume") || null, execTicketUsed: isAnyEds(merged) ? EXEC : null },
+  meta: { tag: TAG, base: BASE, startedAt, finishedAt, stoppedBecause, args: safeArgv.join(" "), setVersion: SET.version ?? null, node: process.version, resumedFrom: val("resume") || null, sessionCookieGiven: !!COOKIE },
   results: merged,
   skipped,
 };
-function isAnyEds(rs) { return rs.some((r) => r.runMode === "intellectual"); }
 
 if (merged.length) {
   mkdirSync(OUT, { recursive: true });
@@ -254,6 +266,6 @@ if (merged.length) {
   for (const r of s.byRoute) console.log(`  ${String(r.route).padEnd(11)} n=${String(r.n).padEnd(3)} p50 ${sec(r.p50)}  p95 ${sec(r.p95)}`);
   if (stoppedBecause) console.log(`\nSTOPPED: ${stoppedBecause}`);
   console.log(`\nWrote ${base}.md and ${base}.json`);
-  if (stoppedBecause) console.log(`Continue later with:  node scripts/omnibar-acceptance.mjs ${argv.filter((a) => a !== "--resume" && a !== val("resume")).join(" ")} --resume ${base}.json`);
+  if (stoppedBecause) console.log(`Continue later with:  node scripts/omnibar-acceptance.mjs ${safeArgv.filter((a) => a !== "--resume" && a !== val("resume")).join(" ")} --resume ${base}.json   (put your --cookie "..." back in)`);
 }
 process.exit(0);
