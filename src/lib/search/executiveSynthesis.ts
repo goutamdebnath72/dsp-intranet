@@ -2,6 +2,7 @@
 import { Agent } from "undici";
 import { SearchResultRow } from "./titleSearch";
 import { buildSourceNames, sanitizeSourceRefs } from "./sourceRefs";
+import { traceModelCall } from "./frontPathTrace";
 
 const ollamaDispatcher = new Agent({
   headersTimeout: 10 * 60 * 1000,
@@ -395,6 +396,17 @@ JSON Output:`;
         );
       }
       const groqData = await groqRes.json();
+      // front-path trace (passive): the synthesis call's tokens (it sends up to ten circulars, the most expensive call)
+      if (groqData.usage) {
+        traceModelCall({
+          model: "openai/gpt-oss-120b",
+          prompt: Number(groqData.usage.prompt_tokens ?? 0),
+          completion: Number(groqData.usage.completion_tokens ?? 0),
+          total: Number(groqData.usage.total_tokens ?? 0),
+          cached: Number(groqData.usage.prompt_tokens_details?.cached_tokens ?? 0),
+          ms: 0,
+        });
+      }
       rawPayload = (groqData.choices?.[0]?.message?.content || "").trim();
     }
 

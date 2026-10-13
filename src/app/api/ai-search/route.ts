@@ -19,6 +19,7 @@ import { queryTokenWeights, weightedCoverage } from "@/lib/search/tokenWeights";
 import { loadDocumentChunks, bestPassage } from "@/lib/search/documentText";
 import { findSailDepartmentInText } from "@/lib/employees/sailDepartments";
 import { normTerm } from "@/lib/employees/designations";
+import { routeFromReply, startTrace, summarizeTrace, traceHeaders, traceLine, traceStep, withTrace } from "@/lib/search/frontPathTrace";
 
 // Vercel stops a serverless function after a time limit. A question can legitimately take
 // longer than the default (the language model may have to wait for its per-minute allowance),
@@ -146,7 +147,31 @@ function pickReadableExcerpt(
 }
 
 
+/**
+ * Every search goes through here. PASSIVE route logging (step 2 of the front-path plan, src/lib/search/frontPathTrace.ts):
+ * the answer is exactly what handleSearch returns; this only adds x-omni-* / Server-Timing headers and ONE console line
+ * saying which route answered, how long each stage took and how many model calls and tokens it used. Tracing can never
+ * break a search.
+ */
 export async function GET(request: Request) {
+  const trace = startTrace();
+  const params = new URL(request.url).searchParams;
+  const res = await withTrace(trace, () => handleSearch(request));
+  try {
+    const body = await res.clone().json().catch(() => null);
+    const named = routeFromReply(res.status, params.get("mode") || "semantic", body);
+    trace.route = named.route;
+    trace.kind = named.kind;
+    const summary = summarizeTrace(trace);
+    for (const [name, value] of Object.entries(traceHeaders(summary))) res.headers.set(name, value);
+    console.info(traceLine(summary, params.get("q") || ""));
+  } catch {
+    /* tracing is best-effort */
+  }
+  return res;
+}
+
+async function handleSearch(request: Request) {
   try {
     const dataSource = await getDb();
 
@@ -173,6 +198,7 @@ export async function GET(request: Request) {
       return NextResponse.json([]);
     }
 
+    const endNameChecks = traceStep("name-checks");
     // Name-shaped: 2-3 words, all pure Latin letters (a person's name). Such a
     // query must anchor lexically in a document to qualify it (see the filter
     // below) — this kills the "name -> random low-score circular" noise.
@@ -232,6 +258,8 @@ export async function GET(request: Request) {
       }
     }
 
+    endNameChecks();
+
     // --- MODE 1: HEADLINE TITLE MATCH ---
     if (mode === "title") {
       if (INDIC_SCRIPT_REGEX.test(q)) {
@@ -275,12 +303,16 @@ export async function GET(request: Request) {
     // search can be measured on its own, for free and repeatably (scripts/circular-battery.mjs).
     const retrievalOnly = process.env.NODE_ENV !== "production" && searchParams.get("retrievalOnly") === "1";
     if (mode === "semantic" && !retrievalOnly) {
+      const endOmnibar = traceStep("omnibar");
       const payload = await answerOmnibar(q, userTicket || null, parseRetry(searchParams));
+      endOmnibar();
       if (payload) return NextResponse.json({ analytics: payload });
     }
 
     // --- RETRIEVE BEST MATCHING CIRCULARS ---
+    const endCircular = traceStep("circular-search");
     const { uniqueResults } = await executeSmartSemanticRouter(dataSource, q);
+    endCircular();
 
     // Quoted-query classification (double-quote only; Latin-only gets
     // case-insensitive whole-word, Indic stays substring) — mirrors the SQL
@@ -544,7 +576,9 @@ export async function GET(request: Request) {
         dataSource,
         topPrimarySources.filter((r) => r.type === "circular").map((r) => r.id),
       );
+      const endSynthesis = traceStep("synthesis");
       synthesis = await executeExecutiveSynthesis(q, synthesisSources, labels);
+      endSynthesis();
     } else {
       synthesis = emptyBriefing(
         "No relevant circular records found to synthesize.",

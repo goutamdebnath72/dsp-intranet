@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 import {
   norm, hasFact, flattenText, extractRows, rowHasMatch, measureCount, inferRoute, routeMatches,
   evaluateCircular, judge, sanitize, containsSailPNo, summarize, compareRuns, renderReport, percentile,
+  parseTraceHeaders, routesAgree, modelUseByRoute, stagesByRoute,
 } from "./lib/acceptance-core.mjs";
 
 let pass = 0, fail = 0;
@@ -226,6 +227,56 @@ t("compare: fixed", cmp.changes.fixed.join() === "2");
 t("compare: route changed", cmp.changes.routeChanged.some((x) => x.id === "2" && x.to === "EMP-SQL"));
 const md = renderReport({ meta: { tag: "t", base: "http://x", startedAt: "s", finishedAt: "f" }, results: resB, skipped: [{ id: "9", why: "--no-model" }] });
 t("report renders the failure and the skip", /ENGINE/.test(md) && /--no-model/.test(md) && /BROKEN: 1/.test(md));
+
+// ---------------------------------------------------------------- the server's own trace (step 23a)
+const H = {
+  "x-omni-route": "nl2sql", "x-omni-kind": "total", "x-omni-ms": "4730", "x-omni-model-calls": "1", "x-omni-tokens": "4872",
+  "x-omni-tokens-prompt": "4687", "x-omni-tokens-completion": "185", "x-omni-waited-ms": "10500",
+  "server-timing": "name-checks;dur=12, omnibar;dur=4500, circular-search;dur=180, total;dur=4730",
+};
+const tr = parseTraceHeaders(H);
+eq("trace: route and kind", [tr.route, tr.kind], ["nl2sql", "total"]);
+eq("trace: numbers", [tr.ms, tr.modelCalls, tr.tokens, tr.promptTokens, tr.completionTokens, tr.waitedMs], [4730, 1, 4872, 4687, 185, 10500]);
+eq("trace: stages (without the total)", tr.steps, { "name-checks": 12, omnibar: 4500, "circular-search": 180 });
+eq("trace: an older server sends none", parseTraceHeaders({ "content-type": "application/json" }), null);
+eq("trace: no headers at all", parseTraceHeaders(undefined), null);
+eq("trace: a garbage number is null, not NaN", parseTraceHeaders({ "x-omni-route": "holiday", "x-omni-tokens": "abc" }).tokens, null);
+t("agree: holiday answered by the holiday parser or a Bad Query", routesAgree("holiday", "count", "HOLIDAY") && routesAgree("holiday", "error", "BAD-QUERY") && !routesAgree("holiday", "count", "CIRCULAR"));
+t("agree: model answers", routesAgree("nl2sql", "total", "HEALTH-SQL") && routesAgree("cache", "count", "EMP-SQL") && !routesAgree("nl2sql", "total", "HOLIDAY"));
+t("agree: circular and none", routesAgree("circular", null, "POLICY") && routesAgree("none", null, "NONE") && routesAgree("none", "clarify", "CLARIFY") && !routesAgree("circular", null, "NONE"));
+t("agree: eds and error", routesAgree("eds", null, "EDS") && routesAgree("error", null, "ERROR") && !routesAgree("eds", null, "CIRCULAR"));
+t("agree: unknown server routes are not second-guessed", routesAgree("title", null, "CIRCULAR"));
+
+const withH = (json, headers, status = 200) => ({ status, json, text: JSON.stringify(json), ms: 4800, headers });
+let rt = judge({ id: "x", query: "q", expectedRoute: "EMP-SQL" }, withH(empPeople, H));
+t("judge: the trace is recorded on the result", rt.outcome === "PASS" && rt.modelCalls === 1 && rt.tokens === 4872 && rt.waitedMs === 10500 && rt.serverRoute === "nl2sql" && rt.steps.omnibar === 4500, JSON.stringify([rt.modelCalls, rt.tokens, rt.steps]));
+eq("judge: the server's total time wins over the engine's own", rt.serverMs, 4730);
+rt = judge({ id: "x", query: "q", expectedRoute: "EMP-SQL" }, withH(empPeople, { ...H, "x-omni-route": "circular" }));
+t("judge: a header that contradicts the inference is flagged, the verdict is not changed", rt.outcome === "PASS" && /server says 'circular/.test(rt.routeDisagreement) && rt.notes.some((n) => /harness check/.test(n)));
+rt = judge({ id: "x", query: "q", expectedRoute: "HOLIDAY" }, withH({ error: "search_unavailable" }, { ...H, "x-omni-route": "error", "x-omni-model-calls": "1", "x-omni-tokens": "4872" }, 503));
+t("judge: a failed request still reports the tokens it burned", rt.outcome === "ERROR" && rt.tokens === 4872 && rt.modelCalls === 1);
+rt = judge({ id: "x", query: "q", expectedRoute: "HOLIDAY" }, ok(holidayList));
+t("judge: an older server (no headers) still works", rt.outcome === "PASS" && rt.tokens === undefined && rt.routeDisagreement === undefined);
+
+const traced = [
+  { id: "1", outcome: "PASS", route: "HOLIDAY", ms: 100, tokens: 0, modelCalls: 0, waitedMs: 0, steps: { "name-checks": 5, omnibar: 60 } },
+  { id: "2", outcome: "PASS", route: "CIRCULAR", ms: 5200, tokens: 4872, modelCalls: 1, waitedMs: 0, steps: { "name-checks": 10, omnibar: 1900, "circular-search": 3100 } },
+  { id: "3", outcome: "FAIL", failLabel: "route", route: "CIRCULAR", ms: 12600, tokens: 4905, modelCalls: 1, waitedMs: 10500, steps: { "name-checks": 14, omnibar: 11800, "circular-search": 700 } },
+  { id: "4", outcome: "PASS", route: "EMP-SQL", ms: 4000, answerSource: "nl2sql", attempts: 2 }, // an untraced one in the same run
+];
+const sm2 = summarize(traced);
+// 2 exact calls from the three traced answers + the 2 inferred attempts of the one untraced answer in the same run
+eq("summary: exact totals from the trace", [sm2.traced, sm2.tokensTotal, sm2.modelCallsLowerBound, sm2.waitedMsTotal], [3, 9777, 4, 10500]);
+const mu = modelUseByRoute(traced).find((r) => r.route === "CIRCULAR");
+eq("model use: circular", [mu.n, mu.withModel, mu.modelCalls, mu.tokens], [2, 2, 2, 9777]);
+eq("model use: a free route", modelUseByRoute(traced).find((r) => r.route === "HOLIDAY").withModel, 0);
+eq("stages: mean per route", stagesByRoute(traced).find((r) => r.route === "CIRCULAR").mean, { "name-checks": 12, omnibar: 6850, "circular-search": 1900 });
+const md2 = renderReport({ meta: { tag: "t", base: "http://x", startedAt: "s", finishedAt: "f" }, results: traced, skipped: [] });
+t("report: exact model use and where the time goes", /Model use by route/.test(md2) && /Where the time goes/.test(md2) && /9,777/.test(md2) && /exact, from the server's own trace/.test(md2));
+const sm3 = summarize([{ id: "1", outcome: "PASS", route: "HOLIDAY", ms: 1, routeDisagreement: "x" }]);
+eq("summary: disagreements are listed", sm3.routeDisagreements, ["1"]);
+const md3 = renderReport({ meta: { tag: "t", base: "http://x", startedAt: "s", finishedAt: "f" }, results: [{ id: "1", outcome: "PASS", route: "HOLIDAY", ms: 1 }], skipped: [] });
+t("report: an older server is described honestly", /does not send the step-23a trace headers/.test(md3) && !/Model use by route/.test(md3));
 
 // ---------------------------------------------------------------- the set itself
 const SET = JSON.parse(readFileSync(new URL("../eval/router-acceptance.json", import.meta.url), "utf8"));

@@ -6,6 +6,7 @@
 // app's own working Groq call.
 
 import type { LlmFn } from "./types";
+import { traceModelCall, traceWait } from "../search/frontPathTrace";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -78,6 +79,7 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
             `${left !== null ? `, ${left} tokens left this minute` : ""}${mi > 0 ? " [BACKUP MODEL]" : ""}`,
         );
         if (opts.onUsage && data.usage) opts.onUsage(usage);
+        traceModelCall({ model, ...usage, ms: Date.now() - started }); // front-path trace (passive)
         return String(data.choices?.[0]?.message?.content ?? "");
       }
       const text = await res.text();
@@ -100,6 +102,7 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
         if (waits < 2 && wait !== null && wait <= maxWait) {
           waits++;
           console.warn(`[nl2sql] Groq rate limit (429): waiting ${wait.toFixed(1)} s before retry ${waits} of 2 -- this is why an answer can take long`);
+          traceWait(Math.ceil(wait * 1000) + 500); // front-path trace (passive)
           await sleep(Math.ceil(wait * 1000) + 500);
           continue;
         }

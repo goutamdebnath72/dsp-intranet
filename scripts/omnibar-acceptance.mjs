@@ -11,7 +11,9 @@
 //     schema prompt (several thousand tokens). The free tier allows 200,000 tokens a day, so a full run does NOT fit
 //     in one day. Therefore:
 //       --no-model          run only the questions the deterministic holiday parser should answer (no tokens)
-//       --max-model-calls N stop cleanly after about N model calls (estimated from the answers so far)
+//       --max-model-calls N stop cleanly after N model calls (the server reports the exact number)
+//       --max-tokens N      stop cleanly once the questions so far have used N tokens: the right control for the
+//                           200,000-a-day free allowance (e.g. --max-tokens 150000 leaves room for the app itself)
 //       --resume FILE       continue an earlier results file: questions already answered are kept, the rest run
 //       --model-pause MS    wait this long after a question that used the model (default 40000). Measured on the
 //                           first real run: one model call is about 4,900 tokens and the free tier allows about
@@ -59,6 +61,7 @@ const EXEC = val("exec-ticket", "498301");
 const OUT = val("out", "eval/results");
 const SET_FILE = val("set", "eval/router-acceptance.json");
 const MAX_MODEL = parseInt(val("max-model-calls", "0"), 10) || 0;
+const MAX_TOKENS = parseInt(val("max-tokens", "0"), 10) || 0;
 const TIMEOUT_MS = 75000;
 
 // ------------------------------------------------------------------------------------------------ compare mode
@@ -168,7 +171,7 @@ async function ask(rec) {
     const ms = Math.round(performance.now() - t0);
     let json = null;
     try { json = JSON.parse(text); } catch { /* not JSON */ }
-    return { status: r.status, json, text, ms };
+    return { status: r.status, json, text, ms, headers: Object.fromEntries(r.headers.entries()) };
   } catch (e) {
     return { status: 0, json: null, text: "", ms: Math.round(performance.now() - t0), error: e?.name === "AbortError" ? `timeout after ${TIMEOUT_MS / 1000}s` : String(e?.message || e) };
   } finally {
@@ -181,6 +184,7 @@ const results = [];
 const rawDir = path.join(OUT, `raw-${TAG}-${startedAt.replace(/[-:T]/g, "").slice(0, 14)}`);
 let stoppedBecause = null;
 let modelCalls = 0;
+let tokensUsed = 0;
 let transportErrors = 0;
 
 if (todo.length) {
@@ -189,14 +193,21 @@ if (todo.length) {
 
   for (const rec of todo) {
     if (stopping) { stoppedBecause = "interrupted by you (Ctrl-C)"; break; }
-    if (MAX_MODEL && modelCalls >= MAX_MODEL) { stoppedBecause = `model-call budget reached (~${modelCalls} of ${MAX_MODEL})`; break; }
+    if (MAX_MODEL && modelCalls >= MAX_MODEL) { stoppedBecause = `model-call budget reached (${modelCalls} of ${MAX_MODEL})`; break; }
+    if (MAX_TOKENS && tokensUsed >= MAX_TOKENS) { stoppedBecause = `token budget reached (${tokensUsed.toLocaleString()} of ${MAX_TOKENS.toLocaleString()})`; break; }
 
     const resp = await ask(rec);
     const res = judge(rec, resp);
     results.push(res);
 
-    const usedModel = res.outcome !== "ERROR" && res.route !== "HOLIDAY" && res.route !== "BAD-QUERY" && res.answerSource !== "cache";
-    if (usedModel) modelCalls += res.attempts || 1;
+    // the server's own trace when it sends one; otherwise the old inference from the answer
+    const traced = typeof res.modelCalls === "number";
+    const usedModel = traced
+      ? res.modelCalls > 0
+      : res.outcome !== "ERROR" && res.route !== "HOLIDAY" && res.route !== "BAD-QUERY" && res.answerSource !== "cache";
+    if (traced) modelCalls += res.modelCalls;
+    else if (usedModel) modelCalls += res.attempts || 1;
+    if (typeof res.tokens === "number") tokensUsed += res.tokens;
 
     const keepRaw = has("raw") || res.outcome === "FAIL" || res.outcome === "ERROR";
     if (keepRaw && resp.json) {
@@ -205,7 +216,8 @@ if (todo.length) {
     }
 
     const tag = res.outcome === "PASS" && res.routeOnly ? "PASS*" : res.outcome;
-    console.log(`${tag.padEnd(8)} ${String(rec.id).padEnd(9)} ${String(res.route).padEnd(11)} ${sec(res.ms).padStart(6)}  ${rec.query.slice(0, 70)}`);
+    const tok = typeof res.tokens === "number" ? (res.tokens ? `${res.tokens}tok` : "free") : "";
+    console.log(`${tag.padEnd(8)} ${String(rec.id).padEnd(9)} ${String(res.route).padEnd(11)} ${sec(res.ms).padStart(6)} ${tok.padStart(8)}  ${rec.query.slice(0, 66)}`);
     if (res.outcome === "FAIL" || res.outcome === "ERROR") for (const n of res.notes.slice(0, 3)) console.log(`           - ${n}`);
 
     if (res.dailyLimit) { stoppedBecause = "Groq's free daily allowance is used up. Resume tomorrow with --resume <this results file>"; break; }
@@ -236,6 +248,7 @@ if (merged.length) {
   writeFileSync(`${base}.md`, renderReport(runObj));
   const s = summarize(merged);
   console.log("");
+  if (s.traced) console.log(`Model calls ${s.modelCallsLowerBound}, tokens ${s.tokensTotal.toLocaleString()} (exact, from the server's trace)${s.waitedMsTotal ? `, waited ${sec(s.waitedMsTotal)} for Groq's per-minute limit` : ""}`);
   console.log(`PASS ${s.totals.pass} (route-only ${s.totals.passRouteOnly})   FAIL ${s.totals.fail} (route ${s.totals.failRoute}, engine ${s.totals.failEngine})   ERROR ${s.totals.error}   observed ${s.totals.observed + s.totals.info}   pass rate ${pct(s.totals.passRate)}`);
   if (s.regression.n) console.log(`Regression set: ${s.regression.pass} of ${s.regression.n} pass${s.regression.broken.length ? `   BROKEN: ${s.regression.broken.join(", ")}` : ""}`);
   for (const r of s.byRoute) console.log(`  ${String(r.route).padEnd(11)} n=${String(r.n).padEnd(3)} p50 ${sec(r.p50)}  p95 ${sec(r.p95)}`);

@@ -8,6 +8,9 @@ Read `scripts/omnibar-acceptance.mjs` (the header) before the first run: local d
 account. Measured on 13 Oct: one model call is about 4,900 tokens, the free tier allows about 8,000 tokens a minute and
 200,000 a day, so a full run does not fit in one day (use `--max-model-calls`, then `--resume`; the runner waits
 `--model-pause`, 40 s by default, after each question that used the model). Start with `--no-model` (free).
+Since step 23a the app reports, in response headers (`x-omni-*`, `Server-Timing`) and in one `[front-path] ...` line per
+question in the server console, the route that answered, each stage's time, the model calls and the exact tokens. The runner
+records them (so `--max-tokens` is exact) and the report shows model use and where the time goes, per route.
 
 ## A record
 

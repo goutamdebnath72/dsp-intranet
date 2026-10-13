@@ -211,6 +211,49 @@ export function evaluateCircular(c, payload) {
   return { pass: notes.length === 0, notes, noise };
 }
 
+// ---------------------------------------------------------------------------------------------- the server's own trace
+/**
+ * Since step 23a the route names itself in response headers (src/lib/search/frontPathTrace.ts): which route answered,
+ * how many model calls and tokens it used, and how long each stage took. `headers` = a plain object with LOWER-CASE keys.
+ * Returns null for a server that does not send them (an older build): the harness then falls back to inferring.
+ */
+export function parseTraceHeaders(headers) {
+  const h = headers || {};
+  if (!h["x-omni-route"]) return null;
+  const num = (k) => (h[k] !== undefined && h[k] !== "" && Number.isFinite(Number(h[k])) ? Number(h[k]) : null);
+  const steps = {};
+  for (const part of String(h["server-timing"] || "").split(",")) {
+    const m = part.trim().match(/^([\w-]+);dur=([0-9.]+)$/);
+    if (m && m[1] !== "total") steps[m[1]] = Number(m[2]);
+  }
+  return {
+    route: String(h["x-omni-route"]),
+    kind: h["x-omni-kind"] ? String(h["x-omni-kind"]) : null,
+    ms: num("x-omni-ms"),
+    modelCalls: num("x-omni-model-calls"),
+    tokens: num("x-omni-tokens"),
+    promptTokens: num("x-omni-tokens-prompt"),
+    completionTokens: num("x-omni-tokens-completion"),
+    waitedMs: num("x-omni-waited-ms"),
+    steps,
+  };
+}
+
+/** Does the harness's INFERRED route agree with the route the server says it took? (a check on the inference itself) */
+export function routesAgree(serverRoute, serverKind, inferred) {
+  switch (serverRoute) {
+    case "holiday": return inferred === "HOLIDAY" || inferred === "BAD-QUERY";
+    case "nl2sql":
+    case "cache": return inferred === "EMP-SQL" || inferred === "HEALTH-SQL" || inferred === "CLARIFY";
+    case "legacy": return inferred === "EMP-SQL" || inferred === "BAD-QUERY";
+    case "circular": return inferred === "CIRCULAR" || inferred === "POLICY";
+    case "none": return inferred === "NONE" || inferred === "CLARIFY";
+    case "eds": return inferred === "EDS";
+    case "error": return inferred === "ERROR";
+    default: return true; // title / unknown / analytics: nothing to compare
+  }
+}
+
 // ---------------------------------------------------------------------------------------------- the judge
 export const DAILY_LIMIT = /free daily allowance .{0,120}is used up/i;
 
@@ -236,6 +279,16 @@ export function judge(rec, resp) {
     pendingDecision: rec.pendingDecision || null,
   };
   const text = typeof resp.text === "string" ? resp.text : "";
+  const trace = parseTraceHeaders(resp.headers);
+  if (trace) {
+    base.serverRoute = trace.route;
+    base.serverMs = trace.ms;
+    base.modelCalls = trace.modelCalls;
+    base.tokens = trace.tokens;
+    base.promptTokens = trace.promptTokens;
+    base.waitedMs = trace.waitedMs;
+    base.steps = trace.steps;
+  }
   if (DAILY_LIMIT.test(text)) {
     // not an answer: the model's allowance ran out. Recorded as an ERROR so that --resume asks the question again.
     return { ...base, dailyLimit: true, route: "ERROR", outcome: "ERROR", failLabel: "error", checked: [], notes: ["the model's free daily allowance is used up: this question was not really answered and will be asked again on --resume"], answerText: "" };
@@ -249,6 +302,10 @@ export function judge(rec, resp) {
   const inf = inferRoute(payload);
   const notes = [];
   const checked = [];
+  if (trace && !routesAgree(trace.route, trace.kind, inf.route)) {
+    base.routeDisagreement = `server says '${trace.route}${trace.kind ? `/${trace.kind}` : ""}', the answer's shape says ${inf.route}`;
+    notes.push(`harness check: ${base.routeDisagreement}`);
+  }
   let failLabel = null;
 
   // 1. route
@@ -317,7 +374,7 @@ export function judge(rec, resp) {
     kind: inf.kind ?? null,
     answerSource: inf.source ?? null,
     attempts: inf.attempts ?? null,
-    serverMs: inf.serverMs ?? null,
+    serverMs: base.serverMs ?? inf.serverMs ?? null,
     outcome,
     failLabel,
     routeOnly: checked.length === 1 && checked[0] === "route",
@@ -377,12 +434,56 @@ export function summarize(results) {
     regression: { n: regression.length, pass: count(regression, "PASS"), broken: regression.filter((r) => r.outcome === "FAIL" || r.outcome === "ERROR").map((r) => r.id) },
     leaksSailPNo: results.filter((r) => r.leaksSailPNo).length,
     modelCallsLowerBound: results.reduce((n, r) => {
+      if (typeof r.modelCalls === "number") return n + r.modelCalls; // the server's own count
       if (r.route === "HOLIDAY" || r.route === "BAD-QUERY") return n;
       if (r.answerSource === "cache") return n;
       if (r.answerSource === "nl2sql" || r.answerSource === "legacy") return n + (r.attempts || 1);
       return n + 1; // circular / policy / none / EDS: at least the out_of_scope call (or the synthesis call)
     }, 0),
+    traced: results.filter((r) => typeof r.tokens === "number").length,
+    tokensTotal: results.reduce((n, r) => n + (typeof r.tokens === "number" ? r.tokens : 0), 0),
+    waitedMsTotal: results.reduce((n, r) => n + (typeof r.waitedMs === "number" ? r.waitedMs : 0), 0),
+    routeDisagreements: results.filter((r) => r.routeDisagreement).map((r) => r.id),
+    modelUse: modelUseByRoute(results),
+    stagesByRoute: stagesByRoute(results),
   };
+}
+
+/** Model calls and tokens per route that answered (only questions the server traced). */
+export function modelUseByRoute(results) {
+  const m = new Map();
+  for (const r of results) {
+    if (typeof r.tokens !== "number") continue;
+    const k = r.route || "?";
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(r);
+  }
+  return [...m].map(([route, rs]) => {
+    const tok = rs.map((r) => r.tokens).sort((a, b) => a - b);
+    return {
+      route,
+      n: rs.length,
+      withModel: rs.filter((r) => (r.modelCalls || 0) > 0).length,
+      modelCalls: rs.reduce((n, r) => n + (r.modelCalls || 0), 0),
+      tokens: tok.reduce((a, b) => a + b, 0),
+      tokensP50: percentile(tok, 50),
+      waitedMs: rs.reduce((n, r) => n + (r.waitedMs || 0), 0),
+    };
+  });
+}
+
+/** Mean milliseconds per stage, per route (name checks, the omnibar engine, circular search, synthesis). */
+export function stagesByRoute(results) {
+  const m = new Map();
+  for (const r of results) {
+    if (!r.steps || !Object.keys(r.steps).length) continue;
+    const k = r.route || "?";
+    if (!m.has(k)) m.set(k, { n: 0, sum: {} });
+    const e = m.get(k);
+    e.n++;
+    for (const [name, ms] of Object.entries(r.steps)) e.sum[name] = (e.sum[name] || 0) + ms;
+  }
+  return [...m].map(([route, e]) => ({ route, n: e.n, mean: Object.fromEntries(Object.entries(e.sum).map(([name, ms]) => [name, Math.round(ms / e.n)])) }));
 }
 
 /** What changed between two runs (ids present in both). */
@@ -426,8 +527,13 @@ export function renderReport(run) {
   L.push(`- Test traffic in \`nl2sql_log\` and the server logs lies inside that window. The harness never calls the feedback endpoints, so nothing is "taught" to the learning loop.`);
   L.push(`- Questions: ${t.total}  |  PASS ${t.pass} (of which route-only ${t.passRouteOnly})  |  FAIL ${t.fail} (route ${t.failRoute}, engine ${t.failEngine})  |  ERROR ${t.error}  |  observed/info ${t.observed + t.info}`);
   L.push(`- Pass rate among judged questions: ${pct(t.passRate)}. A "route-only" pass proves the right channel answered, not that the content is right.`);
-  L.push(`- Model calls (lower bound, inferred from the answers; real token counts are in the server console): ${s.modelCallsLowerBound}`);
-  L.push(`- Tokens are not in the API response: they arrive with step 2 (route logging). DISPLAY correctness is not judged here. Only the API is exercised (the screen's parallel people search is not).`);
+  if (s.traced) {
+    L.push(`- Model calls: ${s.modelCallsLowerBound}, tokens used: ${s.tokensTotal.toLocaleString()}${s.waitedMsTotal ? `, time spent waiting for Groq's per-minute limit: ${sec(s.waitedMsTotal)}` : ""} (exact, from the server's own trace of ${s.traced} of ${t.total} answers).`);
+  } else {
+    L.push(`- Model calls (lower bound, inferred from the answers; this server does not send the step-23a trace headers): ${s.modelCallsLowerBound}`);
+  }
+  L.push(`- DISPLAY correctness is not judged here. Only the API is exercised (the screen's parallel people search is not).`);
+  if (s.routeDisagreements.length) L.push(`- **Harness check failed for ${s.routeDisagreements.join(", ")}**: the server's route and the one inferred from the answer disagree (see the failure notes).`);
   L.push("");
   L.push(`## Regression set (records verified on screen before)`);
   L.push(`${s.regression.pass} of ${s.regression.n} pass.${s.regression.broken.length ? ` **BROKEN: ${s.regression.broken.join(", ")}**` : ""}`);
@@ -442,6 +548,21 @@ export function renderReport(run) {
   L.push(`|---|---|---|---|---|`);
   for (const r of s.byRoute) L.push(`| ${r.route} | ${r.n} | ${sec(r.p50)} | ${sec(r.p95)} | ${sec(r.max)} |`);
   L.push("");
+  if (s.modelUse.length) {
+    L.push(`## Model use by route (exact, from the server's trace)`);
+    L.push(`| route | n | used the model | model calls | tokens | tokens p50 | waited for Groq |`);
+    L.push(`|---|---|---|---|---|---|---|`);
+    for (const r of s.modelUse) L.push(`| ${r.route} | ${r.n} | ${r.withModel} | ${r.modelCalls} | ${r.tokens.toLocaleString()} | ${r.tokensP50} | ${r.waitedMs ? sec(r.waitedMs) : "-"} |`);
+    L.push("");
+  }
+  if (s.stagesByRoute.length) {
+    L.push(`## Where the time goes (mean per stage, server side)`);
+    const names = [...new Set(s.stagesByRoute.flatMap((r) => Object.keys(r.mean)))];
+    L.push(`| route | n | ${names.join(" | ")} |`);
+    L.push(`|---|---|${names.map(() => "---").join("|")}|`);
+    for (const r of s.stagesByRoute) L.push(`| ${r.route} | ${r.n} | ${names.map((n) => (r.mean[n] === undefined ? "-" : sec(r.mean[n]))).join(" | ")} |`);
+    L.push("");
+  }
   if (s.leaksSailPNo) {
     L.push(`## Security observation`);
     L.push(`${s.leaksSailPNo} answer(s) to requests sent WITHOUT a ticket contained a person's SAIL P.No. (\`sailPNo\`), which is also the login password (security audit #1). The harness removes it from every file it writes.`);

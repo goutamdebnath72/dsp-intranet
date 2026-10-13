@@ -17,6 +17,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { grep -q "Count each real day once" src/lib/employees/analytics.ts && grep -q "ONE holiday (the same rule as the Holiday List)" src/lib/holidays/analytics.ts; } 2>/dev/null; report "holiday counts and year comparisons count each real day once" $?
 { grep -q "buildHolidayCompareView" src/lib/employees/analytics.ts && grep -q "HolidayCompareCard" src/components/OmnibarModal.tsx && test -f src/components/HolidayCompareCard.tsx; } 2>/dev/null; report "year comparisons are drawn as a card, and name the year that has no data" $?
 { grep -q "Holiday reminders already exist" src/lib/employees/analytics.ts; } 2>/dev/null; report "the notification answer describes the working login reminder" $?
+{ test -f src/lib/search/frontPathTrace.ts && grep -q "traceHeaders" src/app/api/ai-search/route.ts && grep -q "traceModelCall" src/lib/nl2sql/llm.ts; } 2>/dev/null; report "every search is traced (route, stages, model calls and tokens)" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad
