@@ -12,6 +12,7 @@ grep -q stickySuccess src/app/admin/page.tsx 2>/dev/null; report "upload success
 { ! grep -q MonitorSizeSync src/app/layout.tsx && ! grep -q 'data-monitor-size' src/app/globals.css; } 2>/dev/null; report "page width is 80% on every screen" $?
 { test -f src/lib/circularTitle.ts && grep -q formatCircularTitle src/components/CircularsModal.tsx; } 2>/dev/null; report "circular titles are shown in running letters" $?
 grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge shows at once for a logged-out visitor" $?
+{ test -f scripts/omnibar-acceptance.mjs && test -f scripts/lib/acceptance-core.mjs && test -f eval/router-acceptance.json; } 2>/dev/null; report "omnibar acceptance harness (scripts and question set)" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad

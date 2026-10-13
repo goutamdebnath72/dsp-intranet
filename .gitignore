@@ -57,3 +57,6 @@ circular-battery-report.txt
 # large originals and OCR language data stay outside git (the curated Holidays/*.json files DO stay)
 *.traineddata
 /Holidays/**/*.pdf
+
+# acceptance-harness output: holds answers from the live directory, never commit
+eval/results/
