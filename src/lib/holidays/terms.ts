@@ -480,7 +480,7 @@ export async function getHolidayNames(year?: number | null): Promise<HolidayName
   if (cached && now - cached.at < NAME_CACHE_TTL_MS) return cached.records;
   try {
     const d = await getDb();
-    const rows: Array<{ name: string; aliases: string[] | null }> = year
+    let rows: Array<{ name: string; aliases: string[] | null }> = year
       ? await d.query(
           `SELECT DISTINCT hm.name, hm.aliases
              FROM holidaymaster hm
@@ -489,6 +489,13 @@ export async function getHolidayNames(year?: number | null): Promise<HolidayName
           [year],
         )
       : await d.query(`SELECT DISTINCT name, aliases FROM holidaymaster`);
+    // A year with no data loaded has no names of its own. Fall back to every known name, so that
+    // "when is Diwali in 2019?" is still recognised as a holiday question and is answered at once with
+    // "I don't have holiday data loaded for 2019 yet" (which the answer code already produces), instead of
+    // being passed to the language model, which cost about 5,000 tokens and 5 to 12 seconds to say nothing useful.
+    if (year && rows.length === 0) {
+      rows = await d.query(`SELECT DISTINCT name, aliases FROM holidaymaster`);
+    }
     const records = rows.map((r) => ({ name: r.name, aliases: r.aliases ?? [] }));
     nameCache.set(key, { records, at: now });
     return records;

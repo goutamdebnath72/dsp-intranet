@@ -340,17 +340,24 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       }
 
       const res = await queryHolidays({
-        op: "count",
+        op: "list",
         filters: { year: intent.year, type: intent.type, category: intent.category },
       });
       if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
+      // Count each real day once. A day that is both a Festival and a Restricted holiday has two rows but is ONE
+      // holiday; the Holiday List counts it the same way (key: date + name), so the two numbers cannot disagree.
+      const entries = res.holidays ?? [];
+      const occasions = new Set(entries.map((r) => `${r.date}|${r.name}`)).size;
+      const sharedDays = entries.length - occasions;
       const label = intent.type ? `${HOLIDAY_TYPE_LABEL[intent.type]} holiday` : "holiday";
-      const noun = res.count === 1 ? label : `${label}s`;
+      const noun = occasions === 1 ? label : `${label}s`;
       const forCategory = intent.category ? ` for Category ${intent.category}` : "";
+      const alsoCounted =
+        sharedDays > 0 ? ` (${entries.length} entries in all: ${sharedDays} ${sharedDays === 1 ? "day is" : "days are"} counted under two types)` : "";
       return {
         kind: "count",
-        count: res.count,
-        answer: `There ${res.count === 1 ? "is" : "are"} ${res.count.toLocaleString()} ${noun} in ${intent.year}${forCategory}.`,
+        count: occasions,
+        answer: `There ${occasions === 1 ? "is" : "are"} ${occasions.toLocaleString()} ${noun} in ${intent.year}${forCategory}${alsoCounted}.`,
       };
     }
 
@@ -514,10 +521,16 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         };
       }
       const parts = c.byType.map((t) => `${t.label} ${c.yearA}: ${t.a} vs ${c.yearB}: ${t.b}`);
+      // The totals count each real day once, the per-type numbers count every entry: say why the types add up to more.
+      const typeSum = c.byType.reduce((s, t) => s + t.a + t.b, 0);
+      const dualNote =
+        typeSum > c.totalA + c.totalB
+          ? " (a day that is both a Festival and a Restricted holiday is counted once in the totals, so the types add up to more)"
+          : "";
       return {
         kind: "count",
         count: c.totalA,
-        answer: compareTotalSentence(c.yearA, c.totalA, c.yearB, c.totalB, DateTime.now().year, parts.join("; ")),
+        answer: compareTotalSentence(c.yearA, c.totalA, c.yearB, c.totalB, DateTime.now().year, parts.join("; ") + dualNote),
       };
     }
 

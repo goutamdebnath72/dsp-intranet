@@ -13,6 +13,10 @@
 //       --no-model          run only the questions the deterministic holiday parser should answer (no tokens)
 //       --max-model-calls N stop cleanly after about N model calls (estimated from the answers so far)
 //       --resume FILE       continue an earlier results file: questions already answered are kept, the rest run
+//       --model-pause MS    wait this long after a question that used the model (default 40000). Measured on the
+//                           first real run: one model call is about 4,900 tokens and the free tier allows about
+//                           8,000 tokens a minute, so calls closer together than ~40 s just sit in the app's 429 wait.
+//                           Use 0 to let the app wait by itself.
 //     The server console prints the real token count of every call ("Every call prints one line with the tokens").
 //   * Executive Deep Synthesis questions send up to ten circulars to the model (the most expensive): they run only
 //     with --eds, as the executive ticket given by --exec-ticket (default 498301).
@@ -50,6 +54,7 @@ const list = (n) => (val(n, "") || "").split(",").map((s) => s.trim()).filter(Bo
 const BASE = val("base", "http://localhost:3000").replace(/\/+$/, "");
 const TAG = val("tag", "run").replace(/[^A-Za-z0-9_.-]/g, "-");
 const PAUSE = Math.max(0, parseInt(val("pause", "1500"), 10) || 0);
+const MODEL_PAUSE = Math.max(0, parseInt(val("model-pause", "40000"), 10) || 0);
 const EXEC = val("exec-ticket", "498301");
 const OUT = val("out", "eval/results");
 const SET_FILE = val("set", "eval/router-acceptance.json");
@@ -129,7 +134,8 @@ const estModel = todo.filter((r) => !modelFree(r)).length;
 console.log(`Omnibar acceptance run "${TAG}" against ${BASE}`);
 console.log(`  records in the set: ${records.length}   selected: ${selected.length}   to run now: ${todo.length}   carried over: ${carried.size}   not run: ${skipped.length}`);
 console.log(`  expected to make a model call: about ${estModel} (everything except holiday-parser questions)${MAX_MODEL ? `   budget: stop after ~${MAX_MODEL}` : ""}`);
-console.log(`  pause between questions: ${PAUSE} ms   executive ticket for synthesis: ${EXEC}`);
+console.log(`  pause between questions: ${PAUSE} ms (${MODEL_PAUSE} ms after one that used the model)   executive ticket for synthesis: ${EXEC}`);
+if (estModel > 0 && MODEL_PAUSE > 0) console.log(`  the model questions alone will take about ${Math.round((estModel * MODEL_PAUSE) / 60000)} minutes at that pace (--model-pause 0 to let the app wait by itself)`);
 if (estModel > 25 && !MAX_MODEL) console.log(`  NOTE: ${estModel} model calls will probably exceed one day of the free Groq allowance (200,000 tokens). Consider --no-model, --max-model-calls, then --resume tomorrow.`);
 if (has("dry-run")) {
   for (const r of todo) console.log(`    would run ${r.id}: ${r.query}`);
@@ -189,7 +195,8 @@ if (todo.length) {
     const res = judge(rec, resp);
     results.push(res);
 
-    if (res.route !== "HOLIDAY" && res.route !== "BAD-QUERY" && res.answerSource !== "cache") modelCalls += res.attempts || 1;
+    const usedModel = res.outcome !== "ERROR" && res.route !== "HOLIDAY" && res.route !== "BAD-QUERY" && res.answerSource !== "cache";
+    if (usedModel) modelCalls += res.attempts || 1;
 
     const keepRaw = has("raw") || res.outcome === "FAIL" || res.outcome === "ERROR";
     if (keepRaw && resp.json) {
@@ -206,7 +213,7 @@ if (todo.length) {
       if (++transportErrors >= 3) { stoppedBecause = "3 failures in a row (server down, database down, or timeouts)"; break; }
     } else transportErrors = 0;
 
-    await sleep(PAUSE);
+    await sleep(usedModel ? MODEL_PAUSE : PAUSE);
   }
 }
 

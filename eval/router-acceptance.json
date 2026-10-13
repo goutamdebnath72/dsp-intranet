@@ -562,17 +562,44 @@
    "expectedRoute": "HOLIDAY",
    "source": "B",
    "lastKnown": "📌",
+   "notes": "Log expectation (verified against the 2025 JSON): quota B 2025 = 2; RH in November 2025: 5 Nov Guru Nanak's Birthday, 24 Nov Guru Teg Bahadur's Martyrdom Day. The two halves are tested separately by B-21a and B-21b.",
+   "pendingDecision": "compound question: the app answers the first part and says 'Not answered' for the second, by design; observed only (13 Oct run: the November dates were missing)"
+  },
+  {
+   "id": "B-21a",
+   "query": "how many restricted holidays can category B take in 2025",
+   "area": "holiday",
+   "expectedRoute": "HOLIDAY",
+   "source": "B",
+   "lastKnown": "📌",
    "expectedFacts": [
     [
-     "5 November 2025",
+     "Category B can take 2",
+     "Category B can choose 2"
+    ]
+   ],
+   "notes": "First half of B-21. Derived (not in the log): quota B 2025 = 2 (2025 JSON)."
+  },
+  {
+   "id": "B-21b",
+   "query": "restricted holidays in November 2025",
+   "area": "holiday",
+   "expectedRoute": "HOLIDAY",
+   "source": "B",
+   "lastKnown": "📌",
+   "rowHas": [
+    [
      "2025-11-05"
     ],
     [
-     "24 November 2025",
      "2025-11-24"
     ]
    ],
-   "notes": "Verified against the 2025 JSON: quota B 2025 = 2; RH in November 2025: 5 Nov Guru Nanak's Birthday, 24 Nov Guru Teg Bahadur's Martyrdom Day. Compound question: the second half may come back as 'Not answered'."
+   "expectedCount": {
+    "of": "holidays",
+    "n": 2
+   },
+   "notes": "Second half of B-21. Derived (not in the log): 5 Nov Guru Nanak's Birthday, 24 Nov Guru Teg Bahadur's Martyrdom Day (2025 JSON)."
   },
   {
    "id": "B-22",
@@ -679,11 +706,14 @@
    "expectedRoute": "HOLIDAY",
    "source": "H",
    "lastKnown": "✔",
+   "expectedFacts": [
+    "54 entries in all"
+   ],
    "expectedCount": {
     "of": "count",
     "n": 40
    },
-   "notes": "Count = distinct DATES: 40 for 2024 (computed from the JSON; the 2024 table shows 40 holidays, 54 entries)."
+   "notes": "DECIDED 13 Oct: a holiday count is DISTINCT DAYS (40 for 2024, as the Holiday List says), with the entries mentioned (54, 14 days counted under two types). Before step 21a the app said 54."
   },
   {
    "id": "H1-02",
@@ -727,7 +757,12 @@
    "area": "holiday",
    "expectedRoute": "HOLIDAY",
    "source": "H",
-   "lastKnown": "✔"
+   "lastKnown": "✔",
+   "expectedFacts": [
+    "2024 had 40 holidays in total",
+    "2025 had 38"
+   ],
+   "notes": "Totals are distinct days (40 vs 38), the same as the Holiday List; before step 21a it said 54 vs 52."
   },
   {
    "id": "H1-05",
@@ -775,11 +810,14 @@
    "expectedRoute": "HOLIDAY",
    "source": "H",
    "lastKnown": "✔",
+   "expectedFacts": [
+    "57 entries in all"
+   ],
    "expectedCount": {
     "of": "count",
     "n": 42
    },
-   "notes": "42 distinct dates in the 2022 JSON."
+   "notes": "42 distinct days in the 2022 JSON (57 entries). Before step 21a the app said 57."
   },
   {
    "id": "H1-09",
@@ -787,7 +825,11 @@
    "area": "holiday",
    "expectedRoute": "HOLIDAY",
    "source": "H",
-   "lastKnown": "✔"
+   "lastKnown": "✔",
+   "expectedFacts": [
+    "2022 had 42 holidays in total",
+    "2024 had 40"
+   ]
   },
   {
    "id": "H2-01",
@@ -796,25 +838,13 @@
    "expectedRoute": "HOLIDAY",
    "source": "H",
    "lastKnown": "✔",
-   "rowHas": [
-    [
-     "A",
-     "4"
-    ],
-    [
-     "B",
-     "2"
-    ],
-    [
-     "C",
-     "4"
-    ],
-    [
-     "D",
-     "4"
-    ]
+   "expectedFacts": [
+    "Category A: 4",
+    "Category B: 2",
+    "Category C: 4",
+    "Category D: 4"
    ],
-   "notes": "A4 B2 C4 D4."
+   "notes": "A4 B2 C4 D4. The answer is the sentence 'RH quota for 2025 - Category A: 4, ...' (the first version of this record wrongly expected structured rows)."
   },
   {
    "id": "H2-02",
@@ -1112,9 +1142,9 @@
    "source": "H",
    "lastKnown": "✅",
    "expectedFacts": [
-    "2027"
+    "don't have holiday data loaded for 2027"
    ],
-   "notes": "An honest 'no data for that year'. The exact message is not pinned.",
+   "notes": "An honest 'no data for that year': \"I don't have holiday data loaded for 2027 yet.\"",
    "regression": true
   },
   {
@@ -1125,7 +1155,7 @@
    "source": "H",
    "lastKnown": "✔",
    "expectedFacts": [
-    "2027"
+    "don't have holiday data loaded for 2027"
    ],
    "notes": "Wording reconstructed."
   },
@@ -1137,7 +1167,7 @@
    "source": "H",
    "lastKnown": "✔",
    "expectedFacts": [
-    "2027"
+    "don't have holiday data loaded for 2027"
    ],
    "notes": "Wording reconstructed."
   },
@@ -1149,8 +1179,9 @@
    "source": "H",
    "lastKnown": "✔",
    "expectedFacts": [
-    "2019"
-   ]
+    "don't have holiday data loaded for 2019"
+   ],
+   "notes": "FAILED on 13 Oct (went to the model, ~4.9k tokens, empty result after 4.7 s): the name list for an unloaded year was empty, so the holiday parser did not recognise the question. Fixed in step 21a."
   },
   {
    "id": "H5-05",
@@ -1160,8 +1191,9 @@
    "source": "H",
    "lastKnown": "✔",
    "expectedFacts": [
-    "2027"
-   ]
+    "don't have holiday data loaded for 2027"
+   ],
+   "notes": "FAILED on 13 Oct (model call, clarify card after 12.6 s): same cause as H5-04. Fixed in step 21a."
   },
   {
    "id": "H5-06",
@@ -1171,7 +1203,7 @@
    "source": "H",
    "lastKnown": "✔",
    "expectedFacts": [
-    "2027"
+    "don't have holiday data loaded for 2027"
    ]
   },
   {
@@ -1182,7 +1214,7 @@
    "source": "H",
    "lastKnown": "✔",
    "expectedFacts": [
-    "2027"
+    "don't have holiday data loaded for 2027"
    ]
   },
   {
@@ -1193,8 +1225,9 @@
    "source": "H",
    "lastKnown": "✔",
    "expectedFacts": [
-    "2027"
-   ]
+    "already loaded in the holiday calendar"
+   ],
+   "notes": "The comparison has its own wording: \"I can only compare years already loaded in the holiday calendar; 2024 or 2027 isn't loaded yet.\""
   },
   {
    "id": "H6-01",
@@ -1711,7 +1744,7 @@
    "expectedRoute": "HOLIDAY",
    "source": "F",
    "lastKnown": "❓",
-   "notes": "Breaks the 'garbage in, garbage out' rule; observed only until the decision is made.",
+   "notes": "Breaks the 'garbage in, garbage out' rule; observed only until the decision is made. Since step 21a the number is distinct days (39 for 2026, 53 entries).",
    "pendingDecision": "open decision: a bare question with no year silently uses the current year"
   },
   {

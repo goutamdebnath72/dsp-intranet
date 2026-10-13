@@ -223,8 +223,16 @@ export async function queryHolidays(spec: HolidayQuery): Promise<HolidayQueryRes
         b: rows.find((r) => r.year === yearB && r.type === t)?.n ?? 0,
       }),
     );
-    const totalA = byType.reduce((s, r) => s + r.a, 0);
-    const totalB = byType.reduce((s, r) => s + r.b, 0);
+    // The headline totals count each real day once: a day that is both a Festival and a Restricted holiday has
+    // two rows (the per-type counts above) but is ONE holiday (the same rule as the Holiday List).
+    const occasions: Array<{ year: number; n: number }> = await d.query(
+      `SELECT year, count(*)::int AS n
+         FROM (SELECT DISTINCT year, date, "holidayMasterId" FROM holidayyear WHERE year = ANY($1::int[])) s
+        GROUP BY year`,
+      [[yearA, yearB]],
+    );
+    const totalA = occasions.find((r) => r.year === yearA)?.n ?? 0;
+    const totalB = occasions.find((r) => r.year === yearB)?.n ?? 0;
     return {
       count: totalA,
       compare: { yearA, yearB, byType, totalA, totalB },

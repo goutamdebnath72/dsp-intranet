@@ -5,7 +5,9 @@
 uses) and writes a report to `eval/results/` (git-ignored: it holds answers from the live directory).
 
 Read `scripts/omnibar-acceptance.mjs` (the header) before the first run: local dev and Vercel share the same Groq
-account, and a full run does not fit in one day of the free allowance. Start with `--no-model` (free).
+account. Measured on 13 Oct: one model call is about 4,900 tokens, the free tier allows about 8,000 tokens a minute and
+200,000 a day, so a full run does not fit in one day (use `--max-model-calls`, then `--resume`; the runner waits
+`--model-pause`, 40 s by default, after each question that used the model). Start with `--no-model` (free).
 
 ## A record
 
