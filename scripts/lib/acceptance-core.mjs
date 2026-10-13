@@ -79,6 +79,11 @@ export function extractRows(payload) {
     for (const r of a.rows ?? []) add(Object.values(r));
     for (const q of a.rhQuotaByCategory ?? []) add(q.category, q.quota);
     for (const t of a.typeBreakdown ?? []) add(t.type, t.label, t.count);
+    if (a.holidayCompare) {
+      // the year-comparison card: one row per year tile, one per type
+      for (const y of a.holidayCompare.years ?? []) add(a.holidayCompare.title, y.year, y.total, y.caption);
+      for (const r of a.holidayCompare.rows ?? []) add(r.type, r.label, r.a, r.b, r.change);
+    }
   }
   const results = Array.isArray(payload) ? payload : payload?.results ?? [];
   for (const r of results) add(r.type, r.id, r.headline);

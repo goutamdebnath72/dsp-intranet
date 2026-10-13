@@ -15,6 +15,8 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { test -f scripts/omnibar-acceptance.mjs && test -f scripts/lib/acceptance-core.mjs && test -f eval/router-acceptance.json; } 2>/dev/null; report "omnibar acceptance harness (scripts and question set)" $?
 { grep -q "A year with no data loaded has no names of its own" src/lib/holidays/terms.ts; } 2>/dev/null; report "a year with no data is still recognised as a holiday question (answered at once, no model call)" $?
 { grep -q "Count each real day once" src/lib/employees/analytics.ts && grep -q "ONE holiday (the same rule as the Holiday List)" src/lib/holidays/analytics.ts; } 2>/dev/null; report "holiday counts and year comparisons count each real day once" $?
+{ grep -q "buildHolidayCompareView" src/lib/employees/analytics.ts && grep -q "HolidayCompareCard" src/components/OmnibarModal.tsx && test -f src/components/HolidayCompareCard.tsx; } 2>/dev/null; report "year comparisons are drawn as a card, and name the year that has no data" $?
+{ grep -q "Holiday reminders already exist" src/lib/employees/analytics.ts; } 2>/dev/null; report "the notification answer describes the working login reminder" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad

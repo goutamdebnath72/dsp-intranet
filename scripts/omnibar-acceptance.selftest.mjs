@@ -31,6 +31,19 @@ const holidayList = {
     rhQuotaByCategory: [{ category: "A", quota: 4 }, { category: "B", quota: 2 }],
   },
 };
+const compareCard = {
+  analytics: {
+    kind: "count", source: "holiday", answer: "2024 had 40 holidays in total, 2025 had 38 (2 fewer in 2025).", count: 40,
+    holidayCompare: {
+      title: "Holidays: 2024 vs 2025", unit: "holidays", change: "2 fewer in 2025", direction: "fewer",
+      years: [{ year: 2024, total: 40, caption: "" }, { year: 2025, total: 38, caption: "" }],
+      rows: [
+        { type: "FH", label: "Festival", a: 14, b: 14, change: "no change", direction: "same" },
+        { type: "RH", label: "Restricted", a: 35, b: 33, change: "2 fewer in 2025", direction: "fewer" },
+      ],
+    },
+  },
+};
 const holidayCard = {
   analytics: {
     kind: "total", source: "holiday", answer: "Yes. 23 October 2025 is a holiday.", lead: "Yes — 23 October 2025 is a holiday.",
@@ -91,6 +104,10 @@ t("rowHas alternatives", rowHasMatch(extractRows(healthTable), ["228757", ["2026
 t("rowHas short tokens need equality", !rowHasMatch(extractRows(empTable), ["98500", "1"]));
 t("rowHas quota rows", rowHasMatch(extractRows(holidayList), ["A", "4"]));
 t("rowHas: a lone token list with alternatives means any-of", rowHasMatch(extractRows(empTable), [["98500", "nonexistent"]]));
+t("rowHas: the comparison card's per-type row", rowHasMatch(extractRows(compareCard), ["Restricted", "35", "33"]));
+t("rowHas: the comparison card's year tile", rowHasMatch(extractRows(compareCard), ["2025", "38"]));
+t("rowHas: a wrong pairing on the card fails", !rowHasMatch(extractRows(compareCard), ["Restricted", "14", "33"]));
+t("judge: comparison card checked by rows", judge({ id: "x", query: "q", expectedRoute: "HOLIDAY", rowHas: [["Restricted", "35", "33"], ["2024", "40"]] }, { status: 200, json: compareCard, text: "", ms: 1 }).outcome === "PASS");
 t("rowHas people", rowHasMatch(extractRows(empPeople), ["498301", "General Manager"]));
 eq("count of holidays", measureCount(holidayList, "holidays"), 2);
 eq("count of count", measureCount(empPeople, "count"), 16);

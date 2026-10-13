@@ -232,7 +232,11 @@
    "expectedRoute": "HOLIDAY",
    "source": "A",
    "lastKnown": "📌",
-   "notes": "Route only. Verified against the JSON: 14 vs 14 festival-holiday rows (the 7 Oct sheet's '13' for 2026 was wrong)."
+   "expectedFacts": [
+    "Festival holidays: 2025 vs 2026",
+    "no change"
+   ],
+   "notes": "Verified against the JSON: 14 vs 14 festival-holiday rows (the 7 Oct sheet's '13' for 2026 was wrong). Shown as a comparison card since step 22a."
   },
   {
    "id": "A-H5",
@@ -762,7 +766,32 @@
     "2024 had 40 holidays in total",
     "2025 had 38"
    ],
-   "notes": "Totals are distinct days (40 vs 38), the same as the Holiday List; before step 21a it said 54 vs 52."
+   "rowHas": [
+    [
+     "2024",
+     "40"
+    ],
+    [
+     "2025",
+     "38"
+    ],
+    [
+     "Closed",
+     "5",
+     "5"
+    ],
+    [
+     "Festival",
+     "14",
+     "14"
+    ],
+    [
+     "Restricted",
+     "35",
+     "33"
+    ]
+   ],
+   "notes": "Totals are distinct days (40 vs 38), the same as the Holiday List; before step 21a it said 54 vs 52. Since step 22a the screen draws a comparison card; the rows are checked against the card's data."
   },
   {
    "id": "H1-05",
@@ -829,6 +858,26 @@
    "expectedFacts": [
     "2022 had 42 holidays in total",
     "2024 had 40"
+   ],
+   "rowHas": [
+    [
+     "2022",
+     "42"
+    ],
+    [
+     "2024",
+     "40"
+    ],
+    [
+     "Festival",
+     "15",
+     "14"
+    ],
+    [
+     "Restricted",
+     "37",
+     "35"
+    ]
    ]
   },
   {
@@ -1225,9 +1274,24 @@
    "source": "H",
    "lastKnown": "✔",
    "expectedFacts": [
-    "already loaded in the holiday calendar"
+    "don't have holiday data loaded for 2027",
+    "can't compare it with 2024",
+    "Years available"
    ],
-   "notes": "The comparison has its own wording: \"I can only compare years already loaded in the holiday calendar; 2024 or 2027 isn't loaded yet.\""
+   "notes": "Since step 22a a comparison names WHICH year has no data and which years exist: \"I don't have holiday data loaded for 2027 yet, so I can't compare it with 2024. Years available: 2020 to 2026.\" (Before: \"2024 or 2027 isn't loaded yet\".)"
+  },
+  {
+   "id": "H5-09",
+   "query": "holidays 2027 vs 2028",
+   "area": "holiday",
+   "expectedRoute": "HOLIDAY",
+   "source": "H",
+   "lastKnown": "✔",
+   "expectedFacts": [
+    "don't have holiday data loaded for 2027 or 2028",
+    "can't compare them"
+   ],
+   "notes": "Derived (not in the log): both years missing."
   },
   {
    "id": "H6-01",
@@ -1734,8 +1798,15 @@
    "expectedRoute": "HOLIDAY",
    "source": "F",
    "lastKnown": "❓",
-   "notes": "Observed only until the text is fixed.",
-   "pendingDecision": "the explanatory redirect text is stale (\"I can't set up notifications yet\")"
+   "expectedFacts": [
+    "Holiday reminders already exist",
+    "bottom-right",
+    "Unsubscribe"
+   ],
+   "forbiddenFacts": [
+    "can't set up notifications"
+   ],
+   "notes": "The login reminder is built and working (HolidayNotificationToast: Subscribe, Show only once / Show every login, Unsubscribe). Until step 22a the answer wrongly said it could not set up notifications."
   },
   {
    "id": "F-20",

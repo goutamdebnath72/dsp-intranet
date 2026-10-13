@@ -1,5 +1,6 @@
 // src/hooks/useOmniSearch.ts
 import type { HolidayDetail } from "@/lib/holidays/format";
+import type { HolidayCompareView } from "@/lib/holidays/compareView";
 import { useState, useEffect } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
 import type { SynthesisResult } from "@/lib/search/executiveSynthesis";
@@ -48,6 +49,8 @@ export interface AnalyticsAnswer {
   holidays?: AnalyticsHolidayRow[];
   /** Structured "when is X" / "is this a holiday" layout. Mirrors AnalyticsPayload.holidayDetails. */
   holidayDetails?: HolidayDetail[];
+  /** Structured year comparison, drawn as a card. Mirrors AnalyticsPayload.holidayCompare. */
+  holidayCompare?: HolidayCompareView;
   /** One-line lead above the holiday card. Mirrors AnalyticsPayload.lead. */
   lead?: string;
   /** Set when the question had a second part that was not answered. Mirrors AnalyticsPayload.notice. */

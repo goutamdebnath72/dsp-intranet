@@ -17,7 +17,9 @@ import { getDb } from "@/lib/db";
 import { queryRoster, listByGrades, type RosterFilters } from "./rosterQuery";
 import { parseAnalytics, type AnalyticsIntent } from "./parser";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
-import { queryHolidays, type HolidayRow } from "@/lib/holidays/analytics";
+import { availableHolidayYears, queryHolidays, type HolidayRow } from "@/lib/holidays/analytics";
+import { buildHolidayCompareView, type HolidayCompareView } from "@/lib/holidays/compareView";
+import { formatYearList } from "@/lib/holidays/yearList";
 import { HolidayType } from "@/lib/db/models/holiday-master.model";
 import { TYPE_LABEL as HOLIDAY_TYPE_LABEL, CATEGORY_LABEL, MONTH_LABEL } from "@/lib/holidays/terms";
 import { coveredByDetails, unansweredNotice } from "@/lib/holidays/compound";
@@ -90,6 +92,9 @@ export interface AnalyticsPayload {
   listTruncated?: boolean;
   /** Stage 2: holiday rows for a holiday list query (rendered like People). */
   holidays?: HolidayRow[];
+  /** Structured year comparison; the screen draws a card from it (HolidayCompareCard). `answer` still carries the
+   *  same facts as plain text. Mirrors AnalyticsAnswer.holidayCompare in src/hooks/useOmniSearch.ts. */
+  holidayCompare?: HolidayCompareView;
   /** Structured layout for "when is X" / "is this date a holiday" answers; the screen draws a card from it
    *  instead of one long sentence. `answer` still carries the same facts as plain text. */
   holidayDetails?: HolidayDetail[];
@@ -164,10 +169,11 @@ export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<Analy
 }
 
 async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<AnalyticsPayload | null> {
-  const holidayYearNotLoaded = (year: number): AnalyticsPayload => ({
-    kind: "pending",
-    answer: `I don't have holiday data loaded for ${year} yet.`,
-  });
+  const holidayYearNotLoaded = async (year: number): Promise<AnalyticsPayload> => {
+    const years = await availableHolidayYears();
+    const available = years.length ? ` Years available: ${formatYearList(years)}.` : "";
+    return { kind: "pending", answer: `I don't have holiday data loaded for ${year} yet.${available}` };
+  };
 
   const monthsLabel = (months: number[] | null, year?: number): string => {
     if (!months || months.length === 0) return year != null ? ` in ${year}` : "";
@@ -504,10 +510,18 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         filters: { year: intent.yearA, yearB: intent.yearB },
       });
       if (res.yearAvailable === false) {
-        return {
-          kind: "pending",
-          answer: `I can only compare years already loaded in the holiday calendar; ${intent.yearA} or ${intent.yearB} isn't loaded yet.`,
-        };
+        // Say exactly WHICH year has no data, and which years do, instead of "A or B isn't loaded".
+        const years = await availableHolidayYears();
+        const missing = [intent.yearA, intent.yearB].filter((y, i, all) => !years.includes(y) && all.indexOf(y) === i);
+        const available = years.length ? ` Years available: ${formatYearList(years)}.` : "";
+        const other = missing[0] === intent.yearA ? intent.yearB : intent.yearA;
+        const answer =
+          missing.length === 0
+            ? `I can only compare years already loaded in the holiday calendar.${available}`
+            : missing.length === 1
+              ? `I don't have holiday data loaded for ${missing[0]} yet, so I can't compare it with ${other}.${available}`
+              : `I don't have holiday data loaded for ${missing[0]} or ${missing[1]} yet, so I can't compare them.${available}`;
+        return { kind: "pending", answer };
       }
       const c = res.compare!;
       if (intent.type) {
@@ -518,6 +532,9 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
           kind: "count",
           count: row.a,
           answer: compareTypeSentence(row.label, c.yearA, row.a, c.yearB, row.b, DateTime.now().year),
+          holidayCompare: buildHolidayCompareView({
+            yearA: c.yearA, yearB: c.yearB, totalA: c.totalA, totalB: c.totalB, byType: c.byType, type: intent.type, nowYear: DateTime.now().year,
+          }),
         };
       }
       const parts = c.byType.map((t) => `${t.label} ${c.yearA}: ${t.a} vs ${c.yearB}: ${t.b}`);
@@ -531,6 +548,9 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         kind: "count",
         count: c.totalA,
         answer: compareTotalSentence(c.yearA, c.totalA, c.yearB, c.totalB, DateTime.now().year, parts.join("; ") + dualNote),
+        holidayCompare: buildHolidayCompareView({
+          yearA: c.yearA, yearB: c.yearB, totalA: c.totalA, totalB: c.totalB, byType: c.byType, nowYear: DateTime.now().year,
+        }),
       };
     }
 
@@ -626,16 +646,15 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       return holidayBadQuery(intent.message);
 
     case "holidayNotificationRequest":
-      // Deliberately NOT a data answer, and deliberately NOT routed to
-      // circular/semantic search either -- "holiday notification 2025" is
-      // asking for a standing alert (something shown at login, going
-      // forward), not a one-off lookup this parser can serve. Being honest
-      // that this doesn't exist yet is better than silently answering the
-      // word "notification" as if it meant "list."
+      // Deliberately NOT a data answer, and deliberately NOT routed to circular/semantic search either --
+      // "holiday notification 2025" asks about the standing login reminder (HolidayNotificationToast, the card at
+      // the bottom-right of the screen), not for a one-off lookup. The reminder is built and working, so this
+      // explains how it behaves: what the card offers and where to unsubscribe. Keep the wording in step with
+      // the labels in src/components/HolidayNotificationToast.tsx.
       return {
         kind: "pending",
         answer:
-          "I can't set up notifications yet -- that would need its own feature: a reminder shown when you log in, with its own subscribe and unsubscribe controls. I can tell you the upcoming holidays right now if that helps in the meantime -- just ask \"upcoming holidays.\"",
+          "Holiday reminders already exist. At login, a card at the bottom-right of the screen offers to show the upcoming holidays: choose Subscribe, and tick \"Only show me this once\" if you want just one reminder. After you subscribe, the same card lets you switch between \"Show only once\" and \"Show every login\", or Unsubscribe. To see the upcoming holidays now, ask \"upcoming holidays\".",
       };
 
     case "holidayRhQuota": {

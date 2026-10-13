@@ -7,7 +7,7 @@ export function tenseVerb(year: number, nowYear: number): string {
 }
 
 /** Difference stated in words, from yearA to yearB (never a bare +/- sign). */
-function diffInWords(a: number, b: number, yearB: number): string {
+export function diffInWords(a: number, b: number, yearB: number): string {
   const d = b - a;
   return d === 0 ? "no change" : `${Math.abs(d)} ${d > 0 ? "more" : "fewer"} in ${yearB}`;
 }

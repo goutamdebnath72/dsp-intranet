@@ -27,6 +27,7 @@ import { AnswerFeedback, type AnswerSource } from "@/components/AnswerFeedback";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { OmniLoginHint } from "@/components/OmniLoginHint";
 import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
+import { HolidayCompareCard } from "@/components/HolidayCompareCard";
 import { decideLoginHint, excludeShownPeople } from "@/lib/search/loginHints";
 import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
@@ -554,7 +555,7 @@ export function OmnibarModal({
   // One row (a lookup of one person or one ticket): the big number and "1 row." add nothing, the table shows it.
   const hideRowCount = !!analytics && isSingleRowTable(analytics.kind, analytics.count, !!analytics.nl2sql?.table);
   // An answer that is a sentence written for the question (an empty health check-up answer) keeps its text but has no big number above it.
-  const hideCountNumber = hideRowCount || !!analytics?.nl2sql?.plainAnswer;
+  const hideCountNumber = hideRowCount || !!analytics?.nl2sql?.plainAnswer || !!analytics?.holidayCompare;
 
   return (
     <>
@@ -802,7 +803,9 @@ export function OmnibarModal({
                             {analytics.lead && (
                               <p className="mb-2 text-sm font-semibold text-neutral-800">{analytics.lead}</p>
                             )}
-                            {analytics.holidayDetails && analytics.holidayDetails.length > 0 ? (
+                            {analytics.holidayCompare ? (
+                              <HolidayCompareCard view={analytics.holidayCompare} />
+                            ) : analytics.holidayDetails && analytics.holidayDetails.length > 0 ? (
                               <HolidayAnswerCard details={analytics.holidayDetails} />
                             ) : hideRowCount ? null : (
                               <p
