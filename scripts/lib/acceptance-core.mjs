@@ -355,8 +355,12 @@ export function judge(rec, resp) {
   if (rec.expectedCount) {
     checked.push("count");
     const got = measureCount(payload, rec.expectedCount.of);
-    if (got === null) contentFails.push(`count: the answer has no '${rec.expectedCount.of}' number (expected ${rec.expectedCount.n})`);
-    else if (got !== rec.expectedCount.n) contentFails.push(`count (${rec.expectedCount.of}): expected ${rec.expectedCount.n}, got ${got}`);
+    const ec = rec.expectedCount;
+    const want = typeof ec.n === "number" ? `${ec.n}` : [typeof ec.min === "number" ? `at least ${ec.min}` : "", typeof ec.max === "number" ? `at most ${ec.max}` : ""].filter(Boolean).join(" and ");
+    if (got === null) contentFails.push(`count: the answer has no '${ec.of}' number (expected ${want})`);
+    else if (typeof ec.n === "number" && got !== ec.n) contentFails.push(`count (${ec.of}): expected ${ec.n}, got ${got}`);
+    else if (typeof ec.min === "number" && got < ec.min) contentFails.push(`count (${ec.of}): expected at least ${ec.min}, got ${got}`);
+    else if (typeof ec.max === "number" && got > ec.max) contentFails.push(`count (${ec.of}): expected at most ${ec.max}, got ${got}`);
   }
   // the battery's circular rules apply only when the answer really is a list of documents
   if (rec.circular && (inf.route === "CIRCULAR" || inf.route === "POLICY")) {

@@ -47,7 +47,11 @@
    "expectedRoute": "EMP-SQL",
    "source": "A",
    "lastKnown": "✔",
-   "notes": "Route only. Per-section top 5 by global_seniority_rank. Plant Garage = six real codes 85000, 85070, 85110, 85200, 85330, 85430 (none merge)."
+   "expectedCount": {
+    "of": "people",
+    "min": 6
+   },
+   "notes": "13 Oct baseline: the engine answered '5 people found' (a plain LIMIT 5 over everyone) instead of up to 5 PER SECTION. Fixed in step 28b: expected MORE than 5 in all. Per-section top 5 by global_seniority_rank. Plant Garage = six real codes 85000, 85070, 85110, 85200, 85330, 85430 (none merge)."
   },
   {
    "id": "A-D3",
@@ -56,7 +60,11 @@
    "expectedRoute": "EMP-SQL",
    "source": "A",
    "lastKnown": "✔",
-   "notes": "Route only. Grades S-9, S-10, S-11; HAVING count > 20."
+   "expectedCount": {
+    "of": "rows",
+    "min": 40
+   },
+   "notes": "13 Oct baseline: the engine answered '0 rows'; a direct query on the real data shows at least 45 departments (RMHP (OPRN) 139 ... down to 21). Fixed in step 28b: expected at least 40 rows. Grades S-9, S-10, S-11 (codes 409, 414, 415); HAVING count > 20."
   },
   {
    "id": "A-D4",
@@ -338,7 +346,10 @@
    "expectedRoute": "CIRCULAR",
    "source": "A",
    "lastKnown": "❓",
-   "notes": "Route only, run as a normal Enter search. The battery (L2) says the 2023_07 wage notice was once deleted from the DB; check that it is present. The OCR 'monthly total reported as daily wage' bug was fixed in the table reconstruction."
+   "expectedFacts": [
+    "Daily Rate of Wages"
+   ],
+   "notes": "13 Oct baseline: answered with the 2024 LEAVE circular at 95% as the only result, because the wage notice (07_2023.pdf, 16 Dec 2023) is NOT in the database (searching its title finds nothing). Upload it (circulars_wage_one.csv), then this record checks that the notice's headline is returned. Run as a normal Enter search. The battery (L2) says the 2023_07 wage notice was once deleted from the DB; check that it is present. The OCR 'monthly total reported as daily wage' bug was fixed in the table reconstruction."
   },
   {
    "id": "A-C5",

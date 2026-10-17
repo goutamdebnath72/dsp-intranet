@@ -160,6 +160,16 @@ const J = (rec, resp) => judge(rec, resp);
 
 let r = J({ id: "x", query: "q", expectedRoute: "HOLIDAY", expectedCount: { of: "holidays", n: 2 }, rowHas: [["2026-03-03"], ["2026-03-04"]] }, ok(holidayList));
 t("judge: PASS with route + count + rows", r.outcome === "PASS" && !r.routeOnly && r.checked.slice().sort().join() === "count,route,rows", JSON.stringify(r));
+r = J({ id: "x", query: "q", expectedRoute: "EMP-SQL", expectedCount: { of: "people", min: 6 } }, ok(empPeople));
+t("judge: 'at least 6' accepts an answer of 16", r.outcome === "PASS");
+r = J({ id: "x", query: "q", expectedRoute: "EMP-SQL", expectedCount: { of: "people", min: 6 } }, ok({ analytics: { ...empPeople.analytics, count: 5, people: empPeople.analytics.people } }));
+t("judge: 'at least 6' FAILS on '5 people found' (the plain LIMIT 5 case) and says so", r.outcome === "FAIL" && /expected at least 6, got 5/.test(r.notes.join()));
+r = J({ id: "x", query: "q", expectedRoute: "EMP-SQL", expectedCount: { of: "people", min: 20 } }, ok(empPeople));
+t("judge: 'at least 20' fails on 16 and says so", r.outcome === "FAIL" && /expected at least 20, got 16/.test(r.notes.join()));
+r = J({ id: "x", query: "q", expectedRoute: "EMP-SQL", expectedCount: { of: "people", min: 10, max: 16 } }, ok(empPeople));
+t("judge: min and max together accept 16", r.outcome === "PASS");
+r = J({ id: "x", query: "q", expectedRoute: "EMP-SQL", expectedCount: { of: "people", max: 5 } }, ok(empPeople));
+t("judge: 'at most 5' fails on 16", r.outcome === "FAIL" && /expected at most 5, got 16/.test(r.notes.join()));
 r = J({ id: "x", query: "q", expectedRoute: "HOLIDAY" }, ok(holidayList));
 t("judge: route-only PASS is flagged", r.outcome === "PASS" && r.routeOnly === true);
 r = J({ id: "x", query: "q", expectedRoute: "HOLIDAY", expectedCount: { of: "holidays", n: 8 } }, ok(holidayList));
@@ -340,7 +350,7 @@ for (const rec of SET.records) {
   for (const x of [].concat(rec.expectedRoute ?? [])) if (!ROUTES.has(x)) bad(`${rec.id}: unknown route ${x}`);
   if (rec.expectedRoute === undefined) bad(`${rec.id}: no expectedRoute (use "ANY")`);
   if (rec.expectedCount && !["count", "rows", "people", "holidays", "details", "results"].includes(rec.expectedCount.of)) bad(`${rec.id}: bad expectedCount.of`);
-  if (rec.expectedCount && !Number.isInteger(rec.expectedCount.n)) bad(`${rec.id}: expectedCount.n`);
+  if (rec.expectedCount && !["n", "min", "max"].some((k) => Number.isInteger(rec.expectedCount[k]))) bad(`${rec.id}: expectedCount needs n, min or max`);
   if (rec.rowHas && !rec.rowHas.every((row) => Array.isArray(row) && row.length)) bad(`${rec.id}: rowHas must be a list of token lists`);
   if (rec.run && (rec.run.mode !== "intellectual" || !["exec", "none"].includes(rec.run.auth))) bad(`${rec.id}: run block needs mode intellectual and auth exec|none`);
   if (rec.run?.auth === "exec" && rec.expectedRoute !== "EDS") bad(`${rec.id}: a logged-in synthesis run must expect EDS`);

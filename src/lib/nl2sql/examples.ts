@@ -121,6 +121,18 @@ ORDER BY rank_order, designation`,
     source: "seed",
   },
   {
+    question: "show the three most senior executives in each blast furnace section",
+    sql: `SELECT ticket_no, name, designation, department_code, department FROM (SELECT ticket_no, name, designation, department_code, department, global_seniority_rank, row_number() OVER (PARTITION BY department_id ORDER BY global_seniority_rank) AS r FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace%')) t WHERE r <= 3 ORDER BY department_code, global_seniority_rank`,
+    understood_as: "In EACH department whose name contains BLAST FURNACE, its three most senior executives: up to three people per section, not three in all.",
+    source: "seed",
+  },
+  {
+    question: "which departments have more than 15 non-executives of grade S-5 or above, and how many",
+    sql: `SELECT department_code, department, count(*) AS count FROM nlq.employees WHERE cohort = 'nonexecutive' AND rank_order <= (SELECT max(rank_order) FROM nlq.designations WHERE title = 'S-5') GROUP BY department_id, department_code, department HAVING count(*) > 15 ORDER BY count DESC, department_code`,
+    understood_as: "Non-executives of grade S-5 or above (S-5 up to S-11; rank_order 1 is the most senior), counted per department; only departments with more than 15 are listed.",
+    source: "seed",
+  },
+  {
     question: 'find names which contain "nath" but not at the end, as a whole word or as part of a word',
     sql: `SELECT ${PEOPLE}
 FROM nlq.employees

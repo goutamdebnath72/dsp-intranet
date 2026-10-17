@@ -325,7 +325,7 @@ async function main() {
   const padded = [...ctx.departments, ...Array.from({ length: 285 }, (_, i) => ({ id: 100 + i, code: 30000 + i, name: `SECTION ${i} MECHANICAL MAINTENANCE STAFF`, cohort_scope: "shared" }))];
   for (const qq of ["how many non executives are in plant garage", "how many executives have no NIC email", "GMs in C&IT whose name ends with nath"]) {
     const pp = buildPrompt({ question: qq, context: { ...ctx, departments: padded }, examples: pickExamples(qq, []) });
-    check(`prompt stays under the token budget with 300 departments: "${qq.slice(0, 32)}"`, pp.length < 18000, `${pp.length} chars`);
+    check(`prompt stays under the token budget with 300 departments: "${qq.slice(0, 32)}"`, pp.length < 18500, `${pp.length} chars`);
   }
   const garage = selectRelevantDepartments("how many non executives are in plant garage", ctx.departments).map((d) => d.id).sort((x, y) => x - y);
   check("a named department brings in ALL its matching rows (plant garage = ids 4,5,6)", JSON.stringify(garage) === "[4,5,6]", JSON.stringify(garage));
@@ -1266,8 +1266,8 @@ async function main() {
   const longHint = retryHint("wrong_name", "n".repeat(900));
   const bigNeg = pickNegatives("global reject question", negs, 2).map((n) => ({ ...n, sql: n.sql + " ".repeat(10) + "x".repeat(900) }));
   const ppBig = buildPrompt({ question: "global reject question", context: { ...ctx, departments: padded }, examples: pickExamples("global reject question", []), negatives: bigNeg, hint: longHint, rejectedSql: [SQL_A] });
-  console.log(`  worst-case prompt: ${ppBig.length} of 19000 characters`);
-  check("with lessons and a correction the prompt still fits the budget (300 departments)", ppBig.length < 19000, `${ppBig.length} chars`);
+  console.log(`  worst-case prompt: ${ppBig.length} of 19600 characters`);
+  check("with lessons and a correction the prompt still fits the budget (300 departments)", ppBig.length < 19600, `${ppBig.length} chars`);
 
   // -- Yes teaches: the verified answer lifecycle
   const VQ = "verified question";
@@ -1431,7 +1431,7 @@ async function main() {
   const pp = (d: unknown) => parsePlan(JSON.stringify({ sql: "SELECT 1", understood_as: "x", confidence: "high", display: d }));
   check("parsePlan: a hint of the wrong type (number, string, array) is dropped and the plan stays valid", [5, "x", [1, 2]].every((d) => { const r = pp(d); return !!r && r.display === undefined && r.sql === "SELECT 1"; }));
   check("parsePlan: an oversized hint is dropped, a normal one is kept", pp({ title: "t".repeat(5000) })?.display === undefined && (pp({ view: "table" })?.display as any)?.view === "table");
-  check("the model's instructions describe the optional display hint, and still fit the budget", buildPrompt({ question: "list executives", context: ctx, examples: [] }).includes("display (optional") && buildPrompt({ question: "list executives", context: { ...ctx, departments: padded }, examples: [] }).length < 19000);
+  check("the model's instructions describe the optional display hint, and still fit the budget", buildPrompt({ question: "list executives", context: ctx, examples: [] }).includes("display (optional") && buildPrompt({ question: "list executives", context: { ...ctx, departments: padded }, examples: [] }).length < 19600);
 
   // -- a No chooses a DIFFERENT way to answer
   const RQ = "retry question";
@@ -1654,9 +1654,43 @@ async function main() {
   check("...and not for any other question (their prompt is unchanged)", !pPlain.includes("health_checkups") && pPlain.includes("any table other than the three above"));
   const hq2 = "which department is that ticket in for the health check-up";
   const hBig = buildPrompt({ question: hq2, context: { ...ctx, departments: padded }, examples: pickExamples(hq2, []), negatives: bigNeg, hint: longHint, rejectedSql: [SQL_A] });
-  console.log(`  worst-case HEALTH prompt: ${hBig.length} of 19000 characters`);
-  check("with lessons, a correction and 300 departments the HEALTH prompt still fits the size limit", hBig.length < 19000, `${hBig.length} chars`);
+  console.log(`  worst-case HEALTH prompt: ${hBig.length} of 19600 characters`);
+  check("with lessons, a correction and 300 departments the HEALTH prompt still fits the size limit", hBig.length < 19600, `${hBig.length} chars`);
   check("the check-up examples are the ones chosen for a check-up question", pickExamples(HQ, []).slice(0, 2).some((e) => /health_checkups/.test(String(e.sql))));
+
+  // ==========================================================================
+  // Step 28b: "N most senior IN EACH department" and "grade X or above". Two gaps found on the real data (13 Oct): the model answered
+  // "5 people" (5 in all) for the five most senior executives of EACH plant garage section, and "0 rows" for the departments with more than 20
+  // non-executives of grade S-9 or above, where 45 or more qualify. Fixture removed again afterwards.
+  await pg.query(`INSERT INTO public.sail_department (id, code, name, cohort_scope) VALUES (29101, 970101, 'ZQ GROUPA', 'shared'), (29102, 970102, 'ZQ GROUPB', 'shared')`);
+  try {
+    const EXG = `(SELECT id FROM public.designation_grade WHERE track <> 'nonexec' ORDER BY id LIMIT 1)`;
+    const G = (title: string) => `(SELECT id FROM public.designation_grade WHERE title = '${title}' LIMIT 1)`;
+    await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
+      ('981001','ZQ A ONE',${EXG},29101,'executive',98101,981001), ('981002','ZQ A TWO',${EXG},29101,'executive',98102,981002),
+      ('981003','ZQ A THREE',${EXG},29101,'executive',98103,981003), ('981004','ZQ A FOUR',${EXG},29101,'executive',98104,981004),
+      ('981011','ZQ B ONE',${EXG},29102,'executive',98111,981011), ('981012','ZQ B TWO',${EXG},29102,'executive',98112,981012),
+      ('981013','ZQ B THREE',${EXG},29102,'executive',98113,981013), ('981014','ZQ B FOUR',${EXG},29102,'executive',98114,981014),
+      ('981101','ZQ S FOUR',${G("S-4")},29101,'nonexecutive',98201,981101), ('981102','ZQ S FIVE',${G("S-5")},29101,'nonexecutive',98202,981102),
+      ('981103','ZQ S NINE',${G("S-9")},29101,'nonexecutive',98203,981103), ('981111','ZQ S ELEVEN',${G("S-11")},29102,'nonexecutive',98211,981111),
+      ('981112','ZQ S FOUR B',${G("S-4")},29102,'nonexecutive',98212,981112)`);
+    const FXB = `SELECT id FROM nlq.departments WHERE code IN (970101, 970102)`;
+    const perGroup = await pg.query(
+      `SELECT ticket_no FROM (SELECT ticket_no, department_code, global_seniority_rank, row_number() OVER (PARTITION BY department_id ORDER BY global_seniority_rank) AS r FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (${FXB})) t WHERE r <= 3 ORDER BY department_code, global_seniority_rank`,
+    );
+    check("per-group top 3: three people in EACH of the two departments (6 in all), the most senior ones, not 3 in all", perGroup.rows.map((r: any) => r.ticket_no).join(",") === "981001,981002,981003,981011,981012,981013", perGroup.rows.map((r: any) => r.ticket_no).join(","));
+    const above = await pg.query(`SELECT ticket_no FROM nlq.employees WHERE cohort = 'nonexecutive' AND rank_order <= (SELECT max(rank_order) FROM nlq.designations WHERE title = 'S-5') AND department_id IN (${FXB}) ORDER BY ticket_no`);
+    check("grade S-5 or above = S-5, S-9 and S-11, and NOT S-4", above.rows.map((r: any) => r.ticket_no).join(",") === "981102,981103,981111", above.rows.map((r: any) => r.ticket_no).join(","));
+    const below = await pg.query(`SELECT ticket_no FROM nlq.employees WHERE cohort = 'nonexecutive' AND rank_order >= (SELECT max(rank_order) FROM nlq.designations WHERE title = 'S-5') AND department_id IN (${FXB}) ORDER BY ticket_no`);
+    check("the opposite comparison answers 'S-5 or BELOW' (the trap the rule warns about)", below.rows.map((r: any) => r.ticket_no).join(",") === "981101,981102,981112", below.rows.map((r: any) => r.ticket_no).join(","));
+    const pr28 = buildPrompt({ question: "show the five most senior executives in each section", context: ctx, examples: [] });
+    check("the instructions say how to take the top N PER GROUP", /PARTITION BY department_id/.test(pr28) && /IN EACH department/.test(pr28));
+    check("the instructions say which way rank_order runs for 'grade X or above'", /rank_order 1 = MOST senior/.test(pr28) && /grade X or above/.test(pr28));
+    check("both worked examples are in the seed set", SEED_EXAMPLES.some((e) => /three most senior executives in each blast furnace section/.test(e.question)) && SEED_EXAMPLES.some((e) => /non-executives of grade S-5 or above/.test(e.question)));
+  } finally {
+    await pg.query(`DELETE FROM public.employee_roster WHERE ticket_no LIKE '9810%' OR ticket_no LIKE '9811%'`);
+    await pg.query(`DELETE FROM public.sail_department WHERE id IN (29101, 29102)`);
+  }
 
   // ==========================================================================
   // Leave the scratch database as it was found: the stand-in circulars table and the schedule objects would make the other self-tests

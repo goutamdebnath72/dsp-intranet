@@ -1,6 +1,6 @@
 # DSP Intranet omnibar: status map
 
-Updated 13 Oct 2026 (steps 24a to 27a are delivered as ONE pack, patch_step28a.zip). Read this first; it says what we are doing and why. Details live in the three `HANDOFF_dsp-intranet_*.md`
+Updated 13 Oct 2026 (pack 28a applied and checked by you; step 28b built). Read this first; it says what we are doing and why. Details live in the three `HANDOFF_dsp-intranet_*.md`
 files (master, front-path, query-log). Wording of the old ledger items below is reconstructed from the handoff (the item
 COUNTS are exact).
 
@@ -33,6 +33,7 @@ but **nobody recorded which**. The baseline run (step 2 below) answers this with
 | 23a | **Route logging**: every search reports its route, stages, model calls and exact tokens (terminal line + headers) | ledger 60 | **confirmed on your machine** |
 | 24a | **Front-path gate** (off by default): a question that cannot be an employee question skips the model call | ledger 59, and the waste found by 23a | built, **waiting for your test** |
 | 25a | **Executive check from the login session**: synthesis only for a verified executive; the URL's ticket is ignored | security #3 and #6; needed before the button can go | built, **waiting for your test** |
+| 28b | **Engine fix**: two missing rules in the model's instructions (top N per department; "grade X or above") + two worked examples; found by the baseline | employee answers (new: two wrong answers on the real data) | built, **waiting for your test** |
 | 24a to 27a | **All four delivered as ONE pack** (`patch_step28a.zip`, one command): the front-path gate, the executive check from the login session, the EDS question detector, the Enter key = the old button. All off by default. | see the four rows below | **waiting for you to apply the pack** |
 | 26a | **Which questions are EDS**: a detector found from your old query document (pattern below), recorded in the trace; the holiday parser no longer hijacks "compare ... circulars" questions | ledger 59 (smart routing), and a confident wrong answer found on the way | built, **waiting for your test** |
 | 27a | **Data-mining definition of EDS** (correlate, hidden, patterns, gaps, implications ...); **the Enter key = the old button** for a logged-in executive on an EDS-type question (same processing panel, same briefing; off by default); an EDS that finds no circular falls back to the normal search | ledger 59; the goal of removing the button | built, **waiting for your test** |
@@ -53,6 +54,21 @@ What this means for the design (nothing below is built yet; it is the target the
 - **Two limits of today are deliberate and temporary**: the detector treats people-data questions as "never EDS" (right while EDS only reads
   circulars; once an employee-data domain exists, an HR executive's complex people question becomes an EDS question for that domain), and
   `/api/ai-search` has no notion of an executive's department yet.
+
+## Findings of the baseline run (13 Oct, your 20 designed questions, real data)
+
+16 of 16 ran; 12 model calls, 64,836 tokens (about 5,400 per model question; about 35 model questions a day on the free tier).
+Only 10 of the 16 passes checked content. The rest, looked at by hand:
+
+| finding | status |
+|---|---|
+| "five most senior executives in each plant garage section" answered "5 people" (a plain LIMIT 5; should be up to 5 per section) | fixed in 28b (rule + example), **to be re-tested on the live model** |
+| "departments with more than 20 non-executives of grade S-9 or above" answered "0 rows"; a direct query shows 45 or more | fixed in 28b (rule + example), **to be re-tested on the live model** |
+| "daily wage rates notified for contractor workers for 2024" answered with the 2024 LEAVE circular at 95%: the wage notice (`07_2023.pdf`) is not in the database | **you upload it** (`circulars_wage_one.csv`); the wrong-document-at-95% confidence problem (ledger 57) remains |
+| 4 of 10 employee answers sent to a request WITHOUT a login contained the person's SAIL P.No., which is also the login password (security audit #1, CRITICAL) | **waiting for your decision**: remove the P.No from every card and answer |
+| department questions waste 2.4 to 3.9 s on a scan of all users before the model starts (the leftover words can never be a name) | planned: skip it when the leftover is longer than 3 words |
+| the model's own "thinking" is most of its time (482 to 1,163 tokens per answer); `GROQ_REASONING_EFFORT=low` may help | an experiment to run with the harness (`--compare`) |
+| prompt caching works partly (4 of 12 calls: 3,328 or 4,096 of about 4,600 tokens cached) | later |
 
 ## The order we follow
 

@@ -21,6 +21,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { test -f src/lib/search/frontGate.ts && grep -q "rescueWithModel" src/app/api/ai-search/route.ts && grep -q "skipModel" src/lib/nl2sql/omnibar.ts; } 2>/dev/null; report "the front-path gate is built (off unless FRONT_PATH_SKIP_MODEL=true)" $?
 { grep -q "getSessionTicket" src/app/api/ai-search/route.ts && ! grep -q 'searchParams.get("ticket")' src/app/api/ai-search/route.ts; } 2>/dev/null; report "synthesis is allowed only for an executive found in the login session" $?
 { test -f src/lib/search/synthesisIntent.ts && grep -q "autoEdsEnabled" src/components/OmnibarModal.tsx && ! grep -q "autoEdsEnabled()" src/app/api/ai-search/route.ts; } 2>/dev/null; report "the Enter key sends an EDS-type question from a logged-in executive to Executive Deep Synthesis (off unless NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=true)" $?
+{ grep -q "PARTITION BY department_id" src/lib/nl2sql/prompt.ts && grep -q "rank_order 1 = MOST senior" src/lib/nl2sql/prompt.ts; } 2>/dev/null; report "the model is told how to take the top N per department and which way grades run" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad
