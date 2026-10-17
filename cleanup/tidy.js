@@ -137,8 +137,8 @@ const GROUPS = [
   { id: "installers", why: "one-time patch script, already applied (it only reports 'already applied' now)", kind: "name", optional: false,
     paths: files.filter((f) => /^cleanup\/(apply-step[\w-]*\.js|apply-all-[\w-]*\.js|apply-title-normalizer\.js)$/.test(f)) },
   { id: "probes", why: "one-off diagnostic script from an investigation", kind: "name", optional: false, paths: files.filter((f) => /^scripts\/probe-[\w-]+\.mjs$/.test(f)) },
-  { id: "outputs", why: "generated output of an evaluation tool (made again by running it)", kind: "none", optional: false,
-    paths: [...dirFiles("eval/results"), "circular-battery-report.txt", ...fs.readdirSync(ROOT).filter((f) => /^nl2sql-eval-.*\.(json|md|txt)$/.test(f))] },
+  { id: "outputs", why: "generated output of a tool (made again by running it). eval/results/acceptance-* and raw-* are the acceptance harness's baseline records and are NOT moved", kind: "none", optional: false,
+    paths: [...dirFiles("eval/results").filter((f) => /\/ocr-pilot-\d+\.(json|md)$/.test(f)), "circular-battery-report.txt", ...fs.readdirSync(ROOT).filter((f) => /^nl2sql-eval-.*\.(json|md|txt)$/.test(f))] },
   // ---- optional: you decide
   { id: "docker", why: "Docker files (the site is deployed on Vercel; keep them if a closed-network Docker deployment is planned)", kind: "name", optional: true, paths: ["Dockerfile", ".dockerignore", "run-docker.sh", "apt-get.txt"] },
   { id: "pdfs", why: "the original holiday circular PDFs (23 MB; the holiday data comes from the curated JSON, these are the source documents)", kind: "name", optional: true, paths: dirFiles("Holidays/holiday circulars") },
@@ -205,7 +205,7 @@ if (optionalOff.length) {
   for (const g of optionalOff) { const n = g.paths.filter(exists).length; if (n) console.log(`   ${g.id.padEnd(10)} ${String(n).padStart(3)} item(s)  ${g.why}`); }
 }
 if (unknownAlso.length) console.log(`\nUnknown --also name(s): ${unknownAlso.join(", ")}`);
-console.log(`\nLeft alone on purpose (they look unused to a simple scan but are needed): src/lib/nl2sql/eval/* (the self-test and evaluation tools), src/lib/nl2sql/sql/*.sql (migrations run by hand), src/lib/ingestion/readingCheck.ts (to be wired in next), src/lib/holidays/extraction.ts (goes with the dormant extraction-staging routes, in the security step), the curated Holidays/*.json, circulars_manifest.csv and circulars_wage_one.csv, next-env.d.ts, node_modules and .next.`);
+console.log(`\nLeft alone on purpose (they look unused to a simple scan but are needed): src/lib/nl2sql/eval/* (the self-test and evaluation tools), src/lib/nl2sql/sql/*.sql (migrations run by hand), src/lib/ingestion/readingCheck.ts (to be wired in next), src/lib/holidays/extraction.ts (goes with the dormant extraction-staging routes, in the security step), eval/results/acceptance-* and raw-* (the baseline records of the acceptance harness), the curated Holidays/*.json, circulars_manifest.csv and circulars_wage_one.csv, next-env.d.ts, node_modules and .next.`);
 
 // the packages: reported, never touched here (package.json and the lock file are changed by npm itself, and the build must be run after)
 (() => {
@@ -216,7 +216,7 @@ console.log(`\nLeft alone on purpose (they look unused to a simple scan but are 
   const never = ["@google/generative-ai", "@supabase/supabase-js", "date-fns", "file-type", "openai", "pdf-lib"].filter((n) => pkg.dependencies?.[n] || pkg.devDependencies?.[n]);
   const stillUsed = never.filter((n) => all.some(([, t]) => new RegExp("(from\\s+|require\\(\\s*|import\\(\\s*)[\"']" + esc(n) + "(/[^\"']*)?[\"']").test(t)) || cfg.includes(n) || scripts.includes(n));
   const free = never.filter((n) => !stillUsed.includes(n));
-  console.log(`\nPackages (a separate step, 32c; this tool changes nothing in package.json):`);
+  console.log(`\nPackages (a separate step, 32d; this tool changes nothing in package.json):`);
   console.log(free.length ? `   no import, config or script refers to: ${free.join(", ")}\n   (later:  npm uninstall ${free.join(" ")}  then  npm run build )` : "   none of the six suspected packages is unreferenced.");
   if (stillUsed.length) console.log(`   still referenced, keep: ${stillUsed.join(", ")}`);
 })();
