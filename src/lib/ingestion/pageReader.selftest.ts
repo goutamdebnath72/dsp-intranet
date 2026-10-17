@@ -1,5 +1,5 @@
 // Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/pageReader.selftest.ts   (no network: a scripted fetch stands in for the services)
-import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, STOPPED_MARKER, cutAtLoop, geminiReader, readerFromEnv } from "./pageReader";
+import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, STOPPED_MARKER, cutAtLoop, geminiReader, readerFromEnv, sniffImageMime } from "./pageReader";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
@@ -37,6 +37,15 @@ const res = (status: number, body: unknown) => ({ ok: status >= 200 && status < 
   const thrower = geminiReader({ apiKey: "K", noWait: true, fetchImpl: async () => { throw new Error("offline"); } });
   ok("a network failure is an error", await thrower.read(png).then(() => false, (e) => /offline/.test(String(e))));
   ok("the default model is the one Google named (gemini-3.8-flash)", DEFAULT_GEMINI_MODEL === "gemini-3.8-flash");
+
+  // ---- the image kind is read from the bytes, not assumed
+  ok("a PNG is image/png", sniffImageMime(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) === "image/png");
+  ok("a JPEG is image/jpeg", sniffImageMime(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16])) === "image/jpeg");
+  ok("a WebP is image/webp", sniffImageMime(Buffer.concat([Buffer.from("RIFF"), Buffer.from([1, 2, 3, 4]), Buffer.from("WEBPVP8 ")])) === "image/webp");
+  ok("anything unknown is sent as image/png", sniffImageMime(Buffer.from([1, 2, 3])) === "image/png" && sniffImageMime(Buffer.alloc(0)) === "image/png");
+  let sentMime = "";
+  await geminiReader({ apiKey: "K", noWait: true, fetchImpl: async (_u, init) => { sentMime = JSON.parse(init.body).contents[0].parts[1].inline_data.mime_type; return res(200, { candidates: [{ content: { parts: [{ text: "x" }] }, finishReason: "STOP" }] }); } }).read(Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+  ok("the request carries the real kind of the image", sentMime === "image/jpeg", sentMime);
 
   // ---- Gemini: a reply that did not reach the end of the page is marked, never taken for a complete reading
   const gem = (finish: string | undefined, text: string) => geminiReader({ apiKey: "K", noWait: true, fetchImpl: async () => res(200, { candidates: [{ content: { parts: [{ text }] }, ...(finish ? { finishReason: finish } : {}) }] }) });

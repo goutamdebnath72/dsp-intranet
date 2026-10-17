@@ -51,6 +51,14 @@ export interface GeminiOptions {
   noWait?: boolean;
 }
 
+/** The kind of an image from its first bytes (the archive's page images may be PNG, JPEG or WebP); PNG when unsure. */
+export function sniffImageMime(buf: Buffer): string {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf.length >= 12 && buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP") return "image/webp";
+  if (buf.length >= 4 && buf.toString("latin1", 0, 4) === "GIF8") return "image/gif";
+  return "image/png";
+}
+
 export function geminiReader(opts: GeminiOptions = {}): PageReader {
   const apiKey = opts.apiKey ?? process.env.GEMINI_API_KEY ?? "";
   const model = opts.model ?? (process.env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL);
@@ -60,7 +68,7 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
     async read(png: Buffer): Promise<string> {
       if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
       const body = JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: PAGE_READER_PROMPT }, { inline_data: { mime_type: "image/png", data: png.toString("base64") } }] }],
+        contents: [{ role: "user", parts: [{ text: PAGE_READER_PROMPT }, { inline_data: { mime_type: sniffImageMime(png), data: png.toString("base64") } }] }],
         generationConfig: { temperature: 0, maxOutputTokens: 8192 },
       });
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
