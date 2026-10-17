@@ -5,9 +5,26 @@
 
 import Tesseract from "tesseract.js";
 import { reconstructTableFromTSV } from "./tableReconstruction";
+import { keepWellRead, parseTsvWords, readRuledTables, textOfWords, tsvWithout, withoutTableWords, type CellOcr, type RuledPage, type TableReading } from "./ruledTable";
 import { mergeOcrPasses } from "./ocrMerge";
 
 export const OCR_LANGS = ["eng", "hin+eng+ben"] as const;
+
+/** The most time one page may spend reading its ruled tables cell by cell (a typical table takes a few seconds). */
+export const RULED_TABLE_BUDGET_MS = 90_000;
+
+/** Reads one cell: "block" mode (a few words or lines) at a stated resolution, which is what the engine does well. */
+function cellReader(worker: any): CellOcr {
+  let prepared = false;
+  return async (png) => {
+    if (!prepared) {
+      await worker.setParameters({ tessedit_pageseg_mode: "6" as any, user_defined_dpi: "300" as any });
+      prepared = true;
+    }
+    const { data } = await worker.recognize(png, {}, { text: true });
+    return { text: data.text || "", conf: Number(data.confidence ?? 0) };
+  };
+}
 export type OcrWorkerPool = Record<(typeof OCR_LANGS)[number], any>;
 
 /** Create both language workers ONCE per upload, reused across every page
@@ -60,6 +77,10 @@ export interface OcrPageResult {
   discarded: string[];
   /** The English pass was empty and the Hindi/Bengali text had to be used in full: its Latin digits are NOT trustworthy. */
   fellBackToIndicPass: boolean;
+  /** Ruled tables read cell by cell (ruledTable.ts) instead of by the page reading. */
+  ruledTables?: number;
+  /** Numbers in those tables that the readings could not agree on (written "[unclear]"). */
+  unclearCells?: number;
 }
 
 /** The OCR of one page with the details the archive re-read needs. The upload route uses ocrPageDualPass (just the text). */
@@ -67,6 +88,27 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
   let eng = "";
   let table = "";
   let tri = "";
+  // RULED TABLES (ruledTable.ts). The page reading cannot be trusted to lay out a table: it drops a narrow column and turns grid lines into
+  // characters, differently at every scale. So the cells of a ruled table are read one by one (with a vote on every number). The page is still
+  // read as before (always from the original picture), and a table reading is USED only if it keeps the words the page reading saw in that table;
+  // the words it contains are then cut out of the page text by their positions, so no damaged copy of the table is stored.
+  let ruled: RuledPage = { tables: [], text: "", maskedPng: null, skipped: [] };
+  let kept: TableReading[] = [];
+  const notUsed: string[] = [];
+  try {
+    ruled = await readRuledTables(Buffer.from(input), cellReader(workers.eng), { budgetMs: RULED_TABLE_BUDGET_MS, alt: cellReader(workers["hin+eng+ben"]) });
+  } catch (err) {
+    console.error(`Ruled-table reading failed${label ? " on " + label : ""} (the page is read as before):`, (err as any)?.message || err);
+  } finally {
+    for (const langs of OCR_LANGS) {
+      try {
+        await workers[langs].setParameters({ tessedit_pageseg_mode: "3" as any, user_defined_dpi: "0" as any });
+      } catch {
+        /* the workers are reset for the page reading; a failure here shows up as a failed page reading below */
+      }
+    }
+  }
+  notUsed.push(...ruled.skipped);
   for (const langs of OCR_LANGS) {
     try {
       const worker = workers[langs];
@@ -75,13 +117,31 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
       } = await worker.recognize(input, {}, { text: true, tsv: langs === "eng" });
       if (langs === "eng") {
         eng = text || "";
-        if (tsv) table = reconstructTableFromTSV(tsv) || "";
+        let tsvForOldTables = tsv || "";
+        if (tsv && ruled.tables.length) {
+          const words = parseTsvWords(tsv);
+          const verdict = keepWellRead(ruled.tables, words);
+          kept = verdict.kept;
+          notUsed.push(...verdict.skipped);
+          if (kept.length) {
+            // cut only what the table readings contain (and grid-line debris); every other word inside a table's box stays
+            const rest = withoutTableWords(words, kept);
+            eng = textOfWords(rest.words);
+            tsvForOldTables = tsvWithout(tsv, rest.removed);
+          }
+        }
+        // a table WITHOUT lines is still rebuilt from the word positions, as before
+        if (tsvForOldTables) table = reconstructTableFromTSV(tsvForOldTables) || "";
       } else {
         tri = text || "";
       }
     } catch (err) {
       console.error(`OCR pass "${langs}" failed${label ? " on " + label : ""}:`, (err as any)?.message || err);
     }
+  }
+  if (kept.length) {
+    const keptText = kept.map((t) => t.text).join("\n\n");
+    table = table ? `${keptText}\n\n${table}` : keptText;
   }
   const merged = mergeOcrPasses(eng, table, tri);
   // OCR_QUIET is set by the archive re-read tool (hundreds of pages; it prints its own summary). Uploads keep this line.
@@ -91,9 +151,11 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
         ? "ENGLISH PASS EMPTY, used the Hindi/Bengali text in full (its digits are NOT trustworthy)"
         : merged.discarded.length
           ? `${merged.discarded.length} number(s) seen only by the Hindi/Bengali pass were discarded as probable misreadings (e.g. ${merged.discarded.slice(0, 4).join(" | ")})`
-          : "the two passes agree on every number"),
+          : "the two passes agree on every number") +
+      (kept.length ? ` | ruled tables read cell by cell: ${kept.length}${kept.reduce((n, t) => n + t.unclear, 0) ? ` (${kept.reduce((n, t) => n + t.unclear, 0)} unclear number(s))` : ""}` : "") +
+      (notUsed.length ? ` | not used: ${notUsed.join("; ")}` : ""),
   );
-  return { text: merged.text, englishChars: eng.length, indicLetters: merged.indicLetters, discarded: merged.discarded, fellBackToIndicPass: merged.fellBackToIndicPass };
+  return { text: merged.text, englishChars: eng.length, indicLetters: merged.indicLetters, discarded: merged.discarded, fellBackToIndicPass: merged.fellBackToIndicPass, ruledTables: kept.length, unclearCells: kept.reduce((n, t) => n + t.unclear, 0) };
 }
 
 /** The upload route's entry point: the text only. */

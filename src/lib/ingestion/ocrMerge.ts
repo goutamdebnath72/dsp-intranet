@@ -17,7 +17,7 @@
 /** Bump this whenever the merge rules below change, OR the table rebuilding (tableReconstruction.ts) changes what it adds to a page's
  *  text: a saved reading made by an older rule is then ignored by the re-read tool's cache.
  *  2 = the table header fix (a roster page used to get a 60,000-character column dump). */
-export const OCR_MERGE_VERSION = 2;
+export const OCR_MERGE_VERSION = 3;
 
 /** Devanagari, Bengali, Vedic extensions, Devanagari Extended, zero-width joiners (needed inside conjuncts). */
 const INDIC_CHAR = /[\u0900-\u097F\u0980-\u09FF\u1CD0-\u1CFF\uA8E0-\uA8FF\u200C\u200D]/;
@@ -102,5 +102,5 @@ export function mergeOcrPasses(eng: string, table: string, tri: string): MergedP
   const parts = [engText, "\n"];
   if (table && table.trim()) parts.push("\n", table, "\n");
   if (indic) parts.push(indic, "\n");
-  return { text: parts.join(""), indicLetters: indic ? countLetters(indic) : 0, discarded: discardedNumbers(engText, tri || ""), fellBackToIndicPass: false };
+  return { text: parts.join(""), indicLetters: indic ? countLetters(indic) : 0, discarded: discardedNumbers(engText + "\n" + (table || ""), tri || ""), fellBackToIndicPass: false };
 }
