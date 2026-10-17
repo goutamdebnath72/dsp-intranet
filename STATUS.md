@@ -1,6 +1,6 @@
 # DSP Intranet omnibar: status map
 
-Updated 17 Oct 2026 (28b checked by you on the live data; step 29a built). Read this first; it says what we are doing and why. Details live in the three `HANDOFF_dsp-intranet_*.md`
+Updated 17 Oct 2026 (29a tested by you; step 29b built). Read this first; it says what we are doing and why. Details live in the three `HANDOFF_dsp-intranet_*.md`
 files (master, front-path, query-log). Wording of the old ledger items below is reconstructed from the handoff (the item
 COUNTS are exact).
 
@@ -33,6 +33,7 @@ but **nobody recorded which**. The baseline run (step 2 below) answers this with
 | 23a | **Route logging**: every search reports its route, stages, model calls and exact tokens (terminal line + headers) | ledger 60 | **confirmed on your machine** |
 | 24a | **Front-path gate** (off by default): a question that cannot be an employee question skips the model call | ledger 59, and the waste found by 23a | built, **waiting for your test** |
 | 25a | **Executive check from the login session**: synthesis only for a verified executive; the URL's ticket is ignored | security #3 and #6; needed before the button can go | built, **waiting for your test** |
+| 29b | **Answer card redone and the checks made strict for tables**: the answer is a table (or one key figure) with a heading and a note; one source line (no duplicate result below); a number from a table row is accepted only with its column label standing right before it in the quote | your test of 29a showed a WRONG answer (monthly totals shown as "per day") | built, **waiting for your test** |
 | 29a | **Answer first, sources after** (generic): when the search finds documents, the answer they PROVE is shown above them, with the source, date, page and the exact words; refused unless every quote is word for word in the document and every figure is in a quote; off by default | your requirement of 17 Oct | built, **waiting for your test** |
 | 28b | **Engine fix**: two missing rules in the model's instructions (top N per department; "grade X or above") + two worked examples; found by the baseline | employee answers (new: two wrong answers on the real data) | built, **waiting for your test** |
 | 24a to 27a | **All four delivered as ONE pack** (`patch_step28a.zip`, one command): the front-path gate, the executive check from the login session, the EDS question detector, the Enter key = the old button. All off by default. | see the four rows below | **waiting for you to apply the pack** |
@@ -55,6 +56,15 @@ What this means for the design (nothing below is built yet; it is the target the
 - **Two limits of today are deliberate and temporary**: the detector treats people-data questions as "never EDS" (right while EDS only reads
   circulars; once an employee-data domain exists, an HR executive's complex people question becomes an EDS question for that domain), and
   `/api/ai-search` has no notion of an executive's department yet.
+
+## What your first test of answer-first showed (17 Oct), and what was done
+
+The wage question was answered "Works Rs 20995.30 per day; Projects Rs 1924530 per day": the MONTHLY TOTALS (and one garbled number), not the daily wages 808 / 740 / 809. Two causes:
+
+1. **The stored text of that scan is damaged.** Reproduced with the app's own path (pdf-to-img at 300 dpi, then tesseract.js, automatic layout): the narrow rightmost column (Daily Wages) is not read at all and the table's grid lines appear as "]" beside the numbers ("3350.00]", "27000] 000] 1924530"). The command-line Tesseract reads the same page correctly, and the app's table reader then writes correct labelled rows ("Area: WORKS | ... | TOTAL: 20995.30 | Wages Per Day: 808"). Tried and rejected: erasing the grid lines (the number rows then vanished); other layout modes (inconsistent).
+2. **My checks of 29a were too weak for tables**: they proved a quote exists and the number is inside it, not that the number is the column the answer claims. 29b fixes this: a number from a table row must come with its column label, standing right BEFORE the number in the quote; a total can no longer be passed off as a daily wage; time words in the heading ("daily") must be said by a column. Damaged text now gives NO answer instead of a wrong one.
+
+What is still needed so that this notice (and every scanned table) gives the right answer: a more reliable reading of table pages. Options, not built yet: (a) a vision model (Gemini, which the app already has a key for) transcribing table pages from the page image, used at upload; (b) a one-off verified correction of the stored text of a specific page. Both need your decision and (for (a)) real keys to test.
 
 ## Finding: some circular TITLES do not match their files (17 Oct)
 

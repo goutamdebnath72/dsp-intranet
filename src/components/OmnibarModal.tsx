@@ -181,6 +181,8 @@ export function OmnibarModal({
   // Answer first (step 29a, off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true): once the search has found documents, the answer they
   // prove is written above them, with the source and the exact words. Nothing appears if the text does not prove an answer.
   const circularAnswer = useCircularAnswer({ enabled: answerFirstEnabled(), query: submittedQuery, results: isLoading ? [] : results, mode });
+  // The documents the answer already cites are not listed a second time below it: the answer's source line is their one link.
+  const answeredKeys = new Set((circularAnswer.answer?.sources ?? []).map((s) => `${s.type}-${s.id}`));
   const { openModal } = useModal();
   // A reveal the user clicked while logged out; retried after they log in.
   const pendingRevealRef = useRef<{ empId: string; field: "mobile" | "email" } | null>(null);
@@ -1333,6 +1335,10 @@ export function OmnibarModal({
                             <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
                               Mentioned in circulars
                             </h4>
+                          ) : answeredKeys.size > 0 && results.some((r) => !answeredKeys.has(`${r.type}-${r.id}`)) ? (
+                            <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
+                              Other matching circulars
+                            </h4>
                           ) : null}
                           {/* In synthesis mode, only show cards for sources
                               the synthesis actually cited in a finding (see
@@ -1353,7 +1359,7 @@ export function OmnibarModal({
                             ? results.filter((r) =>
                                 synthesis.citations.some((c) => c.id === r.id),
                               )
-                            : results
+                            : results.filter((r) => !answeredKeys.has(`${r.type}-${r.id}`))
                           ).map((result) => (
                             <div
                               key={`${result.type}-${result.id}`}
