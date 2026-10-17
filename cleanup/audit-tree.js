@@ -109,11 +109,11 @@ for (const f of codeFiles) {
 }
 
 // ---------------------------------------------------------------- entries
-const isTest = (f) => /\.(selftest|test|spec)\.(tsx?|jsx?|mjs|cjs)$/.test(f);
+const isTest = (f) => /\.(selftest|test|spec)\.(tsx?|jsx?|mjs|cjs)$/.test(f) || /(^|\/)selftest\.(tsx?|jsx?|mjs|cjs)$/.test(f);
 const isAppEntry = (f) => /^(src\/)?app\/(.*\/)?(page|layout|route|loading|error|global-error|not-found|template|default|opengraph-image|twitter-image|icon|apple-icon|sitemap|robots|manifest)\.(tsx?|jsx?)$/.test(f);
 // files Next.js uses by their NAME alone (no import), in any extension: the icon, social images, robots, sitemap, manifest; and the Pages Router
 const isNextByName = (f) => /^(src\/)?app\/(.*\/)?(favicon\.ico|icon\d*\.(png|jpe?g|svg|ico)|apple-icon\d*\.(png|jpe?g)|opengraph-image\d*\.(png|jpe?g|gif)|twitter-image\d*\.(png|jpe?g|gif)|robots\.txt|sitemap\.xml|manifest\.(json|webmanifest))$/.test(f) || /^(src\/)?pages\/.*\.(tsx?|jsx?)$/.test(f);
-const isOtherEntry = (f) => /^(src\/)?(middleware|instrumentation)\.(ts|js)$/.test(f) || /(^|\/)\.eslintrc\.(js|cjs)$/.test(f) || /(^|\/)[\w.-]*\.config\.(ts|js|mjs|cjs)$/.test(f) || /^(scripts|eval|cleanup)\/.*\.(tsx?|jsx?|mjs|cjs)$/.test(f);
+const isOtherEntry = (f) => /^(src\/)?(middleware|instrumentation)\.(ts|js)$/.test(f) || /(^|\/)\.eslintrc\.(js|cjs)$/.test(f) || /(^|\/)[\w.-]*\.config\.(ts|js|mjs|cjs)$/.test(f) || /^(scripts|eval|cleanup)\/.*\.(tsx?|jsx?|mjs|cjs)$/.test(f) || /^src\/.*\/eval\/.*\.(tsx?|jsx?|mjs|cjs)$/.test(f);
 function reach(entries) {
   const seen = new Set(entries), stack = [...entries];
   while (stack.length) for (const n of edges.get(stack.pop()) || []) if (!seen.has(n)) { seen.add(n); stack.push(n); }
@@ -126,15 +126,17 @@ const testReach = reach(testEntries);
 
 const allText = codeFiles.map(text).join("\n");
 const configTexts = files.filter((f) => /(^|\/)(package\.json|tsconfig[\w.]*\.json|\.eslintrc[\w.]*|vercel\.json|next\.config\.[\w]+|tailwind\.config\.[\w]+|postcss\.config\.[\w]+|components\.json)$/.test(f)).map(text).join("\n");
+// the same WITHOUT package.json itself (which names every dependency by definition)
+const configOnly = files.filter((f) => /(^|\/)(tsconfig[\w.]*\.json|\.eslintrc[\w.]*|vercel\.json|next\.config\.[\w]+|tailwind\.config\.[\w]+|postcss\.config\.[\w]+|components\.json)$/.test(f)).map(text).join("\n");
 const scriptsText = (() => { try { return Object.values(JSON.parse(text("package.json")).scripts || {}).join("\n"); } catch { return ""; } })();
 const mentionedByName = (f) => { const b = path.basename(f); return allText.includes(b) || configTexts.includes(b); };
 
 const srcFiles = files.filter((f) => f.startsWith("src/") && !isTest(f) && !/\.d\.ts$/.test(f));
-const JUNK = /(^|\/)(\.DS_Store|Thumbs\.db)$|\.(log|orig|rej|bak|tmp|zip|swp)$|~$/;
+const JUNK = /(^|\/)(\.DS_Store|Thumbs\.db)$|:Zone\.Identifier$|\.(log|orig|rej|bak|tmp|zip|swp)$|~$/;
 const orphans = [], onlyTested = [];
 for (const f of srcFiles) {
   if (used.has(f) || JUNK.test(f)) continue; // junk is listed under 4a, not here
-  if (!CODE.test(f) && mentionedByName(f)) continue; // a non-code file named somewhere
+  if (!CODE.test(f) && (mentionedByName(f) || /\.sql$/.test(f) || /(^|\/)README\.md$/i.test(f))) continue; // a non-code file named somewhere; SQL migrations are run by hand; READMEs are documents
   (testReach.has(f) ? onlyTested : orphans).push(f);
 }
 
@@ -150,7 +152,9 @@ for (const name of Object.keys(deps)) {
     const real = name.slice(7).replace("__", "/");
     if (packagesUsed.has(real) || packagesUsed.has("@" + real) || deps[real] || deps["@" + real]) { if (packagesUsed.has(real) || packagesUsed.has("@" + real)) continue; }
   }
-  if (configTexts.replace(/"dependencies"[\s\S]*?\n\s*}/, "").includes(`"${name}"`) && !text("package.json").includes(`"${name}":`)) continue;
+  if (configOnly.includes(name)) continue; // named in a config file, in any quotes (next.config.js lists oracledb and pg-connection-string on purpose)
+  const eslintShort = name.match(/^(@[^/]+)\/eslint-plugin$/) ? RegExp.$1 : name.match(/^eslint-plugin-(.+)$/) ? RegExp.$1 : name.match(/^eslint-config-(.+)$/) ? RegExp.$1 : null;
+  if (eslintShort && (configOnly.includes(`"${eslintShort}"`) || configOnly.includes(`'${eslintShort}'`) || configOnly.includes(`plugin:${eslintShort}/`) || configOnly.includes(`"${eslintShort}/`))) continue; // an ESLint plugin is named by its short name
   const bin = name.replace(/^@[^/]+\//, "");
   if (new RegExp(`(^|[\\s&|;])${bin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([\\s&|;]|$)`, "m").test(scriptsText)) continue; // used as a command in a script
   unusedDeps.push(`${name} ${deps[name]}${pkg.devDependencies && pkg.devDependencies[name] ? " (dev)" : ""}`);
@@ -168,7 +172,7 @@ const large = files.filter((f) => size(f) > 2 * 1048576).sort((a, b) => size(b) 
 let ignoredOnDisk = [];
 if (inGit) {
   const ig = (git(["ls-files", "-o", "-i", "--exclude-standard", "--directory"]) || "").split("\n").filter(Boolean);
-  ignoredOnDisk = ig.filter((p) => !ig.some((q) => q !== p && p.startsWith(q))).map((p) => {
+  ignoredOnDisk = ig.filter((p) => !ig.some((q) => q !== p && q.endsWith("/") && p.startsWith(q))).map((p) => {
     let n = 0;
     try { const o = cp.execFileSync("du", ["-sk", path.join(ROOT, p)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }); n = parseInt(o, 10) * 1024; } catch { /* unknown */ }
     return { p, n };
