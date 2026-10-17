@@ -1,7 +1,7 @@
 /** Self-test of the reading check. Run: npx tsx src/lib/ingestion/readingCheck.selftest.ts. The real cases use the readings of the pilot of 17 Oct 2026. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { asciiDigits, checkReadings, handwrittenNumbers, isMajor, numbersOf, oddScriptsIn } from "./readingCheck";
+import { asciiDigits, checkReadings, handwrittenNumbers, isMajor, numberContext, numbersOf, oddScriptsIn } from "./readingCheck";
 import { STOPPED_MARKER, cutAtLoop } from "./pageReader";
 
 let pass = 0, fail = 0;
@@ -19,6 +19,13 @@ eq("the pipeline's own col11: labels are not numbers", [...numbersOf("col11: Amt
 eq("a number inside [handwritten: ...] is left out ...", [...numbersOf("sign [handwritten: Roy 27/12/2025?] 5000")], ["5000"]);
 eq("... and found by the handwritten function", handwrittenNumbers("sign [handwritten: Roy 27/12/2025?] 5000"), ["27.12.2025"]);
 ok("important: 4 digits, or a separator", isMajor("5000") && isMajor("0.00") && isMajor("20.08.2026") && !isMajor("817") && !isMajor("39") && !isMajor("10"));
+
+// ---------------------------------------------------------------- the words around a number
+ok("the words around a number are shown", numberContext("the amount (215,000) is payable in full", "215000") === "the amount (215,000) is payable in full");
+ok("a date written another way is found", /deadline 20-08-2026 only/.test(numberContext("the deadline 20-08-2026 only", "20.08.2026") ?? ""));
+ok("a number in Devanagari digits is found", /२०२६\/५२|2026\/52/.test(numberContext("क्र. सं.: २०२६/५२ नई दिल्ली", "2026.52") ?? ""));
+ok("a number that is not there gives null", numberContext("nothing here", "808") === null);
+ok("the context is short and on one line", (numberContext("a ".repeat(100) + "808" + "\n b".repeat(100), "808") ?? "").length < 90 && !/\n/.test(numberContext("x\n808\ny", "808") ?? ""));
 
 // ---------------------------------------------------------------- scripts that do not belong
 const cyr = oddScriptsIn("2. SRI WON\u041c\u0418 HORAM, RLC (CENTRAL)", "second");

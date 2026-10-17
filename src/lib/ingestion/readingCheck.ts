@@ -85,6 +85,17 @@ export function isMajor(n: string): boolean {
   return n.replace(/\D/g, "").length >= 4 || n.includes(".");
 }
 
+/** The words around the first place where a number (in its canonical form) stands in a text, for a human to judge it. null if it is not there. */
+export function numberContext(text: string, canon: string, radius = 36): string | null {
+  const t = asciiDigits(text);
+  for (const m of t.matchAll(/\d[\d,]*(?:[./:-]\d[\d,]*)*/g)) {
+    if (m[0].replace(/,/g, "").replace(/[/:-]/g, ".") !== canon) continue;
+    const i = m.index ?? 0;
+    return t.slice(Math.max(0, i - radius), i + m[0].length + radius).replace(/\s+/g, " ").trim();
+  }
+  return null;
+}
+
 const UNEXPECTED = /[\p{Script=Cyrillic}\p{Script=Greek}\p{Script=Arabic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Hebrew}\p{Script=Thai}]+/gu;
 
 /** Letters from a script that does not belong in these circulars (Latin, Devanagari and Bengali do), with where they stand. */

@@ -11,12 +11,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { applyWithQuotaWait } from "./embedThrottle";
 import { PAGE_READER_PROMPT, STOPPED_MARKER, type PageReader } from "./pageReader";
-import { checkReadings, type PageCheck } from "./readingCheck";
+import { checkReadings, numberContext, type PageCheck } from "./readingCheck";
 
 export type PageOutcome =
   | { page: number; url: string; status: "skipped"; reason: string }
   | { page: number; url: string; status: "error"; error: string }
-  | { page: number; url: string; status: PageCheck["status"]; check: PageCheck; secondChars: number; cached: boolean };
+  | { page: number; url: string; status: PageCheck["status"]; check: PageCheck; secondChars: number; cached: boolean; contexts: { first: Record<string, string>; second: Record<string, string> }; texts?: { first: string; second: string } };
 
 export interface CheckArgs {
   circularId: number;
@@ -36,6 +36,8 @@ export interface CheckArgs {
   sleep(ms: number): Promise<void>;
   /** Live calls still allowed in this run (cache hits are free). Shared across circulars through the object. */
   budget: { liveCallsLeft: number; liveCalls: number; cacheHits: number };
+  /** Keep both full readings in each outcome (for --dump-text). */
+  keepTexts?: boolean;
   onPage?(o: PageOutcome): void;
   onWait?(ms: number, attempt: number, total: number): void;
 }
@@ -87,7 +89,8 @@ export async function checkCircularPages(a: CheckArgs): Promise<CheckResult> {
       await a.sleep(a.pauseMs);
     }
     const check = checkReadings(first, second);
-    push({ page, url, status: check.status, check, secondChars: second.length, cached });
+    const ctx = (nums: string[], text: string) => Object.fromEntries(nums.slice(0, 8).map((n) => [n, numberContext(text, n)]).filter(([, c]) => c) as [string, string][]);
+    push({ page, url, status: check.status, check, secondChars: second.length, cached, contexts: { first: ctx(check.onlyFirst, first), second: ctx(check.onlySecond, second) }, ...(a.keepTexts ? { texts: { first, second } } : {}) });
   }
   return { outcomes, stoppedForQuota, stoppedForLimit };
 }
@@ -130,11 +133,19 @@ export function buildReport(inputs: CircularCheckInput[], meta: ReportMeta): { m
     L.push("| circular | page | status | only the pipeline has | only Gemini has | wrong-script letters | page image |", "|---|---|---|---|---|---|---|");
     for (const { c, o } of flagged) L.push(`| ${c.id} ${c.headline.replace(/\|/g, "/").slice(0, 40)} | ${o.page} | ${o.status} | ${cell(o.check.onlyFirst)} | ${cell(o.check.onlySecond)} | ${o.check.oddScripts.map((x) => x.chars).join(" ")} | ${o.url} |`);
   } else L.push("None.");
+  if (flagged.length) {
+    L.push("", "## What the flagged numbers look like (the words around each, as read)", "");
+    for (const { c, o } of flagged) {
+      for (const [n, t] of Object.entries(o.contexts.first)) L.push(`- circular ${c.id} page ${o.page}, only the pipeline has **${n}**: "${t.replace(/\|/g, "/")}"`);
+      for (const [n, t] of Object.entries(o.contexts.second)) L.push(`- circular ${c.id} page ${o.page}, only Gemini has **${n}**: "${t.replace(/\|/g, "/")}"`);
+    }
+  }
   if (errors.length) { L.push("", `## Errors (${errors.length})`, ""); for (const { c, o } of errors) L.push(`- circular ${c.id} page ${o.page}: ${o.error}`); }
   L.push("", "## Circulars", "", "| id | serial | headline | pages | agreed | differences | partial | unusable | errors | skipped |", "|---|---|---|---|---|---|---|---|---|---|");
   for (const c of inputs) {
     const n = (s: string) => c.outcomes.filter((o) => o.status === s).length;
     L.push(`| ${c.id} | ${c.serial ?? ""} | ${c.headline.replace(/\|/g, "/").slice(0, 60)} | ${c.outcomes.length} | ${n("agreed")} | ${n("differences")} | ${n("partial")} | ${n("second_unusable")} | ${n("error")} | ${n("skipped")} |`);
   }
-  return { markdown: L.join("\n") + "\n", json: { meta, summary: sum, circulars: inputs } };
+  const slim = inputs.map((c) => ({ ...c, outcomes: c.outcomes.map((o) => { const { texts: _t, ...rest } = o as any; return rest; }) }));
+  return { markdown: L.join("\n") + "\n", json: { meta, summary: sum, circulars: slim } };
 }

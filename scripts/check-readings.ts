@@ -13,6 +13,7 @@
 //   ... --pause-ms 6000      wait after each live call (default 6000), to stay inside the per-minute limit
 //   ... --quota-wait-ms 65000  wait when the service refuses on its rate limit (twice), then stop
 //   ... --no-gemini-cache    read every page again (default: a page Gemini has read is never paid for twice)
+//   ... --dump-text          also save both full readings of every page that needs a look, under reread-reports/text/ (check-<circular>-p<page>-pipeline.txt and -gemini.txt)
 //   ... --cache-dir reread-cache   --report-dir reread-reports   (the same folders the re-read tool uses; both are ignored by Git)
 //
 // Needs DATABASE_URL and GEMINI_API_KEY (GEMINI_VISION_MODEL names the model). A page about 20 seconds: a 10-page circular takes about 3 minutes.
@@ -94,7 +95,7 @@ async function main() {
       const { row, pageTexts, notRead } = prepared[n];
       const label = `[${n + 1}/${prepared.length}] circular ${row.id} "${row.headline.slice(0, 40)}"`;
       const res = await checkCircularPages({
-        circularId: row.id, fileUrls: row.fileUrls, pageTexts, notRead, reader, cacheDir, useCache, pauseMs, waitsMs: [quotaWaitMs, quotaWaitMs], sleep, budget,
+        circularId: row.id, fileUrls: row.fileUrls, pageTexts, notRead, reader, cacheDir, useCache, pauseMs, waitsMs: [quotaWaitMs, quotaWaitMs], sleep, budget, keepTexts: flag("dump-text"),
         fetchImage: async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status} fetching the page image`); return Buffer.from(await r.arrayBuffer()); },
         onWait: (ms, attempt, total) => console.log(`        rate limit: waiting ${Math.round(ms / 1000)} s for the per-minute window to clear (wait ${attempt} of ${total})`),
         onPage: (o: PageOutcome) => {
@@ -105,6 +106,20 @@ async function main() {
       inputs.push({ id: row.id, serial: row.serialNumber, headline: row.headline, outcomes: res.outcomes });
       if (res.stoppedForQuota) { stoppedForQuota = true; console.log("\nSTOPPING: the service keeps refusing on its rate limit. Run the same command later; pages already read are kept."); break; }
       if (res.stoppedForLimit) { stoppedForLimit = true; console.log(`\nSTOPPING at the limit of ${maxCalls} live call(s). Run the same command again to continue; pages already read are kept.`); break; }
+    }
+
+    // ---- the full readings of the pages that need a look
+    if (flag("dump-text")) {
+      const dir = join(reportDir, "text");
+      mkdirSync(dir, { recursive: true });
+      let n = 0;
+      for (const c of inputs) for (const o of c.outcomes) {
+        if (!("texts" in o) || !o.texts || (o.status !== "differences" && o.status !== "partial")) continue;
+        writeFileSync(join(dir, `check-${c.id}-p${o.page}-pipeline.txt`), o.texts.first + "\n");
+        writeFileSync(join(dir, `check-${c.id}-p${o.page}-gemini.txt`), o.texts.second + "\n");
+        n++;
+      }
+      console.log(`Both full readings of ${n} page(s) saved under ${dir}/`);
     }
 
     // ---- report

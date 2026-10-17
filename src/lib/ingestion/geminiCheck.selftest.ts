@@ -37,6 +37,8 @@ function args(over: Partial<CheckArgs> & Pick<CheckArgs, "fileUrls" | "pageTexts
     ok("the gate pass is 'differences'", r.outcomes[1].status === "differences");
     const gate = r.outcomes[1] as any;
     ok("...and the pin code the pipeline read as 13203 is caught", gate.check.onlyFirst.includes("13203") && gate.check.onlySecond.includes("713203"), JSON.stringify(gate.check.onlyFirst));
+    ok("each flagged number comes with the words around it", /13203/.test(gate.contexts.first["13203"] ?? "") && /713203/.test(gate.contexts.second["713203"] ?? ""), JSON.stringify(gate.contexts).slice(0, 200));
+    ok("the full readings are kept only when asked", (gate as any).texts === undefined);
     ok("the wage notice keeps its three daily wages confirmed", ["808", "740", "809"].every((n) => (r.outcomes[2] as any).check.confirmed.includes(n)));
     ok("one pause after each LIVE call", a.slept.length === 3 && a.slept.every((m) => m === 6000), JSON.stringify(a.slept));
     ok("live calls are counted", a.budget.liveCalls === 3 && a.budget.cacheHits === 0);
@@ -107,6 +109,15 @@ function args(over: Partial<CheckArgs> & Pick<CheckArgs, "fileUrls" | "pageTexts
     const r = await checkCircularPages(a);
     ok("the run stops at the limit on live calls", calls.length === 2 && r.stoppedForLimit && r.outcomes[2].status === "skipped" && /limit/.test((r.outcomes[2] as any).reason));
   }
+  // ---- the full readings, for --dump-text, and not in the JSON
+  {
+    const { reader } = scripted({ "u1": GATE.gemini });
+    const r = await checkCircularPages(args({ fileUrls: ["u1"], pageTexts: [GATE.pipeline], reader, keepTexts: true }));
+    const o = r.outcomes[0] as any;
+    ok("with keepTexts the outcome carries both full readings", o.texts && o.texts.first === GATE.pipeline.trim() && o.texts.second === GATE.gemini);
+    const rep = buildReport([{ id: 1, serial: 1, headline: "h", outcomes: r.outcomes }], { reader: "x", startedAt: "t", liveCalls: 1, cacheHits: 0, stoppedForQuota: false, stoppedForLimit: false });
+    ok("...but the JSON report does not hold them", !JSON.stringify(rep.json).includes("Distn") && JSON.stringify(rep.json).length < 6000, String(JSON.stringify(rep.json).length));
+  }
   // ---- the report
   {
     const { reader } = scripted({ "u1": GOOD.gemini, "u2": GATE.gemini, "u3": P("mediclaim-hindi").gemini });
@@ -121,6 +132,7 @@ function args(over: Partial<CheckArgs> & Pick<CheckArgs, "fileUrls" | "pageTexts
     ok("the report lists the pages that need a look, with the numbers and the page image", /Pages to look at \(2\)/.test(rep.markdown) && /713203/.test(rep.markdown) && /\| u2 \|/.test(rep.markdown) && /20\.08\.2026/.test(rep.markdown));
     const order = rep.markdown.split("\n").filter((l) => /^\| 11 Gate pass \|/.test(l));
     ok("the page with more differences comes first", attention(inputs[1].outcomes[0]) >= attention(inputs[1].outcomes[1]) ? order[0].includes("| 1 |") : order[0].includes("| 2 |"));
+    ok("the report shows the words around the flagged numbers", /What the flagged numbers look like/.test(rep.markdown) && /only Gemini has \*\*713203\*\*: ".*713203/.test(rep.markdown) && /only the pipeline has \*\*13203\*\*/.test(rep.markdown));
     ok("a '|' in a headline cannot break the table", !/A \| circular/.test(rep.markdown) && /A \/ circular/.test(rep.markdown));
     ok("the report says that nothing was written to the database", /Nothing was written to the database/.test(rep.markdown));
     const j: any = rep.json;
