@@ -25,9 +25,11 @@ type FetchLike = (url: string, init: { method: string; headers: Record<string, s
   status: number;
   text(): Promise<string>;
   json(): Promise<any>;
+  body?: ReadableStream<Uint8Array> | null;
 }>;
 
-export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+/** The model Google named when it retired the previous one (17 Oct 2026). Model names change: GEMINI_VISION_MODEL in .env.local overrides this. */
+export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
 
 export const PAGE_READER_PROMPT = `You are transcribing ONE page of a scanned official document of a steel plant. The page is in English, Hindi, sometimes Bengali.
 Transcribe EVERYTHING you can read, exactly as printed, in reading order. Do not summarise, translate, correct or complete anything.
@@ -79,7 +81,7 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
             return text;
           }
           const msg = (await res.text()).slice(0, 300);
-          lastErr = `Gemini answered ${res.status}: ${msg}`;
+          lastErr = `Gemini answered ${res.status}: ${msg}${res.status === 404 ? ` (the model name "${model}" may be out of date: set GEMINI_VISION_MODEL in .env.local to a current model)` : ""}`;
           if (res.status !== 429 && res.status !== 500 && res.status !== 503) throw new Error(lastErr); // a wrong key or model is not worth retrying
         } catch (e) {
           if ((e as Error).message?.startsWith("Gemini")) throw e;
@@ -94,9 +96,19 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
   };
 }
 
+/**
+ * Ollama gives a request 4096 tokens of working memory unless told otherwise, and one page image plus the instructions needs more than that
+ * (4272 on 17 Oct: "exceeds the available context size"). 8192 holds the page and the transcription; PAGE_READER_OLLAMA_CTX overrides it.
+ */
+export const DEFAULT_OLLAMA_CTX = 8192;
+/** The longest transcription asked for, so a model that loses its way cannot go on for ever. */
+export const OLLAMA_MAX_REPLY_TOKENS = 4096;
+
 export interface OllamaOptions {
   baseUrl?: string;
   model?: string;
+  /** Working memory for the request, in tokens. */
+  numCtx?: number;
   fetchImpl?: FetchLike;
   timeoutMs?: number;
 }
@@ -111,16 +123,51 @@ export function ollamaReader(opts: OllamaOptions = {}): PageReader {
     async read(png: Buffer): Promise<string> {
       if (!model) throw new Error("PAGE_READER_OLLAMA_MODEL is not set");
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 600_000); // a local model without a GPU can take minutes per page
+      const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 1_200_000); // a local model without a GPU can take many minutes per page
       try {
         const res = await doFetch(`${base}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ model, stream: false, options: { temperature: 0 }, messages: [{ role: "user", content: PAGE_READER_PROMPT, images: [png.toString("base64")] }] }),
+          body: JSON.stringify({
+            model,
+            // STREAMED: Node's fetch gives up after 300 s of waiting for the reply to START, and a small model on a laptop needed longer than
+            // that for a dense page (17 Oct: "fetch failed" after 302 s). A streamed reply starts at once and is read as it arrives.
+            stream: true,
+            options: { temperature: 0, num_ctx: opts.numCtx ?? (Number(process.env.PAGE_READER_OLLAMA_CTX) || DEFAULT_OLLAMA_CTX), num_predict: OLLAMA_MAX_REPLY_TOKENS },
+            messages: [{ role: "user", content: PAGE_READER_PROMPT, images: [png.toString("base64")] }],
+          }),
           signal: ctl.signal,
         });
-        if (!res.ok) throw new Error(`Ollama answered ${res.status}: ${(await res.text()).slice(0, 300)}`);
-        const text = String((await res.json())?.message?.content ?? "").trim();
+        if (!res.ok) {
+          const msg = (await res.text()).slice(0, 300);
+          throw new Error(`Ollama answered ${res.status}: ${msg}${/context size/i.test(msg) ? " (set PAGE_READER_OLLAMA_CTX in .env.local to a larger number of tokens)" : ""}`);
+        }
+        let text = "";
+        if (res.body) {
+          const reader = res.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          const take = (line: string) => {
+            if (!line.trim()) return;
+            const o = JSON.parse(line);
+            if (o.error) throw new Error(`Ollama error: ${String(o.error).slice(0, 300)}`);
+            text += o.message?.content ?? "";
+          };
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            let nl: number;
+            while ((nl = buf.indexOf("\n")) >= 0) {
+              take(buf.slice(0, nl));
+              buf = buf.slice(nl + 1);
+            }
+          }
+          take(buf);
+        } else {
+          text = String((await res.json())?.message?.content ?? "");
+        }
+        text = text.trim();
         if (!text) throw new Error("Ollama returned no text");
         return text;
       } finally {

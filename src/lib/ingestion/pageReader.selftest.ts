@@ -1,5 +1,5 @@
 // Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/pageReader.selftest.ts   (no network: a scripted fetch stands in for the services)
-import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, geminiReader, ollamaReader, readerFromEnv } from "./pageReader";
+import { DEFAULT_GEMINI_MODEL, DEFAULT_OLLAMA_CTX, OLLAMA_MAX_REPLY_TOKENS, PAGE_READER_PROMPT, geminiReader, ollamaReader, readerFromEnv } from "./pageReader";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
@@ -31,19 +31,32 @@ const res = (status: number, body: unknown) => ({ ok: status >= 200 && status < 
   ok("a service that stays down fails after the retries", await down.read(png).then(() => false, (e) => /503/.test(String(e))) && calls === 3, `calls=${calls}`);
   calls = 0;
   const wrong = geminiReader({ apiKey: "K", noWait: true, fetchImpl: async () => { calls++; return res(404, { error: "model not found" }); } });
-  ok("a wrong model name is NOT retried and is reported", await wrong.read(png).then(() => false, (e) => /404/.test(String(e))) && calls === 1, `calls=${calls}`);
+  ok("a wrong model name is NOT retried and is reported, with what to do about it", await wrong.read(png).then(() => false, (e) => /404/.test(String(e)) && /GEMINI_VISION_MODEL/.test(String(e))) && calls === 1, `calls=${calls}`);
   const blocked = geminiReader({ apiKey: "K", fetchImpl: async () => res(200, { candidates: [{ finishReason: "SAFETY" }] }) });
   ok("an empty answer is an error that says why", await blocked.read(png).then(() => false, (e) => /SAFETY/.test(String(e))));
   const thrower = geminiReader({ apiKey: "K", noWait: true, fetchImpl: async () => { throw new Error("offline"); } });
   ok("a network failure is an error", await thrower.read(png).then(() => false, (e) => /offline/.test(String(e))));
-  ok("the default model is named", DEFAULT_GEMINI_MODEL.startsWith("gemini-"));
+  ok("the default model is the one Google named (gemini-3.8-flash)", DEFAULT_GEMINI_MODEL === "gemini-3.8-flash");
 
   // ---- Ollama
   let o: any = null;
   const ol = ollamaReader({ baseUrl: "http://10.0.0.5:11434/", model: "qwen2.5vl:7b", fetchImpl: async (url, init) => { o = { url, body: JSON.parse(init.body) }; return res(200, { message: { content: " page text " } }); } });
   ok("the local reader names its model", ol.name === "ollama:qwen2.5vl:7b");
   ok("the local reader returns the text", (await ol.read(png)) === "page text");
-  ok("it calls the local server's chat address, with the page as an image", o.url === "http://10.0.0.5:11434/api/chat" && o.body.model === "qwen2.5vl:7b" && o.body.stream === false && o.body.messages[0].images[0] === png.toString("base64"));
+  ok("it calls the local server's chat address, with the page as an image", o.url === "http://10.0.0.5:11434/api/chat" && o.body.model === "qwen2.5vl:7b" && o.body.stream === true && o.body.messages[0].images[0] === png.toString("base64"));
+  ok("the request asks for enough working memory (the default 4096 was too little for a page: 4272 tokens) and caps the reply", o.body.options.num_ctx === DEFAULT_OLLAMA_CTX && DEFAULT_OLLAMA_CTX >= 8192 && o.body.options.num_predict === OLLAMA_MAX_REPLY_TOKENS && o.body.options.temperature === 0);
+  let o2: any = null;
+  await ollamaReader({ model: "m", numCtx: 12000, fetchImpl: async (_u, init) => { o2 = JSON.parse(init.body); return res(200, { message: { content: "x" } }); } }).read(png);
+  ok("the working memory can be set", o2.options.num_ctx === 12000);
+  ok("a refusal for lack of working memory says what to change", await ollamaReader({ model: "m", fetchImpl: async () => res(400, { error: "request (4272 tokens) exceeds the available context size (4096 tokens), try increasing it" }) }).read(png).then(() => false, (e) => /400/.test(String(e)) && /PAGE_READER_OLLAMA_CTX/.test(String(e))));
+  // the reply is STREAMED (a reply that has not started after 300 s makes Node's fetch give up): pieces may end in the middle of a line
+  const enc = new TextEncoder();
+  const streamOf = (chunks: string[]) => new ReadableStream<Uint8Array>({ start(c) { for (const k of chunks) c.enqueue(enc.encode(k)); c.close(); } });
+  const streamed = (chunks: string[]) => ollamaReader({ model: "m", fetchImpl: async () => ({ ok: true, status: 200, text: async () => "", json: async () => ({}), body: streamOf(chunks) }) });
+  ok("a streamed reply is put together, even when a piece ends in the middle of a line", (await streamed(['{"message":{"content":"Hel"},"done":false}\n{"message":{"content":"lo "}', ',"done":false}\n{"message":{"content":"page"},"done":true}\n']).read(png)) === "Hello page");
+  ok("a last line without a newline is read too", (await streamed(['{"message":{"content":"a"},"done":false}\n{"message":{"content":"b"},"done":true}']).read(png)) === "ab");
+  ok("an error inside the stream is reported", await streamed(['{"error":"model runner crashed"}\n']).read(png).then(() => false, (e) => /model runner crashed/.test(String(e))));
+  ok("an empty stream is an error", await streamed(["\n"]).read(png).then(() => false, (e) => /no text/.test(String(e))));
   ok("no model set: a clear error", await ollamaReader({ model: "", fetchImpl: async () => res(200, {}) }).read(png).then(() => false, (e) => /PAGE_READER_OLLAMA_MODEL/.test(String(e))));
   ok("a failing local server is an error", await ollamaReader({ model: "m", fetchImpl: async () => res(500, { error: "x" }) }).read(png).then(() => false, (e) => /500/.test(String(e))));
 

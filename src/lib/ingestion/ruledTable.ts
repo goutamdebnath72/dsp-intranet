@@ -670,37 +670,22 @@ function centreIn(w: TsvWord, b: Box, margin = 4): boolean {
   return cx >= b.x0 - margin && cx <= b.x1 + margin && cy >= b.y0 - margin && cy <= b.y1 + margin;
 }
 
-/** A word as the table reading would have it: no punctuation around it, lower case. */
-function tokenKey(t: string): string {
-  return t.toLowerCase().replace(/^[^a-z0-9\u0900-\u097F\u0980-\u09FF]+|[^a-z0-9\u0900-\u097F\u0980-\u09FF]+$/g, "");
-}
-
 /** Grid-line debris stuck to a number ("3350.00]", "_13478.00", "1750.00|"): a sign of a damaged table, never part of a value. */
 const DEBRIS = /\d[\]|_]|[\]|_]\d/;
 
 /**
- * The page words WITHOUT what the table readings replace. Inside a table's box a word is cut only if the table reading contains it (each word of
- * the table reading can cancel one page word) or if it is grid-line debris; every other word inside the box STAYS, so a heading or a note that
- * the cell reading could not read is never lost. Returns the words kept and the TSV line numbers cut.
+ * The page words WITHOUT what the table readings replace. Inside the box of a table that was read, THE TABLE READING IS THE ONLY SOURCE OF
+ * NUMBERS: every page word that holds a digit is cut (it is either the same number, already in the table, or a misreading of it, like the
+ * "1924530" that a lost decimal point made of "19245.30"), and so is grid-line debris. Words WITHOUT a digit all STAY, whatever the table reading
+ * says: the page reading often reads a name or a title better than a small cell does ("Ujjwal ... Mgr." against the cell's "Ujiwal ... Mar."),
+ * and a heading the cells could not read must never be lost. Returns the words kept and the TSV line numbers cut.
  */
 export function withoutTableWords(words: TsvWord[], tables: TableReading[]): { words: TsvWord[]; removed: Set<number> } {
   const removed = new Set<number>();
   const kept: TsvWord[] = [];
-  const pools = tables.map((t) => {
-    const m = new Map<string, number>();
-    for (const w of t.text.split(/[\s|]+/)) {
-      const k = tokenKey(w.replace(/:$/, ""));
-      if (k) m.set(k, (m.get(k) ?? 0) + 1);
-    }
-    return { box: t.bbox, m };
-  });
   for (const w of words) {
-    const pool = pools.find((p) => centreIn(w, p.box));
-    if (!pool) { kept.push(w); continue; }
-    const k = tokenKey(w.text);
-    const n = k ? pool.m.get(k) ?? 0 : 0;
-    if (n > 0) { pool.m.set(k, n - 1); removed.add(w.lineNo); }
-    else if (DEBRIS.test(w.text)) removed.add(w.lineNo);
+    const inside = tables.some((t) => centreIn(w, t.bbox));
+    if (inside && (/\d/.test(w.text) || DEBRIS.test(w.text))) removed.add(w.lineNo);
     else kept.push(w);
   }
   return { words: kept, removed };

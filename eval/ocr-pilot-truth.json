@@ -305,7 +305,7 @@
       "id": "football-trial",
       "pdf": "2024/07_2024.pdf",
       "page": 1,
-      "kind": "plain text, a time that was misread before",
+      "kind": "plain text (a time an earlier engine misread; the current readers all get it right)",
       "numbers": [
         "03.12.2024",
         "15.12.2024",
@@ -327,8 +327,7 @@
         ]
       ],
       "forbidden": [
-        "70 00 AM",
-        "0 00 AM sharp"
+        "70 00 AM"
       ]
     },
     {

@@ -213,15 +213,15 @@ const scripted = (over: Record<string, string[]> = {}): CellOcr => async (_png, 
   eq("a page text is rebuilt line by line, with a blank line between blocks", textOfWords(words), "Schedule of\nEnrolment\n\nTraffic Power\ngarbage\n\nFooter\n");
   const box = { x0: 90, y0: 290, x1: 400, y1: 370 };
   const mkT = (text: string, bbox = box): TableReading => ({ bbox, rows: 3, cols: 2, text, cells: 6, numericCells: 0, unclear: 0, emptyCells: 0, dataRows: 2 });
-  // cutting a table out of the page text: only what the table reading CONTAINS (and debris) goes; everything else inside the box stays
+  // cutting a table out of the page text: inside its box the table reading is the only source of NUMBERS; words without a digit all STAY
   const cut = withoutTableWords(words, [mkT("[TABLE]\nTraffic: x\n[/TABLE]")]);
-  eq("a word the table reading contains is cut, the rest of the box STAYS (a heading the cells could not read is not lost)", cut.words.map((w) => w.text), ["Schedule", "of", "Enrolment", "Power", "garbage", "Footer"]);
-  ok("...and the TSV is rebuilt without the cut words only", !/Traffic/.test(tsvWithout(tsv, cut.removed)) && /Power/.test(tsvWithout(tsv, cut.removed)) && /^4\t/m.test(tsvWithout(tsv, cut.removed)));
-  const debris: TsvWord[] = [{ lineNo: 0, block: 1, par: 1, line: 1, left: 100, top: 300, width: 80, height: 20, conf: 90, text: "3350.00]" }, { lineNo: 1, block: 1, par: 1, line: 1, left: 200, top: 300, width: 80, height: 20, conf: 90, text: "27000]" }, { lineNo: 2, block: 1, par: 1, line: 1, left: 300, top: 300, width: 80, height: 20, conf: 90, text: "Remark" }];
-  const dc = withoutTableWords(debris, [mkT("[TABLE]\nBASIC: 3350.00\n[/TABLE]")]);
-  eq("grid-line debris (3350.00], 27000]) is cut, a word that is neither debris nor in the table stays", dc.words.map((w) => w.text), ["Remark"]);
-  const twice: TsvWord[] = [0, 1].map((i) => ({ lineNo: i, block: 1, par: 1, line: i, left: 100, top: 300, width: 80, height: 20, conf: 90, text: "Annual" }));
-  eq("each word of the table reading cancels ONE page word (two 'Annual' on the page, one in the table: one stays)", withoutTableWords(twice, [mkT("[TABLE]\nPeriodicity: Annual\n[/TABLE]")]).words.length, 1);
+  eq("words inside a table's box STAY, even those the table reading also has (the page reading often reads a name better than a cell)", cut.words.map((w) => w.text), ["Schedule", "of", "Enrolment", "Traffic", "Power", "garbage", "Footer"]);
+  const mk = (i: number, text: string, left = 100): TsvWord => ({ lineNo: i, block: 1, par: 1, line: 1, left, top: 300, width: 80, height: 20, conf: 90, text });
+  const numbers = [mk(0, "3350.00]"), mk(1, "27000]", 200), mk(2, "1924530", 300), mk(3, "808", 400), mk(4, "Remark", 500), mk(5, "5th", 600)];
+  const dc = withoutTableWords(numbers, [mkT("[TABLE]\nBASIC: 3350.00 | Wages: 808\n[/TABLE]", { x0: 50, y0: 250, x1: 800, y1: 400 })]);
+  eq("every page word with a digit inside the box is cut (the table reading is the only source of numbers: debris, a misread number, a right one)", dc.words.map((w) => w.text), ["Remark"]);
+    const rest = withoutTableWords(words, [mkT("x")]);
+  ok("a TSV with no digits inside the box loses no line", tsvWithout(tsv, rest.removed) === tsv && rest.removed.size === 0);
   eq("words outside every box are never cut", withoutTableWords(words, [mkT("[TABLE]\nSchedule\n[/TABLE]", { x0: 5000, y0: 5000, x1: 5100, y1: 5100 })]).words.length, words.length);
   eq("with no turn a box is unchanged", boxBackToInput({ x0: 100, y0: 100, x1: 1100, y1: 500 }, { deg: 0, W0: 1200, H0: 1000 }, 1200, 1000), { x0: 100, y0: 100, x1: 1100, y1: 500 });
   const many: TsvWord[] = Array.from({ length: 10 }, (_, i) => ({ lineNo: i, block: 1, par: 1, line: i, left: 100, top: 300 + i, width: 50, height: 10, conf: 92, text: ["Schedule", "enrolment", "traffic", "power", "location", "ground", "project", "building", "adjacent", "phase"][i] }));

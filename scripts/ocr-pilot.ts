@@ -10,6 +10,7 @@
 //   ... --only wage-notice,nodal-officers    just some pages
 //   ... --lang-path /folder/with/traineddata offline: use language data from a folder (eng, hin, ben)
 //   ... --pause 8000                         milliseconds to wait between Gemini calls (default 6000)
+//   ... --skip tesseract,pipeline,gemini     leave out readers whose name starts with one of these (e.g. to measure only a local model)
 // It writes eval/results/ocr-pilot-<time>.md and .json. Nothing is stored in the database; no circular is changed.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -56,6 +57,8 @@ async function main() {
   const only = arg("only").split(",").map((s) => s.trim()).filter(Boolean);
   const pages: Entry[] = JSON.parse(readFileSync(truthFile, "utf8")).pages.filter((p: Entry) => !only.length || only.includes(p.id));
   const pause = Number(arg("pause", "6000"));
+  const skip = arg("skip").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const skipped = (reader: string) => skip.some((x) => reader.toLowerCase().startsWith(x));
   const langPath = arg("lang-path") || process.env.OCR_LANG_PATH || "";
 
   const second: PageReader[] = [];
@@ -75,6 +78,7 @@ async function main() {
     if (!docs.has(file)) docs.set(file, await pdf(readFileSync(file), { scale: 300 / 72, format: "png" }));
     const png: Buffer = await docs.get(file).getPage(p.page);
     const run = async (reader: string, fn: () => Promise<string>) => {
+      if (skipped(reader)) return;
       const t0 = Date.now();
       try {
         const text = await fn();
@@ -96,6 +100,7 @@ async function main() {
     await run("pipeline-now", async () => (await ocrPageDual(png, p.id, pool)).text);
     // 3. The second readers
     for (const r of second) {
+      if (skipped(r.name)) continue;
       await run(r.name, () => r.read(png));
       await sleep(pause);
     }
