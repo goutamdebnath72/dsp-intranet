@@ -49,9 +49,9 @@
    "lastKnown": "✔",
    "expectedCount": {
     "of": "people",
-    "min": 6
+    "n": 5
    },
-   "notes": "13 Oct baseline: the engine answered '5 people found' (a plain LIMIT 5 over everyone) instead of up to 5 PER SECTION. Fixed in step 28b: expected MORE than 5 in all. Per-section top 5 by global_seniority_rank. Plant Garage = six real codes 85000, 85070, 85110, 85200, 85330, 85430 (none merge)."
+   "notes": "CORRECTED 17 Oct: all 9 Plant Garage executives sit under ONE code (85000; the other five garage sections hold no executives: checked in the database), so '5 people' IS the right answer (the five most senior of those nine). My first expectation (more than 5) was wrong. Per-section top 5 by global_seniority_rank. Plant Garage = six real codes 85000, 85070, 85110, 85200, 85330, 85430 (none merge)."
   },
   {
    "id": "A-D3",

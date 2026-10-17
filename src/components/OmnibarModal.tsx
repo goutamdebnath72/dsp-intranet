@@ -28,6 +28,8 @@ import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { OmniLoginHint } from "@/components/OmniLoginHint";
 import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
 import { HolidayCompareCard } from "@/components/HolidayCompareCard";
+import { CircularAnswerCard } from "@/components/CircularAnswerCard";
+import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
 import { decideLoginHint, excludeShownPeople } from "@/lib/search/loginHints";
 import { autoEdsEnabled, detectSynthesisIntent } from "@/lib/search/synthesisIntent";
 import { Tooltip } from "@/components/Tooltip";
@@ -176,6 +178,9 @@ export function OmnibarModal({
   } = useOmniSearch(isOpen, ticketNo);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { status: authStatus } = useVerifiedSession();
+  // Answer first (step 29a, off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true): once the search has found documents, the answer they
+  // prove is written above them, with the source and the exact words. Nothing appears if the text does not prove an answer.
+  const circularAnswer = useCircularAnswer({ enabled: answerFirstEnabled(), query: submittedQuery, results: isLoading ? [] : results, mode });
   const { openModal } = useModal();
   // A reveal the user clicked while logged out; retried after they log in.
   const pendingRevealRef = useRef<{ empId: string; field: "mobile" | "email" } | null>(null);
@@ -1306,6 +1311,16 @@ export function OmnibarModal({
                           <ExecutiveBriefing
                             data={synthesis}
                             onOpenCircular={setSelectedCircularId}
+                          />
+                        )}
+
+                        {mode === "semantic" && (
+                          <CircularAnswerCard
+                            state={circularAnswer}
+                            onOpenSource={(id) => {
+                              setBannerDismissed(false);
+                              setSelectedCircularId(id);
+                            }}
                           />
                         )}
 
