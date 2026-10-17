@@ -93,8 +93,7 @@ A Smart Semantic question asks ONE thing that ONE circular answers. People-data 
 
 ## The OCR pilot (step 30b)
 
-`scripts/ocr-pilot.ts` reads the 11 hardest pages with every reader and scores each against `eval/ocr-pilot-truth.json` (what the pages really say, read by eye): key numbers read exactly, key phrases, a label with its value on one line, known wrong readings, grid-line garbage. Readers: tesseract-before (the old way), pipeline-now (ruled tables cell by cell), Gemini (if `GEMINI_API_KEY` is in `.env.local`), a local model (if you name one). It also shows how many key numbers two readers both read, only one read, or neither. It changes nothing in the database.
+`scripts/ocr-pilot.ts` reads the 11 hardest pages with every reader and scores each against `eval/ocr-pilot-truth.json` (what the pages really say, read by eye): key numbers read exactly, key phrases, a label with its value on one line, known wrong readings, grid-line garbage. Readers: tesseract-before (the old way), pipeline-now (ruled tables cell by cell), Gemini (if `GEMINI_API_KEY` is in `.env.local`). It also shows how many key numbers two readers both read, only one read, or neither. It changes nothing in the database.
 
     npx tsx --tsconfig tsconfig.json scripts/ocr-pilot.ts --files "$HOME/Desktop/Desktop/2026 to 2022"
-    ... --ollama-model qwen2.5vl:7b     (also try a model on this machine; needs `ollama pull qwen2.5vl:7b` first)
 

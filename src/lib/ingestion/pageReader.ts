@@ -1,18 +1,15 @@
 // src/lib/ingestion/pageReader.ts
 //
-// THE SECOND READER. Tesseract reads a page one way; a vision model reads it another way and fails differently (Tesseract mixes up
-// look-alike digits and loses columns; a vision model reads layout, Hindi, Bengali and symbols well but can invent a digit). Two readers that
-// fail DIFFERENTLY are worth far more than one better reader: where they agree, a value is very probably right; where they disagree, it is
-// flagged. This file is only the connection to such a reader, kept behind one small interface so that Gemini (an online service, fine while
-// the app is in development) can later be replaced by a model running inside SAIL's closed network (Ollama with a Qwen-VL model, say) by
-// changing a setting, with no other change.
+// THE SECOND READER. Tesseract reads a page one way; Gemini (a vision model) reads it another way and fails differently (Tesseract mixes up
+// look-alike digits and loses columns; a vision model reads layout, Hindi, Bengali and symbols well but can invent a digit or stop early).
+// Two readers that fail DIFFERENTLY are worth far more than one better reader: where they agree, a value is very probably right; where they
+// disagree, it is flagged (readingCheck.ts). This file is only the connection to Gemini, kept behind one small interface.
 //
-//   PAGE_READER=gemini   (needs GEMINI_API_KEY; GEMINI_VISION_MODEL names the model, default below)
-//   PAGE_READER=ollama   (needs PAGE_READER_OLLAMA_MODEL, e.g. qwen2.5vl:7b; the server is PAGE_READER_OLLAMA_URL, else OLLAMA_HOST, else http://localhost:11434.
-//                         These are NOT the OLLAMA_MODEL of the embeddings, which is a different kind of model)
+//   PAGE_READER=gemini   (needs GEMINI_API_KEY; GEMINI_VISION_MODEL names the model, default below: model names are retired from time to time)
 //   PAGE_READER unset or "none": no second reader
 //
-// Nothing in the app calls this yet: the pilot (scripts/ocr-pilot.ts) measures each reader against pages transcribed by hand first.
+// A reading that is cut off (Gemini's finishReason is not STOP) or in which the model began repeating itself ends with STOPPED_MARKER, so that
+// it is never mistaken for a complete reading.
 
 export interface PageReader {
   name: string;
@@ -25,8 +22,7 @@ type FetchLike = (url: string, init: { method: string; headers: Record<string, s
   status: number;
   text(): Promise<string>;
   json(): Promise<any>;
-  body?: ReadableStream<Uint8Array> | null;
-}>;
+  }>;
 
 /** The model Google named when it retired the previous one (17 Oct 2026). Model names change: GEMINI_VISION_MODEL in .env.local overrides this. */
 export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
@@ -39,6 +35,7 @@ Rules:
 - Hindi and Bengali: transcribe in their own script.
 - Handwriting (signatures, handwritten dates): write [handwritten: ...] followed by your best reading and a question mark.
 - Stamps, seals and logos: write [stamp] or [logo], and any legible text on them.
+- A blank form or table to be filled in (rows with nothing written in them): do NOT write the blank rows out; write [blank form rows] once and go on with the rest of the page.
 Output only the transcription.`;
 
 /** Wait before a retry: 1.5 s, then 4 s. */
@@ -78,7 +75,11 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
             const parts: any[] = data?.candidates?.[0]?.content?.parts ?? [];
             const text = parts.map((p) => (typeof p?.text === "string" ? p.text : "")).join("").trim();
             if (!text) throw new Error(`Gemini returned no text (${data?.candidates?.[0]?.finishReason ?? data?.promptFeedback?.blockReason ?? "no reason given"})`);
-            return text;
+            // a reply that did not end normally (cut off at the length limit, stopped by a safety rule) or in which the model looped is marked
+            const finish = data?.candidates?.[0]?.finishReason;
+            let out = cutAtLoop(text);
+            if (finish && finish !== "STOP" && !out.endsWith(STOPPED_MARKER)) out += "\n" + STOPPED_MARKER;
+            return out;
           }
           const msg = (await res.text()).slice(0, 300);
           lastErr = `Gemini answered ${res.status}: ${msg}${res.status === 404 ? ` (the model name "${model}" may be out of date: set GEMINI_VISION_MODEL in .env.local to a current model)` : ""}`;
@@ -96,91 +97,37 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
   };
 }
 
-/**
- * Ollama gives a request 4096 tokens of working memory unless told otherwise, and one page image plus the instructions needs more than that
- * (4272 on 17 Oct: "exceeds the available context size"). 8192 holds the page and the transcription; PAGE_READER_OLLAMA_CTX overrides it.
- */
-export const DEFAULT_OLLAMA_CTX = 8192;
-/** The longest transcription asked for, so a model that loses its way cannot go on for ever. */
-export const OLLAMA_MAX_REPLY_TOKENS = 4096;
-
-export interface OllamaOptions {
-  baseUrl?: string;
-  model?: string;
-  /** Working memory for the request, in tokens. */
-  numCtx?: number;
-  fetchImpl?: FetchLike;
-  timeoutMs?: number;
+/** Written at the end of a reading that did not reach the end of the page: cut off by the service, or the model began repeating the same line. */
+export const STOPPED_MARKER = "[reading incomplete: the reply was cut off or the model began repeating itself]";
+/** This many identical lines in a row (blank table rows count as identical) mean the model is looping. */
+export const LOOP_RUN = 6;
+/** A table row with no text in any cell. */
+const BLANK_ROW = /^\|(\s*\|)+\s*$/;
+function loopKey(line: string): string {
+  const t = line.trim();
+  return BLANK_ROW.test(t) ? "<blank table row>" : t;
 }
 
-/** A model running on SAIL's own machine (Ollama): the same job, no internet. */
-export function ollamaReader(opts: OllamaOptions = {}): PageReader {
-  const base = (opts.baseUrl ?? process.env.PAGE_READER_OLLAMA_URL ?? process.env.OLLAMA_HOST ?? "http://localhost:11434").replace(/\/+$/, "");
-  const model = opts.model ?? process.env.PAGE_READER_OLLAMA_MODEL ?? "";
-  const doFetch: FetchLike = opts.fetchImpl ?? ((url, init) => fetch(url, init as any) as any);
-  return {
-    name: `ollama:${model || "(no model set)"}`,
-    async read(png: Buffer): Promise<string> {
-      if (!model) throw new Error("PAGE_READER_OLLAMA_MODEL is not set");
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 1_200_000); // a local model without a GPU can take many minutes per page
-      try {
-        const res = await doFetch(`${base}/api/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model,
-            // STREAMED: Node's fetch gives up after 300 s of waiting for the reply to START, and a small model on a laptop needed longer than
-            // that for a dense page (17 Oct: "fetch failed" after 302 s). A streamed reply starts at once and is read as it arrives.
-            stream: true,
-            options: { temperature: 0, num_ctx: opts.numCtx ?? (Number(process.env.PAGE_READER_OLLAMA_CTX) || DEFAULT_OLLAMA_CTX), num_predict: OLLAMA_MAX_REPLY_TOKENS },
-            messages: [{ role: "user", content: PAGE_READER_PROMPT, images: [png.toString("base64")] }],
-          }),
-          signal: ctl.signal,
-        });
-        if (!res.ok) {
-          const msg = (await res.text()).slice(0, 300);
-          throw new Error(`Ollama answered ${res.status}: ${msg}${/context size/i.test(msg) ? " (set PAGE_READER_OLLAMA_CTX in .env.local to a larger number of tokens)" : ""}`);
-        }
-        let text = "";
-        if (res.body) {
-          const reader = res.body.getReader();
-          const dec = new TextDecoder();
-          let buf = "";
-          const take = (line: string) => {
-            if (!line.trim()) return;
-            const o = JSON.parse(line);
-            if (o.error) throw new Error(`Ollama error: ${String(o.error).slice(0, 300)}`);
-            text += o.message?.content ?? "";
-          };
-          for (;;) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buf += dec.decode(value, { stream: true });
-            let nl: number;
-            while ((nl = buf.indexOf("\n")) >= 0) {
-              take(buf.slice(0, nl));
-              buf = buf.slice(nl + 1);
-            }
-          }
-          take(buf);
-        } else {
-          text = String((await res.json())?.message?.content ?? "");
-        }
-        text = text.trim();
-        if (!text) throw new Error("Ollama returned no text");
-        return text;
-      } finally {
-        clearTimeout(timer);
-      }
-    },
-  };
+/**
+ * A reading cut where the model began repeating itself: from the first line of a run of LOOP_RUN identical lines (blank table rows count as
+ * identical) the rest is dropped and STOPPED_MARKER is written. A text without such a run is returned unchanged.
+ */
+export function cutAtLoop(text: string): string {
+  let scanned = 0, run = 0, lastKey = "", firstOfRunEnd = 0;
+  for (;;) {
+    const nl = text.indexOf("\n", scanned);
+    if (nl < 0) return text;
+    const key = loopKey(text.slice(scanned, nl));
+    scanned = nl + 1;
+    if (key && key === lastKey) run++;
+    else { lastKey = key; run = key ? 1 : 0; firstOfRunEnd = scanned; }
+    if (run >= LOOP_RUN) return text.slice(0, firstOfRunEnd).trimEnd() + "\n" + STOPPED_MARKER;
+  }
 }
 
 /** The reader the settings ask for, or null for none. */
 export function readerFromEnv(env: Record<string, string | undefined> = process.env): PageReader | null {
   const which = (env.PAGE_READER ?? "").trim().toLowerCase();
   if (which === "gemini") return geminiReader({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL });
-  if (which === "ollama") return ollamaReader({ baseUrl: env.PAGE_READER_OLLAMA_URL || env.OLLAMA_HOST, model: env.PAGE_READER_OLLAMA_MODEL });
   return null;
 }

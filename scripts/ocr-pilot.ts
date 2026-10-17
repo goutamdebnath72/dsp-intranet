@@ -2,15 +2,14 @@
 //
 // THE OCR PILOT: read the hardest pages with every reader and score each reading against what the page really says
 // (eval/ocr-pilot-truth.json, transcribed by eye). It answers, with numbers instead of opinions: how much better is the new table reader than
-// Tesseract as it was, how good is Gemini on the same pages, how good is a local model, and how much do two readers agree.
+// Tesseract as it was, how good is Gemini on the same pages, and how much do two readers agree.
 //
-// Run from the project root (Gemini is used if GEMINI_API_KEY is in .env.local; a local model if you name one):
+// Run from the project root (Gemini is used if GEMINI_API_KEY is in .env.local):
 //   npx tsx --tsconfig tsconfig.json scripts/ocr-pilot.ts --files "$HOME/Desktop/Desktop/2026 to 2022"
-//   ... --ollama-model qwen2.5vl:7b          also try a model running on this machine (needs Ollama)
 //   ... --only wage-notice,nodal-officers    just some pages
 //   ... --lang-path /folder/with/traineddata offline: use language data from a folder (eng, hin, ben)
 //   ... --pause 8000                         milliseconds to wait between Gemini calls (default 6000)
-//   ... --skip tesseract,pipeline,gemini     leave out readers whose name starts with one of these (e.g. to measure only a local model)
+//   ... --skip tesseract,pipeline,gemini     leave out readers whose name starts with one of these (e.g. to measure only Gemini)
 // It writes eval/results/ocr-pilot-<time>.md and .json. Nothing is stored in the database; no circular is changed.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -19,7 +18,7 @@ import { pdf } from "pdf-to-img";
 import { createOcrWorkerPool, destroyOcrWorkerPool, ocrPageDual } from "../src/lib/ingestion/ocr";
 import { mergeOcrPasses } from "../src/lib/ingestion/ocrMerge";
 import { reconstructTableFromTSV } from "../src/lib/ingestion/tableReconstruction";
-import { geminiReader, ollamaReader, type PageReader } from "../src/lib/ingestion/pageReader";
+import { geminiReader, type PageReader } from "../src/lib/ingestion/pageReader";
 import { agreement, scoreText, type Score, type Truth } from "../src/lib/ingestion/ocrScore";
 
 function arg(name: string, def = ""): string {
@@ -64,8 +63,6 @@ async function main() {
   const second: PageReader[] = [];
   if (process.env.GEMINI_API_KEY) second.push(geminiReader());
   else console.log("(no GEMINI_API_KEY in .env.local: Gemini is left out)");
-  const om = arg("ollama-model") || process.env.PAGE_READER_OLLAMA_MODEL || "";
-  if (om) second.push(ollamaReader({ model: om }));
 
   console.log(`OCR pilot: ${pages.length} page(s); readers: tesseract-before, pipeline-now${second.map((r) => ", " + r.name).join("")}`);
   const pool = await createOcrWorkerPool(langPath ? { langPath, gzip: false } : undefined);

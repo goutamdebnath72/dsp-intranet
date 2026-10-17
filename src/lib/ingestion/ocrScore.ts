@@ -1,7 +1,7 @@
 // src/lib/ingestion/ocrScore.ts
 //
 // SCORING A READING AGAINST WHAT A PAGE REALLY SAYS (eval/ocr-pilot-truth.json, transcribed by eye). Pure: used by scripts/ocr-pilot.ts, which
-// reads the same pages with every reader (Tesseract as it was, the new pipeline, Gemini, a local model) and prints one comparable score each.
+// reads the same pages with every reader (Tesseract as it was, the new pipeline, Gemini) and prints one comparable score each.
 //
 //   numbers   every key number must be read EXACTLY (commas ignored), standing alone: "808" is not found inside "1808";
 //   phrases   key words and names must be there (case, spaces and punctuation ignored; Hindi and Bengali letters count);

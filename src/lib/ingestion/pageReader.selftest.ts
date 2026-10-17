@@ -1,5 +1,5 @@
 // Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/pageReader.selftest.ts   (no network: a scripted fetch stands in for the services)
-import { DEFAULT_GEMINI_MODEL, DEFAULT_OLLAMA_CTX, OLLAMA_MAX_REPLY_TOKENS, PAGE_READER_PROMPT, geminiReader, ollamaReader, readerFromEnv } from "./pageReader";
+import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, STOPPED_MARKER, cutAtLoop, geminiReader, readerFromEnv } from "./pageReader";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
@@ -38,36 +38,26 @@ const res = (status: number, body: unknown) => ({ ok: status >= 200 && status < 
   ok("a network failure is an error", await thrower.read(png).then(() => false, (e) => /offline/.test(String(e))));
   ok("the default model is the one Google named (gemini-3.8-flash)", DEFAULT_GEMINI_MODEL === "gemini-3.8-flash");
 
-  // ---- Ollama
-  let o: any = null;
-  const ol = ollamaReader({ baseUrl: "http://10.0.0.5:11434/", model: "qwen2.5vl:7b", fetchImpl: async (url, init) => { o = { url, body: JSON.parse(init.body) }; return res(200, { message: { content: " page text " } }); } });
-  ok("the local reader names its model", ol.name === "ollama:qwen2.5vl:7b");
-  ok("the local reader returns the text", (await ol.read(png)) === "page text");
-  ok("it calls the local server's chat address, with the page as an image", o.url === "http://10.0.0.5:11434/api/chat" && o.body.model === "qwen2.5vl:7b" && o.body.stream === true && o.body.messages[0].images[0] === png.toString("base64"));
-  ok("the request asks for enough working memory (the default 4096 was too little for a page: 4272 tokens) and caps the reply", o.body.options.num_ctx === DEFAULT_OLLAMA_CTX && DEFAULT_OLLAMA_CTX >= 8192 && o.body.options.num_predict === OLLAMA_MAX_REPLY_TOKENS && o.body.options.temperature === 0);
-  let o2: any = null;
-  await ollamaReader({ model: "m", numCtx: 12000, fetchImpl: async (_u, init) => { o2 = JSON.parse(init.body); return res(200, { message: { content: "x" } }); } }).read(png);
-  ok("the working memory can be set", o2.options.num_ctx === 12000);
-  ok("a refusal for lack of working memory says what to change", await ollamaReader({ model: "m", fetchImpl: async () => res(400, { error: "request (4272 tokens) exceeds the available context size (4096 tokens), try increasing it" }) }).read(png).then(() => false, (e) => /400/.test(String(e)) && /PAGE_READER_OLLAMA_CTX/.test(String(e))));
-  // the reply is STREAMED (a reply that has not started after 300 s makes Node's fetch give up): pieces may end in the middle of a line
-  const enc = new TextEncoder();
-  const streamOf = (chunks: string[]) => new ReadableStream<Uint8Array>({ start(c) { for (const k of chunks) c.enqueue(enc.encode(k)); c.close(); } });
-  const streamed = (chunks: string[]) => ollamaReader({ model: "m", fetchImpl: async () => ({ ok: true, status: 200, text: async () => "", json: async () => ({}), body: streamOf(chunks) }) });
-  ok("a streamed reply is put together, even when a piece ends in the middle of a line", (await streamed(['{"message":{"content":"Hel"},"done":false}\n{"message":{"content":"lo "}', ',"done":false}\n{"message":{"content":"page"},"done":true}\n']).read(png)) === "Hello page");
-  ok("a last line without a newline is read too", (await streamed(['{"message":{"content":"a"},"done":false}\n{"message":{"content":"b"},"done":true}']).read(png)) === "ab");
-  ok("an error inside the stream is reported", await streamed(['{"error":"model runner crashed"}\n']).read(png).then(() => false, (e) => /model runner crashed/.test(String(e))));
-  ok("an empty stream is an error", await streamed(["\n"]).read(png).then(() => false, (e) => /no text/.test(String(e))));
-  ok("no model set: a clear error", await ollamaReader({ model: "", fetchImpl: async () => res(200, {}) }).read(png).then(() => false, (e) => /PAGE_READER_OLLAMA_MODEL/.test(String(e))));
-  ok("a failing local server is an error", await ollamaReader({ model: "m", fetchImpl: async () => res(500, { error: "x" }) }).read(png).then(() => false, (e) => /500/.test(String(e))));
-
-  // ---- the project's own OLLAMA_MODEL (an embedding model) must never be taken for a page reader
-  ok("the embeddings' OLLAMA_MODEL is ignored", readerFromEnv({ PAGE_READER: "ollama", OLLAMA_MODEL: "nomic-embed-text" })?.name === "ollama:(no model set)");
-  ok("the embeddings' OLLAMA_HOST is used as the server when no other is given", await (async () => { let u = ""; const r = ollamaReader({ baseUrl: "http://mac:11434", model: "m", fetchImpl: async (url) => { u = url; return res(200, { message: { content: "x" } }); } }); await r.read(png); return u === "http://mac:11434/api/chat"; })());
+  // ---- Gemini: a reply that did not reach the end of the page is marked, never taken for a complete reading
+  const gem = (finish: string | undefined, text: string) => geminiReader({ apiKey: "K", noWait: true, fetchImpl: async () => res(200, { candidates: [{ content: { parts: [{ text }] }, ...(finish ? { finishReason: finish } : {}) }] }) });
+  ok("a normal reply (STOP) is returned as it is", (await gem("STOP", "Premium: 150.00").read(png)) === "Premium: 150.00");
+  ok("a reply without a finish reason is returned as it is", (await gem(undefined, "Premium: 150.00").read(png)) === "Premium: 150.00");
+  ok("a reply cut off at the length limit is marked incomplete", (await gem("MAX_TOKENS", "Premium: 150.00 | Servi").read(png)) === "Premium: 150.00 | Servi\n" + STOPPED_MARKER);
+  ok("a reply stopped by a safety rule is marked incomplete too", (await gem("SAFETY", "Some text").read(png)).endsWith(STOPPED_MARKER));
+  const rows = "| Head |\n| 150.00 |\n" + "|  |  |  |\n".repeat(40) + "after the form\n";
+  const looped = await gem("STOP", rows).read(png);
+  ok("a model that began repeating blank table rows is cut: what came before stays, one blank row stays, the marker is written", looped === cutAtLoop(rows) && looped.startsWith("| Head |\n| 150.00 |\n|  |  |  |") && looped.endsWith(STOPPED_MARKER) && !/after the form/.test(looped), JSON.stringify(looped));
+  ok("the marker is written once even when the reply was also cut off", ((await gem("MAX_TOKENS", rows).read(png)).match(/reading incomplete/g) ?? []).length === 1);
+  ok("six blank table rows in a row are a loop", cutAtLoop("a\n" + "|  |  |\n".repeat(6)).endsWith(STOPPED_MARKER));
+  ok("five blank rows are not a loop", cutAtLoop("a\n" + "|  |  |\n".repeat(5) + "b\n") === "a\n" + "|  |  |\n".repeat(5) + "b\n");
+  ok("six identical text lines are a loop too", cutAtLoop("x\n" + "same line\n".repeat(7)).endsWith(STOPPED_MARKER));
+  ok("a text without a loop is unchanged", cutAtLoop("one\ntwo\nthree\n") === "one\ntwo\nthree\n");
+  ok("the prompt tells the model not to write blank form rows out", /\[blank form rows\]/.test(PAGE_READER_PROMPT));
 
   // ---- choosing by setting
   ok("no setting: no reader", readerFromEnv({}) === null && readerFromEnv({ PAGE_READER: "none" }) === null);
   ok("gemini by setting", readerFromEnv({ PAGE_READER: "gemini", GEMINI_API_KEY: "K", GEMINI_VISION_MODEL: "m1" })?.name === "gemini:m1");
-  ok("a local model by setting", readerFromEnv({ PAGE_READER: "ollama", PAGE_READER_OLLAMA_MODEL: "qwen2.5vl:7b" })?.name === "ollama:qwen2.5vl:7b");
+  ok("the local-model setting no longer exists: no reader", readerFromEnv({ PAGE_READER: "ollama", PAGE_READER_OLLAMA_MODEL: "qwen2.5vl:7b" }) === null);
   ok("the setting is not case-sensitive", readerFromEnv({ PAGE_READER: " Gemini ", GEMINI_API_KEY: "K" })?.name.startsWith("gemini:") === true);
 
   console.log(`\n${pass} passed, ${fail} failed`);
