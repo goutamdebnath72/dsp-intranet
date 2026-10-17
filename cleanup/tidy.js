@@ -215,10 +215,25 @@ console.log(`\nLeft alone on purpose (they look unused to a simple scan but are 
   const scripts = Object.values(pkg.scripts || {}).join("\n");
   const never = ["@google/generative-ai", "@supabase/supabase-js", "date-fns", "file-type", "openai", "pdf-lib"].filter((n) => pkg.dependencies?.[n] || pkg.devDependencies?.[n]);
   const stillUsed = never.filter((n) => all.some(([, t]) => new RegExp("(from\\s+|require\\(\\s*|import\\(\\s*)[\"']" + esc(n) + "(/[^\"']*)?[\"']").test(t)) || cfg.includes(n) || scripts.includes(n));
-  const free = never.filter((n) => !stillUsed.includes(n));
+  // an installed package may NEED one of them (a peer dependency is not installed by npm when .npmrc says legacy-peer-deps, so the app lists it itself)
+  const needBy = {};
+  const nm = path.join(ROOT, "node_modules");
+  if (fs.existsSync(nm)) {
+    const dirs = [];
+    for (const d of fs.readdirSync(nm)) {
+      if (d.startsWith(".")) continue;
+      if (d.startsWith("@")) { try { for (const x of fs.readdirSync(path.join(nm, d))) dirs.push(d + "/" + x); } catch { /* skip */ } } else dirs.push(d);
+    }
+    for (const d of dirs) {
+      let j; try { j = JSON.parse(fs.readFileSync(path.join(nm, d, "package.json"), "utf8")); } catch { continue; }
+      for (const n of never) if (d !== n) for (const f of ["dependencies", "peerDependencies", "optionalDependencies"]) if (j[f] && j[f][n]) (needBy[n] = needBy[n] || []).push(`${d}@${j.version} (${f === "peerDependencies" ? "peer" : f === "optionalDependencies" ? "optional" : "dependency"})`);
+    }
+  }
+  const free = never.filter((n) => !stillUsed.includes(n) && !needBy[n]);
   console.log(`\nPackages (a separate step, 32d; this tool changes nothing in package.json):`);
   console.log(free.length ? `   no import, config or script refers to: ${free.join(", ")}\n   (later:  npm uninstall ${free.join(" ")}  then  npm run build )` : "   none of the six suspected packages is unreferenced.");
   if (stillUsed.length) console.log(`   still referenced, keep: ${stillUsed.join(", ")}`);
+  for (const n of Object.keys(needBy)) console.log(`   needed by an installed package, keep: ${n}  <- ${needBy[n].join("; ")}`);
 })();
 
 // ---------------------------------------------------------------- do it
