@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPageUnits, planChunks } from "../ingestion/chunking";
 import {
-  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, datesIn, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, sentenceWordsAround, verifyAnswer,
+  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, LIST_NOTE, asksForAList, datesIn, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, sentenceWordsAround, tidyValue, verifyAnswer,
   type DocInput, type ModelAnswer, type Passage, type RowIn,
 } from "./circularAnswer";
 
@@ -474,6 +474,29 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     const noR = await answerFromPassages("q2", [P_WAGE], async () => JSON.stringify({ answerable: true, title: "T", note: "", rows: [{ label: "x", column: "", value: "999", source: 1, quote: "nothing here at all" }] }));
     ok("an accepted attempt carries the model's reply", okR.ok && typeof okR.reply === "string" && okR.reply.includes("808"));
     ok("a refused attempt carries the model's reply", !noR.ok && typeof noR.reply === "string" && noR.reply.includes("999"));
+    clearAnswerCache();
+  }
+
+  // ---------------------------------------------------------------- what the card says: a stray OCR mark, and a list that may be incomplete
+  {
+    eq("tidyValue: the OCR's quote mark after the day goes (display only)", tidyValue('5" December, 2024'), "5 December, 2024");
+    eq("tidyValue: a curly quote and a short month too", tidyValue("12\u201d Dec 2024"), "12 Dec 2024");
+    eq("tidyValue: an ordinary value is untouched", [tidyValue("Rs.15,000/-"), tidyValue("31.08.2026"), tidyValue("5th December 2024"), tidyValue('the "Works" area')], ["Rs.15,000/-", "31.08.2026", "5th December 2024", 'the "Works" area']);
+    const sportsDoc = mk(1, 31, "Football trial", "2024-12-03", 'Football. The selection trial shall be held on 5" December, 2024 at ASP Stadium at 10 00 AM sharp.');
+    const trial = verifyAnswer({ answerable: true, title: "Trial", note: "", rows: [{ label: "Selection trial", column: "Trial date", value: '5" December, 2024', source: 1, quote: 'selection trial shall be held on 5" December, 2024' }] }, [sportsDoc]);
+    ok("the displayed value is tidied but the exact words are the document's own", trial.ok && trial.value.rows[0].value === "5 December, 2024" && trial.value.rows[0].quote.includes('5" December'), trial.ok ? JSON.stringify(trial.value.rows[0]) : trial.reason);
+    ok("asksForAList: the sports question is a list question", asksForAList("list the sports events employees were invited to in December 2024 and the trial dates?"));
+    ok("asksForAList: the wage, gift-card and mediclaim questions are not", !asksForAList("what daily wage rates are notified for contractor workers for 2024") && !asksForAList("employees can choose a gift card online, what amount was first announced and what was it corrected to") && !asksForAList("what is the last date to renew SAIL Mediclaim after the extension and which earlier circular gave the original deadline"));
+    const model = async () => JSON.stringify({ answerable: true, title: "Sports", note: "", rows: [{ label: "Selection trial", column: "Trial date", value: "5 December, 2024", source: 1, quote: 'selection trial shall be held on 5" December, 2024' }] });
+    clearAnswerCache();
+    const listed = await answerFromPassages("list the sports events employees were invited to in December 2024 and the trial dates?", [sportsDoc], model);
+    ok("a list question gets the note that other circulars may also apply", listed.ok && listed.value.note === LIST_NOTE, listed.ok ? listed.value.note : listed.reason);
+    clearAnswerCache();
+    const notListed = await answerFromPassages("when is the selection trial for the football team", [sportsDoc], model);
+    ok("a question that is not a list gets no such note", notListed.ok && notListed.value.note === "", notListed.ok ? notListed.value.note : notListed.reason);
+    clearAnswerCache();
+    const withNote = await answerFromPassages("list the sports events employees were invited to in December 2024 and the trial dates?", [sportsDoc], async () => JSON.stringify({ answerable: true, title: "Sports", note: "Held at ASP Stadium.", rows: [{ label: "Selection trial", column: "Trial date", value: "5 December, 2024", source: 1, quote: 'selection trial shall be held on 5" December, 2024' }] }));
+    ok("the model's own note is kept and the list note follows it", withNote.ok && withNote.value.note === `Held at ASP Stadium. ${LIST_NOTE}`, withNote.ok ? withNote.value.note : withNote.reason);
     clearAnswerCache();
   }
 

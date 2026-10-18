@@ -89,6 +89,17 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
                   <th scope="row" className="px-3 py-2.5 text-left align-top font-medium text-neutral-800">
                     {r.label}
                     {!sharedColumn && r.column ? <span className="block text-xs font-normal text-neutral-500">{r.column}</span> : null}
+                    {a.sources.length > 1 ? (
+                      <span className="block text-xs font-normal text-neutral-500">
+                        {(() => {
+                          const src = a.sources.find((s) => s.n === r.source);
+                          if (!src) return null;
+                          const head = src.headline.length > 64 ? `${src.headline.slice(0, 63).trimEnd()}\u2026` : src.headline;
+                          const when = dateLabel(src.publishedAt);
+                          return `${head}${when ? ` \u00B7 ${when}` : ""}`;
+                        })()}
+                      </span>
+                    ) : null}
                   </th>
                   <td className="px-3 py-2.5 text-right align-top font-semibold tabular-nums text-neutral-900">{r.value}</td>
                 </tr>

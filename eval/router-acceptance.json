@@ -318,8 +318,8 @@
      ]
     ],
     "forbidden": [],
-    "status": "❓",
-    "note": "not tried on the answer card. The pipeline reads the deadline 20-08-2026 as 20-0802 on the Hindi page; Gemini reads it right: the two readers disagree, so the confirmation gate would refuse it until it is settled"
+    "status": "✅",
+    "note": "not tried on the answer card. The pipeline reads the deadline 20-08-2026 as 20-0802 on the Hindi page; Gemini reads it right: the two readers disagree, so the confirmation gate would refuse it until it is settled | 2026-10-18: 31.08.2026 and 20-08-2026, caveat shown, 18 Oct"
    }
   },
   {
@@ -372,7 +372,7 @@
      "215,000"
     ],
     "status": "✅",
-    "note": "2026-10-18 on screen: Initial announced amount Rs.15,000/-, Corrected amount Rs.14,999/-; source: the corrigendum (the original circular states 15,000, the corrigendum reads it as 14,999; last date 15.08.2026 unchanged)"
+    "note": "2026-10-18 on screen: Initial announced amount Rs.15,000/-, Corrected amount Rs.14,999/-; source: the corrigendum (the original circular states 15,000, the corrigendum reads it as 14,999; last date 15.08.2026 unchanged) | 2026-10-18: gift card correct, 18 Oct"
    }
   },
   {
@@ -402,7 +402,7 @@
      "1924530"
     ],
     "status": "✅",
-    "note": "2026-10-18 on screen: Works 808, Projects 740, Town Serv(Elect) 809 under 'Daily Wages (Rs. Per Day of duty)', source: Notice for Contract Workers - Daily Rate of Wages, page 1"
+    "note": "2026-10-18 on screen: Works 808, Projects 740, Town Serv(Elect) 809 under 'Daily Wages (Rs. Per Day of duty)', source: Notice for Contract Workers - Daily Rate of Wages, page 1 | 2026-10-18: wage card correct, 18 Oct"
    }
   },
   {
@@ -432,8 +432,8 @@
      ]
     ],
     "forbidden": [],
-    "status": "❓",
-    "note": "not tried on the answer card. Expected from the battery evidence: football trial 5 Dec 2024 (ASP Stadium), table tennis trial 12.12.2024"
+    "status": "❌",
+    "note": "not tried on the answer card. Expected from the battery evidence: football trial 5 Dec 2024 (ASP Stadium), table tennis trial 12.12.2024 | 2026-10-18: only the football circular found, table tennis missing, 18 Oct"
    }
   },
   {

@@ -24,6 +24,7 @@
 // Pure (no database, no network): unit-tested by circularAnswer.selftest.ts. The model call is passed in (an LlmFn).
 
 import { numbersOf } from "../ingestion/readingCheck";
+import { detectSynthesisIntent } from "./synthesisIntent";
 
 export type PassageType = "circular" | "announcement" | "holiday";
 
@@ -658,6 +659,17 @@ function typeClash(label: string, column: string, value: string): string | null 
   return null;
 }
 
+/** The OCR reads the "th" of "5th December" as a quote mark: the DISPLAYED value loses that mark (the exact words below it are never touched). */
+export function tidyValue(value: string): string {
+  return value.replace(/(\d)["'\u2019\u201d]\s*(?=[A-Za-z]{3,9}\b)/g, "$1 ");
+}
+
+/** True for a question that asks for a list or a count across a period ("list the sports events ... in December 2024"). */
+export function asksForAList(question: string): boolean {
+  return detectSynthesisIntent(question).reasons.some((r) => /aggregate/i.test(r));
+}
+export const LIST_NOTE = "This lists what was found in the circulars retrieved for this question; other circulars may also apply.";
+
 /** The table column a value sits under, read from the quote's own cells ("Label: value | Label: value"); "" if the quote has no such cell. */
 function deriveColumn(quote: string, value: string): string {
   let nv = normalizeForQuote(value);
@@ -761,7 +773,7 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
     for (const w of wordSet(column)) supportWords.add(w);
     if (!tableLike) for (const w of wordSet(quote)) supportWords.add(w);
     const part = p.parts.find((pt) => normalizeForQuote(pt.text).includes(nq));
-    rows.push({ label: r.label, column, value: r.value, source: p.n, quote, page: part?.page ?? p.page, linked });
+    rows.push({ label: r.label, column, value: tidyValue(r.value), source: p.n, quote, page: part?.page ?? p.page, linked });
   }
 
   // the heading and the note: their numbers come from a quote or from the cited document's own title or date. A heading or note that says more than the
@@ -820,7 +832,9 @@ export async function answerFromPassages(question: string, passages: Passage[], 
   }
   const parsed = parseModelAnswer(raw);
   const verdict: VerifyResult = parsed ? verifyAnswer(parsed, passages) : { ok: false, reason: "unverified: the model's reply was not readable" };
-  const result: VerifyResult = { ...verdict, reply: String(raw) };
+  // a list question can be answered only from the circulars the search found: say so, so that a partial list does not read as a complete one
+  const noted: VerifyResult = verdict.ok && asksForAList(question) ? { ...verdict, value: { ...verdict.value, note: [verdict.value.note, LIST_NOTE].filter(Boolean).join(" ") } } : verdict;
+  const result: VerifyResult = { ...noted, reply: String(raw) };
   // the front-path line shows only the first word of a refusal; this says exactly which rule refused, so a refusal can be understood at once
   if (!result.ok && result.reason !== "not_answerable") {
     console.info(`[answer] not shown: ${result.reason}`);

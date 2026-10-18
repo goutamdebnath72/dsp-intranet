@@ -16,10 +16,10 @@ node scripts/queries.mjs add "a new question" --route CIRCULAR --facts "15,000|1
 
 | id | question | the card must show | must NOT show | card result | note |
 |---|---|---|---|---|---|
-| A-C2 | what is the last date to renew SAIL Mediclaim after the extension and which earlier circular gave the original deadline | 31.08.2026 / 31-08-2026 / 31 August 2026; 20.08.2026 / 20-08-2026 / 20 August 2026 |  | ❓ | not tried on the answer card. The pipeline reads the deadline 20-08-2026 as 20-0802 on the Hindi page; Gemini reads it right: the two readers disagree, so the c |
+| A-C2 | what is the last date to renew SAIL Mediclaim after the extension and which earlier circular gave the original deadline | 31.08.2026 / 31-08-2026 / 31 August 2026; 20.08.2026 / 20-08-2026 / 20 August 2026 |  | ✅ | not tried on the answer card. The pipeline reads the deadline 20-08-2026 as 20-0802 on the Hindi page; Gemini reads it right: the two readers disagree, so the c |
 | A-C3 | employees can choose a gift card online, what amount was first announced and what was it corrected to | 15,000 / 15000; 14,999 / 14999 | 75,000; 74,999; 215,000 | ✅ | 2026-10-18 on screen: Initial announced amount Rs.15,000/-, Corrected amount Rs.14,999/-; source: the corrigendum (the original circular states 15,000, the corr |
 | A-C4 | what daily wage rates are notified for contractor workers for 2024 | 808; 740; 809 | 1924530 | ✅ | 2026-10-18 on screen: Works 808, Projects 740, Town Serv(Elect) 809 under 'Daily Wages (Rs. Per Day of duty)', source: Notice for Contract Workers - Daily Rate  |
-| A-C5 | list the sports events employees were invited to in December 2024 and the trial dates | 5 December 2024 / 5th December 2024 / 05.12.2024; 12.12.2024 / 12-12-2024 / 12 December 2024 |  | ❓ | not tried on the answer card. Expected from the battery evidence: football trial 5 Dec 2024 (ASP Stadium), table tennis trial 12.12.2024 |
+| A-C5 | list the sports events employees were invited to in December 2024 and the trial dates | 5 December 2024 / 5th December 2024 / 05.12.2024; 12.12.2024 / 12-12-2024 / 12 December 2024 |  | ❌ | not tried on the answer card. Expected from the battery evidence: football trial 5 Dec 2024 (ASP Stadium), table tennis trial 12.12.2024 / 2026-10-18: only the  |
 
 ## circular (74)
 
