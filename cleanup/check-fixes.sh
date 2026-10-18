@@ -25,6 +25,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { test -f src/lib/search/circularAnswer.ts && test -f src/app/api/ai-search/answer/route.ts && grep -q "CircularAnswerCard" src/components/OmnibarModal.tsx; } 2>/dev/null; report "an answer found in the documents is shown first, with its source and exact words (off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true)" $?
 { test -f src/lib/ingestion/ruledTable.ts && grep -q "readRuledTables" src/lib/ingestion/ocr.ts; } 2>/dev/null; report "scanned tables are read cell by cell (the page reading cannot lay out a table)" $?
 { test -f src/lib/search/pageChecks.ts && grep -q "loadPageChecks" src/app/api/ai-search/answer/route.ts && grep -q "confirmationRefusal" src/lib/search/circularAnswer.ts; } 2>/dev/null; report "the answer card refuses a number the second reading did not confirm (the confirmation gate)" $?
+{ test -f src/lib/search/answerLog.ts && grep -q "logAnswer" src/app/api/ai-search/answer/route.ts && grep -q "linked === false" src/components/CircularAnswerCard.tsx; } 2>/dev/null; report "answer attempts can be logged and replayed; rows the assistant worded are marked on the card" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad

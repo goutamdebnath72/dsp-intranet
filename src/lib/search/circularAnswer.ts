@@ -83,6 +83,8 @@ export interface ModelAnswer {
 
 /** One verified fact, ready to show. */
 export interface AnswerRow {
+  /** False when the label and the column are the assistant's own wording and could not be tied to the document's words (prose); true otherwise. */
+  linked?: boolean;
   label: string;
   column: string;
   value: string;
@@ -98,7 +100,7 @@ export interface CircularAnswer {
   sources: { n: number; type: PassageType; id: number; headline: string; publishedAt: string | null; page: number | null }[];
 }
 
-export type VerifyResult = { ok: true; value: CircularAnswer } | { ok: false; reason: string };
+export type VerifyResult = { ok: true; value: CircularAnswer; /** the model's own reply, kept for the log */ reply?: string } | { ok: false; reason: string; reply?: string };
 
 // ------------------------------------------------------------------------------------------------ text helpers
 /** Letters and digits only, lower case: "Rs. 15,000/-" and "rs 15000" compare equal. Hindi and Bengali letters are kept. */
@@ -440,6 +442,38 @@ function columnInValueCell(quote: string, column: string, value: string): boolea
   return false;
 }
 
+// ------------------------------------------------------------------------------------------------ dates
+const MONTHS: Record<string, number> = { january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8, september: 9, sep: 9, sept: 9, october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12 };
+const dateKey = (y: number, m: number, d: number): string | null => {
+  if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1) return null;
+  const real = new Date(Date.UTC(y, m - 1, d)); // the calendar decides: 31.02.2024 is no date
+  return real.getUTCFullYear() === y && real.getUTCMonth() === m - 1 && real.getUTCDate() === d ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
+};
+
+/**
+ * The dates in a text, each as a canonical key (YYYY-MM-DD) with its place: 5.12.2024, 05-12-2024, 5/12/2024 (day first, as in these circulars),
+ * "5th December, 2024", 5 Dec 2024, December 5, 2024. The OCR often reads the "th" as a quote mark: 5" December, 2024.
+ */
+export function datesIn(text: string): { key: string; from: number; to: number }[] {
+  const out: { key: string; from: number; to: number }[] = [];
+  const add = (key: string | null, m: RegExpMatchArray) => { if (key) out.push({ key, from: m.index ?? 0, to: (m.index ?? 0) + m[0].length }); };
+  for (const m of text.matchAll(/(?<!\d)(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{4})(?!\d)/g)) add(dateKey(+m[3], +m[2], +m[1]), m);
+  for (const m of text.matchAll(/(?<!\d)(\d{1,2})\s*(?:st|nd|rd|th)?\s*["'\u2019\u201d]?\s*(?:of\s+)?([A-Za-z]{3,9})\.?,?\s*(\d{4})(?!\d)/g)) { const mo = MONTHS[m[2].toLowerCase()]; if (mo) add(dateKey(+m[3], mo, +m[1]), m); }
+  for (const m of text.matchAll(/(?<![A-Za-z])([A-Za-z]{3,9})\.?\s+(\d{1,2})\s*(?:st|nd|rd|th)?,?\s*(\d{4})(?!\d)/g)) { const mo = MONTHS[m[1].toLowerCase()]; if (mo) add(dateKey(+m[3], mo, +m[2]), m); }
+  return out.sort((a, b) => a.from - b.from);
+}
+
+/** True if everything in the value is in the text: its dates by meaning (any written form), its other numbers and its words as written. */
+function valueIsIn(value: string, text: string): boolean {
+  const vd = datesIn(value);
+  let rest = value;
+  for (const d of [...vd].reverse()) rest = rest.slice(0, d.from) + " " + rest.slice(d.to);
+  const have = new Set(datesIn(text).map((d) => d.key));
+  if (!vd.every((d) => have.has(d.key))) return false;
+  const qn = new Set(numbersIn(text, true)), qw = wordSet(text);
+  return numbersIn(rest, true).every((x) => qn.has(x)) && contentWords(rest).every((w) => CURRENCY.has(w) || qw.has(w));
+}
+
 // ------------------------------------------------------------------------------------------------ verifying the FACT, not the model's wording
 interface Cell { label: string; nlabel: string; from: number; to: number; /** the first cell of a table ROW: it follows the previous row's last cell WITHOUT a pipe (glued on), or starts a line */ rowStart: boolean }
 
@@ -462,6 +496,11 @@ function parseCells(text: string, lo: number, hi: number): Cell[] {
 
 /** Where a value stands in a text (original positions). A number is never found inside a longer one ("15,000" is not in "215,000" or "1,15,000"), a word never inside a longer word. */
 function valueSpans(text: string, value: string): [number, number][] {
+  const vd = datesIn(value);
+  if (vd.length) {
+    const spans = datesIn(text).filter((d) => d.key === vd[0].key).map((d) => [d.from, d.to] as [number, number]);
+    if (spans.length) return spans.slice(0, 60);
+  }
   let nv = normalizeForQuote(value);
   for (const c of CURRENCY) if (nv.startsWith(c) && nv.length > c.length) { nv = nv.slice(c.length); break; }
   if (!nv) return [];
@@ -599,13 +638,66 @@ function confirmationRefusal(p: Passage, value: string, quote: string): string |
   return null;
 }
 
+const DATE_WORDS = ["date", "dates", "deadline", "when"];
+const AMOUNT_WORDS = ["amount", "amounts", "rate", "rates", "wage", "wages", "salary", "premium", "fee", "fees", "price", "cost", "rupees", "payment"];
+const looksLikeAmount = (v: string) => /(?:^|\s)(?:rs\.?|inr|\u20b9)\s*\d/i.test(v) || /\d{1,3}(?:,\d{2,3})+/.test(v);
+
+/**
+ * A label that says "date" over a value that is plainly an amount (or an amount label over a date) is wrong whatever the vocabulary: refused. Only a
+ * clear contradiction counts: a label with both kinds of words ("premium due date"), or a value such as "within 15 days", is left alone.
+ */
+function typeClash(label: string, column: string, value: string): string | null {
+  const words = new Set([...wordSet(label), ...wordSet(column)]);
+  const saysDate = DATE_WORDS.some((w) => words.has(w)), saysAmount = AMOUNT_WORDS.some((w) => words.has(w));
+  if (saysDate === saysAmount) return null;
+  const dates = datesIn(value);
+  let rest = value;
+  for (const d of [...dates].reverse()) rest = rest.slice(0, d.from) + " " + rest.slice(d.to);
+  if (saysDate && !dates.length && looksLikeAmount(value)) return `unverified: the label "${label}" says a date but the value "${value}" is an amount`;
+  if (saysAmount && dates.length && numbersIn(rest, true).length === 0) return `unverified: the label "${label}" says an amount but the value "${value}" is a date`;
+  return null;
+}
+
+/** The table column a value sits under, read from the quote's own cells ("Label: value | Label: value"); "" if the quote has no such cell. */
+function deriveColumn(quote: string, value: string): string {
+  let nv = normalizeForQuote(value);
+  for (const c of CURRENCY) if (nv.startsWith(c) && nv.length > c.length) { nv = nv.slice(c.length); break; }
+  for (const c of rowCells(quote)) {
+    const cv = normalizeForQuote(c.value);
+    if (nv && (cv === nv || (cv.startsWith(nv) && !/^\d/.test(cv.slice(nv.length))))) return c.label.trim();
+  }
+  return "";
+}
+
+/**
+ * Where a fact is in the documents: the passage the model cited first, then the others (a model may cite the wrong number), and the words of the
+ * document that prove it (the model's quote when it is a copy that holds the value, otherwise the document's own words around the value).
+ */
+function locateFact(r: RowIn, passages: Passage[]): { p: Passage; quote: string } | { error: string } {
+  const order = [...passages].sort((x, y) => Number(y.n === r.source) - Number(x.n === r.source));
+  if (!order.length || !order.some((x) => x.n === r.source)) { if (!order.length) return { error: "unverified: a fact names a passage that does not exist" }; }
+  let error = "";
+  for (const p of order) {
+    const quote = r.quote.trim();
+    const verbatim = (q: string) => { const n = normalizeForQuote(q); return n.length >= 6 && (normalizeForQuote(p.text).includes(n) || piecesInOneRow(q, p.text)); };
+    if (quote.length <= MAX_QUOTE_CHARS && verbatim(quote) && valueIsIn(r.value, quote)) return { p, quote };
+    const snapped = snapQuote(p, { ...r, quote });
+    if (snapped) return { p, quote: snapped };
+    if (!error && p.n === r.source) {
+      if (quote.length > MAX_QUOTE_CHARS) error = "unverified: a quote is too long to be one sentence or one table row";
+      else if (normalizeForQuote(quote).length < 6) error = "unverified: a quote is too short to prove anything";
+      else if (!verbatim(quote)) error = `unverified: a quote is not in the document word for word (${quoteMissReport(quote, p.text)})`;
+      else error = `unverified: the value "${r.value}" is not in its quote`;
+    }
+  }
+  return { error: error || "unverified: a fact names a passage that does not exist" };
+}
+
 export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyResult {
   const fail = (reason: string): VerifyResult => ({ ok: false, reason });
   if (!answer.answerable) return fail("not_answerable");
   const a = tidyAnswer(answer);
-  if (!a.title || a.title.length > MAX_TITLE_CHARS) return fail("unverified: the heading is empty or too long");
-  if (a.note.length > MAX_NOTE_CHARS) return fail("unverified: the note is too long");
-  if (!a.rows.length || a.rows.length > MAX_ROWS) return fail("unverified: the answer has no facts, or too many");
+  if (!a.rows.length) return fail("unverified: the answer has no facts");
 
   const allowed = new Set<number>();
   const cited = new Map<number, Passage>();
@@ -613,52 +705,33 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
   const supportWords = new Set<string>(); // what backs a time word ("daily") in the heading or note
 
   for (const r of a.rows) {
-    const p = passages.find((x) => x.n === r.source);
-    if (!p) return fail("unverified: a fact names a passage that does not exist");
-    let quote = r.quote.trim();
-    const verbatim = (q: string) => { const n = normalizeForQuote(q); return n.length >= 6 && (normalizeForQuote(p.text).includes(n) || piecesInOneRow(q, p.text)); };
-    // a quote that is not a copy of the document, or too long, is taken as a POINTER: the document's own words around the value replace it
-    const holdsValue = (q: string) => {
-      const vn = numbersIn(r.value, true);
-      const qn = new Set(numbersIn(q, true)), qw = wordSet(q);
-      return vn.every((x) => qn.has(x)) && contentWords(r.value).every((w) => CURRENCY.has(w) || qw.has(w));
-    };
-    if (quote.length > MAX_QUOTE_CHARS || !verbatim(quote) || !holdsValue(quote)) {
-      const snapped = snapQuote(p, { ...r, quote });
-      if (snapped) quote = snapped;
-    }
-    if (quote.length > MAX_QUOTE_CHARS) return fail("unverified: a quote is too long to be one sentence or one table row");
+    const located = locateFact(r, passages);
+    if ("error" in located) return fail(located.error);
+    const { p, quote } = located;
     const nq = normalizeForQuote(quote);
-    if (nq.length < 6) return fail("unverified: a quote is too short to prove anything");
-    if (!verbatim(quote)) return fail(`unverified: a quote is not in the document word for word (${quoteMissReport(quote, p.text)})`);
-    if (!r.label || !r.value || r.value.length > MAX_VALUE_CHARS) {
-      return fail("unverified: a label or a value is empty or too long");
-    }
+    if (!r.label || !r.value || r.value.length > MAX_VALUE_CHARS) return fail("unverified: a label or a value is empty or too long");
 
     const qNums = new Set(numbersIn(quote, true));
     const qWords = wordSet(quote);
 
-    // the VALUE: every number and every word of it is inside the quote
+    // the VALUE: all of it is in the quote (a date in any written form, a number in any format)
+    if (!valueIsIn(r.value, quote)) return fail(`unverified: the value "${r.value}" is not in its quote`);
     const vNums = numbersIn(r.value, true);
-    if (!vNums.every((x) => qNums.has(x))) return fail(`unverified: the value "${r.value}" is not in its quote`);
-    for (const w of contentWords(r.value)) {
-      if (CURRENCY.has(w)) continue;
-      if (!qWords.has(w)) return fail(`unverified: the value "${r.value}" is not in its quote`);
-    }
 
+    const clash = typeClash(r.label, r.column, r.value);
+    if (clash) return fail(clash);
     const unconfirmed = confirmationRefusal(p, r.value, quote);
     if (unconfirmed) return fail(unconfirmed);
 
     const distinct = new Set(numbersIn(quote, false));
-    // a table row: five or more different numbers, or ANY quote with the " | " the app's own table reader puts between cells (a two-cell piece of
-    // a row has one number, yet its label must be in it: "Area: PROJECTS | Daily Wages: 740" is not a fact about Works)
-    // (a plain run of numbers with few words, as damaged OCR leaves a table, counts too; a sentence that merely holds five numbers does not)
+    // a table row: ANY quote with the " | " the app's own table reader puts between cells (a two-cell piece of a row has one number, yet its label must
+    // be in it: "Area: PROJECTS | Daily Wages: 740" is not a fact about Works), or a plain run of numbers with few words as damaged OCR leaves a table
+    // (a sentence that merely holds five numbers is not a table)
     const tokens = quote.split(/\s+/).filter(Boolean);
     const dense = tokens.length > 0 && tokens.filter((t) => /\d/.test(t)).length / tokens.length >= 0.3;
     const tableLike = (distinct.size >= TABLE_LIKE_NUMBERS && dense) || /\s\|\s/.test(quote);
 
-    // the LABEL ties the value to its own ROW of a table: one of its words (or its number) is in the same quote, so a value can never sit
-    // under another row's label. In a sentence the label may simply describe the fact ("Date", "Venue"): the quote is shown beside it.
+    // TABLE: the label must be in the value's own row, and the value must sit under the column the model names (a table is checked by its STRUCTURE)
     if (tableLike) {
       const lw = contentWords(r.label);
       if (lw.length) {
@@ -668,53 +741,51 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
         if (!ln.length || !ln.every((x) => qNums.has(x))) return fail(`unverified: the label "${r.label}" is not in the same quote as its value`);
       }
     }
-
-    // the COLUMN: a number from a table row must have its column label right before it; elsewhere the column's words must be in the quote
+    let column = r.column;
+    let linked = true;
     if (tableLike && vNums.length) {
-      if (!r.column) return fail("unverified: a number from a table row needs its column label");
-      if (!columnBesideValue(nq, r.column, r.value, false) && !columnInValueCell(quote, r.column, r.value)) return fail(`unverified: the column "${r.column}" does not stand beside the value "${r.value}" in its quote`);
-    } else if (r.column) {
-      const cw = contentWords(r.column);
-      // the column's words are in the quote, or in the sentence of the document that holds it (a quoted clause leaves its subject in the sentence)
-      if (!cw.every((w) => qWords.has(w)) && !(cw.length && (() => { const sw = sentenceWordsAround(p.text, quote); return cw.every((w) => sw.has(w)); })())) {
-        return fail(`unverified: the column "${r.column}" is not in its quote`);
-      }
+      if (!column) column = deriveColumn(quote, r.value); // the table itself says which column the cell is under
+      if (!column) return fail("unverified: a number from a table row needs its column label");
+      if (!columnBesideValue(nq, column, r.value, false) && !columnInValueCell(quote, column, r.value)) return fail(`unverified: the column "${column}" does not stand beside the value "${r.value}" in its quote`);
+    } else if (column) {
+      // PROSE: the label and the column are the assistant's own description of the fact. When their words are in the quote or its sentence they are tied
+      // to the document; when they are not (a descriptive phrase such as "last date of renewal") the fact is still shown, marked as the assistant's wording
+      const cw = contentWords(column);
+      const tied = cw.every((w) => qWords.has(w)) || (cw.length > 0 && (() => { const sw = sentenceWordsAround(p.text, quote); return cw.every((w) => sw.has(w)); })());
+      if (!tied) linked = false;
     }
 
     qNums.forEach((x) => allowed.add(x));
     cited.set(p.n, p);
     // a column backs a time word ("daily"); a quote does too, but only a SENTENCE: a table row holds many columns, so its quote proves nothing
-    for (const w of wordSet(r.column)) supportWords.add(w);
+    for (const w of wordSet(column)) supportWords.add(w);
     if (!tableLike) for (const w of wordSet(quote)) supportWords.add(w);
     const part = p.parts.find((pt) => normalizeForQuote(pt.text).includes(nq));
-    rows.push({ label: r.label, column: r.column, value: r.value, source: p.n, quote, page: part?.page ?? p.page });
+    rows.push({ label: r.label, column, value: r.value, source: p.n, quote, page: part?.page ?? p.page, linked });
   }
 
-  // the heading and the note: their numbers come from a quote or from the cited document's own title or date
-  cited.forEach((p) => {
+  // the heading and the note: their numbers come from a quote or from the cited document's own title or date. A heading or note that says more than the
+  // document does is REPAIRED (the document's own title, no note), not a reason to refuse a correct answer.
+  const docs = Array.from(cited.values()).sort((x, y) => x.n - y.n);
+  docs.forEach((p) => {
     numbersIn(p.title, true).forEach((x) => allowed.add(x));
     if (p.date) numbersIn(p.date, true).forEach((x) => allowed.add(x));
   });
-  for (const [what, text] of [["heading", a.title], ["note", a.note]] as const) {
-    for (const x of numbersIn(text, false)) if (!allowed.has(x)) return fail(`unverified: the number ${x} in the ${what} is in no quote`);
-    // "daily", "monthly" ... must be said by a column of the answer (or, for a row with no column, by its quote)
+  const saysTooMuch = (text: string): boolean => {
+    if (numbersIn(text, false).some((x) => !allowed.has(x))) return true;
     const words = wordSet(text);
-    for (const g of TIME_GROUPS) {
-      if (g.some((w) => words.has(w)) && !g.some((w) => supportWords.has(w))) {
-        return fail(`unverified: the ${what} says "${g.find((w) => words.has(w))}" but no column or quote of the answer says so`);
-      }
-    }
-  }
+    return TIME_GROUPS.some((g) => g.some((w) => words.has(w)) && !g.some((w) => supportWords.has(w)));
+  };
+  const title = !a.title || saysTooMuch(a.title) ? cut(docs[0]?.title ?? "", MAX_TITLE_CHARS) : a.title;
+  const note = a.note && saysTooMuch(a.note) ? "" : a.note;
 
   return {
     ok: true,
     value: {
-      title: a.title,
+      title,
       rows,
-      note: a.note,
-      sources: Array.from(cited.values())
-        .sort((x, y) => x.n - y.n)
-        .map((p) => ({ n: p.n, type: p.type, id: p.id, headline: p.title, publishedAt: p.date, page: rows.find((r) => r.source === p.n)?.page ?? p.page })),
+      note,
+      sources: docs.map((p) => ({ n: p.n, type: p.type, id: p.id, headline: p.title, publishedAt: p.date, page: rows.find((r) => r.source === p.n)?.page ?? p.page })),
     },
   };
 }
@@ -748,7 +819,8 @@ export async function answerFromPassages(question: string, passages: Passage[], 
     return { ok: false, reason: "model_error" };
   }
   const parsed = parseModelAnswer(raw);
-  const result: VerifyResult = parsed ? verifyAnswer(parsed, passages) : { ok: false, reason: "unverified: the model's reply was not readable" };
+  const verdict: VerifyResult = parsed ? verifyAnswer(parsed, passages) : { ok: false, reason: "unverified: the model's reply was not readable" };
+  const result: VerifyResult = { ...verdict, reply: String(raw) };
   // the front-path line shows only the first word of a refusal; this says exactly which rule refused, so a refusal can be understood at once
   if (!result.ok && result.reason !== "not_answerable") {
     console.info(`[answer] not shown: ${result.reason}`);

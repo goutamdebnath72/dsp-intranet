@@ -105,6 +105,13 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
         </p>
       ) : null}
 
+      {a.rows.some((r) => r.linked === false) ? (
+        <p className="mx-4 mt-2 flex items-start gap-2 text-[13px] leading-relaxed text-amber-700">
+          <Info size={14} className="mt-0.5 flex-shrink-0 text-amber-500" aria-hidden />
+          <span>The row names are the assistant&apos;s own wording. The exact words below are the document&apos;s: please check them.</span>
+        </p>
+      ) : null}
+
       <div className="mt-3.5 border-t border-neutral-100 bg-neutral-50/70 px-4 py-3">
         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{a.sources.length > 1 ? "Sources" : "Source"}</div>
         <ul className="mt-1.5 space-y-1">

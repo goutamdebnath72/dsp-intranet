@@ -29,6 +29,14 @@ A record may carry an `answer` block: the facts the ANSWER CARD must show (`fact
 (`forbidden`), and its result (`status`, `note`). `scripts/test-search.mjs` and `scripts/circular-battery.mjs` still hold their own copies of some questions
 (all of them are in the set); they are candidates to retire once the acceptance runner has an answer stage.
 
+## The answer log and the replay (no model calls)
+
+The answer card is a second request the browser makes after the search. To see how it behaves on MANY questions without testing them one at a time:
+put `ANSWER_LOG_FILE=reread-reports/answers.jsonl` in `.env.local` and restart the app. Every answer attempt, accepted or refused, is then kept in that
+file with the model's own reply and the exact passages it was shown. `npx tsx scripts/answer-replay.ts` re-runs the file through the CURRENT rules
+(free, instant): it lists what is accepted or refused and why, and counts `ACCEPTED WHEN LOGGED AND REFUSED NOW`, which must stay 0 unless a rule was
+tightened on purpose. Send the file when a refusal needs fixing: it holds everything needed to reproduce it.
+
 ## A record
 
 | field | meaning |

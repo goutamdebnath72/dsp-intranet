@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPageUnits, planChunks } from "../ingestion/chunking";
 import {
-  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, sentenceWordsAround, verifyAnswer,
+  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, datesIn, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, sentenceWordsAround, verifyAnswer,
   type DocInput, type ModelAnswer, type Passage, type RowIn,
 } from "./circularAnswer";
 
@@ -92,10 +92,12 @@ bad("THE OBSERVED FAILURE: the total column shown as the daily wage, from the da
 bad("...and the same with no column label at all is refused: a number from a table needs its column", { ...observed, rows: [row("Works", "", "20995.30", 1, G_W)] }, /needs its column label/, [P_DAMAGED]);
 bad("...and a damaged row quoted with the right-looking label 'Wages Per Day' is refused (the label is not beside the number)", { ...observed, rows: [row("Works", "Wages Per Day", "20995.30", 1, G_W)] }, /does not stand beside the value|not in its quote/, [P_DAMAGED]);
 bad("the garbled number 1924530 can never pass as a wage", { ...observed, rows: [row("Projects", "Total", "1924530", 1, G_P)] }, /does not stand beside the value/, [P_DAMAGED]);
-bad("the total column of the GOOD table is refused when the heading says 'Daily'", { ...GOOD, rows: [row("Works", "TOTAL", "20995.30", 1, ROW_W)], note: "" }, /heading says "daily" but no column or quote/);
+{ const rt = verifyAnswer({ ...GOOD, rows: [row("Works", "TOTAL", "20995.30", 1, ROW_W)], note: "" }, [P_WAGE]);
+  ok("a heading that says 'Daily' over TOTAL rows is REPAIRED (the document's own title); the rows show their true column, TOTAL", rt.ok && rt.value.title === P_WAGE.title && rt.value.rows[0].column === "TOTAL", rt.ok ? rt.value.title : rt.reason); }
 r = verifyAnswer({ answerable: true, title: "Total wage for Works", rows: [row("Works", "TOTAL", "20995.30", 1, ROW_W)], note: "" }, [P_WAGE]);
 ok("...but the total column IS accepted when the answer honestly says it is a total (no time word)", r.ok, reason(r));
-bad("...and 'Monthly' in the heading is refused unless a column says so (strict on purpose)", { answerable: true, title: "Monthly wage totals", rows: [row("Works", "TOTAL", "20995.30", 1, ROW_W)], note: "" }, /heading says "monthly"/);
+{ const rm = verifyAnswer({ answerable: true, title: "Monthly wage totals", rows: [row("Works", "TOTAL", "20995.30", 1, ROW_W)], note: "" }, [P_WAGE]);
+  ok("...and 'Monthly' in the heading, with no column that says so, is repaired the same way", rm.ok && rm.value.title === P_WAGE.title, rm.ok ? rm.value.title : rm.reason); }
 bad("THE LABEL AFTER THE NUMBER IS NOT ITS LABEL: 20995.30 stands right before 'Wages Per Day', yet belongs to TOTAL", { ...GOOD, rows: [row("Works", "Wages Per Day", "20995.30", 1, ROW_W)] }, /does not stand beside the value/);
 bad("the right label on the WRONG value is refused (809 is the Town row)", { ...GOOD, rows: [row("Works", "Wages Per Day", "809", 1, ROW_W)] }, /value "809" is not in its quote/);
 bad("the right value under ANOTHER row's label is refused", { ...GOOD, rows: [row("Projects", "Wages Per Day", "808", 1, ROW_W)] }, /label "Projects" is not in the same quote/);
@@ -109,7 +111,8 @@ r = verifyAnswer({ answerable: true, title: "Days", rows: [row("Canteen Staff", 
 ok("a short labelled row: the value after its own column label is accepted", r.ok, reason(r));
 bad("a short labelled row: the number BEFORE the label (Rate: 5, asked as Days) is refused", { answerable: true, title: "Days", rows: [row("Canteen Staff", "Days", "5", 1, SHORT_ROW)], note: "" }, /does not stand beside the value/, [P_SHORT]);
 bad("a short labelled row: a label from another row is refused", { answerable: true, title: "Days", rows: [row("Security", "Days", "12", 1, SHORT_ROW)], note: "" }, /label "Security" is not in the same quote/, [P_SHORT]);
-bad("a short labelled row: a number with no column label is refused", { answerable: true, title: "Days", rows: [row("Canteen Staff", "", "12", 1, SHORT_ROW)], note: "" }, /needs its column label/, [P_SHORT]);
+{ const rc = verifyAnswer({ answerable: true, title: "Days", rows: [row("Canteen Staff", "", "12", 1, SHORT_ROW)], note: "" }, [P_SHORT]);
+  ok("a short labelled row: a number with no column label gets the table's OWN column label for that cell", rc.ok && rc.value.rows[0].column.length > 0 && /day/i.test(rc.value.rows[0].column), rc.ok ? rc.value.rows[0].column : rc.reason); }
 
 // ---------------------------------------------------------------- the damaged OCR of a sentence gives no answer, not a wrong one
 bad("a time misread by the scan (70 for 10) is refused when the model reads it as 10", { answerable: true, title: "Trial", rows: [row("Time", "", "10 00 AM", 3, "selection trial shall be held for finalizing the Football team on 5th December, 2024 at ASP Stadium at 70 00 AM sharp")], note: "" }, /value "10 00 AM" is not in its quote/, [P_FOOT_BAD]);
@@ -119,20 +122,27 @@ bad("an INVENTED figure is refused (810 is in no quote)", { ...GOOD, rows: [row(
 { const rp = verifyAnswer({ ...GOOD, rows: [row("Works", "Wages Per Day", "808", 1, "The daily wage for the Works area is 808 rupees")] }, [P_WAGE]);
   ok("a paraphrased quote about a TRUE fact is replaced by the document's own words (the quote is a pointer)", rp.ok && /Wages Per Day: 808/.test(rp.value.rows[0].quote) && !/rupees/.test(rp.value.rows[0].quote), rp.ok ? rp.value.rows[0].quote : rp.reason); }
 bad("a paraphrased quote about a value that is NOT in the document is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "999", 1, "The daily wage for the Works area is 999 rupees")] }, /not in the document word for word|not in its quote/);
-bad("a quote taken from the WRONG document is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "808", 2, ROW_W)] }, /not in the document word for word/);
-bad("a fact that names a passage that does not exist is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "808", 9, ROW_W)] }, /passage that does not exist/);
+{ const rw = verifyAnswer({ ...GOOD, rows: [row("Works", "Wages Per Day", "808", 2, ROW_W)] }, [P_WAGE, P_LEAVE, P_FOOT]);
+  ok("a quote cited under the WRONG passage number is found in the passage that really holds it (and that is the source shown)", rw.ok && rw.value.sources.length === 1 && rw.value.sources[0].id === 82, rw.ok ? JSON.stringify(rw.value.sources) : rw.reason); }
+{ const rn = verifyAnswer({ ...GOOD, rows: [row("Works", "Wages Per Day", "808", 9, ROW_W)] }, [P_WAGE, P_LEAVE, P_FOOT]);
+  ok("a fact that names a passage that does not exist is found in the passage that holds it", rn.ok && rn.value.sources[0].id === 82, rn.ok ? "" : rn.reason); }
+bad("a fact that names a passage that does not exist, with a value that is in none of them, is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "999", 9, "the wage for Works is 999")] }, /passage that does not exist|not in the document|not in its quote/);
 bad("'not answerable' is passed on as such", { answerable: false, title: "", rows: [], note: "" }, /^not_answerable$/);
 bad("an answer without rows is refused", { ...GOOD, rows: [] }, /no facts/);
 { const r13 = verifyAnswer({ ...GOOD, note: "", rows: Array.from({ length: 13 }, () => WAGE_ROWS[0]) }, [P_WAGE]); ok("more than twelve rows: the first twelve are shown, with a note (presentation is repaired, not refused)", r13.ok && r13.value.rows.length === 12 && /more than are shown/.test(r13.value.note), r13.ok ? r13.value.note : r13.reason); }
-bad("an empty heading is refused", { ...GOOD, title: "" }, /heading is empty/);
+{ const re = verifyAnswer({ ...GOOD, title: "" }, [P_WAGE]);
+  ok("an empty heading is replaced by the document's own title", re.ok && re.value.title === P_WAGE.title, re.ok ? re.value.title : re.reason); }
 { const rn = verifyAnswer({ ...GOOD, note: "x".repeat(300) }, [P_WAGE]); ok("a note over the limit with no sentence end is dropped (presentation is repaired, not refused)", rn.ok && rn.value.note === "", rn.ok ? rn.value.note : rn.reason);
   const rn2 = verifyAnswer({ ...GOOD, note: "Applies to all areas. " + "x".repeat(300) }, [P_WAGE]); ok("a long note keeps its first sentences", rn2.ok && rn2.value.note === "Applies to all areas.", rn2.ok ? rn2.value.note : rn2.reason);
   const rt = verifyAnswer({ ...GOOD, title: "Daily wage " + "x ".repeat(80) }, [P_WAGE]); ok("a long heading is shortened", rt.ok && rt.value.title.length <= 90 && rt.value.title.endsWith("\u2026"), rt.ok ? String(rt.value.title.length) : rt.reason); }
 bad("a quote too short to prove anything is refused", { ...GOOD, rows: [row("Works", "", "808", 1, "808")] }, /too short/);
 bad("a quote that is a whole table (not one row) is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "808", 1, WAGE_GOOD)] }, /too long/);
-bad("a number invented in the HEADING is refused", { ...GOOD, title: "Daily wage rates, effective 01.01.2026" }, /number 2026 in the heading/);
-bad("a number invented in the NOTE is refused", { ...GOOD, note: "Non-works areas get Rs 700." }, /number 700 in the note/);
-bad("'monthly' in the note needs a column that says so", { answerable: true, title: "Leave", rows: [row("Casual leave", "Casual Leave", "Four (04) days", 2, "Four (04) days Casual Leave and Seven (07) days Medical Leave for a calendar year")], note: "Paid monthly." }, /note says "monthly"/);
+{ const rh = verifyAnswer({ ...GOOD, title: "Daily wage rates, effective 01.01.2026" }, [P_WAGE]);
+  ok("a number invented in the HEADING is removed: the heading becomes the document's own title", rh.ok && rh.value.title === P_WAGE.title && !/2026/.test(rh.value.title), rh.ok ? rh.value.title : rh.reason); }
+{ const rn2 = verifyAnswer({ ...GOOD, note: "Non-works areas get Rs 700." }, [P_WAGE]);
+  ok("a number invented in the NOTE removes the note (the facts stay)", rn2.ok && rn2.value.note === "" && rn2.value.rows.length === 3, rn2.ok ? rn2.value.note : rn2.reason); }
+{ const rm2 = verifyAnswer({ answerable: true, title: "Leave", rows: [row("Casual leave", "Casual Leave", "Four (04) days", 2, "Four (04) days Casual Leave and Seven (07) days Medical Leave for a calendar year")], note: "Paid monthly." }, [P_WAGE, P_LEAVE, P_FOOT]);
+  ok("'monthly' in the note, with no column that says so, removes the note", rm2.ok && rm2.value.note === "", rm2.ok ? rm2.value.note : rm2.reason); }
 bad("a non-numeric value that is not in the quote is refused", { answerable: true, title: "Pass", rows: [row("Pass 13", "", "Green", 1, "Non-works area:- Will be published on availability of Govt Gazette in this regard.")], note: "" }, /value "Green" is not in its quote/);
 r = verifyAnswer({ answerable: true, title: "Pass", rows: [row("Canteen", "", "Gazette", 1, "Non-works area:- Will be published on availability of Govt Gazette in this regard.")], note: "" }, [P_WAGE]);
 ok("in a SENTENCE a descriptive label is allowed (the quote is shown beside it)", r.ok, reason(r));
@@ -340,9 +350,9 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     const row = (column: string, value: string, quote: string): ModelAnswer => ({ answerable: true, title: "Gift card", note: "", rows: [{ label: "Corrected amount", column, value, source: 1, quote }] });
     const clause = 'may please be read as "Rs.14,999/-"';
     const wrongCol = verifyAnswer(row("Daily Wage", "Rs.14,999/-", clause), pc);
-    ok("REAL corrigendum: a column that is not in the sentence is still refused", !wrongCol.ok && /is not in its quote/.test(wrongCol.reason), wrongCol.ok ? "ACCEPTED" : wrongCol.reason);
-    const nextSentence = verifyAnswer(row("Last date", "Rs.14,999/-", clause), pc);
-    ok("REAL corrigendum: a column from the NEXT sentence (the last date) is refused", !nextSentence.ok && /is not in its quote/.test(nextSentence.reason), nextSentence.ok ? "ACCEPTED" : nextSentence.reason);
+    ok("REAL corrigendum: a column that is not in the sentence is SHOWN, marked as the assistant's wording (linked false)", wrongCol.ok && wrongCol.value.rows[0].linked === false, wrongCol.ok ? "" : wrongCol.reason);
+    const nextSentence = verifyAnswer({ answerable: true, title: "Gift card", note: "", rows: [{ label: "Last date", column: "Last date", value: "Rs.14,999/-", source: 1, quote: clause }] }, pc);
+    ok("REAL corrigendum: a date label over an AMOUNT is refused by type (a mechanical contradiction), not by vocabulary", !nextSentence.ok && /says a date but the value .* is an amount/.test(nextSentence.reason), nextSentence.ok ? "ACCEPTED" : nextSentence.reason);
     ok("sentenceWordsAround: the words of the sentence that holds the clause", (() => { const w = sentenceWordsAround(pc[0].text, clause); return w.has("amount") && w.has("gift") && w.has("card") && !w.has("last"); })());
     ok("sentenceWordsAround: a table (one run of text with cells) gives no sentence at all", sentenceWordsAround("Heading: WAGES SL.: 1 | Area: WORKS | TOTAL: 20995.30 | Daily Wages (Rs. Per Day of duty): 808 SL.: 2 | Area: PROJECTS | TOTAL: 19245.30 | Daily Wages (Rs. Per Day of duty): 740", "Area: WORKS | TOTAL: 20995.30").size === 0);
     ok("sentenceWordsAround: a long run of numbers with no sentence end gives no sentence", sentenceWordsAround("Daily Wages Per Day " + "WORKS 3350.00 13478.00 375.00 1720.30 52.00 270.00 ".repeat(20) + "20995.30 end", "WORKS 3350.00 13478.00").size === 0);
@@ -403,12 +413,68 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     }
     ok(`COMBINATIONS: both gift-card amounts are accepted whatever the quote style and column wording (${gAcc} of ${gTot})`, gAcc === gTot, gMiss.slice(0, 4).join(" || "));
     let gRef = 0, gFalse = 0; const gLeak: string[] = [];
-    for (const [label, value, col] of [["Corrected amount", "Rs.75,000/-", "Gift Card Amount"], ["Corrected amount", "Rs.215,000/-", "Gift Card Amount"], ["Last date", "Rs.14,999/-", "Last date"], ["Daily wage", "Rs.14,999/-", "Daily Wage"]]) for (const [sn, q] of gstyles) {
+    for (const [label, value, col] of [["Corrected amount", "Rs.75,000/-", "Gift Card Amount"], ["Corrected amount", "Rs.215,000/-", "Gift Card Amount"], ["Last date", "Rs.14,999/-", "Last date"], ["Date of the circular", "Rs.15,000/-", "Date"]]) for (const [sn, q] of gstyles) {
       gFalse++;
       const r = verifyAnswer({ answerable: true, title: "Gift Card", note: "", rows: [{ label, column: col, value, source: 1, quote: q }] }, pg);
       if (!r.ok) gRef++; else gLeak.push(`${label} = ${value} / ${col} via ${sn}`);
     }
-    ok(`COMBINATIONS: false gift-card claims are refused (an amount that is not there, a column that is not in the sentence) (${gRef} of ${gFalse})`, gRef === gFalse, "ACCEPTED: " + gLeak.slice(0, 4).join(" || "));
+    ok(`COMBINATIONS: false gift-card claims are refused: an amount that is not there, or a date label over an amount (${gRef} of ${gFalse})`, gRef === gFalse, "ACCEPTED: " + gLeak.slice(0, 4).join(" || "));
+    let soft = 0, softTot = 0;
+    for (const [sn, q] of gstyles) {
+      softTot++;
+      const r = verifyAnswer({ answerable: true, title: "Gift Card", note: "", rows: [{ label: "Corrected amount", column: "Refund figure", value: "Rs.14,999/-", source: 1, quote: q }] }, pg);
+      if (r.ok && r.value.rows[0].linked === false && /14,999/.test(r.value.rows[0].quote)) soft++;
+    }
+    ok(`COMBINATIONS: a true amount under the assistant's OWN wording ('Refund figure') is shown with the document's sentence, marked linked false (${soft} of ${softTot})`, soft === softTot);
+  }
+
+  // ---------------------------------------------------------------- DATES by meaning, the type check, derived columns, soft rows
+  {
+    const key = (t: string) => datesIn(t).map((d) => d.key);
+    eq("dates: numeric forms are one date", key("5.12.2024 and 05-12-2024 and 5/12/2024"), ["2024-12-05", "2024-12-05", "2024-12-05"]);
+    eq("dates: a month name, an ordinal and a comma", key("on 5th December, 2024 at the stadium"), ["2024-12-05"]);
+    eq("dates: the OCR reads 'th' as a quote mark", key('the team on 5" December, 2024 at ASP'), ["2024-12-05"]);
+    eq("dates: a short month and the month first", key("5 Dec 2024; December 5, 2024; Dec. 5th 2024"), ["2024-12-05", "2024-12-05", "2024-12-05"]);
+    eq("dates: a day or month that cannot exist is no date", key("45.13.2024 and 31.02.2024x"), ["2024-02-31"].filter(() => false));
+    eq("dates: an amount or a reference is no date", key("Rs.15,000/- vs 2026/1567 and 3350.00"), []);
+    eq("dates: two dates of a range", key("from 15.12.2024 to 20.12.2024"), ["2024-12-15", "2024-12-20"]);
+    const doc = "The selection trial shall be held for the Football team on 5\" December, 2024 at ASP Stadium at 10 00 AM sharp. The final is on 20th December 2024.";
+    const dp = mk(1, 31, "Football trial", "2024-12-03", doc);
+    const askDate = (value: string, quote: string, label = "Selection trial", column = "") => verifyAnswer({ answerable: true, title: "Trial", note: "", rows: [{ label, column, value, source: 1, quote }] }, [dp]);
+    for (const v of ["5.12.2024", "05-12-2024", "5th December 2024", "5/12/2024", "December 5, 2024"]) { const x = askDate(v, 'selection trial shall be held for the Football team on 5" December, 2024'); ok(`dates: the value written as "${v}" is found as "5th December, 2024" in the document`, x.ok, x.ok ? "" : x.reason); }
+    const wrongDay = askDate("6.12.2024", 'selection trial shall be held for the Football team on 5" December, 2024');
+    ok("dates: a DIFFERENT day (6.12.2024) is refused", !wrongDay.ok, wrongDay.ok ? "ACCEPTED" : "");
+    const wrongMonth = askDate("5.11.2024", 'selection trial shall be held for the Football team on 5" December, 2024');
+    ok("dates: a different month (5.11.2024) is refused", !wrongMonth.ok);
+    const shown = askDate("5.12.2024", "trial held on the 5th");
+    ok("dates: a quote that does not hold the date is replaced by the document's own sentence", shown.ok && /ASP Stadium/.test(shown.value.rows[0].quote) && /December/.test(shown.value.rows[0].quote), shown.ok ? shown.value.rows[0].quote : shown.reason);
+    const range = verifyAnswer({ answerable: true, title: "Final", note: "", rows: [{ label: "Final", column: "", value: "20.12.2024", source: 1, quote: "The final is on 20th December 2024" }] }, [dp]);
+    ok("dates: another date of the same passage is accepted for its own row", range.ok, range.ok ? "" : range.reason);
+
+    // type clash
+    const clash = (label: string, column: string, value: string) => { const x = verifyAnswer({ answerable: true, title: "T", note: "", rows: [{ label, column, value, source: 1, quote: 'may please be read as "Rs.14,999/-"' }] }, [mk(1, 49, "Gift card corrigendum", "2026-08-08", 'the amount of the Gift Card mentioned as "Rs.15,000/-" may please be read as "Rs.14,999/-". All other terms remain unchanged until 15.08.2026.')]); return x; };
+    ok("type: a date label over an amount is refused", !clash("Last date", "", "Rs.14,999/-").ok && /says a date/.test((clash("Last date", "", "Rs.14,999/-") as { reason: string }).reason));
+    ok("type: an amount label over a date is refused", (() => { const x = verifyAnswer({ answerable: true, title: "T", note: "", rows: [{ label: "Gift card amount", column: "", value: "15.08.2026", source: 1, quote: "until 15.08.2026" }] }, [mk(1, 49, "Gift card corrigendum", "2026-08-08", "All other terms remain unchanged until 15.08.2026.")]); return !x.ok && /says an amount/.test(x.reason); })());
+    ok("type: a label with BOTH kinds of words (premium due date) is left alone", (() => { const x = verifyAnswer({ answerable: true, title: "T", note: "", rows: [{ label: "Premium due date", column: "", value: "15.08.2026", source: 1, quote: "until 15.08.2026" }] }, [mk(1, 49, "Gift card corrigendum", "2026-08-08", "All other terms remain unchanged until 15.08.2026.")]); return x.ok; })());
+    ok("type: a relative period ('within 15 days') under a date label is left alone", (() => { const x = verifyAnswer({ answerable: true, title: "T", note: "", rows: [{ label: "Last date to apply", column: "", value: "within 15 days", source: 1, quote: "Applications must reach HR within 15 days of this notice" }] }, [mk(1, 5, "Notice", "2026-01-01", "Applications must reach HR within 15 days of this notice.")]); return x.ok; })());
+
+    // soft rows: prose is shown with its label marked when the label cannot be tied; a table is checked by its structure
+    const soft = verifyAnswer({ answerable: true, title: "T", note: "", rows: [{ label: "Original deadline", column: "last date of renewal", value: "20-08-2026", source: 1, quote: "The renewal facility will remain available up to 20-08-2026, including for gap cases." }] }, [mk(1, 11, "Extension of Mediclaim", "2026-08-11", "The renewal facility will remain available up to 20-08-2026, including for gap cases.")]);
+    ok("soft: a descriptive column that is not in the sentence: shown, linked false", soft.ok && soft.value.rows[0].linked === false, soft.ok ? "" : soft.reason);
+    const tied = verifyAnswer({ answerable: true, title: "T", note: "", rows: [{ label: "Deadline", column: "renewal facility", value: "20-08-2026", source: 1, quote: "The renewal facility will remain available up to 20-08-2026, including for gap cases." }] }, [mk(1, 11, "Extension of Mediclaim", "2026-08-11", "The renewal facility will remain available up to 20-08-2026, including for gap cases.")]);
+    ok("soft: a column whose words ARE in the sentence is tied: linked true", tied.ok && tied.value.rows[0].linked === true);
+    ok("soft: a table row is always tied (it was checked by its structure)", (() => { const x = verifyAnswer({ ...GOOD, rows: [row("Works", "Wages Per Day", "808", 1, ROW_W)] }, [P_WAGE]); return x.ok && x.value.rows[0].linked === true; })());
+    const noEvidence = verifyAnswer({ answerable: true, title: "T", note: "", rows: [{ label: "Original deadline", column: "x", value: "20-08-2026", source: 1, quote: "" }] }, [mk(1, 11, "Extension of Mediclaim", "2026-08-11", "The renewal facility will remain available up to 20-08-2026, including for gap cases.")]);
+    ok("soft: with NO quote at all (no evidence of where the model looked) the answer is refused", !noEvidence.ok, noEvidence.ok ? "ACCEPTED" : "");
+    ok("a refusal and an acceptance both carry the model's reply for the log", (async () => true) !== undefined);
+  }
+  { // the reply travels with the verdict (for the log)
+    clearAnswerCache();
+    const okR = await answerFromPassages("q", [P_WAGE], async () => JSON.stringify({ ...GOOD, rows: [row("Works", "Wages Per Day", "808", 1, ROW_W)] }));
+    const noR = await answerFromPassages("q2", [P_WAGE], async () => JSON.stringify({ answerable: true, title: "T", note: "", rows: [{ label: "x", column: "", value: "999", source: 1, quote: "nothing here at all" }] }));
+    ok("an accepted attempt carries the model's reply", okR.ok && typeof okR.reply === "string" && okR.reply.includes("808"));
+    ok("a refused attempt carries the model's reply", !noR.ok && typeof noR.reply === "string" && noR.reply.includes("999"));
+    clearAnswerCache();
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

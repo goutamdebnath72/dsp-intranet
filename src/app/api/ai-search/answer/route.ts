@@ -12,6 +12,7 @@ import { getDb } from "@/lib/db";
 import { groqLlm } from "@/lib/nl2sql/llm";
 import { answerFromPassages, buildPassages, type DocInput, type PassageType } from "@/lib/search/circularAnswer";
 import { loadPageChecks } from "@/lib/search/pageChecks";
+import { logAnswer } from "@/lib/search/answerLog";
 import { setTraceRoute, startTrace, summarizeTrace, traceHeaders, traceLine, traceStep, withTrace } from "@/lib/search/frontPathTrace";
 
 export const runtime = "nodejs";
@@ -90,6 +91,7 @@ async function handle(request: Request, info: { q: string }) {
     const endModel = traceStep("model");
     const result = await answerFromPassages(q, passages, groqLlm({ maxTokens: 2500 }));
     endModel();
+    logAnswer(q, passages, result); // only when ANSWER_LOG_FILE is set: the attempt, the model's reply and the passages, for scripts/answer-replay.ts
     return NextResponse.json(result.ok ? { answer: result.value } : { answer: null, reason: result.reason });
   } catch (e) {
     console.error("[answer] failed:", e);
