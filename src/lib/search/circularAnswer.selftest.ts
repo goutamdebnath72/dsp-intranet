@@ -1,12 +1,17 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/search/circularAnswer.selftest.ts
 // No database, no network, no model: the model is a fake function.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, percentOf, pickAnswerItems, verifyAnswer,
   type DocInput, type ModelAnswer, type Passage, type RowIn,
 } from "./circularAnswer";
 
 let pass = 0, fail = 0;
+// the answer module prints why it refused; the tests make it refuse on purpose, so the messages are collected, not shown
+let sink: string[] | null = null;
+console.info = (...a: unknown[]) => { if (sink) sink.push(a.join(" ")); };
 const ok = (name: string, cond: boolean, extra = "") => {
   if (cond) pass++;
   else { fail++; console.log(`FAIL ${name} ${extra}`); }
@@ -203,6 +208,42 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
   ok("the exact wrong answer of 17 Oct, produced again by a model, never reaches the screen", !x.ok && /does not stand beside/.test(x.reason));
   x = await answerFromPassages("q4", [], good);
   ok("no passages, no answer, no model call", !x.ok && x.reason === "no_passages" && calls === 2);
+
+  // ---------------------------------------------------------------- the REAL wage notice as the pipeline now reads it (17 Oct): a long heading may be shortened
+  {
+    const wage: string = JSON.parse(readFileSync(join(__dirname, "..", "ingestion", "__fixtures__", "pilot-readings.json"), "utf8")).find((x: { id: string }) => x.id === "wage-notice").pipeline;
+    const Q = "what daily wage rates are notified for contractor workers for 2024";
+    const n = Math.ceil(wage.length / 3);
+    const docW: DocInput = { type: "circular", id: 82, title: "Notice for Contract Workers - Daily Rate of Wages w.e.f 01.01.2024", date: "2023-12-16", chunks: [0, 1, 2].map((i) => ({ page: 1, index: i, text: wage.slice(i * n, (i + 1) * n) })) };
+    const pw = buildPassages(Q, [docW]);
+    const rowOf = (area: string) => wage.split("\n").find((l) => l.includes(`Area: ${area}`)) as string;
+    const ans = (column: string, rows: [string, string][], title = "Daily wage rates from 01.01.2024"): ModelAnswer => ({ answerable: true, title, note: "", rows: rows.map(([a, v]) => ({ label: a, column, value: v, source: 1, quote: rowOf(a) })) });
+    const AREAS: [string, string][] = [["WORKS", "808"], ["PROJECTS", "740"], ["TOWN SERV(ELECT)", "809"]];
+    ok("REAL wage notice: the passage is built and holds the three rows", pw.length === 1 && AREAS.every(([a]) => pw[0].text.includes(`Area: ${a}`)));
+    for (const col of ["Daily Wages (Rs. Per Day of duty)", "Daily Wages (Rs.)", "Daily Wages", "Wages per day", "Per Day of duty"]) {
+      const r = verifyAnswer(ans(col, AREAS), pw);
+      ok(`REAL wage notice: the column "${col}" is accepted`, r.ok, r.ok ? "" : r.reason);
+    }
+    ok("REAL wage notice: the accepted answer carries the three rows", (() => { const r = verifyAnswer(ans("Daily Wages", AREAS), pw); return r.ok && r.value.rows.map((x) => x.value).join() === "808,740,809"; })());
+    const refused = (name: string, a: ModelAnswer) => { const r = verifyAnswer(a, pw); ok(name, !r.ok && /does not stand beside|not in its quote|label/.test(r.reason), r.ok ? "ACCEPTED" : r.reason); };
+    refused("REAL wage notice: a TOTAL is not a daily wage (column Daily Wages, value 20995.30)", ans("Daily Wages", [["WORKS", "20995.30"]]));
+    refused("REAL wage notice: a BASIC is not a daily wage (value 3350.00)", ans("Daily Wages", [["WORKS", "3350.00"]]));
+    refused("REAL wage notice: the daily wage is not the TOTAL column (column TOTAL, value 808)", ans("TOTAL", [["WORKS", "808"]], "Totals"));
+    refused("REAL wage notice: another row's wage under this row's label is refused (PROJECTS 740 quoted from the WORKS row)", { ...ans("Daily Wages", [["WORKS", "808"]]), rows: [{ label: "PROJECTS", column: "Daily Wages", value: "740", source: 1, quote: rowOf("WORKS") }] });
+    const trapRow = "SL.: 9 | Area: SAMPLE | BASIC: 1.00 | VDA: 2.00 | FDA: 3.00 | HRA: 4.00 | INC: 5.00 | Daily Wages (Rs. Per Day of duty): 8080";
+    const trap = verifyAnswer({ answerable: true, title: "Wages", note: "", rows: [{ label: "SAMPLE", column: "Daily Wages", value: "808", source: 1, quote: trapRow }] }, [mk(1, 9, "Trap", null, `Notice\n[TABLE]\n${trapRow}\n[/TABLE]`)]);
+    ok("REAL wage notice: a value that is only the START of a longer number is refused (808 against 8080)", !trap.ok && /not in its quote|does not stand beside/.test(trap.reason), trap.ok ? "ACCEPTED" : trap.reason);
+    const trapOk = verifyAnswer({ answerable: true, title: "Wages", note: "", rows: [{ label: "SAMPLE", column: "Daily Wages", value: "8080", source: 1, quote: trapRow }] }, [mk(1, 9, "Trap", null, `Notice\n[TABLE]\n${trapRow}\n[/TABLE]`)]);
+    ok("...while the whole number 8080 is accepted", trapOk.ok, trapOk.ok ? "" : trapOk.reason);
+    // the refusal reason is printed in full
+    const logs: string[] = [];
+    sink = logs;
+    clearAnswerCache();
+    const bad = await answerFromPassages(Q, pw, async () => JSON.stringify(ans("TOTAL", [["WORKS", "808"]], "Totals")));
+    sink = null;
+    ok("a refusal prints the full reason in the terminal", !bad.ok && logs.some((l) => /^\[answer\] not shown: unverified: the column "TOTAL"/.test(l)), JSON.stringify(logs));
+    clearAnswerCache();
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

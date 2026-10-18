@@ -300,6 +300,38 @@ function columnBesideValue(nq: string, column: string, value: string, allowBefor
   }
 }
 
+/** The cells of a table row as the app's own table reader writes it: "Label: value | Label: value". */
+function rowCells(quote: string): { label: string; value: string }[] {
+  const out: { label: string; value: string }[] = [];
+  for (const cell of quote.split("|")) {
+    const i = cell.indexOf(":");
+    if (i > 0) out.push({ label: cell.slice(0, i), value: cell.slice(i + 1) });
+  }
+  return out;
+}
+
+/**
+ * In a rebuilt table row the value must sit in a CELL whose label carries the column the model names. The model may shorten a long heading
+ * ("Daily Wages" for "Daily Wages (Rs. Per Day of duty)") or reorder it ("Wages per day"), but every word it names must be in the label of THE SAME
+ * cell as the value: a value can still never be passed off under another column's label (a total is not a daily wage).
+ */
+function columnInValueCell(quote: string, column: string, value: string): boolean {
+  let nv = normalizeForQuote(value);
+  for (const c of CURRENCY) if (nv.startsWith(c) && nv.length > c.length) nv = nv.slice(c.length);
+  const nc = normalizeForQuote(column);
+  const cw = contentWords(column);
+  if (!nv || !nc) return false;
+  for (const cell of rowCells(quote)) {
+    const cv = normalizeForQuote(cell.value);
+    // the cell holds this value: all of it (808 is not 8080), possibly followed by words ("808 per day")
+    if (!(cv === nv || (cv.startsWith(nv) && !/^\d/.test(cv.slice(nv.length))))) continue;
+    if (normalizeForQuote(cell.label).includes(nc)) return true;
+    const lw = wordSet(cell.label);
+    if (cw.length && cw.every((w) => lw.has(w))) return true;
+  }
+  return false;
+}
+
 export function verifyAnswer(a: ModelAnswer, passages: Passage[]): VerifyResult {
   const fail = (reason: string): VerifyResult => ({ ok: false, reason });
   if (!a.answerable) return fail("not_answerable");
@@ -354,7 +386,7 @@ export function verifyAnswer(a: ModelAnswer, passages: Passage[]): VerifyResult 
     // the COLUMN: a number from a table row must have its column label right before it; elsewhere the column's words must be in the quote
     if (tableLike && vNums.length) {
       if (!r.column) return fail("unverified: a number from a table row needs its column label");
-      if (!columnBesideValue(nq, r.column, r.value, false)) return fail(`unverified: the column "${r.column}" does not stand beside the value "${r.value}" in its quote`);
+      if (!columnBesideValue(nq, r.column, r.value, false) && !columnInValueCell(quote, r.column, r.value)) return fail(`unverified: the column "${r.column}" does not stand beside the value "${r.value}" in its quote`);
     } else if (r.column) {
       const cw = contentWords(r.column);
       if (!cw.every((w) => qWords.has(w))) return fail(`unverified: the column "${r.column}" is not in its quote`);
@@ -428,6 +460,8 @@ export async function answerFromPassages(question: string, passages: Passage[], 
   }
   const parsed = parseModelAnswer(raw);
   const result: VerifyResult = parsed ? verifyAnswer(parsed, passages) : { ok: false, reason: "unverified: the model's reply was not readable" };
+  // the front-path line shows only the first word of a refusal; this says exactly which rule refused, so a refusal can be understood at once
+  if (!result.ok && result.reason !== "not_answerable") console.info(`[answer] not shown: ${result.reason}`);
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
   cache.set(key, { at: now, result });
   return result;
