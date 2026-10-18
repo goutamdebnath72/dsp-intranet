@@ -116,14 +116,18 @@ bad("a time misread by the scan (70 for 10) is refused when the model reads it a
 
 // ---------------------------------------------------------------- REFUSE: the other rules
 bad("an INVENTED figure is refused (810 is in no quote)", { ...GOOD, rows: [row("Works", "Wages Per Day", "810", 1, ROW_W)] }, /value "810" is not in its quote/);
-bad("a paraphrased quote is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "808", 1, "The daily wage for the Works area is 808 rupees")] }, /not in the document word for word/);
+{ const rp = verifyAnswer({ ...GOOD, rows: [row("Works", "Wages Per Day", "808", 1, "The daily wage for the Works area is 808 rupees")] }, [P_WAGE]);
+  ok("a paraphrased quote about a TRUE fact is replaced by the document's own words (the quote is a pointer)", rp.ok && /Wages Per Day: 808/.test(rp.value.rows[0].quote) && !/rupees/.test(rp.value.rows[0].quote), rp.ok ? rp.value.rows[0].quote : rp.reason); }
+bad("a paraphrased quote about a value that is NOT in the document is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "999", 1, "The daily wage for the Works area is 999 rupees")] }, /not in the document word for word|not in its quote/);
 bad("a quote taken from the WRONG document is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "808", 2, ROW_W)] }, /not in the document word for word/);
 bad("a fact that names a passage that does not exist is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "808", 9, ROW_W)] }, /passage that does not exist/);
 bad("'not answerable' is passed on as such", { answerable: false, title: "", rows: [], note: "" }, /^not_answerable$/);
 bad("an answer without rows is refused", { ...GOOD, rows: [] }, /no facts/);
-bad("more than twelve rows are refused", { ...GOOD, rows: Array.from({ length: 13 }, () => WAGE_ROWS[0]) }, /too many/);
+{ const r13 = verifyAnswer({ ...GOOD, note: "", rows: Array.from({ length: 13 }, () => WAGE_ROWS[0]) }, [P_WAGE]); ok("more than twelve rows: the first twelve are shown, with a note (presentation is repaired, not refused)", r13.ok && r13.value.rows.length === 12 && /more than are shown/.test(r13.value.note), r13.ok ? r13.value.note : r13.reason); }
 bad("an empty heading is refused", { ...GOOD, title: "" }, /heading is empty/);
-bad("a very long note is refused", { ...GOOD, note: "x".repeat(300) }, /note is too long/);
+{ const rn = verifyAnswer({ ...GOOD, note: "x".repeat(300) }, [P_WAGE]); ok("a note over the limit with no sentence end is dropped (presentation is repaired, not refused)", rn.ok && rn.value.note === "", rn.ok ? rn.value.note : rn.reason);
+  const rn2 = verifyAnswer({ ...GOOD, note: "Applies to all areas. " + "x".repeat(300) }, [P_WAGE]); ok("a long note keeps its first sentences", rn2.ok && rn2.value.note === "Applies to all areas.", rn2.ok ? rn2.value.note : rn2.reason);
+  const rt = verifyAnswer({ ...GOOD, title: "Daily wage " + "x ".repeat(80) }, [P_WAGE]); ok("a long heading is shortened", rt.ok && rt.value.title.length <= 90 && rt.value.title.endsWith("\u2026"), rt.ok ? String(rt.value.title.length) : rt.reason); }
 bad("a quote too short to prove anything is refused", { ...GOOD, rows: [row("Works", "", "808", 1, "808")] }, /too short/);
 bad("a quote that is a whole table (not one row) is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "808", 1, WAGE_GOOD)] }, /too long/);
 bad("a number invented in the HEADING is refused", { ...GOOD, title: "Daily wage rates, effective 01.01.2026" }, /number 2026 in the heading/);
@@ -232,7 +236,10 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     refused("REAL wage notice: a TOTAL is not a daily wage (column Daily Wages, value 20995.30)", ans("Daily Wages", [["WORKS", "20995.30"]]));
     refused("REAL wage notice: a BASIC is not a daily wage (value 3350.00)", ans("Daily Wages", [["WORKS", "3350.00"]]));
     refused("REAL wage notice: the daily wage is not the TOTAL column (column TOTAL, value 808)", ans("TOTAL", [["WORKS", "808"]], "Totals"));
-    refused("REAL wage notice: another row's wage under this row's label is refused (PROJECTS 740 quoted from the WORKS row)", { ...ans("Daily Wages", [["WORKS", "808"]]), rows: [{ label: "PROJECTS", column: "Daily Wages", value: "740", source: 1, quote: rowOf("WORKS") }] });
+    { const rr = verifyAnswer({ ...ans("Daily Wages", [["WORKS", "808"]]), rows: [{ label: "PROJECTS", column: "Daily Wages", value: "740", source: 1, quote: rowOf("WORKS") }] }, pw);
+      ok("REAL wage notice: PROJECTS = 740 is TRUE, so a wrong quote (the WORKS row) is replaced by the document's real PROJECTS row", rr.ok && /Area: PROJECTS/.test(rr.value.rows[0].quote) && /: 740$/.test(rr.value.rows[0].quote), rr.ok ? rr.value.rows[0].quote : rr.reason); }
+    { const rf = verifyAnswer({ ...ans("Daily Wages", [["WORKS", "808"]]), rows: [{ label: "WORKS", column: "Daily Wages", value: "740", source: 1, quote: rowOf("WORKS") }] }, pw);
+      ok("REAL wage notice: WORKS = 740 is FALSE and is refused even when the quote is the WORKS row", !rf.ok, rf.ok ? rf.value.rows[0].quote : rf.reason); }
     const trapRow = "SL.: 9 | Area: SAMPLE | BASIC: 1.00 | VDA: 2.00 | FDA: 3.00 | HRA: 4.00 | INC: 5.00 | Daily Wages (Rs. Per Day of duty): 8080";
     const trap = verifyAnswer({ answerable: true, title: "Wages", note: "", rows: [{ label: "SAMPLE", column: "Daily Wages", value: "808", source: 1, quote: trapRow }] }, [mk(1, 9, "Trap", null, `Notice\n[TABLE]\n${trapRow}\n[/TABLE]`)]);
     ok("REAL wage notice: a value that is only the START of a longer number is refused (808 against 8080)", !trap.ok && /not in its quote|does not stand beside/.test(trap.reason), trap.ok ? "ACCEPTED" : trap.reason);
@@ -249,15 +256,22 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     yes("REAL stored form: the same with an ellipsis", q("WORKS", "808", "Area: WORKS | ... | Daily Wages (Rs. Per Day of duty): 808"));
     yes("REAL stored form: the same with a unicode ellipsis", q("PROJECTS", "740", "Area: PROJECTS … Daily Wages (Rs. Per Day of duty): 740"));
     yes("REAL stored form: heading, row start and the wage cell (the heading sits above row 1)", q("WORKS", "808", "Heading: CONSTITUENT OF MONTHLY WAGES SL.: 1 | Area: WORKS | BASIC: 3350.00 | Daily Wages (Rs. Per Day of duty): 808"));
-    no("REAL stored form: a made-up join of the heading with ANOTHER row is refused (the heading is not above row 3)", q("TOWN SERV(ELECT)", "809", "Heading: CONSTITUENT OF MONTHLY WAGES SL.: 3 | Area: TOWN SERV(ELECT) | BASIC: 3250.00 | Daily Wages (Rs. Per Day of duty): 809"));
+    // the quote is a POINTER now: a quote that is not a copy (a made-up join, pieces in the wrong order, a misnamed cell, a paraphrase) is replaced by the
+    // document's own words when the FACT it points at is true in the document; the card then shows the document's words, not the model's
+    const fact = (name: string, a: ModelAnswer, shows: RegExp) => { const r = verifyAnswer(a, pw); ok(name, r.ok && shows.test(r.value.rows[0].quote), r.ok ? r.value.rows[0].quote : r.reason); };
+    fact("REAL stored form: a made-up join of the heading with another row, about a TRUE fact, shows the document's real row", q("TOWN SERV(ELECT)", "809", "Heading: CONSTITUENT OF MONTHLY WAGES SL.: 3 | Area: TOWN SERV(ELECT) | BASIC: 3250.00 | Daily Wages (Rs. Per Day of duty): 809"), /^SL\.: 3 \| Area: TOWN SERV\(ELECT\) \| BASIC: 3250\.00 \|.*Daily Wages \(Rs\. Per Day of duty\): 809$/);
     yes("REAL stored form: a row that the chunk break cut in the middle (the model quotes straight across the break)", q("WORKS", "808", "Area: WORKS | BASIC: 3350.00 | VDA: 13478.00 | FDA: 375.00 | HRA: 1720.30 | REF ALLOW: 52.00 | INC: 270.00 | AWA: 1750.00 | TOTAL: 20995.30 | Daily Wages (Rs. Per Day of duty): 808"));
-    no("REAL stored form: pieces from TWO rows are refused (WORKS with PROJECTS's wage)", q("WORKS", "740", "Area: WORKS | Daily Wages (Rs. Per Day of duty): 740"));
+    no("REAL stored form: WORKS beside PROJECTS's wage is refused (a table value whose label is not in its row)", q("WORKS", "740", "Area: WORKS | Daily Wages (Rs. Per Day of duty): 740"));
     no("REAL stored form: pieces from two rows are refused (PROJECTS with the wage of the row before it)", q("PROJECTS", "808", "Area: PROJECTS | Daily Wages (Rs. Per Day of duty): 808"));
     no("REAL stored form: pieces from two rows are refused (PROJECTS with the wage of the row after it)", q("PROJECTS", "809", "Area: PROJECTS | Daily Wages (Rs. Per Day of duty): 809"));
     no("REAL stored form: an invented number is refused", q("WORKS", "999", "Area: WORKS | Daily Wages (Rs. Per Day of duty): 999"));
-    no("REAL stored form: pieces in the wrong order are refused", q("WORKS", "808", "Daily Wages (Rs. Per Day of duty): 808 | Area: WORKS"));
-    no("REAL stored form: a cell that is not there is refused", q("WORKS", "808", "Area: WORKS | Overtime Wages (Rs. Per Day of duty): 808"));
-    no("REAL stored form: a paraphrase is refused", q("WORKS", "808", "The daily wage for the Works area is 808 rupees"));
+    fact("REAL stored form: pieces in the wrong order, about a TRUE fact, show the document's real row", q("WORKS", "808", "Daily Wages (Rs. Per Day of duty): 808 | Area: WORKS"), /^(CONSTITUENT OF MONTHLY WAGES )?SL\.: 1 \| Area: WORKS \|.*Daily Wages \(Rs\. Per Day of duty\): 808$/);
+    fact("REAL stored form: a quote that names a cell wrongly, about a TRUE fact, shows the document's real row", q("WORKS", "808", "Area: WORKS | Overtime Wages (Rs. Per Day of duty): 808"), /Daily Wages \(Rs\. Per Day of duty\): 808$/);
+    fact("REAL stored form: a paraphrase, about a TRUE fact, shows the document's real row", q("WORKS", "808", "The daily wage for the Works area is 808 rupees"), /^(CONSTITUENT OF MONTHLY WAGES )?SL\.: 1 \| Area: WORKS \|.*Daily Wages \(Rs\. Per Day of duty\): 808$/);
+    no("REAL stored form: a FALSE claim is refused however it is quoted (the column Overtime Wages for 808)", q("WORKS", "808", "Area: WORKS | Overtime Wages (Rs. Per Day of duty): 808", "Overtime Wages"));
+    no("REAL stored form: a paraphrase about the WRONG row is refused (Works with 740)", q("WORKS", "740", "The daily wage for the Works area is 740 rupees"));
+    no("REAL stored form: a value that is nowhere in the document is refused whatever the quote says", q("WORKS", "999", "The daily wage for the Works area is 999 rupees"));
+    no("REAL stored form: a quote with almost none of its words near the value is refused (too little overlap)", q("WORKS", "808", "Completely unrelated sentence about holidays and festivals in October"));
     no("REAL stored form: a total passed off as the daily wage is refused, even with cells left out", q("WORKS", "20995.30", "Area: WORKS | TOTAL: 20995.30"));
     ok("piecesInOneRow: one piece alone is not a 'pieces' quote", !piecesInOneRow("Area: WORKS", flat));
     ok("piecesInOneRow: pieces more than a row apart are refused", !piecesInOneRow("Notice Boards | Daily Wages (Rs. Per Day of duty): 740", flat));
@@ -333,6 +347,68 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     ok("sentenceWordsAround: a table (one run of text with cells) gives no sentence at all", sentenceWordsAround("Heading: WAGES SL.: 1 | Area: WORKS | TOTAL: 20995.30 | Daily Wages (Rs. Per Day of duty): 808 SL.: 2 | Area: PROJECTS | TOTAL: 19245.30 | Daily Wages (Rs. Per Day of duty): 740", "Area: WORKS | TOTAL: 20995.30").size === 0);
     ok("sentenceWordsAround: a long run of numbers with no sentence end gives no sentence", sentenceWordsAround("Daily Wages Per Day " + "WORKS 3350.00 13478.00 375.00 1720.30 52.00 270.00 ".repeat(20) + "20995.30 end", "WORKS 3350.00 13478.00").size === 0);
     ok("sentenceWordsAround: an unknown quote gives nothing", sentenceWordsAround("A sentence. Another one.", "not there at all").size === 0);
+  }
+
+  // ---------------------------------------------------------------- EVERY COMBINATION (not one query at a time): quote styles x column wordings over the REAL passages
+  {
+    const wage: string = JSON.parse(readFileSync(join(__dirname, "..", "ingestion", "__fixtures__", "pilot-readings.json"), "utf8")).find((x: { id: string }) => x.id === "wage-notice").pipeline;
+    const flat = (wage + " \n").replace(/\s+/g, " ").trim();
+    const docW: DocInput = { type: "circular", id: 82, title: "Notice for Contract Workers - Daily Rate of Wages w.e.f 01.01.2024", date: "2023-12-16", chunks: planChunks(buildPageUnits([wage], flat)).map((c) => ({ page: c.page, index: c.index, text: c.text })) };
+    const pw = buildPassages("what daily wage rates are notified for contractor workers for 2024", [docW]);
+    const AREAS: { label: string; wage: string; total: string; cell: string }[] = [
+      { label: "Works", wage: "808", total: "20995.30", cell: "WORKS" }, { label: "Projects", wage: "740", total: "19245.30", cell: "PROJECTS" }, { label: "Town Serv(Elect)", wage: "809", total: "21040.40", cell: "TOWN SERV(ELECT)" },
+    ];
+    const wageCell = (v: string) => `Daily Wages (Rs. Per Day of duty): ${v}`;
+    const styles: [string, (a: (typeof AREAS)[number], v: string) => string][] = [
+      ["whole row", (a, v) => (wage.split("\n").find((l) => l.includes(`Area: ${a.cell}`)) as string).replace(/ \| Daily Wages[^|]*$/, ` | ${wageCell(v)}`)],
+      ["two cells", (a, v) => `Area: ${a.cell} | ${wageCell(v)}`],
+      ["two cells with an ellipsis", (a, v) => `Area: ${a.cell} | ... | ${wageCell(v)}`],
+      ["cells in the wrong order", (a, v) => `${wageCell(v)} | Area: ${a.cell}`],
+      ["a paraphrase", (a, v) => `The daily wage for the ${a.label} area is ${v} rupees per day of duty`],
+      ["the value cell only plus the area word", (a, v) => `${a.cell}: ${wageCell(v)}`],
+    ];
+    const columns = ["Daily Wages (Rs. Per Day of duty)", "Daily Wages", "Wages per day", "Daily Wages (Rs.)"];
+    let accepted = 0, total = 0;
+    const misses: string[] = [];
+    for (const a of AREAS) for (const [sn, mkq] of styles) for (const col of columns) {
+      total++;
+      const r = verifyAnswer({ answerable: true, title: "Daily wage rates from 01.01.2024", note: "", rows: [{ label: a.label, column: col, value: a.wage, source: 1, quote: mkq(a, a.wage) }] }, pw);
+      if (r.ok) accepted++; else misses.push(`${a.label} / ${sn} / ${col}: ${r.reason}`);
+    }
+    ok(`COMBINATIONS: every TRUE wage fact is accepted whatever the quote style and column wording (${accepted} of ${total})`, accepted === total, misses.slice(0, 4).join(" || "));
+    // the FALSE claims: a wage under another area's label, a total or basic as the daily wage, a value that is not in the document
+    let refused = 0, falseTotal = 0;
+    const leaks: string[] = [];
+    const falseClaims: { label: string; value: string; col: string; area: (typeof AREAS)[number] }[] = [];
+    for (const a of AREAS) for (const b of AREAS) if (a !== b) falseClaims.push({ label: a.label, value: b.wage, col: "Daily Wages", area: b }); // another row's wage under this label
+    for (const a of AREAS) { falseClaims.push({ label: a.label, value: a.total, col: "Daily Wages", area: a }); falseClaims.push({ label: a.label, value: "3350.00", col: "Daily Wages", area: a }); falseClaims.push({ label: a.label, value: "999", col: "Daily Wages", area: a }); }
+    for (const f of falseClaims) for (const [sn, mkq] of styles) {
+      falseTotal++;
+      const r = verifyAnswer({ answerable: true, title: "Daily wage rates from 01.01.2024", note: "", rows: [{ label: f.label, column: f.col, value: f.value, source: 1, quote: mkq(f.area, f.value) }] }, pw);
+      if (!r.ok) refused++; else leaks.push(`${f.label} = ${f.value} via ${sn}`);
+    }
+    ok(`COMBINATIONS: every FALSE wage claim is refused however it is quoted (${refused} of ${falseTotal})`, refused === falseTotal, "ACCEPTED: " + leaks.slice(0, 5).join(" || "));
+
+    // the gift-card corrigendum (prose): the two amounts, each quoted as a whole sentence, a clause, or a paraphrase; and false ones
+    const page: string = JSON.parse(readFileSync(join(__dirname, "..", "ingestion", "__fixtures__", "pilot-readings.json"), "utf8")).find((x: { id: string }) => x.id === "gift-card-corrigendum").pipeline;
+    const docG: DocInput = { type: "circular", id: 49, title: "Circular - Gift card corrigendum", date: "2026-08-08T00:00:00.000Z", chunks: planChunks(buildPageUnits([page], (page + " \n").replace(/\s+/g, " ").trim())).map((c) => ({ page: c.page, index: c.index, text: c.text })) };
+    const pg = buildPassages("what amount was first announced and what was it corrected to", [docG]);
+    const sentence = 'the amount of the Gift Card (E-Multi Benefit Card) mentioned as "Rs.15,000/-" may please be read as "Rs.14,999/-"';
+    const gstyles: [string, string][] = [["the whole sentence", sentence], ["the first clause", 'the amount of the Gift Card (E-Multi Benefit Card) mentioned as "Rs.15,000/-"'], ["the second clause", 'may please be read as "Rs.14,999/-"'], ["a paraphrase", "The Gift Card amount earlier given as Rs.15,000 is now to be read as Rs.14,999"]];
+    let gAcc = 0, gTot = 0; const gMiss: string[] = [];
+    for (const [label, value] of [["Initial announced amount", "Rs.15,000/-"], ["Corrected amount", "Rs.14,999/-"]]) for (const [sn, q] of gstyles) for (const col of ["Gift Card Amount", "Gift Card (E-Multi Benefit Card) amount", "Amount"]) {
+      gTot++;
+      const r = verifyAnswer({ answerable: true, title: "Gift Card amount correction", note: "", rows: [{ label, column: col, value, source: 1, quote: q }] }, pg);
+      if (r.ok) gAcc++; else gMiss.push(`${label} / ${sn} / ${col}: ${r.reason}`);
+    }
+    ok(`COMBINATIONS: both gift-card amounts are accepted whatever the quote style and column wording (${gAcc} of ${gTot})`, gAcc === gTot, gMiss.slice(0, 4).join(" || "));
+    let gRef = 0, gFalse = 0; const gLeak: string[] = [];
+    for (const [label, value, col] of [["Corrected amount", "Rs.75,000/-", "Gift Card Amount"], ["Corrected amount", "Rs.215,000/-", "Gift Card Amount"], ["Last date", "Rs.14,999/-", "Last date"], ["Daily wage", "Rs.14,999/-", "Daily Wage"]]) for (const [sn, q] of gstyles) {
+      gFalse++;
+      const r = verifyAnswer({ answerable: true, title: "Gift Card", note: "", rows: [{ label, column: col, value, source: 1, quote: q }] }, pg);
+      if (!r.ok) gRef++; else gLeak.push(`${label} = ${value} / ${col} via ${sn}`);
+    }
+    ok(`COMBINATIONS: false gift-card claims are refused (an amount that is not there, a column that is not in the sentence) (${gRef} of ${gFalse})`, gRef === gFalse, "ACCEPTED: " + gLeak.slice(0, 4).join(" || "));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

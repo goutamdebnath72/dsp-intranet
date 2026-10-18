@@ -263,6 +263,9 @@ export function parseModelAnswer(raw: string): ModelAnswer | null {
 export const MAX_TITLE_CHARS = 90;
 export const MAX_NOTE_CHARS = 220;
 export const MAX_CELL_CHARS = 60;
+export const MAX_VALUE_CHARS = 120;
+/** The share of the model's own quote words that must stand in the document's context of the value for the quote to be taken as a pointer to it. */
+export const SNAP_MIN_OVERLAP = 0.5;
 export const MAX_QUOTE_CHARS = 300;
 export const MAX_ROWS = 12;
 /** A quote with at least this many different numbers (or the app's " | " cell separator) is a table row: its numbers need their column label. */
@@ -437,6 +440,139 @@ function columnInValueCell(quote: string, column: string, value: string): boolea
   return false;
 }
 
+// ------------------------------------------------------------------------------------------------ verifying the FACT, not the model's wording
+interface Cell { label: string; nlabel: string; from: number; to: number; /** the first cell of a table ROW: it follows the previous row's last cell WITHOUT a pipe (glued on), or starts a line */ rowStart: boolean }
+
+/** The cells ("Label: value") of the app's own table text between two positions; a cell glued on without a "|" (the next row's first one) is split off. */
+function parseCells(text: string, lo: number, hi: number): Cell[] {
+  const cells: Cell[] = [];
+  let pos = lo;
+  for (const seg of text.slice(lo, hi).split("|")) {
+    const segFrom = pos;
+    pos += seg.length + 1;
+    const found = [...seg.matchAll(/(?:^|[\s\]])(\p{L}[\p{L}\p{N} .()/&'-]{0,50}?):(?=\s|$)/gu)];
+    const starts = found.map((m) => segFrom + (m.index ?? 0) + m[0].indexOf(m[1]));
+    found.forEach((m, k) => cells.push({
+      label: m[1].trim(), nlabel: normalizeForQuote(m[1]), from: starts[k], to: k + 1 < found.length ? starts[k + 1] : segFrom + seg.length,
+      rowStart: k > 0 || /\n/.test(seg.slice(0, (m.index ?? 0) + 1)),
+    }));
+  }
+  return cells;
+}
+
+/** Where a value stands in a text (original positions). A number is never found inside a longer one ("15,000" is not in "215,000" or "1,15,000"), a word never inside a longer word. */
+function valueSpans(text: string, value: string): [number, number][] {
+  let nv = normalizeForQuote(value);
+  for (const c of CURRENCY) if (nv.startsWith(c) && nv.length > c.length) { nv = nv.slice(c.length); break; }
+  if (!nv) return [];
+  const { norm, at } = normalizeWithMap(text);
+  const digits = /^\p{N}+$/u.test(nv), letters = /^\p{L}+$/u.test(nv);
+  const out: [number, number][] = [];
+  for (let i = norm.indexOf(nv); i >= 0 && out.length < 60; i = norm.indexOf(nv, i + 1)) {
+    const from = at[i], to = at[i + nv.length - 1] + 1;
+    if (digits && (/\p{N}/u.test(norm[i - 1] ?? "") || /\p{N}/u.test(norm[i + nv.length] ?? ""))) continue;
+    if (letters && (/\p{L}/u.test(text[from - 1] ?? "") || /\p{L}/u.test(text[to] ?? ""))) continue;
+    out.push([from, to]);
+  }
+  return out;
+}
+
+/** Shortens a text at a word boundary, ending with an ellipsis. */
+function cut(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const t = s.slice(0, max - 1), sp = t.lastIndexOf(" ");
+  return (sp > max * 0.5 ? t.slice(0, sp) : t).trimEnd() + "\u2026";
+}
+
+/**
+ * The document's own words around a value, taken by the system (so they are word for word by construction): in a rebuilt table, the cells from the
+ * one that carries the label to the value's cell (no column label repeated in between: that would be two rows); in prose, the sentence.
+ */
+function contextAround(text: string, from: number, to: number, labelWords: string[]): { text: string; table: boolean; tied: boolean } {
+  const one = (t: string) => t.replace(/\s+/g, " ").trim();
+  if (text.slice(Math.max(0, from - 200), to + 200).includes("|")) {
+    // the table block (between its own markers), its cells, and the ROWS: a row starts wherever the first column label that repeats comes again
+    const bs0 = text.lastIndexOf("[TABLE]", from), be0 = text.indexOf("[/TABLE]", to);
+    const bs = bs0 >= 0 && from - bs0 < 4000 ? bs0 + "[TABLE]".length : Math.max(0, from - 1500);
+    const be = be0 >= 0 && be0 - to < 4000 ? be0 : Math.min(text.length, to + 1500);
+    const cells = parseCells(text, bs, be);
+    const k = cells.findIndex((c) => c.from <= from && to <= c.to + 1);
+    if (k >= 0) {
+      // in the stored text a row ends exactly where the next row's first cell is glued on (no pipe), or at a line break: that is where rows start
+      const starts = cells.map((c, i) => (c.rowStart ? i : -1)).filter((i) => i >= 0);
+      const prev = starts.filter((i) => i <= k).pop();
+      const next = starts.find((i) => i > k);
+      const ra = prev ?? 0, rb = (next ?? cells.length) - 1;
+      // the label must be carried by a cell of THIS row (the nearest one to the value's cell)
+      let best = -1;
+      for (let j = ra; j <= rb; j++) {
+        if (!labelWords.some((w) => wordSet(text.slice(cells[j].from, cells[j].to)).has(w))) continue;
+        if (best < 0 || Math.abs(j - k) < Math.abs(best - k)) best = j;
+      }
+      const cellText = (i: number) => one(text.slice(cells[i].from, cells[i].to));
+      if (best < 0 && labelWords.length) return { text: cellText(k), table: true, tied: false };
+      const row = one(text.slice(cells[ra].from, cells[rb].to));
+      if (row.length <= MAX_QUOTE_CHARS) return { text: row, table: true, tied: true };
+      const [x, y] = best >= 0 ? (best < k ? [best, k] : [k, best]) : [k, k];
+      const span = one(text.slice(cells[x].from, cells[y].to));
+      return { text: span.length <= MAX_QUOTE_CHARS ? span : x === y ? cellText(k) : `${cellText(x)} \u2026 ${cellText(y)}`, table: true, tied: true };
+    }
+  }
+  const lo = Math.max(0, from - 400);
+  const lm = [...text.slice(lo, from).matchAll(/[.!?]["')\]]?\s+|\n/g)].pop();
+  const a0 = lm && lm.index !== undefined ? lo + lm.index + lm[0].length : Math.max(0, from - 160);
+  const rm = text.slice(to, to + 400).match(/[.!?]["')\]]?(\s|$)|\n/);
+  const b0 = rm && rm.index !== undefined ? to + rm.index + rm[0].length : Math.min(text.length, to + 160);
+  let out = one(text.slice(a0, b0));
+  if (out.length > MAX_QUOTE_CHARS) {
+    const v = from - a0;
+    let x = Math.max(0, v - 140), y = Math.min(out.length, v + (to - from) + 140);
+    while (x > 0 && !/\s/.test(out[x - 1])) x++;
+    while (y < out.length && !/\s/.test(out[y])) y--;
+    out = out.slice(x, y).trim();
+  }
+  return { text: out, table: false, tied: true };
+}
+
+/**
+ * THE QUOTE AS A POINTER. A model's quote is often not a copy (cells left out, a clause, a few words changed). The fact is what has to be proved, so
+ * the value is looked up in the document and the document's own words around it are taken; the model's quote is accepted as a pointer to that place
+ * only if at least SNAP_MIN_OVERLAP of its own words stand in those surroundings (a value quoted from the wrong place has few of them there).
+ * Returns the document's words (word for word by construction), or null.
+ */
+export function snapQuote(p: Passage, r: RowIn): string | null {
+  const spans = valueSpans(p.text, r.value);
+  const evidence = new Set(contentWords(r.quote));
+  if (!spans.length || !evidence.size) return null;
+  const labelWords = contentWords(r.label);
+  let best: { score: number; text: string } | null = null;
+  for (const [from, to] of spans) {
+    const ctx = contextAround(p.text, from, to, labelWords);
+    if (ctx.table && !ctx.tied) continue; // a value of a table row whose label is not in that row: never taken (WORKS beside another row's wage)
+    const words = wordSet(ctx.text);
+    let hit = 0;
+    evidence.forEach((w) => { if (words.has(w)) hit++; });
+    const score = hit / evidence.size;
+    if (!best || score > best.score) best = { score, text: ctx.text };
+  }
+  return best && best.score >= SNAP_MIN_OVERLAP && best.text.length <= MAX_QUOTE_CHARS ? best.text : null;
+}
+
+/** Presentation is repaired, not refused: a long heading or label is shortened, a long note without a sentence end is dropped, extra rows are cut. */
+function tidyAnswer(a: ModelAnswer): ModelAnswer {
+  let note = String(a.note ?? "");
+  if (note.length > MAX_NOTE_CHARS) {
+    const head = note.slice(0, MAX_NOTE_CHARS), i = head.lastIndexOf(".");
+    note = i > 10 ? head.slice(0, i + 1) : "";
+  }
+  let rows = a.rows;
+  if (rows.length > MAX_ROWS) {
+    rows = rows.slice(0, MAX_ROWS);
+    note = note || "The document lists more than are shown here.";
+  }
+  return { ...a, title: cut(String(a.title ?? "").trim(), MAX_TITLE_CHARS), note, rows: rows.map((r) => ({ ...r, label: cut(String(r.label ?? ""), MAX_CELL_CHARS), column: cut(String(r.column ?? ""), MAX_CELL_CHARS) })) };
+}
+
 /**
  * THE CONFIRMATION GATE. For a page that a second reader checked, a number of the answer's VALUE that only the pipeline's reading had is not
  * confirmed (it may be a misreading: a rupee sign read as a "2" turned "(Rs 15,000)" into "215,000"), so the answer is refused. A number that
@@ -463,9 +599,10 @@ function confirmationRefusal(p: Passage, value: string, quote: string): string |
   return null;
 }
 
-export function verifyAnswer(a: ModelAnswer, passages: Passage[]): VerifyResult {
+export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyResult {
   const fail = (reason: string): VerifyResult => ({ ok: false, reason });
-  if (!a.answerable) return fail("not_answerable");
+  if (!answer.answerable) return fail("not_answerable");
+  const a = tidyAnswer(answer);
   if (!a.title || a.title.length > MAX_TITLE_CHARS) return fail("unverified: the heading is empty or too long");
   if (a.note.length > MAX_NOTE_CHARS) return fail("unverified: the note is too long");
   if (!a.rows.length || a.rows.length > MAX_ROWS) return fail("unverified: the answer has no facts, or too many");
@@ -478,12 +615,23 @@ export function verifyAnswer(a: ModelAnswer, passages: Passage[]): VerifyResult 
   for (const r of a.rows) {
     const p = passages.find((x) => x.n === r.source);
     if (!p) return fail("unverified: a fact names a passage that does not exist");
-    const quote = r.quote.trim();
+    let quote = r.quote.trim();
+    const verbatim = (q: string) => { const n = normalizeForQuote(q); return n.length >= 6 && (normalizeForQuote(p.text).includes(n) || piecesInOneRow(q, p.text)); };
+    // a quote that is not a copy of the document, or too long, is taken as a POINTER: the document's own words around the value replace it
+    const holdsValue = (q: string) => {
+      const vn = numbersIn(r.value, true);
+      const qn = new Set(numbersIn(q, true)), qw = wordSet(q);
+      return vn.every((x) => qn.has(x)) && contentWords(r.value).every((w) => CURRENCY.has(w) || qw.has(w));
+    };
+    if (quote.length > MAX_QUOTE_CHARS || !verbatim(quote) || !holdsValue(quote)) {
+      const snapped = snapQuote(p, { ...r, quote });
+      if (snapped) quote = snapped;
+    }
     if (quote.length > MAX_QUOTE_CHARS) return fail("unverified: a quote is too long to be one sentence or one table row");
     const nq = normalizeForQuote(quote);
     if (nq.length < 6) return fail("unverified: a quote is too short to prove anything");
-    if (!normalizeForQuote(p.text).includes(nq) && !piecesInOneRow(quote, p.text)) return fail(`unverified: a quote is not in the document word for word (${quoteMissReport(quote, p.text)})`);
-    if (!r.label || r.label.length > MAX_CELL_CHARS || !r.value || r.value.length > MAX_CELL_CHARS || r.column.length > MAX_CELL_CHARS) {
+    if (!verbatim(quote)) return fail(`unverified: a quote is not in the document word for word (${quoteMissReport(quote, p.text)})`);
+    if (!r.label || !r.value || r.value.length > MAX_VALUE_CHARS) {
       return fail("unverified: a label or a value is empty or too long");
     }
 
@@ -502,8 +650,12 @@ export function verifyAnswer(a: ModelAnswer, passages: Passage[]): VerifyResult 
     if (unconfirmed) return fail(unconfirmed);
 
     const distinct = new Set(numbersIn(quote, false));
-    // a table row: five or more different numbers, or the " | " the app's own table reader puts between cells (with two numbers or more)
-    const tableLike = distinct.size >= TABLE_LIKE_NUMBERS || (/\s\|\s/.test(quote) && distinct.size >= 2);
+    // a table row: five or more different numbers, or ANY quote with the " | " the app's own table reader puts between cells (a two-cell piece of
+    // a row has one number, yet its label must be in it: "Area: PROJECTS | Daily Wages: 740" is not a fact about Works)
+    // (a plain run of numbers with few words, as damaged OCR leaves a table, counts too; a sentence that merely holds five numbers does not)
+    const tokens = quote.split(/\s+/).filter(Boolean);
+    const dense = tokens.length > 0 && tokens.filter((t) => /\d/.test(t)).length / tokens.length >= 0.3;
+    const tableLike = (distinct.size >= TABLE_LIKE_NUMBERS && dense) || /\s\|\s/.test(quote);
 
     // the LABEL ties the value to its own ROW of a table: one of its words (or its number) is in the same quote, so a value can never sit
     // under another row's label. In a sentence the label may simply describe the fact ("Date", "Venue"): the quote is shown beside it.
