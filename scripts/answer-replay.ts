@@ -30,6 +30,8 @@ for (const r of shown) {
   console.log(`${r.nowOk ? "ACCEPTED" : "REFUSED "} ${r.question.slice(0, 90)}`);
   if (!r.nowOk) console.log(`          now: ${r.now.slice(0, 200)}`);
   if (r.nowOk && r.looseRows) console.log(`          ${r.looseRows} row(s) shown as the assistant's own wording`);
+  if (r.nowOk && r.modelNote && !r.note) console.log(`          the model's note was dropped (the document does not state it): ${r.modelNote.slice(0, 160)}`);
+  else if (r.nowOk && r.note) console.log(`          note shown (the document's sentence): ${r.note.slice(0, 200)}${r.modelNote && r.modelNote !== r.note ? `\n          the model wrote: ${r.modelNote.slice(0, 160)}` : ""}`);
   if (r.before !== r.now) console.log(`          logged: ${r.before.slice(0, 200)}`);
 }
 console.log(`\n${summary.total} attempt(s) in ${file}: accepted now ${summary.nowAccepted}, refused now ${summary.nowRefused} | refused when logged and accepted now: ${summary.refusedThenAccepted} | ACCEPTED WHEN LOGGED AND REFUSED NOW: ${summary.acceptedThenRefused}`);

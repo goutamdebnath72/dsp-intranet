@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPageUnits, planChunks } from "../ingestion/chunking";
 import {
-  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, LIST_NOTE, asksForAList, datesIn, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, sentenceWordsAround, tidyValue, verifyAnswer,
+  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, LIST_NOTE, asksForAList, datesIn, documentSentenceFor, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, sentenceWordsAround, tidyValue, verifyAnswer,
   type DocInput, type ModelAnswer, type Passage, type RowIn,
 } from "./circularAnswer";
 
@@ -62,7 +62,7 @@ ok("the wage table with its column labels is accepted", r.ok, reason(r));
 if (r.ok) {
   eq("three rows, each with label, column and value", r.value.rows.map((x) => [x.label, x.column, x.value]), [["Works", "Wages Per Day", "808"], ["Projects", "Wages Per Day", "740"], ["Town Serv (Elect)", "Wages Per Day", "809"]]);
   eq("one source, with its date and page", r.value.sources.map((s) => [s.n, s.id, s.page]), [[1, 82, 1]]);
-  eq("the title and the note are kept", [r.value.title, r.value.note], [GOOD.title, GOOD.note]);
+  eq("the title is kept; the note becomes the document's own sentence", [r.value.title, r.value.note], [GOOD.title, "Non-works area:- Will be published on availability of Govt Gazette in this regard."]);
 }
 r = verifyAnswer({ answerable: true, title: "Contractor workers: leave per calendar year", rows: [
   row("Casual leave", "Casual Leave", "Four (04) days", 2, "Four (04) days Casual Leave and Seven (07) days Medical Leave for a calendar year"),
@@ -133,7 +133,7 @@ bad("an answer without rows is refused", { ...GOOD, rows: [] }, /no facts/);
 { const re = verifyAnswer({ ...GOOD, title: "" }, [P_WAGE]);
   ok("an empty heading is replaced by the document's own title", re.ok && re.value.title === P_WAGE.title, re.ok ? re.value.title : re.reason); }
 { const rn = verifyAnswer({ ...GOOD, note: "x".repeat(300) }, [P_WAGE]); ok("a note over the limit with no sentence end is dropped (presentation is repaired, not refused)", rn.ok && rn.value.note === "", rn.ok ? rn.value.note : rn.reason);
-  const rn2 = verifyAnswer({ ...GOOD, note: "Applies to all areas. " + "x".repeat(300) }, [P_WAGE]); ok("a long note keeps its first sentences", rn2.ok && rn2.value.note === "Applies to all areas.", rn2.ok ? rn2.value.note : rn2.reason);
+  const rn2 = verifyAnswer({ ...GOOD, note: "Applies to all areas. " + "x".repeat(300) }, [P_WAGE]); ok("a long note the document does not state is dropped (the facts stay)", rn2.ok && rn2.value.note === "" && rn2.value.rows.length === 3, rn2.ok ? rn2.value.note : rn2.reason);
   const rt = verifyAnswer({ ...GOOD, title: "Daily wage " + "x ".repeat(80) }, [P_WAGE]); ok("a long heading is shortened", rt.ok && rt.value.title.length <= 90 && rt.value.title.endsWith("\u2026"), rt.ok ? String(rt.value.title.length) : rt.reason); }
 bad("a quote too short to prove anything is refused", { ...GOOD, rows: [row("Works", "", "808", 1, "808")] }, /too short/);
 bad("a quote that is a whole table (not one row) is refused", { ...GOOD, rows: [row("Works", "Wages Per Day", "808", 1, WAGE_GOOD)] }, /too long/);
@@ -496,7 +496,7 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     ok("a question that is not a list gets no such note", notListed.ok && notListed.value.note === "", notListed.ok ? notListed.value.note : notListed.reason);
     clearAnswerCache();
     const withNote = await answerFromPassages("list the sports events employees were invited to in December 2024 and the trial dates?", [sportsDoc], async () => JSON.stringify({ answerable: true, title: "Sports", note: "Held at ASP Stadium.", rows: [{ label: "Selection trial", column: "Trial date", value: "5 December, 2024", source: 1, quote: 'selection trial shall be held on 5" December, 2024' }] }));
-    ok("the model's own note is kept and the list note follows it", withNote.ok && withNote.value.note === `Held at ASP Stadium. ${LIST_NOTE}`, withNote.ok ? withNote.value.note : withNote.reason);
+    ok("the model's note becomes the document's sentence and the list note follows it", withNote.ok && withNote.value.note === `The selection trial shall be held on 5\" December, 2024 at ASP Stadium at 10 00 AM sharp. ${LIST_NOTE}`, withNote.ok ? withNote.value.note : withNote.reason);
     clearAnswerCache();
   }
 
@@ -510,7 +510,30 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     const said = verifyAnswer({ ...base, rows: [base.rows[0], { ...base.rows[1], quote: 'The latest selection trial shall be held on 5" December, 2024' }], note: "The latest trial is held at ASP Stadium." }, [two[0], mk(2, 2, "Football trial 2024", "2024-12-03", 'The latest selection trial shall be held on 5" December, 2024 at ASP Stadium at 10 00 AM sharp.')]);
     ok("recency: kept when the document's own sentence uses the word", said.ok && said.value.note.length > 0, said.ok ? said.value.note : said.reason);
     const plain = verifyAnswer({ ...base, note: "Held at the stadium." }, two);
-    ok("recency: an ordinary note is untouched", plain.ok && plain.value.note === "Held at the stadium.");
+    ok("a note of fewer than three content words cannot be checked and is dropped", plain.ok && plain.value.note === "");
+  }
+
+  // ---------------------------------------------------------------- a note is the document's own sentence, or nothing
+  {
+    // the REAL sentence of the three contractor circulars (stored page text), and the model's REAL note on screen
+    const REAL = "V. All holidays & leaves mentioned above are to be extended to contractor workers of all categories coinciding with their period of engagement only but entitlement of Casual leave is to be calculated for each worker on proportionate basis of their engagement period. This issues with the approval of Competent Authority. Distribution: Standard";
+    const leaveDoc = mk(1, 1, "Circular-Holidays & Leaves for contract workers 2023", "2022-12-29", "Casual Leave & Medical Leave: Four (04) days Casual Leave and Seven (07) days Medical Leave for a calendar year. " + REAL);
+    const ask = (note: string) => verifyAnswer({ answerable: true, title: "Leave", note, rows: [{ label: "Casual Leave", column: "Casual Leave", value: "Four (04)", source: 1, quote: "Four (04) days Casual Leave" }, { label: "Medical Leave", column: "Medical Leave", value: "Seven (07)", source: 1, quote: "Seven (07) days Medical Leave" }] }, [leaveDoc]);
+    const real = ask("Entitlement is calculated proportionately to the worker's engagement period.");
+    ok("REAL note: 'Entitlement is calculated proportionately...' is shown as the document's sentence, which says CASUAL leave", real.ok && /entitlement of Casual leave is to be calculated/.test(real.value.note) && !/Medical/.test(real.value.note.split("Casual")[0]), real.ok ? real.value.note : real.reason);
+    ok("the shown note is the document's own words, cut at a word", real.ok && real.value.note.length <= 322 && !real.value.note.endsWith("\u2026") && REAL.replace(/\s+/g, " ").includes(real.value.note.replace(/\u2026$/, "").trim()), real.ok ? real.value.note : "");
+    const invented = ask("Medical leave can be carried forward to the following year with approval.");
+    ok("a note the document does not state is dropped", invented.ok && invented.value.note === "", invented.ok ? invented.value.note : invented.reason);
+    const off = ask("Leave entitlement depends on seniority and grade of the contractor.");
+    ok("a note that shares only a word or two with the document is dropped", off.ok && off.value.note === "", off.ok ? off.value.note : off.reason);
+    const gap = verifyAnswer({ answerable: true, title: "Mediclaim", note: "Extension includes gap cases.", rows: [{ label: "Extended last date", column: "last date of renewal", value: "31.08.2026", source: 1, quote: "extend the renewal period (including Gap cases) till 31.08.2026" }] }, [mk(1, 10, "Extension of SAIL Mediclaim policy", "2026-08-20", "In view of the above it has been decided to extend the renewal period (including Gap cases) till 31.08.2026. Concerned members are requested to ensure that their renewal process is completed.")]);
+    ok("REAL note: 'Extension includes gap cases.' becomes the document's sentence", gap.ok && /including Gap cases/.test(gap.value.note), gap.ok ? gap.value.note : gap.reason);
+    eq("documentSentenceFor: no passage, no note", documentSentenceFor("Entitlement is calculated proportionately.", []), "");
+    eq("documentSentenceFor: fewer than three content words", documentSentenceFor("Held at stadium.", [leaveDoc]), "");
+    const many = documentSentenceFor("entitlement of Casual leave calculated proportionate engagement period", [leaveDoc]);
+    ok("documentSentenceFor: the best of several sentences is chosen", /entitlement of Casual leave/.test(many) && !/^Casual Leave & Medical/.test(many), many);
+    const cutRows = verifyAnswer({ ...GOOD, note: "Entitlement is calculated proportionately to the worker's engagement period.", rows: Array.from({ length: 13 }, () => WAGE_ROWS[0]) }, [P_WAGE]);
+    ok("the SYSTEM's own note about cut rows is not filtered by the rule", cutRows.ok && cutRows.value.note === "The document lists more than are shown here.", cutRows.ok ? cutRows.value.note : cutRows.reason);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

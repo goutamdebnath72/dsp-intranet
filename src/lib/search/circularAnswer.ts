@@ -608,10 +608,7 @@ function tidyAnswer(a: ModelAnswer): ModelAnswer {
     note = i > 10 ? head.slice(0, i + 1) : "";
   }
   let rows = a.rows;
-  if (rows.length > MAX_ROWS) {
-    rows = rows.slice(0, MAX_ROWS);
-    note = note || "The document lists more than are shown here.";
-  }
+  if (rows.length > MAX_ROWS) rows = rows.slice(0, MAX_ROWS); // verifyAnswer says so in a note of its own
   return { ...a, title: cut(String(a.title ?? "").trim(), MAX_TITLE_CHARS), note, rows: rows.map((r) => ({ ...r, label: cut(String(r.label ?? ""), MAX_CELL_CHARS), column: cut(String(r.column ?? ""), MAX_CELL_CHARS) })) };
 }
 
@@ -659,6 +656,36 @@ function typeClash(label: string, column: string, value: string): string | null 
   if (saysDate && !dates.length && looksLikeAmount(value)) return `unverified: the label "${label}" says a date but the value "${value}" is an amount`;
   if (saysAmount && dates.length && numbersIn(rest, true).length === 0) return `unverified: the label "${label}" says an amount but the value "${value}" is a date`;
   return null;
+}
+
+const NOTE_MIN_SCORE = 0.6;
+const NOTE_MIN_WORDS = 3;
+const NOTE_MAX_CHARS = 320;
+const stemWord = (w: string): string => {
+  for (const suf of ["ations", "ation", "ings", "ing", "ively", "ly", "ed", "es", "s"]) if (w.length - suf.length >= 4 && w.endsWith(suf)) return w.slice(0, -suf.length);
+  return w;
+};
+
+/**
+ * A note is the model's PARAPHRASE, and a paraphrase can drop a limit ("entitlement of CASUAL leave is calculated proportionately" became
+ * "Entitlement is calculated proportionately"). So a note is shown only as the document's OWN sentence: the sentence of the cited passages that holds at
+ * least 60% of the note's words (word stems), cut at a word. If no sentence does, the note is dropped (the facts stay).
+ */
+export function documentSentenceFor(note: string, passages: Passage[]): string {
+  const want = Array.from(new Set(contentWords(note).map(stemWord)));
+  if (want.length < NOTE_MIN_WORDS) return "";
+  let best = "", bestScore = 0;
+  for (const p of passages) {
+    for (const raw of p.text.split(/(?<=[.!?])\s+(?=[A-Z0-9"\u201c(])|\n+/)) {
+      const sentence = raw.replace(/\s+/g, " ").trim();
+      if (sentence.length < 25 || sentence.length > 420 || / \| /.test(sentence)) continue;
+      const have = new Set(contentWords(sentence).map(stemWord));
+      const score = want.filter((w) => have.has(w)).length / want.length;
+      if (score > bestScore) { best = sentence; bestScore = score; }
+    }
+  }
+  if (bestScore < NOTE_MIN_SCORE) return "";
+  return best.length <= NOTE_MAX_CHARS ? best : `${best.slice(0, NOTE_MAX_CHARS).replace(/\s+\S*$/, "")}\u2026`;
 }
 
 /** The OCR reads the "th" of "5th December" as a quote mark: the DISPLAYED value loses that mark (the exact words below it are never touched). */
@@ -791,7 +818,9 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
     return TIME_GROUPS.some((g) => g.some((w) => words.has(w)) && !g.some((w) => supportWords.has(w)));
   };
   const title = !a.title || saysTooMuch(a.title) ? cut(docs[0]?.title ?? "", MAX_TITLE_CHARS) : a.title;
-  const note = a.note && saysTooMuch(a.note) ? "" : a.note;
+  // the model's note becomes the document's own sentence or nothing; what the SYSTEM says about the answer (rows cut) is not the model's and is kept
+  const modelNote = a.note && !saysTooMuch(a.note) ? documentSentenceFor(a.note, docs) : "";
+  const note = modelNote || (answer.rows.length > MAX_ROWS ? "The document lists more than are shown here." : "");
 
   return {
     ok: true,

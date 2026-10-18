@@ -21,6 +21,9 @@ export interface ReplayRow {
   nowOk: boolean;
   /** Rows of the answer the current rules show as the assistant's own wording (their labels could not be tied to the document). */
   looseRows: number;
+  /** The note the model wrote, and the note the current rules show (the document's own sentence, or none). */
+  modelNote: string;
+  note: string;
 }
 
 export function parseJsonl(text: string): LoggedAttempt[] {
@@ -48,6 +51,8 @@ export function replay(attempts: LoggedAttempt[]) {
       wasOk: a.ok,
       nowOk: r.ok,
       looseRows: r.ok ? r.value.rows.filter((x) => x.linked === false).length : 0,
+      modelNote: parsed?.note ? String(parsed.note) : "",
+      note: r.ok ? r.value.note : "",
     };
   });
   return {

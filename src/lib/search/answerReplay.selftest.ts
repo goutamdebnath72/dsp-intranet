@@ -17,6 +17,12 @@ ok("REAL REPLIES: all three, refused when they were logged, are accepted by the 
 ok("...the gift card with its labels tied to the document, the mediclaim and sports answers with the assistant's own wording marked", r.rows[0].looseRows === 0 && r.rows[1].looseRows === 2 && r.rows[2].looseRows === 2, JSON.stringify(r.rows.map((x) => x.looseRows)));
 ok("each row says what happened when it was logged", r.rows[1].before.includes("last date of renewal") && r.rows[2].before.includes("Event dates"));
 
+// the replay shows the note the rules show next to the one the model wrote
+const withNote = { ...attempts[1], reply: JSON.stringify({ ...JSON.parse(attempts[1].reply), note: "Extension includes gap cases." }) };
+const noteRun = replay([withNote, { ...attempts[1], reply: JSON.stringify({ ...JSON.parse(attempts[1].reply), note: "Renewal needs the approval of the Director." }) }]);
+ok("the replay shows a grounded note as the document's sentence, next to the model's own", noteRun.rows[0].modelNote === "Extension includes gap cases." && /including Gap cases/.test(noteRun.rows[0].note), JSON.stringify(noteRun.rows[0]));
+ok("...and an ungrounded note as dropped", noteRun.rows[1].modelNote.startsWith("Renewal needs") && noteRun.rows[1].note === "" && noteRun.rows[1].nowOk, JSON.stringify(noteRun.rows[1]));
+
 // a half-written last line and junk lines are skipped
 ok("a half-written last line is skipped", parseJsonl(text + '{"question":"half').length === 3 && parseJsonl("\n\nnot json\n").length === 0);
 
