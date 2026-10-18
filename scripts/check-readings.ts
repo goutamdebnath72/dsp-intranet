@@ -1,7 +1,7 @@
 // scripts/check-readings.ts
 //
 // THE GEMINI READING CHECK of circulars already in the archive. For every page the pipeline has read, Gemini reads the same page image, the
-// two readings are compared number by number, and a report lists the pages to look at. READ-ONLY: it writes nothing to the database.
+// two readings are compared number by number, and a report lists the pages to look at. READ-ONLY unless you add --save (see below).
 //
 //   Step 1  the page readings of the pipeline must be in the re-read tool's cache, so run its dry run for these circulars first:
 //           npx tsx --env-file=.env.local scripts/reread-circulars.ts --ids 82,79
@@ -13,6 +13,9 @@
 //   ... --pause-ms 6000      wait after each live call (default 6000), to stay inside the per-minute limit
 //   ... --quota-wait-ms 65000  wait when the service refuses on its rate limit (twice), then stop
 //   ... --no-gemini-cache    read every page again (default: a page Gemini has read is never paid for twice)
+//   ... --save               ALSO store each page's check in the database (table circular_page_check: run src/lib/nl2sql/sql/10_circular_page_check.sql
+//                            first). The answer card then refuses a number that the second reading did not confirm. A page is saved ONLY if its
+//                            stored text is exactly the text that was checked (re-read and apply the circular first, otherwise it is skipped).
 //   ... --dump-text          also save both full readings of every page that needs a look, under reread-reports/text/ (check-<circular>-p<page>-pipeline.txt and -gemini.txt)
 //   ... --cache-dir reread-cache   --report-dir reread-reports   (the same folders the re-read tool uses; both are ignored by Git)
 //
@@ -24,6 +27,7 @@ import { Client } from "pg";
 import { buildReport, checkCircularPages, summarize, type CircularCheckInput, type PageOutcome } from "../src/lib/ingestion/geminiCheck";
 import { cachedReadPage } from "../src/lib/ingestion/pageCache";
 import { geminiReader } from "../src/lib/ingestion/pageReader";
+import { normPageText, pageTextHash, storedPageTexts } from "../src/lib/search/pageChecks";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -122,6 +126,42 @@ async function main() {
       console.log(`Both full readings of ${n} page(s) saved under ${dir}/`);
     }
 
+    // ---- store the checks (only with --save, and only for pages whose stored text is the text that was checked)
+    let savedLine = "";
+    if (flag("save")) {
+      let saved = 0, stale = 0;
+      const staleIds = new Set<number>();
+      try {
+        for (const c of inputs) {
+          const prep = prepared.find((x) => x.row.id === c.id);
+          if (!prep) continue;
+          const chunkRows = (await client.query(`SELECT page_number, chunk_index, text FROM public.circular_chunks WHERE circular_id = $1 ORDER BY page_number, chunk_index`, [c.id])).rows;
+          const stored = storedPageTexts(chunkRows.map((r: { page_number: number | null; chunk_index: number; text: string | null }) => ({ page: r.page_number == null ? null : Number(r.page_number), index: Number(r.chunk_index), text: String(r.text ?? "") })));
+          for (const o of c.outcomes) {
+            if (!("check" in o) || (o.status !== "agreed" && o.status !== "differences" && o.status !== "partial")) continue;
+            const st = stored.get(o.page);
+            if (st === undefined || normPageText(st) !== normPageText(prep.pageTexts[o.page - 1] ?? "")) { stale++; staleIds.add(c.id); continue; }
+            // a reading that stopped early confirms what it covers but cannot refute the rest: nothing is marked unconfirmed then
+            const unconfirmed = o.status === "partial" ? [] : [...o.check.onlyFirst, ...o.check.minorOnlyFirst];
+            await client.query(
+              `INSERT INTO public.circular_page_check (circular_id, page_number, status, confirmed, unconfirmed, second_only, reader, text_hash, checked_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+               ON CONFLICT (circular_id, page_number) DO UPDATE SET status = EXCLUDED.status, confirmed = EXCLUDED.confirmed, unconfirmed = EXCLUDED.unconfirmed,
+                 second_only = EXCLUDED.second_only, reader = EXCLUDED.reader, text_hash = EXCLUDED.text_hash, checked_at = now()`,
+              [c.id, o.page, o.status, o.check.confirmed, unconfirmed, [...o.check.onlySecond, ...o.check.minorOnlySecond], reader.name, pageTextHash(st)],
+            );
+            saved++;
+          }
+        }
+      } catch (e) {
+        if (/circular_page_check/.test(String((e as Error)?.message)) && /does not exist/.test(String((e as Error)?.message))) {
+          throw new Error("The table circular_page_check does not exist yet: run src/lib/nl2sql/sql/10_circular_page_check.sql in the Supabase SQL editor first, then run this again (Gemini's readings are saved, so it costs no new calls).");
+        }
+        throw e;
+      }
+      savedLine = `Saved ${saved} page check(s) to the database.${stale ? ` ${stale} page(s) of circular(s) ${[...staleIds].join(", ")} NOT saved: their stored text is not the text that was checked (the re-read tool has not been applied to them): run scripts/reread-circulars.ts --ids ${[...staleIds].join(",")} --apply, then this again.` : ""}`;
+    }
+
     // ---- report
     const { markdown, json } = buildReport(inputs, { reader: reader.name, startedAt: started, liveCalls: budget.liveCalls, cacheHits: budget.cacheHits, stoppedForQuota, stoppedForLimit });
     mkdirSync(reportDir, { recursive: true });
@@ -130,7 +170,7 @@ async function main() {
     writeFileSync(`${base}.json`, JSON.stringify(json, null, 1));
     const s = summarize(inputs);
     console.log(`\nSUMMARY: ${s.pages} page(s) | all important numbers agree: ${s.agreed} | some differ: ${s.differences} | partial: ${s.partial} | unusable: ${s.unusable} | errors: ${s.errors} | skipped: ${s.skipped} | numbers confirmed by both readers: ${s.confirmedNumbers}`);
-    console.log(`Gemini read live: ${budget.liveCalls}, from saved readings: ${budget.cacheHits}. Nothing was written to the database.`);
+    console.log(`Gemini read live: ${budget.liveCalls}, from saved readings: ${budget.cacheHits}. ${savedLine || "Nothing was written to the database."}`);
     console.log(`Report: ${base}.md   (please send me the .md and the .json)`);
   } finally {
     await client.end();

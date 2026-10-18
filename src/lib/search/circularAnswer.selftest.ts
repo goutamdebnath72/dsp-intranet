@@ -274,6 +274,38 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     clearAnswerCache();
   }
 
+  // ---------------------------------------------------------------- THE CONFIRMATION GATE (a second reader's check of the page)
+  {
+    const gift = "Circular on the online option for the gift card. The gift card value (215,000) may be chosen online by every employee. For the year the gift card of Rs 15,000 may be chosen online.";
+    const mkG = (checks?: Passage["checks"]) => ({ ...mk(1, 51, "Circular - Online option for Gift Card Rs. 15000", "2026-08-03", gift, 1), ...(checks ? { checks } : {}) } as Passage);
+    const ask = (value: string, quote: string, checks?: Passage["checks"]) => verifyAnswer({ answerable: true, title: "Gift card value", note: "", rows: [{ label: "Gift card", column: "", value, source: 1, quote }] }, [mkG(checks)]);
+    const CHK = { 1: { confirmed: ["15000"], unconfirmed: ["215000"] } };
+    const bad215 = ask("215,000", "The gift card value (215,000) may be chosen online by every employee", CHK);
+    ok("GATE: the number only the pipeline read (215,000) is refused, with the reason", !bad215.ok && /not confirmed by the second reading of page 1/.test(bad215.reason), bad215.ok ? "ACCEPTED" : bad215.reason);
+    const good15 = ask("15,000", "the gift card of Rs 15,000 may be chosen online", CHK);
+    ok("GATE: the number both readers had (15,000) is accepted", good15.ok, good15.ok ? "" : good15.reason);
+    const unchecked = ask("215,000", "The gift card value (215,000) may be chosen online by every employee", undefined);
+    ok("GATE: without a check, behaviour is exactly as before (the page was never checked)", unchecked.ok);
+    const otherPage = ask("215,000", "The gift card value (215,000) may be chosen online by every employee", { 2: { confirmed: [], unconfirmed: ["215000"] } });
+    ok("GATE: a check of ANOTHER page does not apply", otherPage.ok);
+    const bothWays = ask("215,000", "The gift card value (215,000) may be chosen online by every employee", { 1: { confirmed: ["215000"], unconfirmed: [] } });
+    ok("GATE: a number that is confirmed is accepted", bothWays.ok);
+    const noDigits = verifyAnswer({ answerable: true, title: "Venue", note: "", rows: [{ label: "Venue", column: "", value: "ASP Stadium", source: 1, quote: "Trial on 5th December 2024 at ASP Stadium at 10 00 AM sharp" }] }, [{ ...mk(1, 7, "Football trial", null, "Football. Trial on 5th December 2024 at ASP Stadium at 10 00 AM sharp.", 1), checks: { 1: { confirmed: [], unconfirmed: ["2024", "1000"] } } }]);
+    ok("GATE: a value with no digits is not affected by a check", noDigits.ok, noDigits.ok ? "" : noDigits.reason);
+    const dateVal = verifyAnswer({ answerable: true, title: "Trial date", note: "", rows: [{ label: "Trial", column: "", value: "5th December 2024", source: 1, quote: "Trial on 5th December 2024 at ASP Stadium" }] }, [{ ...mk(1, 7, "Football trial", null, "Football. Trial on 5th December 2024 at ASP Stadium at 10 00 AM sharp.", 1), checks: { 1: { confirmed: [], unconfirmed: ["2024"] } } }]);
+    ok("GATE: a date whose year is unconfirmed is refused", !dateVal.ok && /not confirmed/.test(dateVal.reason), dateVal.ok ? "ACCEPTED" : dateVal.reason);
+    // a quote that leaves cells out is still found on its page (the longest piece), and a row cut by a chunk break counts every page
+    const twoPage: Passage = { ...mk(1, 9, "Two pages", null, "x", 1), text: "Page one text. Area: NORTH | Rate: 12345 per day.\n\nPage two text. Area: SOUTH | Rate: 12345 per day.", parts: [{ page: 1, text: "Page one text. Area: NORTH | Rate: 12345 per day." }, { page: 2, text: "Page two text. Area: SOUTH | Rate: 12345 per day." }], checks: { 1: { confirmed: [], unconfirmed: ["12345"] }, 2: { confirmed: ["12345"], unconfirmed: [] } } };
+    const tw = (area: string) => verifyAnswer({ answerable: true, title: "Rate", note: "", rows: [{ label: area, column: "Rate", value: "12345", source: 1, quote: `Area: ${area} | Rate: 12345` }] }, [twoPage]);
+    const north = tw("NORTH"), south = tw("SOUTH");
+    ok("GATE: the page that holds the quote decides (page 1 does not confirm 12345)", !north.ok && /page 1/.test(north.reason), north.ok ? "ACCEPTED" : north.reason);
+    ok("GATE: ...and page 2, which confirms it, accepts it", south.ok, south.ok ? "" : south.reason);
+    // buildPassages carries the checks through
+    const withChecks = buildPassages("gift card", [{ type: "circular", id: 51, title: "Gift", date: null, chunks: [{ page: 1, index: 0, text: gift }], checks: CHK }]);
+    ok("buildPassages passes the checks on to the passage", JSON.stringify(withChecks[0].checks) === JSON.stringify(CHK));
+    ok("...and adds nothing when there are none", !("checks" in buildPassages("gift card", [{ type: "circular", id: 51, title: "Gift", date: null, chunks: [{ page: 1, index: 0, text: gift }] }])[0]));
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

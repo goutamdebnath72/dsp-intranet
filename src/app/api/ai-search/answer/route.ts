@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { groqLlm } from "@/lib/nl2sql/llm";
 import { answerFromPassages, buildPassages, type DocInput, type PassageType } from "@/lib/search/circularAnswer";
+import { loadPageChecks } from "@/lib/search/pageChecks";
 import { setTraceRoute, startTrace, summarizeTrace, traceHeaders, traceLine, traceStep, withTrace } from "@/lib/search/frontPathTrace";
 
 export const runtime = "nodejs";
@@ -41,9 +42,12 @@ async function loadDocs(items: { type: PassageType; id: number }[]): Promise<Doc
       const head = await db.query(`SELECT id, headline, "publishedAt" FROM circulars WHERE id = $1`, [it.id]);
       if (!head[0]) continue;
       const rows = await db.query(`SELECT page_number, chunk_index, text FROM circular_chunks WHERE circular_id = $1 ORDER BY page_number, chunk_index`, [it.id]);
+      const chunks = rows.map((r: any) => ({ page: r.page_number == null ? null : Number(r.page_number), index: Number(r.chunk_index), text: String(r.text ?? "") }));
       docs.push({
         type: "circular", id: it.id, title: String(head[0].headline), date: head[0].publishedAt ? new Date(head[0].publishedAt).toISOString() : null,
-        chunks: rows.map((r: any) => ({ page: r.page_number == null ? null : Number(r.page_number), index: Number(r.chunk_index), text: String(r.text ?? "") })),
+        chunks,
+        // what a second reader said about the numbers of these pages (only for pages whose stored text is still the text that was checked)
+        checks: await loadPageChecks((sql, params) => db.query(sql, params), it.id, chunks),
       });
     } else if (it.type === "holiday") {
       const rows = await db.query(`SELECT id, topic, holiday_name, year, text FROM holiday_policy_chunks WHERE id = $1`, [it.id]);

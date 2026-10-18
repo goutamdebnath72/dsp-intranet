@@ -121,7 +121,7 @@ export function buildReport(inputs: CircularCheckInput[], meta: ReportMeta): { m
   const errors = inputs.flatMap((c) => c.outcomes.filter((o) => o.status === "error").map((o) => ({ c, o: o as Extract<PageOutcome, { status: "error" }> })));
   const L: string[] = [];
   L.push(`# Reading check (Gemini against the pipeline) - ${meta.startedAt}`, "");
-  L.push(`Second reader: **${meta.reader}**. Nothing was written to the database.`);
+  L.push(`Second reader: **${meta.reader}**. The check itself reads and compares only; the database is written only if the command was run with --save.`);
   L.push(`- Circulars: **${inputs.length}**, pages: **${sum.pages}** (Gemini read live: ${meta.liveCalls}, from its saved readings: ${meta.cacheHits})`);
   L.push(`- Every important number agrees: **${sum.agreed}** | some differ: **${sum.differences}** | second reading stopped early (partial): ${sum.partial} | second reading unusable: ${sum.unusable} | errors: ${sum.errors} | skipped: ${sum.skipped}`);
   L.push(`- Numbers confirmed by both readers: **${sum.confirmedNumbers}**`);

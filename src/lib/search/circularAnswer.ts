@@ -23,7 +23,15 @@
 //
 // Pure (no database, no network): unit-tested by circularAnswer.selftest.ts. The model call is passed in (an LlmFn).
 
+import { numbersOf } from "../ingestion/readingCheck";
+
 export type PassageType = "circular" | "announcement" | "holiday";
+
+/**
+ * What a SECOND READER said about the numbers of each page of a circular (see ingestion/readingCheck.ts): the numbers both readings have, and the
+ * numbers only the pipeline's reading has. Present only for a page that was checked AND whose stored text is still the text that was checked.
+ */
+export type PageChecks = Record<number, { confirmed: string[]; unconfirmed: string[] }>;
 
 export interface PassagePart {
   page: number | null;
@@ -43,6 +51,8 @@ export interface Passage {
   /** All of the text the model reads for this document. */
   text: string;
   parts: PassagePart[];
+  /** What a second reader said about the numbers of the pages (only for checked pages whose text is unchanged). */
+  checks?: PageChecks;
 }
 
 export interface DocInput {
@@ -51,6 +61,8 @@ export interface DocInput {
   title: string;
   date: string | null;
   chunks: { page: number | null; index: number; text: string }[];
+  /** What a second reader said about the numbers of the pages (only for checked pages whose text is unchanged). */
+  checks?: PageChecks;
 }
 
 /** One fact as the model writes it. */
@@ -189,6 +201,7 @@ export function buildPassages(question: string, docs: DocInput[], totalBudget = 
       page: best?.page ?? chosen[0]?.page ?? null,
       text: chosen.map((c) => c.text).join("\n\n"),
       parts: chosen.map((c) => ({ page: c.page, text: c.text })),
+      ...(d.checks ? { checks: d.checks } : {}),
     });
   }
   return out;
@@ -389,6 +402,32 @@ function columnInValueCell(quote: string, column: string, value: string): boolea
   return false;
 }
 
+/**
+ * THE CONFIRMATION GATE. For a page that a second reader checked, a number of the answer's VALUE that only the pipeline's reading had is not
+ * confirmed (it may be a misreading: a rupee sign read as a "2" turned "(Rs 15,000)" into "215,000"), so the answer is refused. A number that
+ * both readings had, a number on a page that was never checked, and a value with no digits are not affected.
+ * The pages are those that hold the quote (its longest piece, when the quote leaves cells out); when a row was cut by a chunk break and the
+ * quote is in no single part, every page of the passage counts, and a number only counts as unconfirmed if NO page confirms it.
+ */
+function confirmationRefusal(p: Passage, value: string, quote: string): string | null {
+  if (!p.checks) return null;
+  const nums = [...numbersOf(value)];
+  if (!nums.length) return null;
+  const pieces = quote.split(/…|\.{3}|\|/).map((x) => normalizeForQuote(x)).filter((x) => x.length >= 6).sort((a, b) => b.length - a.length);
+  const probe = pieces[0] ?? normalizeForQuote(quote);
+  const holding = new Set<number>();
+  for (const pt of p.parts) if (pt.page != null && normalizeForQuote(pt.text).includes(probe)) holding.add(pt.page);
+  const pages = holding.size ? [...holding] : [...new Set(p.parts.map((pt) => pt.page).filter((x): x is number => x != null))];
+  const rows = pages.map((pg) => ({ pg, c: p.checks![pg] })).filter((x) => x.c);
+  if (!rows.length) return null; // these pages were not checked
+  for (const n of nums) {
+    if (rows.some((x) => x.c.confirmed.includes(n))) continue;
+    const refuting = rows.find((x) => x.c.unconfirmed.includes(n));
+    if (refuting) return `unverified: the value "${value}" is not confirmed by the second reading of page ${refuting.pg}`;
+  }
+  return null;
+}
+
 export function verifyAnswer(a: ModelAnswer, passages: Passage[]): VerifyResult {
   const fail = (reason: string): VerifyResult => ({ ok: false, reason });
   if (!a.answerable) return fail("not_answerable");
@@ -423,6 +462,9 @@ export function verifyAnswer(a: ModelAnswer, passages: Passage[]): VerifyResult 
       if (CURRENCY.has(w)) continue;
       if (!qWords.has(w)) return fail(`unverified: the value "${r.value}" is not in its quote`);
     }
+
+    const unconfirmed = confirmationRefusal(p, r.value, quote);
+    if (unconfirmed) return fail(unconfirmed);
 
     const distinct = new Set(numbersIn(quote, false));
     // a table row: five or more different numbers, or the " | " the app's own table reader puts between cells (with two numbers or more)

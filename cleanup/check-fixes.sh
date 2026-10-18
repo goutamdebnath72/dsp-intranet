@@ -24,6 +24,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { grep -q "PARTITION BY department_id" src/lib/nl2sql/prompt.ts && grep -q "rank_order 1 = MOST senior" src/lib/nl2sql/prompt.ts; } 2>/dev/null; report "the model is told how to take the top N per department and which way grades run" $?
 { test -f src/lib/search/circularAnswer.ts && test -f src/app/api/ai-search/answer/route.ts && grep -q "CircularAnswerCard" src/components/OmnibarModal.tsx; } 2>/dev/null; report "an answer found in the documents is shown first, with its source and exact words (off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true)" $?
 { test -f src/lib/ingestion/ruledTable.ts && grep -q "readRuledTables" src/lib/ingestion/ocr.ts; } 2>/dev/null; report "scanned tables are read cell by cell (the page reading cannot lay out a table)" $?
+{ test -f src/lib/search/pageChecks.ts && grep -q "loadPageChecks" src/app/api/ai-search/answer/route.ts && grep -q "confirmationRefusal" src/lib/search/circularAnswer.ts; } 2>/dev/null; report "the answer card refuses a number the second reading did not confirm (the confirmation gate)" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad

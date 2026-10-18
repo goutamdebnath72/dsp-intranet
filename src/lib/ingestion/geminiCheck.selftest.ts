@@ -134,7 +134,7 @@ function args(over: Partial<CheckArgs> & Pick<CheckArgs, "fileUrls" | "pageTexts
     ok("the page with more differences comes first", attention(inputs[1].outcomes[0]) >= attention(inputs[1].outcomes[1]) ? order[0].includes("| 1 |") : order[0].includes("| 2 |"));
     ok("the report shows the words around the flagged numbers", /What the flagged numbers look like/.test(rep.markdown) && /only Gemini has \*\*713203\*\*: ".*713203/.test(rep.markdown) && /only the pipeline has \*\*13203\*\*/.test(rep.markdown));
     ok("a '|' in a headline cannot break the table", !/A \| circular/.test(rep.markdown) && /A \/ circular/.test(rep.markdown));
-    ok("the report says that nothing was written to the database", /Nothing was written to the database/.test(rep.markdown));
+    ok("the report says that the check itself writes nothing", /the database is written only if the command was run with --save/.test(rep.markdown));
     const j: any = rep.json;
     ok("the JSON carries the meta, the summary and every circular", j.meta.reader === "gemini:test" && j.summary.pages === 3 && j.circulars.length === 2);
     const stopped = buildReport(inputs, { reader: "x", startedAt: "t", liveCalls: 1, cacheHits: 0, stoppedForQuota: true, stoppedForLimit: true });
