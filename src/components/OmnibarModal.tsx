@@ -194,6 +194,9 @@ export function OmnibarModal({
   // Set when the circular was opened from an answer's "Source" line: the pages on which the people of the answer are listed (the viewer scrolls to
   // the first and marks them all). Cleared when the viewer closes.
   const [sourceViewer, setSourceViewer] = useState<{ pages: number[] } | null>(null);
+  // Set when the circular was opened from the ANSWER card: the exact words of that answer, shown as the viewer's banner instead of the search's own
+  // best clause (which can be a different one: the room of the report collection, not the room of the check-up). Cleared when the viewer closes.
+  const [answerQuote, setAnswerQuote] = useState<string | null>(null);
   // Whether the user has dismissed the "Target Clause Reference" banner for the
   // currently-open circular. Reset each time a new circular is opened/closed.
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -469,6 +472,7 @@ export function OmnibarModal({
   const handleCloseLightbox = () => {
     setSelectedCircularId(null);
     setSourceViewer(null);
+    setAnswerQuote(null);
     setBannerDismissed(false);
   };
 
@@ -1319,8 +1323,11 @@ export function OmnibarModal({
                         {mode === "semantic" && (
                           <CircularAnswerCard
                             state={circularAnswer}
-                            onOpenSource={(id) => {
+                            onOpenSource={(id, target) => {
                               setBannerDismissed(false);
+                              // the viewer opens on the page of the answer and shows the answer's own words (not the search's best clause)
+                              setSourceViewer(target?.page ? { pages: [target.page] } : null);
+                              setAnswerQuote(target?.quote ? target.quote : null);
                               setSelectedCircularId(id);
                             }}
                           />
@@ -1641,8 +1648,7 @@ export function OmnibarModal({
       <AnimatePresence>
         {selectedCircularId &&
           !bannerDismissed &&
-          activeMatchedCircular?.isPerfectMatch &&
-          activeMatchedCircular?.chunkText &&
+          (answerQuote || (activeMatchedCircular?.isPerfectMatch && activeMatchedCircular?.chunkText)) &&
           mode === "semantic" && (
             <motion.div
               key="floating-banner"
@@ -1662,10 +1668,10 @@ export function OmnibarModal({
               </button>
               <div className="font-bold text-amber-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5 mb-1.5">
                 <Sparkles size={13} className="text-amber-600 shrink-0" />
-                Target Clause Reference:
+                {answerQuote ? "The words the answer is taken from:" : "Target Clause Reference:"}
               </div>
               <div className="font-medium text-neutral-800 text-xs sm:text-sm leading-relaxed">
-                {generateSmartSnippet(activeMatchedCircular.chunkText, query)}
+                {answerQuote ?? (activeMatchedCircular?.chunkText ? generateSmartSnippet(activeMatchedCircular.chunkText, query) : "")}
               </div>
             </motion.div>
           )}

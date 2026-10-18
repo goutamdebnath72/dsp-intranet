@@ -3,7 +3,7 @@
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CircularAnswerCard } from "./CircularAnswerCard";
+import { CircularAnswerCard, openTargetFor } from "./CircularAnswerCard";
 import type { CircularAnswer } from "@/lib/search/circularAnswer";
 
 let pass = 0, fail = 0;
@@ -33,6 +33,11 @@ ok("single figure: a column that repeats the label is not shown twice", single("
 ok("single figure: a column that adds something is still shown", single("Extended renewal deadline", "Last date of renewal").includes("Extended renewal deadline · Last date of renewal"), single("Extended renewal deadline", "Last date of renewal"));
 const two2 = text(html({ rows: [rowOf("Casual Leave", "Casual Leave"), rowOf("Medical Leave", "Medical Leave Days")], sources: [SRC_A] }));
 ok("table: a repeated sub-label is dropped, a different one is kept", !/Casual Leave Casual Leave/.test(two2) && two2.includes("Medical Leave Days") === false ? true : /Medical Leave Medical Leave Days/.test(two2) === false, two2);
+
+const tgt = { title: "T", note: "", rows: [{ ...rowOf("Extended last date", ""), value: "31.08.2026", source: 1, quote: "extend the renewal period till 31.08.2026", page: 1 }, { ...rowOf("Original deadline", ""), value: "20-08-2026", source: 2, quote: "available up to 20-08-2026", page: 2 }], sources: [{ ...SRC_A, page: 1 }, { ...SRC_B, page: 2 }] } as CircularAnswer;
+ok("Open circular: each source opens on its own row's page and words", JSON.stringify(openTargetFor(tgt, tgt.sources[0])) === JSON.stringify({ page: 1, quote: "extend the renewal period till 31.08.2026" }) && JSON.stringify(openTargetFor(tgt, tgt.sources[1])) === JSON.stringify({ page: 2, quote: "available up to 20-08-2026" }), JSON.stringify([openTargetFor(tgt, tgt.sources[0]), openTargetFor(tgt, tgt.sources[1])]));
+ok("Open circular: a source no row cites opens with no words and the source's own page", JSON.stringify(openTargetFor(tgt, { n: 9, page: 3 })) === JSON.stringify({ page: 3, quote: "" }));
+ok("Open circular: no page anywhere gives null, not a crash", openTargetFor({ ...tgt, rows: [{ ...tgt.rows[0], page: undefined as unknown as number }] }, { n: 1, page: null }).page === null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

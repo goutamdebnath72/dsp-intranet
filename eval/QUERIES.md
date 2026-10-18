@@ -20,7 +20,7 @@ node scripts/queries.mjs add "a new question" --route CIRCULAR --facts "15,000|1
 | A-C3 | employees can choose a gift card online, what amount was first announced and what was it corrected to | 15,000 / 15000; 14,999 / 14999 | 75,000; 74,999; 215,000 | ✅ | 2026-10-18 on screen: Initial announced amount Rs.15,000/-, Corrected amount Rs.14,999/-; source: the corrigendum (the original circular states 15,000, the corr |
 | A-C4 | what daily wage rates are notified for contractor workers for 2024 | 808; 740; 809 | 1924530 | ✅ | 2026-10-18 on screen: Works 808, Projects 740, Town Serv(Elect) 809 under 'Daily Wages (Rs. Per Day of duty)', source: Notice for Contract Workers - Daily Rate  |
 | A-C5 | list the sports events employees were invited to in December 2024 and the trial dates | 5 December 2024 / 5th December 2024 / 05.12.2024; 12.12.2024 / 12-12-2024 / 12 December 2024 |  | ❌ | not tried on the answer card. Expected from the battery evidence: football trial 5 Dec 2024 (ASP Stadium), table tennis trial 12.12.2024 / 2026-10-18: only the  |
-| B-19 | what is the salary of sanjay debnath |  |  | ✅ | 2026-10-18: no salary data, named person stays final, 18 Oct |
+| B-19 | what is the salary of sanjay debnath |  |  | ✅ | 2026-10-18: no salary data, named person stays final, 18 Oct / 2026-10-18: no salary data, named person stays final, 18 Oct |
 | B-24 | what is the gift card amount after the corrigendum? |  |  | ✅ | 2026-10-18: Rs.14,999/-, 18 Oct |
 | CB-A2 | how many days of casual leave and medical leave do contractor workers get |  |  | ✅ | 2026-10-18: 4 casual and 7 medical days, 18 Oct |
 | CB-B3 | from which date will executive attendance be captured through face recognition and RFID card |  |  | ✅ | 2026-10-18: 01.01.2024, 18 Oct |

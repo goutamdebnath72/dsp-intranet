@@ -12,6 +12,7 @@ import { DateTime } from "luxon";
 import { ExternalLink, FileText, Info, Sparkles } from "lucide-react";
 import { formatCircularTitle } from "@/lib/circularTitle";
 import type { AnswerState } from "@/hooks/useCircularAnswer";
+import type { CircularAnswer } from "@/lib/search/circularAnswer";
 
 const KIND_LABEL: Record<string, string> = { circular: "Circular", announcement: "Announcement", holiday: "Holiday policy note" };
 
@@ -28,7 +29,13 @@ function repeatsLabel(label: string, column: string): boolean {
   return !c || l.includes(c) || c.includes(l);
 }
 
-export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState; onOpenSource: (circularId: number) => void }) {
+/** What "Open circular" on a source opens: the page of the row that cites it and that row's own exact words (the viewer shows them as its banner). */
+export function openTargetFor(a: CircularAnswer, s: { n: number; page: number | null }): { page: number | null; quote: string } {
+  const row = a.rows.find((r) => r.source === s.n);
+  return { page: s.page ?? row?.page ?? null, quote: row?.quote ?? "" };
+}
+
+export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState; onOpenSource: (circularId: number, target?: { page: number | null; quote: string }) => void }) {
   if (state.status === "idle") return null;
 
   if (state.status === "loading") {
@@ -157,7 +164,7 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
             return (
               <li key={`${s.type}-${s.id}`}>
                 {openable ? (
-                  <button type="button" onClick={() => onOpenSource(s.id)} className="flex w-full items-start gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left transition-colors hover:border-blue-200 hover:bg-white">
+                  <button type="button" onClick={() => onOpenSource(s.id, openTargetFor(a, s))} className="flex w-full items-start gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left transition-colors hover:border-blue-200 hover:bg-white">
                     {body}
                   </button>
                 ) : (
