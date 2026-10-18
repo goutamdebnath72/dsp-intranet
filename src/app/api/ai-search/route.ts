@@ -13,6 +13,7 @@ import { SearchUnavailableError } from "@/lib/search/searchResilience";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
 import { answerOmnibar, parseRetry } from "@/lib/nl2sql/omnibar";
+import { continueToCirculars } from "@/lib/search/dataGapRule";
 import { contentTokens, isHolidayTopic, topicTokens } from "@/lib/search/topicGate";
 import { applyRankAdjustments } from "@/lib/search/rankAdjust";
 import { queryTokenWeights, weightedCoverage } from "@/lib/search/tokenWeights";
@@ -346,11 +347,18 @@ async function handleSearch(request: Request) {
       endRescue();
       return rescued ? NextResponse.json({ analytics: rescued }) : null;
     };
+    // The structured data may answer "unanswerable" (no such column). When nobody is named, the circulars get their turn first and the
+    // explanation is kept in heldAnswer, shown only if they have nothing either (step 38c, src/lib/search/dataGapRule.ts).
+    let heldAnswer: Awaited<ReturnType<typeof answerOmnibar>> = null;
     if (mode === "semantic" && !retrievalOnly) {
       const endOmnibar = traceStep("omnibar");
       const payload = await answerOmnibar(q, userTicket || null, retryInfo, { skipModel: modelSkipped });
       endOmnibar();
-      if (payload) return NextResponse.json({ analytics: payload });
+      if (payload) {
+        const goOn = await continueToCirculars(payload, q, () => loadDirectoryNameWords((sql) => dataSource.query(sql)), { isNameShaped, deptMentioned });
+        if (!goOn) return NextResponse.json({ analytics: payload });
+        heldAnswer = payload;
+      }
     }
 
     // --- RETRIEVE BEST MATCHING CIRCULARS ---
@@ -360,6 +368,7 @@ async function handleSearch(request: Request) {
       routed = await executeSmartSemanticRouter(dataSource, q);
     } catch (routerErr) {
       endCircular();
+      if (heldAnswer) return NextResponse.json({ analytics: heldAnswer }); // the circulars are unavailable: the data's own explanation stands
       const rescued = await rescueWithModel(); // the gate skipped the model but circular search is unavailable
       if (rescued) return rescued;
       throw routerErr;
@@ -515,6 +524,7 @@ async function handleSearch(request: Request) {
           results: [],
         });
       }
+      if (heldAnswer) return NextResponse.json({ analytics: heldAnswer }); // nothing in the circulars either: the data's own explanation stands
       return (await rescueWithModel()) ?? NextResponse.json([]);
     }
 
@@ -607,6 +617,7 @@ async function handleSearch(request: Request) {
           console.warn("headline fold failed:", (e as any)?.message ?? e);
         }
       }
+      if (merged.length === 0 && heldAnswer) return NextResponse.json({ analytics: heldAnswer });
       return NextResponse.json(merged);
     }
 

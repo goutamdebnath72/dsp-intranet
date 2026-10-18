@@ -29,6 +29,7 @@ import type { QueryResultData } from "./types";
 import { answerFromVerified, answerQuestion, type PipelineExtra } from "./pipeline";
 import { loadLogRow } from "./log";
 import { isReasonCode, retryHint, verifiedMinConfirms, type AnswerSource, type ReasonCode } from "./learning";
+import { friendlyUnanswerable } from "@/lib/search/dataGapRule";
 
 export type OmnibarPayload = AnalyticsPayload & {
   nl2sql?: Nl2SqlExtras;
@@ -38,6 +39,8 @@ export type OmnibarPayload = AnalyticsPayload & {
   attempt?: number;
   /** The nl2sql_log row to rate, also for explanations / clarifying questions that carry no SQL. */
   feedbackLogId?: number | null;
+  /** The structured data cannot answer this ("unanswerable"): the route may try the circulars before showing the explanation (step 38c). */
+  unanswerable?: boolean;
 };
 
 /** A "No" on an earlier answer, asking for another attempt. */
@@ -310,7 +313,8 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
     case "unanswerable":
       return {
         kind: "clarify",
-        answer: res.message,
+        answer: res.kind === "unanswerable" ? friendlyUnanswerable(res.message) : res.message,
+        ...(res.kind === "unanswerable" ? { unanswerable: true } : {}),
         ...(res.understoodAs && res.kind === "unanswerable" ? { interpretation: res.understoodAs } : {}),
         source: "nl2sql",
         attempt,

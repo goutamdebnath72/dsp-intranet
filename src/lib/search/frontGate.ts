@@ -53,6 +53,24 @@ export interface GateDecision {
 
 const keep = (reason: string): GateDecision => ({ skip: false, reason });
 
+/** The first word of the question that is a name in the directory (singular or plural: the directory holds "MAZUMDAR", people say "mazumdars"), or null. */
+export function directoryWordIn(q: string, directoryWords: ReadonlySet<string>): string | null {
+  for (const raw of q.toLowerCase().split(/[^a-z]+/)) {
+    if (raw.length < 3) continue;
+    const singular = raw.length > 3 && raw.endsWith("s") ? raw.slice(0, -1) : raw;
+    if (directoryWords.has(raw) || directoryWords.has(singular)) return raw;
+  }
+  return null;
+}
+
+/**
+ * True when the question points at ONE particular person or ticket: the whole question is a name, it holds a ticket-like number, or a word of it is a
+ * name in the directory. The general people-data words (employees, executives, health check-up ...) do NOT count: they name what the data holds, not who.
+ */
+export function namesSomeone(q: string, i: { isNameShaped: boolean; directoryWords: ReadonlySet<string> }): boolean {
+  return i.isNameShaped || ID_LIKE.test(q) || directoryWordIn(q, i.directoryWords) !== null;
+}
+
 export function decideModelSkip(i: GateInput): GateDecision {
   const q = i.q.trim();
   if (!q) return keep("empty question");
@@ -66,12 +84,8 @@ export function decideModelSkip(i: GateInput): GateDecision {
     const n = Number(m[1]);
     if (n < 1990 || n > 2100) return keep("contains a 4-digit number that is not a year");
   }
-  for (const raw of q.toLowerCase().split(/[^a-z]+/)) {
-    if (raw.length < 3) continue;
-    // the directory holds "MAZUMDAR"; people say "mazumdars"
-    const singular = raw.length > 3 && raw.endsWith("s") ? raw.slice(0, -1) : raw;
-    if (i.directoryWords.has(raw) || i.directoryWords.has(singular)) return keep(`mentions someone in the directory ("${raw}")`);
-  }
+  const hit = directoryWordIn(q, i.directoryWords);
+  if (hit) return keep(`mentions someone in the directory ("${hit}")`);
   return { skip: true, reason: "no person, department, ticket or people-data word: not an employee question" };
 }
 

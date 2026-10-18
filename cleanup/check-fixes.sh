@@ -26,6 +26,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { test -f src/lib/ingestion/ruledTable.ts && grep -q "readRuledTables" src/lib/ingestion/ocr.ts; } 2>/dev/null; report "scanned tables are read cell by cell (the page reading cannot lay out a table)" $?
 { test -f src/lib/search/pageChecks.ts && grep -q "loadPageChecks" src/app/api/ai-search/answer/route.ts && grep -q "confirmationRefusal" src/lib/search/circularAnswer.ts; } 2>/dev/null; report "the answer card refuses a number the second reading did not confirm (the confirmation gate)" $?
 { test -f src/lib/search/answerLog.ts && grep -q "logAnswer" src/app/api/ai-search/answer/route.ts && grep -q "linked === false" src/components/CircularAnswerCard.tsx; } 2>/dev/null; report "answer attempts can be logged and replayed; rows the assistant worded are marked on the card" $?
+{ grep -q "continueToCirculars" src/app/api/ai-search/route.ts && grep -q "friendlyUnanswerable" src/lib/nl2sql/omnibar.ts && test -f src/lib/search/dataGapRule.ts; } 2>/dev/null; report "the circulars are tried when the data cannot answer (and nobody is named)" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad

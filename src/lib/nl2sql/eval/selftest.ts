@@ -1162,6 +1162,11 @@ async function main() {
   check("an unanswerable employee question is explained, in the information card", o.kind === "clarify" && o.answer === "This data does not include salary." && o.interpretation === "A salary request.");
   o = await runOmnibar("sanjay", "T-OMNI", mkDeps(script([json({ sql: null, understood_as: "ambiguous", needs_clarification: "Which Sanjay do you mean?" })])));
   check("a clarifying question is passed on", o.kind === "clarify" && o.answer === "Which Sanjay do you mean?");
+  check("a clarifying question is not flagged as a data gap", o.unanswerable === undefined);
+  o = await runOmnibar("salary of arup roy", "T-OMNI", mkDeps(script([json({ sql: null, understood_as: "A salary request.", unanswerable_reason: "This data does not include salary." })])));
+  check("an unanswerable answer is flagged, so that the route may try the circulars first", o.kind === "clarify" && o.unanswerable === true);
+  o = await runOmnibar("which pathology room should non-executive employees report to", "T-OMNI", mkDeps(script([json({ sql: null, understood_as: "A room request.", unanswerable_reason: "The health_checkups view does not include a pathology-room column." })])));
+  check("an explanation that names the database's own view or column is replaced by a plain one", o.kind === "clarify" && o.unanswerable === true && !/health_checkups|view|column/i.test(o.answer) && /do not hold that information/.test(o.answer));
 
   const down: LlmFn = async () => { throw new Error("network down"); };
   o = await runOmnibar("anything", "T-OMNI", mkDeps(down, { legacy: async () => ({ kind: "count", answer: "legacy answer" }) as any }));
