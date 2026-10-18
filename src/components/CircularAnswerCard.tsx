@@ -21,6 +21,13 @@ function dateLabel(iso: string | null): string {
   return d.isValid ? d.toFormat("d LLL yyyy") : "";
 }
 
+/** True when the column adds nothing to the label ("Casual Leave" over "Casual Leave"; "Gift Card Amount" and "Amount"). */
+function repeatsLabel(label: string, column: string): boolean {
+  const norm = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const l = norm(label), c = norm(column);
+  return !c || l.includes(c) || c.includes(l);
+}
+
 export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState; onOpenSource: (circularId: number) => void }) {
   if (state.status === "idle") return null;
 
@@ -66,7 +73,7 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
         <div className="mx-4 mt-3 rounded-xl bg-blue-50/70 px-4 py-3">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">
             {a.rows[0].label}
-            {a.rows[0].column ? ` \u00B7 ${a.rows[0].column}` : ""}
+            {a.rows[0].column && !repeatsLabel(a.rows[0].label, a.rows[0].column) ? ` \u00B7 ${a.rows[0].column}` : ""}
           </div>
           <div className="mt-0.5 break-words text-[28px] font-bold leading-tight tabular-nums text-neutral-900">{a.rows[0].value}</div>
         </div>
@@ -88,7 +95,7 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
                 <tr key={i} className="transition-colors hover:bg-blue-50/40">
                   <th scope="row" className="px-3 py-2.5 text-left align-top font-medium text-neutral-800">
                     {r.label}
-                    {!sharedColumn && r.column ? <span className="block text-xs font-normal text-neutral-500">{r.column}</span> : null}
+                    {!sharedColumn && r.column && !repeatsLabel(r.label, r.column) ? <span className="block text-xs font-normal text-neutral-500">{r.column}</span> : null}
                     {a.sources.length > 1 ? (
                       <span className="block text-xs font-normal text-neutral-500">
                         {(() => {

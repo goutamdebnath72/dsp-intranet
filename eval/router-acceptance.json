@@ -740,7 +740,13 @@
      51
     ]
    },
-   "notes": "The OCR once lost the amounts (id 49 lost 75,000 and 74,999; id 51 lost 275,000); the re-read tool fixed the archive. Re-test."
+   "notes": "The OCR once lost the amounts (id 49 lost 75,000 and 74,999; id 51 lost 275,000); the re-read tool fixed the archive. Re-test.",
+   "answer": {
+    "facts": [],
+    "forbidden": [],
+    "status": "✅",
+    "note": "2026-10-18: Rs.14,999/-, 18 Oct"
+   }
   },
   {
    "id": "K-1",
@@ -2398,6 +2404,12 @@
      26,
      21
     ]
+   },
+   "answer": {
+    "facts": [],
+    "forbidden": [],
+    "status": "✅",
+    "note": "2026-10-18: 4 casual and 7 medical days, 18 Oct"
    }
   },
   {
@@ -2520,6 +2532,12 @@
      26
     ],
     "topIs": 13
+   },
+   "answer": {
+    "facts": [],
+    "forbidden": [],
+    "status": "✅",
+    "note": "2026-10-18: 01.01.2024, 18 Oct"
    }
   },
   {
@@ -2535,7 +2553,13 @@
     ],
     "topIs": 21
    },
-   "notes": "2024_01: 'Revised of GPAIS amount (Mid-term inclusion)', w.e.f. 01.01.2025"
+   "notes": "2024_01: 'Revised of GPAIS amount (Mid-term inclusion)', w.e.f. 01.01.2025",
+   "answer": {
+    "facts": [],
+    "forbidden": [],
+    "status": "✅",
+    "note": "2026-10-18: 150.00 131.25 112.50, label partial, 18 Oct"
+   }
   },
   {
    "id": "CB-C2",
@@ -2636,7 +2660,13 @@
      30
     ]
    },
-   "notes": "ID CHANGED from 37 to 79 (see D1)."
+   "notes": "ID CHANGED from 37 to 79 (see D1).",
+   "answer": {
+    "facts": [],
+    "forbidden": [],
+    "status": "❌",
+    "note": "2026-10-18: routed to the SQL engine: unanswerable ended the route, circulars never tried, 18 Oct"
+   }
   },
   {
    "id": "CB-E1",
@@ -2657,7 +2687,13 @@
     ],
     "topIs": 43
    },
-   "notes": "2026_03 (20.08.2026): extended till 31.08.2026; 2026_08 (11-08-2026) only says up to 20-08-2026"
+   "notes": "2026_03 (20.08.2026): extended till 31.08.2026; 2026_08 (11-08-2026) only says up to 20-08-2026",
+   "answer": {
+    "facts": [],
+    "forbidden": [],
+    "status": "✅",
+    "note": "2026-10-18: 31.08.2026, 18 Oct"
+   }
   },
   {
    "id": "CB-E2",
@@ -3867,6 +3903,45 @@
    "source": "TS",
    "lastKnown": "❓",
    "notes": "from scripts/test-search.mjs group E: a bare number from the wage table must find the wage notice (it works since the OCR was fixed)"
+  },
+  {
+   "id": "USER-1",
+   "query": "what is the last date to exercise the gift card option online",
+   "area": "circular",
+   "expectedRoute": "ANY",
+   "source": "user",
+   "lastKnown": "❓",
+   "answer": {
+    "facts": [
+     [
+      "15.08.2026"
+     ]
+    ],
+    "forbidden": [],
+    "status": "✅",
+    "note": "added 2026-10-18 | 2026-10-18: 15.08.2026, 18 Oct"
+   }
+  },
+  {
+   "id": "USER-2",
+   "query": "when is the selection trial for the football team",
+   "area": "circular",
+   "expectedRoute": "ANY",
+   "source": "user",
+   "lastKnown": "❓",
+   "answer": {
+    "facts": [
+     [
+      "5 December, 2024"
+     ],
+     [
+      "24th December, 2022"
+     ]
+    ],
+    "forbidden": [],
+    "status": "✅",
+    "note": "added 2026-10-18 | 2026-10-18: both 2022 and 2024 trials, 18 Oct"
+   }
   }
  ]
 }

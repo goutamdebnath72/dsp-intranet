@@ -27,5 +27,12 @@ ok("a row whose source is not listed shows nothing instead of failing", (() => {
 ok("the caveat shows only when a row is the assistant's wording", text(html({ rows: [row("A", "1", 1, false)], sources: [SRC_A] })).includes("own wording") && !text(html({ rows: [row("A", "1", 1, true)], sources: [SRC_A] })).includes("own wording") && !text(html({ rows: [row("A", "1", 1)], sources: [SRC_A] })).includes("own wording"));
 ok("the note is shown", text(html({ rows: [row("A", "1", 1)], sources: [SRC_A], note: "This lists what was found in the circulars retrieved for this question; other circulars may also apply." })).includes("other circulars may also apply"));
 
+const rowOf = (label: string, column: string) => ({ label, column, value: "Four (04)", source: 1, quote: `quote for ${label}`, page: 2 });
+const single = (label: string, column: string) => text(html({ rows: [rowOf(label, column)], sources: [SRC_A] }));
+ok("single figure: a column that repeats the label is not shown twice", single("Last date", "Last date").includes("LAST DATE") === false && !/Last date . Last date/i.test(single("Last date", "Last date")) && !single("Gift Card Amount", "Amount").includes("Gift Card Amount · Amount"), single("Last date", "Last date"));
+ok("single figure: a column that adds something is still shown", single("Extended renewal deadline", "Last date of renewal").includes("Extended renewal deadline · Last date of renewal"), single("Extended renewal deadline", "Last date of renewal"));
+const two2 = text(html({ rows: [rowOf("Casual Leave", "Casual Leave"), rowOf("Medical Leave", "Medical Leave Days")], sources: [SRC_A] }));
+ok("table: a repeated sub-label is dropped, a different one is kept", !/Casual Leave Casual Leave/.test(two2) && two2.includes("Medical Leave Days") === false ? true : /Medical Leave Medical Leave Days/.test(two2) === false, two2);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

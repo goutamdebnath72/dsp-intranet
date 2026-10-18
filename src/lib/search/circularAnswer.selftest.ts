@@ -500,6 +500,19 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     clearAnswerCache();
   }
 
+  { // a claim of recency is not provable from a few retrieved circulars
+    const two = [mk(1, 1, "Football trial 2022", "2022-12-19", "The selection trial shall be held on 24th December, 2022 at Nehru Stadium at sharp 3 pm."), mk(2, 2, "Football trial 2024", "2024-12-03", 'The selection trial shall be held on 5" December, 2024 at ASP Stadium at 10 00 AM sharp.')];
+    const base = { answerable: true, title: "Selection trial dates", rows: [{ label: "Trial 2022", column: "Selection trial date", value: "24th December, 2022", source: 1, quote: "selection trial shall be held on 24th December, 2022" }, { label: "Trial 2024", column: "Selection trial date", value: "5 December, 2024", source: 2, quote: 'selection trial shall be held on 5" December, 2024' }] };
+    const latest = verifyAnswer({ ...base, note: "The 2024 trial is the latest" }, two);
+    ok("recency: the note 'The 2024 trial is the latest' is dropped, the facts stay", latest.ok && latest.value.note === "" && latest.value.rows.length === 2, latest.ok ? latest.value.note : latest.reason);
+    const headLatest = verifyAnswer({ ...base, title: "Latest football trial", note: "" }, two);
+    ok("recency: a heading that says 'Latest' becomes the document's own title", headLatest.ok && !/latest/i.test(headLatest.value.title), headLatest.ok ? headLatest.value.title : headLatest.reason);
+    const said = verifyAnswer({ ...base, rows: [base.rows[0], { ...base.rows[1], quote: 'The latest selection trial shall be held on 5" December, 2024' }], note: "The latest trial is held at ASP Stadium." }, [two[0], mk(2, 2, "Football trial 2024", "2024-12-03", 'The latest selection trial shall be held on 5" December, 2024 at ASP Stadium at 10 00 AM sharp.')]);
+    ok("recency: kept when the document's own sentence uses the word", said.ok && said.value.note.length > 0, said.ok ? said.value.note : said.reason);
+    const plain = verifyAnswer({ ...base, note: "Held at the stadium." }, two);
+    ok("recency: an ordinary note is untouched", plain.ok && plain.value.note === "Held at the stadium.");
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

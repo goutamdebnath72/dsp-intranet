@@ -291,6 +291,8 @@ const TIME_GROUPS: string[][] = [
   ["month", "months", "monthly"],
   ["year", "years", "yearly", "annual", "annually"],
   ["hour", "hours", "hourly"],
+  // a claim of RECENCY ("the 2024 trial is the latest") goes beyond what a few retrieved circulars can prove; only the document's own words may say it
+  ["latest", "newest", "newer", "recent", "recently"],
 ];
 
 /**
