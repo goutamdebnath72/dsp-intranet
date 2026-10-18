@@ -18,6 +18,8 @@ const text = (h: string) => h.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").r
 const two = text(html({ rows: [row("Extended last date", "31.08.2026", 1, false), row("Original deadline", "20-08-2026", 2, false)], sources: [SRC_A, SRC_B] }));
 ok("with two sources, each row says which circular it comes from and when", two.includes("Extended last date Circular -Extension of SAIL Mediclaim policy (26-27) · 20 Aug 2026 31.08.2026") && two.includes("Original deadline Circular- Extension of SAIL Mediclaim policy (2026-2027) · 11 Aug 2026 20-08-2026"), two.slice(0, 900));
 const one = text(html({ rows: [row("Extended last date", "31.08.2026", 1), row("Original deadline", "20-08-2026", 1)], sources: [SRC_A] }));
+const caps = text(html({ rows: [row("Extended last date", "31.08.2026", 1), row("Original deadline", "20-08-2026", 2)], sources: [{ ...SRC_A, headline: "CIRCULAR -EXTENSION OF SAIL MEDICLAIM POLICY (26-27)" }, SRC_B] }));
+ok("an ALL-CAPS headline is tidied on the row line exactly as in the Sources list", caps.includes("Extended last date Circular -Extension of SAIL Mediclaim policy (26-27) · 20 Aug 2026") && !caps.includes("EXTENSION OF SAIL"), caps.slice(0, 500));
 ok("with one source, the rows carry no source line (it is the Source box below)", !one.includes("Extended last date Circular") && one.includes("Source"), one.slice(0, 400));
 const long = text(html({ rows: [row("A", "1", 1), row("B", "2", 2)], sources: [{ ...SRC_A, headline: "A very long circular headline ".repeat(6) }, SRC_B] }));
 ok("a long headline is cut", /\u2026 · 20 Aug 2026/.test(long) || long.includes("… · 20 Aug 2026"), long.slice(0, 300));

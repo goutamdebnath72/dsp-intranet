@@ -94,7 +94,8 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
                         {(() => {
                           const src = a.sources.find((s) => s.n === r.source);
                           if (!src) return null;
-                          const head = src.headline.length > 64 ? `${src.headline.slice(0, 63).trimEnd()}\u2026` : src.headline;
+                          const title = formatCircularTitle(src.headline); // the same display tidy-up as the Sources list below
+                          const head = title.length > 64 ? `${title.slice(0, 63).trimEnd()}\u2026` : title;
                           const when = dateLabel(src.publishedAt);
                           return `${head}${when ? ` \u00B7 ${when}` : ""}`;
                         })()}
