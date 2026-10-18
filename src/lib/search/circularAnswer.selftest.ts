@@ -3,8 +3,9 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildPageUnits, planChunks } from "../ingestion/chunking";
 import {
-  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, percentOf, pickAnswerItems, verifyAnswer,
+  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, verifyAnswer,
   type DocInput, type ModelAnswer, type Passage, type RowIn,
 } from "./circularAnswer";
 
@@ -213,8 +214,10 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
   {
     const wage: string = JSON.parse(readFileSync(join(__dirname, "..", "ingestion", "__fixtures__", "pilot-readings.json"), "utf8")).find((x: { id: string }) => x.id === "wage-notice").pipeline;
     const Q = "what daily wage rates are notified for contractor workers for 2024";
-    const n = Math.ceil(wage.length / 3);
-    const docW: DocInput = { type: "circular", id: 82, title: "Notice for Contract Workers - Daily Rate of Wages w.e.f 01.01.2024", date: "2023-12-16", chunks: [0, 1, 2].map((i) => ({ page: 1, index: i, text: wage.slice(i * n, (i + 1) * n) })) };
+    // EXACTLY what the re-read stores: whitespace collapsed to single spaces (so the table rows are glued together), then 200-word chunks
+    // (a chunk break can fall in the middle of a row), joined for the model with a blank line between chunks
+    const flat = (wage + " \n").replace(/\s+/g, " ").trim();
+    const docW: DocInput = { type: "circular", id: 82, title: "Notice for Contract Workers - Daily Rate of Wages w.e.f 01.01.2024", date: "2023-12-16", chunks: planChunks(buildPageUnits([wage], flat)).map((c) => ({ page: c.page, index: c.index, text: c.text })) };
     const pw = buildPassages(Q, [docW]);
     const rowOf = (area: string) => wage.split("\n").find((l) => l.includes(`Area: ${area}`)) as string;
     const ans = (column: string, rows: [string, string][], title = "Daily wage rates from 01.01.2024"): ModelAnswer => ({ answerable: true, title, note: "", rows: rows.map(([a, v]) => ({ label: a, column, value: v, source: 1, quote: rowOf(a) })) });
@@ -235,6 +238,31 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     ok("REAL wage notice: a value that is only the START of a longer number is refused (808 against 8080)", !trap.ok && /not in its quote|does not stand beside/.test(trap.reason), trap.ok ? "ACCEPTED" : trap.reason);
     const trapOk = verifyAnswer({ answerable: true, title: "Wages", note: "", rows: [{ label: "SAMPLE", column: "Daily Wages", value: "8080", source: 1, quote: trapRow }] }, [mk(1, 9, "Trap", null, `Notice\n[TABLE]\n${trapRow}\n[/TABLE]`)]);
     ok("...while the whole number 8080 is accepted", trapOk.ok, trapOk.ok ? "" : trapOk.reason);
+    // ---- a quote that LEAVES CELLS OUT (what a model naturally writes): accepted only when every piece is word for word, in order, in ONE row
+    const q = (label: string, value: string, quote: string, column = "Daily Wages"): ModelAnswer => ({ answerable: true, title: "Daily wage rates from 01.01.2024", note: "", rows: [{ label, column, value, source: 1, quote }] });
+    const FULL = rowOf("WORKS").replace(/^SL\.: 1 \| /, "SL.: 1 | ");
+    const yes = (name: string, a: ModelAnswer) => { const r = verifyAnswer(a, pw); ok(name, r.ok, r.ok ? "" : r.reason); };
+    const no = (name: string, a: ModelAnswer) => { const r = verifyAnswer(a, pw); ok(name, !r.ok && /word for word|does not stand beside|label|not in its quote/.test(r.reason), r.ok ? "ACCEPTED" : r.reason); };
+    yes("REAL stored form: the whole row, exactly", q("WORKS", "808", FULL));
+    yes("REAL stored form: the row with the next row's first cell glued on", q("WORKS", "808", FULL + " SL.: 2"));
+    yes("REAL stored form: only the two cells that matter, nothing marking the gap", q("WORKS", "808", "Area: WORKS | Daily Wages (Rs. Per Day of duty): 808"));
+    yes("REAL stored form: the same with an ellipsis", q("WORKS", "808", "Area: WORKS | ... | Daily Wages (Rs. Per Day of duty): 808"));
+    yes("REAL stored form: the same with a unicode ellipsis", q("PROJECTS", "740", "Area: PROJECTS … Daily Wages (Rs. Per Day of duty): 740"));
+    yes("REAL stored form: heading, row start and the wage cell (the heading sits above row 1)", q("WORKS", "808", "Heading: CONSTITUENT OF MONTHLY WAGES SL.: 1 | Area: WORKS | BASIC: 3350.00 | Daily Wages (Rs. Per Day of duty): 808"));
+    no("REAL stored form: a made-up join of the heading with ANOTHER row is refused (the heading is not above row 3)", q("TOWN SERV(ELECT)", "809", "Heading: CONSTITUENT OF MONTHLY WAGES SL.: 3 | Area: TOWN SERV(ELECT) | BASIC: 3250.00 | Daily Wages (Rs. Per Day of duty): 809"));
+    yes("REAL stored form: a row that the chunk break cut in the middle (the model quotes straight across the break)", q("WORKS", "808", "Area: WORKS | BASIC: 3350.00 | VDA: 13478.00 | FDA: 375.00 | HRA: 1720.30 | REF ALLOW: 52.00 | INC: 270.00 | AWA: 1750.00 | TOTAL: 20995.30 | Daily Wages (Rs. Per Day of duty): 808"));
+    no("REAL stored form: pieces from TWO rows are refused (WORKS with PROJECTS's wage)", q("WORKS", "740", "Area: WORKS | Daily Wages (Rs. Per Day of duty): 740"));
+    no("REAL stored form: pieces from two rows are refused (PROJECTS with the wage of the row before it)", q("PROJECTS", "808", "Area: PROJECTS | Daily Wages (Rs. Per Day of duty): 808"));
+    no("REAL stored form: pieces from two rows are refused (PROJECTS with the wage of the row after it)", q("PROJECTS", "809", "Area: PROJECTS | Daily Wages (Rs. Per Day of duty): 809"));
+    no("REAL stored form: an invented number is refused", q("WORKS", "999", "Area: WORKS | Daily Wages (Rs. Per Day of duty): 999"));
+    no("REAL stored form: pieces in the wrong order are refused", q("WORKS", "808", "Daily Wages (Rs. Per Day of duty): 808 | Area: WORKS"));
+    no("REAL stored form: a cell that is not there is refused", q("WORKS", "808", "Area: WORKS | Overtime Wages (Rs. Per Day of duty): 808"));
+    no("REAL stored form: a paraphrase is refused", q("WORKS", "808", "The daily wage for the Works area is 808 rupees"));
+    no("REAL stored form: a total passed off as the daily wage is refused, even with cells left out", q("WORKS", "20995.30", "Area: WORKS | TOTAL: 20995.30"));
+    ok("piecesInOneRow: one piece alone is not a 'pieces' quote", !piecesInOneRow("Area: WORKS", flat));
+    ok("piecesInOneRow: pieces more than a row apart are refused", !piecesInOneRow("Notice Boards | Daily Wages (Rs. Per Day of duty): 740", flat));
+    ok("quoteMissReport says where a quote stops matching", /first \d+ of \d+ letters and digits, then breaks at/.test(quoteMissReport("Area: WORKS | Overtime Wages: 808", flat)), quoteMissReport("Area: WORKS | Overtime Wages: 808", flat));
+
     // the refusal reason is printed in full
     const logs: string[] = [];
     sink = logs;
@@ -242,6 +270,7 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     const bad = await answerFromPassages(Q, pw, async () => JSON.stringify(ans("TOTAL", [["WORKS", "808"]], "Totals")));
     sink = null;
     ok("a refusal prints the full reason in the terminal", !bad.ok && logs.some((l) => /^\[answer\] not shown: unverified: the column "TOTAL"/.test(l)), JSON.stringify(logs));
+    ok("...and the model's own reply, so a refusal can be understood from the terminal alone", logs.some((l) => /^\[answer\] the model's reply was: \{"answerable":true/.test(l)), JSON.stringify(logs).slice(0, 300));
     clearAnswerCache();
   }
 

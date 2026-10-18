@@ -300,6 +300,63 @@ function columnBesideValue(nq: string, column: string, value: string, allowBefor
   }
 }
 
+/** Lower-case letters and digits only, each kept character with its place in the original text. */
+function normalizeWithMap(s: string): { norm: string; at: number[] } {
+  let norm = "";
+  const at: number[] = [];
+  let i = 0;
+  for (const ch of s) {
+    for (const c of ch.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")) { norm += c; at.push(i); }
+    i += ch.length;
+  }
+  return { norm, at };
+}
+
+/** True if a label ("Area", "BASIC", "Daily Wages (Rs.)") stands twice in the text: two rows of a table, not one. */
+function labelRepeats(span: string): boolean {
+  const seen = new Set<string>();
+  for (const m of span.matchAll(/([\p{L}][\p{L}\p{N} .()/&'-]{0,50}?):/gu)) {
+    const k = normalizeForQuote(m[1]);
+    if (k.length < 2) continue;
+    if (seen.has(k)) return true;
+    seen.add(k);
+  }
+  return false;
+}
+
+/**
+ * A quote that leaves cells out. A model asked for "the label, the column and the value together" often copies only those cells ("Area: WORKS |
+ * Daily Wages (Rs. Per Day of duty): 808"), or marks what it left out with "...". That is accepted when every piece (cells split at "|" and at an
+ * ellipsis) is found word for word in the document, IN ORDER, within ONE table row: the span from the first piece to the last must be short and must
+ * not hold the same column label twice (that would be two rows, and a label could end up beside another row's value).
+ */
+export function piecesInOneRow(quote: string, passageText: string): boolean {
+  const pieces = quote.split(/…|\.{3}|\|/).map((x) => normalizeForQuote(x)).filter((x) => x.length >= 2);
+  if (pieces.length < 2) return false;
+  const { norm, at } = normalizeWithMap(passageText);
+  const maxSpan = Math.max(450, quote.length * 3);
+  for (let s = norm.indexOf(pieces[0]); s >= 0; s = norm.indexOf(pieces[0], s + 1)) {
+    let pos = s + pieces[0].length, ok = true;
+    for (let k = 1; k < pieces.length; k++) {
+      const idx = norm.indexOf(pieces[k], pos);
+      if (idx < 0) { ok = false; break; }
+      pos = idx + pieces[k].length;
+    }
+    if (!ok) continue;
+    const span = passageText.slice(at[s], at[pos - 1] + 1);
+    if (span.length <= maxSpan && !labelRepeats(span)) return true;
+  }
+  return false;
+}
+
+/** For the terminal: where a refused quote stops matching the document (the longest start of it that IS there). */
+export function quoteMissReport(quote: string, passageText: string): string {
+  const nq = normalizeForQuote(quote), np = normalizeForQuote(passageText);
+  let k = 0;
+  while (k < nq.length && np.includes(nq.slice(0, k + 1))) k++;
+  return k >= nq.length ? "the whole quote is there (checked as pieces in one row)" : `it matches the document for its first ${k} of ${nq.length} letters and digits, then breaks at: "...${quote.slice(Math.max(0, quote.length - (nq.length - k) - 12), quote.length - (nq.length - k) + 40).replace(/\s+/g, " ")}"`;
+}
+
 /** The cells of a table row as the app's own table reader writes it: "Label: value | Label: value". */
 function rowCells(quote: string): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = [];
@@ -351,7 +408,7 @@ export function verifyAnswer(a: ModelAnswer, passages: Passage[]): VerifyResult 
     if (quote.length > MAX_QUOTE_CHARS) return fail("unverified: a quote is too long to be one sentence or one table row");
     const nq = normalizeForQuote(quote);
     if (nq.length < 6) return fail("unverified: a quote is too short to prove anything");
-    if (!normalizeForQuote(p.text).includes(nq)) return fail("unverified: a quote is not in the document word for word");
+    if (!normalizeForQuote(p.text).includes(nq) && !piecesInOneRow(quote, p.text)) return fail(`unverified: a quote is not in the document word for word (${quoteMissReport(quote, p.text)})`);
     if (!r.label || r.label.length > MAX_CELL_CHARS || !r.value || r.value.length > MAX_CELL_CHARS || r.column.length > MAX_CELL_CHARS) {
       return fail("unverified: a label or a value is empty or too long");
     }
@@ -461,7 +518,10 @@ export async function answerFromPassages(question: string, passages: Passage[], 
   const parsed = parseModelAnswer(raw);
   const result: VerifyResult = parsed ? verifyAnswer(parsed, passages) : { ok: false, reason: "unverified: the model's reply was not readable" };
   // the front-path line shows only the first word of a refusal; this says exactly which rule refused, so a refusal can be understood at once
-  if (!result.ok && result.reason !== "not_answerable") console.info(`[answer] not shown: ${result.reason}`);
+  if (!result.ok && result.reason !== "not_answerable") {
+    console.info(`[answer] not shown: ${result.reason}`);
+    console.info(`[answer] the model's reply was: ${String(raw).replace(/\s+/g, " ").slice(0, 1500)}`);
+  }
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
   cache.set(key, { at: now, result });
   return result;
