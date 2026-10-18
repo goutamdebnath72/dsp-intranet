@@ -362,6 +362,41 @@ export function piecesInOneRow(quote: string, passageText: string): boolean {
   return false;
 }
 
+/**
+ * The words of the SENTENCE of the document that holds the quote. A model often quotes only a clause (`may please be read as "Rs.14,999/-"`),
+ * whose subject ("the amount of the Gift Card") stands earlier in the same sentence. The sentence runs back to the previous full stop followed by a
+ * space (or line break) and forward to the next one, at most 400 characters either way; "Rs.15,000" and "w.e.f." do not end a sentence (no space after
+ * the dot). ONLY PROSE QUALIFIES: the result is empty if the quote cannot be located, if a real sentence boundary is not found on BOTH sides within 400
+ * characters (a table, flattened to one run of text, has none: its heading must never back a value of another column), or if the window holds a table
+ * cell separator ("|") or a table marker.
+ */
+export function sentenceWordsAround(passageText: string, quote: string): Set<string> {
+  const { norm, at } = normalizeWithMap(passageText);
+  const whole = normalizeForQuote(quote);
+  let from = -1, to = -1;
+  const i = whole ? norm.indexOf(whole) : -1;
+  if (i >= 0) { from = at[i]; to = at[i + whole.length - 1] + 1; }
+  else {
+    const pieces = quote.split(/…|\.{3}|\|/).map((x) => normalizeForQuote(x)).filter((x) => x.length >= 2);
+    if (pieces.length) {
+      const a = norm.indexOf(pieces[0]);
+      const b = a >= 0 ? norm.indexOf(pieces[pieces.length - 1], a) : -1;
+      if (a >= 0 && b >= 0) { from = at[a]; to = at[b + pieces[pieces.length - 1].length - 1] + 1; }
+    }
+  }
+  if (from < 0) return new Set();
+  const lo = Math.max(0, from - 400);
+  const lm = [...passageText.slice(lo, from).matchAll(/[.!?]["')\]]?\s+|\n/g)].pop();
+  if (!lm && lo > 0) return new Set(); // no sentence start within reach
+  const a0 = lm && lm.index !== undefined ? lo + lm.index + lm[0].length : 0;
+  const rm = passageText.slice(to, to + 400).match(/[.!?]["')\]]?(\s|$)|\n/);
+  if (!rm && to + 400 < passageText.length) return new Set(); // no sentence end within reach
+  const b0 = rm && rm.index !== undefined ? to + rm.index + rm[0].length : passageText.length;
+  const window = passageText.slice(a0, b0);
+  if (/\||\[\/?TABLE\]/.test(window)) return new Set(); // a table row, not a sentence
+  return wordSet(window);
+}
+
 /** For the terminal: where a refused quote stops matching the document (the longest start of it that IS there). */
 export function quoteMissReport(quote: string, passageText: string): string {
   const nq = normalizeForQuote(quote), np = normalizeForQuote(passageText);
@@ -488,7 +523,10 @@ export function verifyAnswer(a: ModelAnswer, passages: Passage[]): VerifyResult 
       if (!columnBesideValue(nq, r.column, r.value, false) && !columnInValueCell(quote, r.column, r.value)) return fail(`unverified: the column "${r.column}" does not stand beside the value "${r.value}" in its quote`);
     } else if (r.column) {
       const cw = contentWords(r.column);
-      if (!cw.every((w) => qWords.has(w))) return fail(`unverified: the column "${r.column}" is not in its quote`);
+      // the column's words are in the quote, or in the sentence of the document that holds it (a quoted clause leaves its subject in the sentence)
+      if (!cw.every((w) => qWords.has(w)) && !(cw.length && (() => { const sw = sentenceWordsAround(p.text, quote); return cw.every((w) => sw.has(w)); })())) {
+        return fail(`unverified: the column "${r.column}" is not in its quote`);
+      }
     }
 
     qNums.forEach((x) => allowed.add(x));

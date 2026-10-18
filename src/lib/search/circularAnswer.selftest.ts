@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPageUnits, planChunks } from "../ingestion/chunking";
 import {
-  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, verifyAnswer,
+  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, sentenceWordsAround, verifyAnswer,
   type DocInput, type ModelAnswer, type Passage, type RowIn,
 } from "./circularAnswer";
 
@@ -304,6 +304,35 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     const withChecks = buildPassages("gift card", [{ type: "circular", id: 51, title: "Gift", date: null, chunks: [{ page: 1, index: 0, text: gift }], checks: CHK }]);
     ok("buildPassages passes the checks on to the passage", JSON.stringify(withChecks[0].checks) === JSON.stringify(CHK));
     ok("...and adds nothing when there are none", !("checks" in buildPassages("gift card", [{ type: "circular", id: 51, title: "Gift", date: null, chunks: [{ page: 1, index: 0, text: gift }] }])[0]));
+  }
+
+  // ---------------------------------------------------------------- the REAL corrigendum, and the model's REAL reply (copied from the terminal, 18 Oct)
+  {
+    const page: string = JSON.parse(readFileSync(join(__dirname, "..", "ingestion", "__fixtures__", "pilot-readings.json"), "utf8")).find((x: { id: string }) => x.id === "gift-card-corrigendum").pipeline;
+    const flat = (page + " \n").replace(/\s+/g, " ").trim();
+    const docC: DocInput = { type: "circular", id: 49, title: "Circular - Gift card corrigendum", date: "2026-08-08T00:00:00.000Z", chunks: planChunks(buildPageUnits([page], flat)).map((c) => ({ page: c.page, index: c.index, text: c.text })) };
+    const Qc = "employees can choose a gift card online, what amount was first announced and what was it corrected to?";
+    const pc = buildPassages(Qc, [docC]);
+    const reply = `{"answerable":true,"title":"Gift Card Amount Correction 2026","rows":[{"label":"Initial announced amount","column":"Gift Card Amount","value":"Rs.15,000/-","source":1,"quote":"the amount of the Gift Card (E-Multi Benefit Card) mentioned as \\"Rs.15,000/-\\""},{"label":"Corrected amount","column":"Gift Card Amount","value":"Rs.14,999/-","source":1,"quote":"may please be read as \\"Rs.14,999/-\\""}]}`;
+    const parsed = parseModelAnswer(reply);
+    ok("REAL corrigendum: the model's reply from the terminal is readable", !!parsed);
+    const real = parsed ? verifyAnswer(parsed, pc) : null;
+    ok("REAL corrigendum: the model's reply is ACCEPTED (its second quote is a clause; the column is in the same sentence)", !!real && real.ok, real && !real.ok ? real.reason : "");
+    const withChecks = pc.map((x) => ({ ...x, checks: { 1: { confirmed: ["15000", "14999", "8.8.2026".replace(/\./g, "."), "2026"], unconfirmed: [] } } }));
+    ok("REAL corrigendum: ...and passes the confirmation gate when both amounts are confirmed", !!parsed && verifyAnswer(parsed, withChecks).ok);
+    const gated = pc.map((x) => ({ ...x, checks: { 1: { confirmed: ["15000"], unconfirmed: ["14999"] } } }));
+    const g = parsed ? verifyAnswer(parsed, gated) : null;
+    ok("REAL corrigendum: ...and is refused if 14,999 were only read by the pipeline", !!g && !g.ok && /not confirmed by the second reading/.test(g.reason), g && !g.ok ? g.reason : "ACCEPTED");
+    const row = (column: string, value: string, quote: string): ModelAnswer => ({ answerable: true, title: "Gift card", note: "", rows: [{ label: "Corrected amount", column, value, source: 1, quote }] });
+    const clause = 'may please be read as "Rs.14,999/-"';
+    const wrongCol = verifyAnswer(row("Daily Wage", "Rs.14,999/-", clause), pc);
+    ok("REAL corrigendum: a column that is not in the sentence is still refused", !wrongCol.ok && /is not in its quote/.test(wrongCol.reason), wrongCol.ok ? "ACCEPTED" : wrongCol.reason);
+    const nextSentence = verifyAnswer(row("Last date", "Rs.14,999/-", clause), pc);
+    ok("REAL corrigendum: a column from the NEXT sentence (the last date) is refused", !nextSentence.ok && /is not in its quote/.test(nextSentence.reason), nextSentence.ok ? "ACCEPTED" : nextSentence.reason);
+    ok("sentenceWordsAround: the words of the sentence that holds the clause", (() => { const w = sentenceWordsAround(pc[0].text, clause); return w.has("amount") && w.has("gift") && w.has("card") && !w.has("last"); })());
+    ok("sentenceWordsAround: a table (one run of text with cells) gives no sentence at all", sentenceWordsAround("Heading: WAGES SL.: 1 | Area: WORKS | TOTAL: 20995.30 | Daily Wages (Rs. Per Day of duty): 808 SL.: 2 | Area: PROJECTS | TOTAL: 19245.30 | Daily Wages (Rs. Per Day of duty): 740", "Area: WORKS | TOTAL: 20995.30").size === 0);
+    ok("sentenceWordsAround: a long run of numbers with no sentence end gives no sentence", sentenceWordsAround("Daily Wages Per Day " + "WORKS 3350.00 13478.00 375.00 1720.30 52.00 270.00 ".repeat(20) + "20995.30 end", "WORKS 3350.00 13478.00").size === 0);
+    ok("sentenceWordsAround: an unknown quote gives nothing", sentenceWordsAround("A sentence. Another one.", "not there at all").size === 0);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
