@@ -12,6 +12,23 @@ Since step 23a the app reports, in response headers (`x-omni-*`, `Server-Timing`
 question in the server console, the route that answered, each stage's time, the model calls and the exact tokens. The runner
 records them (so `--max-tokens` is exact) and the report shows model use and where the time goes, per route.
 
+## One place for the questions
+
+Every question lives in `router-acceptance.json` and nowhere else; `QUERIES.md` is its readable checklist (generated, do not edit it).
+Do not keep a second list in a script. The tool is `node scripts/queries.mjs` (its header explains every command):
+
+| to do this | run |
+|---|---|
+| see every question, what a correct answer is, and its last result | open `eval/QUERIES.md` (rewritten by every command below, or by `node scripts/queries.mjs`) |
+| record a result after trying a question on screen | `node scripts/queries.mjs mark A-C3 ok --answer "what you saw"` (`ok`, `fail` or `unknown`; `--answer` is the answer card, without it the search result) |
+| add a new question | `node scripts/queries.mjs add "the question" --route CIRCULAR --facts "15,000\|15000; 14,999"` (nothing is added if the same words are already there) |
+| find a question or its id | `node scripts/queries.mjs find gift card` |
+| look for duplicates or broken records | `node scripts/queries.mjs check` |
+
+A record may carry an `answer` block: the facts the ANSWER CARD must show (`facts`, an inner list is alternative spellings), what it must not show
+(`forbidden`), and its result (`status`, `note`). `scripts/test-search.mjs` and `scripts/circular-battery.mjs` still hold their own copies of some questions
+(all of them are in the set); they are candidates to retire once the acceptance runner has an answer stage.
+
 ## A record
 
 | field | meaning |

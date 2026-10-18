@@ -303,6 +303,23 @@
    "run": {
     "mode": "intellectual",
     "auth": "exec"
+   },
+   "answer": {
+    "facts": [
+     [
+      "31.08.2026",
+      "31-08-2026",
+      "31 August 2026"
+     ],
+     [
+      "20.08.2026",
+      "20-08-2026",
+      "20 August 2026"
+     ]
+    ],
+    "forbidden": [],
+    "status": "❓",
+    "note": "not tried on the answer card. The pipeline reads the deadline 20-08-2026 as 20-0802 on the Hindi page; Gemini reads it right: the two readers disagree, so the confirmation gate would refuse it until it is settled"
    }
   },
   {
@@ -337,6 +354,25 @@
    "run": {
     "mode": "intellectual",
     "auth": "exec"
+   },
+   "answer": {
+    "facts": [
+     [
+      "15,000",
+      "15000"
+     ],
+     [
+      "14,999",
+      "14999"
+     ]
+    ],
+    "forbidden": [
+     "75,000",
+     "74,999",
+     "215,000"
+    ],
+    "status": "✅",
+    "note": "2026-10-18 on screen: Initial announced amount Rs.15,000/-, Corrected amount Rs.14,999/-; source: the corrigendum (the original circular states 15,000, the corrigendum reads it as 14,999; last date 15.08.2026 unchanged)"
    }
   },
   {
@@ -345,11 +381,29 @@
    "area": "circular",
    "expectedRoute": "CIRCULAR",
    "source": "A",
-   "lastKnown": "❓",
+   "lastKnown": "✅",
    "expectedFacts": [
     "Daily Rate of Wages"
    ],
-   "notes": "13 Oct baseline: answered with the 2024 LEAVE circular at 95% as the only result, because the wage notice (07_2023.pdf, 16 Dec 2023) is NOT in the database (searching its title finds nothing). Upload it (circulars_wage_one.csv), then this record checks that the notice's headline is returned. Run as a normal Enter search. The battery (L2) says the 2023_07 wage notice was once deleted from the DB; check that it is present. The OCR 'monthly total reported as daily wage' bug was fixed in the table reconstruction."
+   "notes": "13 Oct baseline: answered with the 2024 LEAVE circular at 95% as the only result, because the wage notice (07_2023.pdf, 16 Dec 2023) is NOT in the database (searching its title finds nothing). Upload it (circulars_wage_one.csv), then this record checks that the notice's headline is returned. Run as a normal Enter search. The battery (L2) says the 2023_07 wage notice was once deleted from the DB; check that it is present. The OCR 'monthly total reported as daily wage' bug was fixed in the table reconstruction. | 2026-10-18: the wage notice (circular id 82) was re-read and applied; the search finds it at 99% and the answer card shows the three daily wages.",
+   "answer": {
+    "facts": [
+     [
+      "808"
+     ],
+     [
+      "740"
+     ],
+     [
+      "809"
+     ]
+    ],
+    "forbidden": [
+     "1924530"
+    ],
+    "status": "✅",
+    "note": "2026-10-18 on screen: Works 808, Projects 740, Town Serv(Elect) 809 under 'Daily Wages (Rs. Per Day of duty)', source: Notice for Contract Workers - Daily Rate of Wages, page 1"
+   }
   },
   {
    "id": "A-C5",
@@ -363,6 +417,23 @@
    "run": {
     "mode": "intellectual",
     "auth": "exec"
+   },
+   "answer": {
+    "facts": [
+     [
+      "5 December 2024",
+      "5th December 2024",
+      "05.12.2024"
+     ],
+     [
+      "12.12.2024",
+      "12-12-2024",
+      "12 December 2024"
+     ]
+    ],
+    "forbidden": [],
+    "status": "❓",
+    "note": "not tried on the answer card. Expected from the battery evidence: football trial 5 Dec 2024 (ASP Stadium), table tennis trial 12.12.2024"
    }
   },
   {
@@ -3740,6 +3811,62 @@
     "EDS"
    ],
    "synthesis": true
+  },
+  {
+   "id": "TS-D1",
+   "query": "टेबल टेनिस टीम के खिलाड़ियों का चयन",
+   "area": "circular",
+   "expectedRoute": "CIRCULAR",
+   "expectedFacts": [
+    [
+     "TABLE TENNIS"
+    ]
+   ],
+   "source": "TS",
+   "lastKnown": "❓",
+   "notes": "from scripts/test-search.mjs group D: a Hindi question must find the English table tennis circular"
+  },
+  {
+   "id": "TS-D2",
+   "query": "How much deposit is required to keep a 2-bedroom quarter in Delhi after retirement?",
+   "area": "circular",
+   "expectedRoute": "CIRCULAR",
+   "expectedFacts": [
+    [
+     "Retention of Company"
+    ]
+   ],
+   "source": "TS",
+   "lastKnown": "❓",
+   "notes": "from scripts/test-search.mjs group D: a conversational question must find the quarter-retention circular"
+  },
+  {
+   "id": "TS-D3",
+   "query": "तेलुगु, तमिल, कन्नड़, मलयालम, मिजो",
+   "area": "circular",
+   "expectedRoute": "CIRCULAR",
+   "expectedFacts": [
+    [
+     "HTS"
+    ]
+   ],
+   "source": "TS",
+   "lastKnown": "❓",
+   "notes": "from scripts/test-search.mjs group D: a list of Indian languages must find the Hindi teaching scheme (HTS)"
+  },
+  {
+   "id": "TS-E1",
+   "query": "20995.30",
+   "area": "circular",
+   "expectedRoute": "CIRCULAR",
+   "expectedFacts": [
+    [
+     "Daily Rate of Wages"
+    ]
+   ],
+   "source": "TS",
+   "lastKnown": "❓",
+   "notes": "from scripts/test-search.mjs group E: a bare number from the wage table must find the wage notice (it works since the OCR was fixed)"
   }
  ]
 }
