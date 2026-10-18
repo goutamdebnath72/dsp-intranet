@@ -622,7 +622,13 @@
    "source": "B",
    "lastKnown": "❓",
    "notes": "The app has no salary data and must say so, never invent. Observed only until the route label is agreed.",
-   "pendingDecision": "the NOT-FOUND label is proposed, not decided"
+   "pendingDecision": "the NOT-FOUND label is proposed, not decided",
+   "answer": {
+    "facts": [],
+    "forbidden": [],
+    "status": "✅",
+    "note": "2026-10-18: no salary data, named person stays final, 18 Oct"
+   }
   },
   {
    "id": "B-20",
@@ -2664,8 +2670,8 @@
    "answer": {
     "facts": [],
     "forbidden": [],
-    "status": "❌",
-    "note": "2026-10-18: routed to the SQL engine: unanswerable ended the route, circulars never tried, 18 Oct"
+    "status": "✅",
+    "note": "2026-10-18: routed to the SQL engine: unanswerable ended the route, circulars never tried, 18 Oct | 2026-10-18: Room No. 15 confirmed on the page, found via the circulars, 18 Oct"
    }
   },
   {
