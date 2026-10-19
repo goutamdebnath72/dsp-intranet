@@ -13,21 +13,28 @@
 //
 // Switched off with UPLOAD_SECOND_READING=false, and off when there is no GEMINI_API_KEY. Unit-tested by uploadSecondReading.selftest.ts with fake readers.
 
-import { DEFAULT_GEMINI_MODEL, geminiReader, type PageReader } from "./pageReader";
+import { DEFAULT_GEMINI_MODEL, geminiReader, type AttemptInfo, type PageReader } from "./pageReader";
 import { reconcilePage, type Dispute } from "./pageVerify";
 import type { NewCheck } from "../search/pageChecks";
 
-/** The reader of an upload, or null when the step is switched off or has no key. A single read may take at most 75 s. */
+/**
+ * The reader of an upload, or null when the step is switched off or has no key. One attempt may take at most 50 s (a normal read takes 20 to 30 s; seen on
+ * 19 Oct 2026: an attempt that hangs until its limit and a retry that succeeds, so a long limit only makes the upload wait longer for nothing).
+ */
 export function uploadSecondReader(env: Record<string, string | undefined> = process.env): PageReader | null {
   if ((env.UPLOAD_SECOND_READING ?? "").trim().toLowerCase() === "false") return null;
   if (!env.GEMINI_API_KEY) return null;
-  return geminiReader({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL, timeoutMs: 75_000 });
+  return geminiReader({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL, timeoutMs: 50_000 });
 }
 
 export interface PageLog {
   page: number;
   used: "second" | "pipeline";
   reason: string;
+  /** How long the successful read took, in ms. */
+  readMs?: number;
+  /** The attempts that failed before the read succeeded or was given up (how long each ran and why it failed). */
+  attempts?: AttemptInfo[];
   confirmed: number;
   onlyPipeline: number;
   onlySecond: number;
@@ -54,17 +61,22 @@ export interface SecondReadingSummary {
   log: SecondReadingLog;
 }
 
-type Outcome = { text?: string; error?: string };
+type Outcome = { text?: string; error?: string; ms?: number };
+type Entry = { promise: Promise<Outcome>; attempts: AttemptInfo[]; startedAt: number };
 
-export function createSecondReading(o: { reader: PageReader | null; deadlineAt: number; concurrency?: number; now?: () => number }) {
+/** How long finish() waits for the reads once the pages are all read by Tesseract (they began while it worked), unless the deadline comes first. */
+export const DEFAULT_GRACE_MS = 150_000;
+
+export function createSecondReading(o: { reader: PageReader | null; deadlineAt: number; concurrency?: number; graceMs?: number; now?: () => number }) {
   const reader = o.reader;
   const now = o.now ?? Date.now;
+  const grace = o.graceMs ?? DEFAULT_GRACE_MS;
   const limit = Math.max(1, o.concurrency ?? 2);
   let active = 0;
   const waiting: Array<() => void> = [];
   let refusedOnRate = false;
   const startedAt = now();
-  const entries = new Map<number, Promise<Outcome>>();
+  const entries = new Map<number, Entry>();
 
   const schedule = <T,>(job: () => Promise<T>): Promise<T> =>
     new Promise<T>((resolve, reject) => {
@@ -85,20 +97,25 @@ export function createSecondReading(o: { reader: PageReader | null; deadlineAt: 
     /** Starts the second reading of one page (1-based). Does nothing when the step is off or the page was already started. */
     start(page: number, png: Buffer): void {
       if (!reader || entries.has(page)) return;
-      entries.set(
-        page,
-        schedule<Outcome>(async () => {
+      const attempts: AttemptInfo[] = [];
+      const startedAt = now();
+      entries.set(page, {
+        attempts,
+        startedAt,
+        promise: schedule<Outcome>(async () => {
           if (refusedOnRate) return { error: "skipped: the service had refused on its rate limit" };
           if (now() >= o.deadlineAt) return { error: "skipped: no time was left" };
+          const t0 = now();
           try {
-            return { text: await reader.read(png) };
+            const text = await reader.read(png, { onAttempt: (a) => attempts.push({ attempt: a.attempt, ms: a.ms, error: a.error.slice(0, 160) }) });
+            return { text, ms: now() - t0 };
           } catch (e) {
             const message = String((e as Error)?.message ?? e);
             if (/\b429\b|quota|rate.?limit/i.test(message)) refusedOnRate = true;
             return { error: message.slice(0, 200) };
           }
         }),
-      );
+      });
     },
 
     /**
@@ -109,13 +126,19 @@ export function createSecondReading(o: { reader: PageReader | null; deadlineAt: 
       if (!reader) return { enabled: false, changedPages: 0, checks: [], log: { enabled: false, pagesRead: 0, pagesFromSecond: 0, pagesKept: 0, pages: [] } };
       const pages = [...entries.keys()].sort((a, b) => a - b);
       let timer: ReturnType<typeof setTimeout> | undefined;
+      const waitUntil = Math.min(o.deadlineAt, now() + grace);
       const timeout = new Promise<"timeout">((resolve) => {
-        timer = setTimeout(() => resolve("timeout"), Math.max(0, o.deadlineAt - now()));
+        timer = setTimeout(() => resolve("timeout"), Math.max(0, waitUntil - now()));
       });
       const results = await Promise.all(
         pages.map(async (page) => {
-          const r = await Promise.race([entries.get(page) as Promise<Outcome>, timeout]);
-          return { page, ...(r === "timeout" ? { error: "not back in the time available" } : r) } as { page: number } & Outcome;
+          const entry = entries.get(page) as Entry;
+          const r = await Promise.race([entry.promise, timeout]);
+          if (r !== "timeout") return { page, ...r } as { page: number } & Outcome;
+          // given up: say how long it had been waiting and what the earlier attempts had run into
+          const waited = Math.round((now() - entry.startedAt) / 1000);
+          const tried = entry.attempts.map((a) => `attempt ${a.attempt} failed after ${Math.round(a.ms / 1000)} s: ${a.error}`).join("; ");
+          return { page, error: `not back in the time available (waited ${waited} s${tried ? `; ${tried}` : "; no attempt had failed yet, the first was still waiting"})` } as { page: number } & Outcome;
         }),
       );
       if (timer) clearTimeout(timer);
@@ -130,7 +153,11 @@ export function createSecondReading(o: { reader: PageReader | null; deadlineAt: 
           changed++;
         }
         if (v.check) checks.push({ page: r.page, status: v.check.status, confirmed: v.check.confirmed, unconfirmed: v.check.unconfirmed, secondOnly: v.check.secondOnly, reader: v.check.reader });
-        logPages.push({ page: r.page, used: v.source, reason: v.reason, confirmed: v.stats.confirmed, onlyPipeline: v.stats.onlyPipeline, onlySecond: v.stats.onlySecond, disputes: v.disputes, dropped: v.dropped });
+        const attempts = (entries.get(r.page) as Entry).attempts;
+        logPages.push({
+          page: r.page, used: v.source, reason: v.reason, ...(r.ms !== undefined ? { readMs: r.ms } : {}), ...(attempts.length ? { attempts } : {}),
+          confirmed: v.stats.confirmed, onlyPipeline: v.stats.onlyPipeline, onlySecond: v.stats.onlySecond, disputes: v.disputes, dropped: v.dropped,
+        });
       }
       return {
         enabled: true,
@@ -150,7 +177,7 @@ export function readingLine(log: SecondReadingLog | null | undefined): string {
   const total = log.pagesRead;
   const used = log.pagesFromSecond;
   const differing = log.pages.filter((p) => p.used === "second" && (p.onlyPipeline > 0 || p.onlySecond > 0)).length;
-  const why = (log.pages.find((p) => p.used === "pipeline")?.reason ?? "").replace(/^no second reading: /, "").replace(/\.$/, "");
+  const why = (log.pages.find((p) => p.used === "pipeline")?.reason ?? "").replace(/^no second reading: /, "").replace(/\s*\(.*$/, "").replace(/\.$/, "");
   if (used === 0) return `The second reader could not be used for this circular${why ? ` (${why})` : ""}: it was read once, as before.`;
   if (used < total) return `Checked by a second reader: ${used} of ${pagesWord(total)}; the others were read once, as before${why ? ` (${why})` : ""}.`;
   if (differing === 0) return `Checked by a second reader: all ${pagesWord(total)} agree on every important number.`;

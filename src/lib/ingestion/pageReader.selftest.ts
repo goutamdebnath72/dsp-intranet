@@ -69,6 +69,35 @@ const res = (status: number, body: unknown) => ({ ok: status >= 200 && status < 
   ok("the local-model setting no longer exists: no reader", readerFromEnv({ PAGE_READER: "ollama", PAGE_READER_OLLAMA_MODEL: "qwen2.5vl:7b" }) === null);
   ok("the setting is not case-sensitive", readerFromEnv({ PAGE_READER: " Gemini ", GEMINI_API_KEY: "K" })?.name.startsWith("gemini:") === true);
 
-  console.log(`\n${pass} passed, ${fail} failed`);
+    // ---- attempts: how many, how long each ran, and why it failed (step 39c)
+  {
+    let n = 0;
+    const two = geminiReader({ apiKey: "K", noWait: true, maxAttempts: 2, fetchImpl: async () => { n++; return res(503, { error: "down" }); } });
+    ok("maxAttempts 2: a service that stays down is asked twice, then fails", await two.read(png).then(() => false, (e) => /503/.test(String(e))) && n === 2, `calls=${n}`);
+    n = 0;
+    const one = geminiReader({ apiKey: "K", noWait: true, maxAttempts: 1, fetchImpl: async () => { n++; return res(429, { error: "slow" }); } });
+    ok("maxAttempts 1: asked once", await one.read(png).then(() => false, () => true) && n === 1);
+    n = 0;
+    const seenAttempts: { attempt: number; ms: number; error: string }[] = [];
+    const hangs = geminiReader({
+      apiKey: "K", noWait: true, timeoutMs: 40,
+      fetchImpl: (_u, init) => {
+        n++;
+        if (n === 1) return new Promise((_r, reject) => init.signal?.addEventListener("abort", () => reject(new Error("This operation was aborted")))) as any;
+        return Promise.resolve(res(200, { candidates: [{ content: { parts: [{ text: "second try" }] }, finishReason: "STOP" }] }));
+      },
+    });
+    const text2 = await hangs.read(png, { onAttempt: (a) => seenAttempts.push(a) });
+    ok("a hung attempt is abandoned at the timeout and the retry succeeds", text2 === "second try" && n === 2, `n=${n} text=${text2}`);
+    ok("the failed attempt is reported with its number, how long it ran and why", seenAttempts.length === 1 && seenAttempts[0].attempt === 1 && seenAttempts[0].ms >= 30 && /aborted/.test(seenAttempts[0].error), JSON.stringify(seenAttempts));
+    const viaOpts: number[] = [];
+    n = 0;
+    const flaky2 = geminiReader({ apiKey: "K", noWait: true, fetchImpl: async () => { n++; return n < 3 ? res(503, { error: "x" }) : res(200, { candidates: [{ content: { parts: [{ text: "ok" }] }, finishReason: "STOP" }] }); } });
+    await flaky2.read(png, { onAttempt: (a) => viaOpts.push(a.attempt) });
+    ok("every failed attempt before a success is reported (two here)", viaOpts.join() === "1,2", viaOpts.join());
+    ok("a read that succeeds first time reports nothing", await (async () => { const got: unknown[] = []; await geminiReader({ apiKey: "K", fetchImpl: async () => res(200, { candidates: [{ content: { parts: [{ text: "fine" }] }, finishReason: "STOP" }] }) }).read(png, { onAttempt: (a) => got.push(a) }); return got.length === 0; })());
+  }
+
+console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

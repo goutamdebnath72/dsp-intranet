@@ -11,10 +11,22 @@
 // A reading that is cut off (Gemini's finishReason is not STOP) or in which the model began repeating itself ends with STOPPED_MARKER, so that
 // it is never mistaken for a complete reading.
 
+/** One failed attempt of a read: which attempt, how long it ran and why it failed. */
+export interface AttemptInfo {
+  attempt: number;
+  ms: number;
+  error: string;
+}
+
+export interface ReadHooks {
+  /** Called after every attempt that failed and will be retried (or was the last): for the log of an upload. */
+  onAttempt?: (info: AttemptInfo) => void;
+}
+
 export interface PageReader {
   name: string;
   /** The text of one page image. Throws if the service fails. */
-  read(png: Buffer): Promise<string>;
+  read(png: Buffer, hooks?: ReadHooks): Promise<string>;
 }
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{
@@ -45,6 +57,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export interface GeminiOptions {
   apiKey?: string;
   model?: string;
+  /** Attempts per read, the first included (default 3: the first and two retries). */
+  maxAttempts?: number;
   fetchImpl?: FetchLike;
   timeoutMs?: number;
   /** Test hook: no real waiting between retries. */
@@ -65,7 +79,7 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
   const doFetch: FetchLike = opts.fetchImpl ?? ((url, init) => fetch(url, init as any) as any);
   return {
     name: `gemini:${model}`,
-    async read(png: Buffer): Promise<string> {
+    async read(png: Buffer, hooks?: ReadHooks): Promise<string> {
       if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
       const body = JSON.stringify({
         contents: [{ role: "user", parts: [{ text: PAGE_READER_PROMPT }, { inline_data: { mime_type: sniffImageMime(png), data: png.toString("base64") } }] }],
@@ -73,7 +87,9 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
       });
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
       let lastErr = "";
-      for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
+      const attempts = Math.max(1, opts.maxAttempts ?? BACKOFF_MS.length + 1);
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        const startedAt = Date.now();
         const ctl = new AbortController();
         const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 120_000);
         try {
@@ -98,7 +114,8 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
         } finally {
           clearTimeout(timer);
         }
-        if (attempt < BACKOFF_MS.length && !opts.noWait) await sleep(BACKOFF_MS[attempt]);
+        hooks?.onAttempt?.({ attempt: attempt + 1, ms: Date.now() - startedAt, error: lastErr });
+        if (attempt < attempts - 1 && !opts.noWait) await sleep(BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]);
       }
       throw new Error(lastErr || "Gemini request failed");
     },

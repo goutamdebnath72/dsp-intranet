@@ -5,8 +5,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPageUnits, planChunks } from "./chunking";
-import type { PageReader } from "./pageReader";
-import { createSecondReading, readingLine, uploadSecondReader, type SecondReadingLog } from "./uploadSecondReading";
+import type { AttemptInfo, PageReader } from "./pageReader";
+import { DEFAULT_GRACE_MS, createSecondReading, readingLine, uploadSecondReader, type SecondReadingLog } from "./uploadSecondReading";
 import { checkRowsFor, freshChecks } from "../search/pageChecks";
 
 let pass = 0, fail = 0;
@@ -131,6 +131,67 @@ const far = () => Date.now() + 60_000;
     sr.start(2, Buffer.from("football-trial"));
     const r = await sr.finish(text);
     ok("page 2 with no pipeline text at all (OCR failed) takes the second reading", r.changedPages === 1 && (text[1] ?? "").length > 100 && text[0] === undefined);
+  }
+
+  // ---- a stalled service costs a bounded wait, and the log says what happened (step 39c)
+  {
+    ok("the wait after the OCR is 150 s by default", DEFAULT_GRACE_MS === 150_000);
+    const stalled: PageReader = { name: "stalled", read: () => new Promise<string>((r) => setTimeout(() => r("late"), 600)) };
+    const sr = createSecondReading({ reader: stalled, deadlineAt: far(), graceMs: 80 });
+    const text = [pg("wage-notice").pipeline];
+    sr.start(1, Buffer.from("wage-notice"));
+    const t0 = Date.now();
+    const r = await sr.finish(text);
+    const took = Date.now() - t0;
+    ok("a read still not back after the grace is given up (about 80 ms here, not the 600 ms of the read, not the far deadline)", took >= 60 && took < 350, String(took));
+    ok("...the page keeps the pipeline's text", text[0] === pg("wage-notice").pipeline && r.changedPages === 0);
+    ok("...the reason says how long it waited", /not back in the time available \(waited \d+ s/.test(r.log.pages[0].reason) && /the first was still waiting/.test(r.log.pages[0].reason), r.log.pages[0].reason);
+    ok("...and the uploader's line has no nested brackets", readingLine(r.log) === "The second reader could not be used for this circular (not back in the time available): it was read once, as before.", readingLine(r.log));
+    await sleep(550);
+
+    const failing: PageReader = {
+      name: "hung-then-hung",
+      read: (_png, hooks) => {
+        hooks?.onAttempt?.({ attempt: 1, ms: 50_000, error: "Gemini request failed: This operation was aborted" });
+        return new Promise<string>((res) => setTimeout(() => res("late"), 600));
+      },
+    };
+    const sr2 = createSecondReading({ reader: failing, deadlineAt: far(), graceMs: 60 });
+    sr2.start(1, Buffer.from("x"));
+    const r2 = await sr2.finish(["text"]);
+    ok("a stall after an earlier failed attempt: the reason names that attempt, how long it ran and why it failed", /attempt 1 failed after 50 s: Gemini request failed: This operation was aborted/.test(r2.log.pages[0].reason), r2.log.pages[0].reason);
+    ok("...and the attempt is in the page's log", r2.log.pages[0].attempts?.length === 1 && r2.log.pages[0].attempts?.[0].attempt === 1, JSON.stringify(r2.log.pages[0].attempts));
+    await sleep(550);
+
+    const retried: PageReader = {
+      name: "retried",
+      read: async (_png, hooks) => {
+        const a: AttemptInfo = { attempt: 1, ms: 50_000, error: "Gemini request failed: This operation was aborted" };
+        hooks?.onAttempt?.(a);
+        await sleep(15);
+        return pg("football-trial").gemini;
+      },
+    };
+    const sr3 = createSecondReading({ reader: retried, deadlineAt: far(), graceMs: 5_000 });
+    sr3.start(1, Buffer.from("x"));
+    const text3 = [pg("football-trial").pipeline];
+    const r3 = await sr3.finish(text3);
+    ok("a read that succeeded after a failed attempt is used, and the failed attempt stays in the log with the read time", r3.changedPages === 1 && r3.log.pages[0].attempts?.length === 1 && typeof r3.log.pages[0].readMs === "number" && (r3.log.pages[0].readMs as number) >= 10, JSON.stringify(r3.log.pages[0]).slice(0, 220));
+    const fastOk = fakeReader({ delay: 10 });
+    const sr4 = createSecondReading({ reader: fastOk.reader, deadlineAt: far(), graceMs: 2_000 });
+    sr4.start(1, Buffer.from("wage-notice"));
+    const r4 = await sr4.finish([pg("wage-notice").pipeline]);
+    ok("a read that returns within the grace is not cut", r4.changedPages === 1 && r4.log.pages[0].attempts === undefined && typeof r4.log.pages[0].readMs === "number");
+    ok("the grace never extends past the absolute deadline", await (async () => {
+      const slow: PageReader = { name: "slow", read: () => new Promise<string>((res) => setTimeout(() => res("late"), 500)) };
+      const s5 = createSecondReading({ reader: slow, deadlineAt: Date.now() + 70, graceMs: 60_000 });
+      s5.start(1, Buffer.from("x"));
+      const t = Date.now();
+      await s5.finish(["text"]);
+      const d = Date.now() - t;
+      await sleep(450);
+      return d < 300;
+    })());
   }
 
   // ---- the round trip: the saved checks are about exactly the text that gets stored
