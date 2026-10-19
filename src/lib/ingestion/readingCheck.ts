@@ -53,13 +53,18 @@ export function asciiDigits(s: string): string {
     .replace(BENGALI_DIGITS, (c) => String(c.charCodeAt(0) - 0x09e6));
 }
 
+/** A dash between digits written as an en dash, an em dash, a minus sign or a spaced hyphen is the same separator as a plain hyphen: "(2026 - 2027)" and "(2026\u20132027)" are "(2026-2027)". */
+export function dashesBetweenDigits(s: string): string {
+  return s.replace(/(\d)\s*[\u2010-\u2015\u2212]\s*(?=\d)/g, "$1-").replace(/(\d)\s+-\s+(?=\d)/g, "$1-");
+}
+
 /**
  * The numbers of a text, each in one canonical form: no thousands commas, and the separators of dates, times and references all written as ".",
  * so 20-08-2026, 20.08.2026 and 20/08/2026 are one number. A lone digit (list numbers, "(i)") is not a number worth comparing.
  */
 export function numbersOf(text: string, withHandwritten = false): Set<string> {
   const out = new Set<string>();
-  for (const m of asciiDigits(withoutNoise(text, withHandwritten)).matchAll(/\d[\d,]*(?:[./:-]\d[\d,]*)*/g)) {
+  for (const m of dashesBetweenDigits(asciiDigits(withoutNoise(text, withHandwritten))).matchAll(/\d[\d,]*(?:[./:-]\d[\d,]*)*/g)) {
     const canon = m[0].replace(/,/g, "").replace(/[/:-]/g, ".");
     if (canon.length >= 2) out.add(canon);
   }
@@ -87,7 +92,7 @@ export function isMajor(n: string): boolean {
 
 /** The words around the first place where a number (in its canonical form) stands in a text, for a human to judge it. null if it is not there. */
 export function numberContext(text: string, canon: string, radius = 36): string | null {
-  const t = asciiDigits(text);
+  const t = dashesBetweenDigits(asciiDigits(text));
   for (const m of t.matchAll(/\d[\d,]*(?:[./:-]\d[\d,]*)*/g)) {
     if (m[0].replace(/,/g, "").replace(/[/:-]/g, ".") !== canon) continue;
     const i = m.index ?? 0;

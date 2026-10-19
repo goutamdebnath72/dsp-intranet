@@ -1,7 +1,7 @@
 /** Self-test of the reading check. Run: npx tsx src/lib/ingestion/readingCheck.selftest.ts. The real cases use the readings of the pilot of 17 Oct 2026. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { asciiDigits, checkReadings, handwrittenNumbers, isMajor, numberContext, numbersOf, oddScriptsIn } from "./readingCheck";
+import { asciiDigits, checkReadings, dashesBetweenDigits, handwrittenNumbers, isMajor, numberContext, numbersOf, oddScriptsIn } from "./readingCheck";
 import { STOPPED_MARKER, cutAtLoop } from "./pageReader";
 
 let pass = 0, fail = 0;
@@ -83,6 +83,21 @@ const locHindi = vsLocal("gpais-hindi");
 ok("REAL Hindi GPAIS, a weaker model's reading: it stopped early (154 blank rows), so the check is PARTIAL, not a disagreement", locHindi.status === "partial" && has(locHindi.onlyFirst, "0315054224", "110856231") && has(locHindi.confirmed, "150.00", "131.25", "112.50", "193.00"), JSON.stringify({ s: locHindi.status, f: locHindi.onlyFirst }));
 ok("REAL Hindi GPAIS, a weaker model's reading: the table numbers it did read are all confirmed", has(locHindi.confirmed, "27.00", "23.62", "20.25", "169.00", "145.00"));
 ok("REAL Hindi GPAIS: the cut text is short, not 176 lines", cutAtLoop(page("gpais-hindi").local).split("\n").length < 30);
+
+// ---- a dash between digits is one separator (seen on a real upload, 18 Oct: "(2026-2027)" read by one reader with a plain hyphen and by the other with another dash)
+{
+  const key = (t: string) => [...numbersOf(t, true)].sort().join();
+  const hyphen = "Extension of SAIL Mediclaim policy (2026-2027) Dated: 11-08-2026";
+  for (const [name, d] of [["en dash", "\u2013"], ["em dash", "\u2014"], ["figure dash", "\u2012"], ["minus sign", "\u2212"], ["spaced hyphen", " - "], ["spaced en dash", " \u2013 "]] as const) {
+    ok(`a ${name} between digits reads as a plain hyphen`, key(hyphen.replace("2026-2027", `2026${d}2027`)) === key(hyphen), key(hyphen.replace("2026-2027", `2026${d}2027`)));
+  }
+  const c = checkReadings(hyphen, hyphen.replace("2026-2027", "2026 \u2013 2027"));
+  ok("REAL upload: the same page read with different dashes now AGREES (it was 'differences': only 2026.2027 against 2026 and 2027)", c.status === "agreed" && c.onlyFirst.length === 0 && c.onlySecond.length === 0, JSON.stringify(c));
+  ok("a short year (2026-27) is still a different number from 2026-2027 (that is a real difference, not typography)", checkReadings(hyphen, hyphen.replace("2026-2027", "2026-27")).status === "differences");
+  ok("a dash that is not between digits is left alone", dashesBetweenDigits("Rs. 500 \u2013 plus tax; ref A-12 and 5 - items") === "Rs. 500 \u2013 plus tax; ref A-12 and 5 - items");
+  ok("a real dash between two different numbers is still seen as a difference when only one reader has it", checkReadings("Dated 11-08-2026", "Dated 11-09-2026").status === "differences");
+  ok("numberContext finds a number across the dash forms too", (numberContext("valid (2026 \u2013 2027) only", "2026.2027") ?? "").includes("2026-2027"), String(numberContext("valid (2026 \u2013 2027) only", "2026.2027")));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
