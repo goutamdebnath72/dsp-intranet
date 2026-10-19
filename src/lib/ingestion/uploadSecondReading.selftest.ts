@@ -229,6 +229,22 @@ const far = () => Date.now() + 60_000;
     ok("the setup note is in the upload log", done.log.note === "page images shrunk" && done.log.reader === "r");
   }
 
+  // ---- a quota refusal is said in plain words to the uploader (step 39g)
+  {
+    const reason = "no second reading: Gemini answered 429 (daily limit reached - 20 for gemini-3.8-flash; it renews daily at midnight Pacific time): {\"error\":{\"code\":429}}";
+    const page = (n: number, used: "second" | "pipeline") => ({ page: n, used, reason: used === "second" ? "the second reading is the text; every important number agrees" : reason, confirmed: 3, onlyPipeline: 0, onlySecond: 0, disputes: [], dropped: [] });
+    const some: SecondReadingLog = { enabled: true, pagesRead: 2, pagesFromSecond: 1, pagesKept: 1, pages: [page(1, "second"), page(2, "pipeline")] };
+    ok("line: one page read, one refused on the daily limit: the limit is named in plain words", readingLine(some) === "Checked by a second reader: 1 of 2 pages; the others were read once, as before (daily limit reached - 20 for gemini-3.8-flash; it renews daily at midnight Pacific time).", readingLine(some));
+    const none: SecondReadingLog = { enabled: true, pagesRead: 1, pagesFromSecond: 0, pagesKept: 1, pages: [page(1, "pipeline")] };
+    ok("line: nothing read because of the daily limit says so", readingLine(none) === "The second reader could not be used for this circular (daily limit reached - 20 for gemini-3.8-flash; it renews daily at midnight Pacific time): it was read once, as before.", readingLine(none));
+    const long = "Gemini answered 429 (daily limit reached - 20 for gemini-3.8-flash; it renews daily at midnight Pacific time): " + "x".repeat(900);
+    const refuser: PageReader = { name: "r", read: async () => { throw new Error(long); } };
+    const sr = createSecondReading({ reader: refuser, deadlineAt: far() });
+    sr.start(1, Buffer.from("a"));
+    const r = await sr.finish(["text"]);
+    ok("the log keeps 400 characters of a refusal (it kept 200 before), the summary first", r.log.pages[0].reason.length > 300 && /^no second reading: Gemini answered 429 \(daily limit reached/.test(r.log.pages[0].reason), String(r.log.pages[0].reason.length));
+  }
+
   // ---- the round trip: the saved checks are about exactly the text that gets stored
   {
     const { reader } = fakeReader();

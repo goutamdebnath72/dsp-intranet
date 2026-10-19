@@ -1,5 +1,5 @@
 // Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/pageReader.selftest.ts   (no network: a scripted fetch stands in for the services)
-import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, STOPPED_MARKER, cutAtLoop, geminiReader, readerFromEnv, sniffImageMime } from "./pageReader";
+import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, STOPPED_MARKER, cutAtLoop, geminiReader, parseQuotaError, readerFromEnv, sniffImageMime } from "./pageReader";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
@@ -96,6 +96,68 @@ const res = (status: number, body: unknown) => ({ ok: status >= 200 && status < 
     await flaky2.read(png, { onAttempt: (a) => viaOpts.push(a.attempt) });
     ok("every failed attempt before a success is reported (two here)", viaOpts.join() === "1,2", viaOpts.join());
     ok("a read that succeeds first time reports nothing", await (async () => { const got: unknown[] = []; await geminiReader({ apiKey: "K", fetchImpl: async () => res(200, { candidates: [{ content: { parts: [{ text: "fine" }] }, finishReason: "STOP" }] }) }).read(png, { onAttempt: (a) => got.push(a) }); return got.length === 0; })());
+  }
+
+  // ---- a 429 keeps its whole body, says which limit it was, and is waited out only when waiting can help (step 39g)
+  {
+    const body = (id: string, value: string, retry?: string) => ({
+      error: {
+        code: 429, message: "You exceeded your current quota, please check your plan and billing details.", status: "RESOURCE_EXHAUSTED",
+        details: [
+          { "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaMetric: "generativelanguage.googleapis.com/generate_content_free_tier_requests", quotaId: id, quotaDimensions: { location: "global", model: "gemini-3.8-flash" }, quotaValue: value }] },
+          ...(retry ? [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: retry }] : []),
+        ],
+      },
+    });
+    const perDay = body("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "20", "31s");
+    const perMinute = body("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "5", "17s");
+    const tokens = body("GenerateContentInputTokensPerModelPerMinute-FreeTier", "250000", "9s");
+    const q1 = parseQuotaError(JSON.stringify(perDay));
+    ok("parseQuotaError: a daily limit says so, with its size, the model and that it renews daily", q1.kind === "per-day" && /^daily limit reached - 20 for gemini-3\.8-flash; it renews daily at midnight Pacific time$/.test(q1.summary) && q1.retryAfterMs === 31000, JSON.stringify(q1));
+    const q2 = parseQuotaError(JSON.stringify(perMinute));
+    ok("parseQuotaError: a per-minute limit says the wait the service asked for", q2.kind === "per-minute" && q2.summary === "per-minute limit reached - 5 for gemini-3.8-flash; the service says retry in 17 s" && q2.retryAfterMs === 17000, JSON.stringify(q2));
+    ok("parseQuotaError: a tokens-per-minute limit is a per-minute limit", parseQuotaError(JSON.stringify(tokens)).kind === "per-minute");
+    const q3 = parseQuotaError("You exceeded your quota. Please retry in 31.5s.");
+    ok("parseQuotaError: only a message with a wait still gives the wait", q3.kind === "other" && q3.retryAfterMs === 31500 && /retry in 32 s/.test(q3.summary), JSON.stringify(q3));
+    ok("parseQuotaError: nothing readable gives a plain 'quota exceeded' and never throws", parseQuotaError("").summary === "quota exceeded" && parseQuotaError("<html>").kind === "other" && parseQuotaError(undefined as unknown as string).kind === "other");
+    ok("parseQuotaError: the summary has no brackets (it is put inside brackets)", ![q1, q2, q3].some((q) => /[()]/.test(q.summary)));
+
+    let calls = 0;
+    const day = geminiReader({ apiKey: "K", fetchImpl: async () => { calls++; return res(429, perDay); } });
+    let dayError = "";
+    await day.read(png).catch((e) => { dayError = String(e.message); });
+    ok("a DAILY limit fails at once: one call, no waiting", calls === 1 && /^Gemini answered 429 \(daily limit reached - 20 for gemini-3\.8-flash/.test(dayError), `${calls} ${dayError.slice(0, 120)}`);
+    ok("...and the message keeps the whole body (the quota id is in it)", /GenerateRequestsPerDayPerProjectPerModel-FreeTier/.test(dayError) && dayError.length > 400, String(dayError.length));
+
+    const waits: number[] = [];
+    calls = 0;
+    const minute = geminiReader({ apiKey: "K", sleepImpl: async (ms) => { waits.push(ms); }, fetchImpl: async () => { calls++; return calls === 1 ? res(429, perMinute) : res(200, { candidates: [{ content: { parts: [{ text: "after the wait" }] }, finishReason: "STOP" }] }); } });
+    const afterWait = await minute.read(png);
+    ok("a PER-MINUTE limit is waited out for exactly what the service asked (17 s and half a second), then the read succeeds", afterWait === "after the wait" && calls === 2 && waits.join() === "17500", `${calls} ${waits.join()}`);
+
+    calls = 0;
+    const longWait = geminiReader({ apiKey: "K", sleepImpl: async () => undefined, fetchImpl: async () => { calls++; return res(429, body("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "5", "120s")); } });
+    await longWait.read(png).catch(() => undefined);
+    ok("a wait longer than 30 s is not waited for here: one call, then it fails", calls === 1);
+    const waitsLong: number[] = [];
+    let n = 0;
+    const patient = geminiReader({ apiKey: "K", maxRetryWaitMs: 200_000, sleepImpl: async (ms) => { waitsLong.push(ms); }, fetchImpl: async () => { n++; return n === 1 ? res(429, body("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "5", "120s")) : res(200, { candidates: [{ content: { parts: [{ text: "patient" }] }, finishReason: "STOP" }] }); } });
+    ok("maxRetryWaitMs allows a longer wait when asked", (await patient.read(png)) === "patient" && waitsLong.join() === "120500");
+
+    const backoffs: number[] = [];
+    calls = 0;
+    const plain = geminiReader({ apiKey: "K", sleepImpl: async (ms) => { backoffs.push(ms); }, fetchImpl: async () => { calls++; return res(429, { error: { code: 429, message: "slow down" } }); } });
+    await plain.read(png).catch(() => undefined);
+    ok("a 429 with no detail keeps the fixed back-off (1.5 s, then 4 s) and three calls", calls === 3 && backoffs.join() === "1500,4000", `${calls} ${backoffs.join()}`);
+    const seen: string[] = [];
+    calls = 0;
+    const hooked = geminiReader({ apiKey: "K", sleepImpl: async () => undefined, fetchImpl: async () => { calls++; return calls === 1 ? res(429, perMinute) : res(200, { candidates: [{ content: { parts: [{ text: "ok" }] }, finishReason: "STOP" }] }); } });
+    await hooked.read(png, { onAttempt: (a) => seen.push(a.error) });
+    ok("the failed attempt reported to the log starts with the plain summary (it survives any later cutting)", seen.length === 1 && /^Gemini answered 429 \(per-minute limit reached - 5 for gemini-3\.8-flash; the service says retry in 17 s\)/.test(seen[0]), seen[0]?.slice(0, 140));
+    calls = 0;
+    const err500 = geminiReader({ apiKey: "K", noWait: true, fetchImpl: async () => { calls++; return res(503, { error: "x" }); } });
+    await err500.read(png).catch(() => undefined);
+    ok("a 503 is still retried three times as before", calls === 3);
   }
 
 console.log(`\n${pass} passed, ${fail} failed`);

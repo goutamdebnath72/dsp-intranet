@@ -56,6 +56,33 @@ Output only the transcription.`;
 const BACKOFF_MS = [1500, 4000];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** What a 429 ("You exceeded your current quota") says: which limit was hit and how long to wait. */
+export interface QuotaInfo {
+  /** per-day: today's allowance is used up, no wait helps. per-minute: wait and retry. other: no detail given. */
+  kind: "per-day" | "per-minute" | "other";
+  /** One plain line, without brackets, for logs and for the uploader. */
+  summary: string;
+  /** How long the service asked to wait before the next request. */
+  retryAfterMs?: number;
+}
+
+/** Reads the body of a 429 (Google's error JSON: quotaId, quotaValue, retryDelay, or only the message "Please retry in 31.5s"). Never throws. */
+export function parseQuotaError(body: string): QuotaInfo {
+  const text = String(body ?? "");
+  const id = /"quotaId"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? "";
+  const metric = /"quotaMetric"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? "";
+  const value = /"quotaValue"\s*:\s*"?(\d+)"?/.exec(text)?.[1];
+  const model = /"model"\s*:\s*"([^"]+)"/.exec(text)?.[1];
+  const sec = /"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(text)?.[1] ?? /retry in (\d+(?:\.\d+)?)\s*s/i.exec(text)?.[1];
+  const retryAfterMs = sec !== undefined ? Math.ceil(Number(sec) * 1000) : undefined;
+  const hay = `${id} ${metric}`;
+  const retry = retryAfterMs !== undefined ? `; the service says retry in ${Math.ceil(retryAfterMs / 1000)} s` : "";
+  const what = `${value ? `${value} ` : ""}${model ? `for ${model}` : "for the model"}`;
+  if (/PerDay|per_day/i.test(hay)) return { kind: "per-day", summary: `daily limit reached - ${what}; it renews daily at midnight Pacific time`, retryAfterMs };
+  if (/PerMinute|per_minute/i.test(hay)) return { kind: "per-minute", summary: `per-minute limit reached - ${what}${retry}`, retryAfterMs };
+  return { kind: "other", summary: `quota exceeded${retry}`, retryAfterMs };
+}
+
 export interface GeminiOptions {
   apiKey?: string;
   model?: string;
@@ -65,6 +92,10 @@ export interface GeminiOptions {
   timeoutMs?: number;
   /** Test hook: no real waiting between retries. */
   noWait?: boolean;
+  /** The longest wait the service may ask for on a per-minute limit (default 30 s); a longer one fails at once. */
+  maxRetryWaitMs?: number;
+  /** For tests: replaces the real wait and is told how long it was asked to wait. */
+  sleepImpl?: (ms: number) => Promise<unknown>;
 }
 
 /** The kind of an image from its first bytes (the archive's page images may be PNG, JPEG or WebP); PNG when unsure. */
@@ -92,6 +123,7 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
       const attempts = Math.max(1, opts.maxAttempts ?? BACKOFF_MS.length + 1);
       for (let attempt = 0; attempt < attempts; attempt++) {
         const startedAt = Date.now();
+        let waitMs: number | undefined; // set when a 429 says how long to wait
         const ctl = new AbortController();
         const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 120_000);
         try {
@@ -107,9 +139,16 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
             if (finish && finish !== "STOP" && !out.endsWith(STOPPED_MARKER)) out += "\n" + STOPPED_MARKER;
             return out;
           }
-          const msg = (await res.text()).slice(0, 300);
-          lastErr = `Gemini answered ${res.status}: ${msg}${res.status === 404 ? ` (the model name "${model}" may be out of date: set GEMINI_VISION_MODEL in .env.local to a current model)` : ""}`;
+          const raw = await res.text();
+          const quota = res.status === 429 ? parseQuotaError(raw) : null;
+          const msg = raw.slice(0, res.status === 429 ? 1500 : 300); // a 429 keeps its whole body: the limit and the wait are in it
+          lastErr = `Gemini answered ${res.status}${quota ? ` (${quota.summary})` : ""}: ${msg}${res.status === 404 ? ` (the model name "${model}" may be out of date: set GEMINI_VISION_MODEL in .env.local to a current model)` : ""}`;
           if (res.status !== 429 && res.status !== 500 && res.status !== 503) throw new Error(lastErr); // a wrong key or model is not worth retrying
+          if (quota?.kind === "per-day") throw new Error(lastErr); // today's allowance is used up: no wait helps
+          if (quota?.retryAfterMs !== undefined) {
+            if (quota.retryAfterMs > (opts.maxRetryWaitMs ?? 30_000)) throw new Error(lastErr); // too long to wait here
+            waitMs = quota.retryAfterMs + 500; // the wait the service asked for, not a guess
+          }
         } catch (e) {
           if ((e as Error).message?.startsWith("Gemini")) throw e;
           lastErr = `Gemini request failed: ${(e as Error)?.message ?? e}`;
@@ -117,7 +156,7 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
           clearTimeout(timer);
         }
         hooks?.onAttempt?.({ attempt: attempt + 1, ms: Date.now() - startedAt, error: lastErr });
-        if (attempt < attempts - 1 && !opts.noWait) await sleep(BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]);
+        if (attempt < attempts - 1 && !opts.noWait) await (opts.sleepImpl ?? sleep)(waitMs ?? BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]);
       }
       throw new Error(lastErr || "Gemini request failed");
     },

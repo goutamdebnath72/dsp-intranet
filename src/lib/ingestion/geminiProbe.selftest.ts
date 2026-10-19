@@ -53,6 +53,16 @@ const answer = (text: string, extra: Record<string, unknown> = {}) => ({
   const cut = await probePage({ png, apiKey: "K", fetchImpl: async () => res(200, { candidates: [{ content: { parts: [{ text: "half a page" }] }, finishReason: "MAX_TOKENS" }] }) });
   ok("an answer cut at the length limit reports its finish reason, and missing token counts say so", cut.finishReason === "MAX_TOKENS" && cut.thinkingTokens === undefined && /stopped early: YES/.test(formatProbe(cut, "x")) && /thinking not reported/.test(formatProbe(cut, "x")));
 
+  // ---- a quota refusal is shown whole, with its meaning (step 39g)
+  {
+    const quotaBody = { error: { code: 429, message: "You exceeded your current quota, please check your plan and billing details. " + "More detail. ".repeat(60), details: [{ "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier", quotaDimensions: { model: "gemini-3.8-flash" }, quotaValue: "20" }] }] } };
+    const q = await probePage({ png, apiKey: "K", fetchImpl: async () => res(429, quotaBody) });
+    ok("a 429 body of more than 800 characters is kept whole (the quota id is at the end of it)", !q.ok && q.status === 429 && (q.error ?? "").length > 800 && /GenerateRequestsPerDayPerProjectPerModel-FreeTier/.test(q.error ?? ""), String((q.error ?? "").length));
+    const f = formatProbe(q, "x");
+    ok("the report adds one plain line on which limit it was", /\nquota: daily limit reached - 20 for gemini-3\.8-flash; it renews daily at midnight Pacific time/.test(f), f.slice(-300));
+    ok("another HTTP error gets no quota line", !/quota:/.test(formatProbe(bad, "x")));
+  }
+
   // ---- the text of the report
   const f = formatProbe(r1, "circular 85, page 2");
   ok("the report names the page, the request, the time, the tokens and the ends of the text", /^circular 85, page 2 \(12 bytes\)/.test(f) && /request: m-test \| wait up to 300 s \| answer limit 8192 tokens \| thinking budget the service's default/.test(f) && /RESULT: answered in [\d.]+ s \| HTTP 200 \| finish reason: STOP/.test(f) && /tokens: page 1,812 \| answer 1,042 \| thinking 3,611 \| total 6,465/.test(f) && /repeats itself: no \| stopped early: no/.test(f) && /starts: Line one/.test(f) && /ends:   .*20-08-2026/.test(f), f);

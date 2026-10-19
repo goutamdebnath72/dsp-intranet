@@ -117,12 +117,12 @@ export function createSecondReading(o: { reader: PageReader | null; deadlineAt: 
           if (now() >= o.deadlineAt) return { error: "skipped: no time was left" };
           const t0 = now();
           try {
-            const text = await reader.read(png, { onAttempt: (a) => attempts.push({ attempt: a.attempt, ms: a.ms, error: a.error.slice(0, 160) }) });
+            const text = await reader.read(png, { onAttempt: (a) => attempts.push({ attempt: a.attempt, ms: a.ms, error: a.error.slice(0, 300) }) });
             return { text, ms: now() - t0 };
           } catch (e) {
             const message = String((e as Error)?.message ?? e);
             if (/\b429\b|quota|rate.?limit/i.test(message)) refusedOnRate = true;
-            return { error: message.slice(0, 200) };
+            return { error: message.slice(0, 400) };
           }
         }),
       });
@@ -187,7 +187,9 @@ export function readingLine(log: SecondReadingLog | null | undefined): string {
   const total = log.pagesRead;
   const used = log.pagesFromSecond;
   const differing = log.pages.filter((p) => p.used === "second" && (p.onlyPipeline > 0 || p.onlySecond > 0)).length;
-  const why = (log.pages.find((p) => p.used === "pipeline")?.reason ?? "").replace(/^no second reading: /, "").replace(/\s*\(.*$/, "").replace(/\.$/, "");
+  const reason = (log.pages.find((p) => p.used === "pipeline")?.reason ?? "").replace(/^no second reading: /, "");
+  const quota = /Gemini answered 429 \(([^)]*)\)/.exec(reason); // a quota refusal says which limit, in plain words
+  const why = quota ? quota[1] : reason.replace(/\s*\(.*$/, "").replace(/\.$/, "");
   if (used === 0) return `The second reader could not be used for this circular${why ? ` (${why})` : ""}: it was read once, as before.`;
   if (used < total) return `Checked by a second reader: ${used} of ${pagesWord(total)}; the others were read once, as before${why ? ` (${why})` : ""}.`;
   if (differing === 0) return `Checked by a second reader: all ${pagesWord(total)} agree on every important number.`;

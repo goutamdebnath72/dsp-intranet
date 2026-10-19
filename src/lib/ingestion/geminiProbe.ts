@@ -8,7 +8,7 @@
 //
 // Pure apart from the injected fetch. Unit-tested by geminiProbe.selftest.ts. Used by scripts/gemini-probe.ts.
 
-import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, STOPPED_MARKER, cutAtLoop, sniffImageMime } from "./pageReader";
+import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, STOPPED_MARKER, cutAtLoop, parseQuotaError, sniffImageMime } from "./pageReader";
 import { checkReadings } from "./readingCheck";
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{
@@ -69,7 +69,7 @@ export async function probePage(o: ProbeOptions): Promise<ProbeResult> {
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
     const res = await doFetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": o.apiKey }, body, signal: ctl.signal });
-    if (!res.ok) return { ok: false, seconds: seconds(), status: res.status, error: (await res.text()).slice(0, 400), request };
+    if (!res.ok) return { ok: false, seconds: seconds(), status: res.status, error: (await res.text()).slice(0, 1500), request };
     const data = await res.json();
     const cand = data?.candidates?.[0];
     const text = ((cand?.content?.parts ?? []) as { text?: unknown }[]).map((p) => (typeof p?.text === "string" ? p.text : "")).join("").trim();
@@ -106,6 +106,7 @@ export function formatProbe(r: ProbeResult, label: string): string {
   ];
   if (!r.ok) {
     lines.push(`RESULT: FAILED after ${r.seconds} s${r.status ? ` | HTTP ${r.status}` : ""}: ${r.error}`);
+    if (r.status === 429) lines.push(`quota: ${parseQuotaError(r.error ?? "").summary}`);
     return lines.join("\n");
   }
   const text = r.text ?? "";
