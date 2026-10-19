@@ -14,6 +14,7 @@
 // Switched off with UPLOAD_SECOND_READING=false, and off when there is no GEMINI_API_KEY. Unit-tested by uploadSecondReading.selftest.ts with fake readers.
 
 import { DEFAULT_GEMINI_MODEL, geminiReader, type AttemptInfo, type PageReader } from "./pageReader";
+import { shrinkForReading, SHRINK_EDGE, SHRINK_QUALITY } from "./pageImage";
 import { reconcilePage, type Dispute } from "./pageVerify";
 import type { NewCheck } from "../search/pageChecks";
 
@@ -24,7 +25,14 @@ import type { NewCheck } from "../search/pageChecks";
 export function uploadSecondReader(env: Record<string, string | undefined> = process.env): PageReader | null {
   if ((env.UPLOAD_SECOND_READING ?? "").trim().toLowerCase() === "false") return null;
   if (!env.GEMINI_API_KEY) return null;
-  return geminiReader({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL, timeoutMs: 50_000 });
+  const reader = geminiReader({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL, timeoutMs: 50_000 });
+  if ((env.UPLOAD_SECOND_READING_SHRINK ?? "").trim().toLowerCase() === "false") return { ...reader, note: "page images sent as stored" };
+  // the page goes out as a JPEG of at most 2400 px on its long side (see pageImage.ts): about 9 times fewer bytes, the same reading
+  return {
+    name: reader.name,
+    note: `page images shrunk to a JPEG (long side ${SHRINK_EDGE} px, quality ${SHRINK_QUALITY})`,
+    read: async (png, hooks) => reader.read(await shrinkForReading(png), hooks),
+  };
 }
 
 export interface PageLog {
@@ -45,6 +53,8 @@ export interface PageLog {
 export interface SecondReadingLog {
   enabled: boolean;
   reader?: string;
+  /** How the reader was set up (whether page images are shrunk). */
+  note?: string;
   ms?: number;
   pagesRead: number;
   pagesFromSecond: number;
@@ -163,7 +173,7 @@ export function createSecondReading(o: { reader: PageReader | null; deadlineAt: 
         enabled: true,
         changedPages: changed,
         checks,
-        log: { enabled: true, reader: reader.name, ms: now() - startedAt, pagesRead: results.length, pagesFromSecond: changed, pagesKept: results.length - changed, pages: logPages },
+        log: { enabled: true, reader: reader.name, ...(reader.note ? { note: reader.note } : {}), ms: now() - startedAt, pagesRead: results.length, pagesFromSecond: changed, pagesKept: results.length - changed, pages: logPages },
       };
     },
   };

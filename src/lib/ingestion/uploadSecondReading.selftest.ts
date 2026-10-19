@@ -2,8 +2,10 @@
  * Self-test of the second reading inside the upload. Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/uploadSecondReading.selftest.ts
  * No network, no database: the reader is a fake that answers from the pilot's real readings.
  */
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import sharp from "sharp";
 import { buildPageUnits, planChunks } from "./chunking";
 import type { AttemptInfo, PageReader } from "./pageReader";
 import { DEFAULT_GRACE_MS, createSecondReading, readingLine, uploadSecondReader, type SecondReadingLog } from "./uploadSecondReading";
@@ -192,6 +194,39 @@ const far = () => Date.now() + 60_000;
       await sleep(450);
       return d < 300;
     })());
+  }
+
+  // ---- the page goes out shrunk, unless switched off (step 39f); the real reader is used with the network stubbed
+  {
+    const heavyPng = await sharp(randomBytes(1200 * 1600 * 3), { raw: { width: 1200, height: 1600, channels: 3 } }).png().toBuffer();
+    const realFetch = globalThis.fetch;
+    let sent: { mime: string; bytes: number } | null = null;
+    globalThis.fetch = (async (_url: unknown, init: { body: string }) => {
+      const part = JSON.parse(init.body).contents[0].parts[1].inline_data;
+      sent = { mime: part.mime_type, bytes: Buffer.from(part.data, "base64").length };
+      return { ok: true, status: 200, text: async () => "", json: async () => ({ candidates: [{ content: { parts: [{ text: "page text" }] }, finishReason: "STOP" }] }) };
+    }) as unknown as typeof fetch;
+    try {
+      const shrunk = uploadSecondReader({ GEMINI_API_KEY: "k" });
+      ok("the upload reader says how it is set up", /shrunk to a JPEG \(long side 2400 px, quality 85\)/.test(shrunk?.note ?? "") && /^gemini:/.test(shrunk?.name ?? ""));
+      const text = await shrunk?.read(heavyPng);
+      ok("the page reaches the service as a JPEG, far smaller than the PNG, and the answer comes back", text === "page text" && sent !== null && (sent as { mime: string }).mime === "image/jpeg" && (sent as { bytes: number }).bytes < heavyPng.length / 3, JSON.stringify(sent));
+      const asStored = uploadSecondReader({ GEMINI_API_KEY: "k", UPLOAD_SECOND_READING_SHRINK: "false" });
+      await asStored?.read(heavyPng);
+      ok("UPLOAD_SECOND_READING_SHRINK=false sends the page as stored, and the note says so", (sent as unknown as { mime: string; bytes: number }).mime === "image/png" && (sent as unknown as { bytes: number }).bytes === heavyPng.length && asStored?.note === "page images sent as stored");
+      ok("the reader's name is the same either way (the saved checks name the model, not the setup)", shrunk?.name === asStored?.name);
+      let hooked = 0;
+      globalThis.fetch = (async () => ({ ok: false, status: 503, text: async () => "down", json: async () => ({}) })) as unknown as typeof fetch;
+      const failing = uploadSecondReader({ GEMINI_API_KEY: "k" });
+      await failing?.read(heavyPng, { onAttempt: () => { hooked++; } }).catch(() => undefined);
+      ok("the attempt hook still reaches the reader through the shrinking wrapper", hooked >= 1, String(hooked));
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    const sr = createSecondReading({ reader: { name: "r", note: "page images shrunk", read: async () => pg("football-trial").gemini }, deadlineAt: far() });
+    sr.start(1, Buffer.from("x"));
+    const done = await sr.finish([pg("football-trial").pipeline]);
+    ok("the setup note is in the upload log", done.log.note === "page images shrunk" && done.log.reader === "r");
   }
 
   // ---- the round trip: the saved checks are about exactly the text that gets stored

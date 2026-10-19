@@ -25,6 +25,8 @@ export interface ReadHooks {
 
 export interface PageReader {
   name: string;
+  /** Plain words on how the reader is set up (for the upload log), e.g. that page images are shrunk. */
+  note?: string;
   /** The text of one page image. Throws if the service fails. */
   read(png: Buffer, hooks?: ReadHooks): Promise<string>;
 }
