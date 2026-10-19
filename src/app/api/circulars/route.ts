@@ -12,6 +12,7 @@ import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
 import { createRosterProbe } from "@/lib/ingestion/schedule/rosterProbe";
 import { createSecondReading, readingLine, uploadSecondReader } from "@/lib/ingestion/uploadSecondReading";
 import { checkRowsFor, savePageChecks } from "@/lib/search/pageChecks";
+import { combineChecks, twinChecksFor } from "@/lib/ingestion/crossCheck";
 import { applyScheduleStage, logIngest, runScheduleStage, stageDetail, type IngestKind, type IngestStatus, type ScheduleStage, type Sql } from "@/lib/ingestion/schedule/ingest";
 
 // This route does two full Tesseract OCR passes PER PAGE (English, then
@@ -576,10 +577,18 @@ export async function POST(req: Request) {
     try {
       const sql: Sql = (text, params) => dataSource.query(text, params);
       let detail: Record<string, unknown> = { pages: fileUrls.length, chunks: preparedChunks.length };
-      if (secondSummary.enabled) {
-        // what the second reading decided, page by page, goes to the log; its checks are stored with the fingerprint of the text that was really stored
-        detail = { ...detail, secondReading: secondSummary.log };
-        detail.pageChecksSaved = await savePageChecks(sql, circular.id, checkRowsFor(secondSummary.checks, preparedChunks.map((c) => ({ page: c.page, index: c.index, text: c.text }))));
+      {
+        // step 42a: the pages of a circular that say the same thing in English, Hindi and Bengali check each other: a number two pages agree on is
+        // confirmed, a reading another page contradicts is unconfirmed (src/lib/ingestion/crossCheck.ts). Free and offline, so it protects the circular
+        // even when the second reader is off or failed. It is merged with the second reading's checks, which are stored with the fingerprint of the
+        // text that was really stored.
+        const storedChunks = preparedChunks.map((c) => ({ page: c.page, index: c.index, text: c.text }));
+        // what the second reading decided, page by page, goes to the log
+        if (secondSummary.enabled) detail = { ...detail, secondReading: secondSummary.log };
+        const twin = twinChecksFor(storedChunks);
+        if (twin.length) detail = { ...detail, twinPages: twin.length };
+        const checkRows = checkRowsFor(combineChecks(secondSummary.enabled ? secondSummary.checks : [], twin), storedChunks);
+        if (secondSummary.enabled || checkRows.length) detail.pageChecksSaved = await savePageChecks(sql, circular.id, checkRows);
       }
       if (scheduleStage) {
         const stage: ScheduleStage = scheduleStage;

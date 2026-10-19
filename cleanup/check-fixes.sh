@@ -29,6 +29,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { grep -q "continueToCirculars" src/app/api/ai-search/route.ts && grep -q "friendlyUnanswerable" src/lib/nl2sql/omnibar.ts && test -f src/lib/search/dataGapRule.ts; } 2>/dev/null; report "the circulars are tried when the data cannot answer (and nobody is named)" $?
 { grep -q "setAnswerQuote" src/components/OmnibarModal.tsx && grep -q "openTargetFor" src/components/CircularAnswerCard.tsx; } 2>/dev/null; report "Open circular on an answer opens on the answer's page and words" $?
 { grep -q "createSecondReading" src/app/api/circulars/route.ts && grep -q "setReadingNote" src/components/CircularUploadModal.tsx && test -f src/lib/ingestion/uploadSecondReading.ts; } 2>/dev/null; report "every page of an upload is read by a second reader and the better text is stored (UPLOAD_SECOND_READING=false switches it off)" $?
+{ grep -q "twinChecksFor" src/app/api/circulars/route.ts && grep -q "combineChecks" src/lib/ingestion/crossCheck.ts; } 2>/dev/null; report "Pages in English, Hindi and Bengali check each other at upload" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad
