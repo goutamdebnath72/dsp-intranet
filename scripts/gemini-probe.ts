@@ -11,13 +11,17 @@
 //   --timeout S            seconds to wait for the answer (default 300)
 //   --max-tokens N         the answer's length limit (default 8192, what the upload sends)
 //   --thinking-budget N    tokens the model may spend thinking (0 = none); left out unless given
+//   --jpeg-edge N          send the page shrunk: a JPEG whose long side is N pixels (default 2400 when a --jpeg option is used)
+//   --jpeg-quality Q       the JPEG quality, 1 to 100 (default 85)
+//   --compare              read the page TWICE, as stored (A) and shrunk (B), and compare time, size and numbers: one command to learn whether the size matters
 //   --base-url URL         another address of the service (for tests)
 //
 // Needs GEMINI_API_KEY (GEMINI_VISION_MODEL names the model) and, with --id, DATABASE_URL.
 
 import { readFileSync } from "node:fs";
 import { Client } from "pg";
-import { formatProbe, probePage } from "../src/lib/ingestion/geminiProbe";
+import sharp from "sharp";
+import { compareProbes, formatProbe, probePage } from "../src/lib/ingestion/geminiProbe";
 
 const args = process.argv.slice(2);
 const val = (name: string): string | undefined => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -51,9 +55,18 @@ async function main() {
     label = `circular ${id}, page ${page}`;
   }
   const timeout = num("timeout") ?? 300;
-  console.log(`Asking Gemini to read ${label}; waiting up to ${timeout} s ...`);
-  const result = await probePage({ png, apiKey, model: process.env.GEMINI_VISION_MODEL || undefined, baseUrl: val("base-url"), timeoutMs: timeout * 1000, maxTokens: num("max-tokens"), thinkingBudget: num("thinking-budget") });
-  console.log("\n" + formatProbe(result, label));
+  const edge = num("jpeg-edge") ?? 2400, quality = num("jpeg-quality") ?? 85;
+  const shrinkWanted = args.includes("--compare") || val("jpeg-edge") !== undefined || val("jpeg-quality") !== undefined;
+  const shrunk = shrinkWanted ? await sharp(png).resize({ width: edge, height: edge, fit: "inside", withoutEnlargement: true }).jpeg({ quality }).toBuffer() : null;
+  const runs: { name: string; image: Buffer }[] = args.includes("--compare") ? [{ name: "A: as stored", image: png }, { name: `B: shrunk to a JPEG (long side ${edge} px, quality ${quality})`, image: shrunk as Buffer }] : [shrunk ? { name: `shrunk to a JPEG (long side ${edge} px, quality ${quality})`, image: shrunk } : { name: "as stored", image: png }];
+  const results = [];
+  for (const run of runs) {
+    console.log(`\nAsking Gemini to read ${label}, ${run.name}; waiting up to ${timeout} s ...`);
+    const result = await probePage({ png: run.image, apiKey, model: process.env.GEMINI_VISION_MODEL || undefined, baseUrl: val("base-url"), timeoutMs: timeout * 1000, maxTokens: num("max-tokens"), thinkingBudget: num("thinking-budget") });
+    console.log(formatProbe(result, `${label}, ${run.name}`));
+    results.push(result);
+  }
+  if (results.length === 2) console.log("\n" + compareProbes(results[0], results[1]));
 }
 
 main().catch((e) => {

@@ -9,6 +9,7 @@
 // Pure apart from the injected fetch. Unit-tested by geminiProbe.selftest.ts. Used by scripts/gemini-probe.ts.
 
 import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, STOPPED_MARKER, cutAtLoop, sniffImageMime } from "./pageReader";
+import { checkReadings } from "./readingCheck";
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{
   ok: boolean;
@@ -115,3 +116,16 @@ export function formatProbe(r: ProbeResult, label: string): string {
   lines.push(`ends:   ${text.slice(-160).replace(/\s+/g, " ")}`);
   return lines.join("\n");
 }
+
+const bytes = (r: ProbeResult) => `${r.request.imageBytes.toLocaleString("en-US")} bytes`;
+
+/** Two reads of the SAME page (A: as stored, B: shrunk) side by side: the time, the size sent, and whether the important numbers agree. */
+export function compareProbes(a: ProbeResult, b: ProbeResult): string {
+  if (!a.ok || !b.ok) return `COMPARISON: not possible (A ${a.ok ? "answered" : "failed"}, B ${b.ok ? "answered" : "failed"})`;
+  const c = checkReadings(a.text ?? "", b.text ?? "");
+  const ratio = b.seconds > 0 ? a.seconds / b.seconds : 0;
+  const speed = ratio >= 1 ? `B was ${ratio.toFixed(1)}x faster` : `B was ${(1 / Math.max(ratio, 0.01)).toFixed(1)}x SLOWER`;
+  const numbers = c.status === "agreed" ? `all ${c.confirmed.length} important numbers agree` : `DIFFER (only in A: ${c.onlyFirst.join(", ") || "none"} | only in B: ${c.onlySecond.join(", ") || "none"}; ${c.confirmed.length} agree)`;
+  return `COMPARISON: A ${a.seconds} s (${bytes(a)}) | B ${b.seconds} s (${bytes(b)}) | ${speed} | numbers: ${numbers}`;
+}
+
