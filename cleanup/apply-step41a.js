@@ -1,5 +1,6 @@
 // cleanup/apply-step41a.js
 //
+// (Corrected on 19 Oct: the README and .env.example edits are OPTIONAL: if their text differs, they are skipped and the rest is applied.)
 // Edits EXISTING source files IN PLACE (plus cleanup/check-fixes.sh), all-or-nothing and safe to run twice. Step 41a: the Executive Deep Synthesis BUTTON
 // is removed and the Enter key decides (it already did, behind a switch that was off: now it is ON by default, with the kill switch
 // NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false). Only a signed-in executive reaches the synthesis (the screen checks, the server checks again from the login session).
@@ -82,13 +83,15 @@ const EDITS = [
   "file": ".env.example",
   "marker": "ON by default since step 41a): a question that needs",
   "old": "# Synthesis on the Enter key (step 27a): a question that needs several circulars built into one answer (compare, correlate, what is\n# hidden, what changed ...) starts the Executive Deep Synthesis by itself for a logged-in executive, with no button. OFF unless this is\n# exactly: true. NEXT_PUBLIC_ because the browser reads it: restart `npm run dev` after changing it.\n",
-  "new": "# Synthesis on the Enter key (step 27a, ON by default since step 41a): a question that needs several circulars built into one answer\n# (compare, correlate, what is hidden, what changed ...) starts the Executive Deep Synthesis by itself for a logged-in executive. There\n# is no button. Leave this empty for ON; set exactly false (or 0, off, no) to turn it off. NEXT_PUBLIC_ because the browser reads it:\n# restart `npm run dev` after changing it, and redeploy on Vercel.\n"
+  "new": "# Synthesis on the Enter key (step 27a, ON by default since step 41a): a question that needs several circulars built into one answer\n# (compare, correlate, what is hidden, what changed ...) starts the Executive Deep Synthesis by itself for a logged-in executive. There\n# is no button. Leave this empty for ON; set exactly false (or 0, off, no) to turn it off. NEXT_PUBLIC_ because the browser reads it:\n# restart `npm run dev` after changing it, and redeploy on Vercel.\n",
+  "optional": true
  },
  {
   "file": "README.md",
   "marker": "ON by default and the button removed in step 41a",
   "old": "* THE SCREEN DECIDES (step 27a): with `NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=true` in `.env.local` (restart `npm run dev`), a LOGGED-IN\n  EXECUTIVE who presses Enter on an EDS-type question gets Executive Deep Synthesis, exactly like the old button: the same processing\n  panel, the same briefing. The server verifies the executive again. If that synthesis finds no relevant circular, the screen falls back\n  to the normal search by itself. Off by default.\n",
-  "new": "* THE SCREEN DECIDES (step 27a; ON by default and the button removed in step 41a): a LOGGED-IN EXECUTIVE who presses Enter on an EDS-type\n  question gets Executive Deep Synthesis: the same processing panel, the same briefing. The server verifies the executive again, from the\n  login session. If that synthesis finds no relevant circular, the screen falls back to the normal search by itself. The kill switch is\n  `NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false` (restart `npm run dev`; redeploy on Vercel).\n"
+  "new": "* THE SCREEN DECIDES (step 27a; ON by default and the button removed in step 41a): a LOGGED-IN EXECUTIVE who presses Enter on an EDS-type\n  question gets Executive Deep Synthesis: the same processing panel, the same briefing. The server verifies the executive again, from the\n  login session. If that synthesis finds no relevant circular, the screen falls back to the normal search by itself. The kill switch is\n  `NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false` (restart `npm run dev`; redeploy on Vercel).\n",
+  "optional": true
  }
 ];
 const CHECKS = [
@@ -120,6 +123,7 @@ for (const e of EDITS) {
   let text = byFile.get(e.file);
   if (text.includes(e.marker)) { console.log(`already  ${e.file}  (${e.marker.slice(0, 48).replace(/\n/g, " ")}...)`); continue; }
   const n = countOf(text, e.old);
+  if (n !== 1 && e.optional) { console.log(`skipped  ${e.file}  (documentation only: its text differs from the one the patch was made for, so it was left as it is; the code is not affected)`); continue; }
   if (n !== 1) {
     console.error(`NOT APPLIED: ${e.file} does not contain the expected code exactly once (found ${n}: ${JSON.stringify(e.old.slice(0, 70))}). Nothing was changed. This file differs from the one the patch was made for: send it to me.`);
     process.exit(1);

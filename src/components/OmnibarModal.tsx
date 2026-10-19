@@ -617,9 +617,9 @@ export function OmnibarModal({
                       // employee name search + employee/department analytics +
                       // circular/announcement Smart Semantic. IDs & sites are
                       // already live as you type.
-                      // Step 27a (off unless NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=true): for a LOGGED-IN EXECUTIVE a question that needs
+                      // Step 27a, ON by default since step 41a (kill switch NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false): for a LOGGED-IN EXECUTIVE a question that needs
                       // several circulars built into one answer (compare / correlate / what is hidden / what changed ...: see
-                      // src/lib/search/synthesisIntent.ts) starts Executive Deep Synthesis BY ITSELF, exactly like the button:
+                      // src/lib/search/synthesisIntent.ts) starts Executive Deep Synthesis BY ITSELF (there is no button any more):
                       // same processing panel, same briefing. The server verifies the executive again. Anyone else, and every
                       // other question, takes the normal Enter path.
                       if (
@@ -662,92 +662,7 @@ export function OmnibarModal({
                 </div>
               </div>
 
-              {/* Centered Mode Selector Toolbar */}
-              <div className="relative border-b border-slate-200/80 bg-gradient-to-b from-white via-slate-50/90 to-slate-100/70 px-4 py-3">
-                <motion.div
-                  layout
-                  transition={{ type: "spring", stiffness: 380, damping: 26 }}
-                  className="flex items-center"
-                >
-                  {/* Executive Deep Synthesis */}
-                  <Tooltip
-                    content={
-                      isExecutive
-                        ? "Synthesises across circulars · English"
-                        : "Executives only — sign in with an executive ticket (starts with 4)"
-                    }
-                    align="left"
-                    className="block w-full"
-                  >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      isExecutive && !isLoading && triggerSearch("intellectual")
-                    }
-                    disabled={!isExecutive || isLoading}
-                    className={`group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl border px-3.5 py-2 sm:px-4 sm:py-2.5 text-sm font-semibold tracking-[-0.01em] outline-none transition-all duration-200 ${
-                      isExecutive && isLoading ? "cursor-not-allowed opacity-60" : ""
-                    } ${
-                      !isExecutive
-                        ? "cursor-not-allowed border-slate-200 bg-slate-100/90 !text-slate-400 opacity-70 hover:!border-slate-200 hover:!bg-slate-100/90 hover:!text-slate-400"
-                        : mode === "intellectual"
-                          ? "border-amber-500 bg-gradient-to-r from-amber-600 via-orange-500 to-amber-600 text-white shadow-[0_7px_24px_rgba(245,158,11,0.34)] focus-visible:ring-2 focus-visible:ring-amber-400/60"
-                          : "border-amber-300 bg-gradient-to-b from-amber-50 to-orange-50/70 text-amber-800 shadow-sm hover:-translate-y-0.5 hover:border-amber-400 hover:from-amber-100 hover:to-orange-50 hover:shadow-[0_6px_20px_rgba(245,158,11,0.2)] focus-visible:ring-2 focus-visible:ring-amber-400/60"
-                    }`}
-                  >
-                    {isExecutive && mode === "intellectual" && (
-                      <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/15 to-white/0 animate-pulse" />
-                    )}
-                    <span
-                      className={`relative flex h-5 w-5 items-center justify-center rounded-md ${
-                        !isExecutive
-                          ? "bg-slate-200/80 text-slate-400 group-hover:!text-slate-400"
-                          : mode === "intellectual"
-                            ? "bg-white/15"
-                            : "bg-white text-amber-600 shadow-sm"
-                      }`}
-                    >
-                      {!isExecutive ? (
-                        <Lock size={12} strokeWidth={2.5} />
-                      ) : (
-                        <Sparkles
-                          size={13}
-                          strokeWidth={2.5}
-                          className={
-                            mode === "intellectual"
-                              ? "text-white"
-                              : "text-amber-500 transition-transform duration-200 group-hover:rotate-12 group-hover:scale-110"
-                          }
-                        />
-                      )}
-                    </span>
-                    <span
-                      className={`relative whitespace-nowrap ${
-                        !isExecutive
-                          ? "!text-slate-400 group-hover:!text-slate-400"
-                          : ""
-                      }`}
-                    >
-                      Executive Deep Synthesis
-                    </span>
-                    {isExecutive && mode === "intellectual" && (
-                      <motion.span
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{
-                          type: "spring",
-                          stiffness: 400,
-                          damping: 20,
-                        }}
-                        className="relative rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white"
-                      >
-                        Deep
-                      </motion.span>
-                    )}
-                  </button>
-                  </Tooltip>
-                </motion.div>
-              </div>
+              {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
 
               {loginHint && <OmniLoginHint hint={loginHint} />}
 

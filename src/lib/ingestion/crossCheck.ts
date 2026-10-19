@@ -27,6 +27,7 @@
 // Pure; unit-tested by crossCheck.selftest.ts.
 
 import { storedPageTexts, type NewCheck, type NewCheckRow } from "../search/pageChecks";
+import type { JunkSlot, Suspect } from "./currency";
 import { isMajor, numberContext, numbersOf } from "./readingCheck";
 
 export interface PageText {
@@ -186,7 +187,7 @@ export function crossCheck(pages: PageText[]): Group[] {
     for (const p of g) {
       for (const n of only.get(p.page) ?? []) {
         if (used.has(`${p.page}:${n}`)) continue;
-        const base = confirmed[p.page].find((m) => isLongerForm(n, m));
+        const base = confirmed[p.page].find((m) => !isNoise(m) && isLongerForm(n, m)); // never a bare year: 931.2025 is a reference number that ends with one
         if (base) { used.add(`${p.page}:${n}`); variants.push({ ...side(p.page, n), base }); }
       }
     }
@@ -230,7 +231,7 @@ export function twinChecksFor(chunks: { page: number | null; index: number; text
 
 const union = (a: string[], b: string[]) => [...new Set([...a, ...b])];
 
-/** The second reading's checks and the twin checks of the same circular as one set: a page's confirmed numbers are those either one confirmed; a number is unconfirmed only if neither confirmed it. */
+/** Two sets of checks of the same circular (the second reading's and the twin checks; then those and the rupee-slot checks) as one: a page's confirmed numbers are those either one confirmed; a number is unconfirmed only if neither confirmed it. The reader of the second set is added to the reader name. */
 export function combineChecks(second: NewCheck[], twin: NewCheck[]): NewCheck[] {
   const by = new Map<number, NewCheck>(second.map((c) => [c.page, c]));
   for (const t of twin) {
@@ -243,7 +244,7 @@ export function combineChecks(second: NewCheck[], twin: NewCheck[]): NewCheck[] 
       confirmed,
       unconfirmed: union(s.unconfirmed, t.unconfirmed).filter((n) => !confirmed.includes(n)),
       secondOnly: s.secondOnly,
-      reader: s.reader.includes(TWIN_READER) ? s.reader : `${s.reader}+${TWIN_READER}`,
+      reader: s.reader.includes(t.reader) ? s.reader : `${s.reader}+${t.reader}`,
     });
   }
   return [...by.values()].sort((a, b) => a.page - b.page);
@@ -269,12 +270,21 @@ export function mergeIntoStored(existing: StoredCheck | null, twin: NewCheck, te
 
 // ------------------------------------------------------------------------------------------------ the report
 
+/** The script of each page of a circular, grouped or not (for the report: are there Bengali pages at all, and did they find a twin?). */
+export function pageScripts(pages: PageText[]): { page: number; script: Script }[] {
+  return pages.map((p) => ({ page: p.page, script: scriptOf(p.text) }));
+}
+
 export interface CircularFindings {
   id: number;
   serial: number | null;
   headline: string;
   pages: number;
   groups: Group[];
+  /** The script of each page (optional: the report shows the counts when it is given). */
+  scripts?: { page: number; script: Script }[];
+  /** Per page, the amounts with a stray leading digit (currency.ts attachedDigitSuspects) and the symbols before amounts (rupeeSlotJunk). */
+  rupee?: { page: number; suspects: Suspect[]; junk: JunkSlot[] }[];
 }
 
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}\u2026` : s);
@@ -287,8 +297,27 @@ export function summarize(items: CircularFindings[]) {
   for (const { group } of groups) byLanguages.set(group.languages, (byLanguages.get(group.languages) ?? 0) + 1);
   const flagged = groups.filter(({ group }) => group.disagreements.length > 0 || group.variants.length > 0);
   const clean = groups.filter(({ group }) => group.disagreements.length === 0 && group.variants.length === 0 && group.singles.length === 0);
-  const checks = items.flatMap((item) => twinChecks(item.groups));
+  const checks = items.flatMap((item) => {
+    const slot: NewCheck[] = (item.rupee ?? []).filter((r) => r.suspects.length > 0).map((r) => ({ page: r.page, status: "slot", confirmed: [], unconfirmed: r.suspects.map((x) => x.value), secondOnly: [], reader: "rupee-slot" }));
+    return combineChecks(twinChecks(item.groups), slot);
+  });
+  // pages by script, and how many of each stand in a group
+  const pagesByScript = new Map<string, { total: number; grouped: number }>();
+  for (const item of items) {
+    const grouped = new Set(item.groups.flatMap((g) => g.pages.map((p) => p.page)));
+    for (const sc of item.scripts ?? []) {
+      const e = pagesByScript.get(sc.script) ?? { total: 0, grouped: 0 };
+      e.total++;
+      if (grouped.has(sc.page)) e.grouped++;
+      pagesByScript.set(sc.script, e);
+    }
+  }
+  const rupeePages = items.flatMap((item) => (item.rupee ?? []).map((r) => ({ item, ...r })));
   return {
+    pagesByScript,
+    slotSuspects: rupeePages.reduce((n, r) => n + r.suspects.length, 0),
+    suspectPages: rupeePages.filter((r) => r.suspects.length > 0),
+    junkPages: rupeePages.filter((r) => r.junk.length > 0),
     circulars: items.length,
     withTwoPages: items.filter((i) => i.pages >= 2).length,
     groups: groups.length,
@@ -299,6 +328,12 @@ export function summarize(items: CircularFindings[]) {
     numbersConfirmed: checks.reduce((n, c) => n + c.confirmed.length, 0),
     numbersUnconfirmed: checks.reduce((n, c) => n + c.unconfirmed.length, 0),
   };
+}
+
+const SCRIPT_NAME: Record<string, string> = { latin: "English", devanagari: "Hindi", bengali: "Bengali", mixed: "mixed", none: "too little text" };
+/** "English 61 (in a group: 21), Hindi 40 (21), Bengali 0, mixed 3, too little text 2". */
+export function pagesByScriptLine(m: Map<string, { total: number; grouped: number }>): string {
+  return ["latin", "devanagari", "bengali", "mixed", "none"].map((k) => { const e = m.get(k) ?? { total: 0, grouped: 0 }; return k === "mixed" || k === "none" ? `${SCRIPT_NAME[k]} ${e.total}` : `${SCRIPT_NAME[k]} ${e.total} (in a group: ${e.grouped})`; }).join(", ");
 }
 
 const ctx = (s: Side) => `...${cut(s.context, 80)}...`;
@@ -312,6 +347,7 @@ export function renderReport(items: CircularFindings[]): string {
     "",
     `Circulars read: ${s.circulars} | with two or more pages: ${s.withTwoPages} | groups of pages that say the same thing in different scripts: ${s.groups}`,
     ...s.byLanguages.map(([l, n]) => `- ${l}: ${n}`),
+    ...(s.pagesByScript.size ? [`Pages by script: ${pagesByScriptLine(s.pagesByScript)}`] : []),
     `- groups where every important number stands on more than one page: ${s.clean}`,
     `- **groups with a reading that disagrees with another page, or a garbled longer form of a number: ${s.flagged.length}**`,
     "",
@@ -324,6 +360,19 @@ export function renderReport(items: CircularFindings[]): string {
       out.push(`### Circular ${item.id}${item.serial != null ? ` (serial ${item.serial})` : ""}: ${cut(item.headline, 90)}`, `${g.languages}: pages ${g.pages.map((p) => `${p.page} (${langOf(p.script)})`).join(", ")}`);
       for (const d of g.disagreements) out.push(`- ${where(d.a)} \`${d.a.value}\` ${ctx(d.a)} against ${where(d.b)} \`${d.b.value}\` ${ctx(d.b)}`);
       for (const v of g.variants) out.push(`- ${where(v)} \`${v.value}\` ${ctx(v)} is a longer form of \`${v.base}\``);
+      out.push("");
+    }
+  }
+  if (s.suspectPages.length || s.junkPages.length) {
+    out.push("## The rupee sign", "");
+    if (s.suspectPages.length) {
+      out.push("Amounts with an extra leading digit (2, 3 or 7) that the same page also states without it: probably the rupee sign read as a digit. They are recorded as unconfirmed.", "");
+      for (const r of s.suspectPages) for (const x of r.suspects) out.push(`- circular ${r.item.id} page ${r.page}: \`${x.value}\` next to \`${x.base}\` (...${cut(x.context, 80)}...)`);
+      out.push("");
+    }
+    if (s.junkPages.length) {
+      out.push("A symbol that cannot belong before an amount, right before one: the rupee sign read as that symbol (nothing is recorded; these are where the printed sign is).", "");
+      for (const r of s.junkPages) for (const x of r.junk) out.push(`- circular ${r.item.id} page ${r.page}: \`${x.glyph}\` before \`${x.amount}\` (...${cut(x.context, 80)}...)`);
       out.push("");
     }
   }

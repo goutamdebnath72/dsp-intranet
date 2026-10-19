@@ -13,6 +13,7 @@ import { createRosterProbe } from "@/lib/ingestion/schedule/rosterProbe";
 import { createSecondReading, readingLine, uploadSecondReader } from "@/lib/ingestion/uploadSecondReading";
 import { checkRowsFor, savePageChecks } from "@/lib/search/pageChecks";
 import { combineChecks, twinChecksFor } from "@/lib/ingestion/crossCheck";
+import { slotChecksFor } from "@/lib/ingestion/currency";
 import { applyScheduleStage, logIngest, runScheduleStage, stageDetail, type IngestKind, type IngestStatus, type ScheduleStage, type Sql } from "@/lib/ingestion/schedule/ingest";
 
 // This route does two full Tesseract OCR passes PER PAGE (English, then
@@ -587,7 +588,8 @@ export async function POST(req: Request) {
         if (secondSummary.enabled) detail = { ...detail, secondReading: secondSummary.log };
         const twin = twinChecksFor(storedChunks);
         if (twin.length) detail = { ...detail, twinPages: twin.length };
-        const checkRows = checkRowsFor(combineChecks(secondSummary.enabled ? secondSummary.checks : [], twin), storedChunks);
+        // step 42b: an amount with a stray leading digit that the same page also states without it (the rupee sign read as a digit) is unconfirmed too
+        const checkRows = checkRowsFor(combineChecks(combineChecks(secondSummary.enabled ? secondSummary.checks : [], twin), slotChecksFor(storedChunks)), storedChunks);
         if (secondSummary.enabled || checkRows.length) detail.pageChecksSaved = await savePageChecks(sql, circular.id, checkRows);
       }
       if (scheduleStage) {

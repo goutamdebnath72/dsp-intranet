@@ -45,6 +45,7 @@ export const PAGE_READER_PROMPT = `You are transcribing ONE page of a scanned of
 Transcribe EVERYTHING you can read, exactly as printed, in reading order. Do not summarise, translate, correct or complete anything.
 Rules:
 - Copy every number, amount, date, reference and code exactly as printed. NEVER guess a digit. If a character or number is not clearly legible, write [illegible] in its place.
+- The Indian rupee sign \u20b9 (two horizontal bars across a curved top, with a slanted stroke below) is a CURRENCY MARK, never a digit or a letter. Copy it exactly where it is printed, directly before the amount: \u20b915,000. NEVER write it as 2, 3, 7, %, Z, T or any other character, and never join it to the number as a digit. Where the page prints Rs., Rs, INR or \u0930\u0941. copy that instead. The amount keeps exactly the digits printed after the mark.
 - Tables: write each row on ONE line as "Column heading: value | Column heading: value | ...", using the table's own column headings (for a heading over several columns use the lowest heading; repeat a merged cell's value on every row it covers).
 - Hindi and Bengali: transcribe in their own script.
 - Handwriting (signatures, handwritten dates): write [handwritten: ...] followed by your best reading and a question mark.

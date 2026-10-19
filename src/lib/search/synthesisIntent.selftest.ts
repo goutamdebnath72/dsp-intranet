@@ -13,9 +13,9 @@ const is = (q: string) => detectSynthesisIntent(q);
 const brief = (q: string) => { const r = is(q); return `[${r.level} ${r.score}${r.blockedBy ? ` blocked by ${r.blockedBy}` : ""}] ${q.slice(0, 80)}`; };
 
 // ---- the switch
-ok("auto-EDS is off by default", !autoEdsEnabled({}) && !autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: "1" }) && !autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: "false" }));
-ok("auto-EDS is on for 'true'", autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: " True " }));
-ok("the old server-side variable no longer switches it on", !autoEdsEnabled({ FRONT_PATH_AUTO_EDS: "true" }));
+ok("auto-EDS is ON by default (step 41a): nothing set, empty, or any value that is not an explicit off", autoEdsEnabled({}) && autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: "" }) && autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: " True " }) && autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: "1" }));
+ok("the kill switch: false / 0 / off / no, in any case and with spaces, turn it off", ["false", " FALSE ", "0", "off", "Off", "no"].every((v) => !autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: v })));
+ok("the old server-side variable has no effect, either way", autoEdsEnabled({ FRONT_PATH_AUTO_EDS: "false" }) && autoEdsEnabled({ FRONT_PATH_AUTO_EDS: "true" }));
 
 // ---- the REAL questions: the four tests of the old query document
 const OLD_TESTS = [

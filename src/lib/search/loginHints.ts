@@ -2,11 +2,13 @@
 //
 // Pure helpers for the omni search page. No DB, no network, no React.
 //
-// 1. decideLoginHint(): when should the page SUGGEST signing in / using the Executive Deep
-//    Synthesis button? Only for an explanatory question ("why ...", "explain ...", "policy on ...")
-//    that was answered with plain circular cards. Executive Deep Synthesis gives a written summary
-//    with sources for such questions, so a signed-out visitor is told to sign in first if they are
-//    an executive, and a signed-in executive who pressed Enter is told the button exists.
+// 1. decideLoginHint(): when should the page SUGGEST signing in / asking for a written summary?
+//    Only for an explanatory question ("why ...", "explain ...", "policy on ...") that was answered
+//    with plain circular cards. Executive Deep Synthesis gives a written summary with sources for
+//    questions that compare or trace circulars; there is no button (step 41a): the Enter key sends
+//    such a question from a signed-in executive there by itself. So a signed-out visitor is told to
+//    sign in first if they are an executive, and a signed-in executive whose question was NOT sent
+//    there is told how to ask for a summary.
 //    Nothing is suggested for names, counts, holiday dates, quoted exact phrases, or when the
 //    synthesis was already used. Masked mobile numbers / email IDs are deliberately NOT handled
 //    here: clicking a masked value already opens the login page. This is a rule of thumb.
@@ -109,33 +111,23 @@ export function looksLikeLookup(query: string): boolean {
 }
 
 export function decideLoginHint(i: HintInput): LoginHint | null {
-  // Reverse tip: Executive Deep Synthesis was used on a lookup, which the normal search answers directly.
-  if (i.mode === "intellectual") {
-    if (looksLikeLookup(i.query)) {
-      return {
-        kind: "plain",
-        text:
-          "This looks like a direct lookup (a name, a count, seniority or a holiday). " +
-          "The normal search answers it straight from the records: press Enter. " +
-          "Executive Deep Synthesis is for explanations drawn from circulars.",
-      };
-    }
-    return null;
-  }
+  // Executive Deep Synthesis has no button any more (step 41a): the Enter key sends an executive's question there by itself, so once it has
+  // run there is nothing to advise.
+  if (i.mode === "intellectual") return null;
 
   if (i.circularShown && !i.answerCardShown && looksAnalytical(i.query)) {
     if (!i.authenticated) {
       return {
         kind: "synthesis",
         text:
-          "This kind of question gets a fuller answer from Executive Deep Synthesis: a written summary with sources. " +
-          "If you are an executive, sign in first and use that button.",
+          "Signed-in executives can get a written summary across the circulars, with sources, for questions that compare or trace circulars. " +
+          "If you are an executive, sign in and ask again.",
       };
     }
     if (i.isExecutive) {
       return {
         kind: "synthesis",
-        text: "Tip: for a written summary with sources on this question, use the Executive Deep Synthesis button.",
+        text: "Tip: for a written summary across several circulars, ask for it directly, for example \u201ccompare \u2026\u201d, \u201cwhat changed between \u2026\u201d or \u201csummarise \u2026\u201d.",
       };
     }
   }

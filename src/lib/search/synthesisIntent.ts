@@ -35,7 +35,7 @@
 // the groups a policy applies to, so those words do not block.)
 //
 // This detects the INTENT. Whether synthesis then runs also needs a logged-in executive (the screen) that the server verifies
-// again, and the switch NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=true: never decided here. If an automatic synthesis finds no relevant
+// again, and the switch (ON by default since step 41a; NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false turns it off): never decided here. If an automatic synthesis finds no relevant
 // circular, the screen falls back to the normal search (useOmniSearch.ts).
 
 export type SynthesisLevel = "synthesis" | "borderline" | "none";
@@ -139,11 +139,12 @@ export function detectSynthesisIntent(question: string): SynthesisIntent {
 }
 
 /**
- * On only when NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=true: the Enter key then sends an EDS-type question from a logged-in executive to
- * Executive Deep Synthesis by itself (the screen decides, OmnibarModal.tsx; the server still verifies the executive). It is a
- * NEXT_PUBLIC_ variable because the browser reads it. The browser must pass the value in explicitly, because Next only replaces
- * the literal process.env.NEXT_PUBLIC_... in client code.
+ * ON by default (step 41a): the Enter key sends an EDS-type question from a logged-in executive to Executive Deep Synthesis by itself (the
+ * screen decides, OmnibarModal.tsx; the server still verifies the executive from the login session). There is no button any more. The kill
+ * switch is NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false (also 0, off, no, in any case). It is a NEXT_PUBLIC_ variable because the browser reads it,
+ * so a change needs a new deployment. The browser must pass the value in explicitly, because Next only replaces the literal
+ * process.env.NEXT_PUBLIC_... in client code.
  */
 export function autoEdsEnabled(env: Record<string, string | undefined> = { NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }): boolean {
-  return (env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS ?? "").trim().toLowerCase() === "true";
+  return !["false", "0", "off", "no"].includes((env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS ?? "").trim().toLowerCase());
 }

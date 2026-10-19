@@ -15,7 +15,8 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { Client } from "pg";
-import { crossCheck, mergeIntoStored, renderReport, summarize, twinChecks, type CircularFindings, type StoredCheck } from "../src/lib/ingestion/crossCheck";
+import { combineChecks, crossCheck, mergeIntoStored, pageScripts, pagesByScriptLine, renderReport, summarize, twinChecks, type CircularFindings, type StoredCheck } from "../src/lib/ingestion/crossCheck";
+import { attachedDigitSuspects, rupeeSlotJunk, slotChecks } from "../src/lib/ingestion/currency";
 import { pageTextHash, savePageChecks, storedPageTexts } from "../src/lib/search/pageChecks";
 
 const args = process.argv.slice(2);
@@ -45,8 +46,10 @@ async function main() {
       const stored = storedPageTexts(chunkRows.map((r: { page_number: number | null; chunk_index: number; text: string | null }) => ({ page: r.page_number == null ? null : Number(r.page_number), index: r.chunk_index, text: r.text ?? "" })));
       const pages = [...stored.entries()].map(([page, text]) => ({ page, text }));
       const groups = crossCheck(pages);
-      items.push({ id: row.id, serial: row.serialNumber, headline: row.headline ?? "", pages: pages.length, groups });
-      const twin = twinChecks(groups);
+      const rupee = pages.map((p) => ({ page: p.page, suspects: attachedDigitSuspects(p.text), junk: rupeeSlotJunk(p.text) })).filter((r) => r.suspects.length || r.junk.length);
+      items.push({ id: row.id, serial: row.serialNumber, headline: row.headline ?? "", pages: pages.length, groups, scripts: pageScripts(pages), rupee });
+      // the checks of the English / Hindi / Bengali pages, and of an amount with a stray leading digit (the rupee sign read as a digit): one set, as stored
+      const twin = combineChecks(twinChecks(groups), slotChecks(pages));
       if (!twin.length) continue;
       pagesToWrite += twin.length;
       if (!APPLY) continue;
@@ -74,6 +77,7 @@ async function main() {
   const s = summarize(items);
   console.log(`Circulars read: ${s.circulars} | with two or more pages: ${s.withTwoPages} | groups of pages that say the same thing in different scripts: ${s.groups}`);
   for (const [languages, n] of s.byLanguages) console.log(`  ${languages}: ${n}`);
+  console.log(`  pages by script: ${pagesByScriptLine(s.pagesByScript)}`);
   console.log(`  groups where every important number stands on more than one page: ${s.clean}`);
   console.log(`  GROUPS WITH A READING THAT DISAGREES WITH ANOTHER PAGE, OR A GARBLED LONGER FORM OF A NUMBER: ${s.flagged.length}`);
   for (const { item, group: g } of s.flagged.slice(0, 12)) {
@@ -81,6 +85,8 @@ async function main() {
     for (const d of g.disagreements) console.log(`    page ${d.a.page} ${d.a.value}  against  page ${d.b.page} ${d.b.value}   (${d.b.context.slice(0, 60)})`);
     for (const v of g.variants) console.log(`    page ${v.page} ${v.value}  is a longer form of  ${v.base}`);
   }
+  console.log(`\n  THE RUPEE SIGN: ${s.slotSuspects} amounts on ${s.suspectPages.length} pages have an extra leading digit that the same page also states without it (probably the sign read as a digit: recorded as unconfirmed); ${s.junkPages.length} pages have a symbol such as % or ¥ right before an amount (the sign read as a symbol).`);
+  for (const r of s.suspectPages.slice(0, 10)) for (const x of r.suspects) console.log(`    circular ${r.item.id} page ${r.page}: ${x.value} next to ${x.base}   (${x.context.slice(0, 60)})`);
   if (APPLY) {
     console.log(`\nSTORED: ${pagesSaved} of ${pagesToWrite} page checks (${newlyConfirmed} numbers newly confirmed).`);
     if (pagesSaved < pagesToWrite) console.log("  Some were not stored: see the warning above (is the table circular_page_check there?).");
@@ -88,7 +94,7 @@ async function main() {
     console.log(`  Pages with readings now recorded as UNCONFIRMED (the answer card refuses an answer resting on them): ${marked.length}`);
     for (const w of marked.slice(0, 25)) console.log(`    circular ${w.id} page ${w.page}: ${w.unconfirmed.join(", ")}`);
   } else {
-    console.log(`\nREPORT ONLY. Storing the checks would write ${pagesToWrite} pages (${s.numbersConfirmed} numbers confirmed, ${s.numbersUnconfirmed} readings unconfirmed). Add --apply to store them.`);
+    console.log(`\nREPORT ONLY. Storing the checks would write ${pagesToWrite} pages (${s.numbersConfirmed} numbers confirmed, ${s.numbersUnconfirmed} readings unconfirmed, the rupee-sign ones included). Add --apply to store them.`);
   }
   mkdirSync("reread-reports", { recursive: true });
   const file = `reread-reports/crosscheck-${Date.now()}.md`;

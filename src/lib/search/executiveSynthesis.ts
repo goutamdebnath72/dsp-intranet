@@ -310,6 +310,7 @@ DATASET INTENT RULES — choose the intent that matches the DATA you actually ha
 
 HARD ACCURACY RULES:
 - Transcribe figures, \u20b9 amounts, dates, circular numbers VERBATIM from the records. NEVER invent or interpolate a number.
+- The rupee sign (\u20b9, also printed Rs. / INR / \u0930\u0941.) only marks an amount as rupees; it is never a digit. OCR sometimes reads it as a digit stuck to the front of an amount ("215,000" for "Rs. 15,000"). If a record gives the same amount two ways that differ only by one extra leading digit, report the shorter, printed amount and say the other reading is unclear. Give amounts with the unit \u20b9.
 - CADENCE DISCIPLINE: Do NOT label an amount "per day / daily", "per month / monthly", or "per annum" unless the circular explicitly says so for THAT amount. If the cadence is not stated, call it simply "wage" or "total" without a time unit. Never assume daily.
 - HEADLINE THE TOTAL, NOT A COMPONENT: When a wage is broken into components (Basic, VDA, allowances...) with a stated or sum total, the headline figure is the TOTAL — never a single component. Do NOT call "Basic" (or any one line) "the wage". State the total, then list components.
 - MAGNITUDE SANITY: If a figure's magnitude is implausible for the cadence the query implies (e.g. a "daily" wage in the tens of thousands), do NOT assert that cadence. Report the figure as a total without inventing a time unit; flag it "as printed" if it looks like an OCR artifact. Do not swing to the opposite error of quoting a small component as the whole.

@@ -7,7 +7,6 @@ import {
   X,
   Search,
   Sparkles,
-  Lock,
   Globe,
   Quote,
   Languages,
@@ -174,13 +173,12 @@ export default function HelpManualModal({ isOpen, onClose }: Props) {
                   <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
                     <Sparkles size={14} /> Executive Deep Synthesis
                   </span>{" "}
-                  is the only button. It reads across many circulars and writes a
-                  combined, sourced summary with figures and charts. It stays{" "}
-                  <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
-                    <Lock size={12} /> locked
-                  </span>{" "}
-                  until an <strong>executive</strong> signs in (tickets starting
-                  with <Pill>4</Pill>); it covers circulars only.
+                  has no button: press Enter as usual. When an <strong>executive</strong>{" "}
+                  is signed in (tickets starting with <Pill>4</Pill>) and the question
+                  needs several circulars built into one answer (compare, what
+                  changed, trace, what is hidden), the search reads across the circulars
+                  and writes a combined, sourced summary with figures and charts. Ask
+                  in English. Everyone else gets the normal search. It covers circulars only.
                 </p>
               </Section>
 

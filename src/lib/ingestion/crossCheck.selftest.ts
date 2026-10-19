@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { buildPassages, verifyAnswer } from "../search/circularAnswer";
 import { checkRowsFor, pageTextHash } from "../search/pageChecks";
 import {
-  TRUST_ENGLISH, TWIN_READER, combineChecks, crossCheck, majorNumbers, mergeIntoStored, renderReport, scriptOf, summarize, twinChecks, twinChecksFor,
+  TRUST_ENGLISH, TWIN_READER, combineChecks, crossCheck, majorNumbers, mergeIntoStored, pageScripts, renderReport, scriptOf, summarize, twinChecks, twinChecksFor,
   type CircularFindings, type StoredCheck,
 } from "./crossCheck";
 
@@ -98,6 +98,16 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("GATE: the answer 215,000 is refused, because the English page does not confirm it", !wrong.ok && /not confirmed by the second reading of page 1/.test(wrong.reason), wrong.ok ? "ACCEPTED" : wrong.reason);
   const right = ask("Rs. 15,000", "The value of the gift card is Rs. 15,000");
   ok("GATE: the answer Rs. 15,000 (the English page) passes", right.ok, right.ok ? "" : right.reason);
+}
+
+// ---- a bare year is never the base of a longer form (circular 23 of the archive: 931.2025, a reference number, next to the year 2025)
+{
+  const en = "Steel Authority of India Limited Durgapur Steel Plant health check up circular numbers 1001 1002 1003 1004 for the year 2025 dated 2025";
+  const hi = HI_WORDS + "1001 1002 1003 1004 931/2025 2025";
+  const pages = [{ page: 1, text: hi }, { page: 2, text: en }];
+  const g = g1(pages);
+  ok("the group is found, and 2025 is confirmed on both pages", !!g && g.confirmed[1].includes("2025") && g.confirmed[2].includes("2025"));
+  ok("931.2025 next to the year 2025 is NOT a longer form (a reference number ends with the year); it is a single, and nothing is recorded against it", g.variants.length === 0 && g.singles.some((x) => x.value === "931.2025") && !checkOf(pages, 1)?.unconfirmed.includes("931.2025"), JSON.stringify([g.variants, g.singles]));
 }
 
 // ---- when there is no group
@@ -190,7 +200,14 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   const s = summarize(items);
   ok("the summary counts circulars, groups by languages, clean and flagged groups", s.circulars === 4 && s.withTwoPages === 3 && s.groups === 3 && s.clean === 1 && s.flagged.length === 2 && s.byLanguages.some(([l, n]) => l === "English + Hindi" && n === 2) && s.byLanguages.some(([l, n]) => l === "English + Hindi + Bengali" && n === 1), JSON.stringify({ ...s, flagged: s.flagged.length }));
   ok("the summary says what recording would do: pages, confirmed numbers, unconfirmed readings", s.pagesRecorded === 7 && s.numbersUnconfirmed === 3 && s.numbersConfirmed > 40, JSON.stringify([s.pagesRecorded, s.numbersConfirmed, s.numbersUnconfirmed]));
-  const md = renderReport(items);
+  items[0].scripts = pageScripts([{ page: 1, text: P("mediclaim-hindi") }, { page: 2, text: MEDI_EN }]);
+  items[1].scripts = pageScripts([{ page: 1, text: GP_HI }, { page: 2, text: GP_EN }, { page: 3, text: GP_BN }]);
+  items[2].rupee = [{ page: 1, suspects: [{ value: "215000", base: "15000", context: "the gift card value (215,000) may be chosen" }], junk: [{ glyph: "%", amount: "15000", context: "the amount (% 15,000) is" }] }];
+  const withScripts = renderReport(items);
+  ok("the report counts the pages by script (two circulars given: English 2 and Hindi 2, all in a group, and Bengali 1, in a group)", /Pages by script: English 2 \(in a group: 2\), Hindi 2 \(in a group: 2\), Bengali 1 \(in a group: 1\), mixed 0, too little text 0/.test(withScripts), (withScripts.match(/Pages by script:.*/) ?? ["no line"])[0]);
+  ok("...and has a rupee-sign section with the amount and the symbol", /## The rupee sign/.test(withScripts) && /circular 51 page 1: `215000` next to `15000`/.test(withScripts) && /circular 51 page 1: `%` before `15000`/.test(withScripts), withScripts.slice(900, 2400));
+  ok("the rupee suspect is counted in the summary (one amount, one page)", summarize(items).slotSuspects === 1 && summarize(items).suspectPages.length === 1 && summarize(items).junkPages.length === 1);
+  const md = renderReport(items.map((i) => ({ ...i, scripts: undefined, rupee: undefined })));
   ok("the report opens with the counts and the languages", /Circulars read: 4 \| with two or more pages: 3 \| groups of pages/.test(md) && /- English \+ Hindi \+ Bengali: 1/.test(md) && /3 readings are recorded as unconfirmed/.test(md), md.slice(0, 700));
   ok("the report shows the disagreement with both readings and the variant with its base", /Hindi page 1 `20\.0802`/.test(md) && /English page 2 `20\.08\.2026`/.test(md) && /Hindi page 1 `215000`.* is a longer form of `15000`/.test(md), md.slice(0, 1600));
   ok("the clean group is not listed in the details, and a number only on the English page is", !/### Circular 21/.test(md) && /only on the English page 2: `2026\.52`/.test(md));
