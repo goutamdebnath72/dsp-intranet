@@ -199,13 +199,59 @@ export function crossCheck(pages: PageText[]): Group[] {
   });
 }
 
+// ------------------------------------------------------------------------------------------------ the same circular in another language, as a separate file
+// A circular can come as THREE FILES with the same title and content, only the language differing (the Merit Award Scheme amendment: English, Hindi and a fully
+// Bengali one, titled "... (Eng)", "... (Hin)", "... (Beng)"). Their pages are witnesses to each other. The title only chooses the CANDIDATES; whether two pages
+// are twins is still decided by groupPages (different scripts, the same important numbers), so a re-upload or a revised version (the same script) is never one.
+
+const LANGUAGE_TAG = /[(\[]\s*(?:eng(?:lish)?|hin(?:di)?|beng(?:ali)?|ben(?:gali)?|bangla)\.?\s*[)\]]|\s[-\u2013\u2014]\s*(?:english|hindi|bengali|bangla)\s*$|\bin\s+(?:english|hindi|bengali)\b/gi;
+
+/** A title without its language tag ("(Eng)", "(Hin)", "(Beng)", "- Hindi" ...), in lower case, with punctuation and spacing flattened: the circulars of one family have the same one. "" when nothing is left. */
+export function titleFamily(headline: string): string {
+  return String(headline ?? "").replace(LANGUAGE_TAG, " ").toLowerCase().replace(/[^a-z0-9\u0900-\u09ff]+/g, " ").trim();
+}
+
+/** For each circular, the ids of the OTHER circulars of its family (the same title apart from the language tag). A circular with none is left out. */
+export function siblingsOf(circulars: { id: number; headline: string }[]): Map<number, number[]> {
+  const byFamily = new Map<string, number[]>();
+  for (const c of circulars) {
+    const key = titleFamily(c.headline);
+    if (key) byFamily.set(key, [...(byFamily.get(key) ?? []), c.id]);
+  }
+  const out = new Map<number, number[]>();
+  for (const ids of byFamily.values()) if (ids.length > 1) for (const id of ids) out.set(id, ids.filter((x) => x !== id));
+  return out;
+}
+
+/** A page of ANOTHER circular, brought in to check this one. */
+export interface WitnessPage {
+  circular: number;
+  page: number;
+  text: string;
+}
+const WITNESS_BASE = 100000;
+/** The page number a witness page has inside a group: from WITNESS_BASE up (a circular's own pages are below it). */
+export const witnessPage = (circular: number, page: number) => WITNESS_BASE + circular * 1000 + page;
+export const isWitness = (page: number) => page >= WITNESS_BASE;
+export function decodeWitness(page: number): { circular: number; page: number } | null {
+  return isWitness(page) ? { circular: Math.floor((page - WITNESS_BASE) / 1000), page: (page - WITNESS_BASE) % 1000 } : null;
+}
+
+/** Cross-checks the pages of ONE circular with the pages of its family as witnesses. Only the groups that hold a page of this circular are returned. */
+export function crossCheckWithWitnesses(own: PageText[], witnesses: WitnessPage[]): Group[] {
+  const ownPages = new Set(own.map((p) => p.page));
+  const all = [...own, ...witnesses.map((w) => ({ page: witnessPage(w.circular, w.page), text: w.text }))];
+  return crossCheck(all).filter((g) => g.pages.some((p) => ownPages.has(p.page)));
+}
+
 // ------------------------------------------------------------------------------------------------ the checks the answer card's gate uses
 
 /** What the groups record per page: the confirmed numbers, and as unconfirmed only a non-English side of a disagreement and a non-English variant. */
-export function twinChecks(groups: Group[]): NewCheck[] {
+export function twinChecks(groups: Group[], keep: (page: number) => boolean = () => true): NewCheck[] {
   const out: NewCheck[] = [];
   for (const g of groups) {
     for (const p of g.pages) {
+      if (!keep(p.page)) continue;
       const confirmed = g.confirmed[p.page] ?? [];
       const unconfirmed = new Set<string>();
       for (const d of g.disagreements) {
@@ -283,6 +329,8 @@ export interface CircularFindings {
   groups: Group[];
   /** The script of each page (optional: the report shows the counts when it is given). */
   scripts?: { page: number; script: Script }[];
+  /** The other circulars of its family (the same title in another language), when it has any. */
+  siblings?: number[];
   /** Per page, the amounts with a stray leading digit (currency.ts attachedDigitSuspects) and the symbols before amounts (rupeeSlotJunk). */
   rupee?: { page: number; suspects: Suspect[]; junk: JunkSlot[] }[];
 }
@@ -291,8 +339,14 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}\u202
 const langOf = (s: Script) => LANGUAGE[s] ?? s;
 
 /** Counts over a whole archive, and what recording the twin checks would do. */
+/** A group with pages of several circulars (a family) is listed and counted once: under the lowest circular it touches that is IN the report (a run restricted with --ids has only some of them). */
+const ownedBy = (item: CircularFindings, g: Group, present: Set<number>) =>
+  Math.min(item.id, ...g.pages.flatMap((p) => { const w = decodeWitness(p.page); return w && present.has(w.circular) ? [w.circular] : []; })) === item.id;
+const hasWitness = (g: Group) => g.pages.some((p) => isWitness(p.page));
+
 export function summarize(items: CircularFindings[]) {
-  const groups = items.flatMap((item) => item.groups.map((group) => ({ item, group })));
+  const present = new Set(items.map((i) => i.id));
+  const groups = items.flatMap((item) => item.groups.filter((g) => ownedBy(item, g, present)).map((group) => ({ item, group })));
   const byLanguages = new Map<string, number>();
   for (const { group } of groups) byLanguages.set(group.languages, (byLanguages.get(group.languages) ?? 0) + 1);
   const flagged = groups.filter(({ group }) => group.disagreements.length > 0 || group.variants.length > 0);
@@ -320,6 +374,8 @@ export function summarize(items: CircularFindings[]) {
     junkPages: rupeePages.filter((r) => r.junk.length > 0),
     circulars: items.length,
     withTwoPages: items.filter((i) => i.pages >= 2).length,
+    families: items.filter((i) => (i.siblings ?? []).length > 0 && (i.siblings ?? []).every((x) => x > i.id)).length,
+    familyCirculars: items.filter((i) => (i.siblings ?? []).length > 0).length,
     groups: groups.length,
     byLanguages: [...byLanguages].sort((a, b) => b[1] - a[1]),
     clean: clean.length,
@@ -337,7 +393,13 @@ export function pagesByScriptLine(m: Map<string, { total: number; grouped: numbe
 }
 
 const ctx = (s: Side) => `...${cut(s.context, 80)}...`;
-const where = (s: Side) => `${langOf(s.script)} page ${s.page}`;
+/** "page 1", or, in a group with pages of several circulars, "circular 85 page 1" (a witness page number is internal: it is never shown). */
+const pageName = (item: CircularFindings, g: Group, page: number) => {
+  const w = decodeWitness(page);
+  return hasWitness(g) ? `circular ${w ? w.circular : item.id} page ${w ? w.page : page}` : `page ${page}`;
+};
+/** "Hindi page 1", or "Hindi circular 85 page 1". */
+const whereIn = (item: CircularFindings, g: Group) => (s: Side) => `${langOf(s.script)} ${pageName(item, g, s.page)}`;
 
 /** The report as Markdown: the readings that disagree or look garbled first (they are what gets recorded as unconfirmed), then the numbers on one page only. */
 export function renderReport(items: CircularFindings[]): string {
@@ -346,6 +408,7 @@ export function renderReport(items: CircularFindings[]): string {
     "# English / Hindi / Bengali cross-check of the archive",
     "",
     `Circulars read: ${s.circulars} | with two or more pages: ${s.withTwoPages} | groups of pages that say the same thing in different scripts: ${s.groups}`,
+    ...(s.families ? [`Families of circulars with the same title in different languages (separate files): ${s.families} (${s.familyCirculars} circulars)`] : []),
     ...s.byLanguages.map(([l, n]) => `- ${l}: ${n}`),
     ...(s.pagesByScript.size ? [`Pages by script: ${pagesByScriptLine(s.pagesByScript)}`] : []),
     `- groups where every important number stands on more than one page: ${s.clean}`,
@@ -357,7 +420,8 @@ export function renderReport(items: CircularFindings[]): string {
   if (s.flagged.length) {
     out.push("## Readings that disagree with another page, or look garbled", "");
     for (const { item, group: g } of s.flagged) {
-      out.push(`### Circular ${item.id}${item.serial != null ? ` (serial ${item.serial})` : ""}: ${cut(item.headline, 90)}`, `${g.languages}: pages ${g.pages.map((p) => `${p.page} (${langOf(p.script)})`).join(", ")}`);
+      const where = whereIn(item, g);
+      out.push(`### Circular ${item.id}${item.serial != null ? ` (serial ${item.serial})` : ""}: ${cut(item.headline, 90)}`, `${g.languages}: ${g.pages.map((p) => `${pageName(item, g, p.page)} (${langOf(p.script)})`).join(", ")}`);
       for (const d of g.disagreements) out.push(`- ${where(d.a)} \`${d.a.value}\` ${ctx(d.a)} against ${where(d.b)} \`${d.b.value}\` ${ctx(d.b)}`);
       for (const v of g.variants) out.push(`- ${where(v)} \`${v.value}\` ${ctx(v)} is a longer form of \`${v.base}\``);
       out.push("");
@@ -376,14 +440,16 @@ export function renderReport(items: CircularFindings[]): string {
       out.push("");
     }
   }
-  const withSingles = items.flatMap((item) => item.groups.filter((g) => g.singles.length > 0).map((group) => ({ item, group })));
+  const present = new Set(items.map((i) => i.id));
+  const withSingles = items.flatMap((item) => item.groups.filter((g) => ownedBy(item, g, present) && g.singles.length > 0).map((group) => ({ item, group })));
   if (withSingles.length) {
     out.push("## Numbers that stand on one page only (nothing is recorded for them)", "");
     for (const { item, group: g } of withSingles) {
+      const where = whereIn(item, g);
       out.push(`### Circular ${item.id}${item.serial != null ? ` (serial ${item.serial})` : ""}: ${cut(item.headline, 90)}`, `${g.languages}`);
       const english = g.singles.filter((x) => x.script === "latin"), other = g.singles.filter((x) => x.script !== "latin");
       for (const x of english) out.push(`- only on the ${where(x)}: \`${x.value}\` ${ctx(x)}`);
-      if (other.length) out.push(`- only on the Hindi or Bengali pages (mostly garbled digits or details the English page leaves out): ${other.map((x) => `\`${x.value}\` (${langOf(x.script)} p.${x.page})`).join(", ")}`);
+      if (other.length) out.push(`- only on the Hindi or Bengali pages (mostly garbled digits or details the English page leaves out): ${other.map((x) => `\`${x.value}\` (${langOf(x.script)} ${pageName(item, g, x.page).replace("page ", "p.")})`).join(", ")}`);
       out.push("");
     }
   }

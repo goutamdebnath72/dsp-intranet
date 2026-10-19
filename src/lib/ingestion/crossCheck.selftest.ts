@@ -9,9 +9,13 @@ import { join } from "node:path";
 import { buildPassages, verifyAnswer } from "../search/circularAnswer";
 import { checkRowsFor, pageTextHash } from "../search/pageChecks";
 import {
-  TRUST_ENGLISH, TWIN_READER, combineChecks, crossCheck, majorNumbers, mergeIntoStored, pageScripts, renderReport, scriptOf, summarize, twinChecks, twinChecksFor,
+  TRUST_ENGLISH, TWIN_READER, combineChecks, crossCheck, crossCheckWithWitnesses, decodeWitness, isWitness, majorNumbers, mergeIntoStored, pageScripts, renderReport, scriptOf,
+  siblingsOf, summarize, titleFamily, twinChecks, twinChecksFor, witnessPage,
   type CircularFindings, type StoredCheck,
 } from "./crossCheck";
+import { indicMisreads } from "./indicMisreads";
+import { mergeOcrPasses } from "./ocrMerge";
+import { textOfWords, type TsvWord } from "./ruledTable";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -184,6 +188,61 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("with the second reader off or failed the twin rows still come", noSecond.length === 2 && noSecond.every((r) => r.reader === TWIN_READER) && noSecond[0].unconfirmed.join() === "215000");
   const one = [{ page: 1, index: 0, text: GIFT_EN }];
   ok("a one-page circular gets no rows from the twin check", checkRowsFor(combineChecks([], twinChecksFor(one)), one).length === 0);
+}
+
+// ---- the SAME circular in another language as a SEPARATE file (the Merit Award Scheme amendment: three files, "(Eng)", "(Hin)", "(Beng)")
+{
+  const T = { eng: "Circular -, Merit Award Scheme,26 (Amendment), Contract Workers (Eng)", hin: "Circular - Merit Award Scheme, 26 (Amendment), Contract Workers (Hin)", ben: "Circular -, Merit Award Scheme,26 (Amendment), Contract Workers (Beng)" };
+  const FAMILY = "circular merit award scheme 26 amendment contract workers";
+  ok("a title without its language tag is the same in English, Hindi and Bengali", titleFamily(T.eng) === FAMILY && titleFamily(T.hin) === FAMILY && titleFamily(T.ben) === FAMILY, [titleFamily(T.eng), titleFamily(T.hin), titleFamily(T.ben)].join(" | "));
+  ok("tags written other ways go too: (English), [Hindi], - Bengali, in English", ["Notice (English)", "Notice [Hindi]", "Notice - Bengali", "Notice in English", "NOTICE (Bangla)"].every((t) => titleFamily(t) === "notice"));
+  ok("a different year or scheme is a different family", titleFamily("Merit Award Scheme,27 (Amendment) (Eng)") !== titleFamily("Merit Award Scheme,26 (Amendment) (Eng)") && titleFamily("Extension of Mediclaim (2026-2027)") !== titleFamily("Extension of Mediclaim (26-27)"));
+  ok("a title that is only a tag has no family", titleFamily("(Eng)") === "" && titleFamily("") === "");
+  const sib = siblingsOf([{ id: 84, headline: T.eng }, { id: 85, headline: T.hin }, { id: 86, headline: T.ben }, { id: 90, headline: "A different circular" }]);
+  ok("the siblings of each circular of the family (and none for a circular alone)", sib.get(84)?.join() === "85,86" && sib.get(86)?.join() === "84,85" && !sib.has(90), JSON.stringify([...sib]));
+  ok("a witness page number is internal: it decodes to its circular and page, and a circular's own pages are not witnesses", JSON.stringify(decodeWitness(witnessPage(84, 3))) === '{"circular":84,"page":3}' && !isWitness(3) && decodeWitness(2) === null);
+
+  // the Bengali circular as the upload now stores it: the REAL page (engine output), the English pass cleaned by the rule, merged
+  const fxb = JSON.parse(readFileSync(join(__dirname, "__fixtures__", "indic-misreads.json"), "utf8")).bengali as { eng: number[][]; tri: number[][]; triText: string };
+  const wd = (rows: (number | string)[][]): TsvWord[] => rows.map((r, i) => ({ lineNo: i, block: r[0] as number, par: r[1] as number, line: r[2] as number, left: r[3] as number, top: r[4] as number, width: r[5] as number, height: r[6] as number, conf: r[7] as number, text: String(r[8]) }));
+  const engW = wd(fxb.eng), cut = new Set(indicMisreads(engW, wd(fxb.tri), fxb.triText));
+  const BEN = mergeOcrPasses(textOfWords(engW.filter((w) => !cut.has(w))), "", fxb.triText).text;
+  const EN = "STEEL AUTHORITY OF INDIA LIMITED DURGAPUR STEEL PLANT No: HR-CLC/MERIT_AWD/Amnd/2026/131 Date: 15.08.2026 NOTICE Subject: Extension of the last date for submission of applications for the Merit Scholarship Award 2026. The last date for submission of the application for the Merit Scholarship Scheme 2026 (Higher Education Scholarship Scheme) has been extended up to 31 August 2026. All concerned contract workers are requested to submit the duly filled application with the necessary documents within the stipulated date. For details contact the Shramik Kalyan Cell, Room No. 206, Ispat Bhawan, or the registered office of DSPCWWS, Old Plant Personnel Building, Opposite Canteen CN-9, Durgapur Steel Plant. Issued with the approval of the competent authority.";
+  const HI = HI_WORDS + "मेरिट स्कॉलरशिप योजना की आवेदन जमा करने की अंतिम तिथि बढ़ा दी गई है सभी संबंधित संविदा कर्मचारियों से अनुरोध है। HR-CLC/MERIT_AWD/Amnd/2026/131 15.08.2026 31 अगस्त 2026 कक्ष संख्या 206";
+  ok("the three pages have the scripts intended", scriptOf(EN) === "latin" && scriptOf(HI) === "devanagari" && scriptOf(BEN) === "bengali", [scriptOf(EN), scriptOf(HI), scriptOf(BEN)].join());
+  const ownBn = [{ page: 1, text: BEN }];
+  const wit = [{ circular: 84, page: 1, text: EN }, { circular: 85, page: 1, text: HI }];
+  const gs = crossCheckWithWitnesses(ownBn, wit);
+  ok("REAL: the Bengali circular and its English and Hindi versions (separate circulars) form ONE group of three scripts", gs.length === 1 && gs[0].languages === "English + Hindi + Bengali" && gs[0].pages.length === 3 && gs[0].pages.filter((p) => isWitness(p.page)).length === 2, JSON.stringify(gs.map((g) => [g.languages, g.pages])));
+  ok("REAL: the reference number 2026/131 and the date 15.08.2026 are confirmed on all three pages", ["2026.131", "15.08.2026"].every((n) => gs[0].pages.every((p) => gs[0].confirmed[p.page].includes(n))), JSON.stringify(gs[0].confirmed));
+  const mine = twinChecks(gs, (page) => !isWitness(page));
+  ok("only the Bengali circular's OWN page gets a check (the witnesses are not written to)", mine.length === 1 && mine[0].page === 1 && mine[0].confirmed.includes("2026.131") && mine[0].unconfirmed.length === 0 && gs[0].disagreements.length === 0, JSON.stringify(mine));
+
+  // the Bengali reading is damaged, as the Indic pass really damages Latin digits (15.08.2026 -> 5.08.2026): two other circulars agree against it
+  const damaged = crossCheckWithWitnesses([{ page: 1, text: BEN.replace("15.08.2026", "5.08.2026") }], wit);
+  ok("a damaged date on the Bengali circular, against two versions that agree, is a disagreement with two supporting pages, recorded as unconfirmed on the Bengali page only", damaged[0].disagreements.length === 1 && damaged[0].disagreements[0].support === 2 && twinChecks(damaged, (pg) => !isWitness(pg))[0].unconfirmed.join() === "5.08.2026", JSON.stringify(damaged[0].disagreements.map((d) => [d.a.value, d.b.value, d.support])));
+
+  // what is NOT a translation
+  const v2 = EN.replace("31 August 2026", "20 August 2026").replace("15.08.2026", "11.08.2026");
+  ok("a revised version of the same circular (the same script) is never a witness", crossCheckWithWitnesses([{ page: 1, text: EN }], [{ circular: 99, page: 1, text: v2 }]).length === 0);
+  ok("a version in another language about something else (no numbers in common) is not a witness either", crossCheckWithWitnesses(ownBn, [{ circular: 99, page: 1, text: "STEEL AUTHORITY OF INDIA LIMITED DURGAPUR STEEL PLANT Circular 2025/77 dated 03.01.2025 about the Sports Club trial on 04.01.2025 at 6.00 PM; fee 1500.00 per head" }]).length === 0);
+  ok("a circular with no witnesses is cross-checked on its own pages, as before", crossCheckWithWitnesses([{ page: 1, text: GP_HI }, { page: 2, text: GP_EN }], []).length === 1);
+
+  // the report: the family is listed once, under the lowest circular, with real circular and page names
+  const damagedBen = BEN.replace("15.08.2026", "5.08.2026");
+  const of = (id: number, own: string, ws: { circular: number; page: number; text: string }[], sib: number[]): CircularFindings => ({ id, serial: id, headline: id === 86 ? T.ben : id === 85 ? T.hin : T.eng, pages: 1, groups: crossCheckWithWitnesses([{ page: 1, text: own }], ws), siblings: sib });
+  const items: CircularFindings[] = [
+    of(84, EN, [{ circular: 85, page: 1, text: HI }, { circular: 86, page: 1, text: damagedBen }], [85, 86]),
+    of(85, HI, [{ circular: 84, page: 1, text: EN }, { circular: 86, page: 1, text: damagedBen }], [84, 86]),
+    of(86, damagedBen, wit, [84, 85]),
+  ];
+  const sm = summarize(items);
+  ok("the family is counted ONCE: one family of three circulars, one group, one flagged group (not three)", sm.families === 1 && sm.familyCirculars === 3 && sm.groups === 1 && sm.flagged.length === 1 && sm.flagged[0].item.id === 84, JSON.stringify({ f: sm.families, c: sm.familyCirculars, g: sm.groups, fl: sm.flagged.map((x) => x.item.id) }));
+  const only86 = summarize([items[2]]);
+  ok("a run restricted to ONE circular of the family (--ids) still counts and lists its group: the owner is the lowest circular IN the report", only86.groups === 1 && only86.flagged.length === 1 && only86.flagged[0].item.id === 86 && /Bengali circular 86 page 1 `5\.08\.2026`/.test(renderReport([items[2]])), JSON.stringify({ g: only86.groups, f: only86.flagged.length }));
+  const md = renderReport(items);
+  ok("the report names the family, and the damaged reading by its circular and page, never by an internal number", /Families of circulars with the same title in different languages \(separate files\): 1 \(3 circulars\)/.test(md) && /Bengali circular 86 page 1 `5\.08\.2026`/.test(md) && !/page 10[0-9]{4}/.test(md) && (md.match(/### Circular/g) ?? []).length === 1, md.slice(0, 1400));
+  ok("every page of the family is counted as in a group, in the pages-by-script line", (() => { const sc = items.map((it, i) => ({ ...it, scripts: pageScripts([{ page: 1, text: [EN, HI, damagedBen][i] }]) })); return /Pages by script: English 1 \(in a group: 1\), Hindi 1 \(in a group: 1\), Bengali 1 \(in a group: 1\)/.test(renderReport(sc)); })());
 }
 
 // ---- the report

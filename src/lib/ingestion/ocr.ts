@@ -7,6 +7,7 @@ import Tesseract from "tesseract.js";
 import { reconstructTableFromTSV } from "./tableReconstruction";
 import { keepWellRead, parseTsvWords, readRuledTables, textOfWords, tsvWithout, withoutTableWords, type CellOcr, type RuledPage, type TableReading } from "./ruledTable";
 import { mergeOcrPasses } from "./ocrMerge";
+import { indicMisreads } from "./indicMisreads";
 
 export const OCR_LANGS = ["eng", "hin+eng+ben"] as const;
 
@@ -81,6 +82,8 @@ export interface OcrPageResult {
   ruledTables?: number;
   /** Numbers in those tables that the readings could not agree on (written "[unclear]"). */
   unclearCells?: number;
+  /** English-pass words cut because the Hindi/Bengali pass read Indic script where they stand (misreadings of Indic glyphs: indicMisreads.ts). */
+  indicMisreads?: number;
 }
 
 /** The OCR of one page with the details the archive re-read needs. The upload route uses ocrPageDualPass (just the text). */
@@ -88,6 +91,8 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
   let eng = "";
   let table = "";
   let tri = "";
+  let engWords: ReturnType<typeof parseTsvWords> = [];
+  let triWords: ReturnType<typeof parseTsvWords> = [];
   // RULED TABLES (ruledTable.ts). The page reading cannot be trusted to lay out a table: it drops a narrow column and turns grid lines into
   // characters, differently at every scale. So the cells of a ruled table are read one by one (with a vote on every number). The page is still
   // read as before (always from the original picture), and a table reading is USED only if it keeps the words the page reading saw in that table;
@@ -114,9 +119,10 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
       const worker = workers[langs];
       const {
         data: { text, tsv },
-      } = await worker.recognize(input, {}, { text: true, tsv: langs === "eng" });
+      } = await worker.recognize(input, {}, { text: true, tsv: true });
       if (langs === "eng") {
         eng = text || "";
+        engWords = tsv ? parseTsvWords(tsv) : [];
         let tsvForOldTables = tsv || "";
         if (tsv && ruled.tables.length) {
           const words = parseTsvWords(tsv);
@@ -127,6 +133,7 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
             // cut only what the table readings contain (and grid-line debris); every other word inside a table's box stays
             const rest = withoutTableWords(words, kept);
             eng = textOfWords(rest.words);
+            engWords = rest.words;
             tsvForOldTables = tsvWithout(tsv, rest.removed);
           }
         }
@@ -134,9 +141,21 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
         if (tsvForOldTables) table = reconstructTableFromTSV(tsvForOldTables) || "";
       } else {
         tri = text || "";
+        triWords = tsv ? parseTsvWords(tsv) : [];
       }
     } catch (err) {
       console.error(`OCR pass "${langs}" failed${label ? " on " + label : ""}:`, (err as any)?.message || err);
+    }
+  }
+  // step 43a: an English-pass word that stands where the Hindi/Bengali pass read Indic script, and that the English pass was not sure of, is a misreading of an
+  // Indic glyph (gibberish, or a number invented from a Bengali or Devanagari numeral): it is cut before the merge (indicMisreads.ts). Only such words are cut: the
+  // text of an English page, and of every line without Indic script, is exactly what it was.
+  let indicCut = 0;
+  if (engWords.length && triWords.length) {
+    const cut = new Set(indicMisreads(engWords, triWords, tri));
+    if (cut.size) {
+      eng = textOfWords(engWords.filter((w) => !cut.has(w)));
+      indicCut = cut.size;
     }
   }
   if (kept.length) {
@@ -146,7 +165,7 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
   const merged = mergeOcrPasses(eng, table, tri);
   // OCR_QUIET is set by the archive re-read tool (hundreds of pages; it prints its own summary). Uploads keep this line.
   if (!process.env.OCR_QUIET) console.info(
-    `[ocr] ${label || "page"}: English pass ${eng.length} chars; Indic words kept ${merged.indicLetters} letters; ` +
+    `[ocr] ${label || "page"}: English pass ${eng.length} chars${indicCut ? ` (${indicCut} words cut: the Hindi/Bengali pass read Indic script there)` : ""}; Indic words kept ${merged.indicLetters} letters; ` +
       (merged.fellBackToIndicPass
         ? "ENGLISH PASS EMPTY, used the Hindi/Bengali text in full (its digits are NOT trustworthy)"
         : merged.discarded.length
@@ -155,7 +174,7 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
       (kept.length ? ` | ruled tables read cell by cell: ${kept.length}${kept.reduce((n, t) => n + t.unclear, 0) ? ` (${kept.reduce((n, t) => n + t.unclear, 0)} unclear number(s))` : ""}` : "") +
       (notUsed.length ? ` | not used: ${notUsed.join("; ")}` : ""),
   );
-  return { text: merged.text, englishChars: eng.length, indicLetters: merged.indicLetters, discarded: merged.discarded, fellBackToIndicPass: merged.fellBackToIndicPass, ruledTables: kept.length, unclearCells: kept.reduce((n, t) => n + t.unclear, 0) };
+  return { text: merged.text, englishChars: eng.length, indicLetters: merged.indicLetters, discarded: merged.discarded, fellBackToIndicPass: merged.fellBackToIndicPass, ruledTables: kept.length, unclearCells: kept.reduce((n, t) => n + t.unclear, 0), indicMisreads: indicCut };
 }
 
 /** The upload route's entry point: the text only. */

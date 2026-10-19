@@ -16,8 +16,9 @@
 
 /** Bump this whenever the merge rules below change, OR the table rebuilding (tableReconstruction.ts) changes what it adds to a page's
  *  text: a saved reading made by an older rule is then ignored by the re-read tool's cache.
- *  2 = the table header fix (a roster page used to get a 60,000-character column dump). */
-export const OCR_MERGE_VERSION = 3;
+ *  2 = the table header fix (a roster page used to get a 60,000-character column dump).
+ *  4 = English-pass words that sit where the Hindi/Bengali pass reads Indic script are cut before the merge (indicMisreads.ts). */
+export const OCR_MERGE_VERSION = 4;
 
 /** Devanagari, Bengali, Vedic extensions, Devanagari Extended, zero-width joiners (needed inside conjuncts). */
 const INDIC_CHAR = /[\u0900-\u097F\u0980-\u09FF\u1CD0-\u1CFF\uA8E0-\uA8FF\u200C\u200D]/;
@@ -37,6 +38,13 @@ const countLetters = (s: string): number => {
   for (const c of s) if (INDIC_LETTER.test(c)) n++;
   return n;
 };
+
+/** A token the Hindi/Bengali pass read as a word or numeral of its own script: at least one Indic letter, or an Indic digit (marks alone do not count). */
+export function isIndicWord(token: string): boolean {
+  let t = "";
+  for (const c of token || "") if (INDIC_CHAR.test(c)) t += c;
+  return countLetters(t) > 0 || [...t].some((c) => INDIC_DIGIT.test(c));
+}
 
 /** Only the Indic-script words of a text (Latin letters, ASCII digits and ASCII punctuation removed). "" if the page has too little. */
 export function indicOnlyText(text: string): string {
