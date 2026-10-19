@@ -10,6 +10,8 @@ import { createOcrWorkerPool, destroyOcrWorkerPool, ocrPageDualPass } from "@/li
 import { buildPageUnits, planChunks } from "@/lib/ingestion/chunking";
 import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
 import { createRosterProbe } from "@/lib/ingestion/schedule/rosterProbe";
+import { createSecondReading, readingLine, uploadSecondReader } from "@/lib/ingestion/uploadSecondReading";
+import { checkRowsFor, savePageChecks } from "@/lib/search/pageChecks";
 import { applyScheduleStage, logIngest, runScheduleStage, stageDetail, type IngestKind, type IngestStatus, type ScheduleStage, type Sql } from "@/lib/ingestion/schedule/ingest";
 
 // This route does two full Tesseract OCR passes PER PAGE (English, then
@@ -35,6 +37,8 @@ const SCHEDULE_STOP_AFTER_MS = 235_000;
 const MAX_UPLOAD_MS = 270_000;
 const FALLBACK_MS_PER_PAGE = 20_000;
 const FALLBACK_RESERVE_MS = 40_000;
+// The second reading (Gemini, per page, next to Tesseract) must be back by this time; the rest of the request is for assembling, embedding and the commit.
+const SECOND_READING_STOP_AFTER_MS = 200_000;
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
@@ -215,6 +219,11 @@ export async function POST(req: Request) {
     // roster table skip the slow generic OCR (their text would be a second, unstructured copy of data that is stored properly as rows) and the
     // schedule is read, checked against HR and stored (see ingest.ts). Ordinary circulars never get here: every page is read exactly as before.
     const rosterProbe = createRosterProbe();
+
+    // SECOND READING (step 39a): a second reader (Gemini) reads each page image next to Tesseract; after the last page the two readings are reconciled and the
+    // better text is what gets chunked, embedded and stored (src/lib/ingestion/uploadSecondReading.ts). Off for a holiday-list circular (no OCR at all), without
+    // GEMINI_API_KEY, and with UPLOAD_SECOND_READING=false. A failure of this step never fails the upload: the page keeps the Tesseract text, as before.
+    const secondReading = createSecondReading({ reader: skipOcrAndEmbedding ? null : uploadSecondReader(), deadlineAt: startedAt + SECOND_READING_STOP_AFTER_MS });
     const rosterPageNumbers: number[] = [];
     const pagePngs: Buffer[] = []; // kept only while the circular could still turn out to be a roster
     let scheduleStage: ScheduleStage | null = null;
@@ -237,6 +246,7 @@ export async function POST(req: Request) {
 
       if (!skipOcrAndEmbedding) {
         try {
+          secondReading.start(1, fileBytes); // the second reader looks at the same image while Tesseract works
           console.log("DEBUG: Running dual-pass OCR (PSM 3) on image...");
           const ocrWorkers = await createOcrWorkerPool();
           try {
@@ -303,6 +313,7 @@ export async function POST(req: Request) {
             if (isRosterPage) rosterPageNumbers.push(page);
           }
 
+          if (ocrWorkers && !isRosterPage) secondReading.start(page, pngBuffer); // second reader and Tesseract work on the page at the same time
           if (ocrWorkers && !isRosterPage) {
             try {
               console.log(
@@ -364,6 +375,11 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+
+    // The pages the second reader read take its text where it is the better one; the assembled text is rebuilt from the pages (it feeds the circular's own vector).
+    const secondSummary = await secondReading.finish(perPageText);
+    if (secondSummary.changedPages > 0) ocrAccumulatedText = perPageText.filter((t) => t && t.trim()).join(" \n") + " \n";
+    if (secondSummary.enabled) console.log(`UPLOAD: second reading: ${readingLine(secondSummary.log) || "no page was read"}`);
 
     /* ============================
        TEXT extraction -- skipped entirely for a detected holiday-list
@@ -560,6 +576,11 @@ export async function POST(req: Request) {
     try {
       const sql: Sql = (text, params) => dataSource.query(text, params);
       let detail: Record<string, unknown> = { pages: fileUrls.length, chunks: preparedChunks.length };
+      if (secondSummary.enabled) {
+        // what the second reading decided, page by page, goes to the log; its checks are stored with the fingerprint of the text that was really stored
+        detail = { ...detail, secondReading: secondSummary.log };
+        detail.pageChecksSaved = await savePageChecks(sql, circular.id, checkRowsFor(secondSummary.checks, preparedChunks.map((c) => ({ page: c.page, index: c.index, text: c.text }))));
+      }
       if (scheduleStage) {
         const stage: ScheduleStage = scheduleStage;
         let status: IngestStatus = stage.status === "ready" ? "applied" : stage.status;
@@ -587,6 +608,8 @@ export async function POST(req: Request) {
       message: "Circular uploaded successfully",
       circular,
       ingest,
+      secondReading: secondSummary.log,
+      readingLine: readingLine(secondSummary.log),
     });
   } catch (err: any) {
     console.error(

@@ -61,3 +61,44 @@ export async function loadPageChecks(
     return undefined;
   }
 }
+
+// ------------------------------------------------------------------------------------------------ checks recorded at UPLOAD (step 39a)
+export interface NewCheck {
+  page: number;
+  status: string;
+  confirmed: string[];
+  unconfirmed: string[];
+  secondOnly: string[];
+  reader: string;
+}
+export type NewCheckRow = NewCheck & { textHash: string };
+
+/** The checks of a new circular with the fingerprint of the text that is really stored for each page (its chunks); a page with no stored text gets no row. */
+export function checkRowsFor(checks: NewCheck[], chunks: { page: number | null; index: number; text: string }[]): NewCheckRow[] {
+  const texts = storedPageTexts(chunks);
+  return checks.flatMap((c) => {
+    const stored = texts.get(c.page);
+    return stored === undefined ? [] : [{ ...c, textHash: pageTextHash(stored) }];
+  });
+}
+
+/** Stores the rows (one upsert each). Never throws: a missing table or any database trouble just means the page is not protected, as before. Returns how many were saved. */
+export async function savePageChecks(run: (sql: string, params: unknown[]) => Promise<unknown>, circularId: number, rows: NewCheckRow[]): Promise<number> {
+  let saved = 0;
+  for (const r of rows) {
+    try {
+      await run(
+        `INSERT INTO public.circular_page_check (circular_id, page_number, status, confirmed, unconfirmed, second_only, reader, text_hash, checked_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+         ON CONFLICT (circular_id, page_number) DO UPDATE SET status = EXCLUDED.status, confirmed = EXCLUDED.confirmed, unconfirmed = EXCLUDED.unconfirmed,
+           second_only = EXCLUDED.second_only, reader = EXCLUDED.reader, text_hash = EXCLUDED.text_hash, checked_at = now()`,
+        [circularId, r.page, r.status, r.confirmed, r.unconfirmed, r.secondOnly, r.reader, r.textHash],
+      );
+      saved++;
+    } catch (e) {
+      console.warn("UPLOAD: the page checks could not be stored (the circular is saved):", (e as Error)?.message ?? e);
+      break;
+    }
+  }
+  return saved;
+}

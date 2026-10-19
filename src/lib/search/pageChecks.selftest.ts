@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPageUnits, planChunks } from "../ingestion/chunking";
-import { freshChecks, loadPageChecks, normPageText, pageTextHash, storedPageTexts, type CheckRow } from "./pageChecks";
+import { checkRowsFor, freshChecks, loadPageChecks, normPageText, pageTextHash, savePageChecks, storedPageTexts, type CheckRow, type NewCheck } from "./pageChecks";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => { if (cond) pass++; else { fail++; console.log("FAIL", name, detail); } };
@@ -36,6 +36,24 @@ ok("empty lists in the row are fine", JSON.stringify(freshChecks([row(1, "A B", 
   ok("REAL wage notice: the stored chunks of the page, joined, equal the page reading (so a check made on the reading is about the stored text)", normPageText(storedPageTexts(stored).get(1) ?? "") === normPageText(wage));
   ok("REAL wage notice: the fingerprints agree", pageTextHash(storedPageTexts(stored).get(1) ?? "") === pageTextHash(wage));
 
-  console.log(`\n${pass} passed, ${fail} failed`);
+  // ---- checks recorded at upload (step 39a)
+{
+  const chunks = planChunks(buildPageUnits(["First page text with 1500 rupees", "Second page text with 2500 rupees"], "")).map((c) => ({ page: c.page, index: c.index, text: c.text }));
+  const mk = (page: number): NewCheck => ({ page, status: "agreed", confirmed: ["1500"], unconfirmed: [], secondOnly: ["77"], reader: "gemini:test" });
+  const rows = checkRowsFor([mk(1), mk(2), mk(3)], chunks);
+  ok("checkRowsFor: a row per page that has stored text, none for page 3", rows.length === 2 && rows.map((r) => r.page).join() === "1,2");
+  ok("checkRowsFor: the fingerprint is the hash of the stored page text", rows[0].textHash === pageTextHash(storedPageTexts(chunks).get(1) as string));
+
+  const calls: { sql: string; params: unknown[] }[] = [];
+  const saved = await savePageChecks(async (sql, params) => { calls.push({ sql, params }); }, 77, rows);
+  ok("savePageChecks: one upsert per row, returns the count", saved === 2 && calls.length === 2 && /ON CONFLICT \(circular_id, page_number\) DO UPDATE/.test(calls[0].sql));
+  ok("savePageChecks: the parameters are circular, page, status, confirmed, unconfirmed, second-only, reader, fingerprint", calls[0].params[0] === 77 && calls[0].params[1] === 1 && calls[0].params[2] === "agreed" && JSON.stringify(calls[0].params[3]) === '["1500"]' && JSON.stringify(calls[0].params[5]) === '["77"]' && calls[0].params[6] === "gemini:test" && calls[0].params[7] === rows[0].textHash);
+  let n = 0;
+  const partial = await savePageChecks(async () => { n++; if (n === 2) throw new Error('relation "circular_page_check" does not exist'); }, 77, rows);
+  ok("savePageChecks: a failing database never throws; it stops and says how many were saved", partial === 1 && n === 2);
+  ok("savePageChecks: no rows, no calls", (await savePageChecks(async () => { throw new Error("must not be called"); }, 1, [])) === 0);
+}
+
+console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

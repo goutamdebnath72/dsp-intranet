@@ -63,6 +63,8 @@ export function CircularUploadModal({
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
+  // How well the uploaded circular was read (the server's one sentence, shown with the success message).
+  const [readingNote, setReadingNote] = useState("");
   // Phase 2 of the progress bar (see handleSubmit): once the file's bytes
   // have fully reached the server, axios's own upload-progress event has
   // nothing left to report, but the server-side OCR/chunk/embed work (the
@@ -115,6 +117,7 @@ export function CircularUploadModal({
     setStatus("idle");
     setUploadProgress(0);
     setErrorMessage("");
+    setReadingNote("");
     setPublishedDate(null);
     setIsCalendarOpen(false);
   }, [stopServerPhaseAnimation]);
@@ -226,6 +229,7 @@ export function CircularUploadModal({
       stopServerPhaseAnimation();
       setUploadProgress(100);
       setStatus("success");
+      setReadingNote(typeof response.data?.readingLine === "string" ? response.data.readingLine : "");
       onUploadSuccess(response.data);
       setTimeout(() => {
         onClose();
@@ -456,6 +460,9 @@ export function CircularUploadModal({
               <p className="text-sm text-green-600 text-center">
                 Upload successful! Closing soon...
               </p>
+            )}
+            {status === "success" && readingNote && (
+              <p className="text-xs text-neutral-600 text-center">{readingNote}</p>
             )}
           </div>
 
