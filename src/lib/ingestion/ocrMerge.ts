@@ -17,8 +17,9 @@
 /** Bump this whenever the merge rules below change, OR the table rebuilding (tableReconstruction.ts) changes what it adds to a page's
  *  text: a saved reading made by an older rule is then ignored by the re-read tool's cache.
  *  2 = the table header fix (a roster page used to get a 60,000-character column dump).
- *  4 = English-pass words that sit where the Hindi/Bengali pass reads Indic script are cut before the merge (indicMisreads.ts). */
-export const OCR_MERGE_VERSION = 4;
+ *  4 = English-pass words that sit where the Hindi/Bengali pass reads Indic script are cut before the merge (indicMisreads.ts).
+ *  5 = the Indic words of a line are split at punctuation (a hyphen, a quote, a bracket) and no longer glued ("প্রকল্পএর"). */
+export const OCR_MERGE_VERSION = 5;
 
 /** Devanagari, Bengali, Vedic extensions, Devanagari Extended, zero-width joiners (needed inside conjuncts). */
 const INDIC_CHAR = /[\u0900-\u097F\u0980-\u09FF\u1CD0-\u1CFF\uA8E0-\uA8FF\u200C\u200D]/;
@@ -27,6 +28,10 @@ const INDIC_LETTER = /[\u0904-\u0939\u093D\u0950\u0958-\u0961\u0985-\u09B9\u09BD
 
 /** Devanagari and Bengali DIGITS (०-९, ০-৯): numerals the Indic model reads in their own script -- not the Latin-digit damage. */
 const INDIC_DIGIT = /[\u0966-\u096F\u09E6-\u09EF]/;
+
+/** Punctuation that stands BETWEEN two words in running text: a hyphen or dash, a quote, a bracket, a colon, a semicolon, a comma. It is where a Bengali suffix attaches
+ *  ("প্রকল্প)’-এর") and it must not glue two words into one ("প্রকল্পএর"). Other OCR junk inside a word (| ~ ^ _ ...) is still dropped, which joins a broken word back together. */
+const WORD_SEPARATORS = /[-\u2010-\u2015\u2018\u2019\u201C\u201D'"()[\]{}:;,]+/;
 
 /** A line needs at least this many Indic letters to count: a stray hallucinated mark is not a sentence. */
 export const MIN_LINE_INDIC_LETTERS = 3;
@@ -53,7 +58,7 @@ export function indicOnlyText(text: string): string {
   for (const line of (text || "").split(/\r?\n/)) {
     const tokens: string[] = [];
     let letters = 0;
-    for (const raw of line.split(/\s+/)) {
+    for (const raw of line.split(/\s+/).flatMap((w) => w.split(WORD_SEPARATORS))) {
       if (!raw) continue;
       let t = "";
       for (const c of raw) if (INDIC_CHAR.test(c)) t += c;

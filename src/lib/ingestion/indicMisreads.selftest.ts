@@ -22,9 +22,9 @@ const truthFile = JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "eva
 const truth = (id: string) => new Set((truthFile.find((p) => p.id === id) as { numbers: string[] }).numbers.map(canon));
 const numsOf = (words: TsvWord[]) => [...numbersOf(textOfWords(words))];
 
-ok("the merge version says the rule changed (the re-read tool's cache is then ignored)", OCR_MERGE_VERSION === 4);
+ok("the merge version says the rule changed (the re-read tool's cache is then ignored)", OCR_MERGE_VERSION === 5);
 ok("an Indic word: a letter or an Indic digit; Latin, ASCII digits and a mark alone are not", isIndicWord("আগস্ট") && isIndicWord("২০২৬") && isIndicWord("(ডিএসপি)") && !isIndicWord("2026") && !isIndicWord("SAIL") && !isIndicWord("\u09be") && !isIndicWord(""));
-ok("the confidence that keeps a word and the share that cuts it are what the module says", CONFIDENT_ENGLISH_WORD === 85 && MIN_COVER === 0.5);
+ok("the confidence that keeps a word and the share that cuts it are what the module says", CONFIDENT_ENGLISH_WORD === 85 && MIN_COVER === 0.4);
 
 // ---- the REAL Bengali circular
 {
@@ -43,6 +43,23 @@ ok("the confidence that keeps a word and the share that cuts it are what the mod
   ok("REAL Bengali: the Bengali text itself is untouched by the cut (the deadline sentence is stored)", merged.text.includes("৩১ আগস্ট ২০২৬") && merged.text.includes("কক্ষ নং ২০৬"));
   const before2 = [...numbersOf(mergeOcrPasses(textOfWords(eng), "", fx.bengali.triText).text)];
   ok("REAL Bengali: without the cut the merge stores those 12 invented numbers (what the upload did)", before2.filter((n) => !TRUTH.has(n)).length >= 12, JSON.stringify(before2));
+}
+
+// ---- the REAL full circular, as the upload renders it (04_2026.pdf, one scan, rendered at 300/72): the page whose stray numbers 19 and 41 got through at 50%
+{
+  const eng = toWords(fx.bengaliPdf.eng), tri = toWords(fx.bengaliPdf.tri), cut = indicMisreads(eng, tri, fx.bengaliPdf.triText);
+  const keep = eng.filter((w) => !cut.includes(w));
+  const TRUTH = new Set(["2026.131", "15.08.2026", "2026", "31", "206"]);
+  const before = numsOf(eng), after = numsOf(keep);
+  ok("REAL full circular: the English pass alone has 8 or more numbers that are not on the page", before.filter((n) => !TRUTH.has(n)).length >= 8, JSON.stringify(before));
+  ok("REAL full circular: after the cut only the reference 2026/131 and the date 15.08.2026 are left (the stray 19 and 41 are gone)", after.join() === "2026.131,15.08.2026", JSON.stringify(after));
+  const kept = keep.map((w) => w.text);
+  ok("REAL full circular: the genuine Latin tokens are kept (reference, date, Shramik Kalyan Cell, the logo's SAIL)", kept.includes("HR-CLC/MERIT_AWD/Amnd/2026/131") && kept.includes("15.08.2026") && kept.includes("(Shramik") && kept.includes("Kalyan") && kept.some((t) => t.startsWith("Cell")) && kept.includes("SAIL"), kept.join(" ").slice(0, 200));
+  const merged = mergeOcrPasses(textOfWords(keep), "", fx.bengaliPdf.triText);
+  const mn = [...numbersOf(merged.text)];
+  ok("REAL full circular, after the merge: exactly the numbers the page has (the Bengali digits ২০২৬, ৩১, ২০৬ included) and nothing else", [...TRUTH].every((n) => mn.includes(n)) && mn.every((n) => TRUTH.has(n)), JSON.stringify(mn));
+  ok("REAL full circular: the deadline sentence and the room are stored", merged.text.includes("তারিখ ৩১ আগস্ট ২০২৬ পর্যন্ত বর্ধিত করা হয়েছে") && merged.text.includes("কক্ষ নং ২০৬"));
+  ok("REAL full circular: Bengali words are not glued where the page has a hyphen, a quote or a bracket (প্রকল্প এর, সিএন ৯ এর, এইচআর সিএলসি)", /প্রকল্প এর/.test(merged.text) && /সিএন ৯ এর/.test(merged.text) && /এইচআর সিএলসি/.test(merged.text) && !/প্রকল্পএর|সিএন৯এর|এইচআরসিএলসি/.test(merged.text), merged.text.slice(0, 600));
 }
 
 // ---- the REAL Hindi page of GPAIS: no true number may be lost
@@ -70,7 +87,8 @@ for (const [key, id] of [["gpaisHindi", "gpais-hindi"], ["gpaisEnglish", "gpais-
   ok("an English word of 80 over an Indic word is cut", indicMisreads([W("2016", 80)], [over], indicPage).length === 1);
   ok("...but a confident one (85 or more) over the same Indic word is kept: a genuine Latin token inside an Indic line", indicMisreads([W("15.08.2026", 93)], [over], indicPage).length === 0 && indicMisreads([W("15.08.2026", 85)], [over], indicPage).length === 0);
   ok("an English word with no Indic word at its place is kept, however unsure", indicMisreads([W("2016", 10, 600, 100)], [over], indicPage).length === 0);
-  ok("an English word only a little covered (under half) is kept", indicMisreads([W("2016", 10, 190, 100, 100, 30)], [over], indicPage).length === 0 && indicMisreads([W("2016", 10, 140, 100, 100, 30)], [over], indicPage).length === 1);
+  ok("an English word covered under 40% is kept (35%), at 40% or more it is cut (45%)", indicMisreads([W("2016", 10, 100, 100, 100, 30)], [W("আগস্ট", 95, 165, 100, 100, 30)], indicPage).length === 0 && indicMisreads([W("2016", 10, 100, 100, 100, 30)], [W("আগস্ট", 95, 155, 100, 100, 30)], indicPage).length === 1);
+  ok("a wide English word over TWO Indic words is cut by their cover together (30% each, 60% together), though neither alone reaches 40%", indicMisreads([W("2016", 10, 100, 100, 200, 30)], [W("আগস্ট", 95, 100, 100, 60, 30), W("তারিখ", 95, 240, 100, 60, 30)], indicPage).length === 1 && indicMisreads([W("2016", 10, 100, 100, 200, 30)], [W("আগস্ট", 95, 100, 100, 60, 30)], indicPage).length === 0);
   ok("a page with too few Indic letters is an English page: nothing is cut, so hallucinated marks cannot remove English words", indicMisreads([W("2016", 10)], [W("আগ", 90)], "আগ").length === 0 && indicMisreads([W("2016", 10)], [W("আগ", 90)], "").length === 0);
   ok("a mark alone, or a Latin word, in the Indic pass is not Indic script", indicMisreads([W("2016", 10)], [W("\u09be", 90), W("SAIL", 90)], indicPage).length === 0);
   ok("an Indic numeral counts as Indic script: an English-pass number over ২০২৬ is cut", indicMisreads([W("2016", 40)], [W("২০২৬", 90)], indicPage).length === 1);

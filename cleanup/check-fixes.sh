@@ -33,6 +33,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { ! grep -q "Centered Mode Selector Toolbar" src/components/OmnibarModal.tsx && grep -q "ON by default since step 41a" src/lib/search/synthesisIntent.ts && grep -q "Step 41a: no Executive Deep Synthesis button" src/components/OmnibarModal.tsx; } 2>/dev/null; report "No EDS button: the Enter key decides (on by default)" $?
 { grep -q "slotChecksFor" src/app/api/circulars/route.ts && grep -q "CURRENCY MARK" src/lib/ingestion/pageReader.ts && grep -q "it is never a digit" src/lib/search/executiveSynthesis.ts; } 2>/dev/null; report "The rupee sign: both readers are told, and a stray leading digit is unconfirmed at upload" $?
 { grep -q "indicMisreads" src/lib/ingestion/ocr.ts && grep -q "OCR_MERGE_VERSION = 4" src/lib/ingestion/ocrMerge.ts; } 2>/dev/null; report "OCR cuts the English pass's misreadings of Indic glyphs" $?
+{ grep -q "WORD_SEPARATORS" src/lib/ingestion/ocrMerge.ts && grep -q "coverOf(w, indic)" src/lib/ingestion/indicMisreads.ts; } 2>/dev/null; report "Bengali words are not glued at punctuation, the OCR cut counts the words together" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad
