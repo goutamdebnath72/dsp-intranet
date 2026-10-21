@@ -151,7 +151,8 @@ export async function ocrPageDual(input: Buffer | Uint8Array, label: string, wor
   // Indic glyph (gibberish, or a number invented from a Bengali or Devanagari numeral): it is cut before the merge (indicMisreads.ts). Only such words are cut: the
   // text of an English page, and of every line without Indic script, is exactly what it was.
   let indicCut = 0;
-  if (engWords.length && triWords.length) {
+  // OCR_INDIC_CUT=false switches the cut off (to measure it on its own: run the re-read dry run with and without it, with --no-cache)
+  if (engWords.length && triWords.length && process.env.OCR_INDIC_CUT !== "false") {
     const cut = new Set(indicMisreads(engWords, triWords, tri));
     if (cut.size) {
       eng = textOfWords(engWords.filter((w) => !cut.has(w)));

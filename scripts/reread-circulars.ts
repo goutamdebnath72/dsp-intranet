@@ -135,7 +135,23 @@ async function main() {
         } catch {
           structured = new Set<number>(); // the table does not exist: no schedules
         }
-        const plan = await planReread(deps, row, old, structured);
+        // A circular the second reader (Gemini) read keeps its text: that text is better than a Tesseract-only re-read (circular 85: the date 20-08-2026 would
+        // come back as 20-0802). --include-second-read overrides.
+        let secondRead = 0;
+        if (!flag("include-second-read")) {
+          try {
+            secondRead = Number((await client.query(`SELECT count(*) AS n FROM public.circular_page_check WHERE circular_id = $1 AND reader LIKE 'gemini%'`, [row.id])).rows[0]?.n ?? 0);
+          } catch {
+            secondRead = 0; // the table does not exist: no second readings
+          }
+        }
+        const plan: RereadPlan = secondRead
+          ? {
+              id: row.id, serialNumber: row.serialNumber, headline: row.headline, pages: Array.isArray(row.fileUrls) ? row.fileUrls.length : 0, oldChunks: old.length, newChunks: [],
+              oldChars: old.reduce((m, c) => m + c.text.length, 0), newChars: old.reduce((m, c) => m + c.text.length, 0), onlyInOld: [], onlyInNew: [], pageTexts: [], extractedText: "", status: "skipped",
+              reason: `${secondRead} page(s) were read by the second reader (Gemini): their stored text is kept (use --include-second-read to re-read anyway)`,
+            }
+          : await planReread(deps, row, old, structured);
         plans.push(plan);
         const removed = plan.onlyInOld.length ? ` | numbers that disappear: ${plan.onlyInOld.slice(0, 8).join(", ")}${plan.onlyInOld.length > 8 ? ", ..." : ""}` : "";
         const growth = plan.oldChars ? plan.newChars / plan.oldChars : 1;

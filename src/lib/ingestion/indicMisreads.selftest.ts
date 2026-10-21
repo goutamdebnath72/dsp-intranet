@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIDENT_ENGLISH_WORD, MIN_COVER, indicMisreads } from "./indicMisreads";
-import { OCR_MERGE_VERSION, isIndicWord, mergeOcrPasses } from "./ocrMerge";
+import { OCR_MERGE_VERSION, indicOnlyText, isIndicWord, mergeOcrPasses } from "./ocrMerge";
 import { numbersOf } from "./readingCheck";
 import { textOfWords, type TsvWord } from "./ruledTable";
 
@@ -22,7 +22,7 @@ const truthFile = JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "eva
 const truth = (id: string) => new Set((truthFile.find((p) => p.id === id) as { numbers: string[] }).numbers.map(canon));
 const numsOf = (words: TsvWord[]) => [...numbersOf(textOfWords(words))];
 
-ok("the merge version says the rule changed (the re-read tool's cache is then ignored)", OCR_MERGE_VERSION === 5);
+ok("the merge version says the rule changed (the re-read tool's cache is then ignored)", OCR_MERGE_VERSION === 6);
 ok("an Indic word: a letter or an Indic digit; Latin, ASCII digits and a mark alone are not", isIndicWord("আগস্ট") && isIndicWord("২০২৬") && isIndicWord("(ডিএসপি)") && !isIndicWord("2026") && !isIndicWord("SAIL") && !isIndicWord("\u09be") && !isIndicWord(""));
 ok("the confidence that keeps a word and the share that cuts it are what the module says", CONFIDENT_ENGLISH_WORD === 85 && MIN_COVER === 0.4);
 
@@ -77,6 +77,21 @@ for (const [key, id] of [["gpaisHindi", "gpais-hindi"], ["gpaisEnglish", "gpais-
   ok("REAL: the Hindi page loses its gibberish lines (100 or more words) and the English page only the gibberish from its Hindi letterhead (under 20 words)", hi.length >= 100 && en.length > 0 && en.length < 20, `${hi.length} / ${en.length}`);
   const enText = textOfWords(toWords(fx.gpaisEnglish.eng).filter((w) => !en.includes(w)));
   ok("REAL English page: its English sentences are all still there after the cut", ["Revised of GPAIS amount", "Policy Number", "Old Plant Personnel Building", "competent authority"].every((p) => enText.includes(p)), enText.slice(0, 120));
+}
+
+// ---- Devanagari and Bengali NUMERALS stay whole (step 43b cut them at their separators: the dry run of the archive showed new numbers 000, 0000, 500)
+{
+  const pad = (s: string) => `${s} शुल्क देय है और अंतिम तिथि बढ़ा दी गई है`; // enough Indic letters for the page threshold
+  const nums = (s: string) => [...numbersOf(indicOnlyText(pad(s)))].join();
+  ok("an amount with a comma stays one number: ६,००० = 6000 (it was 000)", nums("रु. ६,००० प्रति माह") === "6000", nums("रु. ६,००० प्रति माह"));
+  ok("an amount in lakhs: १,५०,००० = 150000 (it was 50 and 000)", nums("रु. १,५०,००० मात्र") === "150000", nums("रु. १,५०,००० मात्र"));
+  ok("two amounts: २,८०० and ७,६०० = 2800 and 7600 (the 2 and the 7 were lost)", nums("२,८०० और ७,६०० रुपये") === "2800,7600", nums("२,८०० और ७,६०० रुपये"));
+  ok("a date is a date: २०-०८-२०२६ = 20.08.2026 (it fell into 20, 08, 2026)", nums("दिनांक २०-०८-२०२६ तक") === "20.08.2026", nums("दिनांक २०-०८-२०२६ तक"));
+  ok("a session: २०२५-२६ = 2025.26", nums("सत्र २०२५-२६ के लिए") === "2025.26", nums("सत्र २०२५-२६ के लिए"));
+  ok("a ratio: ३०:७० = 30.70, a decimal: ६.५ = 6.5", nums("अनुपात ३०:७०") === "30.70" && nums("दर ६.५ प्रतिशत") === "6.5", nums("अनुपात ३०:७०") + " | " + nums("दर ६.५ प्रतिशत"));
+  ok("Bengali numerals too: ২০২৬-২৭ = 2026.27, ১,৫০০ = 1500", nums("সময় ২০২৬-২৭ এর জন্য") === "2026.27" && nums("টাকা ১,৫০০ মাত্র") === "1500", nums("সময় ২০২৬-২৭ এর জন্য") + " | " + nums("টাকা ১,৫০০ মাত্র"));
+  ok("punctuation AFTER a numeral still separates it from the next word: ২০২৬’-এর is 2026 and এর", indicOnlyText(pad("‘অ্যাওয়ার্ড ২০২৬’-এর জন্য")).split("\n")[0].split(" ").join("|").includes("২০২৬|এর") && nums("‘অ্যাওয়ার্ড ২০২৬’-এর জন্য") === "2026", indicOnlyText(pad("‘অ্যাওয়ার্ড ২০২৬’-এর জন্য")).split("\n")[0]);
+  ok("a separator BETWEEN a letter and a digit still splits (সিএন-৯-এর is সিএন ৯ এর), and ASCII digits are still never kept", /সিএন ৯ এর/.test(indicOnlyText(pad("ক্যান্টিন সিএন-৯-এর বিপরীতে"))) && !/[0-9]/.test(indicOnlyText(pad("মূল্য 15,000 টাকা"))));
 }
 
 // ---- the guards
