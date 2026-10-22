@@ -29,6 +29,7 @@ import { OmniLoginHint } from "@/components/OmniLoginHint";
 import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
 import { HolidayCompareCard } from "@/components/HolidayCompareCard";
 import { CircularAnswerCard } from "@/components/CircularAnswerCard";
+import { tidyDesignation } from "@/lib/nl2sql/designationFilter";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
 import { decideLoginHint, excludeShownPeople } from "@/lib/search/loginHints";
 import { autoEdsEnabled, detectSynthesisIntent } from "@/lib/search/synthesisIntent";
@@ -85,7 +86,7 @@ function PersonRow({
           {[
             emp.ticketNo,
             emp.sailPNo,
-            emp.designation ? `${emp.designation}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
+            emp.designation ? `${tidyDesignation(emp.designation)}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
             !hideDepartment && emp.department ? `${emp.department}${emp.departmentCode ? ` (${emp.departmentCode})` : ""}` : null,
           ]
             .filter(Boolean)
@@ -424,7 +425,7 @@ export function OmnibarModal({
         emp.name,
         emp.ticketNo,
         emp.sailPNo,
-        emp.designation ? `${emp.designation}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
+        emp.designation ? `${tidyDesignation(emp.designation)}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
         emp.department ? `${emp.department}${emp.departmentCode ? ` (${emp.departmentCode})` : ""}` : null,
       ]
         .filter(Boolean)

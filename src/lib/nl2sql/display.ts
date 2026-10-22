@@ -12,6 +12,8 @@
 //   GUARANTEE: every column the SQL returned is shown, exactly once. A hint can reorder and retitle the
 //   columns; it can never hide one.
 
+import { alternativeMatches, canonicalTitle, compileAlternative, isDesignationColumn, splitAlternatives, squash } from "./designationFilter";
+
 export type ColumnKind = "number" | "percent" | "boolean" | "code" | "date" | "text";
 export type ViewKind = "cards" | "table" | "bar";
 
@@ -277,10 +279,29 @@ export function sortRows(rows: Row[], key: string, kind: ColumnKind, dir: "asc" 
     .map((x) => x.r);
 }
 
+/**
+ * The filter box above a list. Several things can be asked at once, separated by a comma (or ; | or the word "or"): "gm, dgm, agm". Each one is either
+ *   - a DESIGNATION (in any case, with or without dots: gm, dgm, agm, ed, dic, Dy. general manager, asst.general manager, sr mgr ...): the rows with exactly
+ *     that designation, however it is spelled in the list; or
+ *   - text, found anywhere in the row as before (a name, a ticket, a department, a code); dots and spaces do not matter ("asst.general" finds "Asst. General").
+ * A designation and a word can be combined ("roy gm"). See designationFilter.ts for the rules.
+ */
 export function filterRows(rows: Row[], columns: DisplayColumn[], query: string): Row[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return rows;
-  return rows.filter((r) => columns.some((c) => formatCell(r[c.key], c.kind).toLowerCase().includes(q)));
+  const alternatives = splitAlternatives(query);
+  if (alternatives.length === 0) return rows;
+  const designationColumn = columns.find(isDesignationColumn);
+  const prepared = rows.map((r) => {
+    const cells = columns.map((c) => formatCell(r[c.key], c.kind));
+    return {
+      row: r,
+      lower: cells.map((s) => s.toLowerCase()).join(" | "),
+      squashed: cells.map(squash).join(" "),
+      title: designationColumn ? canonicalTitle(formatCell(r[designationColumn.key], designationColumn.kind)) : "",
+    };
+  });
+  const known = new Set(prepared.map((p) => p.title).filter(Boolean));
+  const compiled = alternatives.map((a) => compileAlternative(a, known, designationColumn !== undefined));
+  return prepared.filter((p) => compiled.some((c) => alternativeMatches(c, p))).map((p) => p.row);
 }
 
 // ---- export ----------------------------------------------------------------------------------------

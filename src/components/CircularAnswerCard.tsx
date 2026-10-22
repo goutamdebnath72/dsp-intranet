@@ -35,21 +35,30 @@ export function openTargetFor(a: CircularAnswer, s: { n: number; page: number | 
   return { page: s.page ?? row?.page ?? null, quote: row?.quote ?? "" };
 }
 
+/** "Loading Summary . . ." : three dots that light up one after another. */
+function LoadingDots() {
+  return (
+    <span aria-hidden className="ml-1 inline-flex gap-1">
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="dot-wave" style={{ animationDelay: `${(i * 0.22).toFixed(2)}s` }}>
+          .
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState; onOpenSource: (circularId: number, target?: { page: number | null; quote: string }) => void }) {
   if (state.status === "idle") return null;
 
   if (state.status === "loading") {
     return (
-      <section aria-label="Preparing the answer" aria-busy="true" className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-        <div className="flex items-center gap-2 bg-gradient-to-r from-blue-600/90 to-indigo-600/90 px-4 py-2 text-white">
-          <Sparkles size={14} aria-hidden />
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em]">Reading the documents for your answer...</span>
-        </div>
-        <div className="space-y-2 px-4 py-4" aria-hidden>
-          <div className="h-4 w-2/3 animate-pulse rounded bg-neutral-100" />
-          <div className="h-9 w-full animate-pulse rounded-lg bg-neutral-100" />
-          <div className="h-9 w-full animate-pulse rounded-lg bg-neutral-100" />
-        </div>
+      <section role="status" aria-live="polite" aria-label="Loading summary" aria-busy="true" className="flex items-center gap-2 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-semibold text-blue-700 shadow-sm">
+        <Sparkles size={14} aria-hidden />
+        <span>
+          Loading Summary
+          <LoadingDots />
+        </span>
       </section>
     );
   }

@@ -16,6 +16,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Check, ChevronDown, Copy, D
 import type { Nl2SqlExtras, Nl2SqlTable } from "@/lib/nl2sql/clientTypes";
 import { SourceBar } from "@/components/SourceBar";
 import { exportNote, filterRows, formatCell, pageProgress, rowCountLabel, sortRows, toCsv, toTsv, type DisplayColumn, type ViewKind } from "@/lib/nl2sql/display";
+import { isDesignationColumn, tidyDesignation } from "@/lib/nl2sql/designationFilter";
 
 const VIEW_META: Record<ViewKind, { label: string; Icon: typeof Table2 }> = {
   cards: { label: "Cards", Icon: LayoutList },
@@ -41,7 +42,8 @@ function Cell({ value, col }: { value: unknown; col: DisplayColumn }) {
   if (col.kind === "code") {
     return <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">{String(value)}</span>;
   }
-  return <>{formatCell(value, col.kind)}</>;
+  const text = formatCell(value, col.kind);
+  return <>{isDesignationColumn(col) ? tidyDesignation(text) : text}</>;
 }
 
 export function ResultTable({ table, columns, authenticated }: { table: Nl2SqlTable; columns: DisplayColumn[]; authenticated: boolean }) {
@@ -100,9 +102,10 @@ export function ResultTable({ table, columns, authenticated }: { table: Nl2SqlTa
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value.slice(0, 80))}
-              placeholder="Filter rows"
+              placeholder="Filter rows (e.g. GM, DGM, AGM)"
+              title="Type a name, a code, or designations such as GM, DGM, AGM, Sr. Mgr, Dy. Mgr (capitals and dots do not matter; separate several with commas)"
               aria-label="Filter rows"
-              className="w-44 rounded-lg border border-slate-200 bg-white py-1 pl-7 pr-2 text-xs text-slate-700 outline-none focus:border-blue-400"
+              className="w-60 rounded-lg border border-slate-200 bg-white py-1 pl-7 pr-2 text-xs text-slate-700 outline-none focus:border-blue-400"
             />
           </label>
         )}

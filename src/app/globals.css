@@ -126,6 +126,20 @@ button.modal-close:hover svg,
     scrollbar-width: none;  /* Firefox */
 }
 
+/* "Loading Summary . . ." : the three dots light up one after another */
+@keyframes dotWave {
+  0%, 80%, 100% { opacity: 0.15; }
+  40% { opacity: 1; }
+}
+.dot-wave {
+  display: inline-block;
+  font-weight: 900;
+  animation: dotWave 1.3s ease-in-out infinite both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot-wave { animation: none; opacity: 1; }
+}
+
 /* Animation utilities for modals */
 @keyframes fadeIn {
   from { opacity: 0; }

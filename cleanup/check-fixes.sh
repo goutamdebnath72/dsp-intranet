@@ -35,6 +35,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { grep -q "indicMisreads" src/lib/ingestion/ocr.ts && grep -q "OCR_MERGE_VERSION = 4" src/lib/ingestion/ocrMerge.ts; } 2>/dev/null; report "OCR cuts the English pass's misreadings of Indic glyphs" $?
 { grep -q "WORD_SEPARATORS" src/lib/ingestion/ocrMerge.ts && grep -q "coverOf(w, indic)" src/lib/ingestion/indicMisreads.ts; } 2>/dev/null; report "Bengali words are not glued at punctuation, the OCR cut counts the words together" $?
 { grep -q "DIGIT_JOINERS" src/lib/ingestion/ocrMerge.ts && grep -q "include-second-read" scripts/reread-circulars.ts; } 2>/dev/null; report "Indic numerals stay whole, a Gemini-read circular is not re-read by Tesseract" $?
+{ grep -q "compileAlternative" src/lib/nl2sql/display.ts && grep -q "dot-wave" src/app/globals.css && grep -q "Loading Summary" src/components/CircularAnswerCard.tsx; } 2>/dev/null; report "The people filter understands designations (GM, DGM, AGM ...) and the circular summary says Loading Summary" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad
