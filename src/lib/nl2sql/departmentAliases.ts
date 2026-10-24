@@ -18,7 +18,8 @@
 //
 // STILL TO BE FILLED (the owner checks the legacy intranet): 
 //   - CHRD / Training Institute: which HR row(s)?   (the intranet site list has CHRD; the 300 HR rows have no row of that name; L & D is a candidate)
-//   - A-Zone Maintenance and B-Zone Maintenance (part of Town Administration): which HR row(s)?
+//   - A-Zone Maintenance and B-Zone Maintenance are sections of Town Administration (its six rows were filled in on 24 Oct 2026) but have no row of their own: the words are NOT mapped,
+//     because a count for one zone would silently be the count for all of Town Administration.
 //   - PMU / Plant Medical is placed under MAIN HOSPITAL on the owner's guess ("probably a branch of M&HS"): confirm.
 //   - Heavy Maintenance has 3 sites (Site 1, 2, 3) but only 2 rows (92500 and 92530): the sites cannot be told apart.
 
@@ -47,5 +48,5 @@ export const DEPARTMENT_GROUPS: DepartmentGroup[] = [
   { name: "F&A (FINANCE & ACCOUNTS)", aliases: ["f&a", "f & a", "f and a", "finance and accounts", "finance & accounts", "finance"], prefixes: ["f and a", "finance and a c"] },
   { name: "HR", aliases: ["hr", "human resources", "human resource"], prefixes: ["hr"] },
   { name: "ED (WORKS)", aliases: ["ed works", "ed (works)", "executive director works"], prefixes: ["ed works"] },
-  { name: "TOWN ADMINISTRATION (TA BUILDING)", aliases: ["town administration", "ta building", "ta bldg"], prefixes: ["township maintenance"] },
+  { name: "TOWN ADMINISTRATION (TA BUILDING)", aliases: ["town administration", "town admin", "ta building", "ta bldg"], prefixes: ["township maintenance", "s e township maintenance", "estate and township branch"], stems: ["town serv"] },
 ];
