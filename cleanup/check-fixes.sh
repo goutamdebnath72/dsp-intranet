@@ -45,6 +45,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { grep -q "titleFor" src/lib/employees/rosterQuery.ts && grep -q "withTitle" src/components/OmnibarModal.tsx && grep -q "stripDoctorTitle" src/lib/search/employeeSearch.ts && grep -q "stored WITHOUT it" src/lib/nl2sql/medicalCadre.ts && test -f src/lib/employees/honorific.ts; } 2>/dev/null; report "Dr. before a doctor's name when it is shown (stored names stay plain)" $?
 { grep -q "PersonBadges" src/components/OmnibarModal.tsx && grep -q "isPhdHolder" src/lib/employees/honorific.ts && test -f src/components/PersonBadges.tsx; } 2>/dev/null; report "A small PhD badge after the name of the listed non-medical PhD holders (doctors have Dr. only)" $?
 { grep -q "repairFamilies" src/lib/nl2sql/pipeline.ts && grep -q "export function repairFamilies" src/lib/nl2sql/familyCheck.ts; } 2>/dev/null; report "A department family covered wrongly is mended at once, without a second model call" $?
+{ grep -q "isDoctorPerson" src/lib/employees/honorific.ts && grep -q "doctor_override" src/lib/nl2sql/omnibar.ts && grep -q "doctor_override" src/lib/employees/rosterQuery.ts && grep -q "doctor_override" src/lib/search/employeeSearch.ts && grep -q "is_doctor" src/lib/nl2sql/medicalCadre.ts; } 2>/dev/null; report "Doctors flagged in the roster (is_doctor): Dr., the split and the model's rule, designations untouched" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad

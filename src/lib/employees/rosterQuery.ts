@@ -25,7 +25,7 @@
 
 import { getDb } from "@/lib/db";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
-import { isPhdHolder, titleFor } from "@/lib/employees/honorific";
+import { isDoctorPerson, isPhdHolder, titleFor } from "@/lib/employees/honorific";
 import { compileNamePredicate, evaluateNamePredicate } from "./namePredicate";
 
 export type NameMatchMode = "surname" | "firstname" | "anyword" | "contains" | "auto";
@@ -126,8 +126,9 @@ function rowToEmployee(r: any): EmployeeResult {
     sailPNo: r.sail_pno || null,
     designation: r.designation_title || null,
     department: r.dept_name || null,
-    title: titleFor(ticket, r.designation_track),
-    phd: isPhdHolder(ticket, r.designation_track) || undefined,
+    isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
+    title: titleFor(ticket, r.designation_track, r.doctor_override),
+    phd: isPhdHolder(ticket, r.designation_track, r.doctor_override) || undefined,
     mobileMasked: maskMobile(r.contactNo || null),
     emailMasked: maskEmail(r.email || null),
     hasMobile: !!r.contactNo,
@@ -142,6 +143,7 @@ const BASE_SELECT = `
   er.id, er.ticket_no, er.sail_pno, er.name, er.cohort, er.user_id,
   dg.title AS designation_title,
   dg.track AS designation_track,
+  (to_jsonb(er) ->> 'doctor_override')::boolean AS doctor_override,
   sd.name AS dept_name,
   u."contactNo" AS "contactNo", u.email, u.name_phonetic
 `;

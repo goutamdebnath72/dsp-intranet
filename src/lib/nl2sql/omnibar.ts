@@ -23,7 +23,7 @@ import type { Nl2SqlExtras } from "./clientTypes";
 import { buildSourceInfo, emptyScheduleAnswer, pendingScheduleNote, scheduleAsked, ticketLookupNote, ticketsAsked, unconfirmedNote } from "./circularSources";
 import { comparisonVerdict } from "./rankingCheck";
 import { peopleHeadline } from "./medicalCadre";
-import { isPhdHolder, titleFor, withTitlesInRows } from "@/lib/employees/honorific";
+import { isDoctorPerson, isPhdHolder, titleFor, withTitlesInRows } from "@/lib/employees/honorific";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
 import { withoutBlindScope } from "@/lib/employees/unresolvedScope";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
@@ -165,8 +165,9 @@ function rowToEmployee(r: any): EmployeeResult {
     sailPNo: r.sail_pno || null,
     designation: r.designation_title || null,
     designationTrack: r.designation_track || null,
-    title: titleFor(r.ticket_no, r.designation_track),
-    phd: isPhdHolder(r.ticket_no, r.designation_track) || undefined,
+    isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
+    title: titleFor(r.ticket_no, r.designation_track, r.doctor_override),
+    phd: isPhdHolder(r.ticket_no, r.designation_track, r.doctor_override) || undefined,
     department: r.dept_name || null,
     mobileMasked: maskMobile(r.contactNo || null),
     emailMasked: maskEmail(r.email || null),
@@ -190,7 +191,7 @@ export async function peopleFor(client: SqlClient, tickets: string[]): Promise<E
   if (!unique.length) return [];
   const res = await client.query(
     `SELECT er.id, er.ticket_no, er.sail_pno, er.name, er.cohort, er.user_id,
-            dg.title AS designation_title, dg.track AS designation_track, sd.name AS dept_name, u."contactNo" AS "contactNo", u.email
+            dg.title AS designation_title, dg.track AS designation_track, (to_jsonb(er) ->> 'doctor_override')::boolean AS doctor_override, sd.name AS dept_name, u."contactNo" AS "contactNo", u.email
        FROM public.employee_roster er
        JOIN public.designation_grade dg ON dg.id = er.designation_grade_id
        LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id

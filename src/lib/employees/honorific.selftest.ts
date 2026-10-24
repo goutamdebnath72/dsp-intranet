@@ -2,7 +2,7 @@
 // "Dr." before a name, only when it is shown: who gets it, never twice, a typed "Dr." is ignored when searching, the table says what the card says. With TEST_DATABASE_URL set it also
 // runs the real people queries on the scratch database.
 
-import { DR_TICKETS, isPhdHolder, makePhdHolder, makeTitleFor, stripDoctorTitle, titleFor, withTitle, withTitlesInRows } from "./honorific";
+import { DR_TICKETS, isDoctorPerson, isPhdHolder, makePhdHolder, makeTitleFor, stripDoctorTitle, titleFor, withTitle, withTitlesInRows } from "./honorific";
 import { isDoctorQuestion, DOCTOR_DOC } from "../nl2sql/medicalCadre";
 import { buildPrompt } from "../nl2sql/prompt";
 
@@ -36,6 +36,12 @@ eq("every one of the 40 doctors has the title but no PhD badge", [titleFor("4999
 eq("the owner's confirmed PhD holder has both the title and the badge; the other Partha neither", [[titleFor("440480", "managerial"), isPhdHolder("440480", "managerial")], [titleFor("235067", "nonexec"), isPhdHolder("235067", "nonexec")]], [["Dr.", true], [null, false]]);
 eq("whoever is on the list has the badge, and the title: the two always agree for a non-doctor", DR_TICKETS.map((x) => [titleFor(x, "managerial"), isPhdHolder(x, "managerial")]), DR_TICKETS.map(() => ["Dr.", true]));
 
+// ---- step 48b: a doctor flagged in the roster (a managerial designation, but a doctor)
+eq("flagged: the title, whatever the track", [titleFor("490041", "managerial", true), titleFor("490041", "managerial", false), titleFor("490041", "managerial"), titleFor("490041", "managerial", "true")], ["Dr.", null, null, null]);
+eq("a flagged doctor needs no PhD badge, even if the ticket is also on the PhD list", [ph("441772", "managerial", true), ph("441772", "managerial", false), ph("441772", "managerial")], [false, true, true]);
+eq("isDoctorPerson: the medical track, or the flag (only a real true counts)", [isDoctorPerson("medical", null), isDoctorPerson("managerial", true), isDoctorPerson("managerial", null), isDoctorPerson("managerial", false), isDoctorPerson("managerial", "true"), isDoctorPerson("nonexec", undefined)], [true, true, false, false, false, false]);
+eq("a flagged doctor is shown as the owner expects", withTitle("ARGHYA DAS", titleFor("490041", "managerial", true)), "Dr. ARGHYA DAS");
+
 // ---- showing it
 eq("the name with the title", withTitle("ARIJIT CHAKRABORTY", "Dr."), "Dr. ARIJIT CHAKRABORTY");
 eq("no title, no change", [withTitle("ARIJIT CHAKRABORTY", null), withTitle("ARIJIT CHAKRABORTY"), withTitle("ARIJIT CHAKRABORTY", "")], Array(3).fill("ARIJIT CHAKRABORTY"));
@@ -62,7 +68,7 @@ ok("the rule tells the model that names are stored without the title", /names ar
 const context = { designations: [], departments: [] } as never;
 const withDoc = buildPrompt({ question: "how many doctors are there in main hospital", context, examples: [] });
 const without = buildPrompt({ question: "how many executives are there in main hospital", context, examples: [] });
-ok("the doctor rule stays modest (under 1800 characters), only for those questions", withDoc.length - without.length > 400 && withDoc.length - without.length < 1800, `${withDoc.length - without.length}`);
+ok("the doctor rule stays modest (under 2200 characters), only for those questions", withDoc.length - without.length > 400 && withDoc.length - without.length < 2200, `${withDoc.length - without.length}`);
 
 // ---- the real queries on the scratch database (skipped without TEST_DATABASE_URL)
 async function db() {

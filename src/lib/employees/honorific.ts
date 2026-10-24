@@ -23,16 +23,21 @@ export type Title = "Dr.";
 /** The rule, for a given list of extra tickets (the tests use their own list). */
 export function makeTitleFor(tickets: readonly string[]) {
   const extra = new Set(tickets.map((t) => String(t).trim()));
-  return (ticketNo: unknown, track: unknown): Title | null => (track === "medical" || extra.has(String(ticketNo ?? "").trim()) ? "Dr." : null);
+  // a doctor is on the medical track OR flagged in the roster (doctor_override: a doctor whose designation is a managerial one); a listed PhD holder is the third way
+  return (ticketNo: unknown, track: unknown, isDoctor?: unknown): Title | null =>
+    track === "medical" || isDoctor === true || extra.has(String(ticketNo ?? "").trim()) ? "Dr." : null;
 }
 export const titleFor = makeTitleFor(DR_TICKETS);
 
 /** The small "PhD" badge on the card: only the people on the manual list (a non-medical employee with a PhD). A doctor has the title already and needs no badge. */
 export function makePhdHolder(tickets: readonly string[]) {
   const listed = new Set(tickets.map((t) => String(t).trim()));
-  return (ticketNo: unknown, track: unknown): boolean => track !== "medical" && listed.has(String(ticketNo ?? "").trim());
+  return (ticketNo: unknown, track: unknown, isDoctor?: unknown): boolean => track !== "medical" && isDoctor !== true && listed.has(String(ticketNo ?? "").trim());
 }
 export const isPhdHolder = makePhdHolder(DR_TICKETS);
+
+/** Is this person a doctor: on the medical track of the designation table, or flagged in the roster (doctor_override) because the designation is a managerial one although the person is a doctor. */
+export const isDoctorPerson = (track: unknown, doctorOverride: unknown): boolean => track === "medical" || doctorOverride === true;
 
 const HAS_TITLE = /^\s*(?:dr|doctor)(?:\.|\s)/i;
 

@@ -13,6 +13,13 @@
 // Run from the project root:   node cleanup/apply-step47b.js
 
 const fs = require("fs");
+// step 48b builds on this step and changes lines of employeeSearch.ts, rosterQuery.ts and omnibar.ts that this step checks: after it, this step has nothing left to do
+try {
+  if (fs.readFileSync("src/lib/search/employeeSearch.ts", "utf8").includes("isDoctorPerson")) {
+    console.log("Nothing to do: already applied (step 48b builds on this step and has changed lines it checks).");
+    process.exit(0);
+  }
+} catch (e) { /* no such file: the checks below say so */ }
 const EDITS = [
  {
   "file": "src/lib/employees/honorific.ts",
