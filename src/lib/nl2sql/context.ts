@@ -7,7 +7,7 @@
 
 import type { SqlClient } from "./types";
 import { runReadOnly } from "./executor";
-import { DEPARTMENT_SHORT_FORMS, DEPARTMENT_WORD_ABBREVIATIONS, DESIGNATION_SHORT_FORMS, MULTI_ROW_DEPARTMENTS } from "./aliasHints";
+import { DEPARTMENT_FAMILIES, DEPARTMENT_SHORT_FORMS, DEPARTMENT_WORD_ABBREVIATIONS, DESIGNATION_SHORT_FORMS, MULTI_ROW_DEPARTMENTS } from "./aliasHints";
 
 export interface DesignationRow { id: number; code: number; title: string; track: string; rank_order: number }
 export interface DepartmentRow { id: number; code: number; name: string; cohort_scope: string }
@@ -66,14 +66,19 @@ function meaningfulWords(s: string): string[] {
 export function selectRelevantDepartments(question: string, all: DepartmentRow[], max = 25): DepartmentRow[] {
   const qNorm = " " + normText(question) + " ";
   const qWords = new Set(meaningfulWords(question));
+  const stems: string[] = []; // a short form named in the question: the rows whose name STARTS with its full name ("cocc" -> "CO & CC (BATTERY)")
   for (const [name, aliases] of DEPARTMENT_SHORT_FORMS) {
-    if (aliases.some((a) => qNorm.includes(" " + normText(a) + " "))) meaningfulWords(name).forEach((w) => qWords.add(w));
+    if (aliases.some((a) => qNorm.includes(" " + normText(a) + " "))) {
+      meaningfulWords(name).forEach((w) => qWords.add(w));
+      stems.push(normText(name));
+    }
   }
-  if (!qWords.size) return [];
+  if (!qWords.size && !stems.length) return [];
   const scored = all
     .map((d) => {
       const dWords = meaningfulWords(d.name);
-      let score = 0;
+      const dNorm = normText(d.name);
+      let score = stems.some((s) => dNorm === s || dNorm.startsWith(s + " ")) ? 10 : 0;
       for (const q of qWords) {
         if (dWords.some((w) => w === q || (q.length >= 4 && w.startsWith(q)) || (w.length >= 4 && q.startsWith(w)))) score++;
       }
@@ -82,6 +87,33 @@ export function selectRelevantDepartments(question: string, all: DepartmentRow[]
     .filter((x) => x.score > 0)
     .sort((x, y) => y.score - x.score || x.d.name.length - y.d.name.length || x.d.id - y.d.id);
   return scored.slice(0, max).map((x) => x.d);
+}
+
+/** The large departments (DEPARTMENT_FAMILIES) a question names, each with ALL its rows in the live list. */
+export function departmentFamilies(question: string, all: DepartmentRow[]): { name: string; rows: DepartmentRow[] }[] {
+  const qNorm = " " + normText(question) + " ";
+  const out: { name: string; rows: DepartmentRow[] }[] = [];
+  for (const f of DEPARTMENT_FAMILIES) {
+    if (!f.aliases.some((a) => qNorm.includes(" " + normText(a) + " "))) continue;
+    const rows = all.filter((d) => {
+      const n = normText(d.name);
+      return f.prefixes.some((p) => n === p || n.startsWith(p + " "));
+    });
+    if (rows.length) out.push({ name: f.name, rows });
+  }
+  return out;
+}
+
+/** What the model is told about them (empty when the question names none, so the prompt does not grow). */
+export function formatFamilies(families: { name: string; rows: DepartmentRow[] }[]): string {
+  if (!families.length) return "";
+  return (
+    "DEPARTMENTS THE QUESTION NAMES THAT HAVE SECTIONS -- the people sit in the section rows, so a department named in the question means ALL of its rows: filter with department_id IN (the ids below) and say so in understood_as. Only when the person names one section is that single row meant.\n" +
+    families
+      .map((f) => `${f.name} (${f.rows.length} rows): department_id IN (${f.rows.map((r) => r.id).join(", ")})` + (f.rows.length <= 40 ? `  -- ${f.rows.map((r) => `${r.code} ${r.name}`).join("; ")}` : ""))
+      .join("\n") +
+    "\n\n"
+  );
 }
 
 export function formatDepartments(shown: DepartmentRow[], totalCount: number): string {

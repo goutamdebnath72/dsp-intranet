@@ -16,7 +16,9 @@ import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Check, ChevronDown, Copy, D
 import type { Nl2SqlExtras, Nl2SqlTable } from "@/lib/nl2sql/clientTypes";
 import { SourceBar } from "@/components/SourceBar";
 import { exportNote, filterRows, formatCell, pageProgress, rowCountLabel, sortRows, toCsv, toTsv, type DisplayColumn, type ViewKind } from "@/lib/nl2sql/display";
-import { isDesignationColumn, tidyDesignation } from "@/lib/nl2sql/designationFilter";
+import { isDesignationColumn, isTicketColumn, tidyDesignation } from "@/lib/nl2sql/designationFilter";
+import { OriginSwitch, TicketText } from "@/components/OriginSwitch";
+import { useOriginTint } from "@/lib/ui/originTint";
 
 const VIEW_META: Record<ViewKind, { label: string; Icon: typeof Table2 }> = {
   cards: { label: "Cards", Icon: LayoutList },
@@ -36,11 +38,15 @@ function Pill({ yes }: { yes: boolean }) {
   );
 }
 
-function Cell({ value, col }: { value: unknown; col: DisplayColumn }) {
+function Cell({ value, col, tint = false }: { value: unknown; col: DisplayColumn; tint?: boolean }) {
   if (value === null || value === undefined || value === "") return <span className="text-slate-300">{"\u2014"}</span>;
   if (typeof value === "boolean") return <Pill yes={value} />;
   if (col.kind === "code") {
-    return <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">{String(value)}</span>;
+    return (
+      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
+        {isTicketColumn(col) ? <TicketText ticket={String(value)} tint={tint} /> : String(value)}
+      </span>
+    );
   }
   const text = formatCell(value, col.kind);
   return <>{isDesignationColumn(col) ? tidyDesignation(text) : text}</>;
@@ -50,6 +56,7 @@ export function ResultTable({ table, columns, authenticated }: { table: Nl2SqlTa
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [query, setQuery] = useState("");
+  const [tint] = useOriginTint();
   const [copied, setCopied] = useState(false);
 
   const shown = useMemo(() => {
@@ -160,7 +167,7 @@ export function ResultTable({ table, columns, authenticated }: { table: Nl2SqlTa
               <tr key={i} className="border-t border-slate-100 transition-colors odd:bg-white even:bg-slate-50/50 hover:bg-blue-50/40">
                 {columns.map((c) => (
                   <td key={c.key} className={`px-3 py-1.5 text-slate-700 ${c.kind === "number" || c.kind === "percent" ? "text-right tabular-nums" : ""}`}>
-                    <Cell value={r[c.key]} col={c} />
+                    <Cell value={r[c.key]} col={c} tint={tint} />
                   </td>
                 ))}
               </tr>
@@ -279,6 +286,7 @@ export function AnswerResult({
   const [view, setView] = useState<ViewKind | undefined>(start);
   if (!view || available.length === 0) return peopleView ? <>{peopleView}</> : null;
   const current = available.includes(view) ? view : available[0];
+  const hasTickets = Boolean(display?.columns.some(isTicketColumn));
 
   return (
     <div className="mb-2 p-1">
@@ -307,6 +315,7 @@ export function AnswerResult({
               })}
             </div>
           )}
+          {hasTickets && <OriginSwitch />}
         </div>
       )}
       {current === "table" && onOpenCircular && nl2sql.sources && nl2sql.sources.length > 0 && <SourceBar sources={nl2sql.sources} note={nl2sql.sourceNote} onOpen={onOpenCircular} />}

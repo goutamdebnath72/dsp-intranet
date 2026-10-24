@@ -42,10 +42,24 @@ export const MULTI_ROW_DEPARTMENTS: { name: string; aliases: string[]; codes: nu
   },
   {
     name: "PLANT GARAGE",
-    aliases: ["garage", "plant garage"],
+    aliases: ["garage", "plant garage", "mhemd", "mheod", "M.H.E.M.D.", "M.H.E.O.D."],
     codes: [85000, 85070, 85110, 85200, 85330, 85430],
     note: "85110 = Operation Garage (M.H.E.O.D.), 85200 = Maintenance Garage (M.H.E.M.D.); all six are Plant Garage.",
   },
+];
+
+/**
+ * Large departments made of sub-departments, each with one or more sections. The people sit in the SECTION rows ("CO & CC (BATTERY)"), so a question that names the department
+ * means ALL of its rows. They are found in the live list by the START of the normalised row name (context.ts departmentFamilies), never by exact name. CCP (Continuous Casting Plant)
+ * is part of SMS even when its row has its own name. Plant Garage (with M.H.E.M.D. and M.H.E.O.D.) and C & IT are listed by code in MULTI_ROW_DEPARTMENTS above.
+ */
+export const DEPARTMENT_FAMILIES: { name: string; aliases: string[]; prefixes: string[] }[] = [
+  { name: "CO & CC", aliases: ["cocc", "co&cc", "co & cc", "co and cc", "coke oven and coal chemical"], prefixes: ["co and cc"] },
+  { name: "BLAST FURNACE (BF)", aliases: ["bf", "blast furnace", "blast furnaces"], prefixes: ["bf", "b f", "blast furnace"] },
+  { name: "SMS (STEEL MELTING SHOP, with CCP)", aliases: ["sms", "s m s", "steel melting shop", "ccp", "continuous casting plant", "continuous casting"], prefixes: ["sms", "s m s", "ccp", "continuous casting"] },
+  { name: "WHEEL & AXLE (W&A)", aliases: ["w&a", "w & a", "w and a", "wheel and axle", "wheel & axle", "wheel axle"], prefixes: ["w and a", "wheel"] },
+  { name: "MERCHANT MILL", aliases: ["merchant mill"], prefixes: ["merchant mill"] },
+  { name: "SECTION MILL", aliases: ["section mill", "sec mill"], prefixes: ["section mill", "sec mill"] },
 ];
 
 /** Words that department names abbreviate (seen in the live list: "(ELECT)", "(MECH)", "(OPRN)", "ELECT.MAINT.", "DEPTT."). */

@@ -67,6 +67,23 @@ export function addCohortColumn(
   return { columns: outColumns, rows: outRows };
 }
 
+/** A column that REPEATS the grand total on every row of a list of people ("Total count 16"): it is noise on a card and on a table row (the headline says it), so it is removed.
+ *  Only a list with a ticket column, at least two rows, a name like total / count / cnt / ..._count and ONE value in every row; a count that differs per row is never touched. */
+const TOTAL_COLUMN = /^(total|grand)|(^|_)(count|cnt)$/i;
+export function dropRepeatedTotals(columns: string[], rows: Array<Record<string, any>>): { columns: string[]; rows: Array<Record<string, any>> } {
+  if (rows.length < 2 || !columns.includes("ticket_no")) return { columns, rows };
+  const drop = new Set(columns.filter((c) => TOTAL_COLUMN.test(c) && rows.every((r) => String(r[c]) === String(rows[0][c]))));
+  if (drop.size === 0) return { columns, rows };
+  return {
+    columns: columns.filter((c) => !drop.has(c)),
+    rows: rows.map((r) => {
+      const o = { ...r };
+      for (const c of drop) delete o[c];
+      return o;
+    }),
+  };
+}
+
 /** Everything a list of people needs before it is shown or exported: no internal rank, and a cohort column. */
 export function presentPeople(
   columns: string[],
@@ -74,7 +91,8 @@ export function presentPeople(
   people: PersonLike[] | null | undefined,
 ): { columns: string[]; rows: Array<Record<string, any>> } {
   const a = humanizeSeniority(columns, rows, people);
-  return addCohortColumn(a.columns, a.rows, people);
+  const c = addCohortColumn(a.columns, a.rows, people);
+  return dropRepeatedTotals(c.columns, c.rows);
 }
 
 /**

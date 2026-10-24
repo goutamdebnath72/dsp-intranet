@@ -30,6 +30,8 @@ import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
 import { HolidayCompareCard } from "@/components/HolidayCompareCard";
 import { CircularAnswerCard } from "@/components/CircularAnswerCard";
 import { tidyDesignation } from "@/lib/nl2sql/designationFilter";
+import { TicketText } from "@/components/OriginSwitch";
+import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
 import { decideLoginHint, excludeShownPeople } from "@/lib/search/loginHints";
 import { autoEdsEnabled, detectSynthesisIntent } from "@/lib/search/synthesisIntent";
@@ -57,7 +59,6 @@ function PersonRow({
   copiedId,
   onReveal,
   onCopy,
-  hideDepartment = false,
 }: {
   emp: any;
   rev: { mobile?: string; email?: string };
@@ -65,9 +66,10 @@ function PersonRow({
   copiedId: string | null;
   onReveal: (id: string, field: "mobile" | "email") => void;
   onCopy: (emp: any) => void;
-  /** Inside a department heading the department is not repeated on every card. */
+  /** Kept for the callers; the department (name and code) is now shown on every card, also under a department heading. */
   hideDepartment?: boolean;
 }) {
+  const [tint] = useOriginTint();
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg border border-transparent hover:bg-neutral-100 transition-all duration-200">
       <div className="p-2 rounded-md bg-emerald-100 text-emerald-700 flex-shrink-0">
@@ -83,14 +85,15 @@ function PersonRow({
           )}
         </p>
         <p className="text-xs text-neutral-500 truncate">
+          <TicketText ticket={emp.ticketNo} tint={tint} />
           {[
-            emp.ticketNo,
             emp.sailPNo,
             emp.designation ? `${tidyDesignation(emp.designation)}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
-            !hideDepartment && emp.department ? `${emp.department}${emp.departmentCode ? ` (${emp.departmentCode})` : ""}` : null,
+            emp.department ? `${emp.department}${emp.departmentCode ? ` (${emp.departmentCode})` : ""}` : null,
           ]
             .filter(Boolean)
-            .join("  \u00b7  ")}
+            .map((part, i) => `${emp.ticketNo || i > 0 ? "  \u00b7  " : ""}${part}`)
+            .join("")}
         </p>
         {Array.isArray(emp.extraFields) && emp.extraFields.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1.5">

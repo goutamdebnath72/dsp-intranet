@@ -21,15 +21,16 @@ const context = { designations: [], departments: [] } as never;
 const withDoc = buildPrompt({ question: "how many promotee officers are in each department", context, examples: [] });
 const without = buildPrompt({ question: "how many executives are in each department", context, examples: [] });
 ok("the prompt of a promotee question holds the ticket rule", withDoc.includes("substr(ticket_no, 2, 1) <> '9'") && withDoc.includes("substr(ticket_no, 2, 1) = '9'"), withDoc.slice(0, 80));
-ok("...and says that JO is not a designation", /JO is NOT a designation/.test(withDoc));
+ok("...and says that JO is a DESIGNATION (Junior Officer), not a class", /JO.{0,40}Junior Officer.{0,20}is a DESIGNATION/s.test(withDoc) && /lower\(designation\) LIKE 'junior officer%'/.test(withDoc), withDoc.slice(0, 80));
 ok("an ordinary question's prompt does not hold it (no cost)", !without.includes("substr(ticket_no") && !without.includes("PROMOTEES AND DIRECT RECRUITS"));
-ok("the extra text is modest (under 1500 characters), only for those questions", withDoc.length - without.length > 400 && withDoc.length - without.length < 1500, `${withDoc.length - without.length}`);
+ok("the extra text is modest (under 2200 characters), only for those questions", withDoc.length - without.length > 400 && withDoc.length - without.length < 2200, `${withDoc.length - without.length}`);
 
 // the SQL the rule teaches passes the real guard
 for (const sql of [
   "SELECT department_code, department, count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND substr(ticket_no, 2, 1) <> '9' GROUP BY department_id, department_code, department ORDER BY count DESC, department_code",
   "SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' AND substr(ticket_no, 2, 1) = '9' AND designation = 'Dy. General Manager' ORDER BY global_seniority_rank",
   "SELECT CASE WHEN substr(ticket_no, 2, 1) = '9' THEN 'Direct recruits' ELSE 'Promotees' END AS origin, count(*) AS count FROM nlq.employees WHERE cohort = 'executive' GROUP BY 1",
+  "SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' AND lower(designation) LIKE 'junior officer%' ORDER BY global_seniority_rank",
 ]) {
   const g = guardSql(sql);
   ok(`the guard accepts the promotee SQL: ${sql.slice(0, 60)}...`, g.ok === true, JSON.stringify(g).slice(0, 160));

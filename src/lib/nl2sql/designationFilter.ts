@@ -4,7 +4,7 @@
 //
 //   * case does not matter and the dot after a short form is optional:  gm, GM, Dy, dy.  Asst, asst.  Sr, Jr, Mgr, Mngr
 //   * the initials of a designation mean THAT designation and no other:  gm = General Manager, dgm = Dy. General Manager, agm = Asst. General Manager,
-//     cgm = Chief General Manager, ed = Executive Director, dic = Director In-charge, mo = Medical Officer
+//     cgm = Chief General Manager, ed = Executive Director, dic = Director In-charge, jo = Junior Officer (the first 18 months of a promotee; there may be none now), mo = Medical Officer
 //   * a whole title is recognised the same way:  "general manager" shows the General Managers only (not the Dy. or Asst. ones), "Dy. general manager",
 //     "asst. general manager", "sr mgr", "dy mngr", "jr mngr" ...
 //   * "Asst.General Manager" (no space, as it may be stored) and "Asst. General Manager" are the same thing: dots and spaces never matter
@@ -13,8 +13,9 @@
 //   * which titles exist is read from the list itself, so nothing here has to be kept up to date; a title that is not in the list shows no rows
 //   * the ORIGIN of an executive, read from the ticket: an executive ticket is 4 + a second digit + four more digits, and the second digit never changes in a whole service life:
 //     9 = joined as an executive on day 1 (a direct recruit); any other digit = promoted from the non-executives (a promotee: called JO for the first 18 months, then holding the normal
-//     designation, a DGM or AGM later). "jo", "promotee", "promotees", "promoted officers" show the promotees whatever their designation is today; "direct", "direct recruit", "day 1", "d1" the
-//     direct recruits. They combine with a designation or a word ("jo agm", "direct gm", "jo roy"). They work when the list shows a ticket column (otherwise they are plain text).
+//     designation, a DGM or AGM later). "promotee", "promotees", "promoty", "promoted officers" show the promotees whatever their designation is today; "direct", "direct recruit", "day 1", "d1" the
+//     direct recruits. They combine with a designation or a word ("promotee agm", "direct gm", "promotee roy"). They work when the list shows a ticket column (otherwise they are plain text).
+//     "jo" is NOT one of these words: it is a designation (above), found by its title like any other.
 // Anything that is not a designation or an origin (a name, a ticket, a department, a code) is found as before, as text anywhere in the row.
 
 const fold = (s: string): string => s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
@@ -41,6 +42,7 @@ const INITIALS: Record<string, string[]> = {
   gm: ["general", "manager"],
   dgm: ["deputy", "general", "manager"],
   agm: ["assistant", "general", "manager"],
+  jo: ["junior", "officer"],
   mo: ["medical", "officer"],
 };
 /** A short form that on its own already names a designation ("Mgr" is the Manager). */
@@ -79,11 +81,10 @@ export const isTicketColumn = (c: { key: string; label: string; kind: string }):
 
 /** The words that ask for an origin (dots, dashes and capitals do not matter: "Day-1", "JO", "Promotee Officers"). */
 const ORIGIN_PHRASES: Record<string, Origin> = {};
-for (const w of ["jo", "jos", "promotee", "promotees", "promoty", "promoted"]) ORIGIN_PHRASES[w] = "promotee";
+for (const w of ["promotee", "promotees", "promoty", "promoted"]) ORIGIN_PHRASES[w] = "promotee";
 for (const w of ["officer", "officers", "executive", "executives"]) {
   ORIGIN_PHRASES[`promotee ${w}`] = "promotee";
   ORIGIN_PHRASES[`promoted ${w}`] = "promotee";
-  ORIGIN_PHRASES[`jo ${w}`] = "promotee";
   ORIGIN_PHRASES[`direct ${w}`] = "direct";
   ORIGIN_PHRASES[`day 1 ${w}`] = "direct";
   ORIGIN_PHRASES[`day one ${w}`] = "direct";

@@ -10,7 +10,7 @@ import type { Example } from "./examples";
 import { extractQuotedTerms } from "./quoted";
 import { vocabularyLine } from "./vocabulary";
 import type { NegativeExample } from "./learning";
-import { formatDepartments, formatDesignations, selectRelevantDepartments, type DynamicContext } from "./context";
+import { departmentFamilies, formatDepartments, formatDesignations, formatFamilies, selectRelevantDepartments, type DynamicContext } from "./context";
 
 const SCHEMA_AND_RULES = `You convert a question about the employees of SAIL Durgapur Steel Plant (DSP) into ONE read-only PostgreSQL SELECT statement, and restate the question in plain English.
 
@@ -122,10 +122,11 @@ export interface PromptInput {
 }
 
 /** Added to the prompt ONLY when the question is about promotees or direct recruits (it costs the other questions nothing: the prompt has a size limit). */
-const ORIGIN_DOC = `PROMOTEES AND DIRECT RECRUITS -- read from nlq.employees.ticket_no; true for a whole service life, whatever the designation is today. An executive ticket is 4 + a second digit + four more digits.
-  Second digit 9 = joined as an executive on day 1 (a DIRECT RECRUIT; "day 1", "day-one", "direct"). Any other second digit = PROMOTED from the non-executives (a PROMOTEE; "promotee", "promoted officer(s)", "promoty", "JO", "JOs"; they are called JO for the first 18 months and later hold the normal designation, even DGM or AGM).
+const ORIGIN_DOC = `PROMOTEES, DIRECT RECRUITS AND JOs -- "promotee" and "direct recruit" are CLASSES read from nlq.employees.ticket_no; they hold for a whole service life, whatever the designation is today. An executive ticket is 4 + a second digit + four more digits.
+  Second digit 9 = joined as an executive on day 1 (a DIRECT RECRUIT; "day 1", "day-one", "direct"). Any other second digit = PROMOTED from the non-executives (a PROMOTEE; "promotee", "promoted officer(s)", "promoty").
   promotees: cohort = 'executive' AND substr(ticket_no, 2, 1) <> '9'      direct recruits: cohort = 'executive' AND substr(ticket_no, 2, 1) = '9'
-  JO is NOT a designation: never look for 'JO' or 'Junior Officer' in the designation column. A designation the question also names is a second, separate condition ("promotee DGMs" = promotee AND designation 'Dy. General Manager'). Non-executives are neither.
+  "JO" / "JOs" / "Junior Officer" is a DESIGNATION, not a class: a promotee is called JO for the first 18 months, then becomes Asst. Manager. Filter it by title: lower(designation) LIKE 'junior officer%'. There may be none now (no promotion for over two years): then the honest answer is 0 rows; never answer a JO question with promotees or direct recruits.
+  A designation the question also names is a second, separate condition ("promotee DGMs" = promotee AND designation 'Dy. General Manager'). Non-executives are neither.
   Example -- "how many promotee officers are there in each department": SELECT department_code, department, count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND substr(ticket_no, 2, 1) <> '9' GROUP BY department_id, department_code, department ORDER BY count DESC, department_code
 `;
 export const isOriginQuestion = (q: string): boolean => /\b(promotee|promotees|promoty|promoted|jo|jos|direct recruits?|day[ -]?(1|one)|d1)\b/i.test(q || "");
@@ -139,7 +140,7 @@ export function buildPrompt(input: PromptInput): string {
   if (isOriginQuestion(input.question)) parts.push(ORIGIN_DOC);
   parts.push("DESIGNATIONS (live):\n" + formatDesignations(input.context.designations));
   const shown = selectRelevantDepartments(input.question, input.context.departments);
-  parts.push("DEPARTMENTS (live):\n" + formatDepartments(shown, input.context.departments.length));
+  parts.push("DEPARTMENTS (live):\n" + formatFamilies(departmentFamilies(input.question, input.context.departments)) + formatDepartments(shown, input.context.departments.length));
   parts.push("WORKED EXAMPLES (each answer is a valid, verified output):\n\n" + (health ? input.examples.slice(0, 2) : input.examples).map(formatExample).join("\n\n"));
 
   if (input.rejectedSql?.length) {

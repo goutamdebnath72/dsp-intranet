@@ -43,7 +43,13 @@ eq("GM in capitals, Gm mixed: the same", [names("GM"), names("Gm")], ["A ROY,B S
 eq("dgm shows the Dy. General Managers only", names("dgm"), "C DAS,D ROY");
 eq("agm shows the Asst. General Managers only (stored without a space)", names("agm"), "E BOSE");
 eq("cgm, ed, dic, mo", [names("cgm"), names("ed"), names("dic"), names("mo")], ["F RAO", "G NATH", "H GHOSH", "N SAHA"]);
-eq("the old Junior Officer shortcut is gone: jo is an origin now (see below), not a designation", names("jo") !== "", true);
+// ---- JO is a DESIGNATION (the first 18 months of a promotee), found by its title; the list may have none
+const rowsWithJo = [...rows, { name: "P JUNIOR", designation: "Junior Officer", department: "BF", ticket_no: "470001" }, { name: "Q TRAINEE", designation: "Jr. Officer", department: "SMS", ticket_no: "480002" }];
+const namesJo = (q: string) => filterRows(rowsWithJo, columns, q).map((r) => r.name).join(",");
+eq("jo is the designation Junior Officer (in any case; Jr. Officer is the same title), and no other", [namesJo("jo"), namesJo("JO"), namesJo("junior officer"), namesJo("jr officer")], Array(4).fill("P JUNIOR,Q TRAINEE"));
+eq("jo in a list that has no Junior Officer shows no row (it is not read as promotees or direct recruits)", [names("jo"), names("JO")], ["", ""]);
+eq("a JO is not found by the words promotee or direct, unless they are asked together", [namesJo("promotee jo"), namesJo("jo promotee"), namesJo("direct jo")], ["P JUNIOR,Q TRAINEE", "P JUNIOR,Q TRAINEE", ""]);
+eq("jo with a department: the Junior Officers of BF", namesJo("jo bf"), "P JUNIOR");
 eq("initials are not found inside names (ed does not show REDDY)", names("ed"), "G NATH");
 
 // ---- several designations in one box
@@ -79,16 +85,16 @@ eq("nothing found shows no row", names("zzz"), "");
 // ---- the ORIGIN of an executive, read from the ticket (second digit 9 = direct recruit, any other = promotee), whatever the designation is today
 const PROMOTEES = "B SEN,C DAS,E BOSE,I PAL,J ROY,K DEY,L MITRA,N SAHA";
 const DIRECT = "A ROY,D ROY,F RAO,G NATH,H GHOSH,M REDDY";
-eq("jo shows the promotee officers, any designation (a promotee DGM, AGM, GM ... is among them)", names("jo"), PROMOTEES);
-eq("the other ways of asking: JO, JOs, promotee, Promotees, promoty, promoted officers, promotee executives", ["JO", "jos", "promotee", "Promotees", "promoty", "promoted officers", "promotee executives", "Promotee Officers"].map(names), Array(8).fill(PROMOTEES));
+eq("promotee shows the promotee officers, any designation (a promotee DGM, AGM, GM ... is among them)", names("promotee"), PROMOTEES);
+eq("the other ways of asking: Promotees, promoty, promoted, promoted officers, promotee executives, Promotee Officers", ["Promotees", "promoty", "promoted", "promoted officers", "promotee executives", "Promotee Officers", "PROMOTEE"].map(names), Array(7).fill(PROMOTEES));
 eq("direct, direct recruits, day 1, Day-1, day1, d1, day one executives", ["direct", "direct recruits", "day 1", "Day-1", "day1", "d1", "day one executives", "Direct Executives"].map(names), Array(8).fill(DIRECT));
-eq("a non-executive is neither (O NONEX, ticket 228757, is in neither list)", [names("jo").includes("O NONEX"), names("direct").includes("O NONEX")], [false, false]);
-eq("jo with a designation: the promotee AGMs, DGMs, GMs", [names("jo agm"), names("promotee dgm"), names("jo gm"), names("agm jo")], ["E BOSE", "C DAS", "B SEN", "E BOSE"]);
+eq("a non-executive is neither (O NONEX, ticket 228757, is in neither list)", [names("promotee").includes("O NONEX"), names("direct").includes("O NONEX")], [false, false]);
+eq("promotee with a designation: the promotee AGMs, DGMs, GMs", [names("promotee agm"), names("promotee dgm"), names("promotee gm"), names("agm promotee")], ["E BOSE", "C DAS", "B SEN", "E BOSE"]);
 eq("direct with a designation", [names("direct gm"), names("day 1 dgm"), names("direct agm")], ["A ROY", "D ROY", ""]);
-eq("jo with a word: the promotee Roys; direct Roys", [names("jo roy"), names("direct roy")], ["J ROY", "A ROY,D ROY"]);
-eq("jo with a department: the promotees of C&IT", names("jo c&it"), "J ROY,K DEY");
-eq("two origins, or an origin and a designation, separated by a comma", [names("jo, direct").split(",").length, names("jo, cgm"), names("direct, agm")], [14, "B SEN,C DAS,E BOSE,F RAO,I PAL,J ROY,K DEY,L MITRA,N SAHA", "A ROY,D ROY,E BOSE,F RAO,G NATH,H GHOSH,M REDDY"]);
-eq("a list WITHOUT a ticket column: jo and direct are plain text, as before", [filterRows([{ name: "JO SHIPPING" }, { name: "RAJ" }, { name: "DIRECT LINE" }], [{ key: "name", label: "Name", kind: "text" }], "jo").length, filterRows([{ name: "JO SHIPPING" }, { name: "DIRECT LINE" }], [{ key: "name", label: "Name", kind: "text" }], "direct").length], [1, 1]);
+eq("promotee with a word: the promotee Roys; direct Roys", [names("promotee roy"), names("direct roy")], ["J ROY", "A ROY,D ROY"]);
+eq("promotee with a department: the promotees of C&IT", names("promotee c&it"), "J ROY,K DEY");
+eq("two origins, or an origin and a designation, separated by a comma", [names("promotee, direct").split(",").length, names("promotee, cgm"), names("direct, agm")], [14, "B SEN,C DAS,E BOSE,F RAO,I PAL,J ROY,K DEY,L MITRA,N SAHA", "A ROY,D ROY,E BOSE,F RAO,G NATH,H GHOSH,M REDDY"]);
+eq("a list WITHOUT a ticket column: promotee and direct are plain text, as before", [filterRows([{ name: "PROMOTEE SHIPPING" }, { name: "RAJ" }, { name: "DIRECT LINE" }], [{ key: "name", label: "Name", kind: "text" }], "promotee").length, filterRows([{ name: "PROMOTEE SHIPPING" }, { name: "DIRECT LINE" }], [{ key: "name", label: "Name", kind: "text" }], "direct").length], [1, 1]);
 
 // ---- a title the list does not have shows no row
 eq("a designation that is not in the list shows no row (Dy. Mngr in a list without a Dy. Manager); mgr alone still means the Manager", [filterRows(rows.filter((r) => r.designation !== "Dy. Manager"), columns, "dy mngr").length, names("mgr"), names("jo mgr")], [0, "M REDDY", ""]);

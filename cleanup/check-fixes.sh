@@ -37,6 +37,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { grep -q "DIGIT_JOINERS" src/lib/ingestion/ocrMerge.ts && grep -q "include-second-read" scripts/reread-circulars.ts; } 2>/dev/null; report "Indic numerals stay whole, a Gemini-read circular is not re-read by Tesseract" $?
 { grep -q "compileAlternative" src/lib/nl2sql/display.ts && grep -q "dot-wave" src/app/globals.css && grep -q "Loading Summary" src/components/CircularAnswerCard.tsx; } 2>/dev/null; report "The people filter understands designations (GM, DGM, AGM ...) and the circular summary says Loading Summary" $?
 { grep -q "originOfTicket" src/lib/nl2sql/display.ts && grep -q "isOriginQuestion" src/lib/nl2sql/prompt.ts; } 2>/dev/null; report "The people filter and the search model know promotees (JO) and direct recruits from the ticket" $?
+{ grep -q "DEPARTMENT_FAMILIES" src/lib/nl2sql/aliasHints.ts && grep -q "dropRepeatedTotals" src/lib/nl2sql/seniorityDisplay.ts && grep -q "OriginSwitch" src/components/AnswerResult.tsx; } 2>/dev/null; report "JO is a designation again, large departments mean all their sections, the repeated Total count is gone, ticket colours are an opt-in switch" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad
