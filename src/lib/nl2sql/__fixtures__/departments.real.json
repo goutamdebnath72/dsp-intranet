@@ -1,0 +1,1802 @@
+[
+{
+"id": 203,
+"code": 40730,
+"name": "A.G.M. MARKETING.",
+"cohort_scope": "shared"
+},
+{
+"id": 39,
+"code": 98902,
+"name": "ACVS",
+"cohort_scope": "executive"
+},
+{
+"id": 191,
+"code": 61000,
+"name": "ACVS",
+"cohort_scope": "shared"
+},
+{
+"id": 294,
+"code": 98930,
+"name": "ACVS - OFFICE",
+"cohort_scope": "shared"
+},
+{
+"id": 229,
+"code": 104,
+"name": "ADMIN- MOVEMENT",
+"cohort_scope": "shared"
+},
+{
+"id": 133,
+"code": 10470,
+"name": "ADMINISTRATION (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 125,
+"code": 55000,
+"name": "AXLE MACHINE SHOP",
+"cohort_scope": "shared"
+},
+{
+"id": 60,
+"code": 20000,
+"name": "BLAST FURNACE (CAST HOUSE)",
+"cohort_scope": "shared"
+},
+{
+"id": 192,
+"code": 20003,
+"name": "BLAST FURNACE (CRANE)",
+"cohort_scope": "shared"
+},
+{
+"id": 24,
+"code": 20002,
+"name": "BLAST FURNACE (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 103,
+"code": 22000,
+"name": "BLAST FURNACE (FURNACE)",
+"cohort_scope": "shared"
+},
+{
+"id": 109,
+"code": 23000,
+"name": "BLAST FURNACE (GCP)",
+"cohort_scope": "shared"
+},
+{
+"id": 32,
+"code": 20001,
+"name": "BLAST FURNACE (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 264,
+"code": 25000,
+"name": "BLAST FURNACE (MIXER BAY)",
+"cohort_scope": "shared"
+},
+{
+"id": 209,
+"code": 20030,
+"name": "BLAST FURNACE (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 18,
+"code": 21000,
+"name": "BLAST FURNACE (OPERATION)",
+"cohort_scope": "executive"
+},
+{
+"id": 174,
+"code": 24000,
+"name": "BLAST FURNACE (PCM)",
+"cohort_scope": "shared"
+},
+{
+"id": 19,
+"code": 21000,
+"name": "BLAST FURNACE (STOCK HOUSE & HL)",
+"cohort_scope": "nonexecutive"
+},
+{
+"id": 164,
+"code": 21070,
+"name": "BLAST FURNACE (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 12,
+"code": 98000,
+"name": "BUSINESS EXCELLENCE(NON TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 136,
+"code": 98070,
+"name": "BUSINESS EXCELLENCE(TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 225,
+"code": 40830,
+"name": "BUSINESS PLANNING & MKTG.",
+"cohort_scope": "shared"
+},
+{
+"id": 71,
+"code": 98500,
+"name": "C & I T",
+"cohort_scope": "shared"
+},
+{
+"id": 219,
+"code": 98540,
+"name": "C & IT (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 273,
+"code": 201,
+"name": "CALCUTTA BRANCH",
+"cohort_scope": "shared"
+},
+{
+"id": 76,
+"code": 203,
+"name": "CALCUTTA BRANCH (EXE)",
+"cohort_scope": "shared"
+},
+{
+"id": 67,
+"code": 40017,
+"name": "CCM & RMW",
+"cohort_scope": "executive"
+},
+{
+"id": 291,
+"code": 40130,
+"name": "CCM & RMW (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 26,
+"code": 60000,
+"name": "CEM",
+"cohort_scope": "shared"
+},
+{
+"id": 179,
+"code": 60002,
+"name": "CEM (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 150,
+"code": 66000,
+"name": "CEM (FITTING SHOP)",
+"cohort_scope": "shared"
+},
+{
+"id": 165,
+"code": 64000,
+"name": "CEM (FORGE SHOP)",
+"cohort_scope": "shared"
+},
+{
+"id": 123,
+"code": 67000,
+"name": "CEM (MACHINE SHOP)",
+"cohort_scope": "shared"
+},
+{
+"id": 112,
+"code": 60001,
+"name": "CEM (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 173,
+"code": 60031,
+"name": "CEM (PLANNING & PROGRESS)",
+"cohort_scope": "shared"
+},
+{
+"id": 262,
+"code": 60060,
+"name": "CEM (STORES)",
+"cohort_scope": "shared"
+},
+{
+"id": 111,
+"code": 62000,
+"name": "CEM (STRUCTURAL SHOP)",
+"cohort_scope": "shared"
+},
+{
+"id": 142,
+"code": 60070,
+"name": "CEM (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 68,
+"code": 40017,
+"name": "CENTRAL CRANE MAINT.",
+"cohort_scope": "nonexecutive"
+},
+{
+"id": 40,
+"code": 98902,
+"name": "CENTRAL ELECTRICAL POOL",
+"cohort_scope": "nonexecutive"
+},
+{
+"id": 256,
+"code": 95030,
+"name": "CENTRAL STORES (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 151,
+"code": 95070,
+"name": "CENTRAL STORES (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 90,
+"code": 95000,
+"name": "CENTRAL STORES DEPTT.",
+"cohort_scope": "shared"
+},
+{
+"id": 49,
+"code": 83002,
+"name": "CENTRALISED COMPRESSED AIR STATION",
+"cohort_scope": "executive"
+},
+{
+"id": 21,
+"code": 10000,
+"name": "CO & CC",
+"cohort_scope": "shared"
+},
+{
+"id": 48,
+"code": 12000,
+"name": "CO & CC (BATTERY)",
+"cohort_scope": "shared"
+},
+{
+"id": 63,
+"code": 14800,
+"name": "CO & CC (COAL CHEMICALS)",
+"cohort_scope": "shared"
+},
+{
+"id": 115,
+"code": 14000,
+"name": "CO & CC (COAL CHEMICALS)",
+"cohort_scope": "shared"
+},
+{
+"id": 116,
+"code": 11100,
+"name": "CO & CC (COAL HANDLING)",
+"cohort_scope": "shared"
+},
+{
+"id": 55,
+"code": 10002,
+"name": "CO & CC (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 37,
+"code": 10001,
+"name": "CO & CC (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 177,
+"code": 10030,
+"name": "CO & CC (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 92,
+"code": 86600,
+"name": "COKE OVEN REFRACTORY",
+"cohort_scope": "shared"
+},
+{
+"id": 50,
+"code": 83002,
+"name": "COMPRESSOR AIR STATION",
+"cohort_scope": "nonexecutive"
+},
+{
+"id": 295,
+"code": 98530,
+"name": "COMPUTER and IT STAFF",
+"cohort_scope": "shared"
+},
+{
+"id": 33,
+"code": 91900,
+"name": "CONTRACT DEPTT",
+"cohort_scope": "shared"
+},
+{
+"id": 207,
+"code": 91930,
+"name": "CONTRACT DEPTT (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 157,
+"code": 91970,
+"name": "CONTRACT DEPTT (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 81,
+"code": 98901,
+"name": "CORPORATE SOCIAL RESPONSIBILITY",
+"cohort_scope": "shared"
+},
+{
+"id": 44,
+"code": 98900,
+"name": "COST CONTROL",
+"cohort_scope": "shared"
+},
+{
+"id": 160,
+"code": 98970,
+"name": "CSR (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 252,
+"code": 140,
+"name": "DELHI BRANCH OFFICE",
+"cohort_scope": "shared"
+},
+{
+"id": 148,
+"code": 92270,
+"name": "DESIGN DEPARTMENT(TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 228,
+"code": 118,
+"name": "DIC's Office",
+"cohort_scope": "shared"
+},
+{
+"id": 85,
+"code": 101,
+"name": "DIC'S OFFICE COORDINATION",
+"cohort_scope": "executive"
+},
+{
+"id": 86,
+"code": 101,
+"name": "DIC'S TECHNICAL CELL",
+"cohort_scope": "nonexecutive"
+},
+{
+"id": 6,
+"code": 91100,
+"name": "ED (WORKS)",
+"cohort_scope": "shared"
+},
+{
+"id": 200,
+"code": 91230,
+"name": "ED (WORKS) OFFICE",
+"cohort_scope": "shared"
+},
+{
+"id": 194,
+"code": 91101,
+"name": "ED (WORKS) SECTT",
+"cohort_scope": "shared"
+},
+{
+"id": 131,
+"code": 91170,
+"name": "ED WORKS (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 232,
+"code": 3237,
+"name": "EDUCATION (C.B.S.E- 1)",
+"cohort_scope": "shared"
+},
+{
+"id": 159,
+"code": 10970,
+"name": "EDUCATION (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 144,
+"code": 93070,
+"name": "ELE.COORDINATION (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 62,
+"code": 93000,
+"name": "ELECT.COORDINATION",
+"cohort_scope": "shared"
+},
+{
+"id": 134,
+"code": 61100,
+"name": "ELECTRICAL REPAIR SHOP",
+"cohort_scope": "shared"
+},
+{
+"id": 74,
+"code": 93200,
+"name": "ELECTRICAL REPAIR SHOP",
+"cohort_scope": "shared"
+},
+{
+"id": 215,
+"code": 61030,
+"name": "ELECTRICAL REPAIR SHOP (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 45,
+"code": 93100,
+"name": "ELECTRICAL TECHNICAL LAB.",
+"cohort_scope": "shared"
+},
+{
+"id": 257,
+"code": 93102,
+"name": "ELECTRICAL TECHNICAL LAB.",
+"cohort_scope": "shared"
+},
+{
+"id": 53,
+"code": 97100,
+"name": "ENERGY MANAGEMENT DEPTT.",
+"cohort_scope": "shared"
+},
+{
+"id": 206,
+"code": 97030,
+"name": "ENERGY MANAGEMENT DEPTT. (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 113,
+"code": 91902,
+"name": "ENVIRONMENT CONTROL DEPTT",
+"cohort_scope": "shared"
+},
+{
+"id": 65,
+"code": 98600,
+"name": "ENVIRONMENT CONTROL DEPTT",
+"cohort_scope": "shared"
+},
+{
+"id": 235,
+"code": 90330,
+"name": "ENVIRONMENT CONTROL DEPTT (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 79,
+"code": 108,
+"name": "ESTATE & TOWNSHIP BRANCH",
+"cohort_scope": "shared"
+},
+{
+"id": 222,
+"code": 3101,
+"name": "ESTATE-ACCOUNTS",
+"cohort_scope": "shared"
+},
+{
+"id": 187,
+"code": 93170,
+"name": "ETL (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 227,
+"code": 6012,
+"name": "F&A-CASH SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 211,
+"code": 6082,
+"name": "F&A-CENTRAL BILL DOCKETING",
+"cohort_scope": "shared"
+},
+{
+"id": 293,
+"code": 6006,
+"name": "F&A-COST SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 204,
+"code": 6001,
+"name": "F&A-ESTABLISHMENT SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 287,
+"code": 6054,
+"name": "F&A-EXCISE CELL",
+"cohort_scope": "shared"
+},
+{
+"id": 268,
+"code": 6005,
+"name": "F&A-FINAL SETTLE CELL-PAY",
+"cohort_scope": "shared"
+},
+{
+"id": 259,
+"code": 6030,
+"name": "F&A-IPU PAYMENTS AND ACCOUNT",
+"cohort_scope": "shared"
+},
+{
+"id": 230,
+"code": 6004,
+"name": "F&A-MAIN ACCOUNTS SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 210,
+"code": 6016,
+"name": "F&A-MISC WORKS BILL SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 272,
+"code": 6014,
+"name": "F&A-OPERATION BILL SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 300,
+"code": 6010,
+"name": "F&A-PAY ACCOUNTS CELL",
+"cohort_scope": "shared"
+},
+{
+"id": 292,
+"code": 6008,
+"name": "F&A-PAY- PRODUCTION",
+"cohort_scope": "shared"
+},
+{
+"id": 296,
+"code": 6050,
+"name": "F&A-PAY-EXECUTIVES",
+"cohort_scope": "shared"
+},
+{
+"id": 282,
+"code": 6009,
+"name": "F&A-PAY-GENERAL",
+"cohort_scope": "shared"
+},
+{
+"id": 244,
+"code": 6051,
+"name": "F&A-PAY-LTC",
+"cohort_scope": "shared"
+},
+{
+"id": 214,
+"code": 6011,
+"name": "F&A-PROVIDENT FUND SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 283,
+"code": 6013,
+"name": "F&A-RAW MATERIAL ACCOUNTS",
+"cohort_scope": "shared"
+},
+{
+"id": 281,
+"code": 6023,
+"name": "F&A-RLY FREIGHT SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 237,
+"code": 6080,
+"name": "F&A-SALES ACCOUNTS",
+"cohort_scope": "shared"
+},
+{
+"id": 241,
+"code": 6025,
+"name": "F&A-SALES INVOICE SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 277,
+"code": 6066,
+"name": "F&A-SALES TAX",
+"cohort_scope": "shared"
+},
+{
+"id": 278,
+"code": 6041,
+"name": "F&A-STOCK VERIFICATION",
+"cohort_scope": "shared"
+},
+{
+"id": 218,
+"code": 20070,
+"name": "F&A-STOCK VERIFICATION (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 243,
+"code": 6015,
+"name": "F&A-WELF & MISC BILLS & A/Cs",
+"cohort_scope": "shared"
+},
+{
+"id": 7,
+"code": 200,
+"name": "FINANCE & A/C BRANCH",
+"cohort_scope": "shared"
+},
+{
+"id": 297,
+"code": 407,
+"name": "FIRE SERVICE",
+"cohort_scope": "shared"
+},
+{
+"id": 72,
+"code": 105,
+"name": "FIRE SERVICES",
+"cohort_scope": "shared"
+},
+{
+"id": 127,
+"code": 91102,
+"name": "FIRE SERVICES (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 96,
+"code": 70000,
+"name": "FOUNDRY",
+"cohort_scope": "shared"
+},
+{
+"id": 188,
+"code": 75100,
+"name": "FOUNDRY (CASTING)",
+"cohort_scope": "shared"
+},
+{
+"id": 107,
+"code": 72000,
+"name": "FOUNDRY (CORE SHOP)",
+"cohort_scope": "shared"
+},
+{
+"id": 176,
+"code": 74100,
+"name": "FOUNDRY (CUPOLA)",
+"cohort_scope": "shared"
+},
+{
+"id": 246,
+"code": 70002,
+"name": "FOUNDRY (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 213,
+"code": 77000,
+"name": "FOUNDRY (FETTLING SHOP)",
+"cohort_scope": "shared"
+},
+{
+"id": 233,
+"code": 74200,
+"name": "FOUNDRY (INGOT MOULDING)",
+"cohort_scope": "shared"
+},
+{
+"id": 73,
+"code": 70001,
+"name": "FOUNDRY (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 184,
+"code": 76000,
+"name": "FOUNDRY (NON FERROUS)",
+"cohort_scope": "shared"
+},
+{
+"id": 178,
+"code": 70030,
+"name": "FOUNDRY (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 299,
+"code": 71000,
+"name": "FOUNDRY (PATTERN SHOP)",
+"cohort_scope": "shared"
+},
+{
+"id": 181,
+"code": 75200,
+"name": "FOUNDRY (STEEL CASTING)",
+"cohort_scope": "shared"
+},
+{
+"id": 154,
+"code": 70070,
+"name": "FOUNDRY (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 248,
+"code": 82730,
+"name": "G.M. PROJECTS OFFICE.",
+"cohort_scope": "shared"
+},
+{
+"id": 240,
+"code": 98631,
+"name": "GM IT (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 29,
+"code": 92500,
+"name": "HEAVY MAINTENANCE & CONSTN.",
+"cohort_scope": "shared"
+},
+{
+"id": 250,
+"code": 92530,
+"name": "HEAVY MAINTENANCE & CONSTN.(OFFICE",
+"cohort_scope": "shared"
+},
+{
+"id": 135,
+"code": 50270,
+"name": "HOSPITAL (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 180,
+"code": 3304,
+"name": "HOSPITAL OFFICE",
+"cohort_scope": "shared"
+},
+{
+"id": 5,
+"code": 102,
+"name": "HR",
+"cohort_scope": "shared"
+},
+{
+"id": 185,
+"code": 7002,
+"name": "HR (NW)",
+"cohort_scope": "shared"
+},
+{
+"id": 212,
+"code": 125,
+"name": "HR (OD)",
+"cohort_scope": "shared"
+},
+{
+"id": 189,
+"code": 7001,
+"name": "HR (RECTT)",
+"cohort_scope": "shared"
+},
+{
+"id": 102,
+"code": 10270,
+"name": "HR (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 267,
+"code": 7000,
+"name": "HR (TS)",
+"cohort_scope": "shared"
+},
+{
+"id": 251,
+"code": 7008,
+"name": "HR (TS) IND",
+"cohort_scope": "shared"
+},
+{
+"id": 198,
+"code": 91030,
+"name": "HR (WORKS)",
+"cohort_scope": "shared"
+},
+{
+"id": 80,
+"code": 113,
+"name": "HR (WORKS)",
+"cohort_scope": "shared"
+},
+{
+"id": 172,
+"code": 115,
+"name": "HR (WORKS) IND",
+"cohort_scope": "shared"
+},
+{
+"id": 130,
+"code": 11370,
+"name": "HR (WORKS) TECH",
+"cohort_scope": "shared"
+},
+{
+"id": 43,
+"code": 98100,
+"name": "INDUSTRIAL ENGINEERING DEPTT.",
+"cohort_scope": "shared"
+},
+{
+"id": 114,
+"code": 97200,
+"name": "INSTRUMENTATION",
+"cohort_scope": "shared"
+},
+{
+"id": 36,
+"code": 97300,
+"name": "INSTRUMENTATION",
+"cohort_scope": "shared"
+},
+{
+"id": 224,
+"code": 97130,
+"name": "INSTRUMENTATION (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 56,
+"code": 202,
+"name": "INTERNAL AUDIT",
+"cohort_scope": "shared"
+},
+{
+"id": 271,
+"code": 6026,
+"name": "INTERNAL AUDIT",
+"cohort_scope": "shared"
+},
+{
+"id": 249,
+"code": 40630,
+"name": "IPU (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 17,
+"code": 107,
+"name": "L & D",
+"cohort_scope": "shared"
+},
+{
+"id": 286,
+"code": 9003,
+"name": "L & D",
+"cohort_scope": "shared"
+},
+{
+"id": 138,
+"code": 10770,
+"name": "L & D (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 140,
+"code": 9008,
+"name": "L & D IND",
+"cohort_scope": "shared"
+},
+{
+"id": 201,
+"code": 9001,
+"name": "L & D OFFICE",
+"cohort_scope": "shared"
+},
+{
+"id": 84,
+"code": 103,
+"name": "LAW",
+"cohort_scope": "nonexecutive"
+},
+{
+"id": 166,
+"code": 11270,
+"name": "LAW (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 88,
+"code": 112,
+"name": "LAW OFFICER",
+"cohort_scope": "shared"
+},
+{
+"id": 38,
+"code": 84400,
+"name": "LOCO REPAIR SHOP",
+"cohort_scope": "shared"
+},
+{
+"id": 298,
+"code": 84430,
+"name": "LOCO REPAIR SHOP (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 161,
+"code": 3301,
+"name": "M&HS(1)",
+"cohort_scope": "shared"
+},
+{
+"id": 126,
+"code": 3302,
+"name": "M&HS(2)",
+"cohort_scope": "shared"
+},
+{
+"id": 23,
+"code": 40700,
+"name": "MARKETING DIVISION",
+"cohort_scope": "shared"
+},
+{
+"id": 4,
+"code": 400,
+"name": "MATERIAL MANAGEMENT",
+"cohort_scope": "shared"
+},
+{
+"id": 89,
+"code": 502,
+"name": "MEDICAL AND HEALTH SERV(OTH)",
+"cohort_scope": "shared"
+},
+{
+"id": 1,
+"code": 500,
+"name": "MEDICAL ORGANISATION",
+"cohort_scope": "shared"
+},
+{
+"id": 168,
+"code": 46051,
+"name": "MERCHANT MILL (DESP)",
+"cohort_scope": "shared"
+},
+{
+"id": 64,
+"code": 46002,
+"name": "MERCHANT MILL (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 82,
+"code": 46001,
+"name": "MERCHANT MILL (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 242,
+"code": 40030,
+"name": "MERCHANT MILL (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 11,
+"code": 46000,
+"name": "MERCHANT MILL (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 156,
+"code": 46070,
+"name": "MERCHANT MILL (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 239,
+"code": 91830,
+"name": "MRD (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 31,
+"code": 91700,
+"name": "MRD & SBO",
+"cohort_scope": "shared"
+},
+{
+"id": 94,
+"code": 47001,
+"name": "MSM (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 231,
+"code": 47030,
+"name": "MSM (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 25,
+"code": 47000,
+"name": "MSM (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 186,
+"code": 47070,
+"name": "MSM (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 34,
+"code": 91400,
+"name": "MTB",
+"cohort_scope": "shared"
+},
+{
+"id": 261,
+"code": 91470,
+"name": "MTB (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 146,
+"code": 83001,
+"name": "OXYGEN PLANT (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 220,
+"code": 83030,
+"name": "OXYGEN PLANT (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 70,
+"code": 83000,
+"name": "OXYGEN PLANT (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 149,
+"code": 83070,
+"name": "OXYGEN PLANT (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 83,
+"code": 103,
+"name": "P.R.O.",
+"cohort_scope": "executive"
+},
+{
+"id": 87,
+"code": 87300,
+"name": "PERMANENT WAY ENGINEERING",
+"cohort_scope": "shared"
+},
+{
+"id": 276,
+"code": 87330,
+"name": "PERMANENT WAY ENGINEERING (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 216,
+"code": 87530,
+"name": "PLANT CIVIL ENGG. (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 69,
+"code": 87000,
+"name": "PLANT CIVIL ENGINEERING",
+"cohort_scope": "shared"
+},
+{
+"id": 269,
+"code": 87100,
+"name": "PLANT CIVIL ENGINEERING (DIV I)",
+"cohort_scope": "shared"
+},
+{
+"id": 120,
+"code": 87101,
+"name": "PLANT CIVIL ENGINEERING (DIV II)",
+"cohort_scope": "shared"
+},
+{
+"id": 260,
+"code": 87200,
+"name": "PLANT CIVIL ENGINEERING (DIV III)",
+"cohort_scope": "shared"
+},
+{
+"id": 97,
+"code": 87201,
+"name": "PLANT CIVIL ENGINEERING (DIV IV)",
+"cohort_scope": "shared"
+},
+{
+"id": 35,
+"code": 92200,
+"name": "PLANT DESIGN & DRAWING DEPTT",
+"cohort_scope": "shared"
+},
+{
+"id": 285,
+"code": 92230,
+"name": "PLANT DESIGN & DRAWING DEPTT(OFFIC",
+"cohort_scope": "shared"
+},
+{
+"id": 42,
+"code": 85000,
+"name": "PLANT GARAGE",
+"cohort_scope": "shared"
+},
+{
+"id": 158,
+"code": 85200,
+"name": "PLANT GARAGE (M.H.E.M.D.)",
+"cohort_scope": "shared"
+},
+{
+"id": 145,
+"code": 85110,
+"name": "PLANT GARAGE (M.H.E.O.D.)",
+"cohort_scope": "shared"
+},
+{
+"id": 290,
+"code": 85330,
+"name": "PLANT GARAGE (OFFICE - MAINT)",
+"cohort_scope": "shared"
+},
+{
+"id": 234,
+"code": 85430,
+"name": "PLANT GARAGE (OFFICE - OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 143,
+"code": 85070,
+"name": "PLANT GARAGE (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 47,
+"code": 93400,
+"name": "POWER MANAGEMENT DEPTT.",
+"cohort_scope": "shared"
+},
+{
+"id": 197,
+"code": 93430,
+"name": "POWER MANAGEMENT DEPTT.(OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 51,
+"code": 82000,
+"name": "POWER PLANT",
+"cohort_scope": "shared"
+},
+{
+"id": 122,
+"code": 82002,
+"name": "POWER PLANT (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 170,
+"code": 82101,
+"name": "POWER PLANT (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 238,
+"code": 82030,
+"name": "POWER PLANT (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 104,
+"code": 82100,
+"name": "POWER PLANT (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 14,
+"code": 40500,
+"name": "PPCD",
+"cohort_scope": "shared"
+},
+{
+"id": 217,
+"code": 40570,
+"name": "PPCD (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 13,
+"code": 82800,
+"name": "PROJECT ENGINEERING DEPTT.",
+"cohort_scope": "shared"
+},
+{
+"id": 2,
+"code": 82600,
+"name": "PROJECT ENGINEERING DEPTT.",
+"cohort_scope": "shared"
+},
+{
+"id": 129,
+"code": 82601,
+"name": "Project Technical",
+"cohort_scope": "shared"
+},
+{
+"id": 182,
+"code": 82670,
+"name": "PROJECTS (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 280,
+"code": 701,
+"name": "PUBLIC RELATIONS",
+"cohort_scope": "shared"
+},
+{
+"id": 255,
+"code": 40070,
+"name": "PURCHASE (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 171,
+"code": 5001,
+"name": "PURCHASE SECTION",
+"cohort_scope": "shared"
+},
+{
+"id": 22,
+"code": 96000,
+"name": "R & C LABORATORY",
+"cohort_scope": "shared"
+},
+{
+"id": 118,
+"code": 96100,
+"name": "R & C LABORATORY",
+"cohort_scope": "shared"
+},
+{
+"id": 265,
+"code": 96030,
+"name": "R & C LABORATORY (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 221,
+"code": 12470,
+"name": "RAJBHASHA (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 274,
+"code": 127,
+"name": "RAJBHASHA VIBHAG",
+"cohort_scope": "shared"
+},
+{
+"id": 41,
+"code": 94000,
+"name": "RAW MATERIALS DEPTT.",
+"cohort_scope": "shared"
+},
+{
+"id": 108,
+"code": 94200,
+"name": "RAW MATERIALS DEPTT.",
+"cohort_scope": "shared"
+},
+{
+"id": 223,
+"code": 94030,
+"name": "RAW MATERIALS DEPTT. (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 46,
+"code": 86000,
+"name": "REFRACTORY",
+"cohort_scope": "shared"
+},
+{
+"id": 258,
+"code": 86030,
+"name": "REFRACTORY (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 132,
+"code": 94070,
+"name": "RMD (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 75,
+"code": 27002,
+"name": "RMHP (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 61,
+"code": 27001,
+"name": "RMHP (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 208,
+"code": 20130,
+"name": "RMHP (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 54,
+"code": 27000,
+"name": "RMHP (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 66,
+"code": 49000,
+"name": "ROLL SHOP",
+"cohort_scope": "shared"
+},
+{
+"id": 141,
+"code": 49070,
+"name": "ROLL SHOP (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 202,
+"code": 4001,
+"name": "S E TOWNSHIP MAINTENANCE",
+"cohort_scope": "shared"
+},
+{
+"id": 266,
+"code": 30030,
+"name": "S M S OFFICE STAFF",
+"cohort_scope": "shared"
+},
+{
+"id": 93,
+"code": 30002,
+"name": "S.M.S. ELECT.MAINT.",
+"cohort_scope": "shared"
+},
+{
+"id": 28,
+"code": 91600,
+"name": "SAFETY ENGG",
+"cohort_scope": "shared"
+},
+{
+"id": 205,
+"code": 91630,
+"name": "SAFETY ENGG (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 155,
+"code": 91670,
+"name": "SAFETY ENGG (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 169,
+"code": 44151,
+"name": "SECTION MILL (DESP)",
+"cohort_scope": "shared"
+},
+{
+"id": 247,
+"code": 44002,
+"name": "SECTION MILL (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 254,
+"code": 44001,
+"name": "SECTION MILL (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 167,
+"code": 44000,
+"name": "SECTION MILL (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 279,
+"code": 20230,
+"name": "SINTER PLANT (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 193,
+"code": 26070,
+"name": "SINTER PLANT (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 30,
+"code": 26002,
+"name": "SINTERING PLANT (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 59,
+"code": 26001,
+"name": "SINTERING PLANT (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 10,
+"code": 26000,
+"name": "SINTERING PLANT (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 163,
+"code": 87400,
+"name": "SLAG BANK",
+"cohort_scope": "shared"
+},
+{
+"id": 288,
+"code": 87430,
+"name": "SLAG BANK (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 15,
+"code": 900,
+"name": "SMS",
+"cohort_scope": "shared"
+},
+{
+"id": 124,
+"code": 32300,
+"name": "SMS (Com.Pool)",
+"cohort_scope": "shared"
+},
+{
+"id": 284,
+"code": 30230,
+"name": "SMS (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 190,
+"code": 90070,
+"name": "SMS (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 236,
+"code": 32202,
+"name": "SMS-AUX (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 270,
+"code": 32201,
+"name": "SMS-AUX (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 162,
+"code": 32200,
+"name": "SMS-AUX (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 121,
+"code": 32002,
+"name": "SMS-BOF (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 175,
+"code": 32001,
+"name": "SMS-BOF (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 99,
+"code": 32000,
+"name": "SMS-BOF (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 128,
+"code": 32102,
+"name": "SMS-CCP (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 137,
+"code": 32101,
+"name": "SMS-CCP (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 98,
+"code": 32100,
+"name": "SMS-CCP (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 275,
+"code": 43030,
+"name": "SPU",
+"cohort_scope": "shared"
+},
+{
+"id": 3,
+"code": 43000,
+"name": "SPU",
+"cohort_scope": "shared"
+},
+{
+"id": 91,
+"code": 43001,
+"name": "SPU(JAGDISHPUR)",
+"cohort_scope": "shared"
+},
+{
+"id": 57,
+"code": 43002,
+"name": "SPU(KANDRORI)",
+"cohort_scope": "shared"
+},
+{
+"id": 226,
+"code": 43070,
+"name": "SPU(TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 78,
+"code": 93300,
+"name": "TELECOMMUNICATION",
+"cohort_scope": "shared"
+},
+{
+"id": 117,
+"code": 4301,
+"name": "TOWN SERV- B&R/PHM",
+"cohort_scope": "shared"
+},
+{
+"id": 110,
+"code": 4102,
+"name": "TOWN SERV-ELECT MAINT.",
+"cohort_scope": "shared"
+},
+{
+"id": 253,
+"code": 10870,
+"name": "TOWN SERVICES (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 20,
+"code": 650,
+"name": "TOWNSHIP MAINTENANCE",
+"cohort_scope": "shared"
+},
+{
+"id": 9,
+"code": 84000,
+"name": "TRAFFIC",
+"cohort_scope": "shared"
+},
+{
+"id": 105,
+"code": 84101,
+"name": "TRAFFIC",
+"cohort_scope": "shared"
+},
+{
+"id": 289,
+"code": 84030,
+"name": "TRAFFIC (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 95,
+"code": 84900,
+"name": "TXR",
+"cohort_scope": "shared"
+},
+{
+"id": 245,
+"code": 601,
+"name": "VIGILANCE",
+"cohort_scope": "shared"
+},
+{
+"id": 8,
+"code": 106,
+"name": "VIGILANCE",
+"cohort_scope": "shared"
+},
+{
+"id": 139,
+"code": 10670,
+"name": "VIGILANCE (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 263,
+"code": 602,
+"name": "VIGILANCE FIELD STAFF",
+"cohort_scope": "shared"
+},
+{
+"id": 77,
+"code": 63000,
+"name": "WAGON REPAIR SHOP",
+"cohort_scope": "shared"
+},
+{
+"id": 196,
+"code": 63030,
+"name": "WAGON REPAIR SHOP (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 52,
+"code": 50002,
+"name": "WHEEL & AXLE PLANT (ELECT)",
+"cohort_scope": "shared"
+},
+{
+"id": 27,
+"code": 50001,
+"name": "WHEEL & AXLE PLANT (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 199,
+"code": 40230,
+"name": "WHEEL & AXLE PLANT (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 100,
+"code": 57500,
+"name": "WHEEL & AXLE PLANT (OPRN - ZONE I)",
+"cohort_scope": "shared"
+},
+{
+"id": 101,
+"code": 58500,
+"name": "WHEEL & AXLE PLANT (OPRN - ZONE II",
+"cohort_scope": "shared"
+},
+{
+"id": 16,
+"code": 50000,
+"name": "WHEEL & AXLE PLANT (OPRN)",
+"cohort_scope": "shared"
+},
+{
+"id": 152,
+"code": 50070,
+"name": "WHEEL & AXLE PLANT (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 58,
+"code": 81000,
+"name": "WMD",
+"cohort_scope": "shared"
+},
+{
+"id": 119,
+"code": 81001,
+"name": "WMD (MECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 195,
+"code": 81030,
+"name": "WMD (OFFICE)",
+"cohort_scope": "shared"
+},
+{
+"id": 183,
+"code": 81500,
+"name": "WMD (PIPE LINE)",
+"cohort_scope": "shared"
+},
+{
+"id": 147,
+"code": 81300,
+"name": "WMD (PUMP HOUSE)",
+"cohort_scope": "shared"
+},
+{
+"id": 153,
+"code": 81070,
+"name": "WMD (TECH)",
+"cohort_scope": "shared"
+},
+{
+"id": 106,
+"code": 81400,
+"name": "WMD (WATER TREATMENT)",
+"cohort_scope": "shared"
+}
+]

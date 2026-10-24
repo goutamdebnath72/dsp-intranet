@@ -38,6 +38,9 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { grep -q "compileAlternative" src/lib/nl2sql/display.ts && grep -q "dot-wave" src/app/globals.css && grep -q "Loading Summary" src/components/CircularAnswerCard.tsx; } 2>/dev/null; report "The people filter understands designations (GM, DGM, AGM ...) and the circular summary says Loading Summary" $?
 { grep -q "originOfTicket" src/lib/nl2sql/display.ts && grep -q "isOriginQuestion" src/lib/nl2sql/prompt.ts; } 2>/dev/null; report "The people filter and the search model know promotees (JO) and direct recruits from the ticket" $?
 { grep -q "DEPARTMENT_FAMILIES" src/lib/nl2sql/aliasHints.ts && grep -q "dropRepeatedTotals" src/lib/nl2sql/seniorityDisplay.ts && grep -q "OriginSwitch" src/components/AnswerResult.tsx; } 2>/dev/null; report "JO is a designation again, large departments mean all their sections, the repeated Total count is gone, ticket colours are an opt-in switch" $?
+{ grep -q "withoutBlindScope" src/lib/nl2sql/omnibar.ts && grep -q "HEAVY MAINTENANCE (HM)" src/lib/nl2sql/aliasHints.ts; } 2>/dev/null; report "A department the question names but nobody can find is no longer answered as everybody" $?
+{ grep -q "DEPARTMENT_GROUPS" src/lib/nl2sql/aliasHints.ts && grep -q "NO_AUTO_FAMILY" src/lib/nl2sql/context.ts && test -f src/lib/nl2sql/departmentAliases.ts; } 2>/dev/null; report "One alias file for the departments, automatic groups by name, no dead short forms" $?
+{ grep -q "checkFamilies" src/lib/nl2sql/pipeline.ts && test -f src/lib/nl2sql/familyCheck.ts; } 2>/dev/null; report "The model's SQL must cover the whole department family a question names" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad

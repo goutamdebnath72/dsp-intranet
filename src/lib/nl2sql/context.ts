@@ -89,19 +89,44 @@ export function selectRelevantDepartments(question: string, all: DepartmentRow[]
   return scored.slice(0, max).map((x) => x.d);
 }
 
-/** The large departments (DEPARTMENT_FAMILIES) a question names, each with ALL its rows in the live list. */
+/** Departments whose own name must NOT start a family of their own: "ed" is also the designation Executive Director. */
+const NO_AUTO_FAMILY = new Set(["ed"]);
+
+/**
+ * The departments a question names, each with ALL its rows in the live list (the people sit in the section rows):
+ *   1. the groups written in departmentAliases.ts: nicknames and groupings that the names cannot tell (cocc, W&A, hydraulic lab, main hospital ...);
+ *   2. every other department named by its OWN name (the part before the bracket): all the rows that start with it (ACVS and ACVS - OFFICE, L & D with L & D IND and L & D OFFICE ...).
+ */
 export function departmentFamilies(question: string, all: DepartmentRow[]): { name: string; rows: DepartmentRow[] }[] {
   const qNorm = " " + normText(question) + " ";
+  const startsWith = (d: DepartmentRow, p: string) => {
+    const n = normText(d.name);
+    return n === p || n.startsWith(p + " ");
+  };
   const out: { name: string; rows: DepartmentRow[] }[] = [];
   for (const f of DEPARTMENT_FAMILIES) {
     if (!f.aliases.some((a) => qNorm.includes(" " + normText(a) + " "))) continue;
-    const rows = all.filter((d) => {
-      const n = normText(d.name);
-      return f.prefixes.some((p) => n === p || n.startsWith(p + " "));
-    });
+    const rows = all.filter((d) => f.prefixes.some((p) => startsWith(d, p)) || (f.stems ?? []).some((s) => normText(d.name).startsWith(s)));
     if (rows.length) out.push({ name: f.name, rows });
   }
-  return out;
+  // C & IT and Plant Garage are listed by code in EVERY prompt already (MULTI_ROW_DEPARTMENTS): they are not repeated here
+  const byCode = new Set(MULTI_ROW_DEPARTMENTS.flatMap((m) => m.codes));
+  const covered = new Set([...out.flatMap((f) => f.rows.map((r) => r.id)), ...all.filter((d) => byCode.has(d.code)).map((d) => d.id)]);
+  const seen = new Set<string>();
+  const auto: { name: string; rows: DepartmentRow[] }[] = [];
+  for (const d of all) {
+    const base = d.name.replace(/\s*\(.*$/, "").trim();
+    const m = normText(base);
+    if (m.length < 2 || NO_AUTO_FAMILY.has(m) || seen.has(m) || !qNorm.includes(" " + m + " ")) continue;
+    seen.add(m);
+    const rows = all.filter((r) => startsWith(r, m));
+    if (rows.length < 2 || rows.every((r) => covered.has(r.id))) continue;
+    auto.push({ name: base, rows });
+  }
+  auto.sort((x, y) => y.rows.length - x.rows.length);
+  const kept: { name: string; rows: DepartmentRow[] }[] = [];
+  for (const f of auto) if (!kept.some((k) => f.rows.every((r) => k.rows.some((x) => x.id === r.id)))) kept.push(f);
+  return [...out, ...kept];
 }
 
 /** What the model is told about them (empty when the question names none, so the prompt does not grow). */
@@ -110,7 +135,7 @@ export function formatFamilies(families: { name: string; rows: DepartmentRow[] }
   return (
     "DEPARTMENTS THE QUESTION NAMES THAT HAVE SECTIONS -- the people sit in the section rows, so a department named in the question means ALL of its rows: filter with department_id IN (the ids below) and say so in understood_as. Only when the person names one section is that single row meant.\n" +
     families
-      .map((f) => `${f.name} (${f.rows.length} rows): department_id IN (${f.rows.map((r) => r.id).join(", ")})` + (f.rows.length <= 40 ? `  -- ${f.rows.map((r) => `${r.code} ${r.name}`).join("; ")}` : ""))
+      .map((f) => `${f.name} (${f.rows.length} rows): department_id IN (${f.rows.map((r) => r.id).join(", ")})` + (f.rows.length <= 20 ? `  -- ${f.rows.map((r) => `${r.code} ${r.name}`).join("; ")}` : ""))
       .join("\n") +
     "\n\n"
   );

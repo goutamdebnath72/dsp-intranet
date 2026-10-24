@@ -23,6 +23,7 @@ import type { Nl2SqlExtras } from "./clientTypes";
 import { buildSourceInfo, emptyScheduleAnswer, pendingScheduleNote, scheduleAsked, ticketLookupNote, ticketsAsked, unconfirmedNote } from "./circularSources";
 import { comparisonVerdict } from "./rankingCheck";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
+import { withoutBlindScope } from "@/lib/employees/unresolvedScope";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
 import { PAGE_SIZE } from "./paging";
 import type { QueryResultData } from "./types";
@@ -392,7 +393,8 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
     },
     legacy: async (qq) => {
       const { answerEmployeeQuery } = await import("@/lib/employees/queryOrchestrator");
-      return answerEmployeeQuery(qq);
+      // a department the question names but nobody can find must not become "everybody" (step 44d)
+      return withoutBlindScope(qq, await answerEmployeeQuery(qq));
     },
   }, retry);
 }

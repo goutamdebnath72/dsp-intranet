@@ -1,3 +1,4 @@
+import { DEPARTMENT_GROUPS, type DepartmentGroup } from "./departmentAliases";
 // src/lib/nl2sql/aliasHints.ts
 //
 // Static SNAPSHOT of the short forms people type, copied on 29 Sep 2026 from
@@ -14,16 +15,16 @@ export const DEPARTMENT_SHORT_FORMS: [string, string[]][] = [
   ["C & IT", ["c&it", "cit", "c and it", "computer and it", "it department"]],
   ["CALCUTTA BRANCH", ["kolkata branch"]],
   ["CENTRAL STORES", ["csd"]],
-  ["CHRD INDUSTRIAL 2", ["training institute"]],
+  // step 45a: "CHRD INDUSTRIAL 2" removed (no such row in the real list; CHRD is to be mapped to its real row)
   ["CO & CC", ["cocc"]],
   ["COKE OVEN REFRACTORY", ["refractory"]],
   ["ELECTRICAL TECHNICAL LAB", ["etl"]],
   ["FINANCE & A/C BRANCH", ["finance"]],
   ["FIRE SERVICES", ["fire"]],
-  ["IPU", ["plant medical"]],
+  // step 45a: "plant medical" no longer points to IPU: Plant Medical (PMU) is in the MAIN HOSPITAL group of departmentAliases.ts
   ["LOCO REPAIR SHOP", ["lrs"]],
   ["M&HS", ["main hospital"]],
-  ["MANAGEMENT TRAINEE", ["mt"]],
+  // step 45a: "MANAGEMENT TRAINEE" removed (no such department; it is a designation)
   ["MATERIAL MANAGEMENT", ["mm"]],
   ["R & C LABORATORY", ["rcl"]],
   ["RAJBHASHA", ["hindi cell"]],
@@ -48,19 +49,8 @@ export const MULTI_ROW_DEPARTMENTS: { name: string; aliases: string[]; codes: nu
   },
 ];
 
-/**
- * Large departments made of sub-departments, each with one or more sections. The people sit in the SECTION rows ("CO & CC (BATTERY)"), so a question that names the department
- * means ALL of its rows. They are found in the live list by the START of the normalised row name (context.ts departmentFamilies), never by exact name. CCP (Continuous Casting Plant)
- * is part of SMS even when its row has its own name. Plant Garage (with M.H.E.M.D. and M.H.E.O.D.) and C & IT are listed by code in MULTI_ROW_DEPARTMENTS above.
- */
-export const DEPARTMENT_FAMILIES: { name: string; aliases: string[]; prefixes: string[] }[] = [
-  { name: "CO & CC", aliases: ["cocc", "co&cc", "co & cc", "co and cc", "coke oven and coal chemical"], prefixes: ["co and cc"] },
-  { name: "BLAST FURNACE (BF)", aliases: ["bf", "blast furnace", "blast furnaces"], prefixes: ["bf", "b f", "blast furnace"] },
-  { name: "SMS (STEEL MELTING SHOP, with CCP)", aliases: ["sms", "s m s", "steel melting shop", "ccp", "continuous casting plant", "continuous casting"], prefixes: ["sms", "s m s", "ccp", "continuous casting"] },
-  { name: "WHEEL & AXLE (W&A)", aliases: ["w&a", "w & a", "w and a", "wheel and axle", "wheel & axle", "wheel axle"], prefixes: ["w and a", "wheel"] },
-  { name: "MERCHANT MILL", aliases: ["merchant mill"], prefixes: ["merchant mill"] },
-  { name: "SECTION MILL", aliases: ["section mill", "sec mill"], prefixes: ["section mill", "sec mill"] },
-];
+/** The nicknames and groupings of the large departments now live in ONE file, departmentAliases.ts (step 45a); this name stays for the code that reads it. */
+export const DEPARTMENT_FAMILIES: DepartmentGroup[] = DEPARTMENT_GROUPS;
 
 /** Words that department names abbreviate (seen in the live list: "(ELECT)", "(MECH)", "(OPRN)", "ELECT.MAINT.", "DEPTT."). */
 export const DEPARTMENT_WORD_ABBREVIATIONS: [string, string][] = [

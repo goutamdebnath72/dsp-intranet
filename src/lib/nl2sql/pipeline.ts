@@ -18,6 +18,7 @@ import { logResult, loadRejectedSql } from "./log";
 import { normalizeSql } from "./text";
 import { checkQuotedTerms } from "./quoted";
 import { checkNormPatterns, checkVocabulary } from "./vocabulary";
+import { checkFamilies } from "./familyCheck";
 import { computeDepartmentScope } from "./scope";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "./deptColumns";
 import { checkComparison, checkRankingAndOrder } from "./rankingCheck";
@@ -146,7 +147,9 @@ export async function answerQuestion(question: string, userKey: string | null, d
       continue;
     }
     const knownPhrases = [...prep.ctx.departments.map((d) => d.name), ...prep.ctx.designations.map((d) => d.title)];
-    const senseProblem = checkVocabulary(q, g.sql, knownPhrases) ?? checkNormPatterns(g.sql);
+    // a department family the question names (CO & CC, main hospital, L & D ...) must be covered in full: first two attempts only, a question is never failed over it (step 45b)
+    const senseProblem =
+      checkVocabulary(q, g.sql, knownPhrases) ?? checkNormPatterns(g.sql) ?? (attempts <= 2 ? checkFamilies(q, g.sql, prep.ctx.departments) : null);
     if (senseProblem) {
       lastProblem = senseProblem;
       repair = { previousSql: g.sql, problem: senseProblem };
