@@ -12,7 +12,7 @@
 //   GUARANTEE: every column the SQL returned is shown, exactly once. A hint can reorder and retitle the
 //   columns; it can never hide one.
 
-import { alternativeMatches, canonicalTitle, compileAlternative, isDesignationColumn, splitAlternatives, squash } from "./designationFilter";
+import { alternativeMatches, canonicalTitle, compileAlternative, isDesignationColumn, isTicketColumn, originOfTicket, splitAlternatives, squash } from "./designationFilter";
 
 export type ColumnKind = "number" | "percent" | "boolean" | "code" | "date" | "text";
 export type ViewKind = "cards" | "table" | "bar";
@@ -290,6 +290,7 @@ export function filterRows(rows: Row[], columns: DisplayColumn[], query: string)
   const alternatives = splitAlternatives(query);
   if (alternatives.length === 0) return rows;
   const designationColumn = columns.find(isDesignationColumn);
+  const ticketColumn = columns.find(isTicketColumn);
   const prepared = rows.map((r) => {
     const cells = columns.map((c) => formatCell(r[c.key], c.kind));
     return {
@@ -297,10 +298,11 @@ export function filterRows(rows: Row[], columns: DisplayColumn[], query: string)
       lower: cells.map((s) => s.toLowerCase()).join(" | "),
       squashed: cells.map(squash).join(" "),
       title: designationColumn ? canonicalTitle(formatCell(r[designationColumn.key], designationColumn.kind)) : "",
+      origin: ticketColumn ? originOfTicket(formatCell(r[ticketColumn.key], ticketColumn.kind)) : ("" as const),
     };
   });
   const known = new Set(prepared.map((p) => p.title).filter(Boolean));
-  const compiled = alternatives.map((a) => compileAlternative(a, known, designationColumn !== undefined));
+  const compiled = alternatives.map((a) => compileAlternative(a, known, { designations: designationColumn !== undefined, origins: ticketColumn !== undefined }));
   return prepared.filter((p) => compiled.some((c) => alternativeMatches(c, p))).map((p) => p.row);
 }
 

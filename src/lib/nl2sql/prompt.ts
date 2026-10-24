@@ -121,12 +121,22 @@ export interface PromptInput {
   hint?: string;
 }
 
+/** Added to the prompt ONLY when the question is about promotees or direct recruits (it costs the other questions nothing: the prompt has a size limit). */
+const ORIGIN_DOC = `PROMOTEES AND DIRECT RECRUITS -- read from nlq.employees.ticket_no; true for a whole service life, whatever the designation is today. An executive ticket is 4 + a second digit + four more digits.
+  Second digit 9 = joined as an executive on day 1 (a DIRECT RECRUIT; "day 1", "day-one", "direct"). Any other second digit = PROMOTED from the non-executives (a PROMOTEE; "promotee", "promoted officer(s)", "promoty", "JO", "JOs"; they are called JO for the first 18 months and later hold the normal designation, even DGM or AGM).
+  promotees: cohort = 'executive' AND substr(ticket_no, 2, 1) <> '9'      direct recruits: cohort = 'executive' AND substr(ticket_no, 2, 1) = '9'
+  JO is NOT a designation: never look for 'JO' or 'Junior Officer' in the designation column. A designation the question also names is a second, separate condition ("promotee DGMs" = promotee AND designation 'Dy. General Manager'). Non-executives are neither.
+  Example -- "how many promotee officers are there in each department": SELECT department_code, department, count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND substr(ticket_no, 2, 1) <> '9' GROUP BY department_id, department_code, department ORDER BY count DESC, department_code
+`;
+export const isOriginQuestion = (q: string): boolean => /\b(promotee|promotees|promoty|promoted|jo|jos|direct recruits?|day[ -]?(1|one)|d1)\b/i.test(q || "");
+
 export function buildPrompt(input: PromptInput): string {
   const health = isHealthQuestion(input.question);
   const rules = health
     ? SCHEMA_AND_RULES.replace("nlq.departments -- id, code, name, cohort_scope ('shared' | 'executive' | 'nonexecutive')\n", (m) => m + HEALTH_DOC).replace("any table other than the three above", "any table other than the four listed")
     : SCHEMA_AND_RULES;
   const parts: string[] = [rules];
+  if (isOriginQuestion(input.question)) parts.push(ORIGIN_DOC);
   parts.push("DESIGNATIONS (live):\n" + formatDesignations(input.context.designations));
   const shown = selectRelevantDepartments(input.question, input.context.departments);
   parts.push("DEPARTMENTS (live):\n" + formatDepartments(shown, input.context.departments.length));

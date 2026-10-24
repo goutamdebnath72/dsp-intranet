@@ -2,7 +2,7 @@
 // The filter box of a people list understands designations (gm, dgm, agm, Sr. Mgr ...), in any case, with or without dots.
 
 import { filterRows, type DisplayColumn } from "./display";
-import { canonicalTitle, isDesignationColumn, splitAlternatives, tidyDesignation } from "./designationFilter";
+import { canonicalTitle, isDesignationColumn, isTicketColumn, originOfTicket, splitAlternatives, tidyDesignation } from "./designationFilter";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => {
@@ -15,23 +15,25 @@ const columns: DisplayColumn[] = [
   { key: "name", label: "Name", kind: "text" },
   { key: "designation", label: "Designation", kind: "text" },
   { key: "department", label: "Department", kind: "text" },
+  { key: "ticket_no", label: "Ticket", kind: "code" },
 ];
 // the titles as the HR tool stores them: note "Asst.General Manager" has no space
 const rows = [
-  { name: "A ROY", designation: "General Manager", department: "C&IT" },
-  { name: "B SEN", designation: "General Manager", department: "BF" },
-  { name: "C DAS", designation: "Dy. General Manager", department: "SMS" },
-  { name: "D ROY", designation: "Dy. General Manager", department: "C&IT" },
-  { name: "E BOSE", designation: "Asst.General Manager", department: "MM" },
-  { name: "F RAO", designation: "Chief General Manager", department: "PPC" },
-  { name: "G NATH", designation: "Executive Director", department: "Works" },
-  { name: "H GHOSH", designation: "Director In-charge", department: "Corporate" },
-  { name: "I PAL", designation: "Sr. Manager", department: "BF" },
-  { name: "J ROY", designation: "Dy. Manager", department: "C&IT" },
-  { name: "K DEY", designation: "Asst. Manager", department: "C&IT" },
-  { name: "L MITRA", designation: "Junior Manager", department: "SMS" },
-  { name: "M REDDY", designation: "Manager", department: "BF" },
-  { name: "N SAHA", designation: "Medical Officer", department: "M&HS" },
+  { name: "A ROY", designation: "General Manager", department: "C&IT", ticket_no: "490001" },
+  { name: "B SEN", designation: "General Manager", department: "BF", ticket_no: "420133" },
+  { name: "C DAS", designation: "Dy. General Manager", department: "SMS", ticket_no: "431000" },
+  { name: "D ROY", designation: "Dy. General Manager", department: "C&IT", ticket_no: "495555" },
+  { name: "E BOSE", designation: "Asst.General Manager", department: "MM", ticket_no: "407777" },
+  { name: "F RAO", designation: "Chief General Manager", department: "PPC", ticket_no: "490002" },
+  { name: "G NATH", designation: "Executive Director", department: "Works", ticket_no: "490003" },
+  { name: "H GHOSH", designation: "Director In-charge", department: "Corporate", ticket_no: "490004" },
+  { name: "I PAL", designation: "Sr. Manager", department: "BF", ticket_no: "412345" },
+  { name: "J ROY", designation: "Dy. Manager", department: "C&IT", ticket_no: "430022" },
+  { name: "K DEY", designation: "Asst. Manager", department: "C&IT", ticket_no: "450001" },
+  { name: "L MITRA", designation: "Junior Manager", department: "SMS", ticket_no: "409999" },
+  { name: "M REDDY", designation: "Manager", department: "BF", ticket_no: "490005" },
+  { name: "N SAHA", designation: "Medical Officer", department: "M&HS", ticket_no: "480001" },
+  { name: "O NONEX", designation: "S-9", department: "SMS", ticket_no: "228757" },
 ];
 const names = (q: string) => filterRows(rows, columns, q).map((r) => r.name).join(",");
 
@@ -41,6 +43,7 @@ eq("GM in capitals, Gm mixed: the same", [names("GM"), names("Gm")], ["A ROY,B S
 eq("dgm shows the Dy. General Managers only", names("dgm"), "C DAS,D ROY");
 eq("agm shows the Asst. General Managers only (stored without a space)", names("agm"), "E BOSE");
 eq("cgm, ed, dic, mo", [names("cgm"), names("ed"), names("dic"), names("mo")], ["F RAO", "G NATH", "H GHOSH", "N SAHA"]);
+eq("the old Junior Officer shortcut is gone: jo is an origin now (see below), not a designation", names("jo") !== "", true);
 eq("initials are not found inside names (ed does not show REDDY)", names("ed"), "G NATH");
 
 // ---- several designations in one box
@@ -69,12 +72,26 @@ eq("gm roy (the other order)", names("gm roy"), "A ROY");
 eq("roy alone: every Roy, any designation", names("roy"), "A ROY,D ROY,J ROY");
 eq("a department code with a symbol: c&it", names("c&it"), "A ROY,D ROY,J ROY,K DEY");
 eq("c&it gm: the General Managers of C&IT", names("c&it gm"), "A ROY");
-eq("a department word, any case", names("sms"), "C DAS,L MITRA");
-eq("an empty or blank box shows every row", [names("").split(",").length, names("   ").split(",").length, names(" , ; ").split(",").length], [14, 14, 14]);
+eq("a department word, any case", names("sms"), "C DAS,L MITRA,O NONEX");
+eq("an empty or blank box shows every row", [names("").split(",").length, names("   ").split(",").length, names(" , ; ").split(",").length], [15, 15, 15]);
 eq("nothing found shows no row", names("zzz"), "");
 
+// ---- the ORIGIN of an executive, read from the ticket (second digit 9 = direct recruit, any other = promotee), whatever the designation is today
+const PROMOTEES = "B SEN,C DAS,E BOSE,I PAL,J ROY,K DEY,L MITRA,N SAHA";
+const DIRECT = "A ROY,D ROY,F RAO,G NATH,H GHOSH,M REDDY";
+eq("jo shows the promotee officers, any designation (a promotee DGM, AGM, GM ... is among them)", names("jo"), PROMOTEES);
+eq("the other ways of asking: JO, JOs, promotee, Promotees, promoty, promoted officers, promotee executives", ["JO", "jos", "promotee", "Promotees", "promoty", "promoted officers", "promotee executives", "Promotee Officers"].map(names), Array(8).fill(PROMOTEES));
+eq("direct, direct recruits, day 1, Day-1, day1, d1, day one executives", ["direct", "direct recruits", "day 1", "Day-1", "day1", "d1", "day one executives", "Direct Executives"].map(names), Array(8).fill(DIRECT));
+eq("a non-executive is neither (O NONEX, ticket 228757, is in neither list)", [names("jo").includes("O NONEX"), names("direct").includes("O NONEX")], [false, false]);
+eq("jo with a designation: the promotee AGMs, DGMs, GMs", [names("jo agm"), names("promotee dgm"), names("jo gm"), names("agm jo")], ["E BOSE", "C DAS", "B SEN", "E BOSE"]);
+eq("direct with a designation", [names("direct gm"), names("day 1 dgm"), names("direct agm")], ["A ROY", "D ROY", ""]);
+eq("jo with a word: the promotee Roys; direct Roys", [names("jo roy"), names("direct roy")], ["J ROY", "A ROY,D ROY"]);
+eq("jo with a department: the promotees of C&IT", names("jo c&it"), "J ROY,K DEY");
+eq("two origins, or an origin and a designation, separated by a comma", [names("jo, direct").split(",").length, names("jo, cgm"), names("direct, agm")], [14, "B SEN,C DAS,E BOSE,F RAO,I PAL,J ROY,K DEY,L MITRA,N SAHA", "A ROY,D ROY,E BOSE,F RAO,G NATH,H GHOSH,M REDDY"]);
+eq("a list WITHOUT a ticket column: jo and direct are plain text, as before", [filterRows([{ name: "JO SHIPPING" }, { name: "RAJ" }, { name: "DIRECT LINE" }], [{ key: "name", label: "Name", kind: "text" }], "jo").length, filterRows([{ name: "JO SHIPPING" }, { name: "DIRECT LINE" }], [{ key: "name", label: "Name", kind: "text" }], "direct").length], [1, 1]);
+
 // ---- a title the list does not have shows no row
-eq("jo: there is no Junior Officer in this list", names("jo"), "");
+eq("a designation that is not in the list shows no row (Dy. Mngr in a list without a Dy. Manager); mgr alone still means the Manager", [filterRows(rows.filter((r) => r.designation !== "Dy. Manager"), columns, "dy mngr").length, names("mgr"), names("jo mgr")], [0, "M REDDY", ""]);
 eq("a list with no designation column: initials are plain text, as before", filterRows([{ name: "GM TRADERS" }, { name: "RAJ" }], [{ key: "name", label: "Name", kind: "text" }], "gm").length, 1);
 
 // ---- the helpers
@@ -86,6 +103,8 @@ eq("isDesignationColumn: the title column yes, the code, grade and rank no", [
   isDesignationColumn({ key: "designation_track", label: "Track", kind: "text" }),
   isDesignationColumn({ key: "name", label: "Name", kind: "text" }),
 ], [true, false, false, false]);
+eq("originOfTicket: 49xxxx direct, 40xxxx to 48xxxx promotee, anything else none", [originOfTicket("490268"), originOfTicket("420133"), originOfTicket("480000"), originOfTicket(" 490268 "), originOfTicket("228757"), originOfTicket("4902680"), originOfTicket("49026"), originOfTicket(""), originOfTicket("B001022")], ["direct", "promotee", "promotee", "direct", "", "", "", "", ""]);
+eq("isTicketColumn", [isTicketColumn({ key: "ticket_no", label: "Ticket", kind: "code" }), isTicketColumn({ key: "ticketNo", label: "Ticket", kind: "text" }), isTicketColumn({ key: "name", label: "Name", kind: "text" }), isTicketColumn({ key: "ticket_mail", label: "x", kind: "text" })], [true, true, false, false]);
 eq("tidyDesignation puts the space after the dot, and only there", [tidyDesignation("Asst.General Manager"), tidyDesignation("Asst. General Manager"), tidyDesignation("Dy.General Manager"), tidyDesignation("Sr.Medical Officer (M&HS)"), tidyDesignation("Director In-charge")], ["Asst. General Manager", "Asst. General Manager", "Dy. General Manager", "Sr. Medical Officer (M&HS)", "Director In-charge"]);
 
 console.log(`designationFilter selftest: ${pass} passed, ${fail} failed`);
