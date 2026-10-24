@@ -18,7 +18,7 @@ import { logResult, loadRejectedSql } from "./log";
 import { normalizeSql } from "./text";
 import { checkQuotedTerms } from "./quoted";
 import { checkNormPatterns, checkVocabulary } from "./vocabulary";
-import { checkFamilies } from "./familyCheck";
+import { checkFamilies, repairFamilies } from "./familyCheck";
 import { computeDepartmentScope } from "./scope";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "./deptColumns";
 import { checkComparison, checkRankingAndOrder } from "./rankingCheck";
@@ -139,6 +139,18 @@ export async function answerQuestion(question: string, userKey: string | null, d
       lastProblem = g.reason;
       repair = { previousSql: plan.sql, problem: `The SQL was rejected by the safety check: ${g.reason}` };
       continue;
+    }
+    // a department family the question names, covered wrongly (the row ids written as codes, a LIKE that finds other rows or none ...): the right ids are put in HERE, at once, with no second model
+    // call (each costs about 6,000 tokens and Groq's per-minute limit makes the next one wait): live, 24 Oct 17:41, three calls, 80 s and a wrong 0 (step 48a)
+    {
+      const mended = repairFamilies(q, g.sql, prep.ctx.departments);
+      if (mended) {
+        const g2 = guardSql(mended);
+        if (g2.ok) {
+          console.info("[nl2sql] department family repaired without a second model call");
+          g.sql = g2.sql;
+        }
+      }
     }
     const quotedProblem = checkQuotedTerms(q, g.sql);
     if (quotedProblem) {

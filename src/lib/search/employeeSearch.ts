@@ -1,5 +1,6 @@
 // src/lib/search/employeeSearch.ts
 import { DataSource } from "typeorm";
+import { isPhdHolder, stripDoctorTitle, titleFor } from "@/lib/employees/honorific";
 
 export interface EmployeeResult {
   id: string;
@@ -8,6 +9,10 @@ export interface EmployeeResult {
   ticketNo: string;
   sailPNo: string | null;
   designation: string | null;
+  /** Dr. before the name when it is shown: every medical-track doctor and the listed PhD holders (employees/honorific.ts). The stored name has no title. */
+  title?: string | null;
+  /** The small "PhD" badge: a non-medical employee on the manual list (employees/honorific.ts). */
+  phd?: boolean;
   department: string | null;
   // Only set when the person asked for them (e.g. "... with department codes"): the codes of the department / designation.
   departmentCode?: string | null;
@@ -74,6 +79,8 @@ function rowToResult(r: any, matchKind: EmployeeResult["matchKind"], score: numb
     sailPNo: r.sailPNo || null,
     designation: r.designation || null,
     department: r.dept_name || null,
+    title: titleFor(ticket, r.designation_track),
+    phd: isPhdHolder(ticket, r.designation_track) || undefined,
     mobileMasked: maskMobile(r.contactNo || null),
     emailMasked: maskEmail(r.email || null),
     hasMobile: !!r.contactNo,
@@ -87,7 +94,8 @@ function rowToResult(r: any, matchKind: EmployeeResult["matchKind"], score: numb
 const SELECT_COLS = `
   u.id, u.name, u."ticketNo" AS "ticketNo", u."sailPNo" AS "sailPNo",
   u.designation, u."contactNo" AS "contactNo", u.email,
-  d.name AS dept_name
+  d.name AS dept_name,
+  (SELECT dg.track FROM public.employee_roster er JOIN public.designation_grade dg ON dg.id = er.designation_grade_id WHERE er.ticket_no = u."ticketNo" LIMIT 1) AS designation_track
 `;
 
 /**
@@ -139,7 +147,7 @@ export async function searchEmployeesByName(
   ds: DataSource,
   raw: string,
 ): Promise<EmployeeResult[]> {
-  const q = (raw || "").trim().replace(/\s+/g, " ");
+  const q = stripDoctorTitle((raw || "").trim()).replace(/\s+/g, " "); // a typed "Dr." is a title, not a word of the stored name
   if (q.length < 2) return [];
 
   const like = `%${q}%`;
@@ -209,7 +217,7 @@ export async function searchEmployeesByNameInDept(
   sailDeptIds: number[],
   limit = 50,
 ): Promise<EmployeeResult[]> {
-  const q = (fragment || "").trim().replace(/\s+/g, " ");
+  const q = stripDoctorTitle((fragment || "").trim()).replace(/\s+/g, " ");
   if (q.length < 2 || !sailDeptIds.length) return [];
   const like = `%${q}%`;
 
@@ -217,7 +225,7 @@ export async function searchEmployeesByNameInDept(
     SELECT
       er.id, er.name, er.ticket_no AS "ticketNo", er.sail_pno AS "sailPNo",
       dg.title AS designation, u."contactNo" AS "contactNo", u.email,
-      sd.name AS dept_name,
+      sd.name AS dept_name, dg.track AS designation_track,
       (er.name ILIKE $2) AS literal_hit,
       public.phonetic_subseq_match($1, u.name_phonetic) AS phon_match
     FROM public.employee_roster er

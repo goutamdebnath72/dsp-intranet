@@ -22,6 +22,8 @@ import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import type { Nl2SqlExtras } from "./clientTypes";
 import { buildSourceInfo, emptyScheduleAnswer, pendingScheduleNote, scheduleAsked, ticketLookupNote, ticketsAsked, unconfirmedNote } from "./circularSources";
 import { comparisonVerdict } from "./rankingCheck";
+import { peopleHeadline } from "./medicalCadre";
+import { isPhdHolder, titleFor, withTitlesInRows } from "@/lib/employees/honorific";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
 import { withoutBlindScope } from "@/lib/employees/unresolvedScope";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
@@ -162,6 +164,9 @@ function rowToEmployee(r: any): EmployeeResult {
     ticketNo: String(r.ticket_no || "").trim(),
     sailPNo: r.sail_pno || null,
     designation: r.designation_title || null,
+    designationTrack: r.designation_track || null,
+    title: titleFor(r.ticket_no, r.designation_track),
+    phd: isPhdHolder(r.ticket_no, r.designation_track) || undefined,
     department: r.dept_name || null,
     mobileMasked: maskMobile(r.contactNo || null),
     emailMasked: maskEmail(r.email || null),
@@ -185,7 +190,7 @@ export async function peopleFor(client: SqlClient, tickets: string[]): Promise<E
   if (!unique.length) return [];
   const res = await client.query(
     `SELECT er.id, er.ticket_no, er.sail_pno, er.name, er.cohort, er.user_id,
-            dg.title AS designation_title, sd.name AS dept_name, u."contactNo" AS "contactNo", u.email
+            dg.title AS designation_title, dg.track AS designation_track, sd.name AS dept_name, u."contactNo" AS "contactNo", u.email
        FROM public.employee_roster er
        JOIN public.designation_grade dg ON dg.id = er.designation_grade_id
        LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id
@@ -205,7 +210,10 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
   const { total, truncated } = res.data;
   const rawRows = res.data.rows;
   // The internal rank never reaches a screen, table or CSV: it becomes "Position in grade" (executives) or blank (see seniorityDisplay.ts).
-  const { columns, rows } = presentPeople(res.data.columns, rawRows, people);
+  const presented = presentPeople(res.data.columns, rawRows, people);
+  const columns = presented.columns;
+  // a doctor's name is shown with "Dr." before it (the stored name has none): in the table and the CSV as well as on the card
+  const rows = withTitlesInRows(presented.rows, people);
   const extras: Nl2SqlExtras = {
     logId: res.logId,
     userKey,
@@ -236,7 +244,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
       count: verdictText ? undefined : total,
       // A comparison ("who is more senior, A or B") STATES its answer, computed from the data (never by the model). The sentence
       // is then the whole headline: a bare row count above it ("2") would be a number with nothing to say what it counts.
-      answer: verdictText ?? `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found.`,
+      answer: verdictText ?? peopleHeadline(total, truncated, people),
       people: withExtraFields(people, display, rows),
       listTruncated: truncated,
       interpretation: res.understoodAs,

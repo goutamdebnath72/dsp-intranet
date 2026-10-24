@@ -9,6 +9,7 @@
 import type { Example } from "./examples";
 import { extractQuotedTerms } from "./quoted";
 import { vocabularyLine } from "./vocabulary";
+import { DOCTOR_DOC, isDoctorQuestion } from "./medicalCadre";
 import type { NegativeExample } from "./learning";
 import { departmentFamilies, formatDepartments, formatDesignations, formatFamilies, selectRelevantDepartments, type DynamicContext } from "./context";
 
@@ -138,6 +139,7 @@ export function buildPrompt(input: PromptInput): string {
     : SCHEMA_AND_RULES;
   const parts: string[] = [rules];
   if (isOriginQuestion(input.question)) parts.push(ORIGIN_DOC);
+  if (isDoctorQuestion(input.question)) parts.push(DOCTOR_DOC);
   parts.push("DESIGNATIONS (live):\n" + formatDesignations(input.context.designations));
   const shown = selectRelevantDepartments(input.question, input.context.departments);
   parts.push("DEPARTMENTS (live):\n" + formatFamilies(departmentFamilies(input.question, input.context.departments)) + formatDepartments(shown, input.context.departments.length));

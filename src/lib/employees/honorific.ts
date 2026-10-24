@@ -1,0 +1,64 @@
+// src/lib/employees/honorific.ts
+//
+// "Dr." before a name, WHEN IT IS SHOWN (step 47a). The stored names have no title (checked on the live data: none of the main hospital's 63 executives starts with "Dr"), and they
+// must stay that way: the name search (first word, surname, phonetic codes, "kumar as a middle word", alphabetical order) works on the plain name. So the title is added only at the
+// moment of display, by the one rule below, in every place that builds or shows a person.
+//
+// Who gets "Dr.":
+//   1. every person on the MEDICAL track of the designation table (Director(M&HS), Joint Director, Sr. Deputy Director, Asst. Director/Sr. Consultant, DMO/Consultant, ADMO/Specialist,
+//      Medical Officer): automatic, nothing to maintain;
+//   2. the NON-MEDICAL employees (executives and non-executives) who hold a PhD and write "Dr." before their name: the data cannot tell, so their tickets are listed in DR_TICKETS below.
+// This file has no server code, so the browser can use it.
+
+/**
+ * Tickets of NON-MEDICAL employees who hold a PhD and write "Dr." before their name. One ticket per line, six digits, in quotes, a comma after each. Edit this list to add or remove one;
+ * the test (honorific.selftest.ts) checks the format and that no ticket is listed twice.
+ */
+export const DR_TICKETS: readonly string[] = [
+  "440480", // Partha Mukhopadhyay, Asst. Manager, Business Excellence: holds a PhD, promoted from the non-executives (confirmed by the owner, 24 Oct 2026)
+];
+
+export type Title = "Dr.";
+
+/** The rule, for a given list of extra tickets (the tests use their own list). */
+export function makeTitleFor(tickets: readonly string[]) {
+  const extra = new Set(tickets.map((t) => String(t).trim()));
+  return (ticketNo: unknown, track: unknown): Title | null => (track === "medical" || extra.has(String(ticketNo ?? "").trim()) ? "Dr." : null);
+}
+export const titleFor = makeTitleFor(DR_TICKETS);
+
+/** The small "PhD" badge on the card: only the people on the manual list (a non-medical employee with a PhD). A doctor has the title already and needs no badge. */
+export function makePhdHolder(tickets: readonly string[]) {
+  const listed = new Set(tickets.map((t) => String(t).trim()));
+  return (ticketNo: unknown, track: unknown): boolean => track !== "medical" && listed.has(String(ticketNo ?? "").trim());
+}
+export const isPhdHolder = makePhdHolder(DR_TICKETS);
+
+const HAS_TITLE = /^\s*(?:dr|doctor)(?:\.|\s)/i;
+
+/** The name as shown: "Dr. ARIJIT CHAKRABORTY". A name that already starts with Dr / Doctor is left as it is (never "Dr. Dr."). */
+export function withTitle(name: unknown, title?: string | null): string {
+  const n = typeof name === "string" ? name : "";
+  if (!title || !n || HAS_TITLE.test(n)) return n;
+  return `${title} ${n}`;
+}
+
+/** "Dr. Anil Kumar" typed into a search means the stored name "Anil Kumar": a LEADING Dr / Dr. / Doctor is a title, not a word of any stored name. Anything else is returned as it is. */
+export function stripDoctorTitle(q: string): string {
+  const s = String(q ?? "");
+  return s.replace(/^\s*(?:dr|doctor)(?:\.\s*|\s+)(?=\S)/i, "");
+}
+
+/** The rows of a table or CSV: the name column of a person with a title gets it too (found by the ticket), so the table says what the card says. */
+export function withTitlesInRows<T extends Record<string, unknown>>(rows: T[], people: ReadonlyArray<unknown> | null | undefined): T[] {
+  if (!people || !people.length) return rows;
+  const titles = new Map<string, string>();
+  for (const p of people as { ticketNo?: unknown; title?: unknown }[]) {
+    if (p && typeof p.title === "string" && p.title && p.ticketNo != null) titles.set(String(p.ticketNo).trim(), p.title);
+  }
+  if (!titles.size) return rows;
+  return rows.map((r) => {
+    const t = titles.get(String(r.ticket_no ?? "").trim());
+    return t && typeof r.name === "string" ? { ...r, name: withTitle(r.name, t) } : r;
+  });
+}

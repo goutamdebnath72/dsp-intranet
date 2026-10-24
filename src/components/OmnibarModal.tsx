@@ -30,6 +30,8 @@ import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
 import { HolidayCompareCard } from "@/components/HolidayCompareCard";
 import { CircularAnswerCard } from "@/components/CircularAnswerCard";
 import { tidyDesignation } from "@/lib/nl2sql/designationFilter";
+import { withTitle } from "@/lib/employees/honorific";
+import { PersonBadges } from "@/components/PersonBadges";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
@@ -77,12 +79,8 @@ function PersonRow({
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-neutral-800 truncate">
-          {emp.name}
-          {emp.isExecutive && (
-            <span className="ml-2 align-middle rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
-              EXE
-            </span>
-          )}
+          {withTitle(emp.name, emp.title)}
+          <PersonBadges isExecutive={emp.isExecutive} phd={emp.phd} />
         </p>
         <p className="text-xs text-neutral-500 truncate">
           <TicketText ticket={emp.ticketNo} tint={tint} />
@@ -425,7 +423,7 @@ export function OmnibarModal({
       if (authStatus !== "authenticated") return; // button is disabled anyway
       const rev = revealed[emp.id] || {};
       const line = [
-        emp.name,
+        withTitle(emp.name, emp.title),
         emp.ticketNo,
         emp.sailPNo,
         emp.designation ? `${tidyDesignation(emp.designation)}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
