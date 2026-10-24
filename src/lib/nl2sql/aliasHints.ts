@@ -43,9 +43,9 @@ export const MULTI_ROW_DEPARTMENTS: { name: string; aliases: string[]; codes: nu
   },
   {
     name: "PLANT GARAGE",
-    aliases: ["garage", "plant garage", "mhemd", "mheod", "M.H.E.M.D.", "M.H.E.O.D."],
+    aliases: ["plant garage", "mhemd", "mheod", "M.H.E.M.D.", "M.H.E.O.D."], // the bare word "garage" is NOT a nickname: the township garage is another department (step 49a asks which)
     codes: [85000, 85070, 85110, 85200, 85330, 85430],
-    note: "85110 = Operation Garage (M.H.E.O.D.), 85200 = Maintenance Garage (M.H.E.M.D.); all six are Plant Garage.",
+    note: "85110 = Operation Garage (M.H.E.O.D.), 85200 = Maintenance Garage (M.H.E.M.D.); all six are Plant Garage. The TOWNSHIP garage is a different department and is not one of these rows.",
   },
 ];
 

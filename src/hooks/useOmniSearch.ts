@@ -55,6 +55,8 @@ export interface AnalyticsAnswer {
   lead?: string;
   /** Set when the question had a second part that was not answered. Mirrors AnalyticsPayload.notice. */
   notice?: string;
+  /** A clarifying question about a department word with more than one meaning (step 49a). The same type as AnalyticsPayload.ask. */
+  ask?: import("@/lib/nl2sql/departmentAsk").DepartmentAsk;
   /** Per-type (RH/CH/FH) tally for a holiday list query, only present when
    *  no single type was already filtered on. `count` above is the
    *  DISTINCT-holiday number; rawEntryCount is the raw (date,type) row
@@ -125,14 +127,17 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   }, [isOpen]);
 
   // ONLY executed when a mode button is explicitly clicked
-  const triggerSearch = (selectedMode: SearchMode, opts?: { auto?: boolean }) => {
+  const triggerSearch = (selectedMode: SearchMode, opts?: { auto?: boolean; query?: string }) => {
     if (!selectedMode) return;
     setAutoRouted(!!opts?.auto && selectedMode === "intellectual");
     setMode(selectedMode);
     setRetry(null);
     setAttempt(1);
-    if (query.trim().length >= 3) {
-      setSubmittedQuery(query.trim());
+    // a choice made under a clarifying question (step 49a) searches for its own text and puts it in the box
+    const text = (opts?.query ?? query).trim();
+    if (opts?.query !== undefined) setQuery(opts.query);
+    if (text.length >= 3) {
+      setSubmittedQuery(text);
     } else {
       setSubmittedQuery("");
     }

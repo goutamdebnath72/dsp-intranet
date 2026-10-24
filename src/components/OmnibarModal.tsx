@@ -32,6 +32,7 @@ import { CircularAnswerCard } from "@/components/CircularAnswerCard";
 import { tidyDesignation } from "@/lib/nl2sql/designationFilter";
 import { withTitle } from "@/lib/employees/honorific";
 import { PersonBadges } from "@/components/PersonBadges";
+import { ClarifyChoices } from "@/components/ClarifyChoices";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
@@ -759,6 +760,9 @@ export function OmnibarModal({
                                 {analytics.kind === "error" && "Bad query: "}
                                 {analytics.answer}
                               </p>
+                            )}
+                            {analytics.kind === "clarify" && analytics.ask && (
+                              <ClarifyChoices key={analytics.answer} ask={analytics.ask} onAsk={(text) => triggerSearch("semantic", { query: text })} />
                             )}
                             {analytics.notice && (
                               <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">

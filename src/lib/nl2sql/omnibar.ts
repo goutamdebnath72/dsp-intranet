@@ -23,6 +23,7 @@ import type { Nl2SqlExtras } from "./clientTypes";
 import { buildSourceInfo, emptyScheduleAnswer, pendingScheduleNote, scheduleAsked, ticketLookupNote, ticketsAsked, unconfirmedNote } from "./circularSources";
 import { comparisonVerdict } from "./rankingCheck";
 import { peopleHeadline } from "./medicalCadre";
+import { askWhichDepartment } from "./departmentAsk";
 import { isDoctorPerson, isPhdHolder, titleFor, withTitlesInRows } from "@/lib/employees/honorific";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
 import { withoutBlindScope } from "@/lib/employees/unresolvedScope";
@@ -297,6 +298,10 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
     // 1. holiday questions keep their deterministic answer
     const holiday = await deps.holiday(q).catch(() => null);
     if (holiday) return { ...holiday, source: "holiday", attempt };
+
+    // 1b. a department word that means more than one thing ("garage", "refractory"): ASK which, with checkboxes, instead of guessing: no model call (step 49a)
+    const ask = askWhichDepartment(q);
+    if (ask) return { kind: "clarify", answer: ask.message, ask, source: "nl2sql", attempt };
 
     // 2. a VERIFIED answer (confirmed at least once, never rejected): re-run it, no model call
     const verified = await answerFromVerified(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.verifiedMin).catch(() => null);

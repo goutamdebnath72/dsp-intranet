@@ -102,6 +102,8 @@ export interface AnalyticsPayload {
   lead?: string;
   /** Set when the question had a second part that was not answered ("Not answered: ..."). */
   notice?: string;
+  /** A clarifying question about a department word with more than one meaning (step 49a): the screen draws checkboxes from it. One definition for the server and the screen. */
+  ask?: import("@/lib/nl2sql/departmentAsk").DepartmentAsk;
   typeBreakdown?: { type: string; label: string; count: number }[];
   rawEntryCount?: number;
   rhQuotaByCategory?: { category: string; quota: number }[];

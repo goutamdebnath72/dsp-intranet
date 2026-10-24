@@ -1105,7 +1105,7 @@ async function main() {
   check("the table headline counts its rows", new RegExp(`^${o.nl2sql.table.total.toLocaleString()} rows\\.`).test(o.answer), o.answer);
 
   // departments covered
-  o = await runOmnibar("garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%') ORDER BY global_seniority_rank`)));
+  o = await runOmnibar("plant garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%') ORDER BY global_seniority_rank`)));
   check("departments covered travel with the answer", o.nl2sql.scope && o.nl2sql.scope.total === 3 && o.nl2sql.scope.departments.every((d: string) => /GARAGE/.test(d)), JSON.stringify(o.nl2sql.scope));
   // a comparison STATES its answer, computed from the ranks of two real people
   const twoTop = (await pg.query(`SELECT ticket_no, name, global_seniority_rank FROM nlq.employees ORDER BY global_seniority_rank LIMIT 2`)).rows;

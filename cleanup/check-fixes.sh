@@ -47,6 +47,7 @@ grep -q getRecentCircularIds src/app/page.tsx 2>/dev/null; report "red badge sho
 { grep -q "repairFamilies" src/lib/nl2sql/pipeline.ts && grep -q "export function repairFamilies" src/lib/nl2sql/familyCheck.ts; } 2>/dev/null; report "A department family covered wrongly is mended at once, without a second model call" $?
 { grep -q "isDoctorPerson" src/lib/employees/honorific.ts && grep -q "doctor_override" src/lib/nl2sql/omnibar.ts && grep -q "doctor_override" src/lib/employees/rosterQuery.ts && grep -q "doctor_override" src/lib/search/employeeSearch.ts && grep -q "is_doctor" src/lib/nl2sql/medicalCadre.ts; } 2>/dev/null; report "Doctors flagged in the roster (is_doctor): Dr., the split and the model's rule, designations untouched" $?
 { grep -q "estate and township branch" src/lib/nl2sql/departmentAliases.ts; } 2>/dev/null; report "Town Administration (TA Building) means its six sections" $?
+{ grep -q "askWhichDepartment" src/lib/nl2sql/omnibar.ts && grep -q "ClarifyChoices" src/components/OmnibarModal.tsx && test -f src/lib/nl2sql/departmentAsk.ts && test -f src/components/ClarifyChoices.tsx; } 2>/dev/null; report "A department word with two meanings (garage, refractory) is asked about with checkboxes, not guessed" $?
 echo
 if [ "$bad" -eq 0 ]; then echo "All present."; else echo "Something is missing: apply the patch that contains it again, then restart the app."; fi
 exit $bad
