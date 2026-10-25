@@ -107,6 +107,16 @@ export function repairFamilies(question: string, sql: string, departments: Depar
   const qWords = new Set(norm(question).split(" "));
   if (families[0].rows.some((r) => norm(r.name).split(" ").some((w) => !STOP.has(w) && !generic.has(w) && qWords.has(w)))) return null;
   if (checkFamilies(question, sql, departments) === null) return null;
+  const fixed = withDepartmentIds(sql, families[0].rows.map((r) => r.id));
+  if (!fixed) return null;
+  return checkFamilies(question, fixed, departments) === null ? fixed : null;
+}
+
+/**
+ * The SQL with its first department_id / department_code IN (...) -- a list or a sub-query, found by matching the brackets -- replaced by department_id IN (the ids); null when the SQL has no such
+ * list (or its brackets do not close). Shared by repairFamilies (step 48a) and repairNamedRows (step 49b, namedRows.ts).
+ */
+export function withDepartmentIds(sql: string, ids: number[]): string | null {
   const m = /\b(?:department_id|department_code)\s+IN\s*\(/i.exec(sql);
   if (!m) return null;
   const start = m.index + m[0].length;
@@ -128,6 +138,5 @@ export function repairFamilies(question: string, sql: string, departments: Depar
   }
   if (depth !== 0) return null;
   const end = i - 1; // the closing bracket
-  const fixed = sql.slice(0, m.index) + `department_id IN (${families[0].rows.map((r) => r.id).join(", ")}` + sql.slice(end);
-  return checkFamilies(question, fixed, departments) === null ? fixed : null;
+  return sql.slice(0, m.index) + `department_id IN (${ids.join(", ")}` + sql.slice(end);
 }

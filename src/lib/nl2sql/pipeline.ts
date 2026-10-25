@@ -18,7 +18,7 @@ import { logResult, loadRejectedSql } from "./log";
 import { normalizeSql } from "./text";
 import { checkQuotedTerms } from "./quoted";
 import { checkNormPatterns, checkVocabulary } from "./vocabulary";
-import { checkFamilies, repairFamilies } from "./familyCheck";
+import { checkDepartments, repairDepartments } from "./namedRows";
 import { computeDepartmentScope } from "./scope";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "./deptColumns";
 import { checkComparison, checkRankingAndOrder } from "./rankingCheck";
@@ -143,7 +143,7 @@ export async function answerQuestion(question: string, userKey: string | null, d
     // a department family the question names, covered wrongly (the row ids written as codes, a LIKE that finds other rows or none ...): the right ids are put in HERE, at once, with no second model
     // call (each costs about 6,000 tokens and Groq's per-minute limit makes the next one wait): live, 24 Oct 17:41, three calls, 80 s and a wrong 0 (step 48a)
     {
-      const mended = repairFamilies(q, g.sql, prep.ctx.departments);
+      const mended = repairDepartments(q, g.sql, prep.ctx.departments);
       if (mended) {
         const g2 = guardSql(mended);
         if (g2.ok) {
@@ -161,7 +161,7 @@ export async function answerQuestion(question: string, userKey: string | null, d
     const knownPhrases = [...prep.ctx.departments.map((d) => d.name), ...prep.ctx.designations.map((d) => d.title)];
     // a department family the question names (CO & CC, main hospital, L & D ...) must be covered in full: first two attempts only, a question is never failed over it (step 45b)
     const senseProblem =
-      checkVocabulary(q, g.sql, knownPhrases) ?? checkNormPatterns(g.sql) ?? (attempts <= 2 ? checkFamilies(q, g.sql, prep.ctx.departments) : null);
+      checkVocabulary(q, g.sql, knownPhrases) ?? checkNormPatterns(g.sql) ?? (attempts <= 2 ? checkDepartments(q, g.sql, prep.ctx.departments) : null);
     if (senseProblem) {
       lastProblem = senseProblem;
       repair = { previousSql: g.sql, problem: senseProblem };
