@@ -177,7 +177,7 @@
         "ranjeet-kumar": "OPD 24",
         "ajit-karmakar": "OPD 25"
        },
-       "note": "OPD 26: any doctor who is available (OPD schedule)"
+       "note": "OPD 26: any doctor who is available"
       },
       "TUE": {
        "state": "UNIT_OFF"
@@ -1322,5 +1322,5 @@
   "name": "General Medicine OPD (MOPD)",
   "note": "Inferred from the schedule: the MOPD clinics 37 and 40 sit every day and are staffed by MBBS doctors; the owner said general medicine is just general, no specialist. To be confirmed."
  },
- "unitRule": "Patients are treated only by the unit they were first allotted to; no other unit of the same department can see them."
+ "unitRule": "A patient is seen only by the unit of his or her first visit."
 }

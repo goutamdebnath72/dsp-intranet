@@ -24,14 +24,11 @@ export interface EngineCtx {
 }
 
 // ---------------------------------------------------------------- wording
-const asOfText = DateTime.fromISO(SCHEDULE.asOf).toFormat("d LLLL yyyy");
-const SCHEDULE_NOTE = `The OPD schedule is the hospital's list of ${asOfText}; it is not up to date (some listed doctors have retired or moved). Please confirm with the hospital.`;
-const CLOSURE_NOTE = "The list of OPD closure days is not complete yet; more will be added.";
 
 // When the answer is "no OPD" the person still needs somewhere to go: point to the Emergency Department (wording and hours from the data file).
 const EM = SCHEDULE.emergency;
 const URGENT = EM ? `For urgent medical attention, you can consult the ${EM.name}, which remains open ${EM.hours}.` : undefined;
-const UNIT_RULE = SCHEDULE.unitRule ?? "Patients are treated only by the unit they were first allotted to; no other unit of the same department can see them.";
+const UNIT_RULE = SCHEDULE.unitRule ?? "A patient is seen only by the unit of his or her first visit.";
 const URGENT_SOFT = EM ? `If the OPD turns out to be closed, you can consult the ${EM.name} for urgent medical attention; it remains open ${EM.hours}.` : undefined;
 
 export const nice = (s: string) =>
@@ -50,7 +47,7 @@ const statusPhrase = (p: Person) => (p.status === "retired" ? "has retired" : p.
 const joinAnd = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 const fmtTime = (t: string) => {
   const [h, m] = t.split(":").map(Number);
-  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+  return `${h % 12 === 0 ? 12 : h % 12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "AM" : "PM"}`;
 };
 const ranges = (rs: { from: string; to: string }[]) => rs.map((r) => `${fmtTime(r.from)} to ${fmtTime(r.to)}`).join(" and ");
 
@@ -92,7 +89,7 @@ function timeState(now: DateTime): TimeState {
   return m < mins(opd[0].from) ? { state: "before", opensAt: fmtTime(next.from) } : { state: "between", reopensAt: fmtTime(next.from) };
 }
 const closedNowText = (ts: Exclude<TimeState, { state: "open" }>, now: DateTime) => {
-  const t = now.toFormat("h:mm a");
+  const t = now.minute === 0 ? now.toFormat("h a") : now.toFormat("h:mm a");
   return ts.state === "before" ? `The OPD is not open yet (it is ${t}): it opens at ${ts.opensAt}.`
     : ts.state === "between" ? `The OPD is closed at this moment (it is ${t}): it reopens at ${ts.reopensAt}.`
     : `Today's OPD hours are over (it is ${t}).`;
@@ -107,16 +104,18 @@ function generalOpdText(day: Weekday | null): string | null {
   if (!g || !d) return null;
   const sits = (dd: Weekday) => d.units.some((u) => u.week[dd]?.doctors?.some((id) => PERSON.get(id)?.status === "current"));
   const labels = joinAnd(d.units.map((u) => u.label));
-  if (day) return sits(day) ? `${g.name}, ${labels}, which sits on ${WEEKDAY_NAME[day]}` : null;
+  if (day) return sits(day) ? `${g.name}, ${labels}, open on ${WEEKDAY_NAME[day]}` : null;
   const days = OPD_DAYS.filter(sits);
   if (!days.length) return null;
-  return `${g.name}, ${labels}, which sits ${days.length === OPD_DAYS.length ? "from Monday to Saturday" : `on ${joinAnd(days.map((x) => WEEKDAY_NAME[x]))}`}`;
+  return `${g.name}, ${labels}, open ${days.length === OPD_DAYS.length ? "Monday to Saturday" : `on ${joinAnd(days.map((x) => WEEKDAY_NAME[x]))}`}`;
 }
 function noUnitSuggestion(day: Weekday | null, soft: boolean): string | undefined {
   const g = generalOpdText(day);
   if (!g) return URGENT;
-  const urgent = EM ? ` For urgent medical attention, the ${EM.name} remains open ${EM.hours}.` : "";
-  return `${soft ? "In case your unit is not sitting that day: " : ""}${UNIT_RULE} For general care you can consult the ${g}; it offers general consultation, not specialist treatment.${urgent}`;
+  // one point per line (the card shows them as bullets)
+  const points = [UNIT_RULE, `For general care: ${g} (general consultation, not specialist treatment).`];
+  if (EM) points.push(`For urgent medical attention: the ${EM.name}, open ${EM.hours}.`);
+  return `${soft ? "If your unit is not sitting that day:\n" : ""}${points.join("\n")}`;
 }
 
 const noOpdState = (s?: Slot) => !!s && !s.doctors?.length && (s.state === "OT_DAY" || s.state === "CLOSED" || s.state === "UNIT_OFF");
@@ -246,7 +245,11 @@ function entitiesOf(q: string, now: DateTime): Entities {
 }
 
 // ---------------------------------------------------------------- answers
-const timingsLines = () => [`OPD hours: ${ranges(SCHEDULE.timings.opd)}.`, `Token timings: ${ranges(SCHEDULE.timings.token)}.`];
+/** The OPD hours and the card registration (token) hours by the clock, as short points (shown in red under an answer about the OPD). */
+const timingNotes = () => [`OPD hours: ${ranges(SCHEDULE.timings.opd)}`, `Card registration (token) hours: ${ranges(SCHEDULE.timings.token)}`];
+/** The small green / red / amber badge beside the title of an answer about a date. */
+const badgeOf = (tone: "open" | "closed" | "unknown" | "info" | undefined): HospitalAnswer["badge"] =>
+  tone === "open" ? { tone: "open", text: "Open" } : tone === "closed" ? { tone: "closed", text: "Closed" } : tone === "unknown" ? { tone: "unknown", text: "Not known" } : undefined;
 const dateLabel = (d: DateTime) => d.toFormat("cccc, d LLLL yyyy");
 const dayOf = (d: DateTime): Weekday => (["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const)[d.weekday - 1];
 const done = (summary: string, card: HospitalAnswer): HospitalResult => ({ summary, card });
@@ -254,10 +257,29 @@ const done = (summary: string, card: HospitalAnswer): HospitalResult => ({ summa
 const isUnits = (d: Department) => d.kind === "units";
 /** The units of a department that hold an OPD on a day: in a department of kind units only the unit whose day it is; in kind rooms every OPD room (its cell may say OT day, closed ...). */
 const unitsOn = (d: Department, day: Weekday): Unit[] => (isUnits(d) ? d.units.filter((u) => u.week[day]?.doctors?.length) : d.units);
-function deptDayRows(depts: Department[], day: Weekday): string[][] {
+/** The table of ONE day: the room and the doctor, one row per doctor; the department and the unit are written once for their group (only when they help). */
+function dayTable(depts: Department[], day: Weekday): { columns: string[]; rows: string[][] } {
+  const showDept = depts.length > 1;
+  const showUnit = depts.some(isUnits);
+  const columns = [...(showDept ? ["Department"] : []), ...(showUnit ? ["Unit"] : []), "Room", "Doctor"];
   const rows: string[][] = [];
-  for (const d of depts) for (const u of unitsOn(d, day)) rows.push([d.name, u.label, slotText(u.week[day] ?? { state: "UNKNOWN" })]);
-  return rows;
+  for (const d of depts) for (const u of unitsOn(d, day)) {
+    const s = u.week[day] ?? { state: "UNKNOWN" as const };
+    const items: [string, string][] = [];
+    if (s.doctors?.length) {
+      for (const id of s.doctors) {
+        const p = PERSON.get(id);
+        if (p) items.push([s.rooms?.[id] ?? (u.opdNo ? u.label : "—"), docLabel(p) + (s.note && !/^OPD /i.test(s.note) ? ` (${s.note})` : "")]);
+      }
+    } else items.push([u.opdNo ? u.label : "—", STATE_TEXT[s.state ?? "UNKNOWN"]]);
+    const m = s.note ? /^(OPD \d+[A-D]?):\s*(.*)$/i.exec(s.note) : null; // a room named only in a note: "OPD 26: any doctor who is available"
+    if (m) items.push([m[1], m[2].charAt(0).toUpperCase() + m[2].slice(1)]);
+    items.forEach(([room, doctor], i) => {
+      const sameRoomAsAbove = i > 0 && items[i - 1][0] === room;
+      rows.push([...(showDept ? [i === 0 ? d.name : ""] : []), ...(showUnit ? [i === 0 ? (isUnits(d) ? u.label : "—") : ""] : []), sameRoomAsAbove ? "" : room, doctor]);
+    });
+  }
+  return { columns, rows };
 }
 const staffingNotes = (depts: Department[], day: Weekday): string[] => {
   const out: string[] = [];
@@ -287,7 +309,7 @@ async function closureAnswer(e: Entities, ctx: EngineCtx): Promise<HospitalResul
   const c = await opdClosure(date, ctx.holidaysOn);
   const day = dayOf(date);
   const ts = timeApplies(ref, date, today) ? timeState(ctx.now) : null;
-  const notes = [CLOSURE_NOTE];
+  const notes: string[] = [];
   if (!c.yearLoaded) notes.push(`Holiday data for ${date.year} is not loaded, so only Sundays and the fixed-date closures were checked.`);
   let status: NonNullable<HospitalAnswer["status"]>;
   const lines: string[] = [];
@@ -297,7 +319,6 @@ async function closureAnswer(e: Entities, ctx: EngineCtx): Promise<HospitalResul
     status = c.state === "unknown"
       ? { tone: "unknown", text: `The plant has a holiday on ${label}: ${joinAnd(c.unknown.map((h) => h.name))}. Whether the OPD ${isWas} closed that day is not in my list yet.` }
       : { tone: "open", text: `The OPD ${isWas} open on ${label} (regular Monday to Saturday schedule).` };
-    lines.push(...timingsLines());
     if (ts && ts.state === "open") {
       status = { ...status, text: `${status.text} It is in session now, until ${ts.closesAt}.` };
       if (ts.tokenClosed && ts.tokenEnd) lines.push(`Token issue for this session closed at ${ts.tokenEnd}.`);
@@ -308,12 +329,13 @@ async function closureAnswer(e: Entities, ctx: EngineCtx): Promise<HospitalResul
   }
   let table: HospitalAnswer["table"];
   if (c.state !== "closed" && e.depts.length && day !== "SUN") {
-    table = { columns: ["Department", "OPD", `${WEEKDAY_NAME[day]}`], rows: deptDayRows(e.depts, day) };
-    notes.push(...staffingNotes(e.depts, day), SCHEDULE_NOTE);
+    table = dayTable(e.depts, day);
+    notes.push(...staffingNotes(e.depts, day));
     // the OPD is open but the department's own units are not sitting that day: the unit rule, general OPD, Emergency
     if (c.state === "open" && !(ts && ts.state !== "open") && allNoOpd(e.depts.flatMap((d) => d.units), [day])) suggestion = noUnitSuggestion(day, false);
   }
-  return done(status.text, { title: `OPD on ${label}`, status, lines, suggestion, table, notes });
+  if (c.state !== "closed") notes.push(...timingNotes());
+  return done(status.text, { title: `OPD on ${label}`, badge: badgeOf(status.tone), status, lines, suggestion, table, notes });
 }
 
 function closureRulesAnswer(): HospitalResult {
@@ -322,18 +344,17 @@ function closureRulesAnswer(): HospitalResult {
   const card: HospitalAnswer = {
     title: "When the OPD is closed",
     status: { tone: "info", text: "The OPD is closed on Sundays, on the holidays below and on the puja holidays." },
-    lines: ["Every Sunday.", ...fixed, "The puja holidays (for example the Durga Puja days): their dates come from the plant's holiday list of the year."],
+    lines: ["Every Sunday", ...fixed, "The puja holidays (for example the Durga Puja days): the dates come from the plant's holiday list of the year"],
     suggestion: URGENT,
-    notes: [r.note, CLOSURE_NOTE],
   };
   return done(card.status?.text ?? card.title, card);
 }
 
-function timingsAnswer(e: Entities): HospitalResult {
-  const lines = timingsLines();
-  lines.push("The OPD is closed on Sundays and on the holidays in the closure list.");
-  const card: HospitalAnswer = { title: "OPD and token timings", status: { tone: "info", text: lines[0] }, lines, notes: e.depts.length ? ["These timings are for the whole hospital OPD; individual departments sit on the days of their schedule.", SCHEDULE_NOTE] : [SCHEDULE_NOTE] };
-  return done(`${lines[0]} ${lines[1]}`, card);
+function timingsAnswer(): HospitalResult {
+  const opd = `OPD hours: ${ranges(SCHEDULE.timings.opd)}`;
+  const token = `Card registration (token) hours: ${ranges(SCHEDULE.timings.token)}`;
+  const card: HospitalAnswer = { title: "OPD and card registration timings", status: { tone: "info", text: opd }, lines: [token, "Closed on Sundays and on holidays"] };
+  return done(`${opd}; ${token}`, card);
 }
 
 function weekdayFocus(e: Entities): { day: Weekday; date: DateRef | null } | null {
@@ -342,51 +363,63 @@ function weekdayFocus(e: Entities): { day: Weekday; date: DateRef | null } | nul
 }
 
 async function deptDateAnswer(e: Entities, ctx: EngineCtx): Promise<HospitalResult> {
-  const focus = weekdayFocus(e);
+  // two weekdays named ("monday and thursday"): no single date; one weekday or a date: that day, with its closure
+  const focus = e.weekdays.length > 1 ? null : weekdayFocus(e);
   const days: Weekday[] = focus ? [focus.day] : e.weekdays;
-  const notes = [SCHEDULE_NOTE];
+  const notes: string[] = [];
   const lines: string[] = [];
   const today = ctx.now.startOf("day");
+  const names = joinAnd(e.depts.map((d) => d.name));
   let status: HospitalAnswer["status"];
   let ts: TimeState | null = null;
-  if (focus?.date && focus.date.kind !== "invalid") {
-    const c = await opdClosure(focus.date.date, ctx.holidaysOn);
+  const dr = focus?.date && focus.date.kind !== "invalid" ? focus.date : null;
+  if (dr) {
+    const c = await opdClosure(dr.date, ctx.holidaysOn);
     if (c.state === "closed") {
-      const text = `The OPD ${focus.date.date < today ? "was" : "is"} closed on ${dateLabel(focus.date.date)}: ${joinAnd(c.reasons)}.`;
-      return done(text, { title: `${joinAnd(e.depts.map((d) => d.name))} OPD, ${dateLabel(focus.date.date)}`, status: { tone: "closed", text }, suggestion: URGENT, notes: [CLOSURE_NOTE] });
+      const text = `The OPD ${dr.date < today ? "was" : "is"} closed on ${dateLabel(dr.date)}: ${joinAnd(c.reasons)}.`;
+      return done(text, { title: `${names} OPD, ${dateLabel(dr.date)}`, badge: badgeOf("closed"), status: { tone: "closed", text }, suggestion: URGENT });
     }
-    if (c.state === "unknown") status = { tone: "unknown", text: `The plant has a holiday on ${dateLabel(focus.date.date)}: ${joinAnd(c.unknown.map((h) => h.name))}. Whether the OPD is closed is not in my list yet; the usual schedule for the day is below.` };
-    if (timeApplies(focus.date, focus.date.date, today)) ts = timeState(ctx.now);
-    notes.unshift(CLOSURE_NOTE);
+    if (c.state === "unknown") status = { tone: "unknown", text: `The plant has a holiday on ${dateLabel(dr.date)}: ${joinAnd(c.unknown.map((h) => h.name))}. Whether the OPD is closed is not in my list yet; the usual schedule for the day is below.` };
+    if (timeApplies(dr, dr.date, today)) ts = timeState(ctx.now);
   }
   if (days.includes("SUN") && days.length === 1) {
     const text = "The OPD is closed on Sundays.";
-    return done(text, { title: `${joinAnd(e.depts.map((d) => d.name))} OPD, Sunday`, status: { tone: "closed", text }, suggestion: URGENT, notes: [CLOSURE_NOTE] });
+    return done(text, { title: `${names} OPD, Sunday`, badge: badgeOf("closed"), status: { tone: "closed", text }, suggestion: URGENT });
   }
   const opdDays = days.filter((d) => d !== "SUN");
-  const rows: string[][] = [];
-  for (const d of e.depts) {
-    const sitting = isUnits(d) ? d.units.filter((u) => opdDays.some((day) => u.week[day]?.doctors?.length)) : d.units;
-    for (const u of sitting) rows.push([d.name, u.label, ...opdDays.map((day) => { const sl = u.week[day] ?? { state: "UNKNOWN" as const }; return sl.state === "UNIT_OFF" ? "—" : slotText(sl); })]);
-    if (isUnits(d) && opdDays.length === 1) {
-      const others = d.units.filter((u) => !sitting.includes(u));
-      if (others.length) lines.push(`The other units of ${d.name} do not sit on ${WEEKDAY_NAME[opdDays[0]]}: ${others.map((u) => `${u.label} (${joinAnd((u.days ?? []).map((x) => WEEKDAY_NAME[x]))})`).join("; ")}. ${UNIT_RULE}`);
+  const title = `${names} OPD, ${dr ? dateLabel(dr.date) : joinAnd(opdDays.map((d) => WEEKDAY_NAME[d]))}`;
+  let table: HospitalAnswer["table"];
+  if (opdDays.length === 1) {
+    table = dayTable(e.depts, opdDays[0]);
+    for (const d of e.depts) {
+      if (!isUnits(d)) continue;
+      const others = d.units.filter((u) => !unitsOn(d, opdDays[0]).includes(u));
+      if (others.length) lines.push(`Not sitting on ${WEEKDAY_NAME[opdDays[0]]}: ${others.map((u) => `${u.label} (${joinAnd((u.days ?? []).map((x) => WEEKDAY_NAME[x]))})`).join(", ")}`);
+      lines.push(UNIT_RULE);
     }
+  } else {
+    const rows: string[][] = [];
+    for (const d of e.depts) {
+      const sitting = isUnits(d) ? d.units.filter((u) => opdDays.some((day) => u.week[day]?.doctors?.length)) : d.units;
+      for (const u of sitting) rows.push([d.name, u.label, ...opdDays.map((day) => { const sl = u.week[day] ?? { state: "UNKNOWN" as const }; return sl.state === "UNIT_OFF" ? "—" : slotText(sl); })]);
+    }
+    table = { columns: ["Department", "Unit / OPD", ...opdDays.map((d) => WEEKDAY_NAME[d])], rows };
   }
   for (const day of opdDays) notes.push(...staffingNotes(e.depts, day));
-  const title = `${joinAnd(e.depts.map((d) => d.name))} OPD, ${focus?.date && focus.date.kind !== "invalid" ? dateLabel(focus.date.date) : joinAnd(opdDays.map((d) => WEEKDAY_NAME[d]))}`;
-  const first = rows[0] ?? ["", "", ""];
   const units = e.depts.flatMap((d) => d.units);
   let suggestion: string | undefined;
-  if (ts && ts.state !== "open") { status = { tone: "closed", text: closedNowText(ts, ctx.now) }; suggestion = URGENT; } // out of visiting time
-  else if (allNoOpd(units, opdDays)) suggestion = noUnitSuggestion(opdDays.length === 1 ? opdDays[0] : null, false); // the units are not sitting: unit rule, general OPD, Emergency
-  else if (status?.tone === "unknown") suggestion = URGENT_SOFT;
-  return done(`${title}: ${first[1]} ${first[2]}`, { title, status, lines, suggestion, table: { columns: ["Department", "OPD", ...opdDays.map((d) => WEEKDAY_NAME[d])], rows }, notes });
+  let tone: "open" | "closed" | "unknown" | undefined = dr ? "open" : undefined;
+  if (ts && ts.state !== "open") { status = { tone: "closed", text: closedNowText(ts, ctx.now) }; suggestion = URGENT; tone = "closed"; } // out of visiting time
+  else if (allNoOpd(units, opdDays)) { suggestion = noUnitSuggestion(opdDays.length === 1 ? opdDays[0] : null, false); tone = dr ? "closed" : undefined; } // the units are not sitting
+  else if (status?.tone === "unknown") { suggestion = URGENT_SOFT; tone = "unknown"; }
+  if (tone !== "closed" || !allNoOpd(units, opdDays)) notes.push(...timingNotes());
+  const first = (table?.rows[0] ?? []).filter(Boolean).join(" ");
+  return done(`${title}: ${first}`, { title, badge: badgeOf(tone), status, lines, suggestion, table, notes });
 }
 
 function overviewAnswer(depts: Department[]): HospitalResult {
   const lines: string[] = [];
-  const notes = [SCHEDULE_NOTE];
+  const notes: string[] = [];
   const grid: string[][] = [];
   const unitRows: string[][] = [];
   const roomDepts = depts.filter((d) => !isUnits(d));
@@ -397,10 +430,8 @@ function overviewAnswer(depts: Department[]): HospitalResult {
         const first = days.map((x) => u.week[x]).find((s) => s?.doctors?.length);
         const head = unitHead(u) ? PERSON.get(unitHead(u) as string) : undefined;
         unitRows.push([depts.length > 1 ? `${d.name} ${u.label}` : u.label, joinAnd(days.map((x) => WEEKDAY_NAME[x])), first ? slotText({ doctors: first.doctors, rooms: first.rooms }) : "—", head ? docLabel(head) : "—"]);
-        if (u.note) notes.push(u.note);
       }
-      lines.push(`${d.name} has ${d.units.length} units; each unit has its own OPD days, and ${UNIT_RULE.charAt(0).toLowerCase()}${UNIT_RULE.slice(1)}`);
-      if (d.note) notes.push(d.note);
+      lines.push(`${d.name} has ${d.units.length} units; each has its own OPD days`, UNIT_RULE);
       for (const day of OPD_DAYS) notes.push(...staffingNotes([d], day));
     } else {
       for (const u of d.units) grid.push([depts.length > 1 ? `${d.name} ${u.label}` : u.label, ...OPD_DAYS.map((day) => slotText(u.week[day] ?? { state: "UNKNOWN" }, true))]);
@@ -413,12 +444,12 @@ function overviewAnswer(depts: Department[]): HospitalResult {
   const title = `${joinAnd(depts.map((x) => x.name))} OPD at a glance`;
   const table = showUnits ? { columns: ["Unit", "OPD days", "Doctors (room)", "In-charge"], rows: unitRows } : { columns: ["OPD", ...OPD_DAYS.map((d) => WEEKDAY_NAME[d].slice(0, 3))], rows: grid };
   const suggestion = !showUnits && allNoOpd(depts.flatMap((d) => d.units), OPD_DAYS) ? noUnitSuggestion(null, false) : undefined;
-  return done(title, { title, lines, suggestion, table, notes: [...new Set(notes)] });
+  return done(title, { title, lines, suggestion, table, notes: [...new Set([...notes, ...timingNotes()])] });
 }
 
 function opdListAnswer(): HospitalResult {
   const rows = SCHEDULE.departments.map((d) => [d.name, d.units.map((u) => u.label).join(", ")]);
-  const card: HospitalAnswer = { title: "OPD departments and OPD numbers", table: { columns: ["Department", "OPD / clinic"], rows }, lines: ["Ask for one department, for example \"orthopaedics OPD\", for its days and doctors."], notes: [SCHEDULE_NOTE] };
+  const card: HospitalAnswer = { title: "OPD departments and OPD numbers", table: { columns: ["Department", "OPD / clinic"], rows }, lines: ["Ask for one department, for example \"orthopaedics OPD\", for its days and doctors."], notes: timingNotes() };
   return done(card.title, card);
 }
 
@@ -426,14 +457,14 @@ async function unitAnswer(refs: Entities["unitRefs"], e: Entities, ctx: EngineCt
   const ref = refs[0];
   if (ref.notRecorded && ref.dept) {
     const text = `The units of ${ref.dept.name} are not recorded yet; I only have its OPD rooms: ${ref.dept.units.map((u) => u.label).join(", ")}.`;
-    return done(text, { title: ref.label, status: { tone: "unknown", text }, notes: [SCHEDULE_NOTE] });
+    return done(text, { title: ref.label, status: { tone: "unknown", text } });
   }
   if (ref.rooms) return roomAnswer(ref.label, ref.roomKey ?? "", ref.rooms, e.weekdays.filter((x) => x !== "SUN"));
   if (!ref.unit || !ref.dept) {
     const rooms = (d: Department) => [...new Set([...ROOM_INDEX].filter(([, v]) => v.some((x) => x.dept === d)).map(([k]) => k))].join(", ");
     const known = SCHEDULE.departments.map((d) => (isUnits(d) ? `${d.name} ${d.units.map((u) => u.label).join(", ")} (OPD rooms ${rooms(d)})` : `${d.name} ${d.units.map((u) => u.label).join(", ")}`)).join("; ");
     const text = `${ref.label} is not in the OPD schedule I have.`;
-    return done(text, { title: ref.label, status: { tone: "unknown", text }, lines: [`The OPDs and units I have: ${known}.`], notes: [SCHEDULE_NOTE] });
+    return done(text, { title: ref.label, status: { tone: "unknown", text }, lines: [`The OPDs and units I have: ${known}.`] });
   }
   const { unit: u, dept: d } = ref as { unit: Unit; dept: Department };
   return isUnits(d) ? unitDetailAnswer(d, u, e, ctx) : roomUnitAnswer(d, u, e);
@@ -444,12 +475,12 @@ async function unitDetailAnswer(d: Department, u: Unit, e: Entities, ctx: Engine
   const days = u.days ?? [];
   const head = unitHead(u) ? PERSON.get(unitHead(u) as string) : undefined;
   const lines = [`${d.name} ${u.label} sits on ${joinAnd(days.map((x) => WEEKDAY_NAME[x]))}; on the other days of the week it has no OPD.`];
-  if (head) lines.push(`In-charge${u.head ? "" : " (the first-named doctor)"}: ${docLabel(head)}.`);
+  if (head) lines.push(`In-charge${u.head ? "" : " (the first-named doctor)"}: ${docLabel(head)}`);
   lines.push(UNIT_RULE);
-  const notes = [SCHEDULE_NOTE];
-  if (u.note) notes.push(u.note);
+  const notes: string[] = [];
   const first = days.map((x) => u.week[x]).find((s) => s?.doctors?.length);
-  const rows = (u.members ?? []).map((id) => PERSON.get(id)).filter((p): p is Person => !!p).map((p) => [docLabel(p), first?.rooms?.[p.id] ?? "—"]);
+  const members = (u.members ?? []).map((id) => PERSON.get(id)).filter((p): p is Person => !!p);
+  const rows = members.map((p, i) => { const room = first?.rooms?.[p.id] ?? "—"; const prev = i > 0 ? first?.rooms?.[members[i - 1].id] : undefined; return [room === prev ? "" : room, docLabel(p)]; });
   let status: HospitalAnswer["status"];
   let suggestion: string | undefined;
   const g = await dateGate(e, ctx);
@@ -465,23 +496,25 @@ async function unitDetailAnswer(d: Department, u: Unit, e: Entities, ctx: Engine
       status = { tone: "closed", text: `${d.name} ${u.label} does not sit on ${g.label}; it sits on ${joinAnd(days.map((x) => WEEKDAY_NAME[x]))}.` };
       suggestion = noUnitSuggestion(g.day, false);
     }
-    notes.unshift(CLOSURE_NOTE);
   }
   for (const day of days) notes.push(...staffingNotes([{ ...d, units: [u] }], day));
+  if (!status || status.tone !== "closed") notes.push(...timingNotes());
   const title = `${d.name} ${u.label}`;
-  return done(status?.text ?? lines[0], { title, status, lines, suggestion, table: { columns: ["Doctor", "Room"], rows }, notes: [...new Set(notes)] });
+  return done(status?.text ?? lines[0], { title, badge: g ? badgeOf(status?.tone) : undefined, status, lines, suggestion, table: { columns: ["Room", "Doctor"], rows }, notes: [...new Set(notes)] });
 }
 
 /** A unit of a department of kind rooms: the unit IS the OPD room, with the doctor or the state of every day. */
 function roomUnitAnswer(d: Department, u: Unit, e: Entities): HospitalResult {
   const focusDays = e.weekdays.filter((x) => x !== "SUN");
   const days = focusDays.length ? focusDays : OPD_DAYS;
-  const lines = [`${d.name} ${u.label}.`, `The units of ${d.name} are not recorded yet, so no unit head can be named.`];
-  const notes = [SCHEDULE_NOTE, ...(e.weekdays.includes("SUN") ? ["The OPD is closed on Sundays."] : [])];
+  const lines = [`The units of ${d.name} are not recorded yet, so no unit head can be named`];
+  const notes: string[] = e.weekdays.includes("SUN") ? ["The OPD is closed on Sundays."] : [];
   for (const day of days) notes.push(...staffingNotes([{ ...d, units: [u] }], day));
+  const noOpd = allNoOpd([u], days);
+  if (!noOpd) notes.push(...timingNotes());
   const title = `${d.name} ${u.label}`;
   return done(`${title}: ${days.map((day) => `${WEEKDAY_NAME[day]} ${slotText(u.week[day] ?? { state: "UNKNOWN" })}`).join("; ")}`, {
-    title, lines, suggestion: allNoOpd([u], days) ? noUnitSuggestion(days.length === 1 ? days[0] : null, false) : undefined,
+    title, lines, suggestion: noOpd ? noUnitSuggestion(days.length === 1 ? days[0] : null, false) : undefined,
     table: { columns: ["Day", "Doctors"], rows: days.map((day) => [WEEKDAY_NAME[day], slotText(u.week[day] ?? { state: "UNKNOWN" })]) }, notes: [...new Set(notes)],
   });
 }
@@ -489,7 +522,7 @@ function roomUnitAnswer(d: Department, u: Unit, e: Entities): HospitalResult {
 /** An OPD number that is a ROOM used by the units of a department on different days (Medicine rooms 24, 25, 26): who sits in it each day, from which unit. */
 function roomAnswer(label: string, key: string, hits: { dept: Department; unit: Unit }[], onlyDays: Weekday[]): HospitalResult {
   const rows: string[][] = [];
-  const notes = [SCHEDULE_NOTE];
+  const notes: string[] = [];
   for (const day of onlyDays.length ? onlyDays : OPD_DAYS) {
     let any = false;
     for (const { dept, unit } of hits) {
@@ -497,7 +530,8 @@ function roomAnswer(label: string, key: string, hits: { dept: Department; unit: 
       if (!s?.doctors?.length) continue;
       const here = s.doctors.filter((id) => new RegExp(`\\b${key}$`, "i").test(s.rooms?.[id] ?? ""));
       if (here.length) { rows.push([WEEKDAY_NAME[day], `${dept.name} ${unit.label}`, slotText({ doctors: here })]); any = true; }
-      if (s.note && new RegExp(`OPD ${key}\\b`, "i").test(s.note)) { rows.push([WEEKDAY_NAME[day], `${dept.name} ${unit.label}`, s.note]); any = true; }
+      const m = s.note ? new RegExp(`^OPD ${key}\\b:\\s*(.*)$`, "i").exec(s.note) : null; // a room named only in a note
+      if (m) { rows.push([WEEKDAY_NAME[day], `${dept.name} ${unit.label}`, m[1].charAt(0).toUpperCase() + m[1].slice(1)]); any = true; }
     }
     if (!any) rows.push([WEEKDAY_NAME[day], "—", "—"]);
   }
@@ -505,14 +539,14 @@ function roomAnswer(label: string, key: string, hits: { dept: Department; unit: 
   const d0 = hits[0].dept;
   return done(`${label} of ${d0.name}`, {
     title: `${d0.name} ${label}`,
-    lines: [`${label} is a room of ${d0.name}: on each day the unit whose day it is uses it. The units of ${d0.name} sit on exclusive days.`],
-    table: { columns: ["Day", "Unit", "Doctor in this room"], rows }, notes: [...new Set(notes)],
+    lines: [`${label} is a room of ${d0.name}`, "On each day the unit whose day it is uses it; the units sit on exclusive days"],
+    table: { columns: ["Day", "Unit", "Doctor in this room"], rows }, notes: [...new Set([...notes, ...timingNotes()])],
   });
 }
 
 function headAnswer(e: Entities): HospitalResult {
   const ref = e.unitRefs.find((r) => r.unit || r.rooms || r.notRecorded);
-  const notes = [SCHEDULE_NOTE];
+  const notes: string[] = [];
   const inCharge = (d: Department, u: Unit) => {
     const h = unitHead(u) ? PERSON.get(unitHead(u) as string) : undefined;
     return h ? { h, text: `${u.label}: ${docLabel(h)}${u.head ? "" : " (the first-named doctor)"}` } : { h: undefined, text: `${u.label}: not recorded` };
@@ -541,8 +575,7 @@ function headAnswer(e: Entities): HospitalResult {
   const parts = d.units.map((u) => inCharge(d, u));
   parts.forEach((p) => flagged(p.h));
   const status: NonNullable<HospitalAnswer["status"]> = hod ? { tone: "info", text: `The HOD of ${d.name} is ${docLabel(hod)}.` } : { tone: "unknown", text: `The HOD of ${d.name} is not recorded yet.` };
-  const lines = [`By the usual rule the first-named doctor of a unit is its head, and one of the unit heads is the HOD. The in-charge of each unit of ${d.name}: ${parts.map((p) => p.text).join("; ")}.`];
-  if (d.note) notes.push(d.note);
+  const lines = ["The HOD is one of the unit in-charges (the first-named doctor of a unit)", ...parts.map((p) => p.text)];
   return done(status.text, { title: `HOD and unit heads of ${d.name}`, status, lines, notes: [...new Set(notes)] });
 }
 
@@ -573,7 +606,7 @@ async function doctorAnswer(p: Person, e: Entities, ctx: EngineCtx): Promise<Hos
     const text = np && !np.staffId
       ? `${who} is on the intranet doctor list as a non-permanent doctor (${np.listId}); the department, the specialization and the OPD days are not recorded yet.`
       : `${who} (${nice(p.department)}) is not in the OPD schedule I have.`;
-    return done(text, { title: `${who}: OPD days`, status: { tone: "unknown", text }, lines, notes: [...notes, SCHEDULE_NOTE] });
+    return done(text, { title: `${who}: OPD days`, status: { tone: "unknown", text }, lines, notes });
   }
   for (const { dept, unit, days } of perUnit) {
     const sl = unit.week[days[0]];
@@ -627,11 +660,10 @@ async function doctorAnswer(p: Person, e: Entities, ctx: EngineCtx): Promise<Hos
       status = { tone: "closed", text: `${status?.text ?? ""} But ${closedNowText(g.ts, ctx.now).replace(/^The OPD /, "the OPD ").replace(/^Today's/, "today's")}` };
       suggestion = URGENT;
     }
-    notes.unshift(CLOSURE_NOTE);
   }
-  notes.push(SCHEDULE_NOTE);
+  if (!status || status.tone !== "closed") notes.push(...timingNotes());
   const summary = status?.text ?? lines[0];
-  return done(summary, { title: `${who}: OPD days`, status, lines, suggestion, table: { columns: ["Department", "Unit / OPD", "Days", "Room", "Same unit"], rows }, notes });
+  return done(summary, { title: `${who}: OPD days`, badge: g ? badgeOf(status?.tone) : undefined, status, lines, suggestion, table: { columns: ["Department", "Unit / OPD", "Days", "Room", "Same unit"], rows }, notes });
 }
 
 /** Is this doctor permanent or contractual? From the staff data and the file of non-permanent doctors. */
@@ -696,7 +728,7 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   }
 
   // token timings can be asked without the word OPD
-  if (/\btoken\s*(timings?|times?|hours?)\b/.test(n) && !e.depts.length && !e.doctors.length) return timingsAnswer(e);
+  if (/\btoken\s*(timings?|times?|hours?)\b/.test(n) && !e.depts.length && !e.doctors.length) return timingsAnswer();
 
   // permanent or contractual: one doctor's status, or the list of the non-permanent doctors (from the separate file)
   const nm = n.replace(/-/g, " ");
@@ -719,7 +751,7 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   // "which days does dr kamla sit": a doctor's name was typed but nobody matches it: say so, do not show something else
   if (!e.doctors.length && /\b(dr|doctor)\b/.test(n) && /\b(days?|sit|sits|sitting|when|schedule|roster)\b/.test(n) && e.leftover.some((w) => w.length >= 3) && !e.depts.length && !e.unitRefs.length) {
     const text = `I could not find a doctor named "${e.leftover.join(" ")}" in the hospital lists I have.`;
-    return done(text, { title: "Which doctor?", status: { tone: "unknown", text }, notes: [SCHEDULE_NOTE] });
+    return done(text, { title: "Which doctor?", status: { tone: "unknown", text } });
   }
 
   if (!e.hasOpd && !e.unitRefs.length) return null;
@@ -738,8 +770,8 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   }
   if (!e.depts.length && closureWords && !hasWhen) return closureRulesAnswer();
   if (!e.depts.length && (closureWords || e.dateRef || e.weekdays.length)) return closureAnswer(e, ctx);
-  if (timingWords && !e.depts.length) return timingsAnswer(e);
-  if (e.depts.length && timingWords) return timingsAnswer(e);
+  if (timingWords && !e.depts.length) return timingsAnswer();
+  if (e.depts.length && timingWords) return timingsAnswer();
   if (e.depts.length) return overviewAnswer(e.depts);
   return opdListAnswer();
 }

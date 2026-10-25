@@ -50,7 +50,7 @@ async function main() {
   let r = await ask("is OPD open today?");
   ok("today is Sunday: closed", tone(r) === "closed" && has(r, "sunday", "closed"), all(r));
   r = await ask("is opd open tomorrow");
-  ok("tomorrow (Monday 26 October) is open, with the hours", tone(r) === "open" && has(r, "monday, 26 october 2026", "8:00 am to 1:00 pm", "5:00 pm to 7:00 pm", "4:30 pm to 6:30 pm"), all(r));
+  ok("tomorrow (Monday 26 October) is open, with the hours", tone(r) === "open" && has(r, "monday, 26 october 2026", "8 am to 1 pm", "5 pm to 7 pm", "4:30 pm to 6:30 pm"), all(r));
   r = await ask("was opd open yesterday");
   ok("yesterday (Saturday 24 October) was open (past tense)", tone(r) === "open" && has(r, "was open", "saturday, 24 october 2026"), all(r));
   r = await ask("is opd open on 2 october");
@@ -81,7 +81,6 @@ async function main() {
   ok("31 february: said to be invalid", has(r, "not a valid date"), all(r));
   r = await ask("when is opd closed");
   ok("the closure rules are listed", tone(r) === "info" && has(r, "every sunday", "sail foundation day", "puja"), all(r));
-  ok("every closure answer says the list is not complete", has(await ask("is opd open today"), "not complete yet"));
 
   // ---- a doctor
 
@@ -158,9 +157,9 @@ async function main() {
 
   // ---- timings
   r = await ask("opd timing");
-  ok("OPD timings", has(r, "8:00 am to 1:00 pm and 5:00 pm to 7:00 pm", "token timings"), all(r));
+  ok("OPD timings", has(r, "8 am to 1 pm and 5 pm to 7 pm", "card registration"), all(r));
   r = await ask("token timings");
-  ok("token timings without the word OPD", has(r, "8:00 am to 11:30 am and 4:30 pm to 6:30 pm"), all(r));
+  ok("token timings without the word OPD", has(r, "8 am to 11:30 am and 4:30 pm to 6:30 pm"), all(r));
   r = await ask("which departments have opd");
   ok("the list of OPD departments and numbers", has(r, "orthopaedics", "22", "kanishka"), all(r));
 
@@ -176,9 +175,9 @@ async function main() {
   // ---- RULE 2: the OPD is open, but the patient's own unit is not sitting -> the unit rule, the General Medicine OPD for general care, the Emergency Department for urgent care
   for (const q of ["is dr rupak goswami in opd on wednesday", "orthopaedic opd monday", "eye opd tuesday", "ent opd on wednesday", "chest opd", "opd 4 days", "is orthopaedic opd open on monday"]) {
     const s = (await sug(q)) ?? "";
-    ok(`unit not sitting, OPD open: the unit rule + General Medicine OPD + Emergency: "${q}"`, /first allotted to/.test(s) && /no other unit of the same department can see them/.test(s) && /General Medicine OPD \(MOPD\), Clinic 37 and Clinic 40, which sits/.test(s) && /not specialist treatment/.test(s) && /Emergency Department remains open 24 hours a day, 7 days a week/.test(s), s);
+    ok(`unit not sitting, OPD open: the unit rule + General Medicine OPD + Emergency: "${q}"`, /first visit/.test(s) && /General Medicine OPD \(MOPD\), Clinic 37 and Clinic 40, open/.test(s) && /not specialist treatment/.test(s) && /Emergency Department, open 24 hours a day, 7 days a week/.test(s), s);
   }
-  ok("on a named day the general OPD is said to sit THAT day; for 'chest opd' (all days) from Monday to Saturday", /which sits on Wednesday/.test((await sug("ent opd on wednesday")) ?? "") && /which sits from Monday to Saturday/.test((await sug("chest opd")) ?? ""));
+  ok("on a named day the general OPD is said to sit THAT day; for 'chest opd' (all days) from Monday to Saturday", /open on Wednesday/.test((await sug("ent opd on wednesday")) ?? "") && /open Monday to Saturday/.test((await sug("chest opd")) ?? ""));
 
   // ---- the OPD is open and the unit sits: no pointer at all
   for (const q of [
@@ -189,22 +188,22 @@ async function main() {
   // ---- a patient belongs to the UNIT, not to one doctor
   r = await ask("is dr avisek mukherjee in opd on tuesday");
   ok("Dental on Tuesday sees procedures and emergency cases only: said so, no pointer", tone(r) === "info" && has(r, "procedures and emergency cases only") && r?.card.suggestion === undefined, all(r));
-  ok("the unit rule and the general OPD are in the data file, so they can be changed there", SCHEDULE.generalOpd?.departmentId === "mopd" && /first allotted to/.test(SCHEDULE.unitRule ?? "") && SCHEDULE.emergency?.name === "Emergency Department");
+  ok("the unit rule and the general OPD are in the data file, so they can be changed there", SCHEDULE.generalOpd?.departmentId === "mopd" && /first visit/.test(SCHEDULE.unitRule ?? "") && SCHEDULE.emergency?.name === "Emergency Department");
 
   // ---- RULE 1b: today, outside the OPD hours -> the Emergency Department (the hours are 8:00 to 1:00 and 5:00 to 7:00)
   const askAt = (q: string, iso: string) => answerHospital(q, { now: DateTime.fromISO(iso, { zone: "Asia/Kolkata" }), holidaysOn });
   r = await askAt("is opd open now", "2026-10-26T10:00:00");
-  ok("Monday 10:00: open and in session until 1:00 PM, no pointer", tone(r) === "open" && has(r, "in session now, until 1:00 pm") && r?.card.suggestion === undefined, all(r));
+  ok("Monday 10:00: open and in session until 1:00 PM, no pointer", tone(r) === "open" && has(r, "in session now, until 1 pm") && r?.card.suggestion === undefined, all(r));
   r = await askAt("is opd open now", "2026-10-26T12:00:00");
   ok("Monday 12:00: in session, and the token counter closed at 11:30", has(r, "in session now", "token issue for this session closed at 11:30 am"), all(r));
   r = await askAt("is opd open now", "2026-10-26T17:30:00");
-  ok("Monday 17:30: the second session, until 7:00 PM", tone(r) === "open" && has(r, "until 7:00 pm"), all(r));
+  ok("Monday 17:30: the second session, until 7:00 PM", tone(r) === "open" && has(r, "until 7 pm"), all(r));
   r = await askAt("is opd open today", "2026-10-26T15:00:00");
-  ok("Monday 15:00: between the sessions: closed now, reopens at 5:00 PM, the Emergency Department", tone(r) === "closed" && has(r, "closed at this moment", "3:00 pm", "reopens at 5:00 pm") && r?.card.suggestion === URGENT, all(r));
+  ok("Monday 15:00: between the sessions: closed now, reopens at 5:00 PM, the Emergency Department", tone(r) === "closed" && has(r, "closed at this moment", "3 pm", "reopens at 5 pm") && r?.card.suggestion === URGENT, all(r));
   r = await askAt("is opd open today", "2026-10-26T07:00:00");
-  ok("Monday 07:00: not open yet, opens at 8:00 AM, the Emergency Department", tone(r) === "closed" && has(r, "not open yet", "opens at 8:00 am") && r?.card.suggestion === URGENT, all(r));
+  ok("Monday 07:00: not open yet, opens at 8:00 AM, the Emergency Department", tone(r) === "closed" && has(r, "not open yet", "opens at 8 am") && r?.card.suggestion === URGENT, all(r));
   r = await askAt("is opd open today", "2026-10-26T20:00:00");
-  ok("Monday 20:00: today's hours are over, the Emergency Department", tone(r) === "closed" && has(r, "opd hours are over", "8:00 pm") && r?.card.suggestion === URGENT, all(r));
+  ok("Monday 20:00: today's hours are over, the Emergency Department", tone(r) === "closed" && has(r, "opd hours are over", "8 pm") && r?.card.suggestion === URGENT, all(r));
   r = await askAt("is opd open tomorrow", "2026-10-26T20:00:00");
   ok("a question about TOMORROW is not judged by the time of day now", tone(r) === "open" && !has(r, "hours are over") && r?.card.suggestion === undefined, all(r));
   r = await askAt("is opd open on monday", "2026-10-26T20:00:00");
@@ -212,7 +211,7 @@ async function main() {
   r = await askAt("is dr sumit mukherjee in opd today", "2026-10-26T15:00:00");
   ok("a doctor today, but out of hours: listed, but the OPD is closed at this moment, Emergency Department", tone(r) === "closed" && has(r, "listed in psychiatry opd 1", "closed at this moment") && r?.card.suggestion === URGENT, all(r));
   r = await askAt("is orthopaedic opd open today", "2026-10-26T10:00:00");
-  ok("Orthopaedics on a Monday (OT day), in hours: the unit rule and the General Medicine OPD", /first allotted to/.test(r?.card.suggestion ?? "") && has(r, "in session now"), all(r));
+  ok("Orthopaedics on a Monday (OT day), in hours: the unit rule and the General Medicine OPD", /first visit/.test(r?.card.suggestion ?? "") && has(r, "in session now"), all(r));
   r = await askAt("is orthopaedic opd open today", "2026-10-26T15:00:00");
   ok("the same at 15:00: out of hours comes first, the Emergency Department only", r?.card.suggestion === URGENT, all(r));
   r = await ask("is opd open now");
@@ -240,29 +239,17 @@ async function main() {
   r = await ask("dr ranjit kumar opd days");
   ok("the board's spelling 'Ranjit Kumar' finds Dr. Ranjeet Kumar, retired", has(r, "ranjeet kumar", "retired"), all(r));
 
-  r = await ask("medicine opd monday");
-  ok("Medicine on Monday: ONLY Unit II sits (room 24 Dr. Ranjeet Kumar retired, room 25 Dr. Ajit Karmakar, room 26 any doctor); the other units are named with their days and the unit rule", r?.card.table?.rows.length === 1 && has(r, "unit ii", "opd 24: dr. ranjeet kumar (retired)", "opd 25: dr. ajit karmakar", "opd 26: any doctor who is available", "unit i (wednesday and saturday)", "unit iii (tuesday and friday)", "first allotted to"), all(r));
-  r = await ask("medicine opd tuesday");
-  ok("Medicine on Tuesday: Unit III, three doctors in rooms 24, 25, 26", r?.card.table?.rows.length === 1 && has(r, "unit iii", "opd 24: dr. dadan prasad (transferred)", "opd 25: dr. rajeev kumar", "opd 26: dr. kunj bihari singh"), all(r));
-  r = await ask("medicine opd wednesday");
-  ok("Medicine on Wednesday: Unit I, four doctors; the in-charge and Dr. Ritesh Chauhan are not on the current list", has(r, "unit i", "opd 24: dr. ashish chatterjee (not on the current doctor list)", "opd 25: dr. sukhdev shankar patil", "opd 26: dr. dipak singh", "dr. ritesh chauhan"), all(r));
-  r = await ask("medicine opd");
-  ok("Medicine at a glance: one row per UNIT with its days, its doctors with rooms and its in-charge", r?.card.table?.columns.join("|") === "Unit|OPD days|Doctors (room)|In-charge" && r?.card.table?.rows.length === 3 && has(r, "wednesday and saturday", "monday and thursday", "tuesday and friday", "painted over"), all(r));
-  r = await ask("medicine and surgery opd on monday");
-  ok("two departments at once, one table: Medicine's Unit II and Surgery's three rooms", (r?.card.table?.rows.length ?? 0) === 4 && has(r, "unit ii", "opd 15", "opd 17", "opd 18"), all(r));
-  r = await ask("orthopaedics opd");
-  ok("a department with only rooms: the grid, and it says its units are not recorded (no unit head claimed)", r?.card.table?.columns.length === 7 && has(r, "p. sahoo", "units of this department are not recorded yet", "no unit head or hod can be named", "not up to date") && !has(r, "in-charge"), all(r));
 
   // ---- units, by number and by roman numeral
   r = await ask("medicine unit 2");
-  ok("Medicine unit 2 = Unit II: Monday and Thursday, in-charge Dr. Ranjeet Kumar (retired), the unit rule", has(r, "medicine unit ii sits on monday and thursday", "in-charge: dr. ranjeet kumar (retired)", "first allotted to", "opd 25"), all(r));
+  ok("Medicine unit 2 = Unit II: Monday and Thursday, in-charge Dr. Ranjeet Kumar (retired), the unit rule", has(r, "medicine unit ii sits on monday and thursday", "in-charge: dr. ranjeet kumar (retired)", "first visit", "opd 25"), all(r));
   ok("'unit ii', 'unit-2', 'unit 2 of medicine' all find the same unit", (await Promise.all(["medicine unit ii", "medicine unit-2", "unit 2 of medicine"].map((q) => ask(q)))).every((x) => has(x, "medicine unit ii sits on monday and thursday")));
   r = await ask("medicine unit 3");
   ok("Medicine unit 3 = Unit III: Tuesday and Friday, Dr. Dadan Prasad (transferred), Dr. Rajeev Kumar, Dr. Kunj Bihari Singh", has(r, "tuesday and friday", "dadan prasad (transferred)", "rajeev kumar", "kunj bihari singh"), all(r));
   r = await ask("medicine unit i");
   ok("Unit I: Wednesday and Saturday, in-charge by the rule", has(r, "wednesday and saturday", "in-charge (the first-named doctor): dr. ashish chatterjee"), all(r));
   r = await ask("is medicine unit 2 open on tuesday");
-  ok("Unit II on a Tuesday: it does not sit, it sits Monday and Thursday; the unit rule, the General Medicine OPD, the Emergency Department", tone(r) === "closed" && has(r, "does not sit on tuesday", "monday and thursday") && /first allotted to/.test(r?.card.suggestion ?? ""), all(r));
+  ok("Unit II on a Tuesday: it does not sit, it sits Monday and Thursday; the unit rule, the General Medicine OPD, the Emergency Department", tone(r) === "closed" && has(r, "does not sit on tuesday", "monday and thursday") && /first visit/.test(r?.card.suggestion ?? ""), all(r));
   r = await ask("is medicine unit 2 open on monday");
   ok("Unit II on a Monday: it sits, no pointer", tone(r) === "open" && has(r, "sits on monday, 26 october 2026") && r?.card.suggestion === undefined, all(r));
   r = await ask("orthopaedics unit 2");
@@ -290,15 +277,13 @@ async function main() {
 
   // ---- a patient belongs to his UNIT: a doctor asked about on a day his unit does not sit
   r = await ask("is dr ajit karmakar in opd on tuesday");
-  ok("Dr. Ajit Karmakar on a Tuesday: NO, his unit (Medicine Unit II) does not sit; it sits Monday and Thursday; the unit rule + the General Medicine OPD + Emergency", tone(r) === "closed" && has(r, "no:", "medicine unit ii) does not sit on tuesday", "monday and thursday") && /first allotted to/.test(r?.card.suggestion ?? "") && /General Medicine OPD/.test(r?.card.suggestion ?? ""), all(r));
+  ok("Dr. Ajit Karmakar on a Tuesday: NO, his unit (Medicine Unit II) does not sit; it sits Monday and Thursday; the unit rule + the General Medicine OPD + Emergency", tone(r) === "closed" && has(r, "no:", "medicine unit ii) does not sit on tuesday", "monday and thursday") && /first visit/.test(r?.card.suggestion ?? "") && /General Medicine OPD/.test(r?.card.suggestion ?? ""), all(r));
   r = await ask("is dr kunj bihari singh in opd on monday");
   ok("Dr. Kunj Bihari Singh on a Monday: Unit III does not sit (Tuesday and Friday)", tone(r) === "closed" && has(r, "unit iii) does not sit on monday", "tuesday and friday"), all(r));
   r = await ask("is dr ranjeet kumar in opd on tuesday");
   ok("a retired doctor on a Tuesday: his unit does not sit; the notes say he has retired", has(r, "medicine unit ii) does not sit on tuesday", "retired"), all(r));
   r = await ask("is dr avijit sircar in opd on tuesday");
-  ok("a doctor of a department with only rooms, on a day he does not sit: others sit in the room, but the units are not recorded, so the softer pointer", tone(r) === "closed" && has(r, "units of surgery are not recorded yet") && /^In case your unit is not sitting that day: /.test(r?.card.suggestion ?? ""), all(r));
-  r = await askAt("medicine opd today", "2026-10-26T15:00:00");
-  ok("Medicine today (Monday 15:00), out of hours: closed now, the Emergency Department, Unit II's row is still shown", tone(r) === "closed" && r?.card.suggestion === URGENT && (r?.card.table?.rows.length ?? 0) === 1, all(r));
+  ok("a doctor of a department with only rooms, on a day he does not sit: others sit in the room, but the units are not recorded, so the softer pointer", tone(r) === "closed" && has(r, "units of surgery are not recorded yet") && /^If your unit is not sitting that day:/.test(r?.card.suggestion ?? ""), all(r));
 
   // ======================================================================================================================================
   // THE NON-PERMANENT DOCTORS: a separate file
@@ -336,6 +321,55 @@ async function main() {
   r = await ask("is dr kumar contractual");
   ok("'kumar' is ambiguous here too", has(r, "more than one doctor"), all(r));
   for (const q of ["how many contractual employees", "list contractual workers", "contractual employees in C&IT", "how many permanent employees are there"]) ok(`left alone (not about doctors): "${q}"`, (await ask(q)) === null, all(await ask(q)).slice(0, 100));
+
+  // ======================================================================================================================================
+  // STEP 53b (from the owner's review of "medicine opd monday"): the badge, the table first (room and doctor), points, the hours in red
+  // ======================================================================================================================================
+  const flat = (r2: Awaited<ReturnType<typeof ask>>) => JSON.stringify(r2?.card ?? {});
+  r = await ask("medicine opd monday");
+  ok("Medicine on Monday: the badge is a green Open", r?.card.badge?.tone === "open" && r?.card.badge?.text === "Open", flat(r));
+  ok("...the table comes with the columns Unit, Room, Doctor: one row per doctor, the unit written once, the room named only in a note is a row of its own", JSON.stringify(r?.card.table) === JSON.stringify({ columns: ["Unit", "Room", "Doctor"], rows: [["Unit II", "OPD 24", "Dr. Ranjeet Kumar (retired)"], ["", "OPD 25", "Dr. Ajit Karmakar"], ["", "OPD 26", "Any doctor who is available"]] }), flat(r));
+  ok("...the points are short: the other units with their days, and the unit rule", JSON.stringify(r?.card.lines) === JSON.stringify(["Not sitting on Monday: Unit I (Wednesday and Saturday), Unit III (Tuesday and Friday)", "A patient is seen only by the unit of his or her first visit."]), flat(r));
+  ok("...the notes are the hours by the clock, in points", JSON.stringify(r?.card.notes) === JSON.stringify(["OPD hours: 8 AM to 1 PM and 5 PM to 7 PM", "Card registration (token) hours: 8 AM to 11:30 AM and 4:30 PM to 6:30 PM"]), flat(r));
+  ok("...and the two generic notes are gone", !/not complete|not up to date|please confirm/i.test(flat(r)), flat(r));
+  r = await ask("medicine opd tuesday");
+  ok("Medicine on Tuesday: Unit III, rooms 24, 25, 26, three doctors (the transferred one marked)", JSON.stringify(r?.card.table?.rows) === JSON.stringify([["Unit III", "OPD 24", "Dr. Dadan Prasad (transferred)"], ["", "OPD 25", "Dr. Rajeev Kumar"], ["", "OPD 26", "Dr. Kunj Bihari Singh"]]) && r?.card.badge?.tone === "open", flat(r));
+  r = await ask("medicine opd wednesday");
+  ok("Medicine on Wednesday: Unit I, four doctors; two share room 26 and the room is written once; the retired / unlisted are marked", JSON.stringify(r?.card.table?.rows) === JSON.stringify([["Unit I", "OPD 24", "Dr. Ashish Chatterjee (not on the current doctor list)"], ["", "OPD 25", "Dr. Sukhdev Shankar Patil"], ["", "OPD 26", "Dr. Dipak Singh"], ["", "", "Dr. Ritesh Chauhan (not on the current doctor list)"]]), flat(r));
+  r = await ask("orthopaedics opd tuesday");
+  ok("a department of rooms: the columns are just Room and Doctor, one row per doctor, the room once", JSON.stringify(r?.card.table?.columns) === JSON.stringify(["Room", "Doctor"]) && JSON.stringify(r?.card.table?.rows.map((x) => x[0])) === JSON.stringify(["OPD 22", "", "", ""]) && r?.card.badge?.tone === "open", flat(r));
+  r = await ask("surgery opd tuesday");
+  ok("Surgery on Tuesday: three rooms, the doctors under their room", JSON.stringify(r?.card.table?.rows.map((x) => x[0])) === JSON.stringify(["OPD 15", "", "OPD 17", "", "OPD 18"]), flat(r));
+  r = await ask("medicine and surgery opd on monday");
+  ok("two departments: the Department column appears, Medicine's unit and Surgery's rooms in one table", r?.card.table?.columns.join("|") === "Department|Unit|Room|Doctor" && (r?.card.table?.rows.length ?? 0) === 7 && r?.card.table?.rows[3][0] === "Surgery", flat(r));
+  r = await ask("medicine opd monday and thursday");
+  ok("two weekdays named: the grid (unit by day), no single date, no badge", r?.card.table?.columns.join("|") === "Department|Unit / OPD|Monday|Thursday" && r?.card.table?.rows.length === 1 && r?.card.badge === undefined, flat(r));
+  r = await ask("medicine opd");
+  ok("Medicine at a glance: one row per UNIT with its days, its doctors with rooms and its in-charge; short points; no badge (no date)", r?.card.table?.columns.join("|") === "Unit|OPD days|Doctors (room)|In-charge" && r?.card.table?.rows.length === 3 && has(r, "wednesday and saturday", "monday and thursday", "tuesday and friday") && r?.card.lines?.[0] === "Medicine has 3 units; each has its own OPD days" && r?.card.badge === undefined, flat(r));
+  r = await ask("orthopaedics opd");
+  ok("a department with only rooms: the grid, and it says its units are not recorded (no unit head claimed)", r?.card.table?.columns.length === 7 && has(r, "p. sahoo", "units of this department are not recorded yet", "no unit head or hod can be named") && !has(r, "in-charge"), flat(r));
+
+  // ---- the badge: Open (green), Closed (red), Not known (amber), only for an answer about a date
+  const badge = async (q: string) => { const x = await ask(q); return x?.card.badge ? `${x.card.badge.tone}:${x.card.badge.text}` : "none"; };
+  for (const [q, want] of [
+    ["is opd open today", "closed:Closed"], ["is opd open tomorrow", "open:Open"], ["is opd open on 2 october", "closed:Closed"], ["is opd open on 11 november 2026", "unknown:Not known"], ["is opd open on saturday", "open:Open"],
+    ["medicine opd sunday", "closed:Closed"], ["orthopaedic opd monday", "closed:Closed"], ["eye opd tuesday", "closed:Closed"], ["chest opd tuesday", "closed:Closed"], ["ent opd on 21 october 2026", "closed:Closed"],
+    ["dental opd tuesday", "open:Open"], ["is medicine unit 2 open on tuesday", "closed:Closed"], ["is medicine unit 2 open on monday", "open:Open"],
+    ["is dr ajit karmakar in opd on tuesday", "closed:Closed"], ["is dr ajit karmakar in opd on monday", "open:Open"], ["is dr sumit mukherjee available today", "closed:Closed"], ["is dr rupak goswami in opd on wednesday", "closed:Closed"],
+    ["medicine opd", "none"], ["opd 25 days", "none"], ["who is the hod of medicine", "none"], ["opd timing", "none"], ["when is opd closed", "none"], ["which days does dr ajit karmakar sit in opd", "none"], ["list contractual doctors", "none"],
+  ] as const) ok(`badge of "${q}" = ${want}`, (await badge(q)) === want, await badge(q));
+  const clockBadge = async (q: string, iso: string) => { const x = await askAt(q, iso); return x?.card.badge ? x.card.badge.tone : "none"; };
+  ok("today at 10:00 in session: Open; at 15:00 between the sessions, at 7:00 before the opening, at 20:00 after the hours: Closed", (await clockBadge("is opd open today", "2026-10-26T10:00:00")) === "open" && (await clockBadge("is opd open today", "2026-10-26T15:00:00")) === "closed" && (await clockBadge("is opd open today", "2026-10-26T07:00:00")) === "closed" && (await clockBadge("is opd open today", "2026-10-26T20:00:00")) === "closed");
+  r = await askAt("medicine opd today", "2026-10-26T15:00:00");
+  ok("Medicine today (Monday 15:00), out of hours: Closed, the Emergency Department, Unit II's table is still shown (3 rows)", r?.card.badge?.tone === "closed" && r?.card.suggestion === URGENT && (r?.card.table?.rows.length ?? 0) === 3, flat(r));
+
+  // ---- the hours in red points under an answer about an OPD that is open; nothing of the kind under a closed day
+  const notesOf = async (q: string) => (await ask(q))?.card.notes ?? [];
+  ok("an open day carries the OPD hours and the card registration hours, by the clock, as two points", JSON.stringify((await notesOf("is opd open tomorrow")).slice(-2)) === JSON.stringify(["OPD hours: 8 AM to 1 PM and 5 PM to 7 PM", "Card registration (token) hours: 8 AM to 11:30 AM and 4:30 PM to 6:30 PM"]));
+  ok("a closed day carries no hours", !(await notesOf("medicine opd sunday")).some((n) => /hours/.test(n)) && !(await notesOf("is opd open today")).some((n) => /hours/.test(n)));
+  ok("the clock times have no :00 (8 AM, not 8:00 AM)", !/\d:00 [AP]M/.test(JSON.stringify((await ask("is opd open tomorrow"))?.card)) && !/\d:00 [AP]M/.test(flat(await ask("opd timing"))));
+  for (const q of ["medicine opd monday", "orthopaedic opd monday", "is opd open tomorrow", "which days does dr ajit karmakar sit in opd", "opd 25 days", "medicine unit 2", "who is the hod of medicine", "opd timing", "when is opd closed", "kanishka opd", "which departments have opd"])
+    ok(`no generic disclaimer in "${q}"`, !/not complete|not up to date|please confirm with|painted over|photographed|the owner/i.test(flat(await ask(q))), flat(await ask(q)).slice(0, 120));
 
   // ---- things that are NOT this route must be left alone
   for (const q of [
