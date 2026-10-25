@@ -293,7 +293,9 @@ function entitiesOf(rawQ: string, now: DateTime): Entities {
   const exact = marker ? exactDoctor(marker[1], marker[2]) : undefined;
   const found = exact ? [exact] : findDoctors(words, initials);
   const narrowed = exact ? { list: found, miss: null as string | null } : narrowDoctors(found, depts, extraDepts, unitRefs.flatMap((r) => (r.unit && r.dept && r.dept.kind === "units" ? [r.unit] : [])));
-  return { n: original, hasOpd, depts, unitRefs, weekdays: weekdaysIn(q), dateRef, doctors: narrowed.list, hintMiss: narrowed.miss, leftover: words.filter((w) => !STOP.has(w) && !/^\d+$/.test(w)) };
+  // "is the hospital open on monday?": here the hospital means the OPD (the Emergency Department is open all the time); only a question about being open or closed on a day, so that "executives of the main hospital" stays an employee question
+  const hospitalMeansOpd = /\bhospital\b/.test(original) && /\b(open|opens|opened|closed?|closes|closing|running|functioning|working|holiday|available|off)\b/.test(original) && (dateRef !== null || weekdaysIn(q).length > 0);
+  return { n: original, hasOpd: hasOpd || hospitalMeansOpd, depts, unitRefs, weekdays: weekdaysIn(q), dateRef, doctors: narrowed.list, hintMiss: narrowed.miss, leftover: words.filter((w) => !STOP.has(w) && !/^\d+$/.test(w)) };
 }
 
 // ---------------------------------------------------------------- answers
@@ -931,16 +933,16 @@ function vagueOpenAnswer(q: string, g: Gate): HospitalResult {
     phrase: /\bopd\b/i.test(d.name) ? d.name : (() => { const a = d.aliases.find((x) => /\bopd\b/i.test(x)); return a ? a.charAt(0).toUpperCase() + a.slice(1).replace(/\bopd\b/i, "OPD") : `${d.name} OPD`; })(),
   }));
   const ask: DepartmentAsk = {
-    message, word: "opd", question: q, options, mode: "one", legend: "Choose the department you want to visit", pattern: "\\bopd\\b",
+    message, word: "opd", question: q, options, mode: "one", legend: "Choose the department you want to visit", pattern: "\\b(?:opd|hospital)\\b",
     none: { label: "I am not sure", reply: [generalOpdText(g.day), URGENT].filter(Boolean).join(" ") || "If you are not sure, start at the General Medicine OPD." },
   };
   const card: HospitalAnswer = {
     title: `OPD on ${g.label}`,
     badge: { tone: "unknown", text: "Depends" },
     status: { tone: "unknown", text: SOFT_YES("The OPD", g.label, "your department and, if it has units, on the unit you belong to") },
-    lines: [...(when ? [when] : []), ...sessionLines(g), UNIT_RULE, "A new patient is locked, permanently and irreversibly, to the unit that sits on the day of the first visit, so find out the units, their doctors, days and rooms before you go."],
+    lines: [...(when ? [when] : []), ...sessionLines(g)],
     prompt: `${message} Answer this (and, for a department with units, which unit you belong to) and I will give you a clear Yes or No.`,
-    notes: [...yearNotes(g), ...timingNotes()],
+    notes: yearNotes(g),
   };
   return { summary: message, card, ask };
 }
@@ -964,7 +966,7 @@ function askUnitAnswer(q: string, d: Department, g: Gate): HospitalResult {
   });
   const ask: DepartmentAsk = {
     message, word: "opd", question: q, options, mode: "one", legend: `Choose your unit of ${d.name}`,
-    pattern: `\\b(?:${reEsc(d.name.toLowerCase())}\\s+)?opd\\b`,
+    pattern: `\\b(?:${reEsc(d.name.toLowerCase())}\\s+)?(?:opd|hospital)\\b`,
     none: { label: "I am not sure", reply: `If you have been to ${d.name} OPD before, your unit is the one of your first visit. If you never have, choose "I am a new patient".` },
   };
   const card: HospitalAnswer = {
@@ -1000,7 +1002,7 @@ async function newPatientAnswer(e: Entities, ctx: EngineCtx, d: Department): Pro
       { title: `${names} on ${g.label}`, table: { columns: ["Room", "Doctor"], rows: groupRooms(rows) } },
       { title: `All units of ${d.name}: know them before you go`, table: allUnitsTable(d) },
     ],
-    lines: [...(whenLine(g) ? [whenLine(g) as string] : []), ...sessionLines(g), UNIT_RULE],
+    lines: [...(whenLine(g) ? [whenLine(g) as string] : []), ...sessionLines(g)],
     notes: [...yearNotes(g), ...staffingNotes([d], g.day), ...timingNotes()],
   };
   return done(`Yes: ${text}`, card);

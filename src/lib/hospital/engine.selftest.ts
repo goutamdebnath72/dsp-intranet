@@ -553,7 +553,7 @@ async function main() {
   r = await ask("is opd open on monday?");
   ok("no department: an amber 'Depends' first answer that is not a Yes, with when the day is", r?.card.status?.tone === "unknown" && r?.card.badge?.text === "Depends" && !/^(Yes|No)/.test(r?.card.status?.text ?? "") && /not yet a clear Yes/.test(r?.card.status?.text ?? "") && (r?.card.lines ?? [])[0] === "The coming Monday is 26 October 2026 (today is Sunday).", jc(r).slice(0, 300));
   ok("...it asks which department, in radio mode, with a legend of its own; every department is an option", r?.ask?.mode === "one" && r?.ask?.legend === "Choose the department you want to visit" && r?.ask?.options.length === SCHEDULE.departments.length && /Which department do you want to visit on Monday, 26 October 2026\?/.test(r?.ask?.message ?? ""), JSON.stringify(r?.ask?.options.map((o) => o.label)));
-  ok("...the card carries the question as its last line, and the hours", /Which department/.test(r?.card.prompt ?? "") && (r?.card.notes ?? []).length === 3 && r?.summary === r?.ask?.message);
+  ok("...the card carries the question as its last line; no hours on this page (they belong to the final answer)", /Which department/.test(r?.card.prompt ?? "") && (r?.card.notes ?? []).length === 0 && r?.summary === r?.ask?.message, jc(r).slice(0, 300));
   ok("...Medicine's option says it has units; a department of rooms lists its rooms", r?.ask?.options.find((o) => o.label === "Medicine")?.detail === "Unit I, Unit II, Unit III: you belong to one of these units" && r?.ask?.options.find((o) => o.label === "Surgery")?.detail === "OPD 15, OPD 17, OPD 18");
   ok("...'I am not sure' gives the general OPD and the Emergency Department", /General Medicine OPD/.test(r?.ask?.none.reply ?? "") && /Emergency Department/.test(r?.ask?.none.reply ?? ""), r?.ask?.none.reply);
   r = await ask("is opd open today");
@@ -598,12 +598,47 @@ async function main() {
   ok("a new patient on a Sunday: a clear No whoever he is", /^No: The OPD is closed on every Sunday/.test((await ask("is Medicine OPD (new patient) open on sunday"))?.card.status?.text ?? ""));
   ok("a new patient asked on Tuesday is told Unit III", /seen by Unit III/.test((await ask("is Medicine OPD (new patient) open on tuesday"))?.card.status?.text ?? "") && /on Tuesday, 27 October 2026 that unit is Unit III/.test(hl(await ask("is Medicine OPD (new patient) open on tuesday"))));
   r = await ask("is opd open on monday?");
-  ok("the vague answer says a new patient is locked, permanently and irreversibly", (r?.card.lines ?? []).some((l) => /locked, permanently and irreversibly, to the unit that sits on the day of the first visit/.test(l)));
+  ok("page 1 (which department?): only 'The coming Monday is 26 October 2026 (today is Sunday).': no unit rule, no new-patient bullet, no hours, no afternoon rule", JSON.stringify(r?.card.lines) === JSON.stringify(["The coming Monday is 26 October 2026 (today is Sunday)."]) && !JSON.stringify(r?.card).match(/first visit|locked|OPD hours|Card registration|afternoon/i), jc(r).slice(0, 300));
   r = await ask("is medicine opd open on monday?");
   ok("the unit question no longer repeats the units' days as a bullet (the table shows them)", !(r?.card.lines ?? []).some((l) => /exclusive days/.test(l)) && !!r?.card.extraTables?.length);
   ok("...the new-patient option says the first visit locks you permanently", /your first visit will lock you to it permanently/.test(r?.ask?.options[3].detail ?? ""), r?.ask?.options[3].detail);
   ok("...and no unit option names a doctor who has gone", !/Ashish|Ritesh|Chatterjee|Chauhan/.test(JSON.stringify(r?.ask?.options)) && r?.ask?.options[0].detail === "Wednesday and Saturday · Dr. Sukhdev Shankar Patil, Dr. Dipak Singh", r?.ask?.options[0].detail);
   ok("a statement about a department of units is still just the table: 'medicine opd monday'", !(await ask("medicine opd monday"))?.ask && (await ask("medicine opd monday"))?.card.table?.rows.length === 2);
+
+  // ======================================================================================================================================
+  // STEP 54f: "hospital" means the OPD in a question about being open; what each page of the guided questions says (and does not say twice)
+  // ======================================================================================================================================
+  for (const q of ["is the hospital open on monday?", "is hospital open on monday", "is the main hospital open on monday?"]) {
+    r = await ask(q);
+    ok(`"${q}": taken as the OPD; the same first page as "is opd open on monday?"`, !!r?.ask && r?.card.title === "OPD on Monday, 26 October 2026" && r?.card.status?.tone === "unknown" && r?.ask?.options.length === SCHEDULE.departments.length, jc(r).slice(0, 160));
+  }
+  ok("'is the hospital open today' on a Sunday: a clear No (the OPD is closed every Sunday), with the Emergency Department", /^No: The OPD is closed on every Sunday/.test((await ask("is the hospital open today"))?.card.status?.text ?? "") && /Emergency Department/.test((await ask("is the hospital open today"))?.card.suggestion ?? ""));
+  ok("'is the hospital open on sunday?' and a holiday: a clear No", /^No: /.test((await ask("is the hospital open on sunday?"))?.card.status?.text ?? "") && /^No: .*Republic Day/.test((await ask("is the hospital open on 26 january 2027"))?.card.status?.text ?? ""));
+  r = await askAt("is the hospital open today", "2026-10-26T10:00:00");
+  ok("'is the hospital open today' on Monday at 10:00: the first page, today, in session", !!r?.ask && (r?.card.lines ?? [])[0] === "Today is Monday, 26 October 2026." && (r?.card.lines ?? []).some((l) => /in session now, until 1 PM/.test(l)));
+  r = await askAt("is the hospital open today", "2026-10-26T20:00:00");
+  ok("'is the hospital open today' on Monday at 20:00: a clear No, the hours are over", /^No: Today's OPD hours are over/.test(r?.card.status?.text ?? ""));
+  ok("a question that is not about being open stays what it was: 'executives of the main hospital', 'how many doctors work in the hospital', 'hospital staff list' are not the OPD", (await ask("list executives of the main hospital")) === null && (await ask("how many doctors work in the hospital")) === null && (await ask("hospital staff list")) === null);
+  ok("...nor 'hospital' alone, nor a hospital question with no day", (await ask("hospital")) === null && (await ask("is the hospital open")) === null || has(await ask("is the hospital open"), "closed on sundays", "every sunday"));
+  {
+    const hv = await ask("is the hospital open on monday?");
+    for (const o of hv?.ask?.options ?? []) {
+      const q2 = queryFor(hv!.ask!, [o.id]);
+      const r2 = await ask(q2);
+      const isUnitsDept = SCHEDULE.departments.find((x) => x.id === o.id)?.kind === "units";
+      ok(`hospital → ${o.label}: "${q2}" leads on (the word hospital is replaced by the department's OPD)`, !/hospital/i.test(q2) && /OPD/.test(q2) && !!r2 && (isUnitsDept ? /^Which unit/.test(r2.ask?.message ?? "") : !r2.ask && /^(Yes|No): /.test(r2.card.status?.text ?? "")), `${q2} => ${r2?.summary?.slice(0, 70)}`);
+    }
+  }
+  // page 2 (which unit?): the unit rule is HERE, where it explains why the unit is asked; the new-patient option carries the lock-in; no repeated sentence
+  r = await ask("is medicine opd open on monday?");
+  ok("page 2 (which unit?): the coming Monday, and the unit rule 'A patient is seen only by the unit of his or her first visit.'", JSON.stringify(r?.card.lines) === JSON.stringify(["The coming Monday is 26 October 2026 (today is Sunday).", "A patient is seen only by the unit of his or her first visit."]), JSON.stringify(r?.card.lines));
+  ok("...the lock-in is said once, at the new-patient option, and the units table above answers 'find out the units, their doctors, days and rooms'", /lock you to it permanently/.test(r?.ask?.options[3].detail ?? "") && r?.card.extraTables?.[0].title === "Units of Medicine: find your doctor" && !/locked, permanently and irreversibly/.test(JSON.stringify(r?.card.lines)));
+  // page 3 (a new patient's answer): the banner says it all; no unit-rule bullet repeating it
+  r = await ask(queryFor(r!.ask!, ["new"]));
+  ok("page 3 (new patient): the lock-in is in the verdict and the banner; the lines have only 'The coming Monday ...' (the unit rule would repeat the banner)", JSON.stringify(r?.card.lines) === JSON.stringify(["The coming Monday is 26 October 2026 (today is Sunday)."]) && /locked to it for good/.test(r?.card.status?.text ?? "") && /locks you to one unit, and this is irreversible/.test(hl(r)), JSON.stringify(r?.card.lines));
+  ok("page 3 keeps the hours (a final answer needs them)", (r?.card.notes ?? []).length === 3 && /OPD hours/.test((r?.card.notes ?? [])[0]));
+  // a unit's own page (Yes / No) still carries the unit rule: it explains why another unit's doctors cannot see him
+  ok("a unit's own page still says 'A patient is seen only by the unit of his or her first visit.'", (await ask("is medicine unit 1 open on monday"))?.card.lines?.includes("A patient is seen only by the unit of his or her first visit.") === true);
 
   // ---- things that are NOT this route must be left alone
   for (const q of [
