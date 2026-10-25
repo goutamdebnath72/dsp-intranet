@@ -140,6 +140,8 @@ const SPELL: [RegExp, string][] = [
 const spell = (t: string) => SPELL.reduce((s, [re, to]) => s.replace(re, to), t);
 const INITIAL_PAIRS = new Set(["rr", "ss", "kb", "pp", "ak", "kr", "sk", "dy", "sa"]);
 const tokenize = (s: string): string[] => spell(plain(s)).split(/[^a-z0-9]+/).filter(Boolean).flatMap((t) => (INITIAL_PAIRS.has(t) ? t.split("") : [t]));
+/** One letter wrong, missing or extra in a name of six letters or more ("gosami" for "goswami"). */
+const oneOff = (a: string, b: string): boolean => a.length >= 6 && b.length >= 5 && Math.abs(a.length - b.length) <= 1 && Math.round((1 - sim(a, b)) * Math.max(a.length, b.length)) <= 1;
 const sim = (a: string, b: string) => {
   // a small edit-distance similarity, enough for spelling variants of a name
   const m = a.length, n = b.length;
@@ -174,7 +176,7 @@ function findDoctors(words: string[], keep?: Set<string>): Person[] {
   const q = words.filter((w) => (keep?.has(w) ?? false) || (!STOP.has(w) && !/^\d+$/.test(w)));
   if (!q.length || !q.some((w) => w.length >= 3)) return [];
   const hits = DOCTOR_POOL.filter((p) => {
-    return personTokens(p).some((set) => q.every((w) => set.some((t) => t === w || (w.length >= 5 && sim(w, t) >= 0.86) || (w.length === 1 && t.startsWith(w)))));
+    return personTokens(p).some((set) => q.every((w) => set.some((t) => t === w || (w.length >= 5 && sim(w, t) >= 0.86) || oneOff(w, t) || (w.length === 1 && t.startsWith(w)))));
   });
   if (hits.length > 1) {
     // a person whose WHOLE name is in the question beats people who only share a word with it
@@ -302,7 +304,15 @@ const badgeOf = (tone: "open" | "closed" | "unknown" | "info" | undefined): Hosp
   tone === "open" ? { tone: "open", text: "Open" } : tone === "closed" ? { tone: "closed", text: "Closed" } : tone === "unknown" ? { tone: "unknown", text: "Not known" } : undefined;
 const dateLabel = (d: DateTime) => d.toFormat("cccc, d LLLL yyyy");
 const dayOf = (d: DateTime): Weekday => (["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const)[d.weekday - 1];
-const done = (summary: string, card: HospitalAnswer): HospitalResult => ({ summary, card });
+/** The FIRST answer is an eye-catching Yes (green) or No (red), then the long text: a verdict that is open starts with "Yes:", one that is closed with "No:". An unknown one stays amber and an information line stays grey. */
+const YES_NO = /^(yes|no)\b[:,.]/i;
+const withYesNo = (tone: string | undefined, text: string): string => (!text || YES_NO.test(text) ? text : tone === "open" ? `Yes: ${text}` : tone === "closed" ? `No: ${text}` : text);
+const done = (summary: string, card: HospitalAnswer): HospitalResult => {
+  const st = card.status;
+  if (!st || (st.tone !== "open" && st.tone !== "closed")) return { summary, card };
+  const text = withYesNo(st.tone, st.text);
+  return { summary: summary === st.text ? text : withYesNo(st.tone, summary), card: { ...card, status: { ...st, text } } };
+};
 
 const isUnits = (d: Department) => d.kind === "units";
 /** The in-charge of a unit as shown in a table or a card: only a doctor who is still there; otherwise "not recorded yet" (the question "who is the in-charge" names the one who has gone). */
@@ -657,7 +667,13 @@ function unitTable(dept: Department, unit: Unit, days: Weekday[]): HospitalTable
   } else {
     const m = new Map<string, Weekday[]>();
     for (const day of OPD_DAYS) for (const id of unit.week[day]?.doctors ?? []) m.set(id, [...(m.get(id) ?? []), day]);
-    for (const [id, ds] of m) { const x = PERSON.get(id); if (x && !isGone(x)) items.push([unit.label, `${docLabel(x)}${ds.join() === days.join() ? "" : ` (${daysText(ds)})`}`]); }
+    for (const [id, ds] of m) {
+      const x = PERSON.get(id);
+      if (!x || isGone(x)) continue;
+      const same = ds.join() === days.join();
+      const fl = flag(x).replace(/^ \(|\)$/g, ""); // "not on the current doctor list" or ""
+      items.push([unit.label, same ? docLabel(x) : `${docName(x)} (${daysText(ds)}${fl ? `; ${fl}` : ""})`]);
+    }
   }
   return { caption, columns: ["Room", "Doctor"], rows: groupRooms(items) };
 }
@@ -714,9 +730,10 @@ async function doctorAnswer(p: Person, e: Entities, ctx: EngineCtx): Promise<Hos
         status = { tone: "closed", text: `No: ${who}'s unit (${unitName}) has no OPD on ${WEEKDAY_NAME[g.day]}${slot.state === "OT_DAY" ? " (OT day)" : ""}.` };
         suggestion = noUnitSuggestion(g.day, false);
       } else if (slot?.state === "ANY_AVAILABLE") {
-        status = { tone: "open", text: `${who} is not named for ${WEEKDAY_NAME[g.day]}, but ${unitName} has any doctor who is available that day.` };
+        status = { tone: "closed", text: `No: ${who} is not named for ${WEEKDAY_NAME[g.day]}, but ${unitName} has any doctor who is available that day.` };
       } else if (slot?.state === "PROCEDURE_EMERGENCY") {
-        status = { tone: "info", text: `${who} does not sit on ${WEEKDAY_NAME[g.day]}: ${unitName} sees procedures and emergency cases only that day.` };
+        status = { tone: "closed", text: `No: ${who} does not sit on ${WEEKDAY_NAME[g.day]}: ${unitName} sees procedures and emergency cases only that day.` };
+        suggestion = URGENT;
       } else {
         status = { tone: "unknown", text: `The schedule does not show ${who}'s unit (${unitName}) on ${WEEKDAY_NAME[g.day]}.` };
         suggestion = noUnitSuggestion(g.day, true);
@@ -724,7 +741,7 @@ async function doctorAnswer(p: Person, e: Entities, ctx: EngineCtx): Promise<Hos
     }
     // out of visiting time today: whatever the schedule says, the OPD is not in session now
     if (g.ts && g.ts.state !== "open" && g.c.state !== "closed" && (here.length || status?.tone === "open")) {
-      status = { tone: "closed", text: `${status?.text ?? ""} But ${closedNowText(g.ts, ctx.now).replace(/^The OPD /, "the OPD ").replace(/^Today's/, "today's")}` };
+      status = { tone: "closed", text: `${closedNowText(g.ts, ctx.now)}${here.length ? ` ${who} is listed in ${joinAnd(here.map((x) => `${x.dept.name} ${x.unit.label}`))} today.` : ""}` };
       suggestion = URGENT;
     }
   }
@@ -859,8 +876,10 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   }
 
   // "which days does dr kamla sit": a doctor's name was typed but nobody matches it: say so, do not show something else
-  if (!e.doctors.length && /\b(dr|doctor)\b/.test(n) && /\b(days?|sit|sits|sitting|when|schedule|roster)\b/.test(n) && e.leftover.some((w) => w.length >= 3) && !e.depts.length && !e.unitRefs.length) {
-    const text = `I could not find a doctor named "${e.leftover.join(" ")}" in the hospital lists I have.`;
+  const NOT_A_NAME = new Set(["hospital", "plant", "health", "centre", "centres", "center", "general", "emergency", "clinic", "clinics", "department", "departments", "doctors", "units", "opds", "timing", "timings", "hours", "patients", "patient"]);
+  const nameWords = e.leftover.filter((w) => w.length >= 3 && !NOT_A_NAME.has(w));
+  if (!e.doctors.length && (/\b(dr|doctor)\b/.test(n) || /\b(days?|schedule|roster)\s+of\s+[a-z]/.test(n)) && /\b(days?|sit|sits|sitting|when|schedule|roster)\b/.test(n) && nameWords.length && !e.depts.length && !e.unitRefs.length) {
+    const text = `I could not find a doctor named "${nameWords.join(" ")}" in the hospital lists I have. Check the spelling, or try the surname only.`;
     return done(text, { title: "Which doctor?", status: { tone: "unknown", text } });
   }
 

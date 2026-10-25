@@ -183,7 +183,7 @@ async function main() {
 
   // ---- a patient belongs to the UNIT, not to one doctor
   r = await ask("is dr avisek mukherjee in opd on tuesday");
-  ok("Dental on Tuesday sees procedures and emergency cases only: said so, no pointer", tone(r) === "info" && has(r, "procedures and emergency cases only") && r?.card.suggestion === undefined, all(r));
+  ok("Dental on Tuesday sees procedures and emergency cases only: a red No, with the Emergency pointer", tone(r) === "closed" && /^No: /.test(r?.card.status?.text ?? "") && has(r, "procedures and emergency cases only") && r?.card.suggestion === URGENT, all(r));
   ok("the unit rule and the general OPD are in the data file, so they can be changed there", SCHEDULE.generalOpd?.departmentId === "mopd" && /first visit/.test(SCHEDULE.unitRule ?? "") && SCHEDULE.emergency?.name === "Emergency Department");
 
   // ---- RULE 1b: today, outside the OPD hours -> the Emergency Department (the hours are 8:00 to 1:00 and 5:00 to 7:00)
@@ -460,6 +460,57 @@ async function main() {
   ok("Medicine unit 3: Tuesday and Friday; Dr. Rajeev Kumar and Dr. Kunj Bihari Singh", has(r, "tuesday and friday", "rajeev kumar", "kunj bihari singh") && !has(r, "dadan"), jc(r).slice(0, 200));
   r = await ask("medicine unit i");
   ok("Medicine unit I: Wednesday and Saturday; the first-named doctor on the board is not on the current doctor list", has(r, "wednesday and saturday", "in-charge: dr. ashish chatterjee (not on the current doctor list)"), jc(r).slice(0, 220));
+
+  // ======================================================================================================================================
+  // STEP 54c: the first answer is a green Yes or a red No; the out-of-hours No; one bracket; a slip of one letter in a name; a name nobody matches
+  // ======================================================================================================================================
+  // every verdict that is open starts with "Yes:" and every one that is closed starts with "No:"; an unknown one is amber and has neither
+  const sweep = ["is opd open on monday", "is opd open on sunday", "is opd open tomorrow", "is opd open on 26 january 2027", "is opd open on 24 january 2027", "is opd open on 2 october 2026", "medicine opd monday", "medicine opd sunday", "medicine opd tuesday", "medicine and surgery opd on monday", "is dr ajit karmakar available on tuesday", "is dr ajit karmakar available on monday", "is dr sumit mukherjee available on tuesday", "is dr mukherjee of dental available on tuesday", "is dr mukherjee of dental available on friday", "is dr priyank sahoo available on monday", "is dr avijit sircar available on tuesday", "is dr rupak kumar goswami available on wednesday", "medicine unit 2 on tuesday", "medicine unit 2 on monday", "is dr rina mondal available on sunday", "is dr debdip saha available on tuesday (list no. D499964)"];
+  for (const q of sweep) {
+    const rr = await ask(q);
+    const tn = rr?.card.status?.tone;
+    const text = rr?.card.status?.text ?? "";
+    ok(`the first answer of "${q}" is eye-catching: ${tn === "open" ? "green Yes" : tn === "closed" ? "red No" : "amber / grey, no Yes or No"}`, tn === "open" ? /^Yes: /.test(text) : tn === "closed" ? /^No: /.test(text) : !/^(Yes|No): /.test(text), `${tn} ${text.slice(0, 80)}`);
+    if (tn === "open" || tn === "closed") ok(`...its plain-text answer says the same, and the badge (when there is one) has the same colour`, /^(Yes|No): /.test(rr?.summary ?? "") && (!rr?.card.badge || rr.card.badge.tone === tn), `${rr?.summary?.slice(0, 60)} ${JSON.stringify(rr?.card.badge)}`);
+  }
+  // the Dental doctor on a procedures-and-emergency day: the red No first, the long text after it
+  r = await ask("is dr mukherjee of dental available on tuesday?");
+  ok("Dental Tuesday: Closed badge, red, 'No: Dr. Avisek Mukherjee does not sit on Tuesday ...', then the two tables, then the pointer", r?.card.badge?.tone === "closed" && r?.card.status?.text === "No: Dr. Avisek Mukherjee does not sit on Tuesday: Dental OPD 29 sees procedures and emergency cases only that day." && r?.card.extraTables?.length === 2 && /Emergency Department/.test(r?.card.suggestion ?? ""), jc(r).slice(0, 240));
+  r = await ask("is dr mukherjee of dental available on friday");
+  ok("Dental Friday: green Yes, Open", r?.card.badge?.tone === "open" && /^Yes: Dr\. Avisek Mukherjee is listed in Dental OPD 29 on Friday/.test(r?.card.status?.text ?? ""), jc(r).slice(0, 200));
+  r = await ask("is opd open on sunday");
+  ok("Sunday: 'No: The OPD is closed on Sunday ...', red", /^No: The OPD (is|was) closed on Sunday/.test(r?.card.status?.text ?? "") && r?.card.badge?.tone === "closed", jc(r).slice(0, 200));
+  r = await ask("is opd open on monday");
+  ok("Monday: 'Yes: The OPD is open on Monday ...', green", /^Yes: The OPD is open on Monday, 26 October 2026/.test(r?.card.status?.text ?? "") && r?.card.badge?.tone === "open", jc(r).slice(0, 200));
+  // today, out of visiting time: a red No that also says the doctor is listed (it used to be a red box that began with "Yes")
+  r = await askAt("is dr sumit mukherjee available today", "2026-10-26T15:00:00");
+  ok("Monday 3 PM, between the sessions: 'No: The OPD is closed at this moment ...' and the doctor is listed today", r?.card.status?.tone === "closed" && /^No: The OPD is closed at this moment/.test(r?.card.status?.text ?? "") && /Dr\. Sumit Mukherjee is listed in Psychiatry OPD 1 today\./.test(r?.card.status?.text ?? "") && !/^Yes/.test(r?.card.status?.text ?? "") && r?.card.suggestion === URGENT, jc(r).slice(0, 260));
+  r = await askAt("is dr sumit mukherjee available today", "2026-10-26T09:30:00");
+  ok("Monday 9:30 AM, in session: 'Yes: Dr. Sumit Mukherjee is listed in Psychiatry OPD 1 on Monday ...', green", r?.card.status?.tone === "open" && /^Yes: /.test(r?.card.status?.text ?? ""), jc(r).slice(0, 200));
+  r = await askAt("is dr sumit mukherjee available today", "2026-10-26T20:00:00");
+  ok("Monday 8 PM, hours over: 'No: Today's OPD hours are over ...'", /^No: Today's OPD hours are over/.test(r?.card.status?.text ?? ""), jc(r).slice(0, 200));
+
+  // one bracket, not two
+  r = await ask("opd days of dr shyam");
+  const cells = (r?.card.extraTables ?? []).flatMap((x) => x.table.rows.flat());
+  ok("Surgery OPD 17: 'Dr. Dharmendra Kumar (Tuesday, Thursday and Saturday; not on the current doctor list)'", cells.includes("Dr. Dharmendra Kumar (Tuesday, Thursday and Saturday; not on the current doctor list)"), JSON.stringify(cells));
+  ok("...and no cell has two brackets side by side", !cells.some((c) => /\)\s*\(/.test(c)), JSON.stringify(cells));
+  ok("...a colleague whose days differ and who is on the list keeps one bracket: 'Dr. Shyamal Hansda (Tuesday, Thursday and Saturday)'", cells.includes("Dr. Shyamal Hansda (Tuesday, Thursday and Saturday)"));
+
+  // a slip of one letter in a name of six letters or more
+  r = await ask("opd days of rupak gosami");
+  ok("'rupak gosami' (a letter missing) is Dr. Rupak Kumar Goswami, not the list of departments", has(r, "rupak kumar goswami", "ent opd 11") && r?.card.title === "Dr. Rupak Kumar Goswami: OPD days", jc(r).slice(0, 160));
+  r = await ask("opd days of rupak goswamy");
+  ok("'goswamy' (a letter wrong) is found too", r?.card.title === "Dr. Rupak Kumar Goswami: OPD days", jc(r).slice(0, 120));
+  r = await ask("opd days of sutanu sarkar");
+  ok("'sutanu sarkar' is Dr. Sutanu Sarkar (as the live screen showed)", r?.card.title === "Dr. Sutanu Sarkar: OPD days", jc(r).slice(0, 120));
+  r = await ask("opd days of rupak gozami");
+  ok("two letters wrong ('gozami'): said plainly that nobody has that name, with a hint, not a list of departments", r?.card.title === "Which doctor?" && has(r, "could not find a doctor named", "rupak gozami", "check the spelling"), all(r).slice(0, 200));
+  r = await ask("which days does dr kamla sit");
+  ok("with 'dr' the same: nobody named Kamla", has(r, "could not find a doctor named", "kamla"), all(r).slice(0, 160));
+  ok("a plain 'opd days of medicine' is still the department, not a doctor's name", has(await ask("opd days of medicine"), "medicine") && !has(await ask("opd days of medicine"), "could not find a doctor"));
+  ok("'opd days of the hospital' is not taken for a doctor's name", !has(await ask("opd days of the hospital"), "could not find a doctor"));
+  ok("a question word is never matched to a name by the one-letter rule (monday is one letter off Mondal)", !has(await ask("is dr ajit karmakar in opd on monday"), "mondal") && (await ask("medicine opd monday"))?.card.title.startsWith("Medicine OPD") === true);
 
   // ---- things that are NOT this route must be left alone
   for (const q of [
