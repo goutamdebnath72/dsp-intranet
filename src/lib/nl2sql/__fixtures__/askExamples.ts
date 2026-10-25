@@ -5,6 +5,7 @@
 // namedRows) and one single-option question.
 
 import type { DepartmentAsk } from "../departmentAsk";
+import { PLANT_GARAGE_ROWS } from "../departmentWords";
 
 export const refractoryAsk = (question: string, bare = false): DepartmentAsk => ({
   message: "Which department do you mean by \u201Crefractory\u201D? The HR list has three. Tick one or more, then press Continue.",
@@ -23,7 +24,7 @@ export const garageAsk = (question: string, bare = false): DepartmentAsk => ({
   message: "Which department do you mean by \u201Cgarage\u201D? The HR list has one garage department, the Plant Garage (six sections). Tick the one you mean, then press Continue.",
   word: "garage",
   question,
-  options: [{ id: "plant", label: "Plant Garage (all its sections)", phrase: "plant garage" }],
+  options: [{ id: "plant", label: "Plant Garage (all its sections)", phrase: PLANT_GARAGE_ROWS }],
   none: { label: "None of these", reply: "If you mean another department, please type its full name." },
   ...(bare ? { documents: { label: "I am looking for documents (circulars) about \u201Cgarage\u201D instead", query: `circular about ${question.trim()}` } } : {}),
 });

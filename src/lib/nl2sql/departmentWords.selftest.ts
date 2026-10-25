@@ -6,7 +6,7 @@ import real from "./__fixtures__/departments.real.json";
 import { refractoryAsk } from "./__fixtures__/askExamples";
 import { queryFor } from "./departmentAsk";
 import { checkNamedRows, namedRows } from "./namedRows";
-import { REFRACTORY_ROWS, TOWNSHIP_GARAGE_CLOSED, finishDepartmentNote, resolveDepartmentWords } from "./departmentWords";
+import { PLANT_GARAGE_ROWS, REFRACTORY_ROWS, TOWNSHIP_GARAGE_CLOSED, finishDepartmentNote, resolveDepartmentWords } from "./departmentWords";
 import type { DepartmentRow } from "./context";
 
 let pass = 0, fail = 0;
@@ -19,16 +19,29 @@ const ids = (rows: DepartmentRow[]) => rows.map((r) => r.id).sort((a, b) => a - 
 
 // ---- garage = the Plant Garage
 let w = resolveDepartmentWords("how many executives are there in garage");
-ok("garage about people: the word becomes 'plant garage', the rest of the question is untouched", w?.question === "how many executives are there in plant garage" && !w?.closed, JSON.stringify(w));
+ok("garage about people: the word becomes the six rows of the Plant Garage by name and code, the rest of the question is untouched", w?.question === `how many executives are there in ${PLANT_GARAGE_ROWS}` && !w?.closed, JSON.stringify(w));
 ok("...the note says what garage means and that the township garage is closed", /“Garage” means the Plant Garage \(all its six sections\)\./.test(w?.note ?? "") && (w?.note ?? "").includes(TOWNSHIP_GARAGE_CLOSED));
-ok("a bare word: 'garage' and 'Garage staff'", resolveDepartmentWords("garage")?.question === "plant garage" && resolveDepartmentWords("Garage staff")?.question === "plant garage staff");
-for (const q of ["how many executives are there in plant garage", "people in mhemd", "executives in M.H.E.M.D.", "executives in m h e o d", "executives in plant garage (tech)"]) ok(`already clear, left alone: ${q}`, resolveDepartmentWords(q) === null);
+ok("a bare word: 'garage' and 'Garage staff'", resolveDepartmentWords("garage")?.question === PLANT_GARAGE_ROWS && resolveDepartmentWords("Garage staff")?.question === `${PLANT_GARAGE_ROWS} staff`);
+for (const q of ["people in mhemd", "executives in M.H.E.M.D.", "executives in m h e o d", "executives in plant garage (tech)", "executives in plant garage mhemd", "executives in plant garage office", "executives in plant garage (OFFICE - MAINT)"]) ok(`a section is named already, left alone: ${q}`, resolveDepartmentWords(q) === null);
+// the family name typed in full is the six rows too (it used to be only a hint to the model, which could select the one row called PLANT GARAGE)
+w = resolveDepartmentWords("how many executives are there in plant garage");
+ok("'plant garage' typed: the six rows by name and code", w?.question === `how many executives are there in ${PLANT_GARAGE_ROWS}` && /“Plant Garage” means all its six sections: 85000, 85070, 85110, 85200, 85330 and 85430\./.test(w?.note ?? "") && !w?.closed, JSON.stringify(w));
+ok("...'Plant Garage' in capitals and inside a longer sentence", resolveDepartmentWords("list the PLANT GARAGE executives")?.question === `list the ${PLANT_GARAGE_ROWS} executives`);
+ok("the six rows are EXACTLY the real rows of the department list (name and code as spelled there), and there are no other garage rows", (() => { const phrases = PLANT_GARAGE_ROWS.replace(" and ", ", ").split(/, (?=PLANT GARAGE)/); return phrases.length === 6 && phrases.every((p) => all.some((d) => p === `${d.name} (code ${d.code})`)) && all.filter((d) => /garage/i.test(d.name)).length === 6; })());
+{
+  const q = resolveDepartmentWords("how many executives are there in garage")?.question ?? "";
+  ok("the question names EXACTLY the six real rows: 42, 143, 145, 158, 234, 290", ids(namedRows(q, all)) === "42,143,145,158,234,290", ids(namedRows(q, all)));
+  const people = (where: string) => `SELECT e.ticket_no, e.name FROM nlq.employees e WHERE e.cohort = 'executive' AND ${where}`;
+  ok("a model SQL that selects only the row called PLANT GARAGE (85000) is sent back (this is what the live answer did: 9 executives, 'Departments covered (1)')", !!checkNamedRows(q, people("e.department_id = 42"), all));
+  ok("...a SQL that selects five of the six is sent back too", !!checkNamedRows(q, people("e.department_id IN (42, 143, 145, 158, 234)"), all));
+  ok("...a SQL that selects all six passes", checkNamedRows(q, people("e.department_id IN (42, 143, 145, 158, 234, 290)"), all) === null);
+}
 
 // ---- the township garage is closed
 ok("the township garage: answered at once, nothing is searched", resolveDepartmentWords("executives in township garage")?.closed === "Township Garage has no employees: it is a closed department." && !resolveDepartmentWords("executives in township garage")?.question);
 for (const q of ["list the staff of town garage", "township garage", "how many people work in the Township Garage", "executives in Town Garage"]) ok(`closed: ${q}`, resolveDepartmentWords(q)?.closed === TOWNSHIP_GARAGE_CLOSED);
 w = resolveDepartmentWords("executives in plant garage and township garage");
-ok("both named in one question: the Plant Garage is answered, and the note says the township garage is closed", !w?.closed && !w?.question && w?.note === TOWNSHIP_GARAGE_CLOSED, JSON.stringify(w));
+ok("both named in one question: the Plant Garage is answered (its six rows), and the note says the township garage is closed", !w?.closed && w?.question === `executives in ${PLANT_GARAGE_ROWS} and township garage` && (w?.note ?? "").includes(TOWNSHIP_GARAGE_CLOSED), JSON.stringify(w));
 ok("a question about documents is never touched: 'what is the tender for the new garage building', 'circular about the township garage tender'", resolveDepartmentWords("what is the tender for the new garage building") === null && resolveDepartmentWords("circular about the township garage tender") === null);
 
 // ---- refractory = all three rows

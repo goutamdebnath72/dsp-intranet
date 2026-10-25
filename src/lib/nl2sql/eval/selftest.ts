@@ -1106,9 +1106,18 @@ async function main() {
     check("55a: ...also when the question is asked again after a No (attempt 2), still no model call", !!closedRetry && closedRetry.answer === CLOSED && closedRetry.attempt === 2 && seen.length === 0);
     const holiday: any = await runOmnibar("how many executives are there in garage", "T-DW", mkDeps(spy(ANY), { holiday: async () => ({ kind: "count", answer: "holiday answer" }) as never }));
     check("55a: a holiday answer still comes first (the parser keeps its place)", holiday?.answer === "holiday answer" && seen.length === 0);
-    const gar: any = await runOmnibar("how many executives are there in garage", "T-DW", mkDeps(spy(ANY)));
-    check("55a: 'garage' is searched as 'plant garage': the model is given the clear name, not the bare word", seen.length >= 1 && seen[0].includes("how many executives are there in plant garage") && !seen[0].includes("there in garage"), seen[0]?.slice(-200));
+    const gar: any = await runOmnibar("how many executives are there in garage", "T-DW", mkDeps(spy(`SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM nlq.departments WHERE code IN (85000, 85070, 85110, 85200, 85330, 85430))`)));
+    check("55d: 'garage' is searched as the six rows of the Plant Garage, by name and code: the model is given them, not the bare word", seen.length >= 1 && seen[0].includes("how many executives are there in PLANT GARAGE (code 85000), PLANT GARAGE (TECH) (code 85070), PLANT GARAGE (M.H.E.O.D.) (code 85110), PLANT GARAGE (M.H.E.M.D.) (code 85200), PLANT GARAGE (OFFICE - MAINT) (code 85330) and PLANT GARAGE (OFFICE - OPRN) (code 85430)") && !seen[0].includes("there in garage"), seen[0]?.slice(-300));
     check("55a: ...no question is asked (no clarify, no checkboxes) and the answer carries the note", !!gar && gar.kind !== "clarify" && !gar.ask && /Plant Garage \(all its six sections\)/.test(gar?.nl2sql?.departmentNote ?? "") && /closed department/.test(gar?.nl2sql?.departmentNote ?? ""), JSON.stringify(gar && { kind: gar.kind, note: gar.nl2sql?.departmentNote }));
+    // the live failure of 26 Oct 2026: the model first selected ONLY the row called PLANT GARAGE (9 executives, "Departments covered (1)"). The exact-rows check sends it back; the second SQL covers all six rows.
+    {
+      let turn = 0;
+      const ONE = `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id = (SELECT id FROM nlq.departments WHERE code = 85000)`;
+      const SIX_ROWS = `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM nlq.departments WHERE code IN (85000, 85070, 85110, 85200, 85330, 85430))`;
+      const twice: LlmFn = async (p) => { seen.push(p); turn++; return json({ sql: turn === 1 ? ONE : SIX_ROWS, understood_as: "the reading", confidence: "high" }); };
+      const again: any = await runOmnibar("how many executives are there in garage", "T-DW", mkDeps(twice));
+      check("55d: a SQL that selects only the row called PLANT GARAGE is sent back; the answer covers all six rows", turn >= 2 && !!again && /85070/.test(again?.nl2sql?.sql ?? "") && /85430/.test(again?.nl2sql?.sql ?? ""), JSON.stringify({ turn, sql: again?.nl2sql?.sql }));
+    }
     seen.length = 0;
     const ref: any = await runOmnibar("how many executives are there in refractory", "T-DW", mkDeps(spy(ANY), { withClient: cokeCount(5) }));
     check("55a: 'refractory' is searched as its three rows, named by name and code", seen.length >= 1 && seen[0].includes("REFRACTORY (code 86000), REFRACTORY (OFFICE) (code 86030) and COKE OVEN REFRACTORY (code 86600)"), seen[0]?.slice(-260));

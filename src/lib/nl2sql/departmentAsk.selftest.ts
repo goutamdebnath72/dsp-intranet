@@ -5,7 +5,7 @@
 import real from "./__fixtures__/departments.real.json";
 import { garageAsk, refractoryAsk } from "./__fixtures__/askExamples";
 import { HAS_CODE, isAboutPeopleOrBare, queryFor, type DepartmentAsk } from "./departmentAsk";
-import { resolveDepartmentWords } from "./departmentWords";
+import { PLANT_GARAGE_ROWS, resolveDepartmentWords } from "./departmentWords";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => {
@@ -16,7 +16,7 @@ const rows = real as { id: number; code: number; name: string }[];
 
 // ---- the single-option question
 const g = garageAsk("how many executives are there in garage");
-ok("one option ticked: the question names it, the rest of the question is untouched", queryFor(g, ["plant"]) === "how many executives are there in plant garage");
+ok("one option ticked: the question names its six rows by name and code, the rest of the question is untouched", queryFor(g, ["plant"]) === `how many executives are there in ${PLANT_GARAGE_ROWS}`);
 ok("nothing ticked: nothing to search", queryFor(g, []) === "" && queryFor(g, ["nothing-like-this"]) === "");
 ok("a question about people has no documents option; a bare word has one", g.documents === undefined && garageAsk("garage", true).documents?.query === "circular about garage");
 

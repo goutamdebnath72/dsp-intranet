@@ -92,7 +92,7 @@ for (let mask = 1; mask < 8; mask++) {
 }
 ok("all seven combinations were run", combos === 7);
 const askG = garageAsk("how many executives are there in garage");
-ok("the garage ask carries no code marker, so it is untouched by 49b", namedRows(queryFor(askG, ["plant"]), all).length === 0);
+ok("the garage ask names exactly the six Plant Garage rows by name and code (85000, 85070, 85110, 85200, 85330, 85430)", ids(namedRows(queryFor(askG, ["plant"]), all)) === ids(all.filter((d) => [85000, 85070, 85110, 85200, 85330, 85430].includes(d.code))) && namedRows(queryFor(askG, ["plant"]), all).length === 6);
 
 console.log(`namedRows selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
