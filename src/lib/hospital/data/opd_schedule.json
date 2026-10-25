@@ -101,10 +101,8 @@
      "opdNo": null,
      "head": null,
      "members": [
-      "ashish-chatterjee",
       "sukhdev-shankar-patil",
-      "dipak-singh",
-      "ritesh-chauhan"
+      "dipak-singh"
      ],
      "days": [
       "WED",
@@ -119,16 +117,12 @@
       },
       "WED": {
        "doctors": [
-        "ashish-chatterjee",
         "sukhdev-shankar-patil",
-        "dipak-singh",
-        "ritesh-chauhan"
+        "dipak-singh"
        ],
        "rooms": {
-        "ashish-chatterjee": "OPD 24",
         "sukhdev-shankar-patil": "OPD 25",
-        "dipak-singh": "OPD 26",
-        "ritesh-chauhan": "OPD 26"
+        "dipak-singh": "OPD 26"
        }
       },
       "THU": {
@@ -139,20 +133,15 @@
       },
       "SAT": {
        "doctors": [
-        "ashish-chatterjee",
         "sukhdev-shankar-patil",
-        "dipak-singh",
-        "ritesh-chauhan"
+        "dipak-singh"
        ],
        "rooms": {
-        "ashish-chatterjee": "OPD 24",
         "sukhdev-shankar-patil": "OPD 25",
-        "dipak-singh": "OPD 26",
-        "ritesh-chauhan": "OPD 26"
+        "dipak-singh": "OPD 26"
        }
       }
-     },
-     "note": "The first name on the board (Dr. Ashish Chatterjee) is painted over."
+     }
     },
     {
      "id": "medicine-unit-2",

@@ -162,24 +162,6 @@
    "discipline": null
   },
   {
-   "id": "ashish-chatterjee",
-   "name": "ASHISH CHATTERJEE",
-   "title": "Dr",
-   "department": "MEDICINE",
-   "qualification": "MD(MEDICINE)",
-   "role": "doctor",
-   "printed": [
-    "DR. ASHISH CHATTERJEE, MD(MEDICINE)",
-    "OPD schedule: ASHISH CHATTERJEE"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": "His name is painted over on the Medicine OPD board (photographed 25 Oct 2026); he is not on the intranet doctor list.",
-   "discipline": "Medicine"
-  },
-  {
    "id": "dadan-prasad",
    "name": "DADAN PRASAD",
    "title": "Dr",
@@ -311,25 +293,6 @@
    "status": "current",
    "note": null,
    "discipline": "Medicine"
-  },
-  {
-   "id": "ritesh-chauhan",
-   "name": "RITESH CHAUHAN",
-   "title": "Dr",
-   "department": "MEDICINE",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR. RITESH CHAUHAN, MBBS",
-    "OPD schedule: RITESH DESHMUKH",
-    "BOARD: DR. RITESH CHAUHAN"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": "The OPD schedule PDF prints 'Ritesh Deshmukh' in the same slot (Wednesday and Saturday with Dr. Dipak Singh); the board and the staff list print 'Ritesh Chauhan': taken as one person. He is not on the intranet doctor list under any number, so whether he is permanent or contractual is not known.",
-   "discipline": null
   },
   {
    "id": "p-alam",

@@ -938,7 +938,7 @@ function vagueOpenAnswer(q: string, g: Gate): HospitalResult {
     title: `OPD on ${g.label}`,
     badge: { tone: "unknown", text: "Depends" },
     status: { tone: "unknown", text: SOFT_YES("The OPD", g.label, "your department and, if it has units, on the unit you belong to") },
-    lines: [...(when ? [when] : []), ...sessionLines(g), UNIT_RULE, "A new patient belongs to the unit that sits on the day of the first visit, so find out the units, their doctors, days and rooms before you go."],
+    lines: [...(when ? [when] : []), ...sessionLines(g), UNIT_RULE, "A new patient is locked, permanently and irreversibly, to the unit that sits on the day of the first visit, so find out the units, their doctors, days and rooms before you go."],
     prompt: `${message} Answer this (and, for a department with units, which unit you belong to) and I will give you a clear Yes or No.`,
     notes: [...yearNotes(g), ...timingNotes()],
   };
@@ -959,7 +959,7 @@ function askUnitAnswer(q: string, d: Department, g: Gate): HospitalResult {
   options.push({
     id: "new",
     label: "I am a new patient (not in any unit yet)",
-    detail: sitting.length ? `You will be seen by ${joinAnd(sitting.map((u) => u.label))}, the unit that sits on ${g.label}, and you will belong to it from then on.` : undefined,
+    detail: sitting.length ? `You will be seen by ${joinAnd(sitting.map((u) => u.label))}, the unit that sits on ${g.label}, and your first visit will lock you to it permanently.` : undefined,
     phrase: `${d.name} OPD (new patient)`,
   });
   const ask: DepartmentAsk = {
@@ -971,7 +971,7 @@ function askUnitAnswer(q: string, d: Department, g: Gate): HospitalResult {
     title: `${d.name} OPD on ${g.label}`,
     badge: { tone: "unknown", text: "Depends" },
     status: { tone: "unknown", text: SOFT_YES(`${d.name} OPD`, g.label, "the unit you belong to") },
-    lines: [...(when ? [when] : []), ...sessionLines(g), `The units of ${d.name} sit on exclusive days: ${d.units.map((u) => `${u.label} (${joinAnd((u.days ?? []).map((x) => WEEKDAY_NAME[x]))})`).join("; ")}.`, UNIT_RULE],
+    lines: [...(when ? [when] : []), ...sessionLines(g), UNIT_RULE],
     extraTables: [{ title: `Units of ${d.name}: find your doctor`, table: allUnitsTable(d) }],
     prompt: `${message} If you have not been to ${d.name} OPD before, choose "I am a new patient". I will then give you a clear Yes or No.`,
     notes: [...yearNotes(g), ...timingNotes()],
@@ -989,13 +989,13 @@ async function newPatientAnswer(e: Entities, ctx: EngineCtx, d: Department): Pro
     const text = `No: no unit of ${d.name} sits on ${g.label}.`;
     return done(text, { title: `${d.name} OPD on ${g.label}`, badge: badgeOf("closed"), status: { tone: "closed", text }, suggestion: noUnitSuggestion(g.day, false), extraTables: [{ title: `All units of ${d.name}`, table: allUnitsTable(d) }] });
   }
-  const text = `You can visit ${d.name} OPD on ${g.label}. As a new patient you will be seen by ${names}, the unit that sits that day, and you will belong to it from then on.`;
+  const text = `You can visit ${d.name} OPD on ${g.label}. As a new patient you will be seen by ${names}, the unit that sits that day, and you will be locked to it for good.`;
   const rows = sitting.flatMap((u) => unitDayItems(u, g.day));
   const card: HospitalAnswer = {
     title: `${d.name} OPD on ${g.label}`,
     badge: badgeOf("open"),
     status: { tone: "open", text },
-    highlight: `Your first visit decides your unit: on ${g.label} it is ${names}. Know the other units before you go.`,
+    highlight: `Your first visit locks you to one unit, and this is irreversible: on ${g.label} that unit is ${names}. Know all the units, their doctors, days and rooms before you go.`,
     extraTables: [
       { title: `${names} on ${g.label}`, table: { columns: ["Room", "Doctor"], rows: groupRooms(rows) } },
       { title: `All units of ${d.name}: know them before you go`, table: allUnitsTable(d) },
@@ -1024,12 +1024,21 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   // token timings can be asked without the word OPD
   if (/\btoken\s*(timings?|times?|hours?)\b/.test(n) && !e.depts.length && !e.doctors.length) return timingsAnswer();
 
+  // words that are not part of a name, and the words of the question that may be one
+  const NOT_A_NAME = new Set(["hospital", "plant", "health", "centre", "centres", "center", "general", "emergency", "clinic", "clinics", "department", "departments", "doctors", "units", "opds", "timing", "timings", "hours", "patients", "patient"]);
+  const nameWords = e.leftover.filter((w) => w.length >= 3 && !NOT_A_NAME.has(w));
+
   // permanent or contractual: one doctor's status, or the list of the non-permanent doctors (from the separate file)
   const nm = n.replace(/-/g, " ");
   const npWords = /\b(contractual|contract|non permanent|temporary|part time|visiting)\b/.test(nm);
   const permWords = /\b(permanent|regular)\b/.test(nm);
   if ((e.doctors.length > 1 || (e.doctors.length === 1 && e.hintMiss)) && (npWords || permWords)) return askDoctor(e, q);
   if (e.doctors.length === 1 && (npWords || permWords)) return employmentAnswer(e.doctors[0]);
+  // "is dr X contractual" when nobody is called X: say so (not the list of all the non-permanent doctors)
+  if ((npWords || permWords) && !e.doctors.length && /\b(dr|doctor)\b/.test(nm) && nameWords.length && !e.depts.length) {
+    const text = `I could not find a doctor named "${nameWords.join(" ")}" in the hospital lists I have. Check the spelling, or try the surname only.`;
+    return done(text, { title: "Which doctor?", status: { tone: "unknown", text } });
+  }
   if (npWords && !e.doctors.length && /\b(doctor|doctors|dr|specialist|specialists|consultant|consultants)\b/.test(nm)) return nonPermanentListAnswer(e);
 
   // head of unit / HOD
@@ -1043,8 +1052,6 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   }
 
   // "which days does dr kamla sit": a doctor's name was typed but nobody matches it: say so, do not show something else
-  const NOT_A_NAME = new Set(["hospital", "plant", "health", "centre", "centres", "center", "general", "emergency", "clinic", "clinics", "department", "departments", "doctors", "units", "opds", "timing", "timings", "hours", "patients", "patient"]);
-  const nameWords = e.leftover.filter((w) => w.length >= 3 && !NOT_A_NAME.has(w));
   if (!e.doctors.length && (/\b(dr|doctor)\b/.test(n) || /\b(days?|schedule|roster)\s+of\s+[a-z]/.test(n)) && /\b(days?|sit|sits|sitting|when|schedule|roster)\b/.test(n) && nameWords.length && !e.depts.length && !e.unitRefs.length) {
     const text = `I could not find a doctor named "${nameWords.join(" ")}" in the hospital lists I have. Check the spelling, or try the surname only.`;
     return done(text, { title: "Which doctor?", status: { tone: "unknown", text } });
