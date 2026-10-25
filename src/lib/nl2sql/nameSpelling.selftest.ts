@@ -2,7 +2,7 @@
 // Step 55b: the spelling safety net. A name word no real name is spelled like is replaced by the nearest real spelling when nobody is found; a known word is never touched; a name that is
 // simply not in the directory is never turned into somebody else's.
 
-import { buildVocabulary, correctSql, editDistance, isKnownWord, nameLiteralsIn, nearestWords, spellingKey, spellingNote, spellingRetry, withoutGlides } from "./nameSpelling";
+import { buildVocabulary, candidateWords, correctSql, editDistance, isKnownWord, nameLiteralsIn, nearestWords, spellingKey, spellingNote, spellingRetry, withoutGlides } from "./nameSpelling";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => {
@@ -37,6 +37,25 @@ ok("a word far from every name stays as it is: 'abcdefgh', 'zzzzzz', 'quentin'",
 ok("names that are different families are not merged: 'singh' stays known, 'sinha' stays known, 'banerji' goes to Banerjee only", isKnownWord("singh", vocab) && isKnownWord("sinha", vocab) && best("banerjii").every((w) => w === "BANERJEE"));
 ok("a tie keeps both candidates (at most three): 'karmakr' is Karmakar or Karmaker", JSON.stringify(best("karmakr").sort()) === '["KARMAKAR","KARMAKER"]', JSON.stringify(best("karmakr")));
 
+// ---- the everyday typos: a missing letter, swapped letters, and not guessing
+ok("a missing letter: 'kuma' is Kumar, 'snjay' is Sanjay, 'majumdr' is Majumdar or Majumder (a tie: both kept)", JSON.stringify(best("kuma")) === '["KUMAR"]' && JSON.stringify(best("snjay")) === '["SANJAY"]' && JSON.stringify(best("majumdr").sort()) === '["MAJUMDAR","MAJUMDER"]', JSON.stringify([best("kuma"), best("snjay"), best("majumdr")]));
+ok("'sanjy' sounds like Sanjay AND Sanjoy: it is KNOWN (the phonetic search finds both), so the net leaves it alone", isKnownWord("sanjy", vocab) && best("sanjy").length === 0);
+ok("two letters swapped: 'rupka' is Rupak, 'sakrar' is Sarkar, 'goswmai' is Goswami", JSON.stringify(best("rupka")) === '["RUPAK"]' && JSON.stringify(best("sakrar")) === '["SARKAR"]' && JSON.stringify(best("goswmai")) === '["GOSWAMI"]', JSON.stringify([best("rupka"), best("sakrar"), best("goswmai")]));
+ok("the first two letters swapped is one slip too: 'raup' is Arup", JSON.stringify(best("raup")) === '["ARUP"]', JSON.stringify(best("raup")));
+ok("but any other change of the first letter is a different name: 'sarup' is not 'arup'", !best("sarup").includes("ARUP"));
+const crowded = buildVocabulary(["BALAN", "BULAN", "BELAN", "BILAN", "BOLAN"].map((w) => ({ w, n: 1 })));
+ok("equally near to MORE than three names: nothing is guessed", nearestWords("bxlan", crowded).length === 0, JSON.stringify(nearestWords("bxlan", crowded)));
+
+// ---- the other close names are shown too (a word one slip from SEVERAL names is a guess: the person sees what else could have been meant)
+const vClose = buildVocabulary([{ w: "SOMEN", n: 9 }, { w: "SOREN", n: 4 }, { w: "SOMAN", n: 2 }, { w: "SEN", n: 30 }]);
+ok("candidateWords lists everything that could be meant, the best first: 'soen' is SEN, then SOMEN and SOREN", JSON.stringify(candidateWords("soen", vClose).map((n) => n.word)) === '["SEN","SOMEN","SOREN"]', JSON.stringify(candidateWords("soen", vClose).map((n) => n.word)));
+ok("...but only the best is searched: nearestWords('soen') is SEN", JSON.stringify(nearestWords("soen", vClose).map((n) => n.word)) === '["SEN"]');
+const closeSql = correctSql("SELECT ticket_no FROM nlq.employees WHERE nlq.last_word_like(name_words, name_codes, 'soen')", vClose);
+ok("the corrected SQL searches SEN only; SOMEN and SOREN are only named in the note", !!closeSql && closeSql.sql.includes("'SEN'") && !closeSql.sql.includes("SOMEN") && !closeSql.sql.includes("SOREN") && JSON.stringify(closeSql.changes) === '[{"typed":"soen","corrected":["SEN"],"alsoClose":["SOMEN","SOREN"]}]', JSON.stringify(closeSql?.changes));
+ok("the note says so: 'also close: Somen or Soren'", !!closeSql && spellingNote(closeSql.changes) === "No name is spelled “Soen” (nearest: Sen; also close: Somen or Soren): showing the nearest real spelling instead.", closeSql ? spellingNote(closeSql.changes) : "");
+ok("a tie is searched in full and has nothing 'also close' to add: 'somn' is Somen or Soman", JSON.stringify(correctSql("SELECT 1 WHERE nlq.last_word_like(name_words, name_codes, 'somn')", vClose)?.changes) === '[{"typed":"somn","corrected":["SOMEN","SOMAN"],"alsoClose":[]}]');
+ok("an unknown word with only one candidate has nothing 'also close': 'gosyami'", correctSql("SELECT 1 WHERE nlq.last_word_like(name_words, name_codes, 'Gosyami')", vocab)?.changes[0].alsoClose.length === 0);
+
 // ---- the name words inside the model's SQL
 const SQL = "SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE nlq.first_word_like(name_words, name_codes, 'Rupak') AND nlq.last_word_like(name_words, name_codes, 'Gosyami') ORDER BY global_seniority_rank";
 const lits = nameLiteralsIn(SQL);
@@ -57,8 +76,8 @@ ok("a known word, a short word and a word with a space are left alone (nothing t
 ok("the corrected SQL still has exactly the shape the guard expects (one SELECT, no semicolon or comment)", !!correctSql(SQL, vocab) && !/;|--|\/\*/.test(correctSql(SQL, vocab)!.sql));
 
 // ---- the sentence under the answer
-ok("the note names the typed word and the nearest spelling", spellingNote([{ typed: "gosyami", corrected: ["GOSWAMI"] }]) === "No name is spelled “Gosyami” (nearest: Goswami): showing the nearest real spelling instead.", spellingNote([{ typed: "gosyami", corrected: ["GOSWAMI"] }]));
-ok("two words, and a tie", spellingNote([{ typed: "rupk", corrected: ["RUPAK"] }, { typed: "karmakr", corrected: ["KARMAKAR", "KARMAKER"] }]) === "No name is spelled “Rupk” (nearest: Rupak) or “Karmakr” (nearest: Karmakar or Karmaker): showing the nearest real spellings instead.");
+ok("the note names the typed word and the nearest spelling", spellingNote([{ typed: "gosyami", corrected: ["GOSWAMI"], alsoClose: [] }]) === "No name is spelled “Gosyami” (nearest: Goswami): showing the nearest real spelling instead.", spellingNote([{ typed: "gosyami", corrected: ["GOSWAMI"], alsoClose: [] }]));
+ok("two words, and a tie", spellingNote([{ typed: "rupk", corrected: ["RUPAK"], alsoClose: [] }, { typed: "karmakr", corrected: ["KARMAKAR", "KARMAKER"], alsoClose: [] }]) === "No name is spelled “Rupk” (nearest: Rupak) or “Karmakr” (nearest: Karmakar or Karmaker): showing the nearest real spellings instead.");
 
 // ---- the second search needs nothing from the database when there is nothing to correct
 (async () => {

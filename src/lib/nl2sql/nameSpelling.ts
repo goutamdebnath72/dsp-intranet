@@ -71,30 +71,45 @@ export function isKnownWord(token: string, vocab: NameVocabulary): boolean {
 
 export interface Nearest { word: string; keyDistance: number; plainDistance: number; count: number }
 
-/** The real name words nearest to a typed word: the best tier only, at most `max`; nothing for a known word, a very short word or a word far from every name. */
-export function nearestWords(token: string, vocab: NameVocabulary, max = 3): Nearest[] {
+/**
+ * Every real name word that could be meant by a typed word, the best first. A candidate is accepted when it SOUNDS the same under the key (distance 0: strong evidence), or when the key is near
+ * AND the letters are one slip away, or when the letters alone are one slip away (two in a word of 9+ letters) and the first sound is the same: the key collapses vowels, so one missing letter
+ * can look like a distance of 2 or 3 there (KUMA / KUMAR). A different first sound is a different name ("swapan" is not "tapan"); the first two letters swapped ("raup" / "arup") is one slip.
+ * Nothing for a known word (the phonetic search already finds it) or a word of fewer than 4 letters.
+ */
+export function candidateWords(token: string, vocab: NameVocabulary): Nearest[] {
   const t = letters(token);
   if (t.length < 4 || isKnownWord(t, vocab)) return [];
   const tk = spellingKey(t);
   const maxKey = tk.length >= 8 ? 2 : tk.length >= 4 ? 1 : 0;
-  const maxPlain = Math.max(2, Math.ceil(t.length / 3));
+  const maxPlain = t.length >= 9 ? 2 : 1;
   const found: Nearest[] = [];
   for (const w of vocab.words) {
-    if (Math.abs(w.length - t.length) > 3) continue;
+    if (Math.abs(w.length - t.length) > 2) continue;
     const wk = vocab.key.get(w) as string;
-    const keyDistance = editDistance(tk, wk);
-    if (keyDistance > maxKey) continue;
     const plainDistance = editDistance(t, w);
-    if (plainDistance > maxPlain) continue;
-    // Sounding the same (key distance 0) is strong evidence. Anything weaker must be ONE slip in the letters (two in a long word) and keep the first sound: a different first letter is a
-    // different name ("swapan" is not "tapan"). A name that is simply not in the directory must stay "not found", never become somebody else.
-    if (keyDistance > 0 && (tk[0] !== wk[0] || plainDistance > (t.length >= 9 ? 2 : 1))) continue;
-    found.push({ word: w, keyDistance, plainDistance, count: vocab.count.get(w) ?? 1 });
+    if (plainDistance > Math.max(2, Math.ceil(t.length / 3))) continue;
+    const keyDistance = editDistance(tk, wk);
+    // the first two letters swapped ("RAUP" for "ARUP") is one slip too; any other change of the first letter is a different sound
+    const sameStart = tk[0] === wk[0] || (t.length > 1 && t[0] === w[1] && t[1] === w[0]);
+    const accepted = keyDistance === 0 || (keyDistance <= maxKey && sameStart && plainDistance <= maxPlain) || (sameStart && plainDistance <= maxPlain);
+    if (accepted) found.push({ word: w, keyDistance, plainDistance, count: vocab.count.get(w) ?? 1 });
   }
-  found.sort((a, b) => a.keyDistance - b.keyDistance || a.plainDistance - b.plainDistance || b.count - a.count || a.word.localeCompare(b.word));
+  const tier = (n: Nearest) => (n.keyDistance === 0 ? 0 : 1);
+  return found.sort((a, b) => tier(a) - tier(b) || a.plainDistance - b.plainDistance || a.keyDistance - b.keyDistance || b.count - a.count || a.word.localeCompare(b.word));
+}
+
+/**
+ * The real name words NEAREST to a typed word: the best tier only, at most `max`; nothing when the word is equally near to MORE than `max` names (then any choice would be a guess).
+ * A name that is simply not in the directory must stay "not found", never become somebody else.
+ */
+export function nearestWords(token: string, vocab: NameVocabulary, max = 3): Nearest[] {
+  const found = candidateWords(token, vocab);
   if (!found.length) return [];
+  const tier = (n: Nearest) => (n.keyDistance === 0 ? 0 : 1);
   const best = found[0];
-  return found.filter((x) => x.keyDistance === best.keyDistance && x.plainDistance === best.plainDistance).slice(0, max);
+  const top = found.filter((x) => tier(x) === tier(best) && x.plainDistance === best.plainDistance && x.keyDistance === best.keyDistance);
+  return top.length > max ? [] : top;
 }
 
 // ---- the name words inside a model's SQL --------------------------------------------------------
@@ -114,7 +129,7 @@ export function nameLiteralsIn(sql: string): NameLiteral[] {
   return out.sort((a, b) => a.start - b.start);
 }
 
-export interface SpellingChange { typed: string; corrected: string[] }
+export interface SpellingChange { typed: string; corrected: string[]; /** other real names that are nearly as close (at most two): the person can see what else could have been meant */ alsoClose: string[] }
 
 /** The SQL with every unknown name word replaced by its nearest real spelling(s); null when nothing was changed. */
 export function correctSql(sql: string, vocab: NameVocabulary): { sql: string; changes: SpellingChange[] } | null {
@@ -126,7 +141,8 @@ export function correctSql(sql: string, vocab: NameVocabulary): { sql: string; c
     if (!near.length) continue;
     const replacement = near.length === 1 ? lit.build(near[0].word) : `(${near.map((n) => lit.build(n.word)).join(" OR ")})`;
     result = result.slice(0, lit.start) + replacement + result.slice(lit.end);
-    changes.unshift({ typed: lit.literal, corrected: near.map((n) => n.word) });
+    const chosen = new Set(near.map((n) => n.word));
+    changes.unshift({ typed: lit.literal, corrected: near.map((n) => n.word), alsoClose: candidateWords(lit.literal, vocab).map((n) => n.word).filter((w) => !chosen.has(w)).slice(0, 2) });
   }
   return changes.length ? { sql: result, changes } : null;
 }
@@ -136,7 +152,7 @@ const joinWords = (ws: string[]): string => (ws.length <= 1 ? (ws[0] ?? "") : `$
 
 /** The sentence under the answer. */
 export function spellingNote(changes: SpellingChange[]): string {
-  const parts = changes.map((c) => `“${nice(c.typed)}” (nearest: ${joinWords(c.corrected.map(nice))})`);
+  const parts = changes.map((c) => `“${nice(c.typed)}” (nearest: ${joinWords(c.corrected.map(nice))}${c.alsoClose.length ? `; also close: ${joinWords(c.alsoClose.map(nice))}` : ""})`);
   return `No name is spelled ${parts.join(" or ")}: showing the nearest real spelling${changes.some((c) => c.corrected.length > 1) ? "s" : ""} instead.`;
 }
 

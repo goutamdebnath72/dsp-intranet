@@ -1080,7 +1080,7 @@ async function main() {
     check("55b: the right spelling finds him, with no note", !!direct && direct.count > 0 && /GOSWAMI/.test(direct.people?.[0]?.name ?? "") && !direct.nl2sql?.spellingNote, JSON.stringify(direct && { count: direct.count, note: direct.nl2sql?.spellingNote }));
     for (const typed of ["Gosyami", "Gosami", "Goshami", "Gosamy"]) {
       const o2 = await asked(`rupak ${typed.toLowerCase()}`, WHO("Rupak", typed));
-      check(`55b: "rupak ${typed.toLowerCase()}" finds Rupak Kumar Goswami, and the answer says which spelling was used`, !!o2 && o2.count > 0 && /GOSWAMI/.test(o2.people?.[0]?.name ?? "") && /RUPAK/.test(o2.people?.[0]?.name ?? "") && new RegExp(`No name is spelled “${typed}” \\(nearest: Goswami\\)`).test(o2.nl2sql?.spellingNote ?? ""), JSON.stringify(o2 && { count: o2.count, note: o2.nl2sql?.spellingNote }));
+      check(`55b: "rupak ${typed.toLowerCase()}" finds Rupak Kumar Goswami, and the answer says which spelling was used`, !!o2 && o2.count > 0 && /GOSWAMI/.test(o2.people?.[0]?.name ?? "") && /RUPAK/.test(o2.people?.[0]?.name ?? "") && new RegExp(`No name is spelled “${typed}” \\(nearest: Goswami[;)]`).test(o2.nl2sql?.spellingNote ?? ""), JSON.stringify(o2 && { count: o2.count, note: o2.nl2sql?.spellingNote }));
     }
     check("55b: ...the SQL shown is the corrected one (GOSWAMI), so a reader can check it", /GOSWAMI/.test((await asked("rupak gosyami", WHO("Rupak", "Gosyami")))?.nl2sql?.sql ?? ""));
     const both = await asked("rupk gosami", WHO("Rupk", "Gosami"));
@@ -1091,6 +1091,35 @@ async function main() {
     check("55b: a word near no real name is not corrected: still nobody, no note", !!far && !far.people?.length && !far.nl2sql?.spellingNote);
     const other: any = await runOmnibar("how many executives", "T-SP", mkDeps(model("SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'", "The number of executives.")));
     check("55b: a question with no name word is untouched", !!other && other.count > 0 && !other.nl2sql?.spellingNote);
+  }
+
+  // ---- step 55a: a department word is RESOLVED before the model is called ("refractory" = its three rows, "garage" = the Plant Garage, the township garage is closed)
+  {
+    const seen: string[] = [];
+    const spy = (sql: string): LlmFn => async (p) => { seen.push(p); return json({ sql, understood_as: "the reading", confidence: "high" }); };
+    const ANY = `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'`;
+    const cokeCount = (n: number | "fails"): OmnibarDeps["withClient"] => ((fn: (c: any) => Promise<unknown>) => withClient((c: any) => fn({ query: (sql: string, params?: unknown[]) => (/department_code = 86600/.test(String(sql)) ? (n === "fails" ? Promise.reject(new Error("no count")) : Promise.resolve({ rows: [{ n }], rowCount: 1 })) : c.query(sql, params)) }))) as never;
+    const CLOSED = "Township Garage has no employees: it is a closed department.";
+    const closed: any = await runOmnibar("how many executives work in township garage", "T-DW", mkDeps(spy(ANY)));
+    check("55a: the township garage is answered at once: a closed department, 0, no model call", !!closed && closed.kind === "count" && closed.count === 0 && closed.answer === CLOSED && seen.length === 0, JSON.stringify(closed));
+    const closedRetry: any = await runOmnibar("executives in town garage", "T-DW", mkDeps(spy(ANY)), { logId: null, reason: "other", note: "", attempt: 1 } as never);
+    check("55a: ...also when the question is asked again after a No (attempt 2), still no model call", !!closedRetry && closedRetry.answer === CLOSED && closedRetry.attempt === 2 && seen.length === 0);
+    const holiday: any = await runOmnibar("how many executives are there in garage", "T-DW", mkDeps(spy(ANY), { holiday: async () => ({ kind: "count", answer: "holiday answer" }) as never }));
+    check("55a: a holiday answer still comes first (the parser keeps its place)", holiday?.answer === "holiday answer" && seen.length === 0);
+    const gar: any = await runOmnibar("how many executives are there in garage", "T-DW", mkDeps(spy(ANY)));
+    check("55a: 'garage' is searched as 'plant garage': the model is given the clear name, not the bare word", seen.length >= 1 && seen[0].includes("how many executives are there in plant garage") && !seen[0].includes("there in garage"), seen[0]?.slice(-200));
+    check("55a: ...no question is asked (no clarify, no checkboxes) and the answer carries the note", !!gar && gar.kind !== "clarify" && !gar.ask && /Plant Garage \(all its six sections\)/.test(gar?.nl2sql?.departmentNote ?? "") && /closed department/.test(gar?.nl2sql?.departmentNote ?? ""), JSON.stringify(gar && { kind: gar.kind, note: gar.nl2sql?.departmentNote }));
+    seen.length = 0;
+    const ref: any = await runOmnibar("how many executives are there in refractory", "T-DW", mkDeps(spy(ANY), { withClient: cokeCount(5) }));
+    check("55a: 'refractory' is searched as its three rows, named by name and code", seen.length >= 1 && seen[0].includes("REFRACTORY (code 86000), REFRACTORY (OFFICE) (code 86030) and COKE OVEN REFRACTORY (code 86600)"), seen[0]?.slice(-260));
+    check("55a: ...no question is asked, and the note says all three, the old intranet, CO & CC, and the number counted from the directory (5)", !!ref && !ref.ask && ref.kind !== "clarify" && /all three Refractory departments, as in the old intranet/.test(ref?.nl2sql?.departmentNote ?? "") && /its 5 people are counted in both\./.test(ref?.nl2sql?.departmentNote ?? ""), ref?.nl2sql?.departmentNote);
+    const refFail: any = await runOmnibar("how many executives are there in refractory", "T-DW", mkDeps(spy(ANY), { withClient: cokeCount("fails") }));
+    check("55a: if the people cannot be counted the note still comes, with no number and no placeholder", !!refFail && /its people are counted in both\./.test(refFail?.nl2sql?.departmentNote ?? "") && !/\{\{/.test(refFail?.nl2sql?.departmentNote ?? ""), refFail?.nl2sql?.departmentNote);
+    const plain: any = await runOmnibar("list five senior executives", "T-DW", mkDeps(model(PEOPLE5, "Five most senior executives.")));
+    check("55a: an ordinary question has no department note", !!plain && !plain?.nl2sql?.departmentNote);
+    seen.length = 0;
+    const named: any = await runOmnibar("how many executives are there in coke oven refractory", "T-DW", mkDeps(spy(ANY)));
+    check("55a: a question that already names its department is searched as typed, with no note", seen.length >= 1 && seen[0].includes("how many executives are there in coke oven refractory") && !named?.nl2sql?.departmentNote);
   }
 
   let o: any = await runOmnibar("list five senior executives", "T-OMNI", mkDeps(model(PEOPLE5, "Five most senior executives.")));

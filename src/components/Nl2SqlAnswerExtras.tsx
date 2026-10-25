@@ -43,6 +43,11 @@ export function Nl2SqlAnswerExtras({ nl2sql }: { nl2sql: Nl2SqlExtras }) {
           )}
         </p>
       )}
+      {nl2sql.departmentNote ? (
+        <p className="mt-1 text-xs leading-snug text-blue-800" data-department-note="true">
+          {nl2sql.departmentNote}
+        </p>
+      ) : null}
       {nl2sql.verifiedBy ? (
         <p className="mt-1 text-xs font-medium text-emerald-700">
           ✓ Verified answer — confirmed by {nl2sql.verifiedBy} {nl2sql.verifiedBy === 1 ? "person" : "people"}.

@@ -23,7 +23,7 @@ import type { Nl2SqlExtras } from "./clientTypes";
 import { buildSourceInfo, emptyScheduleAnswer, pendingScheduleNote, scheduleAsked, ticketLookupNote, ticketsAsked, unconfirmedNote } from "./circularSources";
 import { comparisonVerdict } from "./rankingCheck";
 import { peopleHeadline } from "./medicalCadre";
-import { askWhichDepartment } from "./departmentAsk";
+import { COKE_OVEN_REFRACTORY_CODE, finishDepartmentNote, resolveDepartmentWords, type DepartmentWordResult } from "./departmentWords";
 import { isDoctorPerson, isPhdHolder, titleFor, withTitlesInRows } from "@/lib/employees/honorific";
 import { disciplineOfTicket } from "@/lib/hospital/discipline";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
@@ -286,7 +286,21 @@ const isInfrastructureFailure = (msg: string) => /could not be reached|could not
 const GIVE_UP_MESSAGE =
   "I still could not get this right after a few tries. Your feedback has been saved for the team. Try rephrasing the question, or search the documents instead.";
 
-export async function runOmnibar(q: string, userKey: string | null, deps: OmnibarDeps, retry: RetryInfo | null = null): Promise<OmnibarPayload | null> {
+/** The note under an answer whose department word was resolved (step 55a). The number of Coke Oven Refractory people is counted from the directory; if that fails, no number is said. */
+async function noteFor(words: DepartmentWordResult | null, deps: OmnibarDeps): Promise<string | undefined> {
+  if (!words?.note) return undefined;
+  let people: number | null = null;
+  if (words.cokeOven) {
+    people = await deps
+      .withClient(async (c) => Number((await c.query(`SELECT count(*)::int AS n FROM nlq.employees WHERE department_code = ${COKE_OVEN_REFRACTORY_CODE}`)).rows[0]?.n))
+      .catch(() => null);
+  }
+  return finishDepartmentNote(words.note, people !== null && Number.isFinite(people) ? people : null);
+}
+
+export async function runOmnibar(typed: string, userKey: string | null, deps: OmnibarDeps, retry: RetryInfo | null = null): Promise<OmnibarPayload | null> {
+  let q = typed; // the question as searched: a department word may be replaced by the rows it means (step 55a)
+  let departmentWords: DepartmentWordResult | null = null;
   const attempt = retry ? retry.attempt + 1 : 1;
   const tagLegacy = (p: AnalyticsPayload | null): OmnibarPayload | null => (p ? { ...p, source: "legacy", attempt } : null);
 
@@ -308,17 +322,27 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
     const holiday = await deps.holiday(q).catch(() => null);
     if (holiday) return { ...holiday, source: "holiday", attempt };
 
-    // 1b. a department word that means more than one thing ("garage", "refractory"): ASK which, with checkboxes, instead of guessing: no model call (step 49a)
-    const ask = askWhichDepartment(q);
-    if (ask) return { kind: "clarify", answer: ask.message, ask, source: "nl2sql", attempt };
+    // 1b. a department word with more than one meaning is RESOLVED, not asked (step 55a): "refractory" = its three rows, "garage" = the Plant Garage, the township garage is closed
+    const words = resolveDepartmentWords(q);
+    if (words?.closed) return { kind: "count", count: 0, answer: words.closed, source: "nl2sql", attempt };
+    if (words?.question) q = words.question;
+    departmentWords = words;
 
     // 2. a VERIFIED answer (confirmed at least once, never rejected): re-run it, no model call
     const verified = await answerFromVerified(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.verifiedMin).catch(() => null);
-    if (verified) return okToPayload(verified, userKey, deps, attempt);
+    if (verified) return okToPayload(verified, userKey, deps, attempt, await noteFor(departmentWords, deps));
   }
 
   // 2b. front-path gate: not an employee question, so do not spend a model call on it (the app continues with circular search)
   if (deps.skipModel && !retry) return null;
+
+  // a RETRY searches the original question again: its department words are resolved the same way (step 55a)
+  if (retry) {
+    const again = resolveDepartmentWords(q);
+    if (again?.closed) return { kind: "count", count: 0, answer: again.closed, source: "nl2sql", attempt };
+    if (again?.question) q = again.question;
+    departmentWords = again;
+  }
 
   // 3. the model writes the SQL (on a retry: told what was rejected and why)
   let extra: PipelineExtra | undefined;
@@ -328,7 +352,7 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
   }
   const res = await answerQuestion(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, extra);
 
-  if (res.ok) return okToPayload(res, userKey, deps, attempt);
+  if (res.ok) return okToPayload(res, userKey, deps, attempt, await noteFor(departmentWords, deps));
 
   switch (res.kind) {
     case "out_of_scope":
@@ -353,7 +377,7 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
   }
 }
 
-async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, attempt: number): Promise<OmnibarPayload> {
+async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, attempt: number, departmentNote?: string): Promise<OmnibarPayload> {
   let people: EmployeeResult[] | null = null;
   // A health check-up SCHEDULE (nlq.health_checkups) is shown as the table it is -- ticket, name, department, DATE, circular -- not as person
   // cards (which would show who, but not when).
@@ -394,6 +418,7 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
     }
   }
   if ((res as { spellingNote?: string }).spellingNote && payload.nl2sql) payload.nl2sql.spellingNote = (res as { spellingNote?: string }).spellingNote;
+  if (departmentNote && payload.nl2sql) payload.nl2sql.departmentNote = departmentNote;
   return payload;
 }
 
