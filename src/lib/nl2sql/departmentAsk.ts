@@ -33,6 +33,8 @@ export interface DepartmentAsk {
   none: { label: string; reply: string };
   /** only when the person typed just the word: a search of the circulars instead */
   documents?: { label: string; query: string };
+  /** what a screen reader hears for the group (default: "Choose the doctor you mean" for radio buttons, "Tick the department or departments you mean" for checkboxes) */
+  legend?: string;
   /** "one": RADIO buttons, exactly one option (a doctor); default "many": checkboxes (departments) */
   mode?: "one" | "many";
   /** a regular expression (source) that finds the words to replace, when they are not one plain word ("a mukherjee") */

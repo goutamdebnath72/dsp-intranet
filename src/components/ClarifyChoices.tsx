@@ -20,7 +20,7 @@ export function ClarifyChoices({ ask, onAsk }: { ask: DepartmentAsk; onAsk: (que
   const chosen = ask.options.find((o) => ticked.includes(o.id));
   return (
     <fieldset className="mt-3">
-      <legend className="sr-only">{radio ? "Choose the doctor you mean" : "Tick the department or departments you mean"}</legend>
+      <legend className="sr-only">{ask.legend ?? (radio ? "Choose the doctor you mean" : "Tick the department or departments you mean")}</legend>
       {!radio && ask.options.length > 1 && (
         <button type="button" onClick={() => setTicked(all ? [] : ask.options.map((o) => o.id))} className="mb-2 text-xs font-medium text-blue-700 underline">
           {all ? "Clear all" : "Select all"}

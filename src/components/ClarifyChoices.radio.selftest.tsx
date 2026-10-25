@@ -45,6 +45,14 @@ ok("no options: nothing is drawn", none === "");
 const evil = h(<ClarifyChoices ask={{ ...doctors, options: [{ id: "x", label: "<script>alert(1)</script>", detail: "<img src=x onerror=alert(1)>", phrase: "p" }], alternative: { label: "<b>all</b>", query: "q" } }} onAsk={noop} />);
 ok("labels, details and buttons are escaped", !/<script>|<img|<b>/.test(evil) && evil.includes("&lt;script&gt;"));
 
+const legendHtml = h(<ClarifyChoices ask={{ ...doctors, legend: "Choose your unit of Medicine" }} onAsk={noop} />);
+ok("a question can have a legend of its own (for a screen reader): the unit, not the doctor", /<legend class="sr-only">Choose your unit of Medicine<\/legend>/.test(legendHtml) && !/Choose the doctor you mean/.test(legendHtml));
+const boxed = queryFor({ ...doctors, word: "opd", question: "is opd open on monday?", pattern: "\\bopd\\b", options: [{ id: "m", label: "Medicine", phrase: "Medicine OPD" }] }, ["m"]);
+ok("the department question rewrites 'is opd open on monday?' into 'is Medicine OPD open on monday?'", boxed === "is Medicine OPD open on monday?", boxed);
+const unitQ = queryFor({ ...doctors, question: "is Medicine OPD open on monday?", pattern: "\\b(?:medicine\\s+)?opd\\b", options: [{ id: "n", label: "new", phrase: "Medicine OPD (new patient)" }, { id: "u", label: "Unit II", phrase: "Medicine Unit II" }] }, ["u"]);
+ok("the unit question rewrites 'Medicine OPD' into 'Medicine Unit II' (the department is not said twice)", unitQ === "is Medicine Unit II open on monday?", unitQ);
+ok("...and a new patient keeps the department: 'Medicine OPD (new patient)'", queryFor({ ...doctors, question: "is Medicine OPD open on monday?", pattern: "\\b(?:medicine\\s+)?opd\\b", options: [{ id: "n", label: "new", phrase: "Medicine OPD (new patient)" }] }, ["n"]) === "is Medicine OPD (new patient) open on monday?");
+
 // the checkbox mode (departments) is exactly as before
 const dept: DepartmentAsk = {
   message: "Which department?", word: "refractory", question: "refractory people",

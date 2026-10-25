@@ -3,7 +3,7 @@
 // (the OPD and card registration hours by the clock). Plain text only (React escapes it); the badge and the verdict are never colour alone: their words carry the meaning.
 
 import React from "react";
-import { Ambulance } from "lucide-react";
+import { Ambulance, CalendarCheck, HelpCircle } from "lucide-react";
 import type { HospitalAnswer, HospitalTable } from "@/lib/hospital/types";
 
 const TONE: Record<"open" | "closed" | "unknown" | "info", string> = {
@@ -64,6 +64,12 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
           {answer.status.text}
         </p>
       )}
+      {answer.highlight && (
+        <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-2 text-sm font-semibold text-emerald-900" data-highlight="true">
+          <CalendarCheck size={18} className="mt-0.5 flex-shrink-0" />
+          <span>{answer.highlight}</span>
+        </div>
+      )}
       {answer.table && answer.table.rows.length > 0 && <TableView table={answer.table} />}
       {answer.extraTables?.map((x, i) =>
         x.table.rows.length > 0 ? (
@@ -100,6 +106,12 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
             <li key={i}>{note}</li>
           ))}
         </ul>
+      )}
+      {answer.prompt && (
+        <div className="flex items-start gap-2 rounded-md border border-blue-300 bg-white px-2.5 py-2 text-sm font-semibold text-blue-900" data-prompt="true">
+          <HelpCircle size={18} className="mt-0.5 flex-shrink-0" />
+          <span>{answer.prompt}</span>
+        </div>
       )}
     </div>
   );

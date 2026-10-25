@@ -14,6 +14,10 @@ export interface HospitalAnswer {
   badge?: { tone: "open" | "closed" | "unknown"; text: string };
   /** The one-line verdict: open / closed / not known / information. */
   status?: { tone: "open" | "closed" | "unknown" | "info"; text: string };
+  /** The ONE thing the person most wants to see after a No (when is he available / when does the unit sit): an eye-catching banner right under the verdict. */
+  highlight?: string;
+  /** The question that the buttons under the card answer (shown last, above the buttons). */
+  prompt?: string;
   /** Short points, shown as bullets under the table (the important words only). */
   lines?: string[];
   /** A helpful pointer shown in its own box, for example the Emergency Department when the OPD is closed; one point per line (separated by a line break). */

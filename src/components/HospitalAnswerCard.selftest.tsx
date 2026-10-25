@@ -60,6 +60,29 @@ ok("the rows are drawn (an empty cell stays empty)", extra.includes("Dr. Kunj Bi
 const evilExtra = h(<HospitalAnswerCard answer={{ title: "T", extraTables: [{ title: "<script>x</script>", table: { columns: ["<b>"], rows: [["<i>"]] } }] }} />);
 ok("captions and cells of extra tables are escaped", !/<script>|<b>|<i>/.test(evilExtra) && evilExtra.includes("&lt;script&gt;"));
 
+// ---- step 54d: the banner right under the verdict, and the question as the last line
+const hp = h(
+  <HospitalAnswerCard
+    answer={{
+      title: "Dr. Avisek Mukherjee: OPD days",
+      badge: { tone: "closed", text: "Closed" },
+      status: { tone: "closed", text: "No: Dr. Avisek Mukherjee does not sit on Tuesday." },
+      highlight: "Dr. Avisek Mukherjee sits in Dental OPD 29 on Monday and Friday. Nearest: Monday, 26 October 2026 (tomorrow).",
+      table: { columns: ["Room", "Doctor"], rows: [["OPD 29", "Dr. Avisek Mukherjee"]] },
+      lines: ["a point"],
+      notes: ["OPD hours: 8 AM to 1 PM and 5 PM to 7 PM"],
+      prompt: "Which department do you want to visit on Monday, 26 October 2026?",
+    }}
+  />,
+);
+ok("the banner is drawn, with its own mark, and says when he is available", /data-highlight="true"/.test(hp) && hp.includes("Nearest: Monday, 26 October 2026 (tomorrow)."));
+ok("the banner comes right after the verdict and before the table", hp.indexOf("No: Dr. Avisek") < hp.indexOf("data-highlight") && hp.indexOf("data-highlight") < hp.indexOf("<table"));
+ok("the banner is green and bold (eye-catching), not the grey of an ordinary point", /border-emerald-300 bg-emerald-50[^"]*font-semibold text-emerald-900/.test(hp));
+ok("the question is the LAST thing, after the red hours", /data-prompt="true"/.test(hp) && hp.indexOf("data-notes") < hp.indexOf("data-prompt") && hp.indexOf("data-prompt") > hp.indexOf("data-points"));
+ok("a card with neither has neither", !/data-highlight|data-prompt/.test(h(<HospitalAnswerCard answer={{ title: "T", status: { tone: "open", text: "Yes: x" } }} />)));
+const evilHp = h(<HospitalAnswerCard answer={{ title: "T", highlight: "<script>x</script>", prompt: "<img src=x onerror=y>" }} />);
+ok("the banner and the question are escaped", !/<script>|<img/.test(evilHp) && evilHp.includes("&lt;script&gt;"));
+
 const one = h(<HospitalAnswerCard answer={{ title: "T", suggestion: "For urgent medical attention, you can consult the Emergency Department." }} />);
 ok("a one-line pointer is a sentence, not a list with one bullet", /data-suggestion="true"/.test(one) && !/data-suggestion[^>]*>(?:(?!<\/div>).)*<ul/.test(one) && one.includes("For urgent medical attention, you can consult the Emergency Department."));
 

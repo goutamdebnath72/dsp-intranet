@@ -40,7 +40,7 @@ async function main() {
 
   // ---- dates
   const dr = (q: string) => parseDateRef(q, NOW);
-  ok("today", dr("is opd open today")?.kind === "relative" && (dr("today") as { date: DateTime }).date.toISODate() === "2026-10-25");
+  ok("today", dr("opd open today")?.kind === "relative" && (dr("today") as { date: DateTime }).date.toISODate() === "2026-10-25");
   ok("tomorrow is Monday 26 October", (dr("tomorrow") as { date: DateTime }).date.toISODate() === "2026-10-26");
   ok("a weekday is its next occurrence: tuesday = 27 October, sunday = today", (dr("on tuesday") as { date: DateTime }).date.toISODate() === "2026-10-27" && (dr("sunday") as { date: DateTime }).date.toISODate() === "2026-10-25");
   ok("next sunday is a week later", (dr("next sunday") as { date: DateTime }).date.toISODate() === "2026-11-01");
@@ -51,35 +51,35 @@ async function main() {
   // ---- is the OPD open?
   let r = await ask("is OPD open today?");
   ok("today is Sunday: closed", tone(r) === "closed" && has(r, "sunday", "closed"), all(r));
-  r = await ask("is opd open tomorrow");
+  r = await ask("opd open tomorrow");
   ok("tomorrow (Monday 26 October) is open, with the hours", tone(r) === "open" && has(r, "monday, 26 october 2026", "8 am to 1 pm", "5 pm to 7 pm", "4:30 pm to 6:30 pm"), all(r));
   r = await ask("was opd open yesterday");
   ok("yesterday (Saturday 24 October) was open (past tense)", tone(r) === "open" && has(r, "was open", "saturday, 24 october 2026"), all(r));
-  r = await ask("is opd open on 2 october");
+  r = await ask("opd open on 2 october");
   ok("2 October: closed, Gandhi's birthday", tone(r) === "closed" && has(r, "mahatma gandhi's birthday"), all(r));
   r = await ask("is opd closed on 25 december 2026");
   ok("25 December: closed, once (no duplicate reason)", tone(r) === "closed" && has(r, "christmas day") && !/christmas day.*christmas day/i.test(r?.summary ?? ""), all(r));
-  r = await ask("is opd open on 24 january 2026");
+  r = await ask("opd open on 24 january 2026");
   ok("24 January: SAIL Foundation Day", tone(r) === "closed" && has(r, "sail foundation day"), all(r));
   for (const [q, name] of [["26 january 2026", "republic day"], ["1 may 2026", "may day"], ["15 august 2026", "independence day"], ["14 april 2026", "ambedkar"]] as const) {
     r = await ask(`is opd open on ${q}`);
     ok(`${q}: closed, ${name}`, tone(r) === "closed" && has(r, name), all(r));
   }
-  r = await ask("is opd open on 20 october 2026");
+  r = await ask("opd open on 20 october 2026");
   ok("20 October 2026: closed, a puja holiday (Maha Navami)", tone(r) === "closed" && has(r, "maha navami", "puja holiday"), all(r));
   r = await ask("opd on 21 october 2026");
   ok("21 October 2026: closed, Maha Dasami", tone(r) === "closed" && has(r, "maha dasami"), all(r));
-  r = await ask("is opd open on 11 november 2026");
+  r = await ask("opd open on 11 november 2026");
   ok("11 November 2026 (Bhatridwitiya): a plant holiday not in the OPD list: NOT KNOWN, neither open nor closed", tone(r) === "unknown" && has(r, "bhatridwitiya", "not in my list yet"), all(r));
-  r = await ask("is opd open on 21 march 2026");
+  r = await ask("opd open on 21 march 2026");
   ok("21 March 2026 (Id-ul-Fitr): not known", tone(r) === "unknown" && has(r, "id-ul-fitr"), all(r));
-  r = await ask("is opd open on 5 january 2027");
+  r = await ask("opd open on 5 january 2027");
   ok("5 January 2027: open by the rules, and it says the 2027 holiday data is not loaded", tone(r) === "open" && has(r, "holiday data for 2027 is not loaded"), all(r));
-  r = await ask("is opd open on sunday");
+  r = await ask("opd open on sunday");
   ok("sunday: closed", tone(r) === "closed" && has(r, "sunday"), all(r));
-  r = await ask("is opd open on saturday");
+  r = await ask("opd open on saturday");
   ok("saturday (31 October): open", tone(r) === "open" && has(r, "saturday, 31 october 2026"), all(r));
-  r = await ask("is opd open on 31 february");
+  r = await ask("opd open on 31 february");
   ok("31 february: said to be invalid", has(r, "not a valid date"), all(r));
   r = await ask("when is opd closed");
   ok("the closure rules are listed", tone(r) === "info" && has(r, "every sunday", "sail foundation day", "puja"), all(r));
@@ -135,7 +135,7 @@ async function main() {
   r = await ask("ent opd on 21 october 2026");
   ok("ENT on 21 October 2026: the OPD is closed (puja), not a table", tone(r) === "closed" && has(r, "maha dasami") && !r?.card.table, all(r));
   r = await ask("medicine opd sunday");
-  ok("a department on Sunday: closed", tone(r) === "closed" && has(r, "closed on sunday"), all(r));
+  ok("a department on Sunday: closed", tone(r) === "closed" && has(r, "closed on every sunday"), all(r));
   r = await ask("skin opd saturday");
   ok("Skin on Saturday: both OPDs, Hirak Choudhuri and Nabanita Das", has(r, "opd 36", "opd 35", "hirak choudhuri", "nabanita das"), all(r));
   r = await ask("chest opd");
@@ -163,10 +163,10 @@ async function main() {
   const URGENT = "For urgent medical attention, you can consult the Emergency Department, which remains open 24 hours a day, 7 days a week.";
   const sug = async (q: string) => (await ask(q))?.card.suggestion;
   for (const q of [
-    "is opd open today", "is opd open on 2 october", "is opd open on 20 october 2026", "is opd closed on 25 december 2026", "is dr sumit mukherjee available today",
-    "is dr ajit karmakar available on 20 october 2026", "ent opd on 21 october 2026", "medicine opd sunday", "when is opd closed", "is opd open on sunday",
+    "opd open today", "opd open on 2 october", "opd open on 20 october 2026", "is opd closed on 25 december 2026", "is dr sumit mukherjee available today",
+    "is dr ajit karmakar available on 20 october 2026", "ent opd on 21 october 2026", "medicine opd sunday", "when is opd closed", "opd open on sunday",
   ]) ok(`OPD closed that day: the Emergency Department: "${q}"`, (await sug(q)) === URGENT, String(await sug(q)));
-  ok("the closure that is not known gets the softer wording", (await sug("is opd open on 11 november 2026")) === "If the OPD turns out to be closed, you can consult the Emergency Department for urgent medical attention; it remains open 24 hours a day, 7 days a week.", String(await sug("is opd open on 11 november 2026")));
+  ok("the closure that is not known gets the softer wording", (await sug("opd open on 11 november 2026")) === "If the OPD turns out to be closed, you can consult the Emergency Department for urgent medical attention; it remains open 24 hours a day, 7 days a week.", String(await sug("opd open on 11 november 2026")));
 
   // ---- RULE 2: the OPD is open, but the patient's own unit is not sitting -> the unit rule, the General Medicine OPD for general care, the Emergency Department for urgent care
   for (const q of ["is dr rupak goswami in opd on wednesday", "orthopaedic opd monday", "eye opd tuesday", "ent opd on wednesday", "chest opd", "opd 4 days", "is orthopaedic opd open on monday"]) {
@@ -177,7 +177,7 @@ async function main() {
 
   // ---- the OPD is open and the unit sits: no pointer at all
   for (const q of [
-    "is opd open tomorrow", "is opd open on saturday", "is opd open on 5 january 2027", "medicine opd monday", "dental opd tuesday", "which days does dr ajit karmakar sit in opd", "is dr sumit mukherjee in opd tomorrow",
+    "opd open tomorrow", "opd open on saturday", "opd open on 5 january 2027", "medicine opd monday", "dental opd tuesday", "which days does dr ajit karmakar sit in opd", "is dr sumit mukherjee in opd tomorrow",
     "opd timing", "orthopaedics opd", "opd 25 days", "who is the hod of surgery", "which departments have opd", "is surgery opd open on 3 november 2026",
   ]) ok(`no pointer when there is an OPD: "${q}"`, (await sug(q)) === undefined, String(await sug(q)));
 
@@ -188,21 +188,21 @@ async function main() {
 
   // ---- RULE 1b: today, outside the OPD hours -> the Emergency Department (the hours are 8:00 to 1:00 and 5:00 to 7:00)
   const askAt = (q: string, iso: string) => answerHospital(q, { now: DateTime.fromISO(iso, { zone: "Asia/Kolkata" }), holidaysOn });
-  r = await askAt("is opd open now", "2026-10-26T10:00:00");
+  r = await askAt("opd open now", "2026-10-26T10:00:00");
   ok("Monday 10:00: open and in session until 1:00 PM, no pointer", tone(r) === "open" && has(r, "in session now, until 1 pm") && r?.card.suggestion === undefined, all(r));
-  r = await askAt("is opd open now", "2026-10-26T12:00:00");
+  r = await askAt("opd open now", "2026-10-26T12:00:00");
   ok("Monday 12:00: in session, and the token counter closed at 11:30", has(r, "in session now", "token issue for this session closed at 11:30 am"), all(r));
-  r = await askAt("is opd open now", "2026-10-26T17:30:00");
+  r = await askAt("opd open now", "2026-10-26T17:30:00");
   ok("Monday 17:30: the second session, until 7:00 PM", tone(r) === "open" && has(r, "until 7 pm"), all(r));
-  r = await askAt("is opd open today", "2026-10-26T15:00:00");
+  r = await askAt("opd open today", "2026-10-26T15:00:00");
   ok("Monday 15:00: between the sessions: closed now, reopens at 5:00 PM, the Emergency Department", tone(r) === "closed" && has(r, "closed at this moment", "3 pm", "reopens at 5 pm") && r?.card.suggestion === URGENT, all(r));
-  r = await askAt("is opd open today", "2026-10-26T07:00:00");
+  r = await askAt("opd open today", "2026-10-26T07:00:00");
   ok("Monday 07:00: not open yet, opens at 8:00 AM, the Emergency Department", tone(r) === "closed" && has(r, "not open yet", "opens at 8 am") && r?.card.suggestion === URGENT, all(r));
-  r = await askAt("is opd open today", "2026-10-26T20:00:00");
+  r = await askAt("opd open today", "2026-10-26T20:00:00");
   ok("Monday 20:00: today's hours are over, the Emergency Department", tone(r) === "closed" && has(r, "opd hours are over", "8 pm") && r?.card.suggestion === URGENT, all(r));
-  r = await askAt("is opd open tomorrow", "2026-10-26T20:00:00");
+  r = await askAt("opd open tomorrow", "2026-10-26T20:00:00");
   ok("a question about TOMORROW is not judged by the time of day now", tone(r) === "open" && !has(r, "hours are over") && r?.card.suggestion === undefined, all(r));
-  r = await askAt("is opd open on monday", "2026-10-26T20:00:00");
+  r = await askAt("opd open on monday", "2026-10-26T20:00:00");
   ok("'on monday' said on a Monday evening is not judged by the time either (it names a weekday, not 'now')", tone(r) === "open" && !has(r, "hours are over"), all(r));
   r = await askAt("is dr sumit mukherjee in opd today", "2026-10-26T15:00:00");
   ok("a doctor today, but out of hours: listed, but the OPD is closed at this moment, Emergency Department", tone(r) === "closed" && has(r, "listed in psychiatry opd 1", "closed at this moment") && r?.card.suggestion === URGENT, all(r));
@@ -210,7 +210,7 @@ async function main() {
   ok("Orthopaedics on a Monday (OT day), in hours: the unit rule and the General Medicine OPD", /first visit/.test(r?.card.suggestion ?? "") && has(r, "in session now"), all(r));
   r = await askAt("is orthopaedic opd open today", "2026-10-26T15:00:00");
   ok("the same at 15:00: out of hours comes first, the Emergency Department only", r?.card.suggestion === URGENT, all(r));
-  r = await ask("is opd open now");
+  r = await ask("opd open now");
   ok("Sunday: closed for the day (the time of day adds nothing)", tone(r) === "closed" && has(r, "sunday") && !has(r, "in session") && r?.card.suggestion === URGENT, all(r));
 
   // ======================================================================================================================================
@@ -330,20 +330,20 @@ async function main() {
   // ---- the badge: Open (green), Closed (red), Not known (amber), only for an answer about a date
   const badge = async (q: string) => { const x = await ask(q); return x?.card.badge ? `${x.card.badge.tone}:${x.card.badge.text}` : "none"; };
   for (const [q, want] of [
-    ["is opd open today", "closed:Closed"], ["is opd open tomorrow", "open:Open"], ["is opd open on 2 october", "closed:Closed"], ["is opd open on 11 november 2026", "unknown:Not known"], ["is opd open on saturday", "open:Open"],
+    ["opd open today", "closed:Closed"], ["opd open tomorrow", "open:Open"], ["opd open on 2 october", "closed:Closed"], ["opd open on 11 november 2026", "unknown:Not known"], ["opd open on saturday", "open:Open"],
     ["medicine opd sunday", "closed:Closed"], ["orthopaedic opd monday", "closed:Closed"], ["eye opd tuesday", "closed:Closed"], ["chest opd tuesday", "closed:Closed"], ["ent opd on 21 october 2026", "closed:Closed"],
     ["dental opd tuesday", "open:Open"], ["is medicine unit 2 open on tuesday", "closed:Closed"], ["is medicine unit 2 open on monday", "open:Open"],
     ["is dr ajit karmakar in opd on tuesday", "closed:Closed"], ["is dr ajit karmakar in opd on monday", "open:Open"], ["is dr sumit mukherjee available today", "closed:Closed"], ["is dr rupak goswami in opd on wednesday", "closed:Closed"],
     ["medicine opd", "none"], ["opd 25 days", "none"], ["who is the hod of medicine", "none"], ["opd timing", "none"], ["when is opd closed", "none"], ["which days does dr ajit karmakar sit in opd", "none"], ["list contractual doctors", "none"],
   ] as const) ok(`badge of "${q}" = ${want}`, (await badge(q)) === want, await badge(q));
   const clockBadge = async (q: string, iso: string) => { const x = await askAt(q, iso); return x?.card.badge ? x.card.badge.tone : "none"; };
-  ok("today at 10:00 in session: Open; at 15:00 between the sessions, at 7:00 before the opening, at 20:00 after the hours: Closed", (await clockBadge("is opd open today", "2026-10-26T10:00:00")) === "open" && (await clockBadge("is opd open today", "2026-10-26T15:00:00")) === "closed" && (await clockBadge("is opd open today", "2026-10-26T07:00:00")) === "closed" && (await clockBadge("is opd open today", "2026-10-26T20:00:00")) === "closed");
+  ok("today at 10:00 in session: Open; at 15:00 between the sessions, at 7:00 before the opening, at 20:00 after the hours: Closed", (await clockBadge("opd open today", "2026-10-26T10:00:00")) === "open" && (await clockBadge("opd open today", "2026-10-26T15:00:00")) === "closed" && (await clockBadge("opd open today", "2026-10-26T07:00:00")) === "closed" && (await clockBadge("opd open today", "2026-10-26T20:00:00")) === "closed");
 
   // ---- the hours in red points under an answer about an OPD that is open; nothing of the kind under a closed day
   const notesOf = async (q: string) => (await ask(q))?.card.notes ?? [];
-  ok("a closed day carries no hours", !(await notesOf("medicine opd sunday")).some((n) => /hours/.test(n)) && !(await notesOf("is opd open today")).some((n) => /hours/.test(n)));
-  ok("the clock times have no :00 (8 AM, not 8:00 AM)", !/\d:00 [AP]M/.test(JSON.stringify((await ask("is opd open tomorrow"))?.card)) && !/\d:00 [AP]M/.test(flat(await ask("opd timing"))));
-  for (const q of ["medicine opd monday", "orthopaedic opd monday", "is opd open tomorrow", "which days does dr ajit karmakar sit in opd", "opd 25 days", "medicine unit 2", "who is the hod of medicine", "opd timing", "when is opd closed", "kanishka opd", "which departments have opd"])
+  ok("a closed day carries no hours", !(await notesOf("medicine opd sunday")).some((n) => /hours/.test(n)) && !(await notesOf("opd open today")).some((n) => /hours/.test(n)));
+  ok("the clock times have no :00 (8 AM, not 8:00 AM)", !/\d:00 [AP]M/.test(JSON.stringify((await ask("opd open tomorrow"))?.card)) && !/\d:00 [AP]M/.test(flat(await ask("opd timing"))));
+  for (const q of ["medicine opd monday", "orthopaedic opd monday", "opd open tomorrow", "which days does dr ajit karmakar sit in opd", "opd 25 days", "medicine unit 2", "who is the hod of medicine", "opd timing", "when is opd closed", "kanishka opd", "which departments have opd"])
     ok(`no generic disclaimer in "${q}"`, !/not complete|not up to date|please confirm with|painted over|photographed|the owner/i.test(flat(await ask(q))), flat(await ask(q)).slice(0, 120));
 
   // ======================================================================================================================================
@@ -432,10 +432,10 @@ async function main() {
   ok("the Kanishka health centre: Dr. Rina Mondal; Dr. Ivy Paul, who has retired, is not shown", has(r, "kanishka", "rina mondal") && !has(r, "ivy paul"), all(r).slice(0, 160));
 
   // ---- the afternoon rule and the hours
-  const hoursNotes = (await ask("is opd open tomorrow"))?.card.notes ?? [];
+  const hoursNotes = (await ask("opd open tomorrow"))?.card.notes ?? [];
   ok("the red points under an open OPD: the OPD hours, the card registration hours, and who the afternoon is for", hoursNotes.slice(-3).join("|") === "OPD hours: 8 AM to 1 PM and 5 PM to 7 PM|Card registration (token) hours: 8 AM to 11:30 AM and 4:30 PM to 6:30 PM|The afternoon OPD (5 PM to 7 PM) is only for employees currently on roll", hoursNotes.join("|"));
   ok("the afternoon rule is in the timings answer too, in its short form", has(await ask("opd timing"), "the afternoon opd (5 pm to 7 pm) is only for employees currently on roll") && !has(await ask("opd timing"), "retired employees", "family members"));
-  ok("a closed day carries no hours and no afternoon rule", !/afternoon/i.test(jc(await ask("medicine opd sunday"))) && !/afternoon/i.test(jc(await ask("is opd open today"))));
+  ok("a closed day carries no hours and no afternoon rule", !/afternoon/i.test(jc(await ask("medicine opd sunday"))) && !/afternoon/i.test(jc(await ask("opd open today"))));
   ok("the afternoon rule is in the data file, so the wording can be changed there", /currently on roll/.test(SCHEDULE.timings.afternoonNote ?? ""));
   r = await ask("which days does dr sumit mukherjee sit in opd");
   ok("a doctor who sits all six days: 'from Monday to Saturday', not the six names", has(r, "sits in psychiatry opd 1 from monday to saturday") && !has(r, "monday, tuesday, wednesday"), all(r).slice(0, 200));
@@ -478,10 +478,6 @@ async function main() {
   ok("Dental Tuesday: Closed badge, red, 'No: Dr. Avisek Mukherjee does not sit on Tuesday ...', then the two tables, then the pointer", r?.card.badge?.tone === "closed" && r?.card.status?.text === "No: Dr. Avisek Mukherjee does not sit on Tuesday: Dental OPD 29 sees procedures and emergency cases only that day." && r?.card.extraTables?.length === 2 && /Emergency Department/.test(r?.card.suggestion ?? ""), jc(r).slice(0, 240));
   r = await ask("is dr mukherjee of dental available on friday");
   ok("Dental Friday: green Yes, Open", r?.card.badge?.tone === "open" && /^Yes: Dr\. Avisek Mukherjee is listed in Dental OPD 29 on Friday/.test(r?.card.status?.text ?? ""), jc(r).slice(0, 200));
-  r = await ask("is opd open on sunday");
-  ok("Sunday: 'No: The OPD is closed on Sunday ...', red", /^No: The OPD (is|was) closed on Sunday/.test(r?.card.status?.text ?? "") && r?.card.badge?.tone === "closed", jc(r).slice(0, 200));
-  r = await ask("is opd open on monday");
-  ok("Monday: 'Yes: The OPD is open on Monday ...', green", /^Yes: The OPD is open on Monday, 26 October 2026/.test(r?.card.status?.text ?? "") && r?.card.badge?.tone === "open", jc(r).slice(0, 200));
   // today, out of visiting time: a red No that also says the doctor is listed (it used to be a red box that began with "Yes")
   r = await askAt("is dr sumit mukherjee available today", "2026-10-26T15:00:00");
   ok("Monday 3 PM, between the sessions: 'No: The OPD is closed at this moment ...' and the doctor is listed today", r?.card.status?.tone === "closed" && /^No: The OPD is closed at this moment/.test(r?.card.status?.text ?? "") && /Dr\. Sumit Mukherjee is listed in Psychiatry OPD 1 today\./.test(r?.card.status?.text ?? "") && !/^Yes/.test(r?.card.status?.text ?? "") && r?.card.suggestion === URGENT, jc(r).slice(0, 260));
@@ -511,6 +507,90 @@ async function main() {
   ok("a plain 'opd days of medicine' is still the department, not a doctor's name", has(await ask("opd days of medicine"), "medicine") && !has(await ask("opd days of medicine"), "could not find a doctor"));
   ok("'opd days of the hospital' is not taken for a doctor's name", !has(await ask("opd days of the hospital"), "could not find a doctor"));
   ok("a question word is never matched to a name by the one-letter rule (monday is one letter off Mondal)", !has(await ask("is dr ajit karmakar in opd on monday"), "mondal") && (await ask("medicine opd monday"))?.card.title.startsWith("Medicine OPD") === true);
+
+  // ======================================================================================================================================
+  // STEP 54d: "every Sunday"; a No says WHEN he is available (a banner with the nearest date); "is opd open on monday?" is not yet a clear Yes: which department? which unit?
+  // ======================================================================================================================================
+  const hl = (r2: Awaited<ReturnType<typeof ask>>) => r2?.card.highlight ?? "";
+  // ---- "every Sunday"
+  r = await ask("is opd open on sunday");
+  ok("Sunday: exactly the owner's sentence, with 'every'", r?.card.status?.text === "No: The OPD is closed on every Sunday, 25 October 2026: Sunday." && r?.card.badge?.tone === "closed" && !r?.ask, jc(r).slice(0, 200));
+  r = await ask("is opd open on 1 november 2026");
+  ok("any other Sunday: 'closed on every Sunday, 1 November 2026: Sunday'", r?.card.status?.text === "No: The OPD is closed on every Sunday, 1 November 2026: Sunday.", jc(r).slice(0, 160));
+  ok("a department asked on a Sunday: 'every Sunday' too", /closed on every Sunday/.test((await ask("is medicine opd open on sunday"))?.card.status?.text ?? "") && /closed on every Sunday/.test((await ask("medicine opd sunday"))?.card.status?.text ?? "") && /closed on every Sunday/.test((await ask("is dr ajit karmakar available on sunday"))?.card.status?.text ?? ""));
+  ok("a holiday that is not a Sunday has no 'every': 'closed on Tuesday, 26 January 2027: Republic Day'", /closed on Tuesday, 26 January 2027/.test((await ask("is opd open on 26 january 2027"))?.card.status?.text ?? "") && !/every/.test((await ask("is opd open on 26 january 2027"))?.card.status?.text ?? ""));
+  ok("the closure rules and the timings say 'every Sunday'", has(await ask("when is opd closed"), "every sunday") && has(await ask("opd timing"), "closed on every sunday"));
+
+  // ---- a No says when he is available: a banner of its own, with the nearest date (it is not repeated as a bullet)
+  r = await ask("is dr mukherjee of dental available on tuesday?");
+  ok("Dental doctor, Tuesday: the banner 'Dr. Avisek Mukherjee sits in Dental OPD 29 on Monday and Friday. Nearest: Monday, 26 October 2026 (tomorrow).'", hl(r) === "Dr. Avisek Mukherjee sits in Dental OPD 29 on Monday and Friday. Nearest: Monday, 26 October 2026 (tomorrow).", hl(r));
+  ok("...right after the verdict (the card has it), and the same sentence is not a bullet any more", !!r?.card.highlight && !(r?.card.lines ?? []).some((l) => /sits in Dental OPD 29/.test(l)));
+  r = await ask("is doctor karmakar of medicine available on next tuesday?");
+  ok("Karmakar, Tuesday: 'Dr. Ajit Karmakar sits in Medicine Unit II on Monday and Thursday. Nearest: Monday, 26 October 2026 (tomorrow).'", hl(r) === "Dr. Ajit Karmakar sits in Medicine Unit II on Monday and Thursday. Nearest: Monday, 26 October 2026 (tomorrow).", hl(r));
+  r = await ask("is dr ajit karmakar available on sunday");
+  ok("a closed day: still the banner (the OPD is closed that day, but when does he sit?)", r?.card.status?.tone === "closed" && /Nearest: Monday, 26 October 2026 \(tomorrow\)/.test(hl(r)), jc(r).slice(0, 200));
+  r = await ask("is dr ajit karmakar available on monday");
+  ok("a Yes has no banner", r?.card.status?.tone === "open" && !r?.card.highlight);
+  ok("a doctor who has retired has no banner (he does not sit)", !(await ask("is dr ranjeet kumar available on tuesday"))?.card.highlight);
+  r = await askAt("is dr mukherjee of dental available on tuesday", "2026-12-24T10:00:00");
+  ok("the nearest date skips a closed day: Friday 25 December is a holiday, so Monday, 28 December 2026", /Nearest: Monday, 28 December 2026/.test(hl(r)) && !/25 December/.test(hl(r)), hl(r));
+  r = await askAt("is dr ajit karmakar available on tuesday", "2026-12-24T10:00:00");
+  ok("today counts while a session is ahead: Thursday 24 December at 10:00 is 'today'", /Nearest: Thursday, 24 December 2026 \(today\)/.test(hl(r)), hl(r));
+  r = await askAt("is dr ajit karmakar available on tuesday", "2026-12-24T20:00:00");
+  ok("...but not after the hours: at 20:00 the nearest is Monday, 28 December 2026", /Nearest: Monday, 28 December 2026/.test(hl(r)), hl(r));
+  r = await ask("is medicine unit 2 open on tuesday");
+  ok("a unit that does not sit: red No, the banner with its days and the nearest date, and the unit that sits that day", r?.card.status?.tone === "closed" && /^No: Medicine Unit II does not sit on Tuesday/.test(r?.card.status?.text ?? "") && hl(r) === "Medicine Unit II sits on Monday and Thursday. Nearest: Monday, 26 October 2026 (tomorrow)." && r?.card.extraTables?.[0].title === "Sitting on Tuesday, 27 October 2026" && r?.card.extraTables?.[0].table.rows[0][0] === "Unit III", jc(r).slice(0, 260));
+  ok("a unit that sits: green Yes, no banner", (await ask("is medicine unit 2 open on monday"))?.card.status?.tone === "open" && !(await ask("is medicine unit 2 open on monday"))?.card.highlight);
+
+  // ---- "is opd open on monday?": not yet a clear Yes
+  r = await ask("is opd open on monday?");
+  ok("no department: an amber 'Depends' first answer that is not a Yes, with when the day is", r?.card.status?.tone === "unknown" && r?.card.badge?.text === "Depends" && !/^(Yes|No)/.test(r?.card.status?.text ?? "") && /not yet a clear Yes/.test(r?.card.status?.text ?? "") && (r?.card.lines ?? [])[0] === "The coming Monday is 26 October 2026 (today is Sunday).", jc(r).slice(0, 300));
+  ok("...it asks which department, in radio mode, with a legend of its own; every department is an option", r?.ask?.mode === "one" && r?.ask?.legend === "Choose the department you want to visit" && r?.ask?.options.length === SCHEDULE.departments.length && /Which department do you want to visit on Monday, 26 October 2026\?/.test(r?.ask?.message ?? ""), JSON.stringify(r?.ask?.options.map((o) => o.label)));
+  ok("...the card carries the question as its last line, and the hours", /Which department/.test(r?.card.prompt ?? "") && (r?.card.notes ?? []).length === 3 && r?.summary === r?.ask?.message);
+  ok("...Medicine's option says it has units; a department of rooms lists its rooms", r?.ask?.options.find((o) => o.label === "Medicine")?.detail === "Unit I, Unit II, Unit III: you belong to one of these units" && r?.ask?.options.find((o) => o.label === "Surgery")?.detail === "OPD 15, OPD 17, OPD 18");
+  ok("...'I am not sure' gives the general OPD and the Emergency Department", /General Medicine OPD/.test(r?.ask?.none.reply ?? "") && /Emergency Department/.test(r?.ask?.none.reply ?? ""), r?.ask?.none.reply);
+  r = await ask("is opd open today");
+  ok("asked on Sunday 25 October, 'today': it is Sunday, so a clear No (not a question)", /^No: The OPD is closed on every Sunday/.test(r?.card.status?.text ?? "") && !r?.ask);
+  r = await askAt("is opd open today", "2026-10-26T10:00:00");
+  ok("Monday 10:00, 'today': soft, 'Today is Monday, 26 October 2026', in session until 1 PM", r?.card.status?.tone === "unknown" && (r?.card.lines ?? [])[0] === "Today is Monday, 26 October 2026." && (r?.card.lines ?? []).some((l) => /in session now, until 1 PM/.test(l)) && !!r?.ask, jc(r).slice(0, 260));
+  r = await askAt("is opd open today", "2026-10-26T20:00:00");
+  ok("Monday 20:00: the hours are over, a clear No at once (whatever the department)", /^No: Today's OPD hours are over/.test(r?.card.status?.text ?? "") && !r?.ask);
+  r = await ask("is opd open on 11 november 2026");
+  ok("a plant holiday whose closure is not known stays amber 'Not known', with no question", r?.card.status?.tone === "unknown" && r?.card.badge?.text === "Not known" && !r?.ask);
+  r = await ask("is opd open on 5 january 2027");
+  ok("a year whose holiday data is not loaded: the soft answer says so", !!r?.ask && (r?.card.notes ?? []).some((n2) => /2027 is not loaded/.test(n2)), jc(r).slice(0, 200));
+  ok("a statement is not a question: 'opd open on monday' is a clear Yes with its table", (await ask("opd open on monday"))?.card.status?.tone === "open" && /^Yes: /.test((await ask("opd open on monday"))?.card.status?.text ?? "") && !(await ask("opd open on monday"))?.ask);
+
+  // the round trip: EVERY department the person may choose leads to the next step, never to the same question again
+  const vague = await ask("is opd open on monday?");
+  for (const o of vague?.ask?.options ?? []) {
+    const q2 = queryFor(vague!.ask!, [o.id]);
+    const r2 = await ask(q2);
+    const d = SCHEDULE.departments.find((x) => x.id === o.id)!;
+    if (d.kind === "units") ok(`${o.label}: the next step is the question about the UNIT (Monday kept)`, !!r2?.ask && /^Which unit of Medicine do you already belong to\?/.test(r2.ask.message) && /monday/i.test(q2), `${q2} => ${r2?.summary}`);
+    else ok(`${o.label}: a clear answer for Monday (kept), no question`, !!r2 && !r2.ask && (r2.card.status?.tone === "open" || r2.card.status?.tone === "closed") && /^(Yes|No): /.test(r2.card.status?.text ?? "") && /monday/i.test(q2), `${q2} => ${r2?.summary?.slice(0, 80)}`);
+  }
+  r = await ask("is medicine opd open on monday?");
+  ok("a department of units named in the question: the unit is asked at once; the units, their days and doctors are shown to choose from", !!r?.ask && r?.ask?.options.map((o) => o.label).join("|") === "Unit I|Unit II|Unit III|I am a new patient (not in any unit yet)" && r?.card.extraTables?.[0].title === "Units of Medicine: find your doctor" && r?.card.status?.tone === "unknown", jc(r).slice(0, 240));
+  ok("...each unit option says its days and its current doctors (no retired name)", r?.ask?.options[1].detail === "Monday and Thursday · Dr. Ajit Karmakar" && !/Ranjeet|Dadan/.test(JSON.stringify(r?.ask?.options)) && /Unit II, the unit that sits on Monday, 26 October 2026/.test(r?.ask?.options[3].detail ?? ""), JSON.stringify(r?.ask?.options.map((o) => o.detail)));
+  ok("...'I am not sure' tells how a unit is decided", /first visit/.test(r?.ask?.none.reply ?? "") && /new patient/.test(r?.ask?.none.reply ?? ""));
+  const unitAsk = r!.ask!;
+  const clear: Record<string, [string, string]> = { u0: ["closed", "^No: Medicine Unit I does not sit on Monday"], u1: ["open", "^Yes: Medicine Unit II sits on Monday, 26 October 2026"], u2: ["closed", "^No: Medicine Unit III does not sit on Monday"], new: ["open", "^Yes: You can visit Medicine OPD on Monday, 26 October 2026"] };
+  for (const o of unitAsk.options) {
+    const q2 = queryFor(unitAsk, [o.id]);
+    const r2 = await ask(q2);
+    ok(`${o.label}: a clear ${clear[o.id][0] === "open" ? "green Yes" : "red No"} for Monday, and no further question`, !!r2 && !r2.ask && r2.card.status?.tone === clear[o.id][0] && new RegExp(clear[o.id][1]).test(r2.card.status?.text ?? "") && r2.card.badge?.tone === clear[o.id][0], `${q2} => ${r2?.card.status?.text?.slice(0, 90)}`);
+  }
+  r = await ask(queryFor(unitAsk, ["u0"]));
+  ok("Unit I (Wednesday and Saturday) asked for Monday: a No with the banner (nearest Wednesday, 28 October) and the unit that sits on Monday", /Nearest: Wednesday, 28 October 2026/.test(hl(r)) && r?.card.extraTables?.[0].table.rows[0][0] === "Unit II", jc(r).slice(0, 260));
+  r = await ask(queryFor(unitAsk, ["new"]));
+  ok("a NEW patient on Monday: 'Yes: You can visit Medicine OPD on Monday, 26 October 2026. As a new patient you will be seen by Unit II, the unit that sits that day, and you will belong to it from then on.'", r?.card.status?.text === "Yes: You can visit Medicine OPD on Monday, 26 October 2026. As a new patient you will be seen by Unit II, the unit that sits that day, and you will belong to it from then on.", r?.card.status?.text);
+  ok("...the banner: the first visit decides the unit; know the others before you go", hl(r) === "Your first visit decides your unit: on Monday, 26 October 2026 it is Unit II. Know the other units before you go.", hl(r));
+  ok("...the unit that sits that day (room, doctor) and ALL units (unit, days, room, doctor), without any retired name", r?.card.extraTables?.[0].title === "Unit II on Monday, 26 October 2026" && JSON.stringify(r?.card.extraTables?.[0].table.rows) === JSON.stringify([["OPD 25", "Dr. Ajit Karmakar"], ["OPD 26", "Any doctor who is available"]]) && r?.card.extraTables?.[1].title === "All units of Medicine: know them before you go" && r?.card.extraTables?.[1].table.columns.join("|") === "Unit|Days|Room|Doctor" && !/Ranjeet|Dadan/.test(JSON.stringify(r?.card.extraTables)), jc(r).slice(0, 400));
+  ok("...ALL units: each unit once with its days, and the three days-pairs are there", ["Wednesday and Saturday", "Monday and Thursday", "Tuesday and Friday"].every((dd) => r?.card.extraTables?.[1].table.rows.some((row) => row[1] === dd)));
+  ok("a new patient on a Sunday: a clear No whoever he is", /^No: The OPD is closed on every Sunday/.test((await ask("is Medicine OPD (new patient) open on sunday"))?.card.status?.text ?? ""));
+  ok("a new patient asked on Tuesday is told Unit III", /seen by Unit III/.test((await ask("is Medicine OPD (new patient) open on tuesday"))?.card.status?.text ?? "") && /on Tuesday, 27 October 2026 it is Unit III/.test(hl(await ask("is Medicine OPD (new patient) open on tuesday"))));
+  ok("a statement about a department of units is still just the table: 'medicine opd monday'", !(await ask("medicine opd monday"))?.ask && (await ask("medicine opd monday"))?.card.table?.rows.length === 2);
 
   // ---- things that are NOT this route must be left alone
   for (const q of [

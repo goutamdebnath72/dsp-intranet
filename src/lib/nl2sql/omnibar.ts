@@ -412,7 +412,7 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
       const { DateTime } = await import("luxon");
       const r = await answerHospital(qq, { now: DateTime.now().setZone("Asia/Kolkata"), holidaysOn });
       if (!r) return null;
-      if (r.ask) return { kind: "clarify", answer: r.summary, ask: r.ask };
+      if (r.ask) return { kind: "clarify", answer: r.summary, ask: r.ask, ...(r.card.status ? { hospital: r.card } : {}) };
       return { kind: "count", answer: r.summary, hospital: r.card };
     },
     holiday: async (qq) => {
