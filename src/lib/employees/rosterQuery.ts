@@ -26,6 +26,7 @@
 import { getDb } from "@/lib/db";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { isDoctorPerson, isPhdHolder, titleFor } from "@/lib/employees/honorific";
+import { disciplineOfTicket } from "@/lib/hospital/discipline";
 import { compileNamePredicate, evaluateNamePredicate } from "./namePredicate";
 
 export type NameMatchMode = "surname" | "firstname" | "anyword" | "contains" | "auto";
@@ -129,6 +130,7 @@ function rowToEmployee(r: any): EmployeeResult {
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
     title: titleFor(ticket, r.designation_track, r.doctor_override),
     phd: isPhdHolder(ticket, r.designation_track, r.doctor_override) || undefined,
+    discipline: isDoctorPerson(r.designation_track, r.doctor_override) ? disciplineOfTicket(ticket) ?? undefined : undefined,
     mobileMasked: maskMobile(r.contactNo || null),
     emailMasked: maskEmail(r.email || null),
     hasMobile: !!r.contactNo,

@@ -47,6 +47,7 @@ const KNOWN_LABELS: Record<string, string> = {
   department_code: "Dept code",
   department_id: "Dept id",
   cohort: "Cohort",
+  discipline: "Discipline",
   rank_order: "Rank",
   grade_id: "Grade id",
   global_seniority_rank: "Seniority rank",

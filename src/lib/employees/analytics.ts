@@ -104,6 +104,8 @@ export interface AnalyticsPayload {
   notice?: string;
   /** A clarifying question about a department word with more than one meaning (step 49a): the screen draws checkboxes from it. One definition for the server and the screen. */
   ask?: import("@/lib/nl2sql/departmentAsk").DepartmentAsk;
+  /** A hospital OPD answer (step 51a), drawn as a card by HospitalAnswerCard. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  hospital?: import("@/lib/hospital/types").HospitalAnswer;
   typeBreakdown?: { type: string; label: string; count: number }[];
   rawEntryCount?: number;
   rhQuotaByCategory?: { category: string; quota: number }[];

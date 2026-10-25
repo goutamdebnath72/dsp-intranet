@@ -1,0 +1,1326 @@
+{
+ "asOf": "2026-10-24",
+ "source": "OPD SCHEDULE OF DIFFERENT DOCTORS OF DSP MAIN HOSPITAL, as given by the owner on 24 Oct 2026. NOT up to date: several retired doctors are still in it.",
+ "timings": {
+  "opd": [
+   {
+    "from": "08:00",
+    "to": "13:00"
+   },
+   {
+    "from": "17:00",
+    "to": "19:00"
+   }
+  ],
+  "token": [
+   {
+    "from": "08:00",
+    "to": "11:30"
+   },
+   {
+    "from": "16:30",
+    "to": "18:30"
+   }
+  ]
+ },
+ "days": [
+  "MON",
+  "TUE",
+  "WED",
+  "THU",
+  "FRI",
+  "SAT"
+ ],
+ "closure": {
+  "weekly": [
+   "SUN"
+  ],
+  "fixed": [
+   {
+    "month": 1,
+    "day": 24,
+    "name": "SAIL Foundation Day"
+   },
+   {
+    "month": 1,
+    "day": 26,
+    "name": "Republic Day"
+   },
+   {
+    "month": 4,
+    "day": 14,
+    "name": "Dr. B. R. Ambedkar's Birthday"
+   },
+   {
+    "month": 5,
+    "day": 1,
+    "name": "May Day"
+   },
+   {
+    "month": 8,
+    "day": 15,
+    "name": "Independence Day"
+   },
+   {
+    "month": 10,
+    "day": 2,
+    "name": "Mahatma Gandhi's Birthday"
+   },
+   {
+    "month": 12,
+    "day": 25,
+    "name": "Christmas Day"
+   }
+  ],
+  "holidayTypes": [
+   "CH"
+  ],
+  "holidayNameContains": [
+   "puja"
+  ],
+  "note": "Given by the owner on 24 Oct 2026: OPD is closed on every Sunday, the 4 national holidays, SAIL Day, Ambedkar's birthday, 25 December and the puja holidays. The list is not complete; more will be added."
+ },
+ "departments": [
+  {
+   "id": "medicine",
+   "name": "Medicine",
+   "kind": "units",
+   "staffDepartment": "MEDICINE",
+   "aliases": [
+    "medicine",
+    "general medicine"
+   ],
+   "hod": null,
+   "note": "Units and days are from the board in front of the Medicine OPD (photographed on 25 Oct 2026); the room numbers are from the OPD schedule (rooms generally stay constant). The board is older than some changes: Dr. Ranjit Kumar has retired and Dr. Dadan Prasad has been transferred.",
+   "units": [
+    {
+     "id": "medicine-unit-1",
+     "label": "Unit I",
+     "unitNo": 1,
+     "opdNo": null,
+     "head": null,
+     "members": [
+      "ashish-chatterjee",
+      "sukhdev-shankar-patil",
+      "dipak-singh",
+      "ritesh-chauhan"
+     ],
+     "days": [
+      "WED",
+      "SAT"
+     ],
+     "week": {
+      "MON": {
+       "state": "UNIT_OFF"
+      },
+      "TUE": {
+       "state": "UNIT_OFF"
+      },
+      "WED": {
+       "doctors": [
+        "ashish-chatterjee",
+        "sukhdev-shankar-patil",
+        "dipak-singh",
+        "ritesh-chauhan"
+       ],
+       "rooms": {
+        "ashish-chatterjee": "OPD 24",
+        "sukhdev-shankar-patil": "OPD 25",
+        "dipak-singh": "OPD 26",
+        "ritesh-chauhan": "OPD 26"
+       }
+      },
+      "THU": {
+       "state": "UNIT_OFF"
+      },
+      "FRI": {
+       "state": "UNIT_OFF"
+      },
+      "SAT": {
+       "doctors": [
+        "ashish-chatterjee",
+        "sukhdev-shankar-patil",
+        "dipak-singh",
+        "ritesh-chauhan"
+       ],
+       "rooms": {
+        "ashish-chatterjee": "OPD 24",
+        "sukhdev-shankar-patil": "OPD 25",
+        "dipak-singh": "OPD 26",
+        "ritesh-chauhan": "OPD 26"
+       }
+      }
+     },
+     "note": "The first name on the board (Dr. Ashish Chatterjee) is painted over."
+    },
+    {
+     "id": "medicine-unit-2",
+     "label": "Unit II",
+     "unitNo": 2,
+     "opdNo": null,
+     "head": "ranjeet-kumar",
+     "members": [
+      "ranjeet-kumar",
+      "ajit-karmakar"
+     ],
+     "days": [
+      "MON",
+      "THU"
+     ],
+     "week": {
+      "MON": {
+       "doctors": [
+        "ranjeet-kumar",
+        "ajit-karmakar"
+       ],
+       "rooms": {
+        "ranjeet-kumar": "OPD 24",
+        "ajit-karmakar": "OPD 25"
+       },
+       "note": "OPD 26: any doctor who is available (OPD schedule)"
+      },
+      "TUE": {
+       "state": "UNIT_OFF"
+      },
+      "WED": {
+       "state": "UNIT_OFF"
+      },
+      "THU": {
+       "doctors": [
+        "ranjeet-kumar",
+        "ajit-karmakar"
+       ],
+       "rooms": {
+        "ranjeet-kumar": "OPD 24",
+        "ajit-karmakar": "OPD 25"
+       }
+      },
+      "FRI": {
+       "state": "UNIT_OFF"
+      },
+      "SAT": {
+       "state": "UNIT_OFF"
+      }
+     }
+    },
+    {
+     "id": "medicine-unit-3",
+     "label": "Unit III",
+     "unitNo": 3,
+     "opdNo": null,
+     "head": "dadan-prasad",
+     "members": [
+      "dadan-prasad",
+      "rajeev-kumar",
+      "kunj-bihari-singh"
+     ],
+     "days": [
+      "TUE",
+      "FRI"
+     ],
+     "week": {
+      "MON": {
+       "state": "UNIT_OFF"
+      },
+      "TUE": {
+       "doctors": [
+        "dadan-prasad",
+        "rajeev-kumar",
+        "kunj-bihari-singh"
+       ],
+       "rooms": {
+        "dadan-prasad": "OPD 24",
+        "rajeev-kumar": "OPD 25",
+        "kunj-bihari-singh": "OPD 26"
+       }
+      },
+      "WED": {
+       "state": "UNIT_OFF"
+      },
+      "THU": {
+       "state": "UNIT_OFF"
+      },
+      "FRI": {
+       "doctors": [
+        "dadan-prasad",
+        "rajeev-kumar",
+        "kunj-bihari-singh"
+       ],
+       "rooms": {
+        "dadan-prasad": "OPD 24",
+        "rajeev-kumar": "OPD 25",
+        "kunj-bihari-singh": "OPD 26"
+       }
+      },
+      "SAT": {
+       "state": "UNIT_OFF"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "surgery",
+   "name": "Surgery",
+   "staffDepartment": "SURGERY",
+   "aliases": [
+    "surgery",
+    "surgical"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "surgery-15",
+     "label": "OPD 15",
+     "opdNo": "15",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "avijit-sircar",
+        "tapati-pradhan"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "r-r-kumar",
+        "tapati-pradhan"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "avijit-sircar",
+        "tapati-pradhan"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "r-r-kumar",
+        "tapati-pradhan"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "avijit-sircar",
+        "tapati-pradhan"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "r-r-kumar",
+        "tapati-pradhan"
+       ]
+      }
+     }
+    },
+    {
+     "id": "surgery-17",
+     "label": "OPD 17",
+     "opdNo": "17",
+     "unitNo": 2,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "rohit-shyam"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "dharmendra-kumar",
+        "shyamal-hansda"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "rohit-shyam"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "dharmendra-kumar",
+        "shyamal-hansda"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "rohit-shyam"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "dharmendra-kumar",
+        "shyamal-hansda"
+       ]
+      }
+     }
+    },
+    {
+     "id": "surgery-18",
+     "label": "OPD 18",
+     "opdNo": "18",
+     "unitNo": 3,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "p-p-roy"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "p-p-roy"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "p-p-roy"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "p-p-roy"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "p-p-roy"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "p-p-roy"
+       ]
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "orthopaedics",
+   "name": "Orthopaedics",
+   "staffDepartment": "ORTHOPAEDICS",
+   "aliases": [
+    "orthopaedics",
+    "orthopaedic",
+    "orthopedics",
+    "orthopedic",
+    "ortho"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "orthopaedics-22",
+     "label": "OPD 22",
+     "opdNo": "22",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "state": "OT_DAY"
+      },
+      "TUE": {
+       "doctors": [
+        "priyank-sahoo",
+        "chetan",
+        "p-alam",
+        "r-roychoudhury"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "priyank-sahoo",
+        "chetan",
+        "p-alam",
+        "r-roychoudhury"
+       ]
+      },
+      "THU": {
+       "state": "OT_DAY"
+      },
+      "FRI": {
+       "doctors": [
+        "priyank-sahoo",
+        "chetan",
+        "p-alam",
+        "r-roychoudhury"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "priyank-sahoo",
+        "chetan",
+        "p-alam",
+        "r-roychoudhury"
+       ]
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "eye",
+   "name": "Eye",
+   "staffDepartment": "EYE",
+   "aliases": [
+    "eye",
+    "ophthalmology",
+    "opthalmology"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "eye-14b",
+     "label": "OPD 14B",
+     "opdNo": "14B",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "susanta-kumar-mallick",
+        "a-ghosh"
+       ]
+      },
+      "TUE": {
+       "state": "OT_DAY"
+      },
+      "WED": {
+       "doctors": [
+        "susanta-kumar-mallick",
+        "a-ghosh"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "susanta-kumar-mallick",
+        "a-ghosh"
+       ]
+      },
+      "FRI": {
+       "state": "OT_DAY"
+      },
+      "SAT": {
+       "doctors": [
+        "susanta-kumar-mallick",
+        "a-ghosh"
+       ]
+      }
+     }
+    },
+    {
+     "id": "eye-14d",
+     "label": "OPD 14D",
+     "opdNo": "14D",
+     "unitNo": 2,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "arghya-das"
+       ]
+      },
+      "TUE": {
+       "state": "OT_DAY"
+      },
+      "WED": {
+       "doctors": [
+        "arghya-das"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "arghya-das"
+       ]
+      },
+      "FRI": {
+       "state": "OT_DAY"
+      },
+      "SAT": {
+       "doctors": [
+        "arghya-das"
+       ]
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "ent",
+   "name": "ENT",
+   "staffDepartment": "ENT",
+   "aliases": [
+    "ent",
+    "ear nose throat",
+    "e n t"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "ent-11",
+     "label": "OPD 11",
+     "opdNo": "11",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "rupak-kumar-goswami"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "rupak-kumar-goswami"
+       ]
+      },
+      "WED": {
+       "state": "OT_DAY"
+      },
+      "THU": {
+       "doctors": [
+        "rupak-kumar-goswami"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "rupak-kumar-goswami"
+       ]
+      },
+      "SAT": {
+       "state": "OT_DAY"
+      }
+     }
+    },
+    {
+     "id": "ent-12",
+     "label": "OPD 12",
+     "opdNo": "12",
+     "unitNo": 2,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "sutanu-sarkar"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "sutanu-sarkar"
+       ]
+      },
+      "WED": {
+       "state": "OT_DAY"
+      },
+      "THU": {
+       "doctors": [
+        "sutanu-sarkar"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "sutanu-sarkar"
+       ]
+      },
+      "SAT": {
+       "state": "OT_DAY"
+      }
+     }
+    },
+    {
+     "id": "ent-13",
+     "label": "OPD 13",
+     "opdNo": "13",
+     "unitNo": 3,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "arijit-das"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "arijit-das"
+       ]
+      },
+      "WED": {
+       "state": "OT_DAY"
+      },
+      "THU": {
+       "doctors": [
+        "arijit-das"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "arijit-das"
+       ]
+      },
+      "SAT": {
+       "state": "OT_DAY"
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "paediatrics",
+   "name": "Paediatrics",
+   "staffDepartment": "PAEDIATRICS",
+   "aliases": [
+    "paediatrics",
+    "paediatric",
+    "pediatrics",
+    "pediatric",
+    "child specialist"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "paediatrics-33",
+     "label": "OPD 33",
+     "opdNo": "33",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "tumpa-lahiri"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "riju-acharya",
+        "saikat-mondal"
+       ]
+      },
+      "WED": {
+       "state": "ANY_AVAILABLE"
+      },
+      "THU": {
+       "doctors": [
+        "riju-acharya",
+        "saikat-mondal"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "nivedita-roy"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "saugata-bhattacharya"
+       ]
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "gynae",
+   "name": "Gynae & Obs",
+   "staffDepartment": "GYNAE & OBS",
+   "aliases": [
+    "gynae and obs",
+    "gynaecology and obstetrics",
+    "gynaecology",
+    "gynecology",
+    "gynae",
+    "gyne",
+    "obstetrics",
+    "obs",
+    "obg"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "gynae-46",
+     "label": "OPD 46",
+     "opdNo": "46",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "sindhu-sagar"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "mitali-pathak",
+        "priyanka-roy"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "woothvasita-mondal",
+        "ishita-konar"
+       ]
+      },
+      "THU": {
+       "state": "ANY_AVAILABLE"
+      },
+      "FRI": {
+       "state": "ANY_AVAILABLE"
+      },
+      "SAT": {
+       "state": "ANY_AVAILABLE"
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "psychiatry",
+   "name": "Psychiatry",
+   "staffDepartment": "PSYCHIATRY",
+   "aliases": [
+    "psychiatry",
+    "psychiatric",
+    "psyhiatry",
+    "psychiatrist"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "psychiatry-3",
+     "label": "OPD 3",
+     "opdNo": "3",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "mahesh-kumar"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "mahesh-kumar"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "mahesh-kumar"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "mahesh-kumar"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "mahesh-kumar"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "mahesh-kumar"
+       ]
+      }
+     }
+    },
+    {
+     "id": "psychiatry-1",
+     "label": "OPD 1",
+     "opdNo": "1",
+     "unitNo": 2,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "sumit-mukherjee"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "sumit-mukherjee"
+       ],
+       "note": "special cases"
+      },
+      "WED": {
+       "doctors": [
+        "sumit-mukherjee"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "sumit-mukherjee"
+       ],
+       "note": "special cases"
+      },
+      "FRI": {
+       "doctors": [
+        "sumit-mukherjee"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "sumit-mukherjee"
+       ],
+       "note": "special cases"
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "chest",
+   "name": "Chest",
+   "staffDepartment": "CHEST",
+   "aliases": [
+    "chest"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "chest-4",
+     "label": "OPD 4",
+     "opdNo": "4",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "state": "CLOSED",
+       "note": "closed, doctor not available"
+      },
+      "TUE": {
+       "state": "CLOSED",
+       "note": "closed, doctor not available"
+      },
+      "WED": {
+       "state": "CLOSED",
+       "note": "closed, doctor not available"
+      },
+      "THU": {
+       "state": "CLOSED",
+       "note": "closed, doctor not available"
+      },
+      "FRI": {
+       "state": "CLOSED",
+       "note": "closed, doctor not available"
+      },
+      "SAT": {
+       "state": "CLOSED",
+       "note": "closed, doctor not available"
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "dental",
+   "name": "Dental",
+   "staffDepartment": "DENTAL",
+   "aliases": [
+    "dental",
+    "dentist"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "dental-29",
+     "label": "OPD 29",
+     "opdNo": "29",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "avisek-mukherjee",
+        "khooshbu-gayen"
+       ]
+      },
+      "TUE": {
+       "state": "PROCEDURE_EMERGENCY"
+      },
+      "WED": {
+       "state": "PROCEDURE_EMERGENCY"
+      },
+      "THU": {
+       "state": "PROCEDURE_EMERGENCY"
+      },
+      "FRI": {
+       "doctors": [
+        "avisek-mukherjee",
+        "khooshbu-gayen"
+       ]
+      },
+      "SAT": {
+       "state": "PROCEDURE_EMERGENCY"
+      }
+     }
+    },
+    {
+     "id": "dental-30",
+     "label": "OPD 30",
+     "opdNo": "30",
+     "unitNo": 2,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "baha-sumarjita",
+        "khooshbu-gayen"
+       ]
+      },
+      "TUE": {
+       "state": "PROCEDURE_EMERGENCY"
+      },
+      "WED": {
+       "state": "PROCEDURE_EMERGENCY"
+      },
+      "THU": {
+       "state": "PROCEDURE_EMERGENCY"
+      },
+      "FRI": {
+       "doctors": [
+        "baha-sumarjita",
+        "khooshbu-gayen"
+       ]
+      },
+      "SAT": {
+       "state": "PROCEDURE_EMERGENCY"
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "skin",
+   "name": "Skin",
+   "staffDepartment": "SKIN",
+   "aliases": [
+    "skin",
+    "dermatology",
+    "derma",
+    "dermatologist"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "skin-36",
+     "label": "OPD 36",
+     "opdNo": "36",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "hirak-choudhuri"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "hirak-choudhuri"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "hirak-choudhuri"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "hirak-choudhuri"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "hirak-choudhuri"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "hirak-choudhuri"
+       ]
+      }
+     }
+    },
+    {
+     "id": "skin-35",
+     "label": "OPD 35",
+     "opdNo": "35",
+     "unitNo": 2,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "nabanita-das"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "nabanita-das"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "nabanita-das"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "nabanita-das"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "nabanita-das"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "nabanita-das"
+       ]
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "mopd",
+   "name": "MOPD",
+   "staffDepartment": "MOPD",
+   "aliases": [
+    "mopd",
+    "medical opd"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "mopd-37",
+     "label": "Clinic 37",
+     "opdNo": "37",
+     "unitNo": 1,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "kakali-rani-chakravorty-saha",
+        "manish-kumar"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "kakali-rani-chakravorty-saha",
+        "manish-kumar"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "kakali-rani-chakravorty-saha",
+        "manish-kumar"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "kakali-rani-chakravorty-saha",
+        "manish-kumar"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "kakali-rani-chakravorty-saha",
+        "manish-kumar"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "kakali-rani-chakravorty-saha",
+        "manish-kumar"
+       ]
+      }
+     }
+    },
+    {
+     "id": "mopd-40",
+     "label": "Clinic 40",
+     "opdNo": "40",
+     "unitNo": 2,
+     "place": null,
+     "week": {
+      "MON": {
+       "doctors": [
+        "thara-gopinath",
+        "daisy-bhengra"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "thara-gopinath",
+        "daisy-bhengra"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "thara-gopinath",
+        "daisy-bhengra"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "thara-gopinath",
+        "daisy-bhengra"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "thara-gopinath",
+        "daisy-bhengra"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "thara-gopinath",
+        "daisy-bhengra"
+       ]
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  },
+  {
+   "id": "health-centres",
+   "name": "Health centres",
+   "staffDepartment": "HEALTH CENTRES",
+   "aliases": [
+    "health centres",
+    "health centre",
+    "health center",
+    "health centers"
+   ],
+   "hod": null,
+   "units": [
+    {
+     "id": "health-kanishka",
+     "label": "Kanishka",
+     "opdNo": "KANISHKA",
+     "unitNo": 1,
+     "place": "Kanishka health centre",
+     "week": {
+      "MON": {
+       "doctors": [
+        "ivy-paul",
+        "rina-mondal"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "ivy-paul",
+        "rina-mondal"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "ivy-paul",
+        "rina-mondal"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "ivy-paul",
+        "rina-mondal"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "ivy-paul",
+        "rina-mondal"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "ivy-paul",
+        "rina-mondal"
+       ]
+      }
+     }
+    },
+    {
+     "id": "health-joydeb",
+     "label": "Joydeb",
+     "opdNo": "JOYDEB",
+     "unitNo": 2,
+     "place": "Joydeb health centre",
+     "week": {
+      "MON": {
+       "doctors": [
+        "vijeta-panna-khakha",
+        "lily-ghosh"
+       ]
+      },
+      "TUE": {
+       "doctors": [
+        "vijeta-panna-khakha",
+        "lily-ghosh"
+       ]
+      },
+      "WED": {
+       "doctors": [
+        "vijeta-panna-khakha",
+        "lily-ghosh"
+       ]
+      },
+      "THU": {
+       "doctors": [
+        "vijeta-panna-khakha",
+        "lily-ghosh"
+       ]
+      },
+      "FRI": {
+       "doctors": [
+        "vijeta-panna-khakha",
+        "lily-ghosh"
+       ]
+      },
+      "SAT": {
+       "doctors": [
+        "vijeta-panna-khakha",
+        "lily-ghosh"
+       ]
+      }
+     }
+    }
+   ],
+   "kind": "rooms",
+   "note": "Only the OPD rooms and the days of each doctor are known (from the OPD schedule PDF); the units of this department are not recorded yet."
+  }
+ ],
+ "emergency": {
+  "name": "Emergency Department",
+  "hours": "24 hours a day, 7 days a week",
+  "note": "Told by the owner on 25 Oct 2026: the Emergency Department remains open 24 x 7. Add 'place' and 'phone' here when they are known."
+ },
+ "generalOpd": {
+  "departmentId": "mopd",
+  "name": "General Medicine OPD (MOPD)",
+  "note": "Inferred from the schedule: the MOPD clinics 37 and 40 sit every day and are staffed by MBBS doctors; the owner said general medicine is just general, no specialist. To be confirmed."
+ },
+ "unitRule": "Patients are treated only by the unit they were first allotted to; no other unit of the same department can see them."
+}

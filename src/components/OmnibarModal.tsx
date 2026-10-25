@@ -33,6 +33,7 @@ import { tidyDesignation } from "@/lib/nl2sql/designationFilter";
 import { withTitle } from "@/lib/employees/honorific";
 import { PersonBadges } from "@/components/PersonBadges";
 import { ClarifyChoices } from "@/components/ClarifyChoices";
+import { HospitalAnswerCard } from "@/components/HospitalAnswerCard";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
@@ -81,7 +82,7 @@ function PersonRow({
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-neutral-800 truncate">
           {withTitle(emp.name, emp.title)}
-          <PersonBadges isExecutive={emp.isExecutive} phd={emp.phd} />
+          <PersonBadges isExecutive={emp.isExecutive} phd={emp.phd} discipline={emp.discipline} />
         </p>
         <p className="text-xs text-neutral-500 truncate">
           <TicketText ticket={emp.ticketNo} tint={tint} />
@@ -745,7 +746,9 @@ export function OmnibarModal({
                             {analytics.lead && (
                               <p className="mb-2 text-sm font-semibold text-neutral-800">{analytics.lead}</p>
                             )}
-                            {analytics.holidayCompare ? (
+                            {analytics.hospital ? (
+                              <HospitalAnswerCard answer={analytics.hospital} />
+                            ) : analytics.holidayCompare ? (
                               <HolidayCompareCard view={analytics.holidayCompare} />
                             ) : analytics.holidayDetails && analytics.holidayDetails.length > 0 ? (
                               <HolidayAnswerCard details={analytics.holidayDetails} />

@@ -25,6 +25,7 @@ import { comparisonVerdict } from "./rankingCheck";
 import { peopleHeadline } from "./medicalCadre";
 import { askWhichDepartment } from "./departmentAsk";
 import { isDoctorPerson, isPhdHolder, titleFor, withTitlesInRows } from "@/lib/employees/honorific";
+import { disciplineOfTicket } from "@/lib/hospital/discipline";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
 import { withoutBlindScope } from "@/lib/employees/unresolvedScope";
 import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
@@ -84,6 +85,8 @@ export interface OmnibarDeps {
   withClient: <T>(fn: (c: SqlClient) => Promise<T>) => Promise<T>;
   /** The existing deterministic holiday answer, or null when the question is not a holiday question. */
   holiday: (q: string) => Promise<AnalyticsPayload | null>;
+  /** A question about the hospital OPD (days, doctors, open or closed, timings), answered from the hospital data with no model call (step 51a); null when the question is not about it. Optional, so older callers need nothing. */
+  hospital?: (q: string) => Promise<AnalyticsPayload | null>;
   /** The previous rule-based employee engine (safety net). */
   legacy: (q: string) => Promise<AnalyticsPayload | null>;
   /** Different people who must confirm an answer before it is served without the model. */
@@ -94,7 +97,7 @@ export interface OmnibarDeps {
 }
 
 // Columns the person card already shows (the codes appear in brackets after the designation / department).
-const CARD_SHOWS = new Set(["ticket_no", "name", "designation", "department", "sail_pno", "cohort", "id", "department_code", "designation_code"]);
+const CARD_SHOWS = new Set(["ticket_no", "name", "designation", "department", "sail_pno", "cohort", "discipline", "id", "department_code", "designation_code"]);
 
 /** Every OTHER column the answer returned goes on the person's card as a labelled chip, so nothing the SQL returned is lost on the cards. */
 export function withExtraFields(people: EmployeeResult[], display: ResolvedDisplay | null, rows: any[]): EmployeeResult[] {
@@ -169,6 +172,7 @@ function rowToEmployee(r: any): EmployeeResult {
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
     title: titleFor(r.ticket_no, r.designation_track, r.doctor_override),
     phd: isPhdHolder(r.ticket_no, r.designation_track, r.doctor_override) || undefined,
+    discipline: isDoctorPerson(r.designation_track, r.doctor_override) ? disciplineOfTicket(r.ticket_no) ?? undefined : undefined,
     department: r.dept_name || null,
     mobileMasked: maskMobile(r.contactNo || null),
     emailMasked: maskEmail(r.email || null),
@@ -295,6 +299,11 @@ export async function runOmnibar(q: string, userKey: string | null, deps: Omniba
   }
 
   if (!retry) {
+    // 0. a question about the hospital OPD: answered from the hospital data, no model call (step 51a). It needs an explicit OPD cue, so it does not take holiday or employee questions.
+    //    Tagged "holiday" for the feedback record: the feedback table's list of sources has no "hospital" yet.
+    const hospital = deps.hospital ? await deps.hospital(q).catch(() => null) : null;
+    if (hospital) return { ...hospital, source: "holiday", attempt };
+
     // 1. holiday questions keep their deterministic answer
     const holiday = await deps.holiday(q).catch(() => null);
     if (holiday) return { ...holiday, source: "holiday", attempt };
@@ -397,6 +406,13 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
     skipModel: opts.skipModel,
     llm: groqLlm(),
     withClient: withDefaultClient,
+    hospital: async (qq) => {
+      const { answerHospital } = await import("@/lib/hospital/engine");
+      const { holidaysOn } = await import("@/lib/hospital/holidaysOn");
+      const { DateTime } = await import("luxon");
+      const r = await answerHospital(qq, { now: DateTime.now().setZone("Asia/Kolkata"), holidaysOn });
+      return r ? { kind: "count", answer: r.summary, hospital: r.card } : null;
+    },
     holiday: async (qq) => {
       const { parseHolidayIntent } = await import("@/lib/holidays/parser");
       const { DateTime } = await import("luxon");

@@ -6,12 +6,17 @@
 
 import React from "react";
 
-export function PersonBadges({ isExecutive, phd }: { isExecutive?: boolean; phd?: boolean }) {
+export function PersonBadges({ isExecutive, phd, discipline }: { isExecutive?: boolean; phd?: boolean; discipline?: string | null }) {
   return (
     <>
       {isExecutive && (
         <span className="ml-2 align-middle rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
           EXE
+        </span>
+      )}
+      {discipline && (
+        <span title="Discipline" className="ml-1.5 align-middle rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-bold text-teal-700">
+          {discipline}
         </span>
       )}
       {phd && (

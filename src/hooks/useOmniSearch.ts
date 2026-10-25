@@ -57,6 +57,8 @@ export interface AnalyticsAnswer {
   notice?: string;
   /** A clarifying question about a department word with more than one meaning (step 49a). The same type as AnalyticsPayload.ask. */
   ask?: import("@/lib/nl2sql/departmentAsk").DepartmentAsk;
+  /** A hospital OPD answer (step 51a), drawn as a card by HospitalAnswerCard. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  hospital?: import("@/lib/hospital/types").HospitalAnswer;
   /** Per-type (RH/CH/FH) tally for a holiday list query, only present when
    *  no single type was already filtered on. `count` above is the
    *  DISTINCT-holiday number; rawEntryCount is the raw (date,type) row

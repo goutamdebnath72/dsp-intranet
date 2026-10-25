@@ -12,6 +12,7 @@ export const POSITION_KEY = "position_in_grade";
 interface PersonLike {
   ticketNo?: string | null;
   isExecutive?: boolean | null;
+  discipline?: string | null;
 }
 
 export function humanizeSeniority(
@@ -67,6 +68,32 @@ export function addCohortColumn(
   return { columns: outColumns, rows: outRows };
 }
 
+/**
+ * A list of DOCTORS gets a "discipline" column (Medicine, ENT ...) when at least one person in it has a known discipline and the SQL did not return one (step 53a).
+ * It goes right after "cohort" (else after "designation", else after "name", else last). A doctor whose discipline is not known gets a blank, never a guess;
+ * a list in which nobody has a discipline gets no column at all (a list of non-doctors keeps its columns).
+ */
+export function addDisciplineColumn(
+  columns: string[],
+  rows: Array<Record<string, any>>,
+  people: PersonLike[] | null | undefined,
+): { columns: string[]; rows: Array<Record<string, any>> } {
+  if (!people || !columns.includes("ticket_no") || columns.includes("discipline")) return { columns, rows };
+  const byTicket = new Map<string, PersonLike>();
+  for (const p of people) byTicket.set(String(p?.ticketNo ?? "").trim(), p);
+  if (!rows.some((r) => !!byTicket.get(String(r.ticket_no ?? "").trim())?.discipline)) return { columns, rows };
+  const after = ["cohort", "designation", "name"].find((c) => columns.includes(c));
+  const at = after ? columns.indexOf(after) + 1 : columns.length;
+  const outColumns = [...columns.slice(0, at), "discipline", ...columns.slice(at)];
+  const outRows = rows.map((r) => {
+    const p = byTicket.get(String(r.ticket_no ?? "").trim());
+    const out: Record<string, any> = {};
+    for (const k of outColumns) out[k] = k === "discipline" ? p?.discipline ?? null : r[k];
+    return out;
+  });
+  return { columns: outColumns, rows: outRows };
+}
+
 /** A column that REPEATS the grand total on every row of a list of people ("Total count 16"): it is noise on a card and on a table row (the headline says it), so it is removed.
  *  Only a list with a ticket column, at least two rows, a name like total / count / cnt / ..._count and ONE value in every row; a count that differs per row is never touched. */
 const TOTAL_COLUMN = /^(total|grand)|(^|_)(count|cnt)$/i;
@@ -92,7 +119,8 @@ export function presentPeople(
 ): { columns: string[]; rows: Array<Record<string, any>> } {
   const a = humanizeSeniority(columns, rows, people);
   const c = addCohortColumn(a.columns, a.rows, people);
-  return dropRepeatedTotals(c.columns, c.rows);
+  const d = addDisciplineColumn(c.columns, c.rows, people);
+  return dropRepeatedTotals(d.columns, d.rows);
 }
 
 /**
@@ -103,11 +131,18 @@ export function presentPeople(
 export function withCohortInHint(hint: unknown, columns: string[]): unknown {
   if (!hint || typeof hint !== "object" || Array.isArray(hint)) return hint;
   const h: any = hint;
-  if (!Array.isArray(h.columns) || !columns.includes("cohort")) return hint;
+  if (!Array.isArray(h.columns)) return hint;
   const keyOf = (e: unknown) => String(typeof e === "string" ? e : (e as any)?.key ?? "").toLowerCase();
-  if (h.columns.some((e: unknown) => keyOf(e) === "cohort")) return hint;
-  let at = h.columns.findIndex((e: unknown) => keyOf(e) === "designation");
-  if (at < 0) at = h.columns.findIndex((e: unknown) => keyOf(e) === "name");
-  if (at < 0) return hint;
-  return { ...h, columns: [...h.columns.slice(0, at + 1), { key: "cohort", label: "Cohort" }, ...h.columns.slice(at + 1)] };
+  let cols: unknown[] = h.columns;
+  // slip a system-added column into the model's list right after the first of these columns it names (step 53a: the same for "discipline")
+  const slip = (key: string, label: string, after: string[]) => {
+    if (!columns.includes(key) || cols.some((e) => keyOf(e) === key)) return;
+    let at = -1;
+    for (const k of after) { at = cols.findIndex((e) => keyOf(e) === k); if (at >= 0) break; }
+    if (at < 0) return;
+    cols = [...cols.slice(0, at + 1), { key, label }, ...cols.slice(at + 1)];
+  };
+  slip("cohort", "Cohort", ["designation", "name"]);
+  slip("discipline", "Discipline", ["cohort", "designation", "name"]);
+  return cols === h.columns ? hint : { ...h, columns: cols };
 }

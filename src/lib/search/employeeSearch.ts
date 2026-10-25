@@ -1,6 +1,7 @@
 // src/lib/search/employeeSearch.ts
 import { DataSource } from "typeorm";
 import { isDoctorPerson, isPhdHolder, stripDoctorTitle, titleFor } from "@/lib/employees/honorific";
+import { disciplineOfTicket } from "@/lib/hospital/discipline";
 
 export interface EmployeeResult {
   id: string;
@@ -13,6 +14,8 @@ export interface EmployeeResult {
   title?: string | null;
   /** The small "PhD" badge: a non-medical employee on the manual list (employees/honorific.ts). */
   phd?: boolean;
+  /** A doctor's discipline (Medicine, ENT ...) when it is known: the chip beside EXE and the Discipline column (hospital/discipline.ts). */
+  discipline?: string;
   /** A doctor: the medical track, or flagged in the roster (a doctor whose designation is a managerial one). */
   isDoctor?: boolean;
   department: string | null;
@@ -84,6 +87,7 @@ function rowToResult(r: any, matchKind: EmployeeResult["matchKind"], score: numb
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
     title: titleFor(ticket, r.designation_track, r.doctor_override),
     phd: isPhdHolder(ticket, r.designation_track, r.doctor_override) || undefined,
+    discipline: isDoctorPerson(r.designation_track, r.doctor_override) ? disciplineOfTicket(ticket) ?? undefined : undefined,
     mobileMasked: maskMobile(r.contactNo || null),
     emailMasked: maskEmail(r.email || null),
     hasMobile: !!r.contactNo,

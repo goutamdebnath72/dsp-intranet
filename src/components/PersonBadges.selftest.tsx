@@ -22,5 +22,14 @@ ok("it is a different colour from EXE and neither red nor green", /bg-sky-100/.t
 ok("a doctor (no phd flag, only the Dr. title on the name) gets no PhD badge", !/PhD/.test(h(<PersonBadges isExecutive />)));
 ok("a missing flag is the same as false", h(<PersonBadges isExecutive phd={undefined} />) === EXE);
 
+// ---- step 53a: the discipline chip beside EXE
+ok("a doctor with a discipline: EXE first, then the discipline chip, then nothing else", /^<span[^>]*>EXE<\/span><span title="Discipline"[^>]*>Medicine<\/span>$/.test(h(<PersonBadges isExecutive discipline="Medicine" />)), h(<PersonBadges isExecutive discipline="Medicine" />));
+ok("the chip says in words what it is, and has its own colour (not EXE's amber, not PhD's sky)", /title="Discipline"/.test(h(<PersonBadges discipline="ENT" />)) && /bg-teal-100/.test(h(<PersonBadges discipline="ENT" />)) && !/amber|sky/.test(h(<PersonBadges discipline="ENT" />)));
+ok("the order is EXE, discipline, PhD", /EXE<\/span><span[^>]*>Surgery<\/span><span[^>]*>PhD<\/span>$/.test(h(<PersonBadges isExecutive discipline="Surgery" phd />)));
+ok("no discipline (unknown, empty, null): no chip, and the EXE badge is exactly as before", h(<PersonBadges isExecutive discipline={null} />) === EXE && h(<PersonBadges isExecutive discipline="" />) === EXE && h(<PersonBadges isExecutive discipline={undefined} />) === EXE);
+ok("a non-executive doctor: just the chip", /^<span title="Discipline"[^>]*>Paediatrics<\/span>$/.test(h(<PersonBadges discipline="Paediatrics" />)));
+ok("the discipline text is escaped", !h(<PersonBadges discipline="<b>x</b>" />).includes("<b>"));
+ok("a long discipline is shown whole", h(<PersonBadges discipline="Obstetrics and Gynaecology (DGO)" />).includes("Obstetrics and Gynaecology (DGO)"));
+
 console.log(`PersonBadges selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

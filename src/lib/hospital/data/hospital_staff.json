@@ -1,0 +1,1779 @@
+{
+ "asOf": "2026-10-24",
+ "source": "The DSP hospital staff list and OPD schedule given by the owner on 24 Oct 2026 (both NOT up to date), cross-checked with the intranet 'Select Doctor' list (permanent doctors have a 6-digit ticket; D / DTN numbers are contractual or temporary). Statuses: current = on the intranet doctor list; retired / transferred = told by the owner; not_on_list = in the hospital's lists but not on the intranet doctor list (may have retired or moved: to be confirmed).",
+ "people": [
+  {
+   "id": "r-r-kumar",
+   "name": "R.R.KUMAR",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": "MS(SURGERY)",
+   "role": "doctor",
+   "printed": [
+    "DR. R.R.KUMAR, MS(SURGERY)",
+    "OPD schedule: RR KUMAR"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Surgery"
+  },
+  {
+   "id": "avijit-sircar",
+   "name": "AVIJIT SIRCAR",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": "MS(SURGERY)",
+   "role": "doctor",
+   "printed": [
+    "DR. AVIJIT SIRCAR, MS(SURGERY)",
+    "OPD schedule: AVIJIT SIRCAR"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Surgery"
+  },
+  {
+   "id": "rohit-shyam",
+   "name": "ROHIT SHYAM",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": "MS(SURGERY)",
+   "role": "doctor",
+   "printed": [
+    "DR. ROHIT SHYAM, MS(SURGERY)",
+    "OPD schedule: ROHIT SHYAM"
+   ],
+   "employment": "permanent",
+   "ticket": "499292",
+   "doctorListId": "499292",
+   "status": "current",
+   "note": null,
+   "discipline": "Surgery"
+  },
+  {
+   "id": "a-k-sahay",
+   "name": "A K SAHAY",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": "MCH & DRNB PLASTIC SURGERY",
+   "role": "doctor",
+   "printed": [
+    "DR. Capt.A.K.SAHAY, Mch& DrNB Plastic Surgery"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN0766",
+   "status": "current",
+   "note": null,
+   "discipline": "Plastic surgery"
+  },
+  {
+   "id": "abhishek-mandal",
+   "name": "ABHISHEK MANDAL",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": "MS(SURGERY)",
+   "role": "doctor",
+   "printed": [
+    "DR. AVISHEK MONDAL, MS(SURGERY)"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN00763",
+   "status": "current",
+   "note": null,
+   "discipline": "Surgery"
+  },
+  {
+   "id": "shyamal-hansda",
+   "name": "SHYAMAL HANSDA",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": "MS(SURGERY)",
+   "role": "doctor",
+   "printed": [
+    "DR. SHYAMAL HANSDA, MS(SURGERY)",
+    "OPD schedule: S HANSDA"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN00795",
+   "status": "current",
+   "note": null,
+   "discipline": "Surgery"
+  },
+  {
+   "id": "p-p-roy",
+   "name": "P.P.ROY",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": "MS(SURGERY)",
+   "role": "doctor",
+   "printed": [
+    "DR. P.P.ROY, MS(SURGERY)",
+    "OPD schedule: PP ROY"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Surgery"
+  },
+  {
+   "id": "tapati-pradhan",
+   "name": "TAPATI PRADHAN",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. T.PRADHAN, MBBS",
+    "OPD schedule: MRS T PRADHAN"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN00757",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "titas-chakraborty",
+   "name": "TITAS CHAKRABORTY",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.TITAS CHAKRABORTY, MBBS"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN0455",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "ashish-chatterjee",
+   "name": "ASHISH CHATTERJEE",
+   "title": "Dr",
+   "department": "MEDICINE",
+   "qualification": "MD(MEDICINE)",
+   "role": "doctor",
+   "printed": [
+    "DR. ASHISH CHATTERJEE, MD(MEDICINE)",
+    "OPD schedule: ASHISH CHATTERJEE"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": "His name is painted over on the Medicine OPD board (photographed 25 Oct 2026); he is not on the intranet doctor list.",
+   "discipline": "Medicine"
+  },
+  {
+   "id": "dadan-prasad",
+   "name": "DADAN PRASAD",
+   "title": "Dr",
+   "department": "MEDICINE",
+   "qualification": "MD(MEDICINE)",
+   "role": "doctor",
+   "printed": [
+    "DR. DADAN PRASAD, MD(MEDICINE)",
+    "OPD schedule: DADAN PRASAD",
+    "BOARD: DR. DADAN PRASAD, IN-CHARGE"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "transferred",
+   "note": "transferred out of the hospital (told by the owner, 24 Oct 2026)",
+   "discipline": "Medicine"
+  },
+  {
+   "id": "ranjeet-kumar",
+   "name": "RANJEET KUMAR",
+   "title": "Dr",
+   "department": "MEDICINE",
+   "qualification": "MD(MEDICINE)",
+   "role": "doctor",
+   "printed": [
+    "DR.RANJEET KUMAR, MD(MEDICINE)",
+    "OPD schedule: RANJEET KUMAR",
+    "BOARD: DR. RANJIT KUMAR, IN-CHARGE"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "retired",
+   "note": "retired (told by the owner, 24 Oct 2026)",
+   "discipline": "Medicine"
+  },
+  {
+   "id": "ajit-karmakar",
+   "name": "AJIT KARMAKAR",
+   "title": "Dr",
+   "department": "MEDICINE",
+   "qualification": "MD(MEDICINE)",
+   "role": "doctor",
+   "printed": [
+    "DR. AJIT KARMAKAR, MD(MEDICINE)",
+    "OPD schedule: A KARMAKAR",
+    "BOARD: DR. AJIT KARMAKAR"
+   ],
+   "employment": "permanent",
+   "ticket": "499116",
+   "doctorListId": "499116",
+   "status": "current",
+   "note": null,
+   "discipline": "Medicine"
+  },
+  {
+   "id": "sukhdev-shankar-patil",
+   "name": "SUKHDEV SHANKAR PATIL",
+   "title": "Dr",
+   "department": "MEDICINE",
+   "qualification": "MD(MEDICINE)",
+   "role": "doctor",
+   "printed": [
+    "DR.S.S.PATIL, MD(MEDICINE)",
+    "OPD schedule: SS PATIL",
+    "BOARD: DR. SUKHDEB SANKAR PATIL"
+   ],
+   "employment": "permanent",
+   "ticket": "499120",
+   "doctorListId": "499120",
+   "status": "current",
+   "note": null,
+   "discipline": "Medicine"
+  },
+  {
+   "id": "rajeev-kumar",
+   "name": "RAJEEV KUMAR",
+   "title": "Dr",
+   "department": "MEDICINE",
+   "qualification": "DNB(MEDICINE)",
+   "role": "doctor",
+   "printed": [
+    "DR.RAJEEV KUMAR, DNB(MEDICINE)",
+    "OPD schedule: RAJEEV KUMAR",
+    "BOARD: DR. RAJEEV KUMAR"
+   ],
+   "employment": "permanent",
+   "ticket": "499169",
+   "doctorListId": "499169",
+   "status": "current",
+   "note": null,
+   "discipline": "Medicine"
+  },
+  {
+   "id": "kunj-bihari-singh",
+   "name": "KUNJ BIHARI SINGH",
+   "title": "Dr",
+   "department": "MEDICINE",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.K.B.SINGH, MBBS",
+    "OPD schedule: KB SINGH",
+    "BOARD: DR. KUNJ BIHARI SINGH"
+   ],
+   "employment": "permanent",
+   "ticket": "499177",
+   "doctorListId": "499177",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "dipak-singh",
+   "name": "DIPAK SINGH",
+   "title": "Dr",
+   "department": "MEDICINE",
+   "qualification": "MD(MEDICINE)",
+   "role": "doctor",
+   "printed": [
+    "DR. DIPAK SINGH, MD(MEDICINE)",
+    "OPD schedule: DIPAK SINGH",
+    "BOARD: DR. DIPAK SINGH"
+   ],
+   "employment": "permanent",
+   "ticket": "490180",
+   "doctorListId": "490180",
+   "status": "current",
+   "note": null,
+   "discipline": "Medicine"
+  },
+  {
+   "id": "ritesh-chauhan",
+   "name": "RITESH CHAUHAN",
+   "title": "Dr",
+   "department": "MEDICINE",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. RITESH CHAUHAN, MBBS",
+    "OPD schedule: RITESH DESHMUKH",
+    "BOARD: DR. RITESH CHAUHAN"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": "The OPD schedule PDF prints 'Ritesh Deshmukh' in the same slot (Wednesday and Saturday with Dr. Dipak Singh); the board and the staff list print 'Ritesh Chauhan': taken as one person. He is not on the intranet doctor list under any number, so whether he is permanent or contractual is not known.",
+   "discipline": null
+  },
+  {
+   "id": "p-alam",
+   "name": "P.ALAM",
+   "title": "Dr",
+   "department": "ORTHOPAEDICS",
+   "qualification": "D.ORTHO",
+   "role": "doctor",
+   "printed": [
+    "DR. P.ALAM, D.ORTHO",
+    "OPD schedule: P ALAM"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Orthopaedics"
+  },
+  {
+   "id": "priyank-sahoo",
+   "name": "PRIYANK SAHOO",
+   "title": "Dr",
+   "department": "ORTHOPAEDICS",
+   "qualification": "MS(ORTHO)",
+   "role": "doctor",
+   "printed": [
+    "DR.P.SAHOO, MS(ORTHO)",
+    "OPD schedule: P SAHOO"
+   ],
+   "employment": "permanent",
+   "ticket": "490178",
+   "doctorListId": "490178",
+   "status": "current",
+   "note": null,
+   "discipline": "Orthopaedics"
+  },
+  {
+   "id": "chetan",
+   "name": "CHETAN",
+   "title": "Dr",
+   "department": "ORTHOPAEDICS",
+   "qualification": "MS(ORTHO)",
+   "role": "doctor",
+   "printed": [
+    "DR.CHETAN, MS(ORTHO)",
+    "OPD schedule: CHETAN"
+   ],
+   "employment": "permanent",
+   "ticket": "490182",
+   "doctorListId": "490182",
+   "status": "current",
+   "note": null,
+   "discipline": "Orthopaedics"
+  },
+  {
+   "id": "r-roychoudhury",
+   "name": "R.ROYCHOUDHURY",
+   "title": "Dr",
+   "department": "ORTHOPAEDICS",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. R.ROYCHOUDHURY, MBBS",
+    "OPD schedule: R ROY CHOUDHURI"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "navin-yadav",
+   "name": "NAVIN YADAV",
+   "title": "Dr",
+   "department": "ORTHOPAEDICS",
+   "qualification": "D.ORTHO",
+   "role": "doctor",
+   "printed": [
+    "DR. NAVIN YADAV, D.ORTHO"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN0456",
+   "status": "current",
+   "note": null,
+   "discipline": "Orthopaedics"
+  },
+  {
+   "id": "sateesh-kumar-tiwari",
+   "name": "SATEESH KUMAR TIWARI",
+   "title": "Dr",
+   "department": "ORTHOPAEDICS",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. SATEESH KUMAR TIWARI,MBBS"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "mitali-pathak",
+   "name": "MITALI PATHAK",
+   "title": "Dr",
+   "department": "GYNAE & OBS",
+   "qualification": "MBBS,DGO",
+   "role": "doctor",
+   "printed": [
+    "DR.MITALI PATHAK, MBBS,DGO",
+    "OPD schedule: M PATHAK"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Obstetrics and Gynaecology (DGO)"
+  },
+  {
+   "id": "sindhu-sagar",
+   "name": "SINDHU SAGAR",
+   "title": "Dr",
+   "department": "GYNAE & OBS",
+   "qualification": "MBBS,DGO",
+   "role": "doctor",
+   "printed": [
+    "DR.SINDHU SAGAR, MBBS,DGO",
+    "OPD schedule: SINDHU SAGAR"
+   ],
+   "employment": "permanent",
+   "ticket": "499185",
+   "doctorListId": "499185",
+   "status": "current",
+   "note": null,
+   "discipline": "Obstetrics and Gynaecology (DGO)"
+  },
+  {
+   "id": "woothvasita-mondal",
+   "name": "WOOTHVASITA MONDAL",
+   "title": "Dr",
+   "department": "GYNAE & OBS",
+   "qualification": "MS(O&G)",
+   "role": "doctor",
+   "printed": [
+    "DR.WOOTHVASITA MONDAL, MS(O&G)",
+    "OPD schedule: WOOTHVASITA MONDAL"
+   ],
+   "employment": "permanent",
+   "ticket": "499984",
+   "doctorListId": "499984",
+   "status": "current",
+   "note": null,
+   "discipline": "Obstetrics and Gynaecology"
+  },
+  {
+   "id": "ishita-konar",
+   "name": "ISHITA KONAR",
+   "title": "Dr",
+   "department": "GYNAE & OBS",
+   "qualification": "MS,MRCOG",
+   "role": "doctor",
+   "printed": [
+    "DR.ISHITA KONER, MS,MRCOG",
+    "OPD schedule: ISHITA KONER"
+   ],
+   "employment": "permanent",
+   "ticket": "490181",
+   "doctorListId": "490181",
+   "status": "current",
+   "note": null,
+   "discipline": "Obstetrics and Gynaecology (MRCOG)"
+  },
+  {
+   "id": "anshika",
+   "name": "ANSHIKA",
+   "title": "Dr",
+   "department": "GYNAE & OBS",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.ANSHIKA, MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "490211",
+   "doctorListId": "490211",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "kalyan-chakrabarti",
+   "name": "KALYAN CHAKRABARTI",
+   "title": "Dr",
+   "department": "GYNAE & OBS",
+   "qualification": "MBBS,DGO",
+   "role": "doctor",
+   "printed": [
+    "DR. KALYAN CHAKRABORTY, MBBS,DGO"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN0539",
+   "status": "current",
+   "note": null,
+   "discipline": "Obstetrics and Gynaecology (DGO)"
+  },
+  {
+   "id": "rajani-kachchap",
+   "name": "RAJANI KACHCHAP",
+   "title": "Dr",
+   "department": "GYNAE & OBS",
+   "qualification": "MBBS, DGO",
+   "role": "doctor",
+   "printed": [
+    "DR. RAJANI KACHCHAP, MBBS, DGO"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Obstetrics and Gynaecology (DGO)"
+  },
+  {
+   "id": "priyanka-roy",
+   "name": "PRIYANKA ROY",
+   "title": "Dr",
+   "department": "GYNAE & OBS",
+   "qualification": "MS",
+   "role": "doctor",
+   "printed": [
+    "DR.PRIYANKA ROY, MS",
+    "OPD schedule: PRIYANKA"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN00670",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "susanta-kumar-mallick",
+   "name": "SUSANTA KUMAR MALLICK",
+   "title": "Dr",
+   "department": "EYE",
+   "qualification": "MS(OPHTHALMOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR. S.K.MALLICK, MS(OPHTHALMOLOGY)",
+    "OPD schedule: S MALLIK"
+   ],
+   "employment": "permanent",
+   "ticket": "499477",
+   "doctorListId": "499477",
+   "status": "current",
+   "note": null,
+   "discipline": "Ophthalmology"
+  },
+  {
+   "id": "arghya-das",
+   "name": "ARGHYA DAS",
+   "title": "Dr",
+   "department": "EYE",
+   "qualification": "MS(OPHTHALMOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR. ARGHYA DAS, MS(OPHTHALMOLOGY)",
+    "OPD schedule: A DAS"
+   ],
+   "employment": "permanent",
+   "ticket": "490041",
+   "doctorListId": "490041",
+   "status": "current",
+   "note": null,
+   "discipline": "Ophthalmology"
+  },
+  {
+   "id": "avirupa-datta",
+   "name": "AVIRUPA DATTA",
+   "title": "Dr",
+   "department": "EYE",
+   "qualification": "MS(OPHTHALMOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR. AVIRUPA DATTA, MS(OPHTHALMOLOGY)"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Ophthalmology"
+  },
+  {
+   "id": "rupak-kumar-goswami",
+   "name": "RUPAK KUMAR GOSWAMI",
+   "title": "Dr",
+   "department": "ENT",
+   "qualification": "MS(ENT)",
+   "role": "doctor",
+   "printed": [
+    "DR. RUPAK GOSWAMI, MS(ENT)",
+    "OPD schedule: R GOSWAMI"
+   ],
+   "employment": "permanent",
+   "ticket": "498840",
+   "doctorListId": "498840",
+   "status": "current",
+   "note": null,
+   "discipline": "ENT"
+  },
+  {
+   "id": "sutanu-sarkar",
+   "name": "SUTANU SARKAR",
+   "title": "Dr",
+   "department": "ENT",
+   "qualification": "MS(ENT)",
+   "role": "doctor",
+   "printed": [
+    "DR. SUTANU SARKAR, MS(ENT)",
+    "OPD schedule: S SARKAR"
+   ],
+   "employment": "permanent",
+   "ticket": "499703",
+   "doctorListId": "499703",
+   "status": "current",
+   "note": null,
+   "discipline": "ENT"
+  },
+  {
+   "id": "arijit-das",
+   "name": "ARIJIT DAS",
+   "title": "Dr",
+   "department": "ENT",
+   "qualification": "MS(ENT)",
+   "role": "doctor",
+   "printed": [
+    "DR. ARIJIT DAS, MS(ENT)",
+    "OPD schedule: A DAS"
+   ],
+   "employment": "permanent",
+   "ticket": "490037",
+   "doctorListId": "490037",
+   "status": "current",
+   "note": null,
+   "discipline": "ENT"
+  },
+  {
+   "id": "a-n-bose",
+   "name": "A.N.BOSE",
+   "title": "Dr",
+   "department": "STORES AND PHARMACY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. A.N.BOSE, MBBS"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "tumpa-lahiri",
+   "name": "TUMPA LAHIRI",
+   "title": "Dr",
+   "department": "STORES AND PHARMACY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.TUMPA LAHIRI, MBBS",
+    "OPD schedule: TUMPA LAHIRI"
+   ],
+   "employment": "permanent",
+   "ticket": "498377",
+   "doctorListId": "498377",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "baidyanath-hansda",
+   "name": "BAIDYANATH HANSDA",
+   "title": "Shri",
+   "department": "STORES AND PHARMACY",
+   "qualification": "D.PHARMA",
+   "role": "staff",
+   "printed": [
+    "SHRI BAIDYANATH HANSDA, D.PHARMA"
+   ],
+   "employment": "permanent",
+   "ticket": "462660",
+   "doctorListId": null,
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "goutam-sarkar",
+   "name": "GOUTAM SARKAR",
+   "title": "Shri",
+   "department": "STORES AND PHARMACY",
+   "qualification": "D.PHARMA",
+   "role": "staff",
+   "printed": [
+    "SHRI GOUTAM SARKAR,D.PHARMA"
+   ],
+   "employment": "permanent",
+   "ticket": "442667",
+   "doctorListId": null,
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "lohitendu-badu",
+   "name": "LOHITENDU BADU",
+   "title": "Shri",
+   "department": "ADMINISTRATION",
+   "qualification": null,
+   "role": "staff",
+   "printed": [
+    "SHRI LOHITENDU BADU"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "unknown",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "arnob-choudhuri",
+   "name": "ARNOB CHOUDHURI",
+   "title": "Dr",
+   "department": "ADMINISTRATION",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. ARNOB CHOUDHURI, MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "498688",
+   "doctorListId": "498688",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "judhajit-ray",
+   "name": "JUDHAJIT RAY",
+   "title": "Shri",
+   "department": "ADMINISTRATION",
+   "qualification": null,
+   "role": "staff",
+   "printed": [
+    "SHRI JUDHAJIT RAY"
+   ],
+   "employment": "permanent",
+   "ticket": "442441",
+   "doctorListId": null,
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "suranjan-datta",
+   "name": "SURANJAN DATTA",
+   "title": "Shri",
+   "department": "ADMINISTRATION",
+   "qualification": null,
+   "role": "staff",
+   "printed": [
+    "SHRI SURANJAN DATTA"
+   ],
+   "employment": "permanent",
+   "ticket": "498566",
+   "doctorListId": null,
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "anil-kumar",
+   "name": "ANIL KUMAR",
+   "title": "Dr",
+   "department": "PUBLIC HEALTH",
+   "qualification": "MD (COMMUNITY MEDICINE)",
+   "role": "doctor",
+   "printed": [
+    "DR. ANIL KUMAR, MD (COMMUNITY MEDICINE)"
+   ],
+   "employment": "permanent",
+   "ticket": "499171",
+   "doctorListId": "499171",
+   "status": "current",
+   "note": null,
+   "discipline": "Community medicine"
+  },
+  {
+   "id": "tirtha-chowdhury",
+   "name": "TIRTHA CHOWDHURY",
+   "title": "Shri",
+   "department": "PUBLIC HEALTH",
+   "qualification": null,
+   "role": "staff",
+   "printed": [
+    "SHRI TIRTHA CHOWDHURY"
+   ],
+   "employment": "permanent",
+   "ticket": "453283",
+   "doctorListId": null,
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "tapan-badyakar",
+   "name": "TAPAN BADYAKAR",
+   "title": "Shri",
+   "department": "PHYSIOTHERAPY",
+   "qualification": "BPT",
+   "role": "staff",
+   "printed": [
+    "SHRI TAPAN BADYAKAR, BPT"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "unknown",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "baha-sumarjita",
+   "name": "BAHA SUMARJITA",
+   "title": "Dr",
+   "department": "DENTAL",
+   "qualification": "MDS",
+   "role": "doctor",
+   "printed": [
+    "DR.BAHA SUMARJITA, MDS",
+    "OPD schedule: BAHA SUMARJITA"
+   ],
+   "employment": "permanent",
+   "ticket": "490035",
+   "doctorListId": "490035",
+   "status": "current",
+   "note": null,
+   "discipline": "Dental surgery"
+  },
+  {
+   "id": "avisek-mukherjee",
+   "name": "AVISEK MUKHERJEE",
+   "title": "Dr",
+   "department": "DENTAL",
+   "qualification": "MDS",
+   "role": "doctor",
+   "printed": [
+    "DR.AVISHEK MUKHERJEE, MDS",
+    "OPD schedule: AVISEK MUKHERJEE"
+   ],
+   "employment": "permanent",
+   "ticket": "490086",
+   "doctorListId": "490086",
+   "status": "current",
+   "note": null,
+   "discipline": "Dental surgery"
+  },
+  {
+   "id": "khooshbu-gayen",
+   "name": "KHOOSHBU GAYEN",
+   "title": "Dr",
+   "department": "DENTAL",
+   "qualification": "MDS",
+   "role": "doctor",
+   "printed": [
+    "DR.KHOOSBU GAYEN, MDS",
+    "OPD schedule: KHUSBOO GAYEN"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN00756",
+   "status": "current",
+   "note": null,
+   "discipline": "Dental surgery"
+  },
+  {
+   "id": "hirak-choudhuri",
+   "name": "HIRAK CHOUDHURI",
+   "title": "Dr",
+   "department": "SKIN",
+   "qualification": "MD(DERMATOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR.HIRAK CHOWDHURI, MD(DERMATOLOGY)",
+    "OPD schedule: H CHOUDHURI"
+   ],
+   "employment": "permanent",
+   "ticket": "498985",
+   "doctorListId": "498985",
+   "status": "current",
+   "note": null,
+   "discipline": "Dermatology"
+  },
+  {
+   "id": "nabanita-das",
+   "name": "NABANITA DAS",
+   "title": "Dr",
+   "department": "SKIN",
+   "qualification": "MD(DERMATOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR. NABANITA DAS, MD(DERMATOLOGY)",
+    "OPD schedule: NABANITA DAS"
+   ],
+   "employment": "permanent",
+   "ticket": "490137",
+   "doctorListId": "490137",
+   "status": "current",
+   "note": null,
+   "discipline": "Dermatology"
+  },
+  {
+   "id": "mahesh-kumar",
+   "name": "MAHESH KUMAR",
+   "title": "Dr",
+   "department": "PSYCHIATRY",
+   "qualification": "MBBS, DPM",
+   "role": "doctor",
+   "printed": [
+    "DR. MAHESH KUMAR, MBBS, DPM",
+    "OPD schedule: MAHESH KUMAR"
+   ],
+   "employment": "permanent",
+   "ticket": "499170",
+   "doctorListId": "499170",
+   "status": "current",
+   "note": null,
+   "discipline": "Psychiatry (DPM)"
+  },
+  {
+   "id": "sumit-mukherjee",
+   "name": "SUMIT MUKHERJEE",
+   "title": "Dr",
+   "department": "PSYCHIATRY",
+   "qualification": "MD(PSYCHIATRY)",
+   "role": "doctor",
+   "printed": [
+    "DR. SUMIT MUKHERJEE, MD(PSYCHIATRY)",
+    "OPD schedule: SUMIT MUKHERJEE"
+   ],
+   "employment": "permanent",
+   "ticket": "490138",
+   "doctorListId": "490138",
+   "status": "current",
+   "note": null,
+   "discipline": "Psychiatry"
+  },
+  {
+   "id": "nivedita-roy",
+   "name": "NIVEDITA ROY",
+   "title": "Dr",
+   "department": "PAEDIATRICS",
+   "qualification": "MD(PAEDIATRICS)",
+   "role": "doctor",
+   "printed": [
+    "DR.NIVEDITA ROY, MD(PAEDIATRICS)",
+    "OPD schedule: N ROY"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Paediatrics"
+  },
+  {
+   "id": "riju-acharya",
+   "name": "RIJU ACHARYA",
+   "title": "Dr",
+   "department": "PAEDIATRICS",
+   "qualification": "MD(PAEDIATRICS)",
+   "role": "doctor",
+   "printed": [
+    "DR.RIJU ACHARYA, MD(PAEDIATRICS)",
+    "OPD schedule: RIJU ACHARYYA"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Paediatrics"
+  },
+  {
+   "id": "saugata-bhattacharya",
+   "name": "SAUGATA BHATTACHARYA",
+   "title": "Dr",
+   "department": "PAEDIATRICS",
+   "qualification": "MD(PAEDIATRICS)",
+   "role": "doctor",
+   "printed": [
+    "DR.SAUGATA BHATTACHARYA, MD(PAEDIATRICS)",
+    "OPD schedule: SAUGATA BHATTACHARYYA"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Paediatrics"
+  },
+  {
+   "id": "payel-ghosh",
+   "name": "PAYEL GHOSH",
+   "title": "Dr",
+   "department": "PAEDIATRICS",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. PAYEL GHOSH, MBBS"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "debjit-sen",
+   "name": "DEBJIT SEN",
+   "title": "Dr",
+   "department": "PAEDIATRICS",
+   "qualification": "MD(PAEDIATRICS)",
+   "role": "doctor",
+   "printed": [
+    "DR.DEBJIT SEN, MD(PAEDIATRICS)"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Paediatrics"
+  },
+  {
+   "id": "gourav-mukherjee",
+   "name": "GOURAV MUKHERJEE",
+   "title": "Dr",
+   "department": "CHEST",
+   "qualification": "MD(CHEST)",
+   "role": "doctor",
+   "printed": [
+    "DR.GOURAV MUKHERJEE, MD(CHEST)"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN0767",
+   "status": "current",
+   "note": null,
+   "discipline": "Chest medicine"
+  },
+  {
+   "id": "kakali-rani-chakravorty-saha",
+   "name": "KAKALI RANI CHAKRAVORTY SAHA",
+   "title": "Dr",
+   "department": "MOPD",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.K.R. CHAKRABORTY SAHA, MBBS",
+    "OPD schedule: KAKALI CHAKRABORTY"
+   ],
+   "employment": "permanent",
+   "ticket": "498599",
+   "doctorListId": "498599",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "daisy-bhengra",
+   "name": "DAISY BHENGRA",
+   "title": "Dr",
+   "department": "MOPD",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. DAISY BHENGRA, MBBS",
+    "OPD schedule: DAISY"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN00725",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "thara-gopinath",
+   "name": "THARA GOPINATH",
+   "title": "Dr",
+   "department": "MOPD",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.THARA GOPINATH, MBBS",
+    "OPD schedule: TARA GOPINATH"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN00752",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "manish-kumar",
+   "name": "MANISH KUMAR",
+   "title": "Dr",
+   "department": "MOPD",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.MANISH KUMAR, MBBS",
+    "OPD schedule: MANISH KUMAR"
+   ],
+   "employment": "permanent",
+   "ticket": "490196",
+   "doctorListId": "D490196",
+   "status": "current",
+   "note": "listed as D490196 in the intranet doctor list: a stray D, the real ticket is 490196",
+   "discipline": null
+  },
+  {
+   "id": "pankaj-kumar",
+   "name": "PANKAJ KUMAR",
+   "title": "Dr",
+   "department": "ANAESTHESIOLOGY",
+   "qualification": "MD(ANAESTHESIOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR.PANKAJ KUMAR,MD(ANAESTHESIOLOGY)"
+   ],
+   "employment": "permanent",
+   "ticket": "498993",
+   "doctorListId": "498993",
+   "status": "current",
+   "note": null,
+   "discipline": "Anaesthesiology"
+  },
+  {
+   "id": "devashri-yeshwant-chilke",
+   "name": "DEVASHRI YESHWANT CHILKE",
+   "title": "Dr",
+   "department": "ANAESTHESIOLOGY",
+   "qualification": "MD(ANAESTHESIOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR.D.Y.CHILKE,MD(ANAESTHESIOLOGY)"
+   ],
+   "employment": "permanent",
+   "ticket": "499545",
+   "doctorListId": "499545",
+   "status": "current",
+   "note": null,
+   "discipline": "Anaesthesiology"
+  },
+  {
+   "id": "arunima-mallick",
+   "name": "ARUNIMA MALLICK",
+   "title": "Dr",
+   "department": "ANAESTHESIOLOGY",
+   "qualification": "MD(ANAESTHESIOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR. A.MALLICK,MD(ANAESTHESIOLOGY)"
+   ],
+   "employment": "contractual",
+   "ticket": null,
+   "doctorListId": "DTN0459",
+   "status": "current",
+   "note": null,
+   "discipline": "Anaesthesiology"
+  },
+  {
+   "id": "samarpita-mondal",
+   "name": "SAMARPITA MONDAL",
+   "title": "Dr",
+   "department": "ANAESTHESIOLOGY",
+   "qualification": "MD(ANAESTHESIOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR.SAMARPITA MONDAL,MD(ANAESTHESIOLOGY)"
+   ],
+   "employment": "permanent",
+   "ticket": "490002",
+   "doctorListId": "490002",
+   "status": "current",
+   "note": null,
+   "discipline": "Anaesthesiology"
+  },
+  {
+   "id": "ivy-paul",
+   "name": "IVY PAUL",
+   "title": "Dr",
+   "department": "HEALTH CENTRES",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. IVY PAUL,MBBS",
+    "OPD schedule: IVY PAUL"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "retired",
+   "note": "retired (told by the owner, 24 Oct 2026)",
+   "discipline": null
+  },
+  {
+   "id": "rina-mondal",
+   "name": "RINA MONDAL",
+   "title": "Dr",
+   "department": "HEALTH CENTRES",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. RINA MONDAL,MBBS",
+    "OPD schedule: RINA MONDAL"
+   ],
+   "employment": "permanent",
+   "ticket": "490094",
+   "doctorListId": "490094",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "vijeta-panna-khakha",
+   "name": "VIJETA PANNA KHAKHA",
+   "title": "Dr",
+   "department": "HEALTH CENTRES",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.VIJETA PANNA KHAKHA,MBBS",
+    "OPD schedule: VIJETA PANNA"
+   ],
+   "employment": "permanent",
+   "ticket": "499291",
+   "doctorListId": "499291",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "lily-ghosh",
+   "name": "LILY GHOSH",
+   "title": "Dr",
+   "department": "HEALTH CENTRES",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.LILY GHOSH,MBBS",
+    "OPD schedule: LILY GHOSH"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "kalawati-kumari",
+   "name": "KALAWATI KUMARI",
+   "title": "Dr",
+   "department": "PATHOLOGY",
+   "qualification": "MD (PATHOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR.KALAWATI KUMARI,MD (PATHOLOGY)"
+   ],
+   "employment": "permanent",
+   "ticket": "499364",
+   "doctorListId": "499364",
+   "status": "current",
+   "note": null,
+   "discipline": "Pathology"
+  },
+  {
+   "id": "tarak-nath-mahanta",
+   "name": "TARAK NATH MAHANTA",
+   "title": "Dr",
+   "department": "PATHOLOGY",
+   "qualification": "MD (PATHOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR.TARAK NATH MOHANTA,MD (PATHOLOGY)"
+   ],
+   "employment": "permanent",
+   "ticket": "490011",
+   "doctorListId": "490011",
+   "status": "current",
+   "note": null,
+   "discipline": "Pathology"
+  },
+  {
+   "id": "arup-kumar-das",
+   "name": "ARUP KUMAR DAS",
+   "title": "Dr",
+   "department": "BIOCHEMISTRY",
+   "qualification": "MD (BIOCHEMISTRY)",
+   "role": "doctor",
+   "printed": [
+    "DR.ARUP KUMAR DAS,MD (BIOCHEMISTRY)"
+   ],
+   "employment": "permanent",
+   "ticket": "499608",
+   "doctorListId": "499608",
+   "status": "current",
+   "note": null,
+   "discipline": "Biochemistry"
+  },
+  {
+   "id": "booloo-sharma",
+   "name": "BOOLOO SHARMA",
+   "title": "Dr",
+   "department": "BIOCHEMISTRY",
+   "qualification": "MD (BIOCHEMISTRY)",
+   "role": "doctor",
+   "printed": [
+    "DR.BOOLOO SHARMA,MD (BIOCHEMISTRY)"
+   ],
+   "employment": "permanent",
+   "ticket": "490038",
+   "doctorListId": "490038",
+   "status": "current",
+   "note": null,
+   "discipline": "Biochemistry"
+  },
+  {
+   "id": "debjani-choudhuri-ray",
+   "name": "DEBJANI CHOUDHURI RAY",
+   "title": "Dr",
+   "department": "RADIOLOGY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.DEBJANI CHOWDHURY RAY,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "498812",
+   "doctorListId": "498812",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "monalisa-chattopadhyay",
+   "name": "MONALISA CHATTOPADHYAY",
+   "title": "Dr",
+   "department": "RADIOLOGY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. MONALISA CHATTOPADHYAY,MBBS"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "rumpa-banerjee",
+   "name": "RUMPA BANERJEE",
+   "title": "Dr",
+   "department": "RADIOLOGY",
+   "qualification": "MD(RADIOLOGY)",
+   "role": "doctor",
+   "printed": [
+    "DR.RUMPA BANERJEE,MD(RADIOLOGY)"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": "Radiology"
+  },
+  {
+   "id": "priyanka-bhattacharya",
+   "name": "PRIYANKA BHATTACHARYA",
+   "title": "Dr",
+   "department": "RADIOLOGY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.PRIYANKA BHATTACHARYA,MBBS"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "kausik-chattopadhyay",
+   "name": "KAUSIK CHATTOPADHYAY",
+   "title": "Dr",
+   "department": "EMERGENCY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.KAUSHIK CHATTOPADHYAY,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "498979",
+   "doctorListId": "498979",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "ravindra-kumar",
+   "name": "RAVINDRA KUMAR",
+   "title": "Dr",
+   "department": "EMERGENCY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.RAVINDRA KUMAR,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "499254",
+   "doctorListId": "499254",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "arghya-bhattacharya",
+   "name": "ARGHYA BHATTACHARYA",
+   "title": "Dr",
+   "department": "EMERGENCY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.ARGHYA BHATTACHARYA,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "499974",
+   "doctorListId": "499974",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "chiranjit-roy",
+   "name": "CHIRANJIT ROY",
+   "title": "Dr",
+   "department": "EMERGENCY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.CHIRANJIT ROY,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "490088",
+   "doctorListId": "490088",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "ashutosh-gupta",
+   "name": "ASHUTOSH GUPTA",
+   "title": "Dr",
+   "department": "EMERGENCY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. ASHUTOSH GUPTA,MBBS"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "s-a-zamadar",
+   "name": "S.A.ZAMADAR",
+   "title": "Dr",
+   "department": "EMERGENCY",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.S.A.ZAMADAR,MBBS"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "tapas-mandal",
+   "name": "TAPAS MANDAL",
+   "title": "Dr",
+   "department": "OHS & PMU",
+   "qualification": "MBBS,DIH",
+   "role": "doctor",
+   "printed": [
+    "DR.TAPAS MONDAL,MBBS,DIH"
+   ],
+   "employment": "permanent",
+   "ticket": "499179",
+   "doctorListId": "499179",
+   "status": "current",
+   "note": null,
+   "discipline": "Industrial health (DIH)"
+  },
+  {
+   "id": "manoj-kumar-arun",
+   "name": "MANOJ KUMAR ARUN",
+   "title": "Dr",
+   "department": "OHS & PMU",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. MANOJ KUMAR ARUN,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "499178",
+   "doctorListId": "499178",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "arijit-chakraborty",
+   "name": "ARIJIT CHAKRABORTY",
+   "title": "Dr",
+   "department": "OHS & PMU",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. ARIJIT CHAKRABORTY,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "499930",
+   "doctorListId": "499930",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "uddipta-singha",
+   "name": "UDDIPTA SINGHA",
+   "title": "Dr",
+   "department": "OHS & PMU",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. UDDIPTA SINGHA,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "490156",
+   "doctorListId": "490156",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "amose-johnson",
+   "name": "AMOSE JOHNSON",
+   "title": "Dr",
+   "department": "OHS & PMU",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR. AMOSE JOHNSON,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "499973",
+   "doctorListId": "499973",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "debdip-saha",
+   "name": "DEBDIP SAHA",
+   "title": "Dr",
+   "department": "OHS & PMU",
+   "qualification": "MBBS",
+   "role": "doctor",
+   "printed": [
+    "DR.DEBDIP SAHA,MBBS"
+   ],
+   "employment": "permanent",
+   "ticket": "490107",
+   "doctorListId": "490107",
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "tapas-kumar-saha",
+   "name": "TAPAS KUMAR SAHA",
+   "title": "Shri",
+   "department": "PERSONNEL",
+   "qualification": null,
+   "role": "staff",
+   "printed": [
+    "SHRI TAPAS KUMAR SAHA"
+   ],
+   "employment": "permanent",
+   "ticket": "440887",
+   "doctorListId": null,
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "shefali-mondal",
+   "name": "SHEFALI MONDAL",
+   "title": "Ms",
+   "department": "MATRON OFFICE",
+   "qualification": "MATRON",
+   "role": "staff",
+   "printed": [
+    "MS. SHEFALI MONDAL,MATRON"
+   ],
+   "employment": "permanent",
+   "ticket": "462548",
+   "doctorListId": null,
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "farida-zaman",
+   "name": "FARIDA ZAMAN",
+   "title": "Ms",
+   "department": "MATRON OFFICE",
+   "qualification": null,
+   "role": "staff",
+   "printed": [
+    "MS. FARIDA ZAMAN"
+   ],
+   "employment": "permanent",
+   "ticket": "462662",
+   "doctorListId": null,
+   "status": "current",
+   "note": null,
+   "discipline": null
+  },
+  {
+   "id": "soumyarupa-majee",
+   "name": "SOUMYARUPA MAJEE",
+   "title": "Dr",
+   "department": "BLOOD BANK",
+   "qualification": "MD (TRANSFUSION-MEDICINE)",
+   "role": "doctor",
+   "printed": [
+    "DR.SOUMYARUPA MAJEE,MD (TRANSFUSION-MEDICINE)"
+   ],
+   "employment": "permanent",
+   "ticket": "490179",
+   "doctorListId": "490179",
+   "status": "current",
+   "note": null,
+   "discipline": "Transfusion medicine"
+  },
+  {
+   "id": "dharmendra-kumar",
+   "name": "DHARMENDRA KUMAR",
+   "title": "Dr",
+   "department": "SURGERY",
+   "qualification": null,
+   "role": "doctor",
+   "printed": [
+    "OPD schedule: DHARMENDRA KUMAR"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": "appears only in the OPD schedule, not in the staff list",
+   "discipline": null
+  },
+  {
+   "id": "a-ghosh",
+   "name": "A GHOSH",
+   "title": "Dr",
+   "department": "EYE",
+   "qualification": null,
+   "role": "doctor",
+   "printed": [
+    "OPD schedule: A GHOSH"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": "appears only in the OPD schedule, not in the staff list",
+   "discipline": null
+  },
+  {
+   "id": "saikat-mondal",
+   "name": "SAIKAT MONDAL",
+   "title": "Dr",
+   "department": "PAEDIATRICS",
+   "qualification": null,
+   "role": "doctor",
+   "printed": [
+    "OPD schedule: SAIKAT MONDAL"
+   ],
+   "employment": "unknown",
+   "ticket": null,
+   "doctorListId": null,
+   "status": "not_on_list",
+   "note": "appears only in the OPD schedule, not in the staff list",
+   "discipline": null
+  }
+ ]
+}
