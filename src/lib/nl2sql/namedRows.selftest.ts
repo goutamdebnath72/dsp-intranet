@@ -3,7 +3,8 @@
 // against the 300 real department rows; the last block runs EVERY combination of ticks through the real "Which department do you mean?" ask (departmentAsk.ts).
 
 import real from "./__fixtures__/departments.real.json";
-import { askWhichDepartment, queryFor } from "./departmentAsk";
+import { queryFor } from "./departmentAsk";
+import { garageAsk, refractoryAsk } from "./__fixtures__/askExamples";
 import { checkDepartments, checkNamedRows, namedRows, repairDepartments, repairNamedRows } from "./namedRows";
 import { checkFamilies, repairFamilies, rowsSelectedBy } from "./familyCheck";
 import { guardSql } from "./guard";
@@ -77,8 +78,8 @@ ok("no marker: namedRows is empty", namedRows(OLDQ, all).length === 0 && namedRo
 const hm = "SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%heavy%')";
 ok("no marker: checkDepartments is exactly checkFamilies, repairDepartments exactly repairFamilies", checkDepartments(OLDQ, hm, all) === checkFamilies(OLDQ, hm, all) && repairDepartments(OLDQ, hm, all) === repairFamilies(OLDQ, hm, all));
 
-// ---- EVERY combination of ticks through the real ask: what the question names is EXACTLY what was ticked
-const ask = askWhichDepartment("refractory")!;
+// ---- EVERY combination of ticks through the checkbox question (its example, __fixtures__/askExamples.ts): what the question names is EXACTLY what was ticked
+const ask = refractoryAsk("refractory", true);
 const byId: Record<string, DepartmentRow> = { refractory: REF, office: OFF, coke: COKE };
 let combos = 0;
 for (let mask = 1; mask < 8; mask++) {
@@ -90,7 +91,7 @@ for (let mask = 1; mask < 8; mask++) {
   ok(`ticks [${ticked}]: the correct SQL passes, the whole-family IN (46, 258, 92) is mended or sent back`, checkNamedRows(q, people(`e.department_id IN (${wanted})`), all) === null && (ticked.length === 3 || !!checkNamedRows(q, people("e.department_id IN (46, 258, 92)"), all)));
 }
 ok("all seven combinations were run", combos === 7);
-const askG = askWhichDepartment("how many executives are there in garage")!;
+const askG = garageAsk("how many executives are there in garage");
 ok("the garage ask carries no code marker, so it is untouched by 49b", namedRows(queryFor(askG, ["plant"]), all).length === 0);
 
 console.log(`namedRows selftest: ${pass} passed, ${fail} failed`);

@@ -4,7 +4,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ClarifyChoices } from "./ClarifyChoices";
-import { askWhichDepartment } from "../lib/nl2sql/departmentAsk";
+import { garageAsk, refractoryAsk } from "../lib/nl2sql/__fixtures__/askExamples";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => {
@@ -14,7 +14,7 @@ const ok = (name: string, cond: boolean, extra = "") => {
 const h = (el: React.ReactElement) => renderToStaticMarkup(el);
 const noop = () => {};
 
-const ref = askWhichDepartment("how many executives are there in refractory, list them?")!;
+const ref = refractoryAsk("how many executives are there in refractory, list them?");
 const html = h(<ClarifyChoices ask={ref} onAsk={noop} />);
 ok("one checkbox per department, in order", (html.match(/type="checkbox"/g) ?? []).length === 3 && html.indexOf("REFRACTORY (code 86000)") < html.indexOf("REFRACTORY (OFFICE) (code 86030)") && html.indexOf("REFRACTORY (OFFICE) (code 86030)") < html.indexOf("COKE OVEN REFRACTORY (code 86600)"), html);
 ok("nothing is ticked at the start", !/checked/.test(html));
@@ -26,7 +26,7 @@ ok("nothing is said about the search before something is ticked", !html.includes
 ok("it is a fieldset with a legend for a screen reader", /<fieldset/.test(html) && /<legend[^>]*>Tick the department or departments you mean<\/legend>/.test(html));
 ok("every button is a plain button (none submits a form)", (html.match(/<button/g) ?? []).length === (html.match(/<button[^>]*type="button"/g) ?? []).length);
 
-const gar = askWhichDepartment("garage")!;
+const gar = garageAsk("garage", true);
 const ghtml = h(<ClarifyChoices ask={gar} onAsk={noop} />);
 ok("one option only: one checkbox and NO Select all (it would mean nothing)", (ghtml.match(/type="checkbox"/g) ?? []).length === 1 && !ghtml.includes("Select all"), ghtml);
 ok("a bare word offers the documents button", ghtml.includes("I am looking for documents (circulars) about \u201Cgarage\u201D instead"));
