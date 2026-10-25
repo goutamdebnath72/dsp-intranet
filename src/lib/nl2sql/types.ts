@@ -63,6 +63,8 @@ export type PipelineResult =
       source: "nl2sql" | "cache";
       /** For source 'cache': how many confirmations this answer has. */
       verifiedBy?: number;
+      /** Set when nobody was found and the name words were replaced by the nearest real spellings (nameSpelling.ts): the sentence that says so. */
+      spellingNote?: string;
       attempts: number;
       elapsedMs: number;
       logId: number | null;

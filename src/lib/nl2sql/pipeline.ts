@@ -23,6 +23,7 @@ import { computeDepartmentScope } from "./scope";
 import { checkDepartmentColumns, checkDepartmentIdentity } from "./deptColumns";
 import { checkComparison, checkRankingAndOrder } from "./rankingCheck";
 import { checkHealthColumns, checkPersonIdentity } from "./identityCheck";
+import { spellingRetry } from "./nameSpelling";
 
 /** Context for a second attempt after a "No", and other optional inputs. */
 export interface PipelineExtra {
@@ -197,10 +198,17 @@ export async function answerQuestion(question: string, userKey: string | null, d
     }
 
     try {
-      const data = await deps.withClient((c) => runReadOnly(c, g.sql, deps.exec));
-      const scope = await deps.withClient((c) => computeDepartmentScope(c, g.sql)).catch(() => null);
+      let data = await deps.withClient((c) => runReadOnly(c, g.sql, deps.exec));
+      let finalSql = g.sql;
+      let spellingNote: string | undefined;
+      // Nobody found: a name word of the SQL that no real name is spelled like is replaced by the nearest real spelling and the same SQL runs again (step 55b, nameSpelling.ts).
+      if (data.total === 0) {
+        const near = await spellingRetry(g.sql, deps).catch(() => null);
+        if (near) { data = near.data; finalSql = near.sql; spellingNote = near.note; }
+      }
+      const scope = await deps.withClient((c) => computeDepartmentScope(c, finalSql)).catch(() => null);
       return finish(
-        { ok: true, question: q, sql: g.sql, understoodAs: plan.understood_as, confidence: plan.confidence, data, scope, display: plan.display, source: "nl2sql", attempts } as any,
+        { ok: true, question: q, sql: finalSql, understoodAs: plan.understood_as, confidence: plan.confidence, data, scope, display: plan.display, source: "nl2sql", attempts, ...(spellingNote ? { spellingNote } : {}) } as any,
         { ok: true, error: null, rowTotal: data.total, understoodAs: plan.understood_as, confidence: plan.confidence },
       );
     } catch (e) {

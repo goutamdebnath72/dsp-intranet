@@ -26,6 +26,11 @@ export function Nl2SqlAnswerExtras({ nl2sql }: { nl2sql: Nl2SqlExtras }) {
 
   return (
     <div className="mt-1.5">
+      {nl2sql.spellingNote ? (
+        <p className="mb-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium leading-snug text-amber-900" data-spelling-note="true">
+          {nl2sql.spellingNote}
+        </p>
+      ) : null}
       {scope && scope.total > 0 && (
         <p className="text-xs leading-snug text-slate-600">
           <span className="font-semibold">Departments covered ({scope.total}):</span>{" "}

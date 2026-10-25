@@ -393,6 +393,7 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
       if (note) payload.nl2sql.sourceNote = note;
     }
   }
+  if ((res as { spellingNote?: string }).spellingNote && payload.nl2sql) payload.nl2sql.spellingNote = (res as { spellingNote?: string }).spellingNote;
   return payload;
 }
 

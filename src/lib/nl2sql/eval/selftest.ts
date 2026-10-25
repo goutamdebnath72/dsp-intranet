@@ -39,6 +39,7 @@ import { stableOrderSql, PAGE_SIZE } from "../paging";
 import { pageProgress, mergePage, columnKind, formatCell, sortRows, toCsv, resolveDisplay, rowCountLabel, exportNote } from "../display";
 import { runOmnibar, peopleFor, parseRetry, MAX_ATTEMPTS, withDisplayCodes, withExtraFields, type OmnibarDeps, peoplePage } from "../omnibar";
 import { answerFromVerified } from "../pipeline";
+import { clearVocabularyCache } from "../nameSpelling";
 import { parseFeedback, recordFeedback, undoFeedback, countRecentVotes, VOTES_PER_HOUR } from "../feedback";
 import { findVerifiedSql, loadNegativeExamples, pickNegatives, retryHint, REASON_CODES } from "../learning";
 import { loadRejectedSql } from "../log";
@@ -1067,6 +1068,30 @@ async function main() {
   });
   const model = (sql: string, understood = "the reading") => script([json({ sql, understood_as: understood, confidence: "high" })]);
   const PEOPLE5 = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 5`;
+
+  // ---- step 55b: a name word that no real name is spelled like is replaced by the nearest real spelling when nobody is found ("rupak gosyami", 26 Oct 2026)
+  {
+    clearVocabularyCache();
+    const WHO = (first: string, last: string) => `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE nlq.first_word_like(name_words, name_codes, '${first}') AND nlq.last_word_like(name_words, name_codes, '${last}') ORDER BY global_seniority_rank`;
+    const asked = async (q: string, sql: string): Promise<any> => runOmnibar(q, "T-SP", mkDeps(model(sql, "the reading")));
+    const rowsOf = async (sql: string) => Number((await pg.query(`SELECT count(*)::int n FROM (${sql}) q`)).rows[0].n);
+    check("55b: the failure is real: the model's SQL with 'Gosyami' finds nobody on its own, 'Goswami' finds Rupak Kumar Goswami", (await rowsOf(WHO("Rupak", "Gosyami"))) === 0 && (await rowsOf(WHO("Rupak", "Goswami"))) > 0);
+    const direct = await asked("rupak goswami", WHO("Rupak", "Goswami"));
+    check("55b: the right spelling finds him, with no note", !!direct && direct.count > 0 && /GOSWAMI/.test(direct.people?.[0]?.name ?? "") && !direct.nl2sql?.spellingNote, JSON.stringify(direct && { count: direct.count, note: direct.nl2sql?.spellingNote }));
+    for (const typed of ["Gosyami", "Gosami", "Goshami", "Gosamy"]) {
+      const o2 = await asked(`rupak ${typed.toLowerCase()}`, WHO("Rupak", typed));
+      check(`55b: "rupak ${typed.toLowerCase()}" finds Rupak Kumar Goswami, and the answer says which spelling was used`, !!o2 && o2.count > 0 && /GOSWAMI/.test(o2.people?.[0]?.name ?? "") && /RUPAK/.test(o2.people?.[0]?.name ?? "") && new RegExp(`No name is spelled “${typed}” \\(nearest: Goswami\\)`).test(o2.nl2sql?.spellingNote ?? ""), JSON.stringify(o2 && { count: o2.count, note: o2.nl2sql?.spellingNote }));
+    }
+    check("55b: ...the SQL shown is the corrected one (GOSWAMI), so a reader can check it", /GOSWAMI/.test((await asked("rupak gosyami", WHO("Rupak", "Gosyami")))?.nl2sql?.sql ?? ""));
+    const both = await asked("rupk gosami", WHO("Rupk", "Gosami"));
+    check("55b: two wrong words are both corrected (Rupk -> Rupak, Gosami -> Goswami)", !!both && both.count > 0 && /“Rupk” \(nearest: Rupak\)/.test(both.nl2sql?.spellingNote ?? "") && /“Gosami” \(nearest: Goswami\)/.test(both.nl2sql?.spellingNote ?? ""), both?.nl2sql?.spellingNote);
+    const nobody = await asked("rupak sarkar", WHO("Rupak", "Sarkar"));
+    check("55b: people who do not exist stay not found: both words are real names, so nothing is 'corrected' and nobody is invented", !!nobody && !nobody.people?.length && !(nobody.count > 0) && !nobody.nl2sql?.spellingNote, JSON.stringify(nobody && { count: nobody.count, note: nobody.nl2sql?.spellingNote }));
+    const far = await asked("rupak xyzzyq", WHO("Rupak", "Xyzzyq"));
+    check("55b: a word near no real name is not corrected: still nobody, no note", !!far && !far.people?.length && !far.nl2sql?.spellingNote);
+    const other: any = await runOmnibar("how many executives", "T-SP", mkDeps(model("SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'", "The number of executives.")));
+    check("55b: a question with no name word is untouched", !!other && other.count > 0 && !other.nl2sql?.spellingNote);
+  }
 
   let o: any = await runOmnibar("list five senior executives", "T-OMNI", mkDeps(model(PEOPLE5, "Five most senior executives.")));
   const expectTickets = (await pg.query(`SELECT ticket_no FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 5`)).rows.map((r: any) => r.ticket_no);

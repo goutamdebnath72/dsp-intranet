@@ -55,4 +55,6 @@ export interface Nl2SqlExtras {
   plainAnswer?: boolean;
   /** Shown with the Source line when someone listed is not in the HR directory (their ticket is as printed in the circular). Absent when everybody is. */
   sourceNote?: string;
+  /** Set when nobody was found and the name words were replaced by the nearest real spellings: "No name is spelled “Gosyami” (nearest: Goswami): ..." (step 55b). */
+  spellingNote?: string;
 }
