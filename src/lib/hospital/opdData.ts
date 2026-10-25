@@ -87,7 +87,7 @@ export interface ClosureRules {
 export interface ScheduleFile {
   asOf: string;
   source: string;
-  timings: { opd: TimeRange[]; token: TimeRange[] };
+  timings: { opd: TimeRange[]; token: TimeRange[]; /** Who the afternoon OPD is for (shown as a red point under an open OPD). */ afternoonNote?: string };
   days: Weekday[];
   closure: ClosureRules;
   /** Where to send a person when the OPD is closed; the wording of the suggestion comes from here. */

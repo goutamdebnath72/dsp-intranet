@@ -4,7 +4,7 @@
 
 import React from "react";
 import { Ambulance } from "lucide-react";
-import type { HospitalAnswer } from "@/lib/hospital/types";
+import type { HospitalAnswer, HospitalTable } from "@/lib/hospital/types";
 
 const TONE: Record<"open" | "closed" | "unknown" | "info", string> = {
   open: "bg-green-100 text-green-900 border-green-200",
@@ -17,6 +17,35 @@ const BADGE: Record<"open" | "closed" | "unknown", string> = {
   closed: "bg-red-600 text-white",
   unknown: "bg-amber-500 text-white",
 };
+
+function TableView({ table }: { table: HospitalTable }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+      <table className="min-w-full text-left text-xs sm:text-sm">
+        <thead className="bg-neutral-50 text-neutral-600">
+          <tr>
+            {table.columns.map((c, i) => (
+              <th key={i} scope="col" className="px-3 py-2 font-semibold">
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((row, ri) => (
+            <tr key={ri} className="border-t border-neutral-100 align-top">
+              {row.map((cell, ci) => (
+                <td key={ci} className={`px-3 py-2 ${ci === 0 ? "font-medium text-neutral-800" : "text-neutral-700"}`}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
   const suggestion = answer.suggestion ? answer.suggestion.split("\n").filter(Boolean) : [];
@@ -35,31 +64,14 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
           {answer.status.text}
         </p>
       )}
-      {answer.table && answer.table.rows.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
-          <table className="min-w-full text-left text-xs sm:text-sm">
-            <thead className="bg-neutral-50 text-neutral-600">
-              <tr>
-                {answer.table.columns.map((c, i) => (
-                  <th key={i} scope="col" className="px-3 py-2 font-semibold">
-                    {c}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {answer.table.rows.map((row, ri) => (
-                <tr key={ri} className="border-t border-neutral-100 align-top">
-                  {row.map((cell, ci) => (
-                    <td key={ci} className={`px-3 py-2 ${ci === 0 ? "font-medium text-neutral-800" : "text-neutral-700"}`}>
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {answer.table && answer.table.rows.length > 0 && <TableView table={answer.table} />}
+      {answer.extraTables?.map((x, i) =>
+        x.table.rows.length > 0 ? (
+          <div key={i} className="space-y-1" data-extra-table="true">
+            <p className="text-xs font-semibold text-neutral-600">{x.title}</p>
+            <TableView table={x.table} />
+          </div>
+        ) : null,
       )}
       {answer.lines && answer.lines.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-5 text-sm text-neutral-700" data-points="true">

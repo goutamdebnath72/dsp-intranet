@@ -38,6 +38,28 @@ ok("the pointer is one bullet per line inside its blue box", /data-suggestion="t
 ok("the notes are red bullets", /<ul[^>]*text-red-700[^>]*data-notes="true"/.test(full) && full.includes("OPD hours: 8 AM to 1 PM and 5 PM to 7 PM") && full.includes("Card registration (token) hours"));
 ok("the table can scroll sideways on a narrow screen", full.includes("overflow-x-auto"));
 
+// ---- step 54a: captioned extra tables (the doctor's unit, and the unit that sits on the asked date)
+const extra = h(
+  <HospitalAnswerCard
+    answer={{
+      title: "Dr. Ajit Karmakar: OPD days",
+      badge: { tone: "closed", text: "Closed" },
+      extraTables: [
+        { title: "Medicine Unit II: Monday and Thursday", table: { columns: ["Room", "Doctor"], rows: [["OPD 25", "Dr. Ajit Karmakar"]] } },
+        { title: "Sitting on Tuesday, 27 October 2026", table: { columns: ["Unit", "Room", "Doctor"], rows: [["Unit III", "OPD 25", "Dr. Rajeev Kumar"], ["", "OPD 26", "Dr. Kunj Bihari Singh"]] } },
+        { title: "An empty one", table: { columns: ["A"], rows: [] } },
+      ],
+      lines: ["Dr. Ajit Karmakar sits in Medicine Unit II (OPD 25) on Monday and Thursday."],
+    }}
+  />,
+);
+ok("each extra table has its caption and its own headers", extra.includes("Medicine Unit II: Monday and Thursday") && extra.includes("Sitting on Tuesday, 27 October 2026") && (extra.match(/<th /g) ?? []).length === 5);
+ok("an extra table with no rows is not drawn", (extra.match(/data-extra-table="true"/g) ?? []).length === 2 && !extra.includes("An empty one"));
+ok("the captions come in order, after the verdict and before the points", extra.indexOf("Medicine Unit II: Monday") < extra.indexOf("Sitting on Tuesday") && extra.indexOf("Sitting on Tuesday") < extra.indexOf("data-points") && extra.indexOf("data-badge") < extra.indexOf("Medicine Unit II: Monday"));
+ok("the rows are drawn (an empty cell stays empty)", extra.includes("Dr. Kunj Bihari Singh") && /<td[^>]*><\/td>/.test(extra));
+const evilExtra = h(<HospitalAnswerCard answer={{ title: "T", extraTables: [{ title: "<script>x</script>", table: { columns: ["<b>"], rows: [["<i>"]] } }] }} />);
+ok("captions and cells of extra tables are escaped", !/<script>|<b>|<i>/.test(evilExtra) && evilExtra.includes("&lt;script&gt;"));
+
 const one = h(<HospitalAnswerCard answer={{ title: "T", suggestion: "For urgent medical attention, you can consult the Emergency Department." }} />);
 ok("a one-line pointer is a sentence, not a list with one bullet", /data-suggestion="true"/.test(one) && !/data-suggestion[^>]*>(?:(?!<\/div>).)*<ul/.test(one) && one.includes("For urgent medical attention, you can consult the Emergency Department."));
 

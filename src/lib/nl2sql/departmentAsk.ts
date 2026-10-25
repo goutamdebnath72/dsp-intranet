@@ -18,6 +18,8 @@ export interface AskOption {
   label: string;
   /** how the rewritten question names this department */
   phrase: string;
+  /** a second line under the label (a doctor's discipline and unit) */
+  detail?: string;
 }
 export interface DepartmentAsk {
   /** the question to the person: names the word, says what the list holds, tells what to do */
@@ -31,6 +33,12 @@ export interface DepartmentAsk {
   none: { label: string; reply: string };
   /** only when the person typed just the word: a search of the circulars instead */
   documents?: { label: string; query: string };
+  /** "one": RADIO buttons, exactly one option (a doctor); default "many": checkboxes (departments) */
+  mode?: "one" | "many";
+  /** a regular expression (source) that finds the words to replace, when they are not one plain word ("a mukherjee") */
+  pattern?: string;
+  /** another search the person may want instead (all employees of that name) */
+  alternative?: { label: string; query: string };
 }
 
 const PEOPLE = /\b(executives?|non[- ]?executives?|employees?|people|persons?|staff|officers?|managers?|workers?|engineers?|doctors?|personnel|working|work|posted|employed|serving)\b/i;
@@ -45,7 +53,8 @@ const joinPhrases = (p: string[]): string => (p.length <= 1 ? (p[0] ?? "") : `${
 export function queryFor(ask: DepartmentAsk, ticked: string[]): string {
   const phrases = ask.options.filter((o) => ticked.includes(o.id)).map((o) => o.phrase);
   if (!phrases.length) return "";
-  return ask.question.replace(new RegExp(`\\b${ask.word}\\b`, "i"), joinPhrases(phrases));
+  const re = new RegExp(ask.pattern ?? `\\b${ask.word}\\b`, "i");
+  return re.test(ask.question) ? ask.question.replace(re, joinPhrases(phrases)) : `${ask.question} ${joinPhrases(phrases)}`;
 }
 
 interface Rule {

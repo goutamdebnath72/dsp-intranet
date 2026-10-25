@@ -21,7 +21,8 @@
     "from": "16:30",
     "to": "18:30"
    }
-  ]
+  ],
+  "afternoonNote": "The afternoon OPD (5 PM to 7 PM) is only for employees currently on roll; it is not for retired employees, nor for the family members of current or retired employees."
  },
  "days": [
   "MON",
@@ -174,7 +175,7 @@
         "ajit-karmakar"
        ],
        "rooms": {
-        "ranjeet-kumar": "OPD 24",
+        "ranjeet-kumar": "OPD 25",
         "ajit-karmakar": "OPD 25"
        },
        "note": "OPD 26: any doctor who is available"
@@ -191,7 +192,7 @@
         "ajit-karmakar"
        ],
        "rooms": {
-        "ranjeet-kumar": "OPD 24",
+        "ranjeet-kumar": "OPD 25",
         "ajit-karmakar": "OPD 25"
        }
       },

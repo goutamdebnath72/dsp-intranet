@@ -411,7 +411,9 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
       const { holidaysOn } = await import("@/lib/hospital/holidaysOn");
       const { DateTime } = await import("luxon");
       const r = await answerHospital(qq, { now: DateTime.now().setZone("Asia/Kolkata"), holidaysOn });
-      return r ? { kind: "count", answer: r.summary, hospital: r.card } : null;
+      if (!r) return null;
+      if (r.ask) return { kind: "clarify", answer: r.summary, ask: r.ask };
+      return { kind: "count", answer: r.summary, hospital: r.card };
     },
     holiday: async (qq) => {
       const { parseHolidayIntent } = await import("@/lib/holidays/parser");
