@@ -37,7 +37,7 @@ export const nice = (s: string) =>
   s.replace(/\.(?=[A-Za-z])/g, ". ").trim().split(/\s+/).map((w) => (w.includes(".") || w.length <= 1 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())).join(" ");
 const flag = (p: Person) => (p.status === "retired" ? " (retired)" : p.status === "transferred" ? " (transferred)" : p.status === "not_on_list" ? " (not on the current doctor list)" : "");
 /** A department's name as the hospital writes it (MOPD, ENT, OHS & PMU, Gynae & Obs ...), not title-cased into "Mopd". */
-const deptLabel = (dep: string): string => SCHEDULE.departments.find((d) => d.staffDepartment.toUpperCase() === dep.toUpperCase())?.name ?? (["OHS & PMU", "ENT", "MOPD"].includes(dep.toUpperCase()) ? dep.toUpperCase() : nice(dep));
+const deptLabel = (dep: string): string => SCHEDULE.departments.find((d) => d.staffDepartment.toUpperCase() === dep.toUpperCase())?.name ?? (["OHS & PMU", "ENT", "MOPD"].includes(dep.toUpperCase()) ? dep.toUpperCase() : nice(dep).replace(/\bAnd\b/g, "and"));
 const docName = (p: Person) => `Dr. ${nice(p.name)}`;
 const docLabel = (p: Person) => docName(p) + flag(p);
 const shortName = (p: Person) => {
@@ -225,6 +225,8 @@ interface Entities {
   doctors: Person[];
   /** A department or unit named in the question that none of the doctors with that name belongs to ("karmakar of surgery"): the department's name, else null. */
   hintMiss: string | null;
+  /** Staff departments named by a word the OPD schedule has no department for (radiology, pathology, emergency ...). */
+  extraDepts: string[];
   /** The words of the question that are neither a department, a date nor a question word: the name the person typed, if any. */
   leftover: string[];
 }
@@ -295,7 +297,7 @@ function entitiesOf(rawQ: string, now: DateTime): Entities {
   const narrowed = exact ? { list: found, miss: null as string | null } : narrowDoctors(found, depts, extraDepts, unitRefs.flatMap((r) => (r.unit && r.dept && r.dept.kind === "units" ? [r.unit] : [])));
   // "is the hospital open on monday?": here the hospital means the OPD (the Emergency Department is open all the time); only a question about being open or closed on a day, so that "executives of the main hospital" stays an employee question
   const hospitalMeansOpd = /\bhospital\b/.test(original) && /\b(open|opens|opened|closed?|closes|closing|running|functioning|working|holiday|available|off)\b/.test(original) && (dateRef !== null || weekdaysIn(q).length > 0);
-  return { n: original, hasOpd: hasOpd || hospitalMeansOpd, depts, unitRefs, weekdays: weekdaysIn(q), dateRef, doctors: narrowed.list, hintMiss: narrowed.miss, leftover: words.filter((w) => !STOP.has(w) && !/^\d+$/.test(w)) };
+  return { n: original, hasOpd: hasOpd || hospitalMeansOpd, depts, unitRefs, weekdays: weekdaysIn(q), dateRef, doctors: narrowed.list, hintMiss: narrowed.miss, extraDepts, leftover: words.filter((w) => !STOP.has(w) && !/^\d+$/.test(w)) };
 }
 
 // ---------------------------------------------------------------- answers
@@ -835,6 +837,76 @@ function nonPermanentListAnswer(e: Entities): HospitalResult {
   });
 }
 
+// ---------------------------------------------------------------- the doctors of a department (step 54g)
+// "list of ent doctors", "how many doctors in surgery": the HR directory does not know a doctor's hospital department (all 52 are in MEDICAL ORGANISATION), so the SQL could only answer 0 rows,
+// or silently ignore the department. The hospital's own lists know it: the staff list (department of each doctor), the OPD schedule (who sits in the department's OPD) and the list of the
+// non-permanent doctors. A doctor of a department is one whose staff-list department it is, or who sits in its OPD, or a non-permanent doctor whose department or specialization it is.
+// A doctor who has retired or been transferred is not listed.
+interface DeptDoctor { p: Person; own: boolean }
+function doctorsOfDepartment(staffDept: string, d: Department | null): DeptDoctor[] {
+  const key = staffDept.toUpperCase();
+  const label = (d?.name ?? staffDept).toLowerCase();
+  const out: DeptDoctor[] = [];
+  for (const p of DOCTOR_POOL) {
+    if (isGone(p)) continue;
+    const np = npOf(p);
+    const own = p.department.toUpperCase() === key || (!!np && !np.staffId && (np.specialization ?? "").toLowerCase().includes(label));
+    const sits = !!d && sitsInDept(p, d);
+    if (own || sits) out.push({ p, own });
+  }
+  return out;
+}
+/** Where and when a doctor sits in this department's OPD. */
+function opdPlaces(p: Person, d: Department | null): string {
+  if (!d) return "no OPD of its own";
+  const parts: string[] = [];
+  for (const u of d.units) {
+    const days = OPD_DAYS.filter((day) => u.week[day]?.doctors?.includes(p.id));
+    if (!days.length) continue;
+    const room = u.week[days[0]]?.rooms?.[p.id];
+    parts.push(isUnits(d) ? `${u.label} · ${room ?? "—"} · ${daysText(days)}` : `${u.label} · ${daysText(days)}`);
+  }
+  return parts.join("; ") || "not in the OPD schedule";
+}
+/** confirmed permanent (on the intranet doctor list), non-permanent, or only in the staff list (not on the current doctor list: may have retired or moved) */
+type DoctorKind = "perm" | "np" | "unc";
+const doctorKind = (p: Person): DoctorKind => (p.employment === "contractual" ? "np" : p.status === "not_on_list" ? "unc" : "perm");
+function departmentDoctorsAnswer(e: Entities): HospitalResult {
+  const groups: { label: string; d: Department | null; rows: DeptDoctor[] }[] = [
+    ...e.depts.map((d) => ({ label: d.name, d: d as Department | null, rows: doctorsOfDepartment(d.staffDepartment, d) })),
+    ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map((x) => ({ label: deptLabel(x), d: null as Department | null, rows: doctorsOfDepartment(x, null) })),
+  ];
+  const ORDER: Record<DoctorKind, number> = { perm: 0, np: 1, unc: 2 };
+  const tables = groups.map((g) => {
+    const sorted = [...g.rows].sort((a, b) => ORDER[doctorKind(a.p)] - ORDER[doctorKind(b.p)]);
+    const n = (k: DoctorKind) => g.rows.filter((r) => doctorKind(r.p) === k).length;
+    const rows = sorted.map(({ p, own }) => {
+      const np = npOf(p);
+      return [
+        own ? docLabel(p) : `${docName(p)} (department: ${p.department ? deptLabel(p.department) : "not recorded"}; sits in this OPD)`,
+        p.ticket ?? (p.doctorListId ? `${p.doctorListId} (non-permanent)` : "not recorded"),
+        p.discipline ?? np?.specialization ?? "—",
+        opdPlaces(p, g.d),
+      ];
+    });
+    return { ...g, perm: n("perm"), np: n("np"), unc: n("unc"), table: { columns: ["Doctor", "Ticket", "Discipline", "OPD"], rows } as HospitalTable };
+  });
+  const sentence = (t: (typeof tables)[number]) => {
+    if (!t.rows.length) return `No doctor is listed for ${t.label}.`;
+    const parts = [t.perm ? `${t.perm} permanent` : "", t.np ? `${t.np} non-permanent` : "", t.unc ? `${t.unc} not on the current doctor list` : ""].filter(Boolean);
+    return `${t.label} has ${t.rows.length} doctor${t.rows.length === 1 ? "" : "s"}${parts.length > 1 || t.unc || t.np ? ` (${parts.join(", ")})` : ""}.`;
+  };
+  const text = tables.map(sentence).join(" ");
+  const lines: string[] = [];
+  if (tables.some((t) => t.unc)) lines.push("A doctor \"not on the current doctor list\" is in the hospital's staff list but not in the intranet doctor list: he or she may have retired or moved.");
+  if (groups.some((g) => g.rows.some((r) => !r.own))) lines.push("A doctor marked \"sits in this OPD\" belongs to another department of the staff list but sees patients here.");
+  const card: HospitalAnswer = { title: `Doctors of ${joinAnd(groups.map((g) => g.label))}`, status: { tone: tables.some((t) => t.rows.length) ? "info" : "unknown", text }, lines };
+  const shown = tables.filter((t) => t.rows.length);
+  if (shown.length === 1) card.table = shown[0].table;
+  else card.extraTables = shown.map((t) => ({ title: `${t.label}: ${t.rows.length} doctor${t.rows.length === 1 ? "" : "s"}`, table: t.table }));
+  return done(text, card);
+}
+
 const unitNameOf = (p: Person): string | null => {
   for (const d of SCHEDULE.departments) if (isUnits(d)) for (const u of d.units) if (u.members?.includes(p.id)) return `${d.name} ${u.label}`;
   return null;
@@ -1046,6 +1118,14 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   // head of unit / HOD
   if (/\b(hod|head of|unit head|department head|dept head|in ?charge)\b/.test(n.replace(/-/g, " ")) && (e.depts.length || e.unitRefs.length)) return headAnswer(e);
 
+  const hasWhen = e.dateRef !== null || e.weekdays.length > 0;
+  const closureWords = /\b(open|opens|opened|closed?|closes|closing|running|functioning|functional|working|holiday|holidays|off|closure|closures)\b/.test(n);
+  const timingWords = /\b(timing|timings|time|times|hours|starts?|begins?|from what time|what time)\b/.test(n);
+  // "list of ent doctors", "how many doctors in surgery": the doctors of a department, from the hospital's own lists (not the HR directory, which does not know their department)
+  const DOCTOR_NOUN = /\b(doctors?|physicians?|surgeons?|specialists?|consultants?|radiologists?|pathologists?|anaesthetists?|anesthetists?)\b/;
+  const FILTER_WORDS = /\b(mail|e ?mail|nic|webmail|mobile|phone|cug|address|grade|designation|senior|seniority|junior|executives?|non executives?|retire|retired|promoted)\b/;
+  if (!e.doctors.length && (e.depts.length || e.extraDepts.length) && DOCTOR_NOUN.test(n) && !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length) return departmentDoctorsAnswer(e);
+
   // a doctor
   const cue = e.hasOpd || (DAY_WORDS.test(n) && !EMPLOYEE_WORDS.test(n));
   if (e.doctors.length && cue && !(EMPLOYEE_WORDS.test(n) && !e.hasOpd)) {
@@ -1064,9 +1144,6 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   // an OPD number or a unit of a department
   if (e.unitRefs.length) return unitAnswer(e.unitRefs, e, ctx);
 
-  const hasWhen = e.dateRef !== null || e.weekdays.length > 0;
-  const closureWords = /\b(open|opens|opened|closed?|closes|closing|running|functioning|functional|working|holiday|holidays|off|closure|closures)\b/.test(n);
-  const timingWords = /\b(timing|timings|time|times|hours|starts?|begins?|from what time|what time)\b/.test(n);
 
   if (e.depts.length && hasWhen && !(closureWords && !e.depts.length)) {
     // "is orthopaedic OPD open on tuesday" and "who is in orthopaedic OPD on tuesday" both show the department's OPD that day
