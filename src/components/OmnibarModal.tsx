@@ -53,7 +53,9 @@ interface OmnibarModalProps {
   ticketNo?: string;
 }
 
-const BASE_MODAL_WIDTH_REM = 52;
+const BASE_MODAL_WIDTH_REM = 52; // the floor: never narrower than this
+const BASE_MODAL_WIDTH_VW = 60; // the width on a laptop or a desktop: a share of the screen (the page itself is 80vw), so it holds at any zoom
+const MODAL_MAX_PX = 1600; // never wider than this, even on a very large monitor
 const EXECUTIVE_SCALE = 1.08;
 
 function PersonRow({
@@ -467,6 +469,7 @@ export function OmnibarModal({
     mode === "intellectual"
       ? (BASE_MODAL_WIDTH_REM * EXECUTIVE_SCALE).toFixed(2)
       : BASE_MODAL_WIDTH_REM.toFixed(2);
+  const currentWidthVw = mode === "intellectual" ? (BASE_MODAL_WIDTH_VW * EXECUTIVE_SCALE).toFixed(2) : String(BASE_MODAL_WIDTH_VW);
 
   const handleCloseAll = () => {
     setSelectedCircularId(null);
@@ -593,7 +596,7 @@ export function OmnibarModal({
                 opacity: 1,
                 scale: 1,
                 y: 0,
-                maxWidth: `min(${currentMaxWidthRem}rem, 92vw)`,
+                maxWidth: `min(max(${currentMaxWidthRem}rem, ${currentWidthVw}vw), ${MODAL_MAX_PX}px, 92vw)`,
               }}
               exit={{ opacity: 0, scale: 0.95, y: -20 }}
               transition={{

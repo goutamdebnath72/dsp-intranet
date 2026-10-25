@@ -3,42 +3,6 @@
  "source": "The DSP hospital staff list and OPD schedule given by the owner on 24 Oct 2026 (both NOT up to date), cross-checked with the intranet 'Select Doctor' list (permanent doctors have a 6-digit ticket; D / DTN numbers are contractual or temporary). Statuses: current = on the intranet doctor list; retired / transferred = told by the owner; not_on_list = in the hospital's lists but not on the intranet doctor list (may have retired or moved: to be confirmed).",
  "people": [
   {
-   "id": "r-r-kumar",
-   "name": "R.R.KUMAR",
-   "title": "Dr",
-   "department": "SURGERY",
-   "qualification": "MS(SURGERY)",
-   "role": "doctor",
-   "printed": [
-    "DR. R.R.KUMAR, MS(SURGERY)",
-    "OPD schedule: RR KUMAR"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Surgery"
-  },
-  {
-   "id": "avijit-sircar",
-   "name": "AVIJIT SIRCAR",
-   "title": "Dr",
-   "department": "SURGERY",
-   "qualification": "MS(SURGERY)",
-   "role": "doctor",
-   "printed": [
-    "DR. AVIJIT SIRCAR, MS(SURGERY)",
-    "OPD schedule: AVIJIT SIRCAR"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Surgery"
-  },
-  {
    "id": "rohit-shyam",
    "name": "ROHIT SHYAM",
    "title": "Dr",
@@ -109,24 +73,6 @@
    "discipline": "Surgery"
   },
   {
-   "id": "p-p-roy",
-   "name": "P.P.ROY",
-   "title": "Dr",
-   "department": "SURGERY",
-   "qualification": "MS(SURGERY)",
-   "role": "doctor",
-   "printed": [
-    "DR. P.P.ROY, MS(SURGERY)",
-    "OPD schedule: PP ROY"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Surgery"
-  },
-  {
    "id": "tapati-pradhan",
    "name": "TAPATI PRADHAN",
    "title": "Dr",
@@ -160,44 +106,6 @@
    "status": "current",
    "note": null,
    "discipline": null
-  },
-  {
-   "id": "dadan-prasad",
-   "name": "DADAN PRASAD",
-   "title": "Dr",
-   "department": "MEDICINE",
-   "qualification": "MD(MEDICINE)",
-   "role": "doctor",
-   "printed": [
-    "DR. DADAN PRASAD, MD(MEDICINE)",
-    "OPD schedule: DADAN PRASAD",
-    "BOARD: DR. DADAN PRASAD, IN-CHARGE"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "transferred",
-   "note": "transferred out of the hospital (told by the owner, 24 Oct 2026)",
-   "discipline": "Medicine"
-  },
-  {
-   "id": "ranjeet-kumar",
-   "name": "RANJEET KUMAR",
-   "title": "Dr",
-   "department": "MEDICINE",
-   "qualification": "MD(MEDICINE)",
-   "role": "doctor",
-   "printed": [
-    "DR.RANJEET KUMAR, MD(MEDICINE)",
-    "OPD schedule: RANJEET KUMAR",
-    "BOARD: DR. RANJIT KUMAR, IN-CHARGE"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "retired",
-   "note": "retired (told by the owner, 24 Oct 2026)",
-   "discipline": "Medicine"
   },
   {
    "id": "ajit-karmakar",
@@ -295,24 +203,6 @@
    "discipline": "Medicine"
   },
   {
-   "id": "p-alam",
-   "name": "P.ALAM",
-   "title": "Dr",
-   "department": "ORTHOPAEDICS",
-   "qualification": "D.ORTHO",
-   "role": "doctor",
-   "printed": [
-    "DR. P.ALAM, D.ORTHO",
-    "OPD schedule: P ALAM"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Orthopaedics"
-  },
-  {
    "id": "priyank-sahoo",
    "name": "PRIYANK SAHOO",
    "title": "Dr",
@@ -349,24 +239,6 @@
    "discipline": "Orthopaedics"
   },
   {
-   "id": "r-roychoudhury",
-   "name": "R.ROYCHOUDHURY",
-   "title": "Dr",
-   "department": "ORTHOPAEDICS",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR. R.ROYCHOUDHURY, MBBS",
-    "OPD schedule: R ROY CHOUDHURI"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": null
-  },
-  {
    "id": "navin-yadav",
    "name": "NAVIN YADAV",
    "title": "Dr",
@@ -382,41 +254,6 @@
    "status": "current",
    "note": null,
    "discipline": "Orthopaedics"
-  },
-  {
-   "id": "sateesh-kumar-tiwari",
-   "name": "SATEESH KUMAR TIWARI",
-   "title": "Dr",
-   "department": "ORTHOPAEDICS",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR. SATEESH KUMAR TIWARI,MBBS"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": null
-  },
-  {
-   "id": "mitali-pathak",
-   "name": "MITALI PATHAK",
-   "title": "Dr",
-   "department": "GYNAE & OBS",
-   "qualification": "MBBS,DGO",
-   "role": "doctor",
-   "printed": [
-    "DR.MITALI PATHAK, MBBS,DGO",
-    "OPD schedule: M PATHAK"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Obstetrics and Gynaecology (DGO)"
   },
   {
    "id": "sindhu-sagar",
@@ -507,23 +344,6 @@
    "discipline": "Obstetrics and Gynaecology (DGO)"
   },
   {
-   "id": "rajani-kachchap",
-   "name": "RAJANI KACHCHAP",
-   "title": "Dr",
-   "department": "GYNAE & OBS",
-   "qualification": "MBBS, DGO",
-   "role": "doctor",
-   "printed": [
-    "DR. RAJANI KACHCHAP, MBBS, DGO"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Obstetrics and Gynaecology (DGO)"
-  },
-  {
    "id": "priyanka-roy",
    "name": "PRIYANKA ROY",
    "title": "Dr",
@@ -574,23 +394,6 @@
    "ticket": "490041",
    "doctorListId": "490041",
    "status": "current",
-   "note": null,
-   "discipline": "Ophthalmology"
-  },
-  {
-   "id": "avirupa-datta",
-   "name": "AVIRUPA DATTA",
-   "title": "Dr",
-   "department": "EYE",
-   "qualification": "MS(OPHTHALMOLOGY)",
-   "role": "doctor",
-   "printed": [
-    "DR. AVIRUPA DATTA, MS(OPHTHALMOLOGY)"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
    "note": null,
    "discipline": "Ophthalmology"
   },
@@ -647,23 +450,6 @@
    "status": "current",
    "note": null,
    "discipline": "ENT"
-  },
-  {
-   "id": "a-n-bose",
-   "name": "A.N.BOSE",
-   "title": "Dr",
-   "department": "STORES AND PHARMACY",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR. A.N.BOSE, MBBS"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": null
   },
   {
    "id": "tumpa-lahiri",
@@ -963,94 +749,6 @@
    "discipline": "Psychiatry"
   },
   {
-   "id": "nivedita-roy",
-   "name": "NIVEDITA ROY",
-   "title": "Dr",
-   "department": "PAEDIATRICS",
-   "qualification": "MD(PAEDIATRICS)",
-   "role": "doctor",
-   "printed": [
-    "DR.NIVEDITA ROY, MD(PAEDIATRICS)",
-    "OPD schedule: N ROY"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Paediatrics"
-  },
-  {
-   "id": "riju-acharya",
-   "name": "RIJU ACHARYA",
-   "title": "Dr",
-   "department": "PAEDIATRICS",
-   "qualification": "MD(PAEDIATRICS)",
-   "role": "doctor",
-   "printed": [
-    "DR.RIJU ACHARYA, MD(PAEDIATRICS)",
-    "OPD schedule: RIJU ACHARYYA"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Paediatrics"
-  },
-  {
-   "id": "saugata-bhattacharya",
-   "name": "SAUGATA BHATTACHARYA",
-   "title": "Dr",
-   "department": "PAEDIATRICS",
-   "qualification": "MD(PAEDIATRICS)",
-   "role": "doctor",
-   "printed": [
-    "DR.SAUGATA BHATTACHARYA, MD(PAEDIATRICS)",
-    "OPD schedule: SAUGATA BHATTACHARYYA"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Paediatrics"
-  },
-  {
-   "id": "payel-ghosh",
-   "name": "PAYEL GHOSH",
-   "title": "Dr",
-   "department": "PAEDIATRICS",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR. PAYEL GHOSH, MBBS"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": null
-  },
-  {
-   "id": "debjit-sen",
-   "name": "DEBJIT SEN",
-   "title": "Dr",
-   "department": "PAEDIATRICS",
-   "qualification": "MD(PAEDIATRICS)",
-   "role": "doctor",
-   "printed": [
-    "DR.DEBJIT SEN, MD(PAEDIATRICS)"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Paediatrics"
-  },
-  {
    "id": "gourav-mukherjee",
    "name": "GOURAV MUKHERJEE",
    "title": "Dr",
@@ -1208,24 +906,6 @@
    "discipline": "Anaesthesiology"
   },
   {
-   "id": "ivy-paul",
-   "name": "IVY PAUL",
-   "title": "Dr",
-   "department": "HEALTH CENTRES",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR. IVY PAUL,MBBS",
-    "OPD schedule: IVY PAUL"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "retired",
-   "note": "retired (told by the owner, 24 Oct 2026)",
-   "discipline": null
-  },
-  {
    "id": "rina-mondal",
    "name": "RINA MONDAL",
    "title": "Dr",
@@ -1258,24 +938,6 @@
    "ticket": "499291",
    "doctorListId": "499291",
    "status": "current",
-   "note": null,
-   "discipline": null
-  },
-  {
-   "id": "lily-ghosh",
-   "name": "LILY GHOSH",
-   "title": "Dr",
-   "department": "HEALTH CENTRES",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR.LILY GHOSH,MBBS",
-    "OPD schedule: LILY GHOSH"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
    "note": null,
    "discipline": null
   },
@@ -1365,57 +1027,6 @@
    "discipline": null
   },
   {
-   "id": "monalisa-chattopadhyay",
-   "name": "MONALISA CHATTOPADHYAY",
-   "title": "Dr",
-   "department": "RADIOLOGY",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR. MONALISA CHATTOPADHYAY,MBBS"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": null
-  },
-  {
-   "id": "rumpa-banerjee",
-   "name": "RUMPA BANERJEE",
-   "title": "Dr",
-   "department": "RADIOLOGY",
-   "qualification": "MD(RADIOLOGY)",
-   "role": "doctor",
-   "printed": [
-    "DR.RUMPA BANERJEE,MD(RADIOLOGY)"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": "Radiology"
-  },
-  {
-   "id": "priyanka-bhattacharya",
-   "name": "PRIYANKA BHATTACHARYA",
-   "title": "Dr",
-   "department": "RADIOLOGY",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR.PRIYANKA BHATTACHARYA,MBBS"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": null
-  },
-  {
    "id": "kausik-chattopadhyay",
    "name": "KAUSIK CHATTOPADHYAY",
    "title": "Dr",
@@ -1480,40 +1091,6 @@
    "ticket": "490088",
    "doctorListId": "490088",
    "status": "current",
-   "note": null,
-   "discipline": null
-  },
-  {
-   "id": "ashutosh-gupta",
-   "name": "ASHUTOSH GUPTA",
-   "title": "Dr",
-   "department": "EMERGENCY",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR. ASHUTOSH GUPTA,MBBS"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": null,
-   "discipline": null
-  },
-  {
-   "id": "s-a-zamadar",
-   "name": "S.A.ZAMADAR",
-   "title": "Dr",
-   "department": "EMERGENCY",
-   "qualification": "MBBS",
-   "role": "doctor",
-   "printed": [
-    "DR.S.A.ZAMADAR,MBBS"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
    "note": null,
    "discipline": null
   },
@@ -1686,57 +1263,6 @@
    "status": "current",
    "note": null,
    "discipline": "Transfusion medicine"
-  },
-  {
-   "id": "dharmendra-kumar",
-   "name": "DHARMENDRA KUMAR",
-   "title": "Dr",
-   "department": "SURGERY",
-   "qualification": null,
-   "role": "doctor",
-   "printed": [
-    "OPD schedule: DHARMENDRA KUMAR"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": "appears only in the OPD schedule, not in the staff list",
-   "discipline": null
-  },
-  {
-   "id": "a-ghosh",
-   "name": "A GHOSH",
-   "title": "Dr",
-   "department": "EYE",
-   "qualification": null,
-   "role": "doctor",
-   "printed": [
-    "OPD schedule: A GHOSH"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": "appears only in the OPD schedule, not in the staff list",
-   "discipline": null
-  },
-  {
-   "id": "saikat-mondal",
-   "name": "SAIKAT MONDAL",
-   "title": "Dr",
-   "department": "PAEDIATRICS",
-   "qualification": null,
-   "role": "doctor",
-   "printed": [
-    "OPD schedule: SAIKAT MONDAL"
-   ],
-   "employment": "unknown",
-   "ticket": null,
-   "doctorListId": null,
-   "status": "not_on_list",
-   "note": "appears only in the OPD schedule, not in the staff list",
-   "discipline": null
   }
  ]
 }

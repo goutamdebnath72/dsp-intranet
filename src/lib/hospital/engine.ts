@@ -62,6 +62,7 @@ const STATE_TEXT: Record<string, string> = {
   PROCEDURE_EMERGENCY: "Procedures and emergency cases only",
   UNKNOWN: "Not shown in the schedule",
   UNIT_OFF: "Does not sit on this day",
+  NO_DOCTOR: "No current doctor listed",
 };
 const slotPeople = (s: Slot): Person[] => (s.doctors ?? []).map((id) => PERSON.get(id)).filter((p): p is Person => !!p);
 /** A doctor who has retired or been transferred is not shown in a table of who sits (he or she does not sit any more); one who is only not on the current doctor list is shown, marked. */
@@ -1164,7 +1165,7 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   }
 
   // "which days does dr kamla sit": a doctor's name was typed but nobody matches it: say so, do not show something else
-  if (!e.doctors.length && (/\b(dr|doctor)\b/.test(n) || /\b(days?|schedule|roster)\s+of\s+[a-z]/.test(n)) && /\b(days?|sit|sits|sitting|when|schedule|roster)\b/.test(n) && nameWords.length && !e.depts.length && !e.unitRefs.length) {
+  if (!e.doctors.length && (/\b(dr|doctor)\b/.test(n) || /\b(days?|schedule|roster)\s+of\s+[a-z]/.test(n)) && (/\b(days?|sit|sits|sitting|when|schedule|roster|available|availability|present|opd)\b/.test(n) || hasWhen) && nameWords.length && !e.depts.length && !e.unitRefs.length) {
     const text = `I could not find a doctor named "${nameWords.join(" ")}" in the hospital lists I have. Check the spelling, or try the surname only.`;
     return done(text, { title: "Which doctor?", status: { tone: "unknown", text } });
   }

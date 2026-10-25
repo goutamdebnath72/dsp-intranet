@@ -36,7 +36,7 @@ async function main() {
   ok("the data files have no problems", validateData().length === 0, validateData().join("; "));
   ok("13 departments and 25 OPD units", SCHEDULE.departments.length === 13 && SCHEDULE.departments.reduce((n, d) => n + d.units.length, 0) === 25);
   ok("no HOD is recorded yet", SCHEDULE.departments.every((d) => d.hod === null));
-  ok("Ranjeet Kumar and Ivy Paul are retired and Dadan Prasad is transferred (told by the owner)", PERSON.get("ranjeet-kumar")?.status === "retired" && PERSON.get("ivy-paul")?.status === "retired" && PERSON.get("dadan-prasad")?.status === "transferred");
+  ok("nobody who is retired, transferred or not on the current doctor list is in the staff file or the schedule (27 doctors cleaned out)", !STAFF.people.some((p) => p.status === "retired" || p.status === "transferred" || p.status === "not_on_list") && !["ranjeet-kumar", "ivy-paul", "dadan-prasad", "ashish-chatterjee", "ritesh-chauhan", "avijit-sircar", "r-r-kumar", "dharmendra-kumar", "nivedita-roy", "p-alam", "monalisa-chattopadhyay"].some((id) => PERSON.has(id)));
   ok("Manish Kumar is permanent with ticket 490196 (the stray D of the doctor list is not kept)", PERSON.get("manish-kumar")?.ticket === "490196" && PERSON.get("manish-kumar")?.employment === "permanent");
 
   // ---- dates
@@ -92,11 +92,11 @@ async function main() {
   r = await ask("when is dr priyank sahoo available");
   ok("a question without the word OPD but about days: Priyank Sahoo, Orthopaedics OPD 22, Tuesday, Wednesday, Friday and Saturday", has(r, "orthopaedics opd 22", "tuesday, wednesday, friday and saturday"), all(r));
   r = await ask("which days does dr ranjeet kumar sit in opd");
-  ok("Ranjeet Kumar: the old days are shown but he is marked retired", has(r, "monday and thursday", "retired", "no longer sits"), all(r));
+  ok("Ranjeet Kumar (retired) is not in the data: nobody of that name, said plainly", has(r, "could not find a doctor named", "ranjeet kumar"), all(r));
   r = await ask("dr ivy paul opd days");
-  ok("Ivy Paul: retired", has(r, "retired", "kanishka"), all(r));
+  ok("Ivy Paul (retired): nobody of that name", has(r, "could not find a doctor named", "ivy paul"), all(r));
   r = await ask("dr dadan prasad opd days");
-  ok("Dadan Prasad: transferred", has(r, "transferred"), all(r));
+  ok("Dadan Prasad (transferred): nobody of that name", has(r, "could not find a doctor named", "dadan prasad"), all(r));
   r = await ask("which days does dr arghya das sit in opd");
   ok("Arghya Das is the EYE doctor (OPD 14D), not the ENT one", has(r, "eye opd 14d") && !has(r, "ent opd"), all(r));
   r = await ask("opd days of dr arijit das");
@@ -118,7 +118,7 @@ async function main() {
 
   // ---- a department
   r = await ask("who is in orthopaedics opd on tuesday");
-  ok("Orthopaedics on Tuesday: OPD 22 with the four doctors, two of them not on the current list", has(r, "opd 22", "priyank sahoo", "chetan", "p. alam", "not on the current doctor list"), all(r));
+  ok("Orthopaedics on Tuesday: OPD 22 with its two doctors (the two who were not on the current list are gone)", has(r, "opd 22", "priyank sahoo", "chetan") && !has(r, "p. alam", "not on the current doctor list"), all(r));
   r = await ask("orthopaedic opd monday");
   ok("Orthopaedics on Monday: OT day", has(r, "ot day"), all(r));
   r = await ask("dental opd tuesday");
@@ -130,9 +130,9 @@ async function main() {
   r = await ask("gynae opd thursday");
   ok("Gynae on Thursday: any doctor", has(r, "any doctor who is available"), all(r));
   r = await ask("paediatrics opd friday");
-  ok("Paediatrics on Friday: Dr. N. Roy, marked", has(r, "nivedita roy") || has(r, "n. roy"), all(r));
+  ok("Paediatrics on Friday: OPD 33 has no current doctor listed (the doctor who was listed is gone)", has(r, "opd 33", "no current doctor listed") && !has(r, "nivedita"), all(r));
   r = await ask("is surgery opd open on 3 november 2026");
-  ok("Surgery on Tuesday 3 November 2026: open, three OPDs", tone(r) === "open" && has(r, "opd 15", "opd 17", "opd 18", "p. p. roy", "dharmendra kumar"), all(r));
+  ok("Surgery on Tuesday 3 November 2026: open, three OPDs: Dr. Tapati Pradhan, Dr. Shyamal Hansda, and OPD 18 with no current doctor listed", tone(r) === "open" && has(r, "opd 15", "opd 17", "opd 18", "tapati pradhan", "shyamal hansda", "no current doctor listed") && !has(r, "p. p. roy", "dharmendra"), all(r));
   r = await ask("ent opd on 21 october 2026");
   ok("ENT on 21 October 2026: the OPD is closed (puja), not a table", tone(r) === "closed" && has(r, "maha dasami") && !r?.card.table, all(r));
   r = await ask("medicine opd sunday");
@@ -150,7 +150,7 @@ async function main() {
 
   // ---- heads
   r = await ask("hod of medicine");
-  ok("the HOD of Medicine: not recorded, OPD 24's head is retired", has(r, "not recorded yet", "ranjeet kumar (retired)"), all(r));
+  ok("the HOD of Medicine: not recorded; the unit heads are the first-named doctors of the units", has(r, "not recorded yet", "unit i: dr. sukhdev shankar patil (the first-named doctor)", "unit ii: dr. ajit karmakar (the first-named doctor)", "unit iii: dr. rajeev kumar (the first-named doctor)"), all(r));
 
   // ---- timings
   r = await ask("opd timing");
@@ -219,17 +219,17 @@ async function main() {
   // ======================================================================================================================================
   const med = SCHEDULE.departments.find((d) => d.id === "medicine")!;
   ok("Medicine is a department of real units, every other department only has rooms", med.kind === "units" && SCHEDULE.departments.filter((d) => d.kind === "units").length === 1);
-  ok("Unit I sits Wednesday and Saturday with two doctors, Unit II Monday and Thursday with two, Unit III Tuesday and Friday with three", med.units.map((u) => `${u.days?.join("+")}:${u.members?.length}`).join(" ") === "WED+SAT:2 MON+THU:2 TUE+FRI:3");
+  ok("Unit I sits Wednesday and Saturday with two doctors, Unit II Monday and Thursday with one, Unit III Tuesday and Friday with two", med.units.map((u) => `${u.days?.join("+")}:${u.members?.length}`).join(" ") === "WED+SAT:2 MON+THU:1 TUE+FRI:2");
   ok("every Medicine day has exactly one unit sitting", OPD_DAYS.every((d) => med.units.filter((u) => u.week[d]?.doctors?.length).length === 1));
-  ok("in-charge: Unit II Dr. Ranjeet Kumar and Unit III Dr. Dadan Prasad (the board says IN-CHARGE); Unit I by the usual rule the first-named doctor, now Dr. Sukhdev Shankar Patil", unitHead(med.units[1]) === "ranjeet-kumar" && unitHead(med.units[2]) === "dadan-prasad" && unitHead(med.units[0]) === "sukhdev-shankar-patil" && med.units[1].head === "ranjeet-kumar" && !med.units[0].head && !("headUnknown" in med.units[0]));
-  ok("the staff file has 89 doctors and 10 other staff (Dr. Ashish Chatterjee and Dr. Ritesh Chauhan are removed: retired or transferred)", STAFF.people.filter((p) => p.role === "doctor").length === 89 && STAFF.people.filter((p) => p.role === "staff").length === 10);
+  ok("in-charge: by the usual rule the first-named doctor of each unit: Unit I Dr. Sukhdev Shankar Patil, Unit II Dr. Ajit Karmakar, Unit III Dr. Rajeev Kumar (no head is stored: the in-charges of the board have gone)", unitHead(med.units[0]) === "sukhdev-shankar-patil" && unitHead(med.units[1]) === "ajit-karmakar" && unitHead(med.units[2]) === "rajeev-kumar" && med.units.every((u) => !u.head && !("headUnknown" in u)));
+  ok("the staff file has 62 doctors and 10 other staff (everyone who is retired, transferred or not on the current list is cleaned out)", STAFF.people.filter((p) => p.role === "doctor").length === 62 && STAFF.people.filter((p) => p.role === "staff").length === 10);
 
   r = await ask("which days does dr dipak singh sit in opd");
   ok("Dr. Dipak Singh is in Unit I: Wednesday and Saturday, room OPD 26", has(r, "medicine unit i (opd 26)", "wednesday and saturday") && !has(r, "monday"), all(r));
   r = await ask("which days does dr sukhdeb sankar patil sit in opd");
   ok("the board's spelling 'Sukhdeb Sankar Patil' finds Dr. Sukhdev Shankar Patil", has(r, "sukhdev shankar patil", "medicine unit i (opd 25)"), all(r));
   r = await ask("dr ranjit kumar opd days");
-  ok("the board's spelling 'Ranjit Kumar' finds Dr. Ranjeet Kumar, retired", has(r, "ranjeet kumar", "retired"), all(r));
+  ok("the board's spelling 'Ranjit Kumar': nobody of that name either", has(r, "could not find a doctor named", "ranjit kumar"), all(r));
 
 
   // ---- units, by number and by roman numeral
@@ -257,17 +257,17 @@ async function main() {
   r = await ask("opd 26 days");
   ok("room 26: on Monday Unit II's note 'any doctor available', Unit III Dr. Kunj Bihari Singh, Unit I Dr. Dipak Singh", has(r, "monday", "medicine unit ii", "any doctor who is available", "kunj bihari singh", "dipak singh") && r?.card.table?.rows.find((x) => x[0] === "Monday")?.[1] === "Medicine Unit II" && r?.card.table?.rows.find((x) => x[0] === "Thursday")?.[1] === "—", all(r));
   r = await ask("opd 99");
-  ok("an OPD number that does not exist: honest not-found, with the units and rooms that do", has(r, "opd 99 is not in the opd schedule i have", "unit iii", "opd rooms 25, 26, 24", "orthopaedics opd 22"), all(r));
+  ok("an OPD number that does not exist: honest not-found, with the units and rooms that do", has(r, "opd 99 is not in the opd schedule i have", "unit iii", "opd rooms 25, 26", "orthopaedics opd 22"), all(r));
 
   // ---- heads and the HOD
   r = await ask("who is the hod of surgery");
   ok("Surgery: its HOD is not recorded and neither are its units (only rooms): no head is claimed", tone(r) === "unknown" && has(r, "hod of surgery is not recorded yet", "neither are its units", "opd 15") && !has(r, "avijit sircar"), all(r));
   r = await ask("who is the in-charge of medicine unit 2");
-  ok("the in-charge of Medicine Unit II is Dr. Ranjeet Kumar, retired", has(r, "in-charge of medicine unit ii is dr. ranjeet kumar (retired)", "has retired"), all(r));
+  ok("the in-charge of Medicine Unit II is, by the rule, its first-named doctor Dr. Ajit Karmakar", has(r, "in-charge of medicine unit ii is dr. ajit karmakar (the first-named doctor)"), all(r));
   r = await ask("who is the head of unit iii of medicine");
-  ok("the head of Unit III is Dr. Dadan Prasad (board: IN-CHARGE), transferred", has(r, "dr. dadan prasad (transferred)", "has been transferred"), all(r));
-  r = await ask("who is the unit head of opd 24");
-  ok("OPD 24 is a room, so it has no head: the units' heads are listed", has(r, "room of medicine", "no head of its own", "unit i:", "unit ii: dr. ranjeet kumar (retired)", "unit iii: dr. dadan prasad (transferred)"), all(r));
+  ok("the head of Unit III is, by the rule, Dr. Rajeev Kumar", has(r, "in-charge of medicine unit iii is dr. rajeev kumar (the first-named doctor)"), all(r));
+  r = await ask("who is the unit head of opd 25");
+  ok("OPD 25 is a room, so it has no head: the units' heads are listed", has(r, "room of medicine", "no head of its own", "unit i: dr. sukhdev shankar patil (the first-named doctor)", "unit ii: dr. ajit karmakar (the first-named doctor)", "unit iii: dr. rajeev kumar (the first-named doctor)"), all(r));
 
   // ---- a patient belongs to his UNIT: a doctor asked about on a day his unit does not sit
   r = await ask("is dr ajit karmakar in opd on tuesday");
@@ -275,8 +275,8 @@ async function main() {
   r = await ask("is dr kunj bihari singh in opd on monday");
   ok("Dr. Kunj Bihari Singh on a Monday: Unit III does not sit (Tuesday and Friday)", tone(r) === "closed" && has(r, "unit iii) does not sit on monday", "tuesday and friday"), all(r));
   r = await ask("is dr ranjeet kumar in opd on tuesday");
-  ok("a retired doctor on a Tuesday: his unit does not sit; the notes say he has retired", has(r, "medicine unit ii) does not sit on tuesday", "retired"), all(r));
-  r = await ask("is dr avijit sircar in opd on tuesday");
+  ok("a doctor who is not on roll, asked on a Tuesday: nobody of that name (not 'the OPD is open')", has(r, "could not find a doctor named", "ranjeet kumar") && tone(r) === "unknown" && !has(r, "yes:"), all(r));
+  r = await ask("is dr rohit shyam in opd on tuesday");
   ok("a doctor of a department with only rooms, on a day he does not sit: others sit in the room, but the units are not recorded, so the softer pointer", tone(r) === "closed" && has(r, "units of surgery are not recorded yet") && /^If your unit is not sitting that day:/.test(r?.card.suggestion ?? ""), all(r));
 
   // ======================================================================================================================================
@@ -305,7 +305,7 @@ async function main() {
   r = await ask("is dr ritesh chauhan permanent or contractual");
   ok("is dr Ritesh Chauhan permanent or contractual: there is no such doctor in the lists, said so (not the list of all the non-permanent doctors)", tone(r) === "unknown" && has(r, "could not find a doctor named", "ritesh chauhan") && !has(r, "66 non-permanent"), all(r));
   r = await ask("is dr ranjeet kumar contractual");
-  ok("a retired doctor: he has retired", has(r, "has retired"), all(r));
+  ok("a doctor who is not on roll, asked whether he is contractual: nobody of that name", has(r, "could not find a doctor named", "ranjeet kumar"), all(r));
   r = await ask("is dr ajay varghese contractual");
   ok("a non-permanent doctor the hospital's own lists do not have is still found, from the file", has(r, "non-permanent (contractual) doctor", "d499962"), all(r));
   r = await ask("dr ajay varghese opd days");
@@ -325,9 +325,9 @@ async function main() {
   r = await ask("medicine opd wednesday");
   ok("Medicine on Wednesday: Unit I, two doctors in two rooms (the two doctors who have gone are not shown)", JSON.stringify(r?.card.table?.rows) === JSON.stringify([["Unit I", "OPD 25", "Dr. Sukhdev Shankar Patil"], ["", "OPD 26", "Dr. Dipak Singh"]]) && !/Ashish|Ritesh/.test(jc(r)), jc(r).slice(0, 300));
   r = await ask("orthopaedics opd tuesday");
-  ok("a department of rooms: the columns are just Room and Doctor, one row per doctor, the room once", JSON.stringify(r?.card.table?.columns) === JSON.stringify(["Room", "Doctor"]) && JSON.stringify(r?.card.table?.rows.map((x) => x[0])) === JSON.stringify(["OPD 22", "", "", ""]) && r?.card.badge?.tone === "open", flat(r));
+  ok("a department of rooms: the columns are just Room and Doctor, one row per doctor, the room once", JSON.stringify(r?.card.table?.columns) === JSON.stringify(["Room", "Doctor"]) && JSON.stringify(r?.card.table?.rows.map((x) => x[0])) === JSON.stringify(["OPD 22", ""]) && r?.card.badge?.tone === "open", flat(r));
   r = await ask("surgery opd tuesday");
-  ok("Surgery on Tuesday: three rooms, the doctors under their room", JSON.stringify(r?.card.table?.rows.map((x) => x[0])) === JSON.stringify(["OPD 15", "", "OPD 17", "", "OPD 18"]), flat(r));
+  ok("Surgery on Tuesday: three rooms, OPD 18 with no current doctor listed", JSON.stringify(r?.card.table?.rows.map((x) => x[0])) === JSON.stringify(["OPD 15", "OPD 17", "OPD 18"]) && r?.card.table?.rows[2][1] === "No current doctor listed", flat(r));
   r = await ask("medicine opd monday and thursday");
   ok("two weekdays named: the grid (unit by day), no single date, no badge", r?.card.table?.columns.join("|") === "Department|Unit / OPD|Monday|Thursday" && r?.card.table?.rows.length === 1 && r?.card.badge === undefined, flat(r));
   r = await ask("medicine opd");
@@ -373,7 +373,7 @@ async function main() {
   r = await ask("is dr singh of medicine unit 3 available on tuesday");
   ok("a unit narrows: 'singh of medicine unit 3' is Dr. Kunj Bihari Singh, who sits on Tuesday", !A(r) && has(r, "kunj bihari singh", "yes"), all(r).slice(0, 200));
   r = await ask("is dr kumar of surgery available on tuesday");
-  ok("'kumar of surgery': only the two Kumars of Surgery are offered (not all thirteen)", A(r)?.options.map((o) => o.label).sort().join("|") === "Dr. Dharmendra Kumar|Dr. R. R. Kumar", JSON.stringify(A(r)?.options.map((o) => o.label)));
+  ok("'kumar of surgery': nobody of that name is a doctor of Surgery now: said so, and the other Kumars offered", !!A(r) && /I found no Dr\. Kumar in Surgery/.test(A(r)!.message), A(r)?.message);
   r = await ask("is dr karmakar of surgery available on tuesday");
   ok("'karmakar of surgery': there is none in Surgery; the Medicine Karmakar is offered as the one to confirm", !!A(r) && /I found no Dr\. Karmakar in Surgery/.test(A(r)!.message) && A(r)!.options.length === 1 && A(r)!.options[0].label === "Dr. Ajit Karmakar", all(r).slice(0, 200));
   r = await ask("is doctor karmakar of medicine available on next tuesday?");
@@ -390,7 +390,7 @@ async function main() {
   r = await ask("which days does dr a k mukherjee sit in opd");
   ok("initials typed before the name are replaced with the chosen doctor", !A(r) || queryFor(A(r)!, [A(r)!.options[0].id]).startsWith("which days does Dr."), all(r).slice(0, 120));
   r = await ask("dr kumar is available on tuesday?");
-  ok("nineteen doctors have Kumar in their name (some as a middle name): ten are offered, the surname matches first, and the person is told to narrow it", A(r)?.options.length === 10 && /Showing 10 of 19/.test(A(r)!.message) && A(r)!.options.slice(0, 3).every((o) => /Kumar$/.test(o.label)), A(r)?.options.map((o) => o.label).join("|"));
+  ok("fifteen doctors have Kumar in their name (some as a middle name): ten are offered, the surname matches first, and the person is told to narrow it", A(r)?.options.length === 10 && /Showing 10 of 15/.test(A(r)!.message) && A(r)!.options.slice(0, 3).every((o) => /Kumar$/.test(o.label)), A(r)?.options.map((o) => o.label).join("|"));
   // the round trip: EVERY option of every ambiguous surname answers for that doctor, keeps the day, and never asks again
   for (const sur of ["mukherjee", "das", "kumar", "mondal", "roy", "singh", "saha", "chakraborty", "sarkar", "ghosh", "choudhuri", "bhattacharya"]) {
     const r1 = await ask(`is dr ${sur} available on next tuesday?`);
@@ -426,15 +426,15 @@ async function main() {
   r = await ask("which days does dr ajit karmakar sit in opd");
   ok("with no date: his unit and its days, one table", JSON.stringify(r?.card.extraTables?.map((x) => x.title)) === JSON.stringify(["Medicine Unit II: Monday and Thursday"]) && r?.card.badge === undefined, jc(r).slice(0, 160));
   r = await ask("is dr priyank sahoo available on monday");
-  ok("a department of rooms, an OT day: his room with its doctors, no unit claimed", tone(r) === "closed" && r?.card.extraTables?.[0].title === "Orthopaedics OPD 22: Tuesday, Wednesday, Friday and Saturday" && r?.card.extraTables?.[0].table.rows[0].join("|") === "OPD 22|Dr. Priyank Sahoo" && (r?.card.extraTables?.[0].table.rows.length ?? 0) === 4, jc(r).slice(0, 220));
-  r = await ask("is dr avijit sircar available on tuesday");
-  ok("a department of rooms, another doctor of the room sits that day: his room (colleagues with their days), and who sits that day", has(r, "units of surgery are not recorded yet") && r?.card.extraTables?.[0].title === "Surgery OPD 15: Monday, Wednesday and Friday" && r?.card.extraTables?.[1].title.startsWith("Sitting on Tuesday") && /Tuesday, Thursday and Saturday/.test(jc(r)), jc(r).slice(0, 300));
+  ok("a department of rooms, an OT day: his room with its doctors, no unit claimed", tone(r) === "closed" && r?.card.extraTables?.[0].title === "Orthopaedics OPD 22: Tuesday, Wednesday, Friday and Saturday" && r?.card.extraTables?.[0].table.rows[0].join("|") === "OPD 22|Dr. Priyank Sahoo" && (r?.card.extraTables?.[0].table.rows.length ?? 0) === 2, jc(r).slice(0, 220));
+  r = await ask("is dr rohit shyam available on tuesday");
+  ok("a department of rooms, another doctor of the room sits that day: his room (colleagues with their days), and who sits that day", has(r, "units of surgery are not recorded yet") && r?.card.extraTables?.[0].title === "Surgery OPD 17: Monday, Wednesday and Friday" && r?.card.extraTables?.[1].title.startsWith("Sitting on Tuesday") && /Tuesday, Thursday and Saturday/.test(jc(r)), jc(r).slice(0, 300));
 
   // ---- retired and transferred doctors are not shown where the OPD is described
   for (const q of ["medicine opd monday", "medicine opd tuesday", "medicine opd thursday", "medicine opd friday", "opd 24 days", "opd 25 days", "medicine opd", "medicine unit 2", "medicine unit 3", "kanishka opd", "which days does dr ajit karmakar sit in opd", "is dr ajit karmakar available on next tuesday", "is dr rajeev kumar available on monday", "medicine and surgery opd on monday"])
     ok(`no retired or transferred doctor in "${q}"`, !/\(retired\)|\(transferred\)|Ranjeet|Dadan|Ivy Paul/.test(jc(await ask(q)).replace(/"notes":\[[^\]]*\]/, "")), jc(await ask(q)).slice(0, 160));
-  ok("asked about HIM, the answer still says he has retired", has(await ask("which days does dr ranjeet kumar sit in opd"), "has retired") && has(await ask("who is the in-charge of medicine unit 2"), "ranjeet kumar (retired)"));
-  ok("the in-charge of a unit is shown only while he is there, else 'not recorded yet'", /In-charge: not recorded yet/.test(jc(await ask("medicine unit 2"))) && /not recorded yet/.test(jc(await ask("medicine opd"))));
+  ok("asked about a doctor who has retired: nobody of that name; and the in-charge question names the first-named doctor instead", has(await ask("which days does dr ranjeet kumar sit in opd"), "could not find a doctor named", "ranjeet kumar") && has(await ask("who is the in-charge of medicine unit 2"), "ajit karmakar (the first-named doctor)"));
+  ok("the in-charge of a unit is its first-named doctor, shown in the unit table and in the overview", /In-charge: Dr\. Ajit Karmakar/.test(jc(await ask("medicine unit 2"))) && /Dr\. Ajit Karmakar/.test(jc(await ask("medicine opd"))));
   r = await ask("the kanishka health centre opd");
   ok("the Kanishka health centre: Dr. Rina Mondal; Dr. Ivy Paul, who has retired, is not shown", has(r, "kanishka", "rina mondal") && !has(r, "ivy paul"), all(r).slice(0, 160));
 
@@ -454,15 +454,15 @@ async function main() {
   r = await ask("medicine opd tuesday");
   ok("Medicine on Tuesday: Unit III, rooms 25 and 26 (Dr. Dadan Prasad has been transferred and is not shown)", JSON.stringify(r?.card.table?.rows) === JSON.stringify([["Unit III", "OPD 25", "Dr. Rajeev Kumar"], ["", "OPD 26", "Dr. Kunj Bihari Singh"]]) && r?.card.badge?.tone === "open", jc(r).slice(0, 200));
   r = await ask("medicine and surgery opd on monday");
-  ok("two departments: Department, Unit, Room, Doctor; Medicine's two rows and Surgery's four", r?.card.table?.columns.join("|") === "Department|Unit|Room|Doctor" && (r?.card.table?.rows.length ?? 0) === 6 && r?.card.table?.rows[2][0] === "Surgery", jc(r).slice(0, 200));
+  ok("two departments: Department, Unit, Room, Doctor; Medicine's two rows and Surgery's three", r?.card.table?.columns.join("|") === "Department|Unit|Room|Doctor" && (r?.card.table?.rows.length ?? 0) === 5 && r?.card.table?.rows[2][0] === "Surgery", jc(r).slice(0, 200));
   r = await askAt("medicine opd today", "2026-10-26T15:00:00");
   ok("Medicine today (Monday 15:00), out of hours: Closed, the Emergency Department, Unit II's table is still shown", r?.card.badge?.tone === "closed" && r?.card.suggestion === URGENT && (r?.card.table?.rows.length ?? 0) === 2, jc(r).slice(0, 160));
   r = await ask("opd 24 on monday");
-  ok("OPD 24 on Monday: nobody sits in it (both doctors of Unit II are in room 25); Dr. Ranjeet Kumar is not named", r?.card.table?.rows.length === 1 && r?.card.table?.rows[0].join("|") === "Monday|—|—" && !/Ranjeet/.test(jc(r)), jc(r).slice(0, 200));
+  ok("OPD 24 does not exist in the schedule any more (it was the room of a doctor who has been transferred): said so, honestly", has(r, "opd 24 is not in the opd schedule i have") && !/Ranjeet|Dadan/.test(jc(r)), jc(r).slice(0, 200));
   r = await ask("opd 25 on monday");
   ok("OPD 25 on Monday: Unit II, Dr. Ajit Karmakar (Dr. Ranjeet Kumar, who shared the room, has retired and is not shown)", r?.card.table?.rows.length === 1 && r?.card.table?.rows[0].join("|") === "Monday|Medicine Unit II|Dr. Ajit Karmakar", jc(r).slice(0, 200));
   r = await ask("medicine unit 2");
-  ok("Medicine unit 2: Monday and Thursday; the table has only the current doctor; the in-charge is 'not recorded yet'", has(r, "medicine unit ii sits on monday and thursday", "in-charge: not recorded yet", "first visit") && JSON.stringify(r?.card.table?.rows) === JSON.stringify([["OPD 25", "Dr. Ajit Karmakar"]]), jc(r).slice(0, 220));
+  ok("Medicine unit 2: Monday and Thursday; the table has the one doctor; the in-charge is its first-named doctor Dr. Ajit Karmakar", has(r, "medicine unit ii sits on monday and thursday", "in-charge: dr. ajit karmakar", "first visit") && JSON.stringify(r?.card.table?.rows) === JSON.stringify([["OPD 25", "Dr. Ajit Karmakar"]]), jc(r).slice(0, 220));
   r = await ask("medicine unit 3");
   ok("Medicine unit 3: Tuesday and Friday; Dr. Rajeev Kumar and Dr. Kunj Bihari Singh", has(r, "tuesday and friday", "rajeev kumar", "kunj bihari singh") && !has(r, "dadan"), jc(r).slice(0, 200));
   r = await ask("medicine unit i");
@@ -496,7 +496,7 @@ async function main() {
   // one bracket, not two
   r = await ask("opd days of dr shyam");
   const cells = (r?.card.extraTables ?? []).flatMap((x) => x.table.rows.flat());
-  ok("Surgery OPD 17: 'Dr. Dharmendra Kumar (Tuesday, Thursday and Saturday; not on the current doctor list)'", cells.includes("Dr. Dharmendra Kumar (Tuesday, Thursday and Saturday; not on the current doctor list)"), JSON.stringify(cells));
+  ok("no doctor is marked 'not on the current doctor list' any more, in any table of Rohit Shyam's answer", !cells.some((c) => /not on the current doctor list/.test(c)), JSON.stringify(cells));
   ok("...and no cell has two brackets side by side", !cells.some((c) => /\)\s*\(/.test(c)), JSON.stringify(cells));
   ok("...a colleague whose days differ and who is on the list keeps one bracket: 'Dr. Shyamal Hansda (Tuesday, Thursday and Saturday)'", cells.includes("Dr. Shyamal Hansda (Tuesday, Thursday and Saturday)"));
 
@@ -649,7 +649,7 @@ async function main() {
   /** the cell of row i under the column called col (a single table) */
   const cellAt = (r2: Awaited<ReturnType<typeof ask>>, i: number, col: string) => (r2?.card.table ? r2.card.table.rows[i][r2.card.table.columns.indexOf(col)] : undefined);
   // the five queries of the owner's screens, that returned 0 rows or ignored the department
-  const fiveQueries: [string, string, number][] = [["list of ent doctors", "Doctors of ENT", 3], ["list of medicine doctors", "Doctors of Medicine", 5], ["list of medicine department doctors", "Doctors of Medicine", 5], ["list the eye department doctors", "Doctors of Eye", 4], ["list the ent department doctors", "Doctors of ENT", 3]];
+  const fiveQueries: [string, string, number][] = [["list of ent doctors", "Doctors of ENT", 3], ["list of medicine doctors", "Doctors of Medicine", 5], ["list of medicine department doctors", "Doctors of Medicine", 5], ["list the eye department doctors", "Doctors of Eye", 2], ["list the ent department doctors", "Doctors of ENT", 3]];
   for (const [q, title, n2] of fiveQueries) {
     r = await ask(q);
     ok(`"${q}": ${title}, ${n2} doctors (not 0 rows, not all 52)`, r?.card.title === title && cellsOf(r).length === n2 && !r?.ask, `${r?.card.title} ${cellsOf(r).length}`);
@@ -679,34 +679,34 @@ async function main() {
     ok(`${d.name}: exactly the doctors of the hospital's lists (${want.size})`, same && r?.card.title === `Doctors of ${d.name}`, `want ${[...want].join("|")} got ${[...got].join("|")}`);
   }
   r = await ask("how many doctors in surgery");
-  ok("Surgery: the count says what is confirmed and what is not: 1 permanent, 5 non-permanent, 4 not on the current doctor list", r?.card.status?.text === "Surgery has 10 doctors (1 permanent, 5 non-permanent, 4 not on the current doctor list).", r?.card.status?.text);
+  ok("Surgery: 6 doctors: 1 permanent, 5 non-permanent (the four who were not on the current list are cleaned out)", r?.card.status?.text === "Surgery has 6 doctors (1 permanent, 5 non-permanent).", r?.card.status?.text);
   {
     // organised room by room (OPD 15, 17, 18), the doctors who do not sit in the OPD last; inside a room the confirmed first, then the non-permanent, then the unconfirmed
     const rows = cellsOf(r);
     const rank = (row: string[]) => (/not on the current doctor list/.test(row[1]) ? 2 : /non-permanent/.test(row[2]) ? 1 : 0);
     const groupsOf: string[][][] = [];
     for (const row of rows) { if (row[0] !== "") groupsOf.push([]); groupsOf[groupsOf.length - 1].push(row); }
-    ok("Surgery: grouped by room: OPD 15, OPD 17, OPD 18, then '—' (not in the OPD schedule), each room written once", groupsOf.map((gp) => gp[0][0]).join("|") === "OPD 15|OPD 17|OPD 18|—" && r?.card.table?.columns.join("|") === "OPD|Doctor|Ticket|Discipline|Days", groupsOf.map((gp) => gp[0][0]).join("|"));
+    ok("Surgery: grouped by room: OPD 15, OPD 17, then '—' (not in the OPD schedule), each room written once (OPD 18 has no doctor to list)", groupsOf.map((gp) => gp[0][0]).join("|") === "OPD 15|OPD 17|—" && r?.card.table?.columns.join("|") === "OPD|Doctor|Ticket|Discipline|Days", groupsOf.map((gp) => gp[0][0]).join("|"));
     ok("...inside each group: confirmed, then non-permanent, then not on the current doctor list", groupsOf.every((gp) => gp.every((row, i) => i === 0 || rank(gp[i - 1]) <= rank(row))), JSON.stringify(rows.map((x) => [x[0], x[1].slice(0, 22)])));
-    ok("...the doctors who do not sit in the OPD are the last rows and say so", groupsOf[3].every((row) => row[4] === "not in the OPD schedule") && groupsOf[3].length === 3);
+    ok("...the doctors who do not sit in the OPD are the last rows and say so", groupsOf[2].every((row) => row[4] === "not in the OPD schedule") && groupsOf[2].length === 3);
   }
   ok("...a non-permanent doctor shows his list number, a staff-list doctor with no ticket 'not recorded' (not 'non-permanent')", cellsOf(r).some((row) => row[2] === "DTN0766 (non-permanent)") && !cellsOf(r).some((row) => /not on the current doctor list/.test(row[1]) && /non-permanent/.test(row[2])));
-  ok("...and one line says what 'not on the current doctor list' means", (r?.card.lines ?? []).some((l) => /may have retired or moved/.test(l)));
+  ok("...and no line about 'not on the current doctor list' is needed any more: nobody is in that group", !(r?.card.lines ?? []).some((l) => /may have retired or moved/.test(l)) && !JSON.stringify(r?.card).includes("not on the current doctor list"));
   r = await ask("list of eye doctors");
-  ok("Eye: 'Eye has 4 doctors (2 permanent, 2 not on the current doctor list).'", r?.card.status?.text === "Eye has 4 doctors (2 permanent, 2 not on the current doctor list).", r?.card.status?.text);
+  ok("Eye: 'Eye has 2 doctors.' (Dr. Avirupa Datta and Dr. A Ghosh are cleaned out)", r?.card.status?.text === "Eye has 2 doctors.", r?.card.status?.text);
   r = await ask("list of chest doctors");
   ok("Chest: the non-permanent doctor of the intranet list is counted and marked: 'Chest has 1 doctor (1 non-permanent).'", r?.card.status?.text === "Chest has 1 doctor (1 non-permanent)." && cellAt(r, 0, "Ticket") === "DTN0767 (non-permanent)" && cellAt(r, 0, "Discipline") === "Chest medicine" && cellAt(r, 0, "OPD") === "—" && cellAt(r, 0, "Days") === "not in the OPD schedule", JSON.stringify(cellsOf(r)));
   r = await ask("list of paediatrics doctors");
   ok("Paediatrics: a doctor of another department who sits in its OPD is listed and marked, with the department spelt properly", cellsOf(r).some((row) => row[1] === "Dr. Tumpa Lahiri (department: Stores and Pharmacy; sits in this OPD)") && (r?.card.lines ?? []).some((l) => /sits in this OPD/.test(l)), JSON.stringify(cellsOf(r)[0]));
   r = await ask("list the radiology doctors");
-  ok("a department with no OPD of its own (Radiology): its four doctors in a table without an OPD column, and a line that says so", r?.card.title === "Doctors of Radiology" && cellsOf(r).length === 4 && r?.card.table?.columns.join("|") === "Doctor|Ticket|Discipline" && (r?.card.lines ?? []).includes("Radiology has no OPD of its own."), JSON.stringify(r?.card.table?.columns));
-  ok("...also Emergency (6), Pathology (2), Anaesthesiology (4)", cellsOf(await ask("list the emergency doctors")).length === 6 && cellsOf(await ask("list the pathology doctors")).length === 2 && cellsOf(await ask("list the anaesthesia doctors")).length === 4);
+  ok("a department with no OPD of its own (Radiology): its doctor in a table without an OPD column, and a line that says so", r?.card.title === "Doctors of Radiology" && cellsOf(r).length === 1 && r?.card.table?.columns.join("|") === "Doctor|Ticket|Discipline" && (r?.card.lines ?? []).includes("Radiology has no OPD of its own."), JSON.stringify(r?.card.table?.columns));
+  ok("...also Emergency (4), Pathology (2), Anaesthesiology (4)", cellsOf(await ask("list the emergency doctors")).length === 4 && cellsOf(await ask("list the pathology doctors")).length === 2 && cellsOf(await ask("list the anaesthesia doctors")).length === 4);
   r = await ask("list of dental doctors");
   ok("Dental: a doctor who sits in two rooms is listed in the first and says 'also OPD 30: ...' (one row per doctor, so the count stays true)", cellsOf(r).length === 3 && cellsOf(r).some((row) => /Khooshbu Gayen/.test(row[1]) && row[4] === "Monday and Friday; also OPD 30: Monday and Friday") && cellsOf(r)[0][0] === "OPD 29" && cellsOf(r)[2][0] === "OPD 30", JSON.stringify(cellsOf(r)));
   r = await ask("list ent and medicine doctors");
   ok("two departments: each table in its own layout (ENT by room, Medicine by unit)", r?.card.extraTables?.find((x) => x.title.startsWith("ENT"))?.table.columns[0] === "OPD" && r?.card.extraTables?.find((x) => x.title.startsWith("Medicine"))?.table.columns.join("|") === "Unit|Days|Room|Doctor|Ticket|Discipline", jc(r).slice(0, 200));
   r = await ask("list ent and eye doctors");
-  ok("two departments: one table for each, with its count in the title", r?.card.extraTables?.map((x) => x.title).sort().join("|") === "ENT: 3 doctors|Eye: 4 doctors" && r?.card.title === "Doctors of Eye and ENT", jc(r).slice(0, 200));
+  ok("two departments: one table for each, with its count in the title", r?.card.extraTables?.map((x) => x.title).sort().join("|") === "ENT: 3 doctors|Eye: 2 doctors" && r?.card.title === "Doctors of Eye and ENT", jc(r).slice(0, 200));
   for (const q of ["ent doctors", "doctors of ent", "list the doctors in the ent department", "how many ENT doctors are there", "show me the ent doctors", "who are the doctors of ent", "ent doctors list", "list all ent specialists"]) {
     ok(`"${q}" is the same question`, ((await ask(q))?.card.title === "Doctors of ENT" && cellsOf(await ask(q)).length === 3), `${(await ask(q))?.card.title}`);
   }

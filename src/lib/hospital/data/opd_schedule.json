@@ -148,9 +148,8 @@
      "label": "Unit II",
      "unitNo": 2,
      "opdNo": null,
-     "head": "ranjeet-kumar",
+     "head": null,
      "members": [
-      "ranjeet-kumar",
       "ajit-karmakar"
      ],
      "days": [
@@ -160,11 +159,9 @@
      "week": {
       "MON": {
        "doctors": [
-        "ranjeet-kumar",
         "ajit-karmakar"
        ],
        "rooms": {
-        "ranjeet-kumar": "OPD 25",
         "ajit-karmakar": "OPD 25"
        },
        "note": "OPD 26: any doctor who is available"
@@ -177,11 +174,9 @@
       },
       "THU": {
        "doctors": [
-        "ranjeet-kumar",
         "ajit-karmakar"
        ],
        "rooms": {
-        "ranjeet-kumar": "OPD 25",
         "ajit-karmakar": "OPD 25"
        }
       },
@@ -198,9 +193,8 @@
      "label": "Unit III",
      "unitNo": 3,
      "opdNo": null,
-     "head": "dadan-prasad",
+     "head": null,
      "members": [
-      "dadan-prasad",
       "rajeev-kumar",
       "kunj-bihari-singh"
      ],
@@ -214,12 +208,10 @@
       },
       "TUE": {
        "doctors": [
-        "dadan-prasad",
         "rajeev-kumar",
         "kunj-bihari-singh"
        ],
        "rooms": {
-        "dadan-prasad": "OPD 24",
         "rajeev-kumar": "OPD 25",
         "kunj-bihari-singh": "OPD 26"
        }
@@ -232,12 +224,10 @@
       },
       "FRI": {
        "doctors": [
-        "dadan-prasad",
         "rajeev-kumar",
         "kunj-bihari-singh"
        ],
        "rooms": {
-        "dadan-prasad": "OPD 24",
         "rajeev-kumar": "OPD 25",
         "kunj-bihari-singh": "OPD 26"
        }
@@ -268,37 +258,31 @@
      "week": {
       "MON": {
        "doctors": [
-        "avijit-sircar",
         "tapati-pradhan"
        ]
       },
       "TUE": {
        "doctors": [
-        "r-r-kumar",
         "tapati-pradhan"
        ]
       },
       "WED": {
        "doctors": [
-        "avijit-sircar",
         "tapati-pradhan"
        ]
       },
       "THU": {
        "doctors": [
-        "r-r-kumar",
         "tapati-pradhan"
        ]
       },
       "FRI": {
        "doctors": [
-        "avijit-sircar",
         "tapati-pradhan"
        ]
       },
       "SAT": {
        "doctors": [
-        "r-r-kumar",
         "tapati-pradhan"
        ]
       }
@@ -318,7 +302,6 @@
       },
       "TUE": {
        "doctors": [
-        "dharmendra-kumar",
         "shyamal-hansda"
        ]
       },
@@ -329,7 +312,6 @@
       },
       "THU": {
        "doctors": [
-        "dharmendra-kumar",
         "shyamal-hansda"
        ]
       },
@@ -340,7 +322,6 @@
       },
       "SAT": {
        "doctors": [
-        "dharmendra-kumar",
         "shyamal-hansda"
        ]
       }
@@ -354,34 +335,22 @@
      "place": null,
      "week": {
       "MON": {
-       "doctors": [
-        "p-p-roy"
-       ]
+       "state": "NO_DOCTOR"
       },
       "TUE": {
-       "doctors": [
-        "p-p-roy"
-       ]
+       "state": "NO_DOCTOR"
       },
       "WED": {
-       "doctors": [
-        "p-p-roy"
-       ]
+       "state": "NO_DOCTOR"
       },
       "THU": {
-       "doctors": [
-        "p-p-roy"
-       ]
+       "state": "NO_DOCTOR"
       },
       "FRI": {
-       "doctors": [
-        "p-p-roy"
-       ]
+       "state": "NO_DOCTOR"
       },
       "SAT": {
-       "doctors": [
-        "p-p-roy"
-       ]
+       "state": "NO_DOCTOR"
       }
      }
     }
@@ -415,17 +384,13 @@
       "TUE": {
        "doctors": [
         "priyank-sahoo",
-        "chetan",
-        "p-alam",
-        "r-roychoudhury"
+        "chetan"
        ]
       },
       "WED": {
        "doctors": [
         "priyank-sahoo",
-        "chetan",
-        "p-alam",
-        "r-roychoudhury"
+        "chetan"
        ]
       },
       "THU": {
@@ -434,17 +399,13 @@
       "FRI": {
        "doctors": [
         "priyank-sahoo",
-        "chetan",
-        "p-alam",
-        "r-roychoudhury"
+        "chetan"
        ]
       },
       "SAT": {
        "doctors": [
         "priyank-sahoo",
-        "chetan",
-        "p-alam",
-        "r-roychoudhury"
+        "chetan"
        ]
       }
      }
@@ -473,8 +434,7 @@
      "week": {
       "MON": {
        "doctors": [
-        "susanta-kumar-mallick",
-        "a-ghosh"
+        "susanta-kumar-mallick"
        ]
       },
       "TUE": {
@@ -482,14 +442,12 @@
       },
       "WED": {
        "doctors": [
-        "susanta-kumar-mallick",
-        "a-ghosh"
+        "susanta-kumar-mallick"
        ]
       },
       "THU": {
        "doctors": [
-        "susanta-kumar-mallick",
-        "a-ghosh"
+        "susanta-kumar-mallick"
        ]
       },
       "FRI": {
@@ -497,8 +455,7 @@
       },
       "SAT": {
        "doctors": [
-        "susanta-kumar-mallick",
-        "a-ghosh"
+        "susanta-kumar-mallick"
        ]
       }
      }
@@ -688,29 +645,19 @@
        ]
       },
       "TUE": {
-       "doctors": [
-        "riju-acharya",
-        "saikat-mondal"
-       ]
+       "state": "NO_DOCTOR"
       },
       "WED": {
        "state": "ANY_AVAILABLE"
       },
       "THU": {
-       "doctors": [
-        "riju-acharya",
-        "saikat-mondal"
-       ]
+       "state": "NO_DOCTOR"
       },
       "FRI": {
-       "doctors": [
-        "nivedita-roy"
-       ]
+       "state": "NO_DOCTOR"
       },
       "SAT": {
-       "doctors": [
-        "saugata-bhattacharya"
-       ]
+       "state": "NO_DOCTOR"
       }
      }
     }
@@ -749,7 +696,6 @@
       },
       "TUE": {
        "doctors": [
-        "mitali-pathak",
         "priyanka-roy"
        ]
       },
@@ -1216,37 +1162,31 @@
      "week": {
       "MON": {
        "doctors": [
-        "ivy-paul",
         "rina-mondal"
        ]
       },
       "TUE": {
        "doctors": [
-        "ivy-paul",
         "rina-mondal"
        ]
       },
       "WED": {
        "doctors": [
-        "ivy-paul",
         "rina-mondal"
        ]
       },
       "THU": {
        "doctors": [
-        "ivy-paul",
         "rina-mondal"
        ]
       },
       "FRI": {
        "doctors": [
-        "ivy-paul",
         "rina-mondal"
        ]
       },
       "SAT": {
        "doctors": [
-        "ivy-paul",
         "rina-mondal"
        ]
       }
@@ -1261,38 +1201,32 @@
      "week": {
       "MON": {
        "doctors": [
-        "vijeta-panna-khakha",
-        "lily-ghosh"
+        "vijeta-panna-khakha"
        ]
       },
       "TUE": {
        "doctors": [
-        "vijeta-panna-khakha",
-        "lily-ghosh"
+        "vijeta-panna-khakha"
        ]
       },
       "WED": {
        "doctors": [
-        "vijeta-panna-khakha",
-        "lily-ghosh"
+        "vijeta-panna-khakha"
        ]
       },
       "THU": {
        "doctors": [
-        "vijeta-panna-khakha",
-        "lily-ghosh"
+        "vijeta-panna-khakha"
        ]
       },
       "FRI": {
        "doctors": [
-        "vijeta-panna-khakha",
-        "lily-ghosh"
+        "vijeta-panna-khakha"
        ]
       },
       "SAT": {
        "doctors": [
-        "vijeta-panna-khakha",
-        "lily-ghosh"
+        "vijeta-panna-khakha"
        ]
       }
      }

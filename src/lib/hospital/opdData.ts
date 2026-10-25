@@ -36,7 +36,8 @@ export interface Person {
   note: string | null;
 }
 
-export type SlotState = "OT_DAY" | "CLOSED" | "ANY_AVAILABLE" | "PROCEDURE_EMERGENCY" | "UNKNOWN" | "UNIT_OFF";
+/** NO_DOCTOR: the room is part of the schedule, but the doctor who was listed for it is no longer on roll and nobody else is listed. */
+export type SlotState = "OT_DAY" | "CLOSED" | "ANY_AVAILABLE" | "PROCEDURE_EMERGENCY" | "UNKNOWN" | "UNIT_OFF" | "NO_DOCTOR";
 export interface Slot {
   doctors?: string[];
   state?: SlotState;

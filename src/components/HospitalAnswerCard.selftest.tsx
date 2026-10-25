@@ -83,6 +83,21 @@ ok("a card with neither has neither", !/data-highlight|data-prompt/.test(h(<Hosp
 const evilHp = h(<HospitalAnswerCard answer={{ title: "T", highlight: "<script>x</script>", prompt: "<img src=x onerror=y>" }} />);
 ok("the banner and the question are escaped", !/<script>|<img/.test(evilHp) && evilHp.includes("&lt;script&gt;"));
 
+// ---- step 54i: a short cell is never broken over two lines
+const nw = h(
+  <HospitalAnswerCard
+    answer={{
+      title: "T",
+      table: { columns: ["OPD", "Doctor", "Ticket", "Days"], rows: [["OPD 12", "Dr. Rupak Kumar Goswami", "not recorded", "Monday, Tuesday, Thursday and Friday"], ["Not in the OPD schedule today", "Dr. A", "DTN00757 (non-permanent)", "Monday"]] },
+    }}
+  />,
+);
+const cellClass = (text: string) => (new RegExp(`<td class="([^"]*)">${text}</td>`).exec(nw) ?? [])[1] ?? "";
+ok("'OPD 12' stays on one line (first column, short)", /whitespace-nowrap/.test(cellClass("OPD 12")));
+ok("'not recorded' and a ticket stay on one line", /whitespace-nowrap/.test(cellClass("not recorded")) && /whitespace-nowrap/.test(cellClass("Monday")));
+ok("a long cell still wraps: the days, a name with a note, a long ticket text, a first cell longer than 24 characters", !/whitespace-nowrap/.test(cellClass("Monday, Tuesday, Thursday and Friday")) && !/whitespace-nowrap/.test(cellClass("DTN00757 \\(non-permanent\\)")) && !/whitespace-nowrap/.test(cellClass("Not in the OPD schedule today")) && !/whitespace-nowrap/.test(cellClass("Dr. Rupak Kumar Goswami")));
+ok("the headers never wrap", (nw.match(/<th scope="col" class="whitespace-nowrap /g) ?? []).length === 4);
+
 const one = h(<HospitalAnswerCard answer={{ title: "T", suggestion: "For urgent medical attention, you can consult the Emergency Department." }} />);
 ok("a one-line pointer is a sentence, not a list with one bullet", /data-suggestion="true"/.test(one) && !/data-suggestion[^>]*>(?:(?!<\/div>).)*<ul/.test(one) && one.includes("For urgent medical attention, you can consult the Emergency Department."));
 

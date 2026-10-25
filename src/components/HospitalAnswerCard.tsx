@@ -18,6 +18,9 @@ const BADGE: Record<"open" | "closed" | "unknown", string> = {
   unknown: "bg-amber-500 text-white",
 };
 
+/** A short cell ("OPD 12", "Unit III", "not recorded", a ticket) is never broken over two lines; a long one (the days, a name with a note) wraps as it needs to. The first column (Unit / OPD / Room) is given a little more room. */
+const keepOnOneLine = (cell: string, columnIndex: number): boolean => cell.length <= (columnIndex === 0 ? 24 : 16);
+
 function TableView({ table }: { table: HospitalTable }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
@@ -25,7 +28,7 @@ function TableView({ table }: { table: HospitalTable }) {
         <thead className="bg-neutral-50 text-neutral-600">
           <tr>
             {table.columns.map((c, i) => (
-              <th key={i} scope="col" className="px-3 py-2 font-semibold">
+              <th key={i} scope="col" className="whitespace-nowrap px-3 py-2 font-semibold">
                 {c}
               </th>
             ))}
@@ -35,7 +38,7 @@ function TableView({ table }: { table: HospitalTable }) {
           {table.rows.map((row, ri) => (
             <tr key={ri} className="border-t border-neutral-100 align-top">
               {row.map((cell, ci) => (
-                <td key={ci} className={`px-3 py-2 ${ci === 0 ? "font-medium text-neutral-800" : "text-neutral-700"}`}>
+                <td key={ci} className={`px-3 py-2 ${keepOnOneLine(cell, ci) ? "whitespace-nowrap " : ""}${ci === 0 ? "font-medium text-neutral-800" : "text-neutral-700"}`}>
                   {cell}
                 </td>
               ))}
