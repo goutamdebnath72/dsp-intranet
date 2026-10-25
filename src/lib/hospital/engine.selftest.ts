@@ -433,10 +433,14 @@ async function main() {
 
   // ---- the afternoon rule and the hours
   const hoursNotes = (await ask("is opd open tomorrow"))?.card.notes ?? [];
-  ok("the red points under an open OPD: the OPD hours, the card registration hours, and who the afternoon is for", hoursNotes.slice(-3).join("|") === "OPD hours: 8 AM to 1 PM and 5 PM to 7 PM|Card registration (token) hours: 8 AM to 11:30 AM and 4:30 PM to 6:30 PM|The afternoon OPD (5 PM to 7 PM) is only for employees currently on roll; it is not for retired employees, nor for the family members of current or retired employees.", hoursNotes.join("|"));
-  ok("the afternoon rule is in the timings answer too", has(await ask("opd timing"), "only for employees currently on roll", "retired employees", "family members"));
+  ok("the red points under an open OPD: the OPD hours, the card registration hours, and who the afternoon is for", hoursNotes.slice(-3).join("|") === "OPD hours: 8 AM to 1 PM and 5 PM to 7 PM|Card registration (token) hours: 8 AM to 11:30 AM and 4:30 PM to 6:30 PM|The afternoon OPD (5 PM to 7 PM) is only for employees currently on roll", hoursNotes.join("|"));
+  ok("the afternoon rule is in the timings answer too, in its short form", has(await ask("opd timing"), "the afternoon opd (5 pm to 7 pm) is only for employees currently on roll") && !has(await ask("opd timing"), "retired employees", "family members"));
   ok("a closed day carries no hours and no afternoon rule", !/afternoon/i.test(jc(await ask("medicine opd sunday"))) && !/afternoon/i.test(jc(await ask("is opd open today"))));
   ok("the afternoon rule is in the data file, so the wording can be changed there", /currently on roll/.test(SCHEDULE.timings.afternoonNote ?? ""));
+  r = await ask("which days does dr sumit mukherjee sit in opd");
+  ok("a doctor who sits all six days: 'from Monday to Saturday', not the six names", has(r, "sits in psychiatry opd 1 from monday to saturday") && !has(r, "monday, tuesday, wednesday"), all(r).slice(0, 200));
+  ok("...and the caption of his table says 'Monday to Saturday'", r?.card.extraTables?.[0].title === "Psychiatry OPD 1: Monday to Saturday", jc(r).slice(0, 160));
+  ok("a doctor of two days keeps the names: 'on Monday and Thursday'", has(await ask("which days does dr ajit karmakar sit in opd"), "sits in medicine unit ii (opd 25) on monday and thursday"));
   ok("diplomas keep their chip: Psychiatry (DPM), Obstetrics and Gynaecology (DGO)", disciplineOfTicket("499170") === "Psychiatry (DPM)" && STAFF.people.some((p) => p.discipline === "Obstetrics and Gynaecology (DGO)"));
   r = await ask("medicine opd monday");
   ok("Medicine on Monday: the table has Unit II with room 25 Dr. Ajit Karmakar and room 26 any doctor (Dr. Ranjeet Kumar has retired and is not shown)", JSON.stringify(r?.card.table) === JSON.stringify({ columns: ["Unit", "Room", "Doctor"], rows: [["Unit II", "OPD 25", "Dr. Ajit Karmakar"], ["", "OPD 26", "Any doctor who is available"]] }), jc(r).slice(0, 200));

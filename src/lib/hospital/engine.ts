@@ -641,7 +641,9 @@ const npLine = (who: string, p: Person) => {
   return `${who} is a non-permanent (contractual) doctor on the intranet doctor list (number ${np.listId}). Specialization: ${np.specialization ?? "not recorded yet"}.`;
 };
 
-const daysText = (ds: Weekday[]) => (ds.length === OPD_DAYS.length ? "every day" : joinAnd(ds.map((x) => WEEKDAY_NAME[x])));
+const daysText = (ds: Weekday[]) => (ds.length === OPD_DAYS.length ? "Monday to Saturday" : joinAnd(ds.map((x) => WEEKDAY_NAME[x])));
+/** "on Monday and Thursday", but "from Monday to Saturday" for all six days. */
+const onDays = (ds: Weekday[]) => (ds.length === OPD_DAYS.length ? "from Monday to Saturday" : `on ${joinAnd(ds.map((x) => WEEKDAY_NAME[x]))}`);
 /** [room, doctor] rows with the room written once for its group. */
 const groupRooms = (items: [string, string][]): string[][] => items.map(([room, doc], i) => [i > 0 && items[i - 1][0] === room ? "" : room, doc]);
 
@@ -683,7 +685,7 @@ async function doctorAnswer(p: Person, e: Entities, ctx: EngineCtx): Promise<Hos
   }
   for (const { dept, unit, days } of perUnit) {
     const room = unit.week[days[0]]?.rooms?.[p.id];
-    lines.push(`${who} sits in ${dept.name} ${unit.label}${room ? ` (${room})` : ""} on ${joinAnd(days.map((x) => WEEKDAY_NAME[x]))}.`);
+    lines.push(`${who} sits in ${dept.name} ${unit.label}${room ? ` (${room})` : ""} ${onDays(days)}.`);
   }
   let status: HospitalAnswer["status"];
   let suggestion: string | undefined;
