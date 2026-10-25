@@ -643,8 +643,11 @@ async function main() {
   // ======================================================================================================================================
   // STEP 54g: the doctors of a department, from the hospital's own lists (the HR directory does not know a doctor's hospital department)
   // ======================================================================================================================================
-  const rowNames = (r2: Awaited<ReturnType<typeof ask>>) => (r2?.card.table?.rows ?? r2?.card.extraTables?.flatMap((x) => x.table.rows) ?? []).map((row) => row[0].replace(/ \((?:not on the current doctor list|department:[^)]*)\)$/, "").replace(/^Dr\. /, ""));
+  const tablesOf = (r2: Awaited<ReturnType<typeof ask>>) => (r2?.card.table ? [r2.card.table] : (r2?.card.extraTables ?? []).map((x) => x.table));
+  const rowNames = (r2: Awaited<ReturnType<typeof ask>>) => tablesOf(r2).flatMap((tb) => { const c = tb.columns.indexOf("Doctor"); return tb.rows.map((row) => row[c]); }).map((s) => s.replace(/ \((?:not on the current doctor list|department:[^)]*|[^)]*; not on the current doctor list)\)$/, "").replace(/^Dr\. /, ""));
   const cellsOf = (r2: Awaited<ReturnType<typeof ask>>) => (r2?.card.table?.rows ?? []);
+  /** the cell of row i under the column called col (a single table) */
+  const cellAt = (r2: Awaited<ReturnType<typeof ask>>, i: number, col: string) => (r2?.card.table ? r2.card.table.rows[i][r2.card.table.columns.indexOf(col)] : undefined);
   // the five queries of the owner's screens, that returned 0 rows or ignored the department
   const fiveQueries: [string, string, number][] = [["list of ent doctors", "Doctors of ENT", 3], ["list of medicine doctors", "Doctors of Medicine", 5], ["list of medicine department doctors", "Doctors of Medicine", 5], ["list the eye department doctors", "Doctors of Eye", 4], ["list the ent department doctors", "Doctors of ENT", 3]];
   for (const [q, title, n2] of fiveQueries) {
@@ -652,9 +655,11 @@ async function main() {
     ok(`"${q}": ${title}, ${n2} doctors (not 0 rows, not all 52)`, r?.card.title === title && cellsOf(r).length === n2 && !r?.ask, `${r?.card.title} ${cellsOf(r).length}`);
   }
   r = await ask("list of ent doctors");
-  ok("ENT: Dr. Rupak Kumar Goswami, Dr. Sutanu Sarkar, Dr. Arijit Das, each with ticket, discipline ENT, OPD room and days", JSON.stringify(cellsOf(r)) === JSON.stringify([["Dr. Rupak Kumar Goswami", "498840", "ENT", "OPD 11 · Monday, Tuesday, Thursday and Friday"], ["Dr. Sutanu Sarkar", "499703", "ENT", "OPD 12 · Monday, Tuesday, Thursday and Friday"], ["Dr. Arijit Das", "490037", "ENT", "OPD 13 · Monday, Tuesday, Thursday and Friday"]]) && r?.card.status?.text === "ENT has 3 doctors.", JSON.stringify(cellsOf(r)));
+  ok("ENT (a department of rooms): room by room, each room once: OPD 11 Dr. Rupak Kumar Goswami, OPD 12 Dr. Sutanu Sarkar, OPD 13 Dr. Arijit Das, with ticket, discipline and days", r?.card.table?.columns.join("|") === "OPD|Doctor|Ticket|Discipline|Days" && JSON.stringify(cellsOf(r)) === JSON.stringify([["OPD 11", "Dr. Rupak Kumar Goswami", "498840", "ENT", "Monday, Tuesday, Thursday and Friday"], ["OPD 12", "Dr. Sutanu Sarkar", "499703", "ENT", "Monday, Tuesday, Thursday and Friday"], ["OPD 13", "Dr. Arijit Das", "490037", "ENT", "Monday, Tuesday, Thursday and Friday"]]) && r?.card.status?.text === "ENT has 3 doctors.", JSON.stringify(cellsOf(r)));
   r = await ask("list of medicine doctors");
-  ok("Medicine: its five doctors with the unit, room and days; the retired and the transferred are not listed", rowNames(r).join("|") === "Ajit Karmakar|Sukhdev Shankar Patil|Rajeev Kumar|Kunj Bihari Singh|Dipak Singh" && /Unit II · OPD 25 · Monday and Thursday/.test(JSON.stringify(cellsOf(r))) && !/Ranjeet|Dadan|Ivy|Ashish|Ritesh/.test(JSON.stringify(r?.card)), rowNames(r).join("|"));
+  ok("Medicine (a department of units): UNIT BY UNIT: Unit I, Unit II, Unit III, each unit and its days written once, then room, doctor, ticket, discipline", r?.card.table?.columns.join("|") === "Unit|Days|Room|Doctor|Ticket|Discipline" && JSON.stringify(cellsOf(r)) === JSON.stringify([["Unit I", "Wednesday and Saturday", "OPD 25", "Dr. Sukhdev Shankar Patil", "499120", "Medicine"], ["", "", "OPD 26", "Dr. Dipak Singh", "490180", "Medicine"], ["Unit II", "Monday and Thursday", "OPD 25", "Dr. Ajit Karmakar", "499116", "Medicine"], ["Unit III", "Tuesday and Friday", "OPD 25", "Dr. Rajeev Kumar", "499169", "Medicine"], ["", "", "OPD 26", "Dr. Kunj Bihari Singh", "499177", "—"]]), JSON.stringify(cellsOf(r)));
+  ok("...the retired and the transferred are not listed", !/Ranjeet|Dadan|Ivy|Ashish|Ritesh/.test(JSON.stringify(r?.card)) && rowNames(r).length === 5);
+  ok("...the same unit-wise table for 'medicine department doctors' and 'doctors of medicine'", JSON.stringify(cellsOf(await ask("list of medicine department doctors"))) === JSON.stringify(cellsOf(r)) && JSON.stringify(cellsOf(await ask("who are the doctors of medicine"))) === JSON.stringify(cellsOf(r)));
   // every department: the rows are EXACTLY the doctors of the hospital's own lists (computed here from the raw data, independently of the engine)
   for (const d of SCHEDULE.departments) {
     const key = d.staffDepartment.toUpperCase();
@@ -675,18 +680,31 @@ async function main() {
   }
   r = await ask("how many doctors in surgery");
   ok("Surgery: the count says what is confirmed and what is not: 1 permanent, 5 non-permanent, 4 not on the current doctor list", r?.card.status?.text === "Surgery has 10 doctors (1 permanent, 5 non-permanent, 4 not on the current doctor list).", r?.card.status?.text);
-  ok("...the confirmed first, the non-permanent next, the unconfirmed LAST", cellsOf(r)[0][0] === "Dr. Rohit Shyam" && /non-permanent/.test(cellsOf(r)[1][1]) && cellsOf(r).slice(6).every((row) => /not on the current doctor list/.test(row[0]) && row[1] === "not recorded"), JSON.stringify(cellsOf(r).map((x) => x.slice(0, 2))));
-  ok("...a non-permanent doctor shows his list number, a staff-list doctor with no ticket 'not recorded' (not 'non-permanent')", cellsOf(r).some((row) => row[1] === "DTN0766 (non-permanent)") && !cellsOf(r).some((row) => /not on the current doctor list/.test(row[0]) && /non-permanent/.test(row[1])));
+  {
+    // organised room by room (OPD 15, 17, 18), the doctors who do not sit in the OPD last; inside a room the confirmed first, then the non-permanent, then the unconfirmed
+    const rows = cellsOf(r);
+    const rank = (row: string[]) => (/not on the current doctor list/.test(row[1]) ? 2 : /non-permanent/.test(row[2]) ? 1 : 0);
+    const groupsOf: string[][][] = [];
+    for (const row of rows) { if (row[0] !== "") groupsOf.push([]); groupsOf[groupsOf.length - 1].push(row); }
+    ok("Surgery: grouped by room: OPD 15, OPD 17, OPD 18, then '—' (not in the OPD schedule), each room written once", groupsOf.map((gp) => gp[0][0]).join("|") === "OPD 15|OPD 17|OPD 18|—" && r?.card.table?.columns.join("|") === "OPD|Doctor|Ticket|Discipline|Days", groupsOf.map((gp) => gp[0][0]).join("|"));
+    ok("...inside each group: confirmed, then non-permanent, then not on the current doctor list", groupsOf.every((gp) => gp.every((row, i) => i === 0 || rank(gp[i - 1]) <= rank(row))), JSON.stringify(rows.map((x) => [x[0], x[1].slice(0, 22)])));
+    ok("...the doctors who do not sit in the OPD are the last rows and say so", groupsOf[3].every((row) => row[4] === "not in the OPD schedule") && groupsOf[3].length === 3);
+  }
+  ok("...a non-permanent doctor shows his list number, a staff-list doctor with no ticket 'not recorded' (not 'non-permanent')", cellsOf(r).some((row) => row[2] === "DTN0766 (non-permanent)") && !cellsOf(r).some((row) => /not on the current doctor list/.test(row[1]) && /non-permanent/.test(row[2])));
   ok("...and one line says what 'not on the current doctor list' means", (r?.card.lines ?? []).some((l) => /may have retired or moved/.test(l)));
   r = await ask("list of eye doctors");
   ok("Eye: 'Eye has 4 doctors (2 permanent, 2 not on the current doctor list).'", r?.card.status?.text === "Eye has 4 doctors (2 permanent, 2 not on the current doctor list).", r?.card.status?.text);
   r = await ask("list of chest doctors");
-  ok("Chest: the non-permanent doctor of the intranet list is counted and marked: 'Chest has 1 doctor (1 non-permanent).'", r?.card.status?.text === "Chest has 1 doctor (1 non-permanent)." && cellsOf(r)[0][1] === "DTN0767 (non-permanent)" && cellsOf(r)[0][2] === "Chest medicine", JSON.stringify(cellsOf(r)));
+  ok("Chest: the non-permanent doctor of the intranet list is counted and marked: 'Chest has 1 doctor (1 non-permanent).'", r?.card.status?.text === "Chest has 1 doctor (1 non-permanent)." && cellAt(r, 0, "Ticket") === "DTN0767 (non-permanent)" && cellAt(r, 0, "Discipline") === "Chest medicine" && cellAt(r, 0, "OPD") === "—" && cellAt(r, 0, "Days") === "not in the OPD schedule", JSON.stringify(cellsOf(r)));
   r = await ask("list of paediatrics doctors");
-  ok("Paediatrics: a doctor of another department who sits in its OPD is listed and marked, with the department spelt properly", cellsOf(r).some((row) => row[0] === "Dr. Tumpa Lahiri (department: Stores and Pharmacy; sits in this OPD)") && (r?.card.lines ?? []).some((l) => /sits in this OPD/.test(l)), JSON.stringify(cellsOf(r)[0]));
+  ok("Paediatrics: a doctor of another department who sits in its OPD is listed and marked, with the department spelt properly", cellsOf(r).some((row) => row[1] === "Dr. Tumpa Lahiri (department: Stores and Pharmacy; sits in this OPD)") && (r?.card.lines ?? []).some((l) => /sits in this OPD/.test(l)), JSON.stringify(cellsOf(r)[0]));
   r = await ask("list the radiology doctors");
-  ok("a department with no OPD of its own (Radiology): its four doctors, 'no OPD of its own'", r?.card.title === "Doctors of Radiology" && cellsOf(r).length === 4 && cellsOf(r).every((row) => row[3] === "no OPD of its own"), JSON.stringify(cellsOf(r)));
+  ok("a department with no OPD of its own (Radiology): its four doctors in a table without an OPD column, and a line that says so", r?.card.title === "Doctors of Radiology" && cellsOf(r).length === 4 && r?.card.table?.columns.join("|") === "Doctor|Ticket|Discipline" && (r?.card.lines ?? []).includes("Radiology has no OPD of its own."), JSON.stringify(r?.card.table?.columns));
   ok("...also Emergency (6), Pathology (2), Anaesthesiology (4)", cellsOf(await ask("list the emergency doctors")).length === 6 && cellsOf(await ask("list the pathology doctors")).length === 2 && cellsOf(await ask("list the anaesthesia doctors")).length === 4);
+  r = await ask("list of dental doctors");
+  ok("Dental: a doctor who sits in two rooms is listed in the first and says 'also OPD 30: ...' (one row per doctor, so the count stays true)", cellsOf(r).length === 3 && cellsOf(r).some((row) => /Khooshbu Gayen/.test(row[1]) && row[4] === "Monday and Friday; also OPD 30: Monday and Friday") && cellsOf(r)[0][0] === "OPD 29" && cellsOf(r)[2][0] === "OPD 30", JSON.stringify(cellsOf(r)));
+  r = await ask("list ent and medicine doctors");
+  ok("two departments: each table in its own layout (ENT by room, Medicine by unit)", r?.card.extraTables?.find((x) => x.title.startsWith("ENT"))?.table.columns[0] === "OPD" && r?.card.extraTables?.find((x) => x.title.startsWith("Medicine"))?.table.columns.join("|") === "Unit|Days|Room|Doctor|Ticket|Discipline", jc(r).slice(0, 200));
   r = await ask("list ent and eye doctors");
   ok("two departments: one table for each, with its count in the title", r?.card.extraTables?.map((x) => x.title).sort().join("|") === "ENT: 3 doctors|Eye: 4 doctors" && r?.card.title === "Doctors of Eye and ENT", jc(r).slice(0, 200));
   for (const q of ["ent doctors", "doctors of ent", "list the doctors in the ent department", "how many ENT doctors are there", "show me the ent doctors", "who are the doctors of ent", "ent doctors list", "list all ent specialists"]) {

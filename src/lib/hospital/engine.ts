@@ -856,40 +856,69 @@ function doctorsOfDepartment(staffDept: string, d: Department | null): DeptDocto
   }
   return out;
 }
-/** Where and when a doctor sits in this department's OPD. */
-function opdPlaces(p: Person, d: Department | null): string {
-  if (!d) return "no OPD of its own";
-  const parts: string[] = [];
-  for (const u of d.units) {
-    const days = OPD_DAYS.filter((day) => u.week[day]?.doctors?.includes(p.id));
-    if (!days.length) continue;
-    const room = u.week[days[0]]?.rooms?.[p.id];
-    parts.push(isUnits(d) ? `${u.label} · ${room ?? "—"} · ${daysText(days)}` : `${u.label} · ${daysText(days)}`);
-  }
-  return parts.join("; ") || "not in the OPD schedule";
+/** Where and when a doctor sits in this department: one entry for each of its units (or rooms). */
+function placesOf(p: Person, d: Department): { index: number; unit: Unit; days: Weekday[]; room: string | undefined }[] {
+  const out: { index: number; unit: Unit; days: Weekday[]; room: string | undefined }[] = [];
+  d.units.forEach((unit, index) => {
+    const days = OPD_DAYS.filter((day) => unit.week[day]?.doctors?.includes(p.id));
+    if (days.length) out.push({ index, unit, days, room: unit.week[days[0]]?.rooms?.[p.id] });
+  });
+  return out;
 }
+
 /** confirmed permanent (on the intranet doctor list), non-permanent, or only in the staff list (not on the current doctor list: may have retired or moved) */
 type DoctorKind = "perm" | "np" | "unc";
 const doctorKind = (p: Person): DoctorKind => (p.employment === "contractual" ? "np" : p.status === "not_on_list" ? "unc" : "perm");
+/** The table of one department's doctors, organised the way its OPD is: unit by unit (a department of units), room by room (a department of rooms), the doctors who do not sit in the OPD last;
+ *  inside a group the confirmed permanent doctors first, then the non-permanent, then those who are not on the current doctor list. */
+function deptDoctorTable(g: { d: Department | null; rows: DeptDoctor[] }): HospitalTable {
+  const ORDER: Record<DoctorKind, number> = { perm: 0, np: 1, unc: 2 };
+  const who = ({ p, own }: DeptDoctor): string[] => {
+    const np = npOf(p);
+    return [
+      own ? docLabel(p) : `${docName(p)} (department: ${p.department ? deptLabel(p.department) : "not recorded"}; sits in this OPD)`,
+      p.ticket ?? (p.doctorListId ? `${p.doctorListId} (non-permanent)` : "not recorded"),
+      p.discipline ?? np?.specialization ?? "—",
+    ];
+  };
+  const byKind = (a: { r: DeptDoctor; order: number }, b: { r: DeptDoctor; order: number }) => ORDER[doctorKind(a.r.p)] - ORDER[doctorKind(b.r.p)] || a.order - b.order;
+  const d = g.d;
+  if (!d) return { columns: ["Doctor", "Ticket", "Discipline"], rows: [...g.rows].sort((a, b) => ORDER[doctorKind(a.p)] - ORDER[doctorKind(b.p)]).map(who) }; // no OPD of its own
+  const placed = g.rows.map((r, order) => ({ r, order, places: placesOf(r.p, d) }));
+  const rows: string[][] = [];
+  if (isUnits(d)) {
+    // Unit | Days | Room | Doctor | Ticket | Discipline
+    d.units.forEach((u, i) => {
+      const items = placed.filter((x) => x.places[0]?.index === i).sort((a, b) => byKind(a, b));
+      items.forEach((x, k) => {
+        const room = x.places[0].room ?? "—";
+        const prev = k > 0 ? items[k - 1].places[0].room ?? "—" : undefined;
+        rows.push([k === 0 ? u.label : "", k === 0 ? daysText(u.days ?? x.places[0].days) : "", room === prev ? "" : room, ...who(x.r)]);
+      });
+    });
+    placed.filter((x) => !x.places.length).sort(byKind).forEach((x, k) => rows.push([k === 0 ? "—" : "", k === 0 ? "not in the OPD schedule" : "", "", ...who(x.r)]));
+    return { columns: ["Unit", "Days", "Room", "Doctor", "Ticket", "Discipline"], rows };
+  }
+  // OPD | Doctor | Ticket | Discipline | Days
+  d.units.forEach((u, i) => {
+    const items = placed.filter((x) => x.places[0]?.index === i).sort(byKind);
+    items.forEach((x, k) => {
+      const [first, ...more] = x.places;
+      const days = `${daysText(first.days)}${more.length ? `; also ${more.map((m) => `${m.unit.label}: ${daysText(m.days)}`).join("; ")}` : ""}`;
+      rows.push([k === 0 ? u.label : "", ...who(x.r), days]);
+    });
+  });
+  placed.filter((x) => !x.places.length).sort(byKind).forEach((x, k) => rows.push([k === 0 ? "—" : "", ...who(x.r), "not in the OPD schedule"]));
+  return { columns: ["OPD", "Doctor", "Ticket", "Discipline", "Days"], rows };
+}
 function departmentDoctorsAnswer(e: Entities): HospitalResult {
   const groups: { label: string; d: Department | null; rows: DeptDoctor[] }[] = [
     ...e.depts.map((d) => ({ label: d.name, d: d as Department | null, rows: doctorsOfDepartment(d.staffDepartment, d) })),
     ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map((x) => ({ label: deptLabel(x), d: null as Department | null, rows: doctorsOfDepartment(x, null) })),
   ];
-  const ORDER: Record<DoctorKind, number> = { perm: 0, np: 1, unc: 2 };
   const tables = groups.map((g) => {
-    const sorted = [...g.rows].sort((a, b) => ORDER[doctorKind(a.p)] - ORDER[doctorKind(b.p)]);
     const n = (k: DoctorKind) => g.rows.filter((r) => doctorKind(r.p) === k).length;
-    const rows = sorted.map(({ p, own }) => {
-      const np = npOf(p);
-      return [
-        own ? docLabel(p) : `${docName(p)} (department: ${p.department ? deptLabel(p.department) : "not recorded"}; sits in this OPD)`,
-        p.ticket ?? (p.doctorListId ? `${p.doctorListId} (non-permanent)` : "not recorded"),
-        p.discipline ?? np?.specialization ?? "—",
-        opdPlaces(p, g.d),
-      ];
-    });
-    return { ...g, perm: n("perm"), np: n("np"), unc: n("unc"), table: { columns: ["Doctor", "Ticket", "Discipline", "OPD"], rows } as HospitalTable };
+    return { ...g, perm: n("perm"), np: n("np"), unc: n("unc"), table: deptDoctorTable(g) };
   });
   const sentence = (t: (typeof tables)[number]) => {
     if (!t.rows.length) return `No doctor is listed for ${t.label}.`;
@@ -898,6 +927,7 @@ function departmentDoctorsAnswer(e: Entities): HospitalResult {
   };
   const text = tables.map(sentence).join(" ");
   const lines: string[] = [];
+  for (const t of tables) if (t.rows.length && !t.d) lines.push(`${t.label} has no OPD of its own.`);
   if (tables.some((t) => t.unc)) lines.push("A doctor \"not on the current doctor list\" is in the hospital's staff list but not in the intranet doctor list: he or she may have retired or moved.");
   if (groups.some((g) => g.rows.some((r) => !r.own))) lines.push("A doctor marked \"sits in this OPD\" belongs to another department of the staff list but sees patients here.");
   const card: HospitalAnswer = { title: `Doctors of ${joinAnd(groups.map((g) => g.label))}`, status: { tone: tables.some((t) => t.rows.length) ? "info" : "unknown", text }, lines };
