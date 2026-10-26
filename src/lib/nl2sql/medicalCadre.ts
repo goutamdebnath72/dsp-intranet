@@ -10,7 +10,15 @@
 
 /** A question about doctors or non-medical executives (the search model then gets DOCTOR_DOC; every other question's prompt is untouched: the prompt has a size limit). */
 export const isDoctorQuestion = (q: string): boolean =>
-  /\b(doctors?|physicians?|non[- ]?medical|not (?:a )?doctors?|medical (?:staff|executives?|cadre))\b/i.test(q || "") || /\bdr\b\.?\s*[a-z]/i.test(q || "");
+  /\b(doctors?|physicians?|non[- ]?medical|not (?:a )?doctors?|medical (?:staff|executives?|cadre)|dnb|drnb|mbbs)\b/i.test(q || "") || /\bdr\b\.?\s*[a-z]/i.test(q || "");
+
+/** A doctor question that names a QUALIFICATION (DNB, MD, MS, MBBS ...): only then does the model get QUALIFICATION_DOC (the doctor prompt has only about 60 characters of budget to spare, see medicalCadre.selftest.ts). */
+export const isQualificationQuestion = (q: string): boolean =>
+  isDoctorQuestion(q) && /\b(dnb|drnb|mbbs|mch|dm|md|ms|mds|dgo|dpm|dih|mrcog|qualif\w*|degrees?|diplomas?|post ?graduates?)\b/i.test(q || "");
+
+/** "DNB doctors" once came back as ALL 52 doctors (the model used is_doctor): the directory holds no qualification. */
+export const QUALIFICATION_DOC = `QUALIFICATIONS (DNB, DrNB, MD, MS, MBBS, MCh ...) are NOT in the directory, and is_doctor is not one: "DNB doctors" is NOT "doctors". Return sql = null with unanswerable_reason = "The employee directory does not record qualifications."
+`;
 
 export const DOCTOR_DOC = `DOCTORS AND NON-MEDICAL EXECUTIVES -- the hospital's executives are two cadres with PARALLEL designations, told apart by the column nlq.employees.is_doctor (true / false):
   doctors = is_doctor (the medical track: Director(M&HS), Joint Director, Sr. Deputy Director, Asst. Director/Sr. Consultant, DMO/Consultant, ADMO/Specialist, Medical Officer, AND the few doctors whose designation is a normal managerial one, flagged in the roster)

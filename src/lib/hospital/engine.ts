@@ -938,6 +938,63 @@ function departmentDoctorsAnswer(e: Entities): HospitalResult {
   return done(text, card);
 }
 
+// ---------------------------------------------------------------- doctors by qualification (step 56a)
+// "list of DNB doctors": the model once took the word DNB to mean EVERY doctor (52 people). A qualification is a fact the HR directory does not hold; the hospital's staff list prints it for
+// each doctor (MBBS, MD(MEDICINE), MS(ENT), DNB(MEDICINE), MCH & DRNB PLASTIC SURGERY ...), so the answer is read from there, as printed. A doctor whose qualification is not recorded is NAMED,
+// never silently counted as "no".
+interface Qual { key: string; label: string; ask: RegExp; has: RegExp }
+const QUALIFICATIONS: Qual[] = [
+  { key: "DNB", label: "DNB", ask: /\bd\s?n\s?b\b/, has: /\bDNB\b/ },
+  { key: "DRNB", label: "DrNB", ask: /\bdr\s?n\s?b\b/, has: /\bDR\.?\s?NB\b/ },
+  { key: "MBBS", label: "MBBS", ask: /\bm\s?b\s?b\s?s\b/, has: /\bMBBS\b/ },
+  { key: "MD", label: "MD", ask: /\bmd\b/, has: /\bMD\b/ },
+  { key: "MS", label: "MS", ask: /\bms\b/, has: /\bMS\b/ },
+  { key: "MCH", label: "MCh", ask: /\bm\s?ch\b/, has: /\bMCH\b/ },
+  { key: "DM", label: "DM", ask: /\bdm\b/, has: /\bDM\b/ },
+  { key: "MDS", label: "MDS", ask: /\bmds\b/, has: /\bMDS\b/ },
+  { key: "DGO", label: "DGO", ask: /\bdgo\b/, has: /\bDGO\b/ },
+  { key: "DPM", label: "DPM", ask: /\bdpm\b/, has: /\bDPM\b/ },
+  { key: "DIH", label: "DIH", ask: /\bdih\b/, has: /\bDIH\b/ },
+  { key: "MRCOG", label: "MRCOG", ask: /\bmrcog\b/, has: /\bMRCOG\b/ },
+  { key: "DORTHO", label: "D.Ortho", ask: /\bd\s?ortho\b/, has: /\bD\.?\s?ORTHO\b/ },
+];
+/** The qualifications a question names (already lower-cased by plain()). */
+export const qualificationsAsked = (nm: string): Qual[] => QUALIFICATIONS.filter((x) => x.ask.test(nm));
+const qualOf = (p: Person) => String(p.qualification ?? "").toUpperCase();
+
+function doctorsByQualificationAnswer(e: Entities, quals: Qual[]): HospitalResult {
+  const inDepts = e.depts.length || e.extraDepts.length
+    ? new Set([...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)), ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null))].map((r) => r.p.id))
+    : null;
+  const pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
+  const label = quals.map((x) => x.label).join(" or ");
+  const where = inDepts ? ` in ${joinAnd([...e.depts.map((d) => d.name), ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map(deptLabel)])}` : "";
+  const hits = pool.filter((p) => quals.some((x) => x.has.test(qualOf(p)))).sort((a, b) => a.name.localeCompare(b.name));
+  const unknown = pool.filter((p) => !qualOf(p).trim());
+  const names = hits.map(docName);
+  // the headline says what is KNOWN and what is not: a list that looks complete when 53 of 115 doctors have no qualification on record would be a confident wrong answer
+  const gap = unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length} doctors${where}, so this list may be incomplete.` : "";
+  const text = (hits.length
+    ? `${hits.length} doctor${hits.length === 1 ? " is" : "s are"} recorded with ${label}${where}${hits.length <= 4 ? `: ${joinAnd(names)}` : ""}.`
+    : `No doctor${where} is recorded with ${label}.`) + gap;
+  const lines: string[] = [];
+  lines.push(`The qualification is the one the hospital's staff list prints for each doctor: recorded for ${pool.length - unknown.length} of the ${pool.length} doctors${where} on the hospital's lists.`);
+  if (unknown.length) lines.push(`Not recorded (so not counted): ${joinAnd(unknown.slice(0, 12).map(docName))}${unknown.length > 12 ? ` and ${unknown.length - 12} more` : ""}. Any of them may hold ${label}.`);
+  // DNB and DrNB are different degrees: say who holds the other one, never merge them silently
+  if (quals.some((x) => x.key === "DNB") && !quals.some((x) => x.key === "DRNB")) {
+    const dr = pool.filter((p) => /\bDR\.?\s?NB\b/.test(qualOf(p)));
+    if (dr.length) lines.push(`${joinAnd(dr.map((p) => `${docName(p)} (${p.qualification})`))} ${dr.length === 1 ? "holds" : "hold"} DrNB, the National Board's super-specialty degree: a different qualification, not counted as DNB.`);
+  }
+  const card: HospitalAnswer = { title: `Doctors with ${label}${where}`, status: { tone: hits.length ? "info" : "unknown", text }, lines };
+  if (hits.length) {
+    card.table = {
+      columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"],
+      rows: hits.map((p) => [docLabel(p), p.ticket ?? (p.doctorListId ? `${p.doctorListId} (non-permanent)` : "not recorded"), p.qualification ?? "—", p.discipline ?? npOf(p)?.specialization ?? "—", p.department ? deptLabel(p.department) : "not recorded"]),
+    };
+  }
+  return done(text, card);
+}
+
 const unitNameOf = (p: Person): string | null => {
   for (const d of SCHEDULE.departments) if (isUnits(d)) for (const u of d.units) if (u.members?.includes(p.id)) return `${d.name} ${u.label}`;
   return null;
@@ -1155,6 +1212,9 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   // "list of ent doctors", "how many doctors in surgery": the doctors of a department, from the hospital's own lists (not the HR directory, which does not know their department)
   const DOCTOR_NOUN = /\b(doctors?|physicians?|surgeons?|specialists?|consultants?|radiologists?|pathologists?|anaesthetists?|anesthetists?)\b/;
   const FILTER_WORDS = /\b(mail|e ?mail|nic|webmail|mobile|phone|cug|address|grade|designation|senior|seniority|junior|executives?|non executives?|retire|retired|promoted)\b/;
+  // "list of DNB doctors", "how many MD doctors in medicine": by the qualification the staff list prints (step 56a)
+  const quals = qualificationsAsked(nm);
+  if (quals.length && !e.doctors.length && DOCTOR_NOUN.test(n) && !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length) return doctorsByQualificationAnswer(e, quals);
   if (!e.doctors.length && (e.depts.length || e.extraDepts.length) && DOCTOR_NOUN.test(n) && !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length) return departmentDoctorsAnswer(e);
 
   // a doctor
