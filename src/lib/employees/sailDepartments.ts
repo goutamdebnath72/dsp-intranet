@@ -15,6 +15,7 @@
 // guessed) -- see chat for how each one below was established.
 
 import { getDb } from "@/lib/db";
+import { OTHER_PLANT } from "@/lib/search/formerNames";
 import {
   resolveDepartment as resolveLegacyDepartment,
   findDepartmentInText as findLegacyDepartmentInText,
@@ -70,7 +71,16 @@ export interface DeptGroup {
 // Confirmed groups only -- every code here was verified directly against a
 // real sail_department row in chat (28 Sep 2026), never guessed. Extend this
 // list the same way: a real code/name pair confirmed by the user, then added.
-const CONFIRMED_GROUPS: { name: string; codes: number[]; aliases: string[] }[] = [
+const CONFIRMED_GROUPS: { name: string; codes: number[]; aliases: string[]; unlessText?: RegExp }[] = [
+  {
+    // step 60c: the Training Department -> CHRD -> Centre for L & D (CL&D): the five L & D rows of the owner's list of 26 Oct 2026 (107 L & D, 9001 L & D OFFICE, 9003 L & D, 10770 L & D (TECH), 9008 L & D IND).
+    // Full forms CONFIRMED by the owner (26 Oct 2026): L & D = Learning and Development, CHRD = Centre for Human Resource Development; "Centre for HRD" is not used. The same names as in nl2sql/departmentAliases.ts.
+    // Another plant's CHRD is not this department (unlessText).
+    name: "CL&D",
+    codes: [107, 9001, 9003, 10770, 9008],
+    aliases: ["cl&d", "cl & d", "cl and d", "c l & d", "centre for l&d", "centre for l & d", "center for l&d", "center for l & d", "learning and development", "centre for learning and development", "center for learning and development", "chrd", "c h r d", "c.h.r.d", "centre for human resource development", "center for human resource development", "training department", "training dept", "training deptt", "l & d", "l and d"],
+    unlessText: OTHER_PLANT,
+  },
   {
     // 98500 = ALL C&IT executives (one code, no split); 98530/98540 = the
     // department's non-exec sections ("COMPUTER and IT STAFF", "C & IT
@@ -176,6 +186,7 @@ export async function findSailDepartmentInText(
   let best: { group: DeptGroup; phrase: string; len: number } | null = null;
 
   for (const g of CONFIRMED_GROUPS) {
+    if (g.unlessText?.test(nq)) continue; // another plant's CHRD (step 60c)
     for (const c of [g.name, ...g.aliases]) {
       const nc = normDept(c);
       if (nc.length < 2) continue;

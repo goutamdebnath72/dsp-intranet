@@ -24,19 +24,23 @@
 //   - PMU / Plant Medical is placed under MAIN HOSPITAL on the owner's guess ("probably a branch of M&HS"): confirm.
 //   - Heavy Maintenance has 3 sites (Site 1, 2, 3) but only 2 rows (92500 and 92530): the sites cannot be told apart.
 
+import { OTHER_PLANT } from "@/lib/search/formerNames";
+
 export interface DepartmentGroup {
   name: string;
   aliases: string[];
   prefixes: string[];
   stems?: string[];
+  /** The group does NOT apply when the question matches this (step 60c: another plant's CHRD, "bsp chrd", is not the Durgapur department). */
+  unlessText?: RegExp;
 }
 
 export const DEPARTMENT_GROUPS: DepartmentGroup[] = [
   // step 59a: the Training Department was renamed CHRD and is now the Centre for L & D (CL&D). People still say the old names: ALL of them mean the five L & D rows (107, 9001, 9003, 10770, 9008: the sections of the
   // owner's list of 26 Oct 2026). "l & d" itself is found by the department's own name. The notice "CHRD is now called ..." is src/lib/search/formerNames.ts; the link and the menu entry carry the same names.
   // The FULL FORMS are the ones CONFIRMED on 26 Oct 2026: L & D = Learning and Development (the HOD), CHRD = Centre for Human Resource Development. NOT "Centre for HRD": it is not used at the plant.
-  // Another plant's CHRD is not this department.
-  { name: "CL&D (Centre for L & D = Centre for Learning and Development, formerly CHRD = Centre for Human Resource Development, formerly the Training Department)", aliases: ["cl&d", "cl & d", "cl and d", "c l & d", "centre for l&d", "centre for l & d", "center for l&d", "center for l & d", "learning and development", "centre for learning and development", "center for learning and development", "chrd", "c h r d", "c.h.r.d", "centre for human resource development", "center for human resource development", "training department", "training dept", "training deptt"], prefixes: ["l and d"] },
+  // Another plant's CHRD (Bhilai, Bokaro, Rourkela ...) is not this department: the group does not apply to a question that names the plant (unlessText).
+  { name: "CL&D (Centre for L & D = Centre for Learning and Development, formerly CHRD = Centre for Human Resource Development, formerly the Training Department)", aliases: ["cl&d", "cl & d", "cl and d", "c l & d", "centre for l&d", "centre for l & d", "center for l&d", "center for l & d", "learning and development", "centre for learning and development", "center for learning and development", "chrd", "c h r d", "c.h.r.d", "centre for human resource development", "center for human resource development", "training department", "training dept", "training deptt"], prefixes: ["l and d"], unlessText: OTHER_PLANT },
   { name: "CO & CC", aliases: ["cocc", "co&cc", "co & cc", "co and cc", "coke oven and coal chemical"], prefixes: ["co and cc"] },
   { name: "BLAST FURNACE (BF)", aliases: ["bf", "blast furnace", "blast furnaces"], prefixes: ["bf", "b f", "blast furnace"] },
   { name: "SMS (STEEL MELTING SHOP, with CCP)", aliases: ["sms", "s m s", "steel melting shop"], prefixes: ["sms", "s m s", "ccp", "continuous casting"] },

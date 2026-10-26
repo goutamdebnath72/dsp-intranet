@@ -105,6 +105,7 @@ export function departmentFamilies(question: string, all: DepartmentRow[]): { na
   };
   const out: { name: string; rows: DepartmentRow[] }[] = [];
   for (const f of DEPARTMENT_FAMILIES) {
+    if (f.unlessText?.test(qNorm)) continue; // e.g. another plant's CHRD (step 60c)
     if (!f.aliases.some((a) => qNorm.includes(" " + normText(a) + " "))) continue;
     const rows = all.filter((d) => f.prefixes.some((p) => startsWith(d, p)) || (f.stems ?? []).some((s) => normText(d.name).startsWith(s)));
     if (rows.length) out.push({ name: f.name, rows });

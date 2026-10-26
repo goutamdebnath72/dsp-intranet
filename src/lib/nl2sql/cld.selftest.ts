@@ -39,6 +39,12 @@ for (const alias of ["cl&d", "cl & d", "cl and d", "c l & d", "centre for l&d", 
   ok(`"${alias}" means all five L & D rows`, !!f && JSON.stringify(f.rows.map((r) => r.id).sort((a, b) => a - b)) === JSON.stringify(ids), JSON.stringify(f?.rows.map((r) => r.id)));
 }
 ok("the full forms are the CONFIRMED ones only (L & D = Learning and Development: the HOD; CHRD = Centre for Human Resource Development): the abbreviation 'Centre for HRD' is not used at the plant and is not an alias; 'human resource development' alone is a topic, not this department", !cl("list the employees of centre for hrd") && !cl("how many employees of hrd") && !cl("list the employees of human resource development"));
+// ---- step 60c: another plant's CHRD is NOT this department (the owner's check of 26 Oct 2026 showed "bhilai chrd" getting the five Durgapur rows)
+const cldRows = (q: string) => departmentFamilies(q, rows).filter((f) => f.rows.some((r) => r.code === 107));
+for (const q of ["list employees of bsp chrd", "employees of bhilai chrd", "how many people in rourkela chrd", "bokaro chrd staff", "chrd bokaro", "iisco chrd", "burnpur chrd employees", "employees of the training department of bhilai", "list the employees of chrd ranchi", "sail chrd employees", "corporate office chrd", "centre for human resource development bokaro"])
+  ok(`another plant's CHRD: "${q}" does NOT name the Durgapur CL&D rows`, cldRows(q).length === 0, JSON.stringify(cldRows(q).map((f) => f.name.slice(0, 20))));
+for (const q of ["list the employees of chrd", "employees of the training department", "how many people work in chrd", "chrd employees", "list of cl&d employees"])
+  ok(`Durgapur's own: "${q}" still names the five CL&D rows`, cldRows(q).length === 1 && cldRows(q)[0].rows.length === 5, JSON.stringify(cldRows(q).map((f) => f.rows.length)));
 ok("a question that names no such department does not pull them in: C & IT, the main hospital, the training of apprentices", ["how many executives in c&it", "doctors in the main hospital", "circular about apprentice training schedule"].every((q) => !cl(q)));
 
 // ---- the answer must cover all five; one named section is allowed

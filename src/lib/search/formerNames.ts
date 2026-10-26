@@ -30,8 +30,8 @@ export const RENAMED: Renamed[] = [
   },
 ];
 
-/** Another plant's CHRD (Bhilai, Bokaro, Rourkela ...) or the corporate one is NOT the Durgapur department that was renamed: no notice then. */
-const OTHER_PLANT = /\b(bsp|bhilai|bsl|bokaro|rsp|rourkela|iisco|burnpur|asp|alloy\s+steel|ssp|salem|vsp|visvesvaraya|ranchi|corporate|sail\s+chrd|chrd\s+sail)\b/;
+/** Another plant's CHRD (Bhilai, Bokaro, Rourkela ...) or the corporate one is NOT the Durgapur department that was renamed: no notice then, and the department-name lookups (departmentAliases.ts, sailDepartments.ts) do not take it for the CL&D rows either. */
+export const OTHER_PLANT = /\b(bsp|bhilai|bsl|bokaro|rsp|rourkela|iisco|burnpur|asp|alloy\s+steel|ssp|salem|vsp|visvesvaraya|ranchi|corporate|sail\s+chrd|chrd\s+sail)\b/;
 
 export interface FormerNameNotice {
   /** The old name the question used, as it should be quoted ("CHRD"). */
