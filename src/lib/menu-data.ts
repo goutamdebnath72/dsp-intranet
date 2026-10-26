@@ -46,7 +46,7 @@ export const menuData: MenuItemData[] = [
             {
                 heading: "Circulars",
                 links: [
-                    { label: "CHRD", href: "#" },
+                    { label: "Centre for L & D (CL&D)", href: "#" }, // formerly CHRD (step 60a)
                     { label: "Cost Control", href: "#" },
                     { label: "ECD", href: "#" },
                     { label: "Finance", href: "#" },

@@ -40,6 +40,16 @@ function acronym(title: string): string {
 }
 
 /**
+ * A link may carry `aliases` (a renamed department keeps its old names: "CHRD", "Training Department"). Each alias is searched like a title of its own, but the result is ALWAYS the link's official title,
+ * an alias hit ranks a notch below the same hit on the title, and a link is ONE result however many of its names match (step 60a).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function withAliases(list: any[]): any[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return list.flatMap((l: any) => [l, ...((l.aliases as string[] | undefined) ?? []).map((a) => ({ ...l, title: a, officialTitle: l.title, sourceLink: l }))]);
+}
+
+/**
  * Search the static site directory (links.js) by name.
  *
  * Tiered scoring (higher = better):
@@ -71,12 +81,13 @@ export function searchSites(query: string, limit = 6): SiteResult[] {
   }
 
   const out: SiteResult[] = [];
+  const bySource = new Map<object, SiteResult>(); // one result per link, whichever of its names matched
 
   // A query with "&" signals ACRONYM intent (w&a -> Wheel & Axle): match only the
   // full name (c&it -> "cit") or the acronym, never loose word-prefixes.
   const acronymMode = /&/.test(query);
 
-  for (const link of links) {
+  for (const link of withAliases(links)) {
     const title = link.title || "";
     const nTitle = normalize(title);
     if (!nTitle) continue;
@@ -99,14 +110,15 @@ export function searchSites(query: string, limit = 6): SiteResult[] {
       else if (acr === q) score = 92;
       else if (acr.startsWith(q) && q.length >= 2) score = 85;
       else if (nTitle.startsWith(q)) score = 80;
-      else if (ws.some((w) => w.startsWith(q))) score = 60;
-      else if (ws.some((w) => w.includes(q))) score = 40;
+      // an ALIAS matches as a whole (exact, as a prefix, or spelled out in the question), never by one of its common words ("training", "department" would match every question about a department)
+      else if (!link.officialTitle && ws.some((w) => w.startsWith(q))) score = 60;
+      else if (!link.officialTitle && ws.some((w) => w.includes(q))) score = 40;
       else if (qRuns.has(nTitle) && nTitle.length >= 2) score = 20;
     }
 
     // Also match the subtitle (e.g. BAMS has subtitle "(Attendance)"), scored a
     // notch below the equivalent title match so title hits always rank higher.
-    if (score === 0 && link.subtitle) {
+    if (score === 0 && link.subtitle && !link.aliases && !link.officialTitle) { // a link with aliases is found by them, not by the words of its history line
       const sws = words(link.subtitle).map(normalize).filter(Boolean);
       const nSub = normalize(link.subtitle);
       if (nSub === q) {
@@ -120,14 +132,18 @@ export function searchSites(query: string, limit = 6): SiteResult[] {
 
     if (score > 0) {
       const hasLink = !!link.href && link.href !== "#";
-      out.push({
-        title,
+      const result: SiteResult = {
+        title: link.officialTitle ?? title,
         subtitle: link.subtitle,
         href: link.href || "#",
         category: link.category,
         hasLink,
-        score: score + (hasLink ? 1 : 0) + Math.max(0, 5 - nTitle.length) * 0.1,
-      });
+        score: score - (link.officialTitle ? 2 : 0) + (hasLink ? 1 : 0) + Math.max(0, 5 - nTitle.length) * 0.1,
+      };
+      const source: object = link.sourceLink ?? link;
+      const had = bySource.get(source);
+      if (!had) { bySource.set(source, result); out.push(result); }
+      else if (result.score > had.score) Object.assign(had, result);
     }
   }
 

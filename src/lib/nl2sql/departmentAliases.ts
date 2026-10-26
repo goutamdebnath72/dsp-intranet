@@ -17,7 +17,8 @@
 // row, an alias claimed by two groups and a changed row count all fail the test, so the file cannot go stale unnoticed. When the departments change, refresh the saved copy.
 //
 // STILL TO BE FILLED (the owner checks the legacy intranet): 
-//   - CHRD / Training Institute: which HR row(s)?   (the intranet site list has CHRD; the 300 HR rows have no row of that name; L & D is a candidate)
+//   - (CLOSED on 26 Oct 2026 by the owner's list of the CL&D employees: CHRD = the Training Department = Centre for L & D (CL&D) = the five L & D rows, see the first group below. The legacy "CHRD INDUSTRIAL 2 / training institute"
+//     of employees/departments.ts (code 10143) has no row in the 300 and is NOT part of CL&D.)
 //   - A-Zone Maintenance and B-Zone Maintenance are sections of Town Administration (its six rows were filled in on 24 Oct 2026) but have no row of their own: the words are NOT mapped,
 //     because a count for one zone would silently be the count for all of Town Administration.
 //   - PMU / Plant Medical is placed under MAIN HOSPITAL on the owner's guess ("probably a branch of M&HS"): confirm.
@@ -31,6 +32,11 @@ export interface DepartmentGroup {
 }
 
 export const DEPARTMENT_GROUPS: DepartmentGroup[] = [
+  // step 59a: the Training Department was renamed CHRD and is now the Centre for L & D (CL&D). People still say the old names: ALL of them mean the five L & D rows (107, 9001, 9003, 10770, 9008: the sections of the
+  // owner's list of 26 Oct 2026). "l & d" itself is found by the department's own name. The notice "CHRD is now called ..." is src/lib/search/formerNames.ts; the link and the menu entry carry the same names.
+  // The FULL FORMS are the ones CONFIRMED on 26 Oct 2026: L & D = Learning and Development (the HOD), CHRD = Centre for Human Resource Development. NOT "Centre for HRD": it is not used at the plant.
+  // Another plant's CHRD is not this department.
+  { name: "CL&D (Centre for L & D = Centre for Learning and Development, formerly CHRD = Centre for Human Resource Development, formerly the Training Department)", aliases: ["cl&d", "cl & d", "cl and d", "c l & d", "centre for l&d", "centre for l & d", "center for l&d", "center for l & d", "learning and development", "centre for learning and development", "center for learning and development", "chrd", "c h r d", "c.h.r.d", "centre for human resource development", "center for human resource development", "training department", "training dept", "training deptt"], prefixes: ["l and d"] },
   { name: "CO & CC", aliases: ["cocc", "co&cc", "co & cc", "co and cc", "coke oven and coal chemical"], prefixes: ["co and cc"] },
   { name: "BLAST FURNACE (BF)", aliases: ["bf", "blast furnace", "blast furnaces"], prefixes: ["bf", "b f", "blast furnace"] },
   { name: "SMS (STEEL MELTING SHOP, with CCP)", aliases: ["sms", "s m s", "steel melting shop"], prefixes: ["sms", "s m s", "ccp", "continuous casting"] },

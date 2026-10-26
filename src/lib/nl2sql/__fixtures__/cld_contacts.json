@@ -1,0 +1,229 @@
+{
+ "source": "CL&D Online - Contacts, EMPLOYEE LIST of the Centre for L&D, Durgapur Steel Plant (printed 26 Oct 2026). Names, tickets, sections and codes only: no phone numbers or e-mail addresses.",
+ "people": [
+  {
+   "section": "L & D",
+   "code": "EXE-00107",
+   "ticket": "490164",
+   "name": "PRADEEP BHARATHAN",
+   "designation": "CGM (HR-L&D)"
+  },
+  {
+   "section": "L & D",
+   "code": "EXE-00107",
+   "ticket": "498933",
+   "name": "GEETANJALI ADHIKARI",
+   "designation": "GM (HR-L&D)"
+  },
+  {
+   "section": "L & D",
+   "code": "EXE-00107",
+   "ticket": "499269",
+   "name": "MAREM MERINO MARING",
+   "designation": "DGM (HR-L&D)"
+  },
+  {
+   "section": "L & D",
+   "code": "EXE-00107",
+   "ticket": "440459",
+   "name": "TARUN KR BANERJEE",
+   "designation": "AGM (HR-L&D)"
+  },
+  {
+   "section": "L & D",
+   "code": "EXE-00107",
+   "ticket": "499728",
+   "name": "PRACHEE PARWANEE",
+   "designation": "Sr. Manager (HR-L&D)"
+  },
+  {
+   "section": "L & D",
+   "code": "EXE-00107",
+   "ticket": "442410",
+   "name": "SANDIP MAHATO",
+   "designation": "Asst. Manager (HR-L&D)"
+  },
+  {
+   "section": "L & D",
+   "code": "EXE-00107",
+   "ticket": "442691",
+   "name": "MOHAN KUMAR DAS",
+   "designation": "Asst. Manager (HR-L&D)"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "140124",
+   "name": "H S SINGH",
+   "designation": "S-11"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "153018",
+   "name": "MRINMOYEE MUKHERJEE",
+   "designation": "S-11"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "140191",
+   "name": "SUMIT RANJAN DAS",
+   "designation": "S-11"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "140576",
+   "name": "AMAL KUMAR SAHA",
+   "designation": "S-11"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "153031",
+   "name": "SUMANA CHATTERJEE",
+   "designation": "S-11"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "142188",
+   "name": "RAJESH BANERJEE",
+   "designation": "S-10"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "153357",
+   "name": "KRISHNA PADA SHYAM",
+   "designation": "S-10"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "142994",
+   "name": "SUBHASISH PAKIRA",
+   "designation": "S-9"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "153355",
+   "name": "THAKURDAS KUNDU",
+   "designation": "S-9"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "135001",
+   "name": "MANOJ KUMAR BARI",
+   "designation": "S-9"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "135006",
+   "name": "NIRMALYA KR DUTTA",
+   "designation": "S-9"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "153069",
+   "name": "ANIL BOURI",
+   "designation": "S-7"
+  },
+  {
+   "section": "L & D OFFICE",
+   "code": "09001",
+   "ticket": "122663",
+   "name": "PRATIMA MANDI",
+   "designation": "S-7"
+  },
+  {
+   "section": "L & D",
+   "code": "09003",
+   "ticket": "140590",
+   "name": "SANTIMOY ROY",
+   "designation": "S-11"
+  },
+  {
+   "section": "L & D TECH",
+   "code": "10770",
+   "ticket": "366837",
+   "name": "KOUSHIK GHOSH",
+   "designation": "S-5"
+  },
+  {
+   "section": "L & D TECH",
+   "code": "10770",
+   "ticket": "367239",
+   "name": "TRIPTI KUNDU",
+   "designation": "S-3"
+  },
+  {
+   "section": "L & D TECH",
+   "code": "10770",
+   "ticket": "367274",
+   "name": "SNEHA GHOSH",
+   "designation": "S-3"
+  },
+  {
+   "section": "L & D IND",
+   "code": "09008",
+   "ticket": "341556",
+   "name": "UTTAM MUKHERJEE",
+   "designation": "S-10"
+  },
+  {
+   "section": "L & D IND",
+   "code": "09008",
+   "ticket": "366589",
+   "name": "MAYADHAR DAS",
+   "designation": "S-6"
+  },
+  {
+   "section": "L & D IND",
+   "code": "09008",
+   "ticket": "345047",
+   "name": "SUKHOMOY BAURI",
+   "designation": "S-5"
+  },
+  {
+   "section": "L & D IND",
+   "code": "09008",
+   "ticket": "335013",
+   "name": "KUMAR SANTOSH CHANDRA RANJAN",
+   "designation": "S-5"
+  },
+  {
+   "section": "L & D IND",
+   "code": "09008",
+   "ticket": "366163",
+   "name": "SOVA MISHRA",
+   "designation": "S-5"
+  },
+  {
+   "section": "L & D IND",
+   "code": "09008",
+   "ticket": "366162",
+   "name": "MITA TEWARI",
+   "designation": "S-4"
+  },
+  {
+   "section": "L & D IND",
+   "code": "09008",
+   "ticket": "367147",
+   "name": "SHIBASIS BANERJEE",
+   "designation": "S-4"
+  },
+  {
+   "section": "L & D IND",
+   "code": "09008",
+   "ticket": "367450",
+   "name": "ROOPKATHA BHOWMICK",
+   "designation": "S-3"
+  }
+ ]
+}

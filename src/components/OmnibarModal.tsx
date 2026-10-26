@@ -26,6 +26,8 @@ import { departmentGroups, isSingleRowTable, mergePage } from "@/lib/nl2sql/disp
 import { AnswerFeedback, type AnswerSource } from "@/components/AnswerFeedback";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { OmniLoginHint } from "@/components/OmniLoginHint";
+import { FormerNameNotice } from "@/components/FormerNameNotice";
+import { formerNameNotice } from "@/lib/search/formerNames";
 import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
 import { HolidayCompareCard } from "@/components/HolidayCompareCard";
 import "./omniScale.css";
@@ -185,6 +187,8 @@ export function OmnibarModal({
     error,
   } = useOmniSearch(isOpen, ticketNo);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Step 59a: a question that uses a FORMER name of a department ("CHRD", "Training Department") is answered with the CURRENT name first: shown above the results, whatever the kind of answer.
+  const nameNotice = useMemo(() => formerNameNotice(submittedQuery || ""), [submittedQuery]);
   // Step 56b: the modal is wider than it was (step 54i) but its text was not: the text grows with the width, so that it keeps the proportion it had at the old 52rem (omniScale.css).
   // The doctors' unit tables opt out (omni-noscale): they keep their size and the room the extra width gave them.
   const modalRef = useRef<HTMLDivElement>(null);
@@ -689,6 +693,7 @@ export function OmnibarModal({
 
               {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
 
+              {nameNotice && <FormerNameNotice notice={nameNotice} />}
               {loginHint && <OmniLoginHint hint={loginHint} />}
 
               <div className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">

@@ -970,6 +970,12 @@ function departmentDoctorsAnswer(e: Entities): HospitalResult {
   return done(text, card);
 }
 
+/** The ticket cell of the LONG doctor lists (qualification, level, specialisation): the number only: a ticket, or the list number of a non-permanent doctor ("DTN0766"). With the words "(non-permanent)" the cell was twice as
+ *  wide and broke over two lines in the real font (Poppins); one footnote says what the letters mean (step 59b). The shorter department tables keep their wording. */
+const listTicket = (p: Person): string => p.ticket ?? p.doctorListId ?? "not recorded";
+const NP_FOOTNOTE = "A number that starts with letters (D…, DTN…) is the list number of a non-permanent doctor.";
+const hasListNumber = (ps: Person[]): boolean => ps.some((p) => !p.ticket && !!p.doctorListId);
+
 // ---------------------------------------------------------------- doctors by qualification (step 56a)
 // "list of DNB doctors": the model once took the word DNB to mean EVERY doctor (52 people). A qualification is a fact the HR directory does not hold; the hospital's staff list prints it for
 // each doctor (MBBS, MD(MEDICINE), MS(ENT), DNB(MEDICINE), MCH & DRNB PLASTIC SURGERY ...), so the answer is read from there, as printed. A doctor whose qualification is not recorded is NAMED,
@@ -1023,12 +1029,13 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[]): HospitalResul
     const dr = pool.filter((p) => /\bDR\.?\s?NB\b/.test(qualOf(p)));
     if (dr.length) lines.push(`${joinAnd(dr.map((p) => `${docName(p)} (${p.qualification})`))} ${dr.length === 1 ? "holds" : "hold"} DrNB, the National Board's super-specialty degree: a different qualification, not counted as DNB.`);
   }
+  if (hasListNumber(hits)) lines.push(NP_FOOTNOTE);
   const details = unknown.length ? [{ summary: `The ${unknown.length} doctors whose qualification is not recorded${anyQual ? "" : ` (any of them may hold ${label})`}`, text: joinAnd(unknown.map(docName)) }] : [];
   const card: HospitalAnswer = { title: anyQual ? `Doctors and their qualifications${where}` : `Doctors with ${label}${where}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines, details };
   if (hits.length) {
     card.table = {
       columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"],
-      rows: hits.map((p) => [docLabel(p), p.ticket ?? (p.doctorListId ? `${p.doctorListId} (non-permanent)` : "not recorded"), p.qualification ?? "—", p.discipline ?? npOf(p)?.specialization ?? "—", p.department ? deptLabel(p.department) : "not recorded"]),
+      rows: hits.map((p) => [docLabel(p), listTicket(p), p.qualification ?? "—", p.discipline ?? npOf(p)?.specialization ?? "—", p.department ? deptLabel(p.department) : "not recorded"]),
     };
   }
   return done(text, card);
@@ -1068,11 +1075,11 @@ const meetsLevel = (p: Person, ask: LevelAsk): boolean => {
   const r = levelRank(highestLevel(p.qualification));
   return ask === "postgraduate" ? r >= LEVEL_RANK.postgraduate : ask === "superspecialty" ? r >= LEVEL_RANK.superspecialty : ask === "doctorate" ? r >= LEVEL_RANK.doctorate : r === LEVEL_RANK.graduate;
 };
-const LEVEL_TEXT: Record<LevelAsk, { title: string; label: string; sentence: string; excluded: string }> = {
-  postgraduate: { title: "a postgraduate degree", label: "Postgraduate degree", sentence: "Hold a postgraduate degree or higher (MD, MS, DNB, MDS, MCh, DM, or a postgraduate diploma such as DGO or DPM).", excluded: "with a graduate degree only (for example MBBS), not included" },
-  graduate: { title: "a graduate degree as the highest", label: "Graduate degree only", sentence: "Their highest qualification is a graduate degree (MBBS or BDS).", excluded: "with a postgraduate degree or higher, not included" },
-  superspecialty: { title: "a super-specialty degree", label: "Super-specialty degree", sentence: "Hold a super-specialty degree (DM, MCh, DrNB or FNB), taken after an MD or MS.", excluded: "without a super-specialty degree, not included" },
-  doctorate: { title: "a doctorate", label: "Doctorate", sentence: "Hold a doctorate (PhD or similar).", excluded: "without a doctorate, not included" },
+const LEVEL_TEXT: Record<LevelAsk, { title: string; label: string; short: string; explainSummary: string; explain: string; excluded: string }> = {
+  postgraduate: { title: "a postgraduate degree", label: "Postgraduate degree", short: "A postgraduate degree or higher", explainSummary: "What counts as postgraduate?", explain: "Postgraduate means every degree ABOVE graduate: MD, MS, DNB, MDS, MCh, DM, a postgraduate diploma such as DGO or DPM, and also super-specialty and doctorate degrees. MBBS and BDS are graduate degrees.", excluded: "with a graduate degree only (for example MBBS), not included" },
+  graduate: { title: "a graduate degree as the highest", label: "Graduate degree only", short: "A graduate degree as the highest qualification", explainSummary: "What counts as graduate?", explain: "A graduate degree is a bachelor's degree or an equal professional degree (MBBS, BDS, B.Tech ...). A doctor who also holds a postgraduate degree is not counted here.", excluded: "with a postgraduate degree or higher, not included" },
+  superspecialty: { title: "a super-specialty degree", label: "Super-specialty degree", short: "A super-specialty degree (DM, MCh, DrNB or FNB)", explainSummary: "What counts as super-specialty?", explain: "A super-specialty degree is taken after an MD or MS, so it is above postgraduate.", excluded: "without a super-specialty degree, not included" },
+  doctorate: { title: "a doctorate", label: "Doctorate", short: "A doctorate (PhD or similar)", explainSummary: "What counts as a doctorate?", explain: "A doctorate is a research degree above postgraduate.", excluded: "without a doctorate, not included" },
 };
 const levelWords = (l: Level | null): string => (l === "graduate" ? "a graduate degree" : l === "postgraduate" ? "a postgraduate degree" : l === "superspecialty" ? "a super-specialty degree" : l === "doctorate" ? "a doctorate" : l === "diploma" ? "a diploma below graduate level" : l === "certificate" ? "a certificate" : "a qualification the system does not know");
 
@@ -1093,13 +1100,14 @@ function doctorsByLevelAnswer(e: Entities, ask: LevelAsk): HospitalResult {
     ? `${hits.length} of the doctors${of} ${hits.length === 1 ? "holds" : "hold"} ${T.title}${hits.length <= 4 ? `: ${joinAnd(hits.map(docName))}` : ""}.`
     : `No doctor${of} is recorded with ${T.title}.`) + gap;
   const headline = hits.length === 1 ? docName(hits[0]) : hits.length === 0 ? "None" : `${hits.length} doctors`;
-  const sentence = (hits.length ? `${T.sentence}${inDepts ? ` Among the doctors of ${deptNames}.` : ""}` : `No doctor${of} is recorded with ${T.title}.`) + gap;
+  const sentence = (hits.length ? `${T.short}${inDepts ? `, among the doctors of ${deptNames}` : ""}.` : `No doctor${of} is recorded with ${T.title}.`) + gap;
   const details = [
     ...(left.length ? [{ summary: `The ${left.length} doctor${left.length === 1 ? "" : "s"} ${T.excluded}`, text: joinAnd(left.map((p) => `${docName(p)} (${p.qualification})`)) }] : []),
     ...(unknown.length ? [{ summary: `The ${unknown.length} doctors whose qualification is not recorded`, text: joinAnd(unknown.map(docName)) }] : []),
+    { summary: T.explainSummary, text: T.explain },
   ];
-  const card: HospitalAnswer = { title: `Doctors with ${T.title}${inDepts ? ` (${deptNames})` : ""}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, details };
-  if (hits.length) card.table = { columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"], rows: hits.map((p) => [docLabel(p), p.ticket ?? (p.doctorListId ? `${p.doctorListId} (non-permanent)` : "not recorded"), p.qualification ?? "—", p.discipline ?? npOf(p)?.specialization ?? "—", p.department ? deptLabel(p.department) : "not recorded"]) };
+  const card: HospitalAnswer = { title: `Doctors with ${T.title}${inDepts ? ` (${deptNames})` : ""}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines: hasListNumber(hits) ? [NP_FOOTNOTE] : [], details };
+  if (hits.length) card.table = { columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"], rows: hits.map((p) => [docLabel(p), listTicket(p), p.qualification ?? "—", p.discipline ?? npOf(p)?.specialization ?? "—", p.department ? deptLabel(p.department) : "not recorded"]) };
   return done(text, card);
 }
 
@@ -1183,9 +1191,10 @@ function specialisationAnswer(e: Entities): HospitalResult {
   if (groups.length) lines.push(`By specialisation: ${groups.map(([sp, n]) => `${sp} ${n}`).join(", ")}.`);
   if (none.length) lines.push(`${none.length} doctor${none.length === 1 ? "" : "s"} with MBBS alone ${none.length === 1 ? "has" : "have"} no specialisation (not listed).`);
   if (noSubject.length) lines.push(`${joinAnd(noSubject.map((x) => `${docName(x.p)} (${x.p.qualification})`))}: postgraduate, but the subject is not stated (not guessed).`);
+  if (hasListNumber(listed.map((x) => x.p))) lines.push(NP_FOOTNOTE);
   const details = [{ summary: "How is a specialisation decided?", text: SPEC_RULE }, ...(unknown.length ? [{ summary: `The ${unknown.length} doctors whose qualification is not recorded`, text: joinAnd(unknown.map((x) => docName(x.p))) }] : [])];
   const card: HospitalAnswer = { title: `Specialisations of doctors${where}`, headline: { text: stated.length ? `${groups.length} specialisation${groups.length === 1 ? "" : "s"}` : "None", tone: stated.length ? "info" : "unknown" }, status: { tone: stated.length ? "info" : "unknown", text: sentence }, lines, details };
-  if (listed.length) card.table = { columns: ["Doctor", "Ticket", "Specialisation", "Qualification (as printed)", "Department"], rows: listed.map((x) => [docLabel(x.p), x.p.ticket ?? (x.p.doctorListId ? `${x.p.doctorListId} (non-permanent)` : "not recorded"), x.spec ?? "not stated", x.p.qualification ?? "—", x.p.department ? deptLabel(x.p.department) : "not recorded"]) };
+  if (listed.length) card.table = { columns: ["Doctor", "Ticket", "Specialisation", "Qualification (as printed)", "Department"], rows: listed.map((x) => [docLabel(x.p), listTicket(x.p), x.spec ?? "not stated", x.p.qualification ?? "—", x.p.department ? deptLabel(x.p.department) : "not recorded"]) };
   return done(text, card);
 }
 

@@ -20,7 +20,7 @@ const full = html({ title: "Dr. Rajeev Kumar: specialisation", headline: { text:
 
 // ---- the headline is first, big and bold
 ok("the headline is the first thing on the card (before the title)", /<div class="space-y-2" data-hospital-answer="true"><p class="[^"]*" data-headline="info">DNB\(MEDICINE\)<\/p>/.test(full), full.slice(0, 240));
-ok("it is big and bold: text-3xl, font-extrabold", /<p class="text-3xl font-extrabold[^"]*" data-headline="info">/.test(full));
+ok("it is large and bold: text-2xl (one step below the first version), font-extrabold", /<p class="text-2xl font-extrabold[^"]*" data-headline="info">/.test(full));
 const colours: [string, string][] = [["yes", "text-green-600"], ["no", "text-red-600"], ["info", "text-neutral-900"], ["unknown", "text-amber-600"]];
 for (const [tone, cls] of colours) ok(`the ${tone} headline is ${cls}`, new RegExp(`class="[^"]*${cls}[^"]*" data-headline="${tone}"`).test(html({ title: "t", headline: { text: "X", tone: tone as never } })));
 ok("a Yes is green and a No is red: the words carry the meaning, the colour only helps", />Yes<\/p>/.test(html({ title: "t", headline: { text: "Yes", tone: "yes" } })) && />No<\/p>/.test(html({ title: "t", headline: { text: "No", tone: "no" } })));

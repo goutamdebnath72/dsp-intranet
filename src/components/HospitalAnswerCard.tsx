@@ -12,7 +12,7 @@ const TONE: Record<"open" | "closed" | "unknown" | "info", string> = {
   unknown: "bg-amber-100 text-amber-900 border-amber-200",
   info: "bg-slate-100 text-slate-800 border-slate-200",
 };
-/** The headline: the answer itself, big and bold. Green Yes, red No, amber when it is not known; a plain value is dark. The words carry the meaning, never the colour alone. */
+/** The headline: the answer itself, large and bold (text-2xl: one step below the first version, text-3xl, which was heavy for a long value such as "DNB(MEDICINE)": owner, 26 Oct 2026). Green Yes, red No, amber when it is not known; a plain value is dark. The words carry the meaning, never the colour alone. */
 const HEADLINE: Record<"yes" | "no" | "info" | "unknown", string> = {
   yes: "text-green-600",
   no: "text-red-600",
@@ -66,7 +66,7 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
   return (
     <div className="space-y-2" data-hospital-answer="true">
       {answer.headline && (
-        <p className={`text-3xl font-extrabold leading-tight tracking-tight ${HEADLINE[answer.headline.tone]}`} data-headline={answer.headline.tone}>
+        <p className={`text-2xl font-extrabold leading-tight tracking-tight ${HEADLINE[answer.headline.tone]}`} data-headline={answer.headline.tone}>
           {answer.headline.text}
         </p>
       )}
