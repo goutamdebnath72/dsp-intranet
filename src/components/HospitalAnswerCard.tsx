@@ -12,6 +12,17 @@ const TONE: Record<"open" | "closed" | "unknown" | "info", string> = {
   unknown: "bg-amber-100 text-amber-900 border-amber-200",
   info: "bg-slate-100 text-slate-800 border-slate-200",
 };
+/** The headline: the answer itself, big and bold. Green Yes, red No, amber when it is not known; a plain value is dark. The words carry the meaning, never the colour alone. */
+const HEADLINE: Record<"yes" | "no" | "info" | "unknown", string> = {
+  yes: "text-green-600",
+  no: "text-red-600",
+  info: "text-neutral-900",
+  unknown: "text-amber-600",
+};
+/** Under a Yes or No headline the sentence does not repeat the word. */
+const withoutVerdict = (text: string, headline?: { text: string; tone: string }): string =>
+  headline && (headline.tone === "yes" || headline.tone === "no") ? text.replace(new RegExp(`^${headline.text}\\b[:,.]\\s*`, "i"), "") || text : text;
+
 const BADGE: Record<"open" | "closed" | "unknown", string> = {
   open: "bg-green-600 text-white",
   closed: "bg-red-600 text-white",
@@ -54,19 +65,29 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
   const suggestion = answer.suggestion ? answer.suggestion.split("\n").filter(Boolean) : [];
   return (
     <div className="space-y-2" data-hospital-answer="true">
+      {answer.headline && (
+        <p className={`text-3xl font-extrabold leading-tight tracking-tight ${HEADLINE[answer.headline.tone]}`} data-headline={answer.headline.tone}>
+          {answer.headline.text}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold text-neutral-800">{answer.title}</p>
+        <p className={answer.headline ? "text-xs font-semibold text-neutral-500" : "text-sm font-semibold text-neutral-800"} data-title="true">{answer.title}</p>
         {answer.badge && (
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${BADGE[answer.badge.tone]}`} data-badge={answer.badge.tone}>
             {answer.badge.text}
           </span>
         )}
       </div>
-      {answer.status && (
-        <p className={`rounded-md border px-2.5 py-1.5 text-sm font-semibold ${TONE[answer.status.tone]}`} data-tone={answer.status.tone}>
-          {answer.status.text}
+      {answer.status && (answer.headline && answer.status.tone !== "unknown") ? (
+        // under a headline the sentence is plain: the headline carries the colour (an amber caution keeps its box)
+        <p className="text-sm text-neutral-700" data-tone={answer.status.tone} data-sentence="true">
+          {withoutVerdict(answer.status.text, answer.headline)}
         </p>
-      )}
+      ) : answer.status ? (
+        <p className={`rounded-md border px-2.5 py-1.5 text-sm font-semibold ${TONE[answer.status.tone]}`} data-tone={answer.status.tone}>
+          {answer.headline ? withoutVerdict(answer.status.text, answer.headline) : answer.status.text}
+        </p>
+      ) : null}
       {answer.highlight && (
         <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-2 text-sm font-semibold text-emerald-900" data-highlight="true">
           <CalendarCheck size={18} className="mt-0.5 flex-shrink-0" />
@@ -89,6 +110,12 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
           ))}
         </ul>
       )}
+      {answer.details?.map((d, i) => (
+        <details key={i} className="text-sm text-neutral-600" data-details="true">
+          <summary className="cursor-pointer font-medium text-neutral-700">{d.summary}</summary>
+          <p className="mt-1">{d.text}</p>
+        </details>
+      ))}
       {suggestion.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2 text-sm text-blue-900" data-suggestion="true">
           <Ambulance size={16} className="mt-0.5 flex-shrink-0" />

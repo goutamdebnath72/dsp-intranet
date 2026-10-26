@@ -314,11 +314,21 @@ const dayOf = (d: DateTime): Weekday => (["MON", "TUE", "WED", "THU", "FRI", "SA
 /** The FIRST answer is an eye-catching Yes (green) or No (red), then the long text: a verdict that is open starts with "Yes:", one that is closed with "No:". An unknown one stays amber and an information line stays grey. */
 const YES_NO = /^(yes|no)\b[:,.]/i;
 const withYesNo = (tone: string | undefined, text: string): string => (!text || YES_NO.test(text) ? text : tone === "open" ? `Yes: ${text}` : tone === "closed" ? `No: ${text}` : text);
+/** A Yes or a No verdict is also the big HEADLINE of the card (step 57b): the clean answer first, green Yes or red No. */
+const HEAD_YES_NO = /^(yes|no)\b[:,.]/i;
+const withHeadline = (r: HospitalResult): HospitalResult => {
+  const st = r.card.status;
+  if (r.card.headline || !st) return r;
+  const m = HEAD_YES_NO.exec(st.text);
+  if (!m) return r;
+  const yes = m[1].toLowerCase() === "yes";
+  return { ...r, card: { ...r.card, headline: { text: yes ? "Yes" : "No", tone: yes ? "yes" : "no" } } };
+};
 const done = (summary: string, card: HospitalAnswer): HospitalResult => {
   const st = card.status;
-  if (!st || (st.tone !== "open" && st.tone !== "closed")) return { summary, card };
+  if (!st || (st.tone !== "open" && st.tone !== "closed")) return withHeadline({ summary, card });
   const text = withYesNo(st.tone, st.text);
-  return { summary: summary === st.text ? text : withYesNo(st.tone, summary), card: { ...card, status: { ...st, text } } };
+  return withHeadline({ summary: summary === st.text ? text : withYesNo(st.tone, summary), card: { ...card, status: { ...st, text } } });
 };
 
 const isUnits = (d: Department) => d.kind === "units";
@@ -983,22 +993,26 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[]): HospitalResul
   const hits = pool.filter((p) => (anyQual ? !!qualOf(p).trim() : quals.some((x) => x.has.test(qualOf(p))))).sort((a, b) => a.name.localeCompare(b.name));
   const unknown = pool.filter((p) => !qualOf(p).trim());
   const names = hits.map(docName);
-  // the headline says what is KNOWN and what is not: a list that looks complete when 53 of 115 doctors have no qualification on record would be a confident wrong answer
+  // the plain-text answer (the payload's `answer`): complete in one piece
   const gap = unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length} doctors${where}, so this list may be incomplete.` : "";
   const text = anyQual
     ? `${hits.length} of the ${pool.length} doctors${where} have a qualification on record, shown as printed.${unknown.length ? ` It is not recorded for ${unknown.length}, who are not shown.` : ""}`
     : (hits.length
       ? `${hits.length} doctor${hits.length === 1 ? " is" : "s are"} recorded with ${label}${where}${hits.length <= 4 ? `: ${joinAnd(names)}` : ""}.`
       : `No doctor${where} is recorded with ${label}.`) + gap;
+  // the card (step 57b): the clean answer first, big; one short sentence; only the bullets that matter; the long list of names folded away
+  const headline = anyQual ? `${hits.length} doctors` : hits.length === 1 ? docName(hits[0]) : hits.length === 0 ? "None" : `${hits.length} doctors`;
+  const sentence = anyQual
+    ? `With a qualification on record, as printed.${unknown.length ? ` Not recorded for ${unknown.length} of the ${pool.length}, who are not shown.` : ""}`
+    : (hits.length === 1 ? `The only doctor recorded with ${label}${where}.` : hits.length === 0 ? `No doctor${where} is recorded with ${label}.` : `Recorded with ${label}${where}.`) + gap;
   const lines: string[] = [];
-  lines.push(`The qualification is the one the hospital's staff list prints for each doctor: recorded for ${pool.length - unknown.length} of the ${pool.length} doctors${where} on the hospital's lists.`);
-  if (unknown.length) lines.push(`Not recorded (so not ${anyQual ? "shown" : "counted"}): ${joinAnd(unknown.slice(0, 12).map(docName))}${unknown.length > 12 ? ` and ${unknown.length - 12} more` : ""}.${anyQual ? "" : ` Any of them may hold ${label}.`}`);
   // DNB and DrNB are different degrees: say who holds the other one, never merge them silently
   if (quals.some((x) => x.key === "DNB") && !quals.some((x) => x.key === "DRNB")) {
     const dr = pool.filter((p) => /\bDR\.?\s?NB\b/.test(qualOf(p)));
     if (dr.length) lines.push(`${joinAnd(dr.map((p) => `${docName(p)} (${p.qualification})`))} ${dr.length === 1 ? "holds" : "hold"} DrNB, the National Board's super-specialty degree: a different qualification, not counted as DNB.`);
   }
-  const card: HospitalAnswer = { title: anyQual ? `Doctors and their qualifications${where}` : `Doctors with ${label}${where}`, status: { tone: hits.length ? "info" : "unknown", text }, lines };
+  const details = unknown.length ? [{ summary: `The ${unknown.length} doctors whose qualification is not recorded${anyQual ? "" : ` (any of them may hold ${label})`}`, text: joinAnd(unknown.map(docName)) }] : [];
+  const card: HospitalAnswer = { title: anyQual ? `Doctors and their qualifications${where}` : `Doctors with ${label}${where}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines, details };
   if (hits.length) {
     card.table = {
       columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"],
@@ -1025,7 +1039,7 @@ export function specialisationOf(p: Person): { kind: SpecKind; spec: string | nu
 }
 const SPEC_RULE = "A specialisation comes from a postgraduate qualification (MD, MS, DNB, DrNB, MCh, DM, MDS, or a postgraduate diploma such as DGO, DPM, DIH or D.Ortho); a doctor with MBBS alone has none. It is the subject of the qualification: the department is where the doctor works.";
 
-/** One doctor: "the specialisation of dr rajeev kumar". */
+/** One doctor: "the specialisation of dr rajeev kumar". The headline is the qualification as printed ("DNB(MEDICINE)"): the specialisation and its subject in one clean statement; the sentence under it says it in words. */
 function doctorSpecialisationAnswer(p: Person): HospitalResult {
   const who = docName(p);
   const x = specialisationOf(p);
@@ -1035,24 +1049,30 @@ function doctorSpecialisationAnswer(p: Person): HospitalResult {
     : x.kind === "none" ? `${who} has no specialisation on record: the qualification is ${q} alone.`
     : x.kind === "no_subject" ? `${who} holds a postgraduate qualification (${q}) that does not state a subject, so the specialisation is not known.`
     : `The qualification of ${who} is not recorded, so the specialisation is not known.`;
-  return done(text, { title: `${who}: specialisation`, status: { tone: x.kind === "stated" || x.kind === "none" ? "info" : "unknown", text }, lines: [SPEC_RULE, ...(p.department ? [`Department: ${deptLabel(p.department)}.`] : [])] });
+  const headline = x.kind === "stated" ? { text: q, tone: "info" as const } : x.kind === "none" ? { text: "No specialisation", tone: "info" as const } : x.kind === "no_subject" ? { text: "Not stated", tone: "unknown" as const } : { text: "Not known", tone: "unknown" as const };
+  const sentence =
+    x.kind === "stated" ? `${who}'s specialisation is ${x.spec}.`
+    : x.kind === "none" ? `${who} holds ${q} alone.`
+    : x.kind === "no_subject" ? `${who} holds ${q}, a postgraduate qualification that names no subject.`
+    : `The qualification of ${who} is not recorded.`;
+  return done(text, { title: `${who}: specialisation`, headline, status: { tone: x.kind === "stated" || x.kind === "none" ? "info" : "unknown", text: sentence }, lines: p.department ? [`Department: ${deptLabel(p.department)}.`] : [], details: [{ summary: "How is a specialisation decided?", text: SPEC_RULE }] });
 }
 
-/** One doctor: "the qualification of dr rajeev kumar", "is dr rajeev kumar a DNB doctor": the qualification the staff list prints, or Yes / No for the one asked. */
+/** One doctor: "the qualification of dr rajeev kumar", "is dr rajeev kumar a DNB doctor": the qualification the staff list prints (the headline), or a big Yes / No for the one asked. */
 function doctorQualificationAnswer(p: Person, quals: Qual[]): HospitalResult {
   const who = docName(p);
   const q = p.qualification ?? "";
-  const lines = ["The qualification is the one the hospital's staff list prints.", ...(p.department ? [`Department: ${deptLabel(p.department)}.`] : [])];
+  const lines = p.department ? [`Department: ${deptLabel(p.department)}.`] : [];
+  const label = quals.map((x) => x.label).join(" or ");
   if (!q.trim()) {
-    const text = `The qualification of ${who} is not recorded, so I cannot say${quals.length ? ` whether he or she holds ${quals.map((x) => x.label).join(" or ")}` : ""}.`;
-    return done(text, { title: `${who}: qualification`, status: { tone: "unknown", text }, lines });
+    const text = `The qualification of ${who} is not recorded, so I cannot say${quals.length ? ` whether he or she holds ${label}` : ""}.`;
+    return done(text, { title: `${who}: qualification`, headline: { text: "Not known", tone: "unknown" }, status: { tone: "unknown", text }, lines });
   }
   if (!quals.length) {
     const text = `${who}'s qualification is ${q}.`;
-    return done(text, { title: `${who}: qualification`, status: { tone: "info", text }, lines });
+    return done(text, { title: `${who}: qualification`, headline: { text: q, tone: "info" }, status: { tone: "info", text: `The qualification of ${who}, as the hospital's staff list prints it.` }, lines });
   }
   const has = quals.some((x) => x.has.test(qualOf(p)));
-  const label = quals.map((x) => x.label).join(" or ");
   const drnbNote = !has && quals.some((x) => x.key === "DNB") && /\bDR\.?\s?NB\b/.test(qualOf(p)) ? " DrNB is the National Board's super-specialty degree: a different qualification." : "";
   const text = has ? `Yes: ${who} holds ${label} (qualification ${q}).` : `No: ${who}'s qualification is ${q}, not ${label}.${drnbNote}`;
   return done(text, { title: `${who}: ${label}?`, status: { tone: has ? "open" : "closed", text }, lines });
@@ -1077,13 +1097,16 @@ function specialisationAnswer(e: Entities): HospitalResult {
   const text = stated.length
     ? `${stated.length} of the ${pool.length} doctors${where} have a specialisation on record, in ${groups.length} specialisation${groups.length === 1 ? "" : "s"}.${unknown.length ? ` The qualification is not recorded for ${unknown.length}, so their specialisation is not known.` : ""}`
     : `No doctor${where} has a specialisation on record.${unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length}.` : ""}`;
+  // the card (step 57b): the number of specialisations first; one sentence; only the bullets that matter; the rule and the names folded away
+  const sentence = stated.length
+    ? `${stated.length} of the ${pool.length} doctors${where} have one on record.${unknown.length ? ` The qualification is not recorded for ${unknown.length}, so their specialisation is not known.` : ""}`
+    : text;
   const lines: string[] = [];
-  if (groups.length) lines.push(`By specialisation: ${groups.map(([s, n]) => `${s} ${n}`).join(", ")}.`);
-  lines.push(SPEC_RULE);
-  if (none.length) lines.push(`MBBS alone, so no specialisation (${none.length}): not listed. Ask "list of MBBS doctors" to see them.`);
-  if (noSubject.length) lines.push(`${joinAnd(noSubject.map((x) => `${docName(x.p)} (${x.p.qualification})`))}: a postgraduate qualification that names no subject, so the specialisation is not stated (and is not guessed from the department).`);
-  if (unknown.length) lines.push(`Not recorded (so not listed): ${joinAnd(unknown.slice(0, 12).map((x) => docName(x.p)))}${unknown.length > 12 ? ` and ${unknown.length - 12} more` : ""}.`);
-  const card: HospitalAnswer = { title: `Specialisations of doctors${where}`, status: { tone: stated.length ? "info" : "unknown", text }, lines };
+  if (groups.length) lines.push(`By specialisation: ${groups.map(([sp, n]) => `${sp} ${n}`).join(", ")}.`);
+  if (none.length) lines.push(`${none.length} doctor${none.length === 1 ? "" : "s"} with MBBS alone ${none.length === 1 ? "has" : "have"} no specialisation (not listed).`);
+  if (noSubject.length) lines.push(`${joinAnd(noSubject.map((x) => `${docName(x.p)} (${x.p.qualification})`))}: postgraduate, but the subject is not stated (not guessed).`);
+  const details = [{ summary: "How is a specialisation decided?", text: SPEC_RULE }, ...(unknown.length ? [{ summary: `The ${unknown.length} doctors whose qualification is not recorded`, text: joinAnd(unknown.map((x) => docName(x.p))) }] : [])];
+  const card: HospitalAnswer = { title: `Specialisations of doctors${where}`, headline: { text: stated.length ? `${groups.length} specialisation${groups.length === 1 ? "" : "s"}` : "None", tone: stated.length ? "info" : "unknown" }, status: { tone: stated.length ? "info" : "unknown", text: sentence }, lines, details };
   if (listed.length) card.table = { columns: ["Doctor", "Ticket", "Specialisation", "Qualification (as printed)", "Department"], rows: listed.map((x) => [docLabel(x.p), x.p.ticket ?? (x.p.doctorListId ? `${x.p.doctorListId} (non-permanent)` : "not recorded"), x.spec ?? "not stated", x.p.qualification ?? "—", x.p.department ? deptLabel(x.p.department) : "not recorded"]) };
   return done(text, card);
 }
