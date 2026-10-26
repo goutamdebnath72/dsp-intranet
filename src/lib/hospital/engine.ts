@@ -18,6 +18,7 @@ import { OPD_DAYS, PERSON, SCHEDULE, STAFF, WEEKDAY_NAME, unitHead, type Departm
 import type { AskOption, DepartmentAsk } from "../nl2sql/departmentAsk";
 import { MARKER_RE, markerOf } from "./doctorAsk";
 import { nonPermanentOf, NON_PERMANENT_DOCTORS, unlistedAsPeople } from "./nonPermanentDoctors";
+import { disciplineFromQualification } from "./discipline";
 import type { HospitalAnswer, HospitalResult, HospitalTable } from "./types";
 
 export interface EngineCtx {
@@ -168,7 +169,8 @@ const STOP = new Set(
   ("dr doctor doctors drs mr mrs ms shri prof professor sir madam which what whom who whose when where how why is are was were will would can could do does did the a an of in on at for to from by with and or not no yes please tell me show give list name names " +
     "opd opds out patient patients outpatient outdoor clinic clinics unit units number department departments dept day days week weekday weekdays sit sits sitting seat seats seated available availability attend attends attending " +
     "schedule timing timings time times today tomorrow yesterday tonight now next this coming head hod incharge charge open opens closed close closes working running functioning consult consults consulting see sees visit his her their hospital main dsp " +
-    "monday tuesday wednesday thursday friday saturday sunday mon tue tues wed thu thur thurs fri sat sun january february march april may june july august september october november december jan feb mar apr jun jul aug sep sept oct nov dec token holiday holidays contractual contract permanent regular temporary non part visiting employee employees").split(" "),
+    "monday tuesday wednesday thursday friday saturday sunday mon tue tues wed thu thur thurs fri sat sun january february march april may june july august september october november december jan feb mar apr jun jul aug sep sept oct nov dec token holiday holidays contractual contract permanent regular temporary non part visiting employee employees " +
+    "specialisation specialisations specialization specializations speciality specialities specialty specialties specialised specialized degree degrees qualification qualifications qualified dnb drnb mbbs mch dgo mds dpm dih mrcog").split(" "),
 );
 
 const DOCTOR_POOL: Person[] = [...STAFF.people.filter((p) => p.role === "doctor"), ...unlistedAsPeople()];
@@ -816,24 +818,32 @@ function employmentAnswer(p: Person): HospitalResult {
 }
 
 const dept0 = (p: { department: string | null }) => (p.department ?? "").toUpperCase();
+/** The specialization column of the list of non-permanent doctors: the one recorded; MBBS alone = none (known, not "not recorded"); a postgraduate qualification without a subject = not stated; no qualification = not recorded yet. */
+const npSpecialisation = (x: { specialization?: string | null; qualification?: string | null }): string => {
+  if (x.specialization) return x.specialization;
+  const q = String(x.qualification ?? "").toUpperCase();
+  if (!q.trim()) return "not recorded yet";
+  return POSTGRADUATE.test(q) ? "not stated" : "none (MBBS only)";
+};
 /** The non-permanent doctors (all, or of the departments named), from the separate file; the specialization shows "not recorded yet" until it is collected. */
 function nonPermanentListAnswer(e: Entities): HospitalResult {
   let list = NON_PERMANENT_DOCTORS.slice();
   if (e.depts.length) list = list.filter((x) => e.depts.some((d) => dept0(x) === d.staffDepartment.toUpperCase()));
   list.sort((a, b) => (a.department ? 0 : 1) - (b.department ? 0 : 1) || dept0(a).localeCompare(dept0(b)) || a.name.localeCompare(b.name));
   const withDept = NON_PERMANENT_DOCTORS.filter((x) => x.department).length;
-  const withSpec = NON_PERMANENT_DOCTORS.filter((x) => x.specialization).length;
+  const withSpec = NON_PERMANENT_DOCTORS.filter((x) => npSpecialisation(x) !== "not recorded yet").length; // known: a specialization, or MBBS alone (none)
   const where = e.depts.length ? ` in ${joinAnd(e.depts.map((d) => d.name))}` : "";
   const text = list.length
     ? `The intranet doctor list has ${list.length} non-permanent (contractual or temporary) doctor${list.length === 1 ? "" : "s"}${where}${e.depts.length ? ` (${NON_PERMANENT_DOCTORS.length} in all)` : ""}.`
     : `No non-permanent doctor${where} is recorded yet; the department of most of them is not known yet (${NON_PERMANENT_DOCTORS.length} in all).`;
   const notes = [
     `The department is known for ${withDept} of the ${NON_PERMANENT_DOCTORS.length} and the specialization for ${withSpec}; the rest are added as they are collected ("not recorded yet").`,
+    ...(list.some((x) => npSpecialisation(x) === "none (MBBS only)") ? ['"none (MBBS only)": a doctor with MBBS alone has no specialization; it comes only from a postgraduate qualification.'] : []),
     "A non-permanent doctor's number on the intranet doctor list starts with letters (D or DTN); a permanent doctor has a plain ticket number.",
   ];
   return done(text, {
     title: "Non-permanent doctors", status: { tone: list.length ? "info" : "unknown", text },
-    table: list.length ? { columns: ["Doctor", "Department", "Specialization", "List number"], rows: list.map((x) => [`Dr. ${nice(x.name)}`, x.department ?? "not recorded yet", x.specialization ?? "not recorded yet", x.listId]) } : undefined,
+    table: list.length ? { columns: ["Doctor", "Department", "Specialization", "List number"], rows: list.map((x) => [`Dr. ${nice(x.name)}`, x.department ?? "not recorded yet", npSpecialisation(x), x.listId]) } : undefined,
     notes,
   });
 }
@@ -995,6 +1005,86 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[]): HospitalResul
       rows: hits.map((p) => [docLabel(p), p.ticket ?? (p.doctorListId ? `${p.doctorListId} (non-permanent)` : "not recorded"), p.qualification ?? "—", p.discipline ?? npOf(p)?.specialization ?? "—", p.department ? deptLabel(p.department) : "not recorded"]),
     };
   }
+  return done(text, card);
+}
+
+// ---------------------------------------------------------------- the specialisation of doctors (step 57a)
+// "the specialisation of doctors in dsp" (26 Oct 2026: the search answered with an unrelated circular at 87 per cent). A degree or qualification is any of MBBS, MD, MS ...; a SPECIALISATION comes only
+// from a POSTGRADUATE qualification: MD, MS, DNB, DrNB, MCh, DM, MDS, or a postgraduate diploma (DGO, DPM, DIH, D.Ortho) or MRCOG. A doctor with MBBS alone has none; one whose qualification is not
+// recorded is not known; one whose postgraduate qualification names no subject (a bare "MS") has a specialisation that is not stated, and it is never guessed from the department.
+const SPECIALISATION_WORD = /\b(specialisations?|specializations?|specialit(?:y|ies)|specialt(?:y|ies)|specialised|specialized)\b/;
+const POSTGRADUATE = /\b(MD|MS|DNB|DR\.?\s?NB|MCH|DM|MDS|DGO|DPM|DIH|MRCOG)\b|\bD\.?\s?ORTHO\b/;
+/** stated: a postgraduate qualification with its subject; no_subject: postgraduate but no subject printed; none: MBBS alone; unknown: no qualification recorded. */
+type SpecKind = "stated" | "no_subject" | "none" | "unknown";
+export function specialisationOf(p: Person): { kind: SpecKind; spec: string | null } {
+  const q = qualOf(p);
+  if (!q.trim()) return { kind: "unknown", spec: null };
+  if (!POSTGRADUATE.test(q)) return { kind: "none", spec: null };
+  const spec = disciplineFromQualification(p.qualification) ?? p.discipline ?? null;
+  return spec ? { kind: "stated", spec } : { kind: "no_subject", spec: null };
+}
+const SPEC_RULE = "A specialisation comes from a postgraduate qualification (MD, MS, DNB, DrNB, MCh, DM, MDS, or a postgraduate diploma such as DGO, DPM, DIH or D.Ortho); a doctor with MBBS alone has none. It is the subject of the qualification: the department is where the doctor works.";
+
+/** One doctor: "the specialisation of dr rajeev kumar". */
+function doctorSpecialisationAnswer(p: Person): HospitalResult {
+  const who = docName(p);
+  const x = specialisationOf(p);
+  const q = p.qualification ?? "";
+  const text =
+    x.kind === "stated" ? `${who}'s specialisation is ${x.spec} (qualification ${q}).`
+    : x.kind === "none" ? `${who} has no specialisation on record: the qualification is ${q} alone.`
+    : x.kind === "no_subject" ? `${who} holds a postgraduate qualification (${q}) that does not state a subject, so the specialisation is not known.`
+    : `The qualification of ${who} is not recorded, so the specialisation is not known.`;
+  return done(text, { title: `${who}: specialisation`, status: { tone: x.kind === "stated" || x.kind === "none" ? "info" : "unknown", text }, lines: [SPEC_RULE, ...(p.department ? [`Department: ${deptLabel(p.department)}.`] : [])] });
+}
+
+/** One doctor: "the qualification of dr rajeev kumar", "is dr rajeev kumar a DNB doctor": the qualification the staff list prints, or Yes / No for the one asked. */
+function doctorQualificationAnswer(p: Person, quals: Qual[]): HospitalResult {
+  const who = docName(p);
+  const q = p.qualification ?? "";
+  const lines = ["The qualification is the one the hospital's staff list prints.", ...(p.department ? [`Department: ${deptLabel(p.department)}.`] : [])];
+  if (!q.trim()) {
+    const text = `The qualification of ${who} is not recorded, so I cannot say${quals.length ? ` whether he or she holds ${quals.map((x) => x.label).join(" or ")}` : ""}.`;
+    return done(text, { title: `${who}: qualification`, status: { tone: "unknown", text }, lines });
+  }
+  if (!quals.length) {
+    const text = `${who}'s qualification is ${q}.`;
+    return done(text, { title: `${who}: qualification`, status: { tone: "info", text }, lines });
+  }
+  const has = quals.some((x) => x.has.test(qualOf(p)));
+  const label = quals.map((x) => x.label).join(" or ");
+  const drnbNote = !has && quals.some((x) => x.key === "DNB") && /\bDR\.?\s?NB\b/.test(qualOf(p)) ? " DrNB is the National Board's super-specialty degree: a different qualification." : "";
+  const text = has ? `Yes: ${who} holds ${label} (qualification ${q}).` : `No: ${who}'s qualification is ${q}, not ${label}.${drnbNote}`;
+  return done(text, { title: `${who}: ${label}?`, status: { tone: has ? "open" : "closed", text }, lines });
+}
+
+/** The doctors of the plant (or of the departments named) and their specialisations: only the doctors who have one (or whose subject is not stated). */
+function specialisationAnswer(e: Entities): HospitalResult {
+  const inDepts = e.depts.length || e.extraDepts.length
+    ? new Set([...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)), ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null))].map((r) => r.p.id))
+    : null;
+  const pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
+  const where = inDepts ? ` in ${joinAnd([...e.depts.map((d) => d.name), ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map(deptLabel)])}` : "";
+  const info = pool.map((p) => ({ p, ...specialisationOf(p) }));
+  const listed = info.filter((x) => x.kind === "stated" || x.kind === "no_subject").sort((a, b) => Number(a.spec === null) - Number(b.spec === null) || (a.spec ?? "").localeCompare(b.spec ?? "") || a.p.name.localeCompare(b.p.name));
+  const stated = listed.filter((x) => x.kind === "stated");
+  const noSubject = listed.filter((x) => x.kind === "no_subject");
+  const none = info.filter((x) => x.kind === "none");
+  const unknown = info.filter((x) => x.kind === "unknown");
+  const bySpec = new Map<string, number>();
+  for (const x of stated) bySpec.set(x.spec as string, (bySpec.get(x.spec as string) ?? 0) + 1);
+  const groups = [...bySpec.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const text = stated.length
+    ? `${stated.length} of the ${pool.length} doctors${where} have a specialisation on record, in ${groups.length} specialisation${groups.length === 1 ? "" : "s"}.${unknown.length ? ` The qualification is not recorded for ${unknown.length}, so their specialisation is not known.` : ""}`
+    : `No doctor${where} has a specialisation on record.${unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length}.` : ""}`;
+  const lines: string[] = [];
+  if (groups.length) lines.push(`By specialisation: ${groups.map(([s, n]) => `${s} ${n}`).join(", ")}.`);
+  lines.push(SPEC_RULE);
+  if (none.length) lines.push(`MBBS alone, so no specialisation (${none.length}): not listed. Ask "list of MBBS doctors" to see them.`);
+  if (noSubject.length) lines.push(`${joinAnd(noSubject.map((x) => `${docName(x.p)} (${x.p.qualification})`))}: a postgraduate qualification that names no subject, so the specialisation is not stated (and is not guessed from the department).`);
+  if (unknown.length) lines.push(`Not recorded (so not listed): ${joinAnd(unknown.slice(0, 12).map((x) => docName(x.p)))}${unknown.length > 12 ? ` and ${unknown.length - 12} more` : ""}.`);
+  const card: HospitalAnswer = { title: `Specialisations of doctors${where}`, status: { tone: stated.length ? "info" : "unknown", text }, lines };
+  if (listed.length) card.table = { columns: ["Doctor", "Ticket", "Specialisation", "Qualification (as printed)", "Department"], rows: listed.map((x) => [docLabel(x.p), x.p.ticket ?? (x.p.doctorListId ? `${x.p.doctorListId} (non-permanent)` : "not recorded"), x.spec ?? "not stated", x.p.qualification ?? "—", x.p.department ? deptLabel(x.p.department) : "not recorded"]) };
   return done(text, card);
 }
 
@@ -1215,8 +1305,19 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   // "list of ent doctors", "how many doctors in surgery": the doctors of a department, from the hospital's own lists (not the HR directory, which does not know their department)
   const DOCTOR_NOUN = /\b(doctors?|physicians?|surgeons?|specialists?|consultants?|radiologists?|pathologists?|anaesthetists?|anesthetists?)\b/;
   const FILTER_WORDS = /\b(mail|e ?mail|nic|webmail|mobile|phone|cug|address|grade|designation|senior|seniority|junior|executives?|non executives?|retire|retired|promoted)\b/;
-  // "list of DNB doctors", "how many MD doctors in medicine": by the qualification the staff list prints (step 56a)
+  // "the specialisation of doctors in dsp", "specialisation of dr rajeev kumar": from the postgraduate qualification only (step 57a)
   const quals = qualificationsAsked(nm);
+  const asksSpec = SPECIALISATION_WORD.test(nm);
+  const asksQual = /\b(degrees?|qualifications?|qualified)\b/.test(nm);
+  const noOtherAsk = !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length;
+  if ((asksSpec || asksQual || quals.length) && noOtherAsk && (e.doctors.length > 1 || (e.doctors.length === 1 && e.hintMiss))) return askDoctor(e, q);
+  if (e.doctors.length === 1 && noOtherAsk) {
+    if (asksSpec) return doctorSpecialisationAnswer(e.doctors[0]);
+    if (asksQual || quals.length) return doctorQualificationAnswer(e.doctors[0], quals);
+  }
+  if (asksSpec && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return specialisationAnswer(e);
+
+  // "list of DNB doctors", "how many MD doctors in medicine": by the qualification the staff list prints (step 56a)
   // "list the doctors with their degrees / qualifications": no qualification named (step 56b: it used to fall through to four unrelated circulars at 77 to 87 per cent)
   const anyQualAsked = !quals.length && /\b(degrees?|qualifications?|qualified)\b/.test(nm);
   if ((quals.length || anyQualAsked) && !e.doctors.length && DOCTOR_NOUN.test(n) && !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length) return doctorsByQualificationAnswer(e, quals);

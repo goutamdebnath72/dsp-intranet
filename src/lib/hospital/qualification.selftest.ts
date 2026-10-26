@@ -3,7 +3,7 @@
 // doctor, so the answer is read from there, as printed, and says what it does NOT know (the doctors whose qualification is not recorded).
 
 import { DateTime } from "luxon";
-import { answerHospital, nice, qualificationsAsked } from "./engine";
+import { answerHospital, nice, qualificationsAsked, specialisationOf } from "./engine";
 import { STAFF } from "./opdData";
 import { unlistedAsPeople } from "./nonPermanentDoctors";
 import real from "../nl2sql/__fixtures__/departments.real.json";
@@ -69,8 +69,53 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   r = await answerHospital("qualifications of ent doctors", ctx);
   ok("with a department: that department's doctors only (ENT)", r?.card.title === "Doctors and their qualifications in ENT" && rowsOf(r).length >= 1 && rowsOf(r).every((x) => x[4] === "ENT"), JSON.stringify(rowsOf(r)));
 
+  // ---- the SPECIALISATION (step 57a). A degree or qualification is any of MBBS, MD, MS ...; a SPECIALISATION comes only from a POSTGRADUATE qualification (MD, MS, DNB, DrNB, MCh, DM, MDS, a
+  // postgraduate diploma such as DGO, DPM, DIH, D.Ortho, MRCOG). MBBS alone: none. No qualification recorded: not known. A bare "MS": postgraduate, subject not stated.
+  const POSTGRAD = /\b(MD|MS|DNB|DR\.?\s?NB|MCH|DM|MDS|DGO|DPM|DIH|MRCOG)\b|\bD\.?\s?ORTHO\b/;
+  const pgDocs = pool.filter((p) => POSTGRAD.test(printed(p)));
+  const mbbsOnly = pool.filter((p) => printed(p).trim() && !POSTGRAD.test(printed(p)));
+  ok("the data: postgraduate, MBBS alone and not recorded together are the whole pool", pgDocs.length + mbbsOnly.length + noQual.length === pool.length && pgDocs.length > 0 && mbbsOnly.length > 0 && noQual.length > 0);
+  for (const q of ["the specialisation of doctors in dsp", "specializations of doctors", "what are the specialities of the doctors", "specialty of doctors"]) {
+    const sp: any = await answerHospital(q, ctx);
+    ok(`"${q}": the doctors who have a postgraduate qualification, and nobody else`, sp?.card.title === "Specialisations of doctors" && rowsOf(sp).length === pgDocs.length && rowsOf(sp).every((row) => POSTGRAD.test(row[3].toUpperCase())), `${sp?.card.title} ${rowsOf(sp).length} vs ${pgDocs.length}`);
+  }
+  r = await answerHospital("the specialisation of doctors in dsp", ctx);
+  const specs = new Set(pgDocs.map((p) => specialisationOf(p)).filter((x) => x.kind === "stated").map((x) => x.spec));
+  const statedCount = pgDocs.filter((p) => specialisationOf(p).kind === "stated").length;
+  ok("no doctor with MBBS alone and no doctor without a recorded qualification is in the table", rowsOf(r).every((row) => !mbbsOnly.some((p) => row[0] === `Dr. ${nice(p.name)}`) && !noQual.some((p) => row[0] === `Dr. ${nice(p.name)}`)));
+  ok("the headline counts those with a stated specialisation and the distinct specialisations, and says that the rest are not known", r.summary === `${statedCount} of the ${pool.length} doctors have a specialisation on record, in ${specs.size} specialisations. The qualification is not recorded for ${noQual.length}, so their specialisation is not known.`, r.summary);
+  ok("Dr. Rajeev Kumar: Medicine (DNB counts, it is postgraduate)", rowsOf(r).some((row) => row[0] === "Dr. Rajeev Kumar" && row[2] === "Medicine" && row[3] === "DNB(MEDICINE)"));
+  ok("a postgraduate DIPLOMA counts: a DGO doctor is listed with her specialisation", rowsOf(r).some((row) => /DGO/.test(row[3]) && /Gynaecology/.test(row[2])), JSON.stringify(rowsOf(r).filter((row) => /DGO/.test(row[3]))));
+  ok("a bare 'MS' (Dr. Priyanka Roy): listed as 'not stated', and last", rowsOf(r)[rowsOf(r).length - 1].join("|").startsWith("Dr. Priyanka Roy|") && rowsOf(r)[rowsOf(r).length - 1][2] === "not stated" && rowsOf(r).filter((row) => row[2] === "not stated").length === 1, JSON.stringify(rowsOf(r).slice(-2)));
+  ok("the lines: by specialisation, the rule, MBBS alone (counted, not listed), the bare MS (not guessed), the doctors not recorded", (r.card.lines ?? []).some((l: string) => l.startsWith("By specialisation: ")) && (r.card.lines ?? []).some((l: string) => l.includes("a doctor with MBBS alone has none")) && (r.card.lines ?? []).some((l: string) => l.includes(`MBBS alone, so no specialisation (${mbbsOnly.length}): not listed`)) && (r.card.lines ?? []).some((l: string) => /Priyanka Roy \(MS\).*not stated.*not guessed/.test(l)) && (r.card.lines ?? []).some((l: string) => l.startsWith("Not recorded (so not listed): ")), JSON.stringify(r.card.lines));
+  r = await answerHospital("specialisation of ent doctors", ctx);
+  ok("with a department: that department's doctors only", r?.card.title === "Specialisations of doctors in ENT" && rowsOf(r).length >= 1 && rowsOf(r).every((x) => x[4] === "ENT" && x[2] === "ENT"), JSON.stringify(rowsOf(r)));
+  // one doctor
+  const rk: any = await answerHospital("specialisation of dr rajeev kumar", ctx);
+  ok("one doctor with a postgraduate qualification: his specialisation", rk?.summary === "Dr. Rajeev Kumar's specialisation is Medicine (qualification DNB(MEDICINE)).", rk?.summary);
+  const mb: any = await answerHospital(`specialisation of dr ${mbbsOnly[0].name.toLowerCase()}`, ctx);
+  ok("one doctor with MBBS alone: no specialisation (known, not 'not recorded')", /has no specialisation on record: the qualification is MBBS alone\./.test(mb?.summary ?? ""), mb?.summary);
+  const un: any = await answerHospital(`specialisation of dr ${noQual[0].name.toLowerCase()}`, ctx);
+  ok("one doctor whose qualification is not recorded: not known", /is not recorded, so the specialisation is not known\./.test(un?.summary ?? "") && un?.card.status?.tone === "unknown", un?.summary);
+  const pr: any = await answerHospital("specialisation of dr priyanka roy", ctx);
+  ok("one doctor with a bare MS: the subject is not stated", /does not state a subject, so the specialisation is not known\./.test(pr?.summary ?? ""), pr?.summary);
+  ok("an ambiguous name asks which doctor (the question is kept)", !!(await answerHospital("specialisation of dr kumar", ctx))?.ask);
+  // the qualification of one doctor, and yes / no
+  ok("the qualification of one doctor", (await answerHospital("qualification of dr rajeev kumar", ctx))?.summary === "Dr. Rajeev Kumar's qualification is DNB(MEDICINE).");
+  ok("'is dr rajeev kumar a DNB doctor': Yes (the limit of step 56a is closed)", (await answerHospital("is dr rajeev kumar a DNB doctor", ctx))?.summary === "Yes: Dr. Rajeev Kumar holds DNB (qualification DNB(MEDICINE)).");
+  const no: any = await answerHospital("is dr dipak singh a DNB doctor", ctx);
+  ok("...and No, with what he holds", no?.summary === "No: Dr. Dipak Singh's qualification is MD(MEDICINE), not DNB." && no.card.status.tone === "closed", no?.summary);
+  ok("DrNB is a different degree: No, and it says so", /^No: Dr\. A K Sahay's qualification is MCH & DRNB PLASTIC SURGERY, not DNB\. DrNB is the National Board's super-specialty degree: a different qualification\.$/.test((await answerHospital("is dr a k sahay a DNB doctor", ctx))?.summary ?? ""));
+  ok("a doctor whose qualification is not recorded: 'I cannot say', never No", /cannot say whether he or she holds DNB\./.test((await answerHospital(`is dr ${noQual[0].name.toLowerCase()} a DNB doctor`, ctx))?.summary ?? ""));
+  // the list of the non-permanent doctors follows the same rule
+  const np: any = await answerHospital("list the contractual doctors", ctx);
+  const npRow = (name: string) => (np.card.table.rows as string[][]).find((row) => row[0] === `Dr. ${name}`);
+  ok("contractual doctors: MBBS alone = 'none (MBBS only)' (known), not 'not recorded yet'", npRow("Daisy Bhengra")?.[2] === "none (MBBS only)" && npRow("Titas Chakraborty")?.[2] === "none (MBBS only)", JSON.stringify(npRow("Daisy Bhengra")));
+  ok("...no qualification recorded = still 'not recorded yet'; a recorded specialization is untouched", npRow("Ajay Varghese")?.[2] === "not recorded yet" && npRow("Abhishek Mandal")?.[2] === "Surgery");
+  ok("...and the list says what 'none (MBBS only)' means", (np.card.notes ?? []).some((l: string) => l.includes("a doctor with MBBS alone has no specialization")));
+
   // ---- what must NOT be taken
-  for (const q of ["list of doctors", "how many doctors are there", "list of dnb executives with nic mail", "ms word circular", "mediclaim for dnb doctors", "list of MBBS doctors with mobile number", "retired DNB doctors", "degree of dr rajeev kumar", "doctors degrees mediclaim circular", "list of employees with their degrees"]) ok(`not the hospital qualification list: "${q}"`, !/^Doctors (with|and their)/.test((await answerHospital(q, ctx))?.card.title ?? ""), (await answerHospital(q, ctx))?.card.title);
+  for (const q of ["list of doctors", "how many doctors are there", "list of dnb executives with nic mail", "ms word circular", "mediclaim for dnb doctors", "list of MBBS doctors with mobile number", "retired DNB doctors", "doctors degrees mediclaim circular", "list of employees with their degrees", "specialisation policy circular", "the specialisation of employees", "specialisation of doctors mediclaim"]) ok(`not the hospital qualification list: "${q}"`, !/^Doctors (with|and their)/.test((await answerHospital(q, ctx))?.card.title ?? ""), (await answerHospital(q, ctx))?.card.title);
   r = await answerHospital("list of ent doctors", ctx);
   ok("the doctors of a department still work", r?.card.title === "Doctors of ENT");
   ok("qualificationsAsked: dnb, d n b, drnb are told apart; plain words are none", JSON.stringify(qualificationsAsked("list of dnb doctors").map((x) => x.key)) === '["DNB"]' && JSON.stringify(qualificationsAsked("doctors with d n b").map((x) => x.key)) === '["DNB"]' && JSON.stringify(qualificationsAsked("who are the drnb doctors").map((x) => x.key)) === '["DRNB"]' && qualificationsAsked("list of doctors in medicine").length === 0);
