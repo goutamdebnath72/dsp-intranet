@@ -46,5 +46,9 @@ ok("details text is plain text (escaped)", /&lt;script&gt;/.test(html({ title: "
 // ---- the order: answer, caption, sentence, table, bullets, folded details
 const order = ["data-headline", "data-title", "data-sentence", "<table", 'data-points="true"', "<details"].map((n) => at(full, n));
 ok("the order: headline, caption, sentence, table, bullets, folded details", order.every((p) => p > 0) && order.every((p, i) => i === 0 || order[i - 1] < p), JSON.stringify(order));
+// ---- a folded line opened on one answer must be closed again on the next one (26 Oct 2026: it stayed open): the <details> element is keyed by the answer as well as the position, so React never reuses it
+import { readFileSync } from "node:fs";
+const source = readFileSync("src/components/HospitalAnswerCard.tsx", "utf8");
+ok("the folded lines are keyed by the answer's title, the position and the summary (not by the position alone)", /<details key=\{`\$\{answer\.title\}\|\$\{i\}\|\$\{d\.summary\}`\}/.test(source) && !/<details key=\{i\}/.test(source));
 console.log(`HospitalAnswerCard headline selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

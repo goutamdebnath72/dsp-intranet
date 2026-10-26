@@ -169,6 +169,15 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   ok("the guard: employee questions that name a degree or a level (and cannot be a designation)", ["list the employees who are post graduate", "employees with btech degree", "how many employees have a phd", "list employees with mba", "which employees have a degree in engineering"].every((q) => isQualificationQuestion(q)));
   ok("...but not designations: Graduate Engineer Trainee, Diploma Trainee, or plain questions", !["list the graduate engineer trainees", "list diploma trainees", "how many executives are there in c&it", "list the executives who are graduates"].some((q) => isQualificationQuestion(q)));
 
+  // ---- "MD" and "DM" are degrees AND abbreviations that belong to names ("Md. Anwar"): the screens of 26 Oct 2026 12:47 showed "is dr rajeev kumar a MD doctor?" answering with the LIST of 17 MD doctors
+  const mdNo: any = await answerHospital("is dr rajeev kumar a MD doctor?", ctx);
+  ok("'is dr rajeev kumar a MD doctor?': a red No (he holds DNB), not the list of MD doctors", mdNo?.summary === "No: Dr. Rajeev Kumar's qualification is DNB(MEDICINE), not MD." && headOf(mdNo)?.text === "No" && headOf(mdNo)?.tone === "no" && !mdNo.card.table, mdNo?.summary);
+  const mdYes: any = await answerHospital("is dr dipak singh a MD doctor?", ctx);
+  ok("'is dr dipak singh a MD doctor?': a green Yes", mdYes?.summary === "Yes: Dr. Dipak Singh holds MD (qualification MD(MEDICINE))." && headOf(mdYes)?.tone === "yes", mdYes?.summary);
+  ok("'is dr rajeev kumar a DM doctor?': No (DM is a super-specialty degree, he holds a DNB)", (await answerHospital("is dr rajeev kumar a DM doctor?", ctx))?.summary === "No: Dr. Rajeev Kumar's qualification is DNB(MEDICINE), not DM.");
+  ok("MS has always worked (it is a word that is not a name); MD and DM now behave the same", (await answerHospital("is dr rajeev kumar a MS doctor?", ctx))?.summary === "No: Dr. Rajeev Kumar's qualification is DNB(MEDICINE), not MS.");
+  ok("the lists are unchanged: 'list of MD doctors' is still the list, with or without a department, and 'doctors with DM' is still None", rowsOf(await answerHospital("list of MD doctors", ctx)).length === count(/\bMD\b/) && rowsOf(await answerHospital("list of MD doctors in medicine", ctx)).length === 3 && headOf(await answerHospital("doctors with DM", ctx))?.text === "None");
+
   // ---- what must NOT be taken
   for (const q of ["list of doctors", "how many doctors are there", "list of dnb executives with nic mail", "ms word circular", "mediclaim for dnb doctors", "list of MBBS doctors with mobile number", "retired DNB doctors", "doctors degrees mediclaim circular", "list of employees with their degrees", "specialisation policy circular", "the specialisation of employees", "specialisation of doctors mediclaim"]) ok(`not the hospital qualification list: "${q}"`, !/^Doctors (with|and their)/.test((await answerHospital(q, ctx))?.card.title ?? ""), (await answerHospital(q, ctx))?.card.title);
   r = await answerHospital("list of ent doctors", ctx);

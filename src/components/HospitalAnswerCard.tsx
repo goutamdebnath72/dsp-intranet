@@ -111,7 +111,8 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
         </ul>
       )}
       {answer.details?.map((d, i) => (
-        <details key={i} className="text-sm text-neutral-600" data-details="true">
+        // keyed by the ANSWER as well as the position: a folded line that was opened on one answer is closed again on the next (the same <details> element must not be reused)
+        <details key={`${answer.title}|${i}|${d.summary}`} className="text-sm text-neutral-600" data-details="true">
           <summary className="cursor-pointer font-medium text-neutral-700">{d.summary}</summary>
           <p className="mt-1">{d.text}</p>
         </details>

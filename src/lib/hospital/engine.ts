@@ -179,17 +179,24 @@ const STOP = new Set(
 const DOCTOR_POOL: Person[] = [...STAFF.people.filter((p) => p.role === "doctor"), ...unlistedAsPeople()];
 /** Doctors whose name fits the name words of the question. More than one = the question is ambiguous. */
 function findDoctors(words: string[], keep?: Set<string>): Person[] {
-  const q = words.filter((w) => (keep?.has(w) ?? false) || (!STOP.has(w) && !/^\d+$/.test(w)));
-  if (!q.length || !q.some((w) => w.length >= 3)) return [];
-  const hits = DOCTOR_POOL.filter((p) => {
-    return personTokens(p).some((set) => q.every((w) => set.some((t) => t === w || (w.length >= 5 && sim(w, t) >= 0.86) || oneOff(w, t) || (w.length === 1 && t.startsWith(w)))));
-  });
-  if (hits.length > 1) {
-    // a person whose WHOLE name is in the question beats people who only share a word with it
-    const full = hits.filter((p) => personTokens(p).some((set) => set.every((t) => q.includes(t) || q.some((w) => sim(w, t) >= 0.86))));
-    if (full.length === 1) return full;
-  }
-  return hits;
+  const base = words.filter((w) => (keep?.has(w) ?? false) || (!STOP.has(w) && !/^\d+$/.test(w)));
+  const search = (q: string[]): Person[] => {
+    if (!q.length || !q.some((w) => w.length >= 3)) return [];
+    const hits = DOCTOR_POOL.filter((p) => {
+      return personTokens(p).some((set) => q.every((w) => set.some((t) => t === w || (w.length >= 5 && sim(w, t) >= 0.86) || oneOff(w, t) || (w.length === 1 && t.startsWith(w)))));
+    });
+    if (hits.length > 1) {
+      // a person whose WHOLE name is in the question beats people who only share a word with it
+      const full = hits.filter((p) => personTokens(p).some((set) => set.every((t) => q.includes(t) || q.some((w) => sim(w, t) >= 0.86))));
+      if (full.length === 1) return full;
+    }
+    return hits;
+  };
+  const first = search(base);
+  if (first.length) return first;
+  // "md" and "dm" are degrees (MD, DM) AND abbreviations that belong to names ("Md. Anwar"): tried as a name word first; when no doctor has it, the question named the degree ("is dr rajeev kumar a MD doctor")
+  const withoutDegrees = base.filter((w) => w !== "md" && w !== "dm");
+  return withoutDegrees.length < base.length ? search(withoutDegrees) : [];
 }
 
 /** Words that name a department or discipline the OPD schedule has no department for (the staff list does): used only to narrow a doctor's name. */
