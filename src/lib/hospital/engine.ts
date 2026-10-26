@@ -19,6 +19,8 @@ import type { AskOption, DepartmentAsk } from "../nl2sql/departmentAsk";
 import { MARKER_RE, markerOf } from "./doctorAsk";
 import { nonPermanentOf, NON_PERMANENT_DOCTORS, unlistedAsPeople } from "./nonPermanentDoctors";
 import { disciplineFromQualification } from "./discipline";
+import { LEVEL_RANK, type Level } from "../qualifications/degrees";
+import { highestLevel, levelRank, parseQualification } from "../qualifications/parse";
 import type { HospitalAnswer, HospitalResult, HospitalTable } from "./types";
 
 export interface EngineCtx {
@@ -170,7 +172,8 @@ const STOP = new Set(
     "opd opds out patient patients outpatient outdoor clinic clinics unit units number department departments dept day days week weekday weekdays sit sits sitting seat seats seated available availability attend attends attending " +
     "schedule timing timings time times today tomorrow yesterday tonight now next this coming head hod incharge charge open opens closed close closes working running functioning consult consults consulting see sees visit his her their hospital main dsp " +
     "monday tuesday wednesday thursday friday saturday sunday mon tue tues wed thu thur thurs fri sat sun january february march april may june july august september october november december jan feb mar apr jun jul aug sep sept oct nov dec token holiday holidays contractual contract permanent regular temporary non part visiting employee employees " +
-    "specialisation specialisations specialization specializations speciality specialities specialty specialties specialised specialized degree degrees qualification qualifications qualified dnb drnb mbbs mch dgo mds dpm dih mrcog").split(" "),
+    "specialisation specialisations specialization specializations speciality specialities specialty specialties specialised specialized degree degrees qualification qualifications qualified dnb drnb mbbs mch dgo mds dpm dih mrcog " +
+    "post graduate postgraduate postgraduates postgraduation graduate graduates graduated undergraduate undergraduates pg ug bachelor bachelors doctorate doctorates phd").split(" "),
 );
 
 const DOCTOR_POOL: Person[] = [...STAFF.people.filter((p) => p.role === "doctor"), ...unlistedAsPeople()];
@@ -833,7 +836,9 @@ const npSpecialisation = (x: { specialization?: string | null; qualification?: s
   if (x.specialization) return x.specialization;
   const q = String(x.qualification ?? "").toUpperCase();
   if (!q.trim()) return "not recorded yet";
-  return POSTGRADUATE.test(q) ? "not stated" : "none (MBBS only)";
+  if (isPostgraduate(x.qualification)) return "not stated";
+  const parsed = parseQualification(x.qualification);
+  return parsed.degrees.length && parsed.degrees.every((dg) => dg.code === "MBBS") ? "none (MBBS only)" : "none (graduate degree only)";
 };
 /** The non-permanent doctors (all, or of the departments named), from the separate file; the specialization shows "not recorded yet" until it is collected. */
 function nonPermanentListAnswer(e: Entities): HospitalResult {
@@ -1027,17 +1032,83 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[]): HospitalResul
 // from a POSTGRADUATE qualification: MD, MS, DNB, DrNB, MCh, DM, MDS, or a postgraduate diploma (DGO, DPM, DIH, D.Ortho) or MRCOG. A doctor with MBBS alone has none; one whose qualification is not
 // recorded is not known; one whose postgraduate qualification names no subject (a bare "MS") has a specialisation that is not stated, and it is never guessed from the department.
 const SPECIALISATION_WORD = /\b(specialisations?|specializations?|specialit(?:y|ies)|specialt(?:y|ies)|specialised|specialized)\b/;
-const POSTGRADUATE = /\b(MD|MS|DNB|DR\.?\s?NB|MCH|DM|MDS|DGO|DPM|DIH|MRCOG)\b|\bD\.?\s?ORTHO\b/;
+/** Higher than graduate (postgraduate, super-specialty, doctorate), by the table of degrees (qualifications/degrees.ts), not by a pattern of letters (step 58a). */
+const isPostgraduate = (q: string | null | undefined): boolean => levelRank(highestLevel(q)) >= LEVEL_RANK.postgraduate;
 /** stated: a postgraduate qualification with its subject; no_subject: postgraduate but no subject printed; none: MBBS alone; unknown: no qualification recorded. */
 type SpecKind = "stated" | "no_subject" | "none" | "unknown";
 export function specialisationOf(p: Person): { kind: SpecKind; spec: string | null } {
   const q = qualOf(p);
   if (!q.trim()) return { kind: "unknown", spec: null };
-  if (!POSTGRADUATE.test(q)) return { kind: "none", spec: null };
+  if (!isPostgraduate(p.qualification)) return { kind: "none", spec: null };
   const spec = disciplineFromQualification(p.qualification) ?? p.discipline ?? null;
   return spec ? { kind: "stated", spec } : { kind: "no_subject", spec: null };
 }
 const SPEC_RULE = "A specialisation comes from a postgraduate qualification (MD, MS, DNB, DrNB, MCh, DM, MDS, or a postgraduate diploma such as DGO, DPM, DIH or D.Ortho); a doctor with MBBS alone has none. It is the subject of the qualification: the department is where the doctor works.";
+
+// ---------------------------------------------------------------- the LEVEL of a doctor's degree (step 58a)
+// "list the doctors having post graduate degree on medicine" (owner, 26 Oct 2026) listed every doctor of Medicine, MBBS holders included: the system did not know what "post graduate" means. The table of
+// degrees (qualifications/degrees.ts) gives every degree its level; "post graduate" is every degree ABOVE graduate (MD, MS, DNB, MDS, a postgraduate diploma, and also super-specialty and doctorate).
+type LevelAsk = "postgraduate" | "graduate" | "superspecialty" | "doctorate";
+const LEVEL_ASKS: { key: LevelAsk; re: RegExp }[] = [
+  { key: "superspecialty", re: /\bsuper[\s-]?special(?:i[sz]\w*|it(?:y|ies)|t(?:y|ies))\b/ },
+  { key: "postgraduate", re: /\b(post[\s-]?graduat\w*|pg|masters?|higher (?:degrees?|qualifications?))\b/ },
+  { key: "doctorate", re: /\b(ph\.?\s?d|doctorates?|doctoral)\b/ },
+  { key: "graduate", re: /\b(under[\s-]?graduat\w*|ug|graduat\w*|bachelors?)\b/ },
+];
+/** Which level a question asks for (the longest word first: "post graduate" is not "graduate"). */
+export const levelAsked = (nm: string): LevelAsk | null => LEVEL_ASKS.find((x) => x.re.test(nm))?.key ?? null;
+const meetsLevel = (p: Person, ask: LevelAsk): boolean => {
+  const r = levelRank(highestLevel(p.qualification));
+  return ask === "postgraduate" ? r >= LEVEL_RANK.postgraduate : ask === "superspecialty" ? r >= LEVEL_RANK.superspecialty : ask === "doctorate" ? r >= LEVEL_RANK.doctorate : r === LEVEL_RANK.graduate;
+};
+const LEVEL_TEXT: Record<LevelAsk, { title: string; label: string; sentence: string; excluded: string }> = {
+  postgraduate: { title: "a postgraduate degree", label: "Postgraduate degree", sentence: "Hold a postgraduate degree or higher (MD, MS, DNB, MDS, MCh, DM, or a postgraduate diploma such as DGO or DPM).", excluded: "with a graduate degree only (for example MBBS), not included" },
+  graduate: { title: "a graduate degree as the highest", label: "Graduate degree only", sentence: "Their highest qualification is a graduate degree (MBBS or BDS).", excluded: "with a postgraduate degree or higher, not included" },
+  superspecialty: { title: "a super-specialty degree", label: "Super-specialty degree", sentence: "Hold a super-specialty degree (DM, MCh, DrNB or FNB), taken after an MD or MS.", excluded: "without a super-specialty degree, not included" },
+  doctorate: { title: "a doctorate", label: "Doctorate", sentence: "Hold a doctorate (PhD or similar).", excluded: "without a doctorate, not included" },
+};
+const levelWords = (l: Level | null): string => (l === "graduate" ? "a graduate degree" : l === "postgraduate" ? "a postgraduate degree" : l === "superspecialty" ? "a super-specialty degree" : l === "doctorate" ? "a doctorate" : l === "diploma" ? "a diploma below graduate level" : l === "certificate" ? "a certificate" : "a qualification the system does not know");
+
+/** The doctors (of the plant, or of the departments named) who hold a degree of the level asked. */
+function doctorsByLevelAnswer(e: Entities, ask: LevelAsk): HospitalResult {
+  const inDepts = e.depts.length || e.extraDepts.length
+    ? new Set([...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)), ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null))].map((r) => r.p.id))
+    : null;
+  const pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
+  const deptNames = inDepts ? joinAnd([...e.depts.map((d) => d.name), ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map(deptLabel)]) : "";
+  const of = inDepts ? ` of ${deptNames}` : "";
+  const T = LEVEL_TEXT[ask];
+  const hits = pool.filter((p) => meetsLevel(p, ask)).sort((a, b) => a.name.localeCompare(b.name));
+  const left = pool.filter((p) => qualOf(p).trim() && !meetsLevel(p, ask));
+  const unknown = pool.filter((p) => !qualOf(p).trim());
+  const gap = unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length} doctors${of}, so this list may be incomplete.` : "";
+  const text = (hits.length
+    ? `${hits.length} of the doctors${of} ${hits.length === 1 ? "holds" : "hold"} ${T.title}${hits.length <= 4 ? `: ${joinAnd(hits.map(docName))}` : ""}.`
+    : `No doctor${of} is recorded with ${T.title}.`) + gap;
+  const headline = hits.length === 1 ? docName(hits[0]) : hits.length === 0 ? "None" : `${hits.length} doctors`;
+  const sentence = (hits.length ? `${T.sentence}${inDepts ? ` Among the doctors of ${deptNames}.` : ""}` : `No doctor${of} is recorded with ${T.title}.`) + gap;
+  const details = [
+    ...(left.length ? [{ summary: `The ${left.length} doctor${left.length === 1 ? "" : "s"} ${T.excluded}`, text: joinAnd(left.map((p) => `${docName(p)} (${p.qualification})`)) }] : []),
+    ...(unknown.length ? [{ summary: `The ${unknown.length} doctors whose qualification is not recorded`, text: joinAnd(unknown.map(docName)) }] : []),
+  ];
+  const card: HospitalAnswer = { title: `Doctors with ${T.title}${inDepts ? ` (${deptNames})` : ""}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, details };
+  if (hits.length) card.table = { columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"], rows: hits.map((p) => [docLabel(p), p.ticket ?? (p.doctorListId ? `${p.doctorListId} (non-permanent)` : "not recorded"), p.qualification ?? "—", p.discipline ?? npOf(p)?.specialization ?? "—", p.department ? deptLabel(p.department) : "not recorded"]) };
+  return done(text, card);
+}
+
+/** One doctor: "is dr rajeev kumar post graduate": Yes or No, with what he holds and its level. */
+function doctorLevelAnswer(p: Person, ask: LevelAsk): HospitalResult {
+  const who = docName(p);
+  const q = p.qualification ?? "";
+  if (!q.trim()) {
+    const text = `The qualification of ${who} is not recorded, so I cannot say whether he or she holds ${LEVEL_TEXT[ask].title}.`;
+    return done(text, { title: `${who}: ${LEVEL_TEXT[ask].label}?`, headline: { text: "Not known", tone: "unknown" }, status: { tone: "unknown", text }, lines: [] });
+  }
+  const yes = meetsLevel(p, ask);
+  const words = levelWords(highestLevel(q));
+  const text = yes ? `Yes: ${who} holds ${q}, ${words}.` : `No: ${who}'s qualification is ${q}, ${words}${ask === "postgraduate" ? ", not a postgraduate one" : ""}.`;
+  return done(text, { title: `${who}: ${LEVEL_TEXT[ask].label}?`, status: { tone: yes ? "open" : "closed", text }, lines: p.department ? [`Department: ${deptLabel(p.department)}.`] : [] });
+}
 
 /** One doctor: "the specialisation of dr rajeev kumar". The headline is the qualification as printed ("DNB(MEDICINE)"): the specialisation and its subject in one clean statement; the sentence under it says it in words. */
 function doctorSpecialisationAnswer(p: Person): HospitalResult {
@@ -1330,15 +1401,19 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   const FILTER_WORDS = /\b(mail|e ?mail|nic|webmail|mobile|phone|cug|address|grade|designation|senior|seniority|junior|executives?|non executives?|retire|retired|promoted)\b/;
   // "the specialisation of doctors in dsp", "specialisation of dr rajeev kumar": from the postgraduate qualification only (step 57a)
   const quals = qualificationsAsked(nm);
-  const asksSpec = SPECIALISATION_WORD.test(nm);
+  const asksSpec = SPECIALISATION_WORD.test(nm.replace(/\bsuper[\s-]?special(?:i[sz]\w*|it(?:y|ies)|t(?:y|ies))\b/g, " ")); // "super speciality" is a LEVEL, not a specialisation
   const asksQual = /\b(degrees?|qualifications?|qualified)\b/.test(nm);
   const noOtherAsk = !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length;
-  if ((asksSpec || asksQual || quals.length) && noOtherAsk && (e.doctors.length > 1 || (e.doctors.length === 1 && e.hintMiss))) return askDoctor(e, q);
+  const asksLevel = levelAsked(nm);
+  if ((asksSpec || asksQual || quals.length || asksLevel) && noOtherAsk && (e.doctors.length > 1 || (e.doctors.length === 1 && e.hintMiss))) return askDoctor(e, q);
+  if (e.doctors.length === 1 && noOtherAsk && asksLevel && !asksSpec && !quals.length) return doctorLevelAnswer(e.doctors[0], asksLevel);
   if (e.doctors.length === 1 && noOtherAsk) {
     if (asksSpec) return doctorSpecialisationAnswer(e.doctors[0]);
     if (asksQual || quals.length) return doctorQualificationAnswer(e.doctors[0], quals);
   }
   if (asksSpec && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return specialisationAnswer(e);
+  // "list the doctors having post graduate degree on medicine", "how many doctors are post graduate": by the LEVEL of the degree (step 58a)
+  if (asksLevel && !quals.length && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return doctorsByLevelAnswer(e, asksLevel);
 
   // "list of DNB doctors", "how many MD doctors in medicine": by the qualification the staff list prints (step 56a)
   // "list the doctors with their degrees / qualifications": no qualification named (step 56b: it used to fall through to four unrelated circulars at 77 to 87 per cent)

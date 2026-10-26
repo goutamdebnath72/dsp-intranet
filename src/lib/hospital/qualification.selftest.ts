@@ -7,6 +7,7 @@ import { answerHospital, nice, qualificationsAsked, specialisationOf } from "./e
 import { STAFF } from "./opdData";
 import { unlistedAsPeople } from "./nonPermanentDoctors";
 import real from "../nl2sql/__fixtures__/departments.real.json";
+import { parseQualification, highestLevel } from "../qualifications/parse";
 import { DOCTOR_DOC, QUALIFICATION_DOC, isDoctorQuestion, isQualificationQuestion } from "../nl2sql/medicalCadre";
 import { buildPrompt } from "../nl2sql/prompt";
 
@@ -136,6 +137,37 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   const opd: any = await ask("is the opd open on sunday", "2026-10-26T11:00:00");
   ok("an OPD verdict: a big red No or green Yes first (tone from the verdict), the text unchanged", !!headOf(opd) && ["yes", "no"].includes(headOf(opd)!.tone) && /^(Yes|No): /.test(opd.card.status.text), JSON.stringify([opd?.card.headline, opd?.card.status]));
   ok("an answer that is not a verdict has no Yes / No headline (a list of doctors of a department)", headOf(await answerHospital("list of ent doctors", ctx)) === undefined);
+
+  // ---- the LEVEL of a degree (step 58a). Owner, 26 Oct 2026: "list the doctors having post graduate degree on medicine" listed MBBS doctors: "post graduate" is every degree ABOVE graduate (the table of degrees).
+  ok("every printed qualification of the doctors is KNOWN to the table of degrees (none unrecognised): otherwise a level would be a guess", pool.every((p) => !printed(p).trim() || parseQualification(p.qualification).unrecognised.length === 0), pool.filter((p) => printed(p).trim() && parseQualification(p.qualification).unrecognised.length).map((p) => p.qualification).join(" ; "));
+  const lvOf = (p: any) => highestLevel(p.qualification);
+  ok("the levels of the doctors: MBBS alone = graduate, the rest postgraduate, one super-specialty (Dr. A K Sahay)", pool.filter((p) => lvOf(p) === "graduate").length === mbbsOnly.length && pool.filter((p) => lvOf(p) === "postgraduate").length === pgDocs.length - 1 && pool.filter((p) => lvOf(p) === "superspecialty").map((p) => p.name).join() === "A K SAHAY");
+  const names2 = (x: any) => rowsOf(x).map((row) => row[0]).sort();
+  const med: any = await answerHospital("list the doctors having post graduate degree on medicine.", ctx);
+  ok("post graduate degree on MEDICINE: the four with MD or DNB, NOT Dr. Kunj Bihari Singh (MBBS)", JSON.stringify(names2(med)) === JSON.stringify(["Dr. Ajit Karmakar", "Dr. Dipak Singh", "Dr. Rajeev Kumar", "Dr. Sukhdev Shankar Patil"]) && headOf(med)?.text === "4 doctors" && med.card.title === "Doctors with a postgraduate degree (Medicine)", JSON.stringify([names2(med), med.card.headline, med.card.title]));
+  ok("...and the one left out is NAMED, with his degree, in a folded line", (med.card.details ?? []).some((d: { summary: string; text: string }) => d.summary === "The 1 doctor with a graduate degree only (for example MBBS), not included" && d.text === "Dr. Kunj Bihari Singh (MBBS)"), JSON.stringify(med.card.details));
+  const sur: any = await answerHospital("list the doctors having post graduate degree on surgery.", ctx);
+  ok("post graduate degree on SURGERY: the four with MS or MCh & DrNB, NOT Dr. Tapati Pradhan or Dr. Titas Chakraborty (MBBS)", JSON.stringify(names2(sur)) === JSON.stringify(["Dr. A K Sahay", "Dr. Abhishek Mandal", "Dr. Rohit Shyam", "Dr. Shyamal Hansda"]) && (sur.card.details ?? []).some((d: { text: string }) => d.text === "Dr. Tapati Pradhan (MBBS) and Dr. Titas Chakraborty (MBBS)"), JSON.stringify([names2(sur), sur.card.details]));
+  for (const q of ["list the doctors having post graduate degree", "how many doctors are post graduate", "doctors with PG degree", "post graduate doctors", "list the doctors with a masters degree", "doctors having postgraduate qualification"]) {
+    const all2: any = await answerHospital(q, ctx);
+    ok(`"${q}": every doctor above graduate level (${pgDocs.length}), none with MBBS alone, none without a recorded qualification`, all2?.card.title === "Doctors with a postgraduate degree" && rowsOf(all2).length === pgDocs.length && rowsOf(all2).every((row) => !mbbsOnly.some((p) => row[0] === `Dr. ${nice(p.name)}`) && !noQual.some((p) => row[0] === `Dr. ${nice(p.name)}`)), `${all2?.card.title} ${rowsOf(all2).length} vs ${pgDocs.length}`);
+  }
+  const allPg: any = await answerHospital("how many doctors are post graduate", ctx);
+  ok("the headline is the count; the gap is in the sentence; the graduates and the unrecorded are named in folded lines", headOf(allPg)?.text === `${pgDocs.length} doctors` && allPg.card.status.text.includes(`The qualification is not recorded for ${noQual.length} of the ${pool.length} doctors, so this list may be incomplete.`) && (allPg.card.details ?? []).length === 2, JSON.stringify([allPg.card.headline, allPg.card.status.text]));
+  ok("ent: three post graduate doctors", rowsOf(await answerHospital("post graduate doctors in ent", ctx)).length === 3);
+  const gr: any = await answerHospital("doctors with graduate degree only", ctx);
+  ok("'graduate degree only': the MBBS doctors, and not the post graduate ones", gr?.card.title === "Doctors with a graduate degree as the highest" && rowsOf(gr).length === mbbsOnly.length && rowsOf(gr).every((row) => row[2] === "MBBS"), `${gr?.card.title} ${rowsOf(gr).length}`);
+  for (const q of ["super speciality doctors", "list the super specialty doctors", "doctors with super specialization"]) {
+    const sp2: any = await answerHospital(q, ctx);
+    ok(`"${q}": a LEVEL (Dr. A K Sahay), not the list of specialisations`, sp2?.card.title === "Doctors with a super-specialty degree" && headOf(sp2)?.text === "Dr. A K Sahay" && rowsOf(sp2).length === 1, `${sp2?.card.title}`);
+  }
+  ok("a doctorate: nobody on the lists has one (None, amber)", headOf(await answerHospital("list the doctors with a doctorate", ctx))?.text === "None" && headOf(await answerHospital("list the doctors with a doctorate", ctx))?.tone === "unknown");
+  ok("one doctor: Yes for Dr. Rajeev Kumar (DNB), a red No for Dr. Kunj Bihari Singh (MBBS), Not known when nothing is recorded", (await answerHospital("is dr rajeev kumar post graduate", ctx))?.summary === "Yes: Dr. Rajeev Kumar holds DNB(MEDICINE), a postgraduate degree." && (await answerHospital("is dr kunj bihari singh post graduate", ctx))?.summary === "No: Dr. Kunj Bihari Singh's qualification is MBBS, a graduate degree, not a postgraduate one." && headOf(await answerHospital(`is dr ${noQual[0].name.toLowerCase()} post graduate`, ctx))?.text === "Not known");
+  ok("...the headlines of those: Yes (yes), No (no)", headOf(await answerHospital("is dr rajeev kumar post graduate", ctx))?.tone === "yes" && headOf(await answerHospital("is dr kunj bihari singh post graduate", ctx))?.tone === "no");
+  ok("not taken: a policy or circular, employees, a plain 'degrees' list keeps its own answer", !(await answerHospital("post graduate degree policy circular", ctx)) && !(await answerHospital("list of employees who are post graduate", ctx)) && (await answerHospital("list the doctors with their degrees", ctx))?.card.title === "Doctors and their qualifications");
+  // the model's guard for employee questions about a degree or a level (the directory holds no qualification of an employee)
+  ok("the guard: employee questions that name a degree or a level (and cannot be a designation)", ["list the employees who are post graduate", "employees with btech degree", "how many employees have a phd", "list employees with mba", "which employees have a degree in engineering"].every((q) => isQualificationQuestion(q)));
+  ok("...but not designations: Graduate Engineer Trainee, Diploma Trainee, or plain questions", !["list the graduate engineer trainees", "list diploma trainees", "how many executives are there in c&it", "list the executives who are graduates"].some((q) => isQualificationQuestion(q)));
 
   // ---- what must NOT be taken
   for (const q of ["list of doctors", "how many doctors are there", "list of dnb executives with nic mail", "ms word circular", "mediclaim for dnb doctors", "list of MBBS doctors with mobile number", "retired DNB doctors", "doctors degrees mediclaim circular", "list of employees with their degrees", "specialisation policy circular", "the specialisation of employees", "specialisation of doctors mediclaim"]) ok(`not the hospital qualification list: "${q}"`, !/^Doctors (with|and their)/.test((await answerHospital(q, ctx))?.card.title ?? ""), (await answerHospital(q, ctx))?.card.title);

@@ -12,12 +12,17 @@
 export const isDoctorQuestion = (q: string): boolean =>
   /\b(doctors?|physicians?|non[- ]?medical|not (?:a )?doctors?|medical (?:staff|executives?|cadre)|dnb|drnb|mbbs)\b/i.test(q || "") || /\bdr\b\.?\s*[a-z]/i.test(q || "");
 
-/** A doctor question that names a QUALIFICATION (DNB, MD, MS, MBBS ...): only then does the model get QUALIFICATION_DOC (the doctor prompt has only about 60 characters of budget to spare, see medicalCadre.selftest.ts). */
+/**
+ * A question that names a QUALIFICATION or a LEVEL (DNB, MD, MS, MBBS, B.Tech, MBA, "post graduate", a degree): only then does the model get QUALIFICATION_DOC (the doctor prompt has only about 60 characters of
+ * budget to spare, see medicalCadre.selftest.ts). In a doctor question the short letters (MD, MS, DM ...) count; in any other question only words that cannot be a designation do: NOT "graduate" or "diploma"
+ * alone ("Graduate Engineer Trainee", "Diploma Trainee" are designations of the directory).
+ */
 export const isQualificationQuestion = (q: string): boolean =>
-  isDoctorQuestion(q) && /\b(dnb|drnb|mbbs|mch|dm|md|ms|mds|dgo|dpm|dih|mrcog|qualif\w*|degrees?|diplomas?|post ?graduates?)\b/i.test(q || "");
+  (isDoctorQuestion(q) && /\b(dnb|drnb|mbbs|mch|dm|md|ms|mds|dgo|dpm|dih|mrcog|qualif\w*|degrees?|diplomas?|post[\s-]?graduat\w*|under[\s-]?graduat\w*|graduates?|pg|ug)\b/i.test(q || "")) ||
+  /\b(qualif\w*|degrees?|post[\s-]?graduat\w*|under[\s-]?graduat\w*|btech|mtech|mba|mca|bca|llb|llm|bsc|msc|bcom|mcom|phd|dnb|drnb|mbbs)\b/i.test(q || "");
 
-/** "DNB doctors" once came back as ALL 52 doctors (the model used is_doctor): the directory holds no qualification. */
-export const QUALIFICATION_DOC = `QUALIFICATIONS (DNB, DrNB, MD, MS, MBBS, MCh ...) are NOT in the directory, and is_doctor is not one: "DNB doctors" is NOT "doctors". Return sql = null with unanswerable_reason = "The employee directory does not record qualifications."
+/** "DNB doctors" once came back as ALL 52 doctors (the model used is_doctor): the directory holds no qualification and no degree level. */
+export const QUALIFICATION_DOC = `QUALIFICATIONS and DEGREE LEVELS (B.Tech, MBA, MCA, graduate, post graduate, PhD, DNB, MD, MS, MBBS ...) are NOT in the directory, and is_doctor is not one: "DNB doctors" is NOT "doctors". Return sql = null with unanswerable_reason = "The employee directory does not record qualifications."
 `;
 
 export const DOCTOR_DOC = `DOCTORS AND NON-MEDICAL EXECUTIVES -- the hospital's executives are two cadres with PARALLEL designations, told apart by the column nlq.employees.is_doctor (true / false):
