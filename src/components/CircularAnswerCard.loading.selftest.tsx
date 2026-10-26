@@ -19,6 +19,7 @@ ok("the dots start one after another (three different delays)", new Set(loading.
 ok("it is announced to a screen reader as a status that is busy", /role="status"/.test(loading) && /aria-busy="true"/.test(loading), loading);
 ok("no pulsing bars and no gradient bar any more", !/animate-pulse/.test(loading) && !/bg-gradient-to-r/.test(loading), loading);
 ok("the old words are gone", !/Reading the documents/.test(loading), loading);
+ok("the loading card is centred horizontally (icon and words together in the middle of their box), not stuck at the left end", /<section[^>]*class="[^"]*\bjustify-center\b[^"]*"/.test(loading) && /<section[^>]*class="[^"]*\bitems-center\b[^"]*"/.test(loading) && !/\bjustify-start\b|\btext-left\b/.test(loading), loading);
 ok("nothing is shown when idle", html("idle") === "", html("idle"));
 ok("nothing is shown when done without an answer", html("done") === "", html("done"));
 

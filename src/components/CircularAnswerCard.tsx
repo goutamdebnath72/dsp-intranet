@@ -53,7 +53,7 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
 
   if (state.status === "loading") {
     return (
-      <section role="status" aria-live="polite" aria-label="Loading summary" aria-busy="true" className="flex items-center gap-2 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-semibold text-blue-700 shadow-sm">
+      <section role="status" aria-live="polite" aria-label="Loading summary" aria-busy="true" className="flex items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-semibold text-blue-700 shadow-sm">
         <Sparkles size={14} aria-hidden />
         <span>
           Loading Summary

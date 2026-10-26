@@ -23,7 +23,7 @@ const keepOnOneLine = (cell: string, columnIndex: number): boolean => cell.lengt
 
 function TableView({ table }: { table: HospitalTable }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+    <div className="omni-noscale overflow-x-auto rounded-lg border border-neutral-200 bg-white">
       <table className="min-w-full text-left text-xs sm:text-sm">
         <thead className="bg-neutral-50 text-neutral-600">
           <tr>

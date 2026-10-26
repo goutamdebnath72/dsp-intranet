@@ -967,25 +967,28 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[]): HospitalResul
     ? new Set([...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)), ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null))].map((r) => r.p.id))
     : null;
   const pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
-  const label = quals.map((x) => x.label).join(" or ");
+  const anyQual = quals.length === 0; // "the doctors with their degrees": no qualification named, every doctor whose qualification is recorded (step 56b)
+  const label = anyQual ? "any qualification" : quals.map((x) => x.label).join(" or ");
   const where = inDepts ? ` in ${joinAnd([...e.depts.map((d) => d.name), ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map(deptLabel)])}` : "";
-  const hits = pool.filter((p) => quals.some((x) => x.has.test(qualOf(p)))).sort((a, b) => a.name.localeCompare(b.name));
+  const hits = pool.filter((p) => (anyQual ? !!qualOf(p).trim() : quals.some((x) => x.has.test(qualOf(p))))).sort((a, b) => a.name.localeCompare(b.name));
   const unknown = pool.filter((p) => !qualOf(p).trim());
   const names = hits.map(docName);
   // the headline says what is KNOWN and what is not: a list that looks complete when 53 of 115 doctors have no qualification on record would be a confident wrong answer
   const gap = unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length} doctors${where}, so this list may be incomplete.` : "";
-  const text = (hits.length
-    ? `${hits.length} doctor${hits.length === 1 ? " is" : "s are"} recorded with ${label}${where}${hits.length <= 4 ? `: ${joinAnd(names)}` : ""}.`
-    : `No doctor${where} is recorded with ${label}.`) + gap;
+  const text = anyQual
+    ? `${hits.length} of the ${pool.length} doctors${where} have a qualification on record, shown as printed.${unknown.length ? ` It is not recorded for ${unknown.length}, who are not shown.` : ""}`
+    : (hits.length
+      ? `${hits.length} doctor${hits.length === 1 ? " is" : "s are"} recorded with ${label}${where}${hits.length <= 4 ? `: ${joinAnd(names)}` : ""}.`
+      : `No doctor${where} is recorded with ${label}.`) + gap;
   const lines: string[] = [];
   lines.push(`The qualification is the one the hospital's staff list prints for each doctor: recorded for ${pool.length - unknown.length} of the ${pool.length} doctors${where} on the hospital's lists.`);
-  if (unknown.length) lines.push(`Not recorded (so not counted): ${joinAnd(unknown.slice(0, 12).map(docName))}${unknown.length > 12 ? ` and ${unknown.length - 12} more` : ""}. Any of them may hold ${label}.`);
+  if (unknown.length) lines.push(`Not recorded (so not ${anyQual ? "shown" : "counted"}): ${joinAnd(unknown.slice(0, 12).map(docName))}${unknown.length > 12 ? ` and ${unknown.length - 12} more` : ""}.${anyQual ? "" : ` Any of them may hold ${label}.`}`);
   // DNB and DrNB are different degrees: say who holds the other one, never merge them silently
   if (quals.some((x) => x.key === "DNB") && !quals.some((x) => x.key === "DRNB")) {
     const dr = pool.filter((p) => /\bDR\.?\s?NB\b/.test(qualOf(p)));
     if (dr.length) lines.push(`${joinAnd(dr.map((p) => `${docName(p)} (${p.qualification})`))} ${dr.length === 1 ? "holds" : "hold"} DrNB, the National Board's super-specialty degree: a different qualification, not counted as DNB.`);
   }
-  const card: HospitalAnswer = { title: `Doctors with ${label}${where}`, status: { tone: hits.length ? "info" : "unknown", text }, lines };
+  const card: HospitalAnswer = { title: anyQual ? `Doctors and their qualifications${where}` : `Doctors with ${label}${where}`, status: { tone: hits.length ? "info" : "unknown", text }, lines };
   if (hits.length) {
     card.table = {
       columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"],
@@ -1214,7 +1217,9 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   const FILTER_WORDS = /\b(mail|e ?mail|nic|webmail|mobile|phone|cug|address|grade|designation|senior|seniority|junior|executives?|non executives?|retire|retired|promoted)\b/;
   // "list of DNB doctors", "how many MD doctors in medicine": by the qualification the staff list prints (step 56a)
   const quals = qualificationsAsked(nm);
-  if (quals.length && !e.doctors.length && DOCTOR_NOUN.test(n) && !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length) return doctorsByQualificationAnswer(e, quals);
+  // "list the doctors with their degrees / qualifications": no qualification named (step 56b: it used to fall through to four unrelated circulars at 77 to 87 per cent)
+  const anyQualAsked = !quals.length && /\b(degrees?|qualifications?|qualified)\b/.test(nm);
+  if ((quals.length || anyQualAsked) && !e.doctors.length && DOCTOR_NOUN.test(n) && !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length) return doctorsByQualificationAnswer(e, quals);
   if (!e.doctors.length && (e.depts.length || e.extraDepts.length) && DOCTOR_NOUN.test(n) && !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length) return departmentDoctorsAnswer(e);
 
   // a doctor

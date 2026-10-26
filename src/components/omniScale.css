@@ -1,0 +1,47 @@
+/* src/components/omniScale.css -- step 56b
+ *
+ * The text of the query modal keeps its OLD proportion to the modal's width.
+ * The modal was a fixed 52rem; since step 54i it is a share of the screen (wider, so that the doctors' unit tables do not break), and the text looked small. OmnibarModal.tsx measures its own
+ * width and sets --omni-k (1 at 52rem, 1.23 at 1026 px ...); every text size inside the modal is multiplied by it. A wide table opts out with the class omni-noscale (the variable is 1 inside it).
+ *
+ * This only multiplies font sizes and line heights; widths and spacing are the modal's own. There is one rule for every size the modal's components use: omniScale.selftest.ts crawls them and
+ * fails when a size has no rule (an unlisted size would simply not grow).
+ */
+.omni-scale {
+  font-size: calc(1rem * var(--omni-k, 1));
+}
+.omni-scale .omni-noscale {
+  --omni-k: 1;
+  font-size: 1rem;
+}
+
+.omni-scale .text-xs { font-size: calc(0.75rem * var(--omni-k, 1)); line-height: calc(1rem * var(--omni-k, 1)); }
+.omni-scale .text-sm { font-size: calc(0.875rem * var(--omni-k, 1)); line-height: calc(1.25rem * var(--omni-k, 1)); }
+.omni-scale .text-base { font-size: calc(1rem * var(--omni-k, 1)); line-height: calc(1.5rem * var(--omni-k, 1)); }
+.omni-scale .text-lg { font-size: calc(1.125rem * var(--omni-k, 1)); line-height: calc(1.75rem * var(--omni-k, 1)); }
+.omni-scale .text-xl { font-size: calc(1.25rem * var(--omni-k, 1)); line-height: calc(1.75rem * var(--omni-k, 1)); }
+.omni-scale .text-2xl { font-size: calc(1.5rem * var(--omni-k, 1)); line-height: calc(2rem * var(--omni-k, 1)); }
+.omni-scale .text-3xl { font-size: calc(1.875rem * var(--omni-k, 1)); line-height: calc(2.25rem * var(--omni-k, 1)); }
+.omni-scale .text-4xl { font-size: calc(2.25rem * var(--omni-k, 1)); line-height: calc(2.5rem * var(--omni-k, 1)); }
+
+.omni-scale .text-\[9px\] { font-size: calc(9px * var(--omni-k, 1)); }
+.omni-scale .text-\[10px\] { font-size: calc(10px * var(--omni-k, 1)); }
+.omni-scale .text-\[11px\] { font-size: calc(11px * var(--omni-k, 1)); }
+.omni-scale .text-\[13px\] { font-size: calc(13px * var(--omni-k, 1)); }
+.omni-scale .text-\[15px\] { font-size: calc(15px * var(--omni-k, 1)); }
+.omni-scale .text-\[17px\] { font-size: calc(17px * var(--omni-k, 1)); }
+.omni-scale .text-\[28px\] { font-size: calc(28px * var(--omni-k, 1)); }
+
+/* a leading class wins over the line height of a size class (as in Tailwind); these are unitless, so they follow the new font size by themselves */
+.omni-scale .leading-none { line-height: 1; }
+.omni-scale .leading-tight { line-height: 1.25; }
+.omni-scale .leading-snug { line-height: 1.375; }
+.omni-scale .leading-normal { line-height: 1.5; }
+.omni-scale .leading-relaxed { line-height: 1.625; }
+.omni-scale .leading-loose { line-height: 2; }
+
+/* the responsive forms Tailwind emits (sm = 640px): AFTER the leading classes, as in Tailwind's own sheet, so that at 640px and above they win over a leading class */
+@media (min-width: 640px) {
+  .omni-scale .sm\:text-sm { font-size: calc(0.875rem * var(--omni-k, 1)); line-height: calc(1.25rem * var(--omni-k, 1)); }
+  .omni-scale .sm\:text-base { font-size: calc(1rem * var(--omni-k, 1)); line-height: calc(1.5rem * var(--omni-k, 1)); }
+}

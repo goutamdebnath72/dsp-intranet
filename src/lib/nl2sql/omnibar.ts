@@ -24,6 +24,7 @@ import { buildSourceInfo, emptyScheduleAnswer, pendingScheduleNote, scheduleAske
 import { comparisonVerdict } from "./rankingCheck";
 import { peopleHeadline } from "./medicalCadre";
 import { COKE_OVEN_REFRACTORY_CODE, finishDepartmentNote, resolveDepartmentWords, type DepartmentWordResult } from "./departmentWords";
+import { answerPhd } from "./phdHolders";
 import { isDoctorPerson, isPhdHolder, titleFor, withTitlesInRows } from "@/lib/employees/honorific";
 import { disciplineOfTicket } from "@/lib/hospital/discipline";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
@@ -94,6 +95,8 @@ export interface OmnibarDeps {
   /** Front-path gate (src/lib/search/frontGate.ts): the question cannot be an employee question, so skip the model (and the
    *  old engine) and let the app continue with circular search. The holiday parser and verified answers still go first. */
   skipModel?: boolean;
+  /** The tickets of the PhD holders (employees/honorific.ts DR_TICKETS when absent); the tests give their own (step 56b). */
+  phdTickets?: readonly string[];
 }
 
 // Columns the person card already shows (the codes appear in brackets after the designation / department).
@@ -317,6 +320,11 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
     //    Tagged "holiday" for the feedback record: the feedback table's list of sources has no "hospital" yet.
     const hospital = deps.hospital ? await deps.hospital(q).catch(() => null) : null;
     if (hospital) return { ...hospital, source: "holiday", attempt };
+
+    // 0b. "who are the PhD holders": answered from the list of PhD holders kept by hand (employees/honorific.ts), no model call, never in the words of a circular (step 56b)
+    const phd = await answerPhd(q, { withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.phdTickets).catch(() => null);
+    if (phd?.kind === "none") return { kind: "count", count: 0, answer: phd.text, source: "nl2sql", attempt };
+    if (phd?.kind === "people") return okToPayload(phd.res, userKey, deps, attempt, phd.note);
 
     // 1. holiday questions keep their deterministic answer
     const holiday = await deps.holiday(q).catch(() => null);

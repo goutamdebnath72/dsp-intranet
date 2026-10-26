@@ -57,8 +57,20 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   r = await answerHospital("list of MD doctors in medicine", ctx);
   ok("with a department: only that department's doctors (Medicine), every one with MD(MEDICINE)", r.card.title === "Doctors with MD in Medicine" && rowsOf(r).length >= 1 && rowsOf(r).every((x) => x[4] === "Medicine" && /^MD/.test(x[2])), JSON.stringify(rowsOf(r)));
 
+  // ---- "list the doctors with their degrees" (26 Oct 2026: it fell through to four unrelated circulars at 77 to 87 per cent)
+  const recorded = pool.filter((p) => printed(p).trim());
+  for (const q of ["list the doctors with their degrees", "doctors with qualification", "what are the qualifications of the doctors", "how many doctors are qualified"]) {
+    const d: any = await answerHospital(q, ctx);
+    ok(`"${q}": every doctor whose qualification is recorded, with it as printed`, d?.card.title === "Doctors and their qualifications" && rowsOf(d).length === recorded.length && rowsOf(d).every((row) => row[2].trim() !== "" && row[2] !== "—"), `${d?.card.title} ${rowsOf(d).length} vs ${recorded.length}`);
+  }
+  r = await answerHospital("list the doctors with their degrees", ctx);
+  ok("the headline says how many are recorded, and that the others are not shown", r.summary === `${recorded.length} of the ${pool.length} doctors have a qualification on record, shown as printed. It is not recorded for ${noQual.length}, who are not shown.`, r.summary);
+  ok("the doctors without a recorded qualification are named, not silently dropped", (r.card.lines ?? []).some((l: string) => l.startsWith("Not recorded (so not shown): ")) && !(r.card.lines ?? []).some((l: string) => /may hold/.test(l)), JSON.stringify(r.card.lines));
+  r = await answerHospital("qualifications of ent doctors", ctx);
+  ok("with a department: that department's doctors only (ENT)", r?.card.title === "Doctors and their qualifications in ENT" && rowsOf(r).length >= 1 && rowsOf(r).every((x) => x[4] === "ENT"), JSON.stringify(rowsOf(r)));
+
   // ---- what must NOT be taken
-  for (const q of ["list of doctors", "how many doctors are there", "list of dnb executives with nic mail", "ms word circular", "mediclaim for dnb doctors", "list of MBBS doctors with mobile number", "retired DNB doctors"]) ok(`not the hospital qualification list: "${q}"`, !(await answerHospital(q, ctx))?.card.title.startsWith("Doctors with"), (await answerHospital(q, ctx))?.card.title);
+  for (const q of ["list of doctors", "how many doctors are there", "list of dnb executives with nic mail", "ms word circular", "mediclaim for dnb doctors", "list of MBBS doctors with mobile number", "retired DNB doctors", "degree of dr rajeev kumar", "doctors degrees mediclaim circular", "list of employees with their degrees"]) ok(`not the hospital qualification list: "${q}"`, !/^Doctors (with|and their)/.test((await answerHospital(q, ctx))?.card.title ?? ""), (await answerHospital(q, ctx))?.card.title);
   r = await answerHospital("list of ent doctors", ctx);
   ok("the doctors of a department still work", r?.card.title === "Doctors of ENT");
   ok("qualificationsAsked: dnb, d n b, drnb are told apart; plain words are none", JSON.stringify(qualificationsAsked("list of dnb doctors").map((x) => x.key)) === '["DNB"]' && JSON.stringify(qualificationsAsked("doctors with d n b").map((x) => x.key)) === '["DNB"]' && JSON.stringify(qualificationsAsked("who are the drnb doctors").map((x) => x.key)) === '["DRNB"]' && qualificationsAsked("list of doctors in medicine").length === 0);

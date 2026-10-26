@@ -28,6 +28,8 @@ import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { OmniLoginHint } from "@/components/OmniLoginHint";
 import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
 import { HolidayCompareCard } from "@/components/HolidayCompareCard";
+import "./omniScale.css";
+import { omniScaleFor } from "@/lib/ui/omniScale";
 import { CircularAnswerCard } from "@/components/CircularAnswerCard";
 import { tidyDesignation } from "@/lib/nl2sql/designationFilter";
 import { withTitle } from "@/lib/employees/honorific";
@@ -183,6 +185,20 @@ export function OmnibarModal({
     error,
   } = useOmniSearch(isOpen, ticketNo);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Step 56b: the modal is wider than it was (step 54i) but its text was not: the text grows with the width, so that it keeps the proportion it had at the old 52rem (omniScale.css).
+  // The doctors' unit tables opt out (omni-noscale): they keep their size and the room the extra width gave them.
+  const modalRef = useRef<HTMLDivElement>(null);
+  const [omniK, setOmniK] = useState(1);
+  useEffect(() => {
+    const el = modalRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const measure = () => setOmniK(omniScaleFor(el.offsetWidth, BASE_MODAL_WIDTH_REM * rootPx));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isOpen]);
   const { status: authStatus } = useVerifiedSession();
   // Answer first (step 29a, off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true): once the search has found documents, the answer they
   // prove is written above them, with the source and the exact words. Nothing appears if the text does not prove an answer.
@@ -603,7 +619,9 @@ export function OmnibarModal({
                 layout: { type: "spring", stiffness: 380, damping: 26 },
                 duration: 0.25,
               }}
-              className="relative w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-neutral-200 flex flex-col max-h-[calc(100vh-5.5rem)]"
+              ref={modalRef}
+              style={{ "--omni-k": omniK } as React.CSSProperties}
+              className="omni-scale relative w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-neutral-200 flex flex-col max-h-[calc(100vh-5.5rem)]"
             >
               {/* Multiline Search Input Header */}
               <div className="flex items-start px-4 py-3.5 border-b border-neutral-200 gap-3">

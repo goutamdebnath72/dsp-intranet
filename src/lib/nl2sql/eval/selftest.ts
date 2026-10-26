@@ -1131,6 +1131,34 @@ async function main() {
     check("55a: a question that already names its department is searched as typed, with no note", seen.length >= 1 && seen[0].includes("how many executives are there in coke oven refractory") && !named?.nl2sql?.departmentNote);
   }
 
+  // ---- step 56b: "who are the PhD holders" is answered from the list kept by hand (DR_TICKETS), by ticket from the directory, no model call: not from a circular's table of nodal officers
+  {
+    const seenP: string[] = [];
+    const llmP: LlmFn = async (p) => { seenP.push(p); return json({ sql: "SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'", understood_as: "the reading", confidence: "high" }); };
+    const withTickets = (tickets: string[]) => mkDeps(llmP, { phdTickets: tickets });
+    for (const q of ["list the name of employees who are phd holder with their department", "name of the employee who is phd holder", "name of the employee with his department who is phd holder", "who are the phd holders", "how many phd holders are there"]) {
+      seenP.length = 0;
+      const r: any = await runOmnibar(q, "T-PHD", withTickets(["490030"]));
+      check(`56b: "${q}": the one PhD holder of the list, from the directory, no model call`, !!r && r.kind === "count" && r.count === 1 && r.people?.length === 1 && /GOSWAMI/.test(r.people[0].name) && seenP.length === 0, JSON.stringify(r && { kind: r.kind, count: r.count, n: r.people?.length, model: seenP.length }));
+    }
+    const r1: any = await runOmnibar("who are the phd holders", "T-PHD", withTickets(["490030"]));
+    check("56b: the answer says the list is kept by hand, how many it has, and that it may be incomplete", /kept by hand/.test(r1?.nl2sql?.departmentNote ?? "") && /with 1 person so far/.test(r1?.nl2sql?.departmentNote ?? "") && /may be incomplete/.test(r1?.nl2sql?.departmentNote ?? ""), r1?.nl2sql?.departmentNote);
+    check("56b: ...and what it understood: the employees recorded as PhD holders on the list kept by hand", JSON.stringify(r1).includes("recorded as PhD holders on the list kept by hand"));
+    for (const q of ["phd sponsorship policy for employees", "circular about phd leave", "phd holders in electrical department", "list of employees"]) {
+      seenP.length = 0;
+      const r: any = await runOmnibar(q, "T-PHD", withTickets(["490030"]));
+      check(`56b: not taken, goes on as before: "${q}"`, !(r?.nl2sql?.departmentNote ?? "").includes("kept by hand") && seenP.length >= 1, JSON.stringify({ model: seenP.length, note: r?.nl2sql?.departmentNote }));
+    }
+    for (const [label, tickets] of [["an empty list", [] as string[]], ["a ticket that is not in the directory", ["999999"]]] as [string, string[]][]) {
+      seenP.length = 0;
+      const r: any = await runOmnibar("who are the phd holders", "T-PHD", withTickets(tickets));
+      check(`56b: ${label}: the plain statement, 0, no model call`, !!r && r.kind === "count" && r.count === 0 && /No PhD holder is recorded yet/.test(r.answer ?? "") && seenP.length === 0, JSON.stringify(r));
+    }
+    seenP.length = 0;
+    const again: any = await runOmnibar("who are the phd holders", "T-PHD", withTickets(["490030"]), { logId: null, reason: "other", note: "", attempt: 1 } as never);
+    check("56b: after a No (attempt 2) the question is searched in a DIFFERENT way: the model, not the list again", seenP.length >= 1 && !(again?.nl2sql?.departmentNote ?? "").includes("kept by hand"), JSON.stringify({ model: seenP.length }));
+  }
+
   let o: any = await runOmnibar("list five senior executives", "T-OMNI", mkDeps(model(PEOPLE5, "Five most senior executives.")));
   const expectTickets = (await pg.query(`SELECT ticket_no FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 5`)).rows.map((r: any) => r.ticket_no);
   check("a people list becomes count + people cards", o && o.kind === "count" && o.count === 5 && Array.isArray(o.people) && o.people.length === 5, JSON.stringify(o && { kind: o.kind, count: o.count }));
