@@ -1,5 +1,6 @@
 // src/lib/search/siteSearch.ts
 import { links } from "@/lib/links";
+import { OTHER_PLANT } from "@/lib/search/formerNames";
 
 export interface SiteResult {
   title: string;
@@ -66,6 +67,7 @@ function withAliases(list: any[]): any[] {
 export function searchSites(query: string, limit = 6): SiteResult[] {
   const q = normalize(query);
   if (q.length < 2) return [];
+  const otherPlant = OTHER_PLANT.test(query.toLowerCase()); // step 60d: another plant's CHRD ("bhilai chrd") is not the Durgapur CL&D link
 
   // Contiguous whole-word concatenations of the query. A short site acronym is
   // only matched if the query SPELLS IT OUT with whole words (e.g. "c" + "it" ->
@@ -91,6 +93,7 @@ export function searchSites(query: string, limit = 6): SiteResult[] {
     const title = link.title || "";
     const nTitle = normalize(title);
     if (!nTitle) continue;
+    if (otherPlant && link.officialTitle) continue; // the ALIASES of a link (its former names) are not shown for another plant's question
 
     const ws = words(title).map(normalize).filter(Boolean);
 

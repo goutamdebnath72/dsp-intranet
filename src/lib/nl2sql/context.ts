@@ -104,7 +104,21 @@ export function departmentFamilies(question: string, all: DepartmentRow[]): { na
     return n === p || n.startsWith(p + " ");
   };
   const out: { name: string; rows: DepartmentRow[] }[] = [];
+  // step 60d: the LONGEST name wins. "centre for human resource development" (CL&D) contains "human resource" (the HR department): a family whose every match lies INSIDE a longer match of ANOTHER family is dropped
+  // (owner's check, 26 Oct 2026: the question got the 11 HR rows as well and the model answered with 107 HR people). A family that is also named elsewhere in the question stays.
+  const spansOf = (a: string): [number, number][] => {
+    const n = " " + normText(a) + " ";
+    const r: [number, number][] = [];
+    for (let i = qNorm.indexOf(n); i >= 0; i = qNorm.indexOf(n, i + 1)) r.push([i, i + n.length]);
+    return r;
+  };
+  const famSpans = DEPARTMENT_FAMILIES.map((x) => ({ x, spans: x.aliases.flatMap(spansOf) })).filter((m) => m.spans.length);
+  const shadowedByLonger = (f: (typeof DEPARTMENT_FAMILIES)[number]): boolean => {
+    const mine = famSpans.find((m) => m.x === f)?.spans ?? [];
+    return mine.length > 0 && mine.every(([s, e]) => famSpans.some((o) => o.x !== f && o.spans.some(([s2, e2]) => s2 <= s && e <= e2 && e2 - s2 > e - s)));
+  };
   for (const f of DEPARTMENT_FAMILIES) {
+    if (shadowedByLonger(f)) continue;
     if (f.unlessText?.test(qNorm)) continue; // e.g. another plant's CHRD (step 60c)
     if (!f.aliases.some((a) => qNorm.includes(" " + normText(a) + " "))) continue;
     const rows = all.filter((d) => f.prefixes.some((p) => startsWith(d, p)) || (f.stems ?? []).some((s) => normText(d.name).startsWith(s)));

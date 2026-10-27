@@ -30,6 +30,12 @@ for (const q of ["chrd", "CHRD", "c.h.r.d", "training department", "Training Dep
 ok("a link is ONE result however many of its names match: 'chrd' and 'cl&d' list it once", ["chrd", "cl&d", "training department", "centre for l&d"].every((q) => searchSites(q).filter((x) => x.title === OFFICIAL).length === 1));
 ok("Bhilai's CHRD is still found first by 'bsp chrd' (the DSP department comes second, as before)", searchSites("bsp chrd")[0]?.title === "BSP CHRD");
 
+// ---- step 60d: another plant's CHRD is not the Durgapur link (the owner's check of 26 Oct 2026 showed our CL&D site under "list the employees of bhilai chrd")
+for (const q of ["list the employees of bhilai chrd", "bsp chrd", "rourkela chrd", "bokaro chrd staff", "iisco chrd", "training department of bhilai", "bhilai centre for human resource development"])
+  ok(`another plant: "${q}" does not show the CL&D link`, !searchSites(q).some((x) => x.title === OFFICIAL), JSON.stringify(searchSites(q).map((x) => x.title)));
+ok("...and 'bsp chrd' still finds Bhilai's own entry first", searchSites("bsp chrd")[0]?.title === "BSP CHRD");
+ok("Durgapur's own wording still finds it", searchSites("list the employees of chrd")[0]?.title === OFFICIAL);
+
 // ---- no noise: common words of the history line or of the aliases do not bring the link into every question
 for (const q of ["department", "dept", "deptt", "the", "formerly", "earlier", "hr", "it", "list of employees", "holiday list", "leave rules"]) ok(`"${q}" does not show the link`, !searchSites(q).some((x) => x.title === OFFICIAL), JSON.stringify(searchSites(q).map((x) => x.title)));
 

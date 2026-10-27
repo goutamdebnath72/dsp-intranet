@@ -45,6 +45,19 @@ for (const q of ["list employees of bsp chrd", "employees of bhilai chrd", "how 
   ok(`another plant's CHRD: "${q}" does NOT name the Durgapur CL&D rows`, cldRows(q).length === 0, JSON.stringify(cldRows(q).map((f) => f.name.slice(0, 20))));
 for (const q of ["list the employees of chrd", "employees of the training department", "how many people work in chrd", "chrd employees", "list of cl&d employees"])
   ok(`Durgapur's own: "${q}" still names the five CL&D rows`, cldRows(q).length === 1 && cldRows(q)[0].rows.length === 5, JSON.stringify(cldRows(q).map((f) => f.rows.length)));
+// ---- step 60d: the LONGEST name wins (the owner's check of 26 Oct 2026: the full form of CHRD got the 11 HR rows too, because "human resource" is inside "centre for human resource development", and the answer was 107 HR people)
+const fam = (q: string) => departmentFamilies(q, rows);
+const isHr = (f: { name: string }) => /^HR\b/.test(f.name);
+for (const q of ["list the employees of the centre for human resource development", "centre for human resource development", "list the employees of the Center for Human Resource Development", "how many people work in the centre for human resource development"]) {
+  const f = fam(q);
+  ok(`"${q}": ONE family, the five CL&D rows, not HR`, f.length === 1 && f[0].rows.length === 5 && f[0].rows.every((r) => [107, 9001, 9003, 10770, 9008].includes(r.code)) && !f.some(isHr), JSON.stringify(f.map((x) => `${x.name.slice(0, 12)}:${x.rows.length}`)));
+}
+for (const q of ["how many people work in human resource", "list the employees of the human resource department", "human resources employees"]) ok(`"${q}": HR is still named when only HR is`, fam(q).some(isHr), JSON.stringify(fam(q).map((x) => x.name.slice(0, 12))));
+{
+  const both = fam("employees of the human resource department and of the centre for human resource development");
+  ok("a question that names HR on its own AND the full form of CHRD gets both families", both.some(isHr) && both.some((f) => f.rows.some((r) => r.code === 107)), JSON.stringify(both.map((x) => x.name.slice(0, 12))));
+  ok("another plant's centre for human resource development: not CL&D, and not HR either (the phrase belongs to the CHRD name, so no family: the model answers honestly)", fam("list the employees of the bhilai centre for human resource development").length === 0, JSON.stringify(fam("list the employees of the bhilai centre for human resource development").map((x) => x.name.slice(0, 12))));
+}
 ok("a question that names no such department does not pull them in: C & IT, the main hospital, the training of apprentices", ["how many executives in c&it", "doctors in the main hospital", "circular about apprentice training schedule"].every((q) => !cl(q)));
 
 // ---- the answer must cover all five; one named section is allowed
