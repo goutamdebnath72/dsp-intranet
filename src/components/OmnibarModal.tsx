@@ -613,8 +613,11 @@ export function OmnibarModal({
               className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm"
             />
 
+            {/* Step 62a: NO `layout` prop on this box. With a classic (always visible) scrollbar the page width changes by the scrollbar's width when the scroll lock above is set and
+                released; the box's layout animation then ran against its exit animation, and AnimatePresence deleted the NEW box 3 ms after it appeared: after the first closing the
+                click on the search bar did nothing (a blue ring only) and the first Ctrl+K "closed" the already hidden box. Reproduced in Chrome, fixed by removing `layout`
+                (src/components/OmnibarModal.layout.selftest.ts keeps it out). The box keeps its fade and slide; only the height no longer glides when an answer arrives. */}
             <motion.div
-              layout
               initial={{ opacity: 0, scale: 0.95, y: -20 }}
               animate={{
                 opacity: 1,
