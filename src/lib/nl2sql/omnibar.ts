@@ -25,6 +25,9 @@ import { comparisonVerdict } from "./rankingCheck";
 import { peopleHeadline } from "./medicalCadre";
 import { COKE_OVEN_REFRACTORY_CODE, finishDepartmentNote, resolveDepartmentWords, type DepartmentWordResult } from "./departmentWords";
 import { answerPhd } from "./phdHolders";
+import { dateAsked, emptyDateNote } from "./healthDates";
+import { healthHeadline } from "./healthHeadline";
+import { answerDegreeQuestion } from "@/lib/qualifications/degreeAnswer";
 import { isDoctorPerson, isPhdHolder, titleFor, withTitlesInRows } from "@/lib/employees/honorific";
 import { disciplineOfTicket } from "@/lib/hospital/discipline";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
@@ -255,6 +258,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
       // is then the whole headline: a bare row count above it ("2") would be a number with nothing to say what it counts.
       answer: verdictText ?? peopleHeadline(total, truncated, people),
       people: withExtraFields(people, display, rows),
+      ...(() => { const h = healthHeadline(String((res as any).question ?? ""), res.data.columns, rawRows as any); return h ? { headline: h } : {}; })(),
       listTruncated: truncated,
       interpretation: res.understoodAs,
       nl2sql: extras,
@@ -325,6 +329,10 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
     const phd = await answerPhd(q, { withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.phdTickets).catch(() => null);
     if (phd?.kind === "none") return { kind: "count", count: 0, answer: phd.text, source: "nl2sql", attempt };
     if (phd?.kind === "people") return okToPayload(phd.res, userKey, deps, attempt, phd.note);
+
+    // 0c. a question about the DEGREES themselves ("what are the post graduate degrees in engineering", "is MD a postgraduate degree", "what is mtech"): answered from the table of degrees, no model call, never about people (step 61a)
+    const degrees = answerDegreeQuestion(q);
+    if (degrees) return { kind: "count", answer: degrees.summary, hospital: degrees.card, source: "nl2sql", attempt };
 
     // 1. holiday questions keep their deterministic answer
     const holiday = await deps.holiday(q).catch(() => null);
@@ -413,6 +421,12 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
     // a schedule whose circular was uploaded but could not be read yet: say so, so the person knows why it is missing
     const pending = await pendingScheduleNote((sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>));
     if (have && pending) payload.answer += ` ${pending}`;
+    // a DATE with no check-up: say what kind of day it was and which dates the month's list has (step 61a)
+    const dayAsked = dateAsked(String(res.sql ?? ""));
+    if (have && dayAsked) {
+      const dayNote = await emptyDateNote((sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>), dayAsked);
+      if (dayNote) payload.answer = payload.answer.replace(/^Nothing was found\.\s*/, "") ? `${dayNote} ${payload.answer.replace(/^Nothing was found\.\s*/, "")}` : dayNote;
+    }
   }
   // The circular(s) the answer was read from, for the "Source" line (a click opens the circular at the page of the people listed). Looked up by the
   // system, not asked of the model; if anything goes wrong there is simply no source line.

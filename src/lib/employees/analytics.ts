@@ -106,6 +106,8 @@ export interface AnalyticsPayload {
   ask?: import("@/lib/nl2sql/departmentAsk").DepartmentAsk;
   /** A hospital OPD answer (step 51a), drawn as a card by HospitalAnswerCard. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   hospital?: import("@/lib/hospital/types").HospitalAnswer;
+  /** The ONE clean answer, shown first, big and bold (step 61a): a Yes or No (holiday verdicts), the date asked for, the department asked for. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  headline?: import("@/lib/ui/answerHeadline").AnswerHeadline;
   typeBreakdown?: { type: string; label: string; count: number }[];
   rawEntryCount?: number;
   rhQuotaByCategory?: { category: string; quota: number }[];
@@ -584,6 +586,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         return {
           kind: "count",
           answer: `${r.name} falls on ${d.toFormat("d LLLL yyyy")} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)}).${noteText}`,
+          headline: { text: d.toFormat("cccc, d LLLL yyyy"), tone: "info" },
           holidayDetails: buildHolidayDetails(rows, HOLIDAY_TYPE_LABELS),
         };
       }
@@ -617,6 +620,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       return {
         kind: "count",
         answer: `${lines.join(" and ")}.${notesSuffix(rows.map((r) => r.note))}`,
+        headline: { text: [...new Set(rows.map((r) => labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)))].join(" and "), tone: "info" },
         holidayDetails: buildHolidayDetails(rows, HOLIDAY_TYPE_LABELS),
       };
     }
@@ -627,7 +631,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       const rows = res.holidays ?? [];
       const dateLabel = `${intent.date.day} ${MONTH_LABEL[intent.date.month]} ${intent.year}`;
       if (rows.length === 0) {
-        return { kind: "count", answer: `No, ${dateLabel} is not a holiday.` };
+        return { kind: "count", answer: `No, ${dateLabel} is not a holiday.`, headline: { text: "No", tone: "no" } };
       }
       const names = rows
         .map((r) => `${r.name} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)})`)
@@ -636,6 +640,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         kind: "count",
         answer: `Yes — ${dateLabel} is ${names}.${notesSuffix(rows.map((r) => r.note))}`,
         lead: `Yes — ${dateLabel} is a holiday.`,
+        headline: { text: "Yes", tone: "yes" },
         holidayDetails: buildHolidayDetails(rows, HOLIDAY_TYPE_LABELS),
       };
     }

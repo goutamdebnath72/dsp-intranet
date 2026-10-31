@@ -26,6 +26,10 @@ import { departmentGroups, isSingleRowTable, mergePage } from "@/lib/nl2sql/disp
 import { AnswerFeedback, type AnswerSource } from "@/components/AnswerFeedback";
 import { CircularViewerLightbox } from "@/components/CircularViewerLightbox";
 import { OmniLoginHint } from "@/components/OmniLoginHint";
+import { WEAK_NOTE } from "@/lib/search/weakMatch";
+import { looksLikeNameSearch } from "@/lib/search/nameSearchGate";
+import { AnswerHeadline } from "@/components/AnswerHeadline";
+import { afterVerdict } from "@/lib/ui/answerHeadline";
 import { FormerNameNotice } from "@/components/FormerNameNotice";
 import { formerNameNotice } from "@/lib/search/formerNames";
 import { HolidayAnswerCard } from "@/components/HolidayAnswerCard";
@@ -658,7 +662,8 @@ export function OmnibarModal({
                       ) {
                         if (!isLoading) triggerSearch("intellectual", { auto: true });
                       } else {
-                        if (query.trim().length >= 2) {
+                        // the people name search is for what can be a NAME (one to four words, not a question): a sentence only burned 1 to 7 s of database time (step 61a)
+                        if (query.trim().length >= 2 && looksLikeNameSearch(query)) {
                           runEmployeeNameSearch();
                         }
                         triggerSearch("semantic");
@@ -762,15 +767,17 @@ export function OmnibarModal({
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
+                            <AnswerHeadline headline={analytics.headline} />
                             {typeof analytics.count === "number" &&
                               analytics.kind !== "breakdown" &&
-                              !hideCountNumber && (
+                              !hideCountNumber &&
+                              !analytics.headline && (
                                 <div className="text-2xl font-bold leading-tight text-blue-900">
                                   {analytics.count.toLocaleString()}
                                 </div>
                               )}
                             {analytics.lead && (
-                              <p className="mb-2 text-sm font-semibold text-neutral-800">{analytics.lead}</p>
+                              <p className="mb-2 text-sm font-semibold text-neutral-800">{analytics.headline ? afterVerdict(analytics.lead) : analytics.lead}</p>
                             )}
                             {analytics.hospital ? (
                               <HospitalAnswerCard answer={analytics.hospital} />
@@ -787,7 +794,7 @@ export function OmnibarModal({
                                 }`}
                               >
                                 {analytics.kind === "error" && "Bad query: "}
-                                {analytics.answer}
+                                {analytics.headline ? afterVerdict(analytics.answer) : analytics.answer}
                               </p>
                             )}
                             {analytics.kind === "clarify" && analytics.ask && (
@@ -1284,6 +1291,11 @@ export function OmnibarModal({
                         )}
 
                         <div className="flex flex-col gap-1">
+                          {mode !== "intellectual" && results.length > 0 && results.every((r) => (r as any).weakMatch) && (
+                            <p className="mb-1 px-2 text-xs font-medium text-amber-700" data-weak-note="true">
+                              {WEAK_NOTE}
+                            </p>
+                          )}
                           {mode === "intellectual" ? (
                             <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
                               Primary Sources

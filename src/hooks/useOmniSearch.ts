@@ -1,10 +1,11 @@
 // src/hooks/useOmniSearch.ts
 import type { HolidayDetail } from "@/lib/holidays/format";
 import type { HolidayCompareView } from "@/lib/holidays/compareView";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
 import type { SynthesisResult } from "@/lib/search/executiveSynthesis";
 import type { Nl2SqlExtras } from "@/lib/nl2sql/clientTypes";
+import { markWeakMatches } from "@/lib/search/weakMatch";
 
 export type SearchMode = "title" | "semantic" | "intellectual" | null;
 
@@ -59,6 +60,8 @@ export interface AnalyticsAnswer {
   ask?: import("@/lib/nl2sql/departmentAsk").DepartmentAsk;
   /** A hospital OPD answer (step 51a), drawn as a card by HospitalAnswerCard. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   hospital?: import("@/lib/hospital/types").HospitalAnswer;
+  /** The ONE clean answer shown first, big and bold (step 61a). The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  headline?: import("@/lib/ui/answerHeadline").AnswerHeadline;
   /** Per-type (RH/CH/FH) tally for a holiday list query, only present when
    *  no single type was already filtered on. `count` above is the
    *  DISTINCT-holiday number; rawEntryCount is the raw (date,type) row
@@ -171,9 +174,11 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   );
 
   // Normalize response whether it's the new synthesis object or the legacy flat array
-  const results: OmniSearchResult[] = Array.isArray(data)
+  const rawResults: OmniSearchResult[] = Array.isArray(data)
     ? data
     : data?.results || [];
+  // a document that shares nothing with the question must not wear a confident percentage (step 61a; ledger item 57): marked once per answer, from the question that was searched
+  const results: OmniSearchResult[] = useMemo(() => markWeakMatches(submittedQuery, rawResults), [submittedQuery, data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const synthesis: SynthesisResult | null =
     !Array.isArray(data) && data?.synthesis ? data.synthesis : null;
