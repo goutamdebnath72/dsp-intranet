@@ -41,7 +41,8 @@ type Card = NonNullable<Awaited<ReturnType<typeof answerPax>>>["card"];
 const ask = async (q: string, rows: PaxRow[] = ROWS) => answerPax(q, async () => rows);
 const head = (a: Awaited<ReturnType<typeof ask>>) => a?.card.headline?.text;
 const tone = (a: Awaited<ReturnType<typeof ask>>) => a?.card.headline?.tone;
-const nums = (a: Awaited<ReturnType<typeof ask>>) => (a?.card.table?.rows ?? []).map((r) => r[0]);
+const nums = (a: Awaited<ReturnType<typeof ask>>) => { const i = (a?.card.table?.columns ?? []).indexOf("PAX"); return (a?.card.table?.rows ?? []).map((r) => r[i]); };
+const col = (a: Awaited<ReturnType<typeof ask>>, name: string) => { const i = (a?.card.table?.columns ?? []).indexOf(name); return (a?.card.table?.rows ?? []).map((r) => r[i]); };
 
 async function main() {
   // ---- text helpers ----
@@ -97,8 +98,8 @@ async function main() {
   // ---- a name to its number ----
   let a = await ask("pax number of fire service");
   ok("fire service: the headline is the number, big and bold", head(a) === "42046" && tone(a) === "info", JSON.stringify(a?.card.headline));
-  ok("...the sentence names it and the area", /^Fire Service — PAX 42046, in the plant\.$/.test(a?.summary ?? ""), a?.summary);
-  ok("...the table: PAX, Name, Area (no Note column when no row has a note)", JSON.stringify(a?.card.table?.columns) === JSON.stringify(["PAX", "Name", "Area"]) && a?.card.table?.rows[0].join("|") === "42046|Fire Service|In plant");
+  ok("...the sentence names it, with no word about plant or outside plant", /^Fire Service — PAX 42046\.$/.test(a?.summary ?? ""), a?.summary);
+  ok("...the table: Department | Location | PAX (the PAX number is the THIRD column, no Area column, no Note column when no row has a note)", JSON.stringify(a?.card.table?.columns) === JSON.stringify(["Department", "Location", "PAX"]) && a?.card.table?.rows[0].join("|") === "Fire Service||42046", JSON.stringify(a?.card.table));
   ok("...what PAX is, folded away (not a long paragraph on top)", a?.card.details?.[0]?.summary === "What is PAX?" && !a?.card.lines?.length);
   ok("...no red notes when nothing is wrong", !a?.card.notes?.length);
   ok("...'Understood as' says how it was read", /PAX number for “fire service”/.test(a?.interpretation ?? ""), a?.interpretation);
@@ -124,7 +125,7 @@ async function main() {
   a = await ask("pax network team cmms");
   ok("'pax network team cmms' -> 40522", head(a) === "40522");
   a = await ask("pax civil");
-  ok("'pax civil': the three zones, as numbers in the headline (three or fewer are the headline itself)", head(a) === "40101 · 40102 · 40103", head(a));
+  ok("'pax civil': the three zones, as numbers in the headline (three or fewer are the headline itself)", head(a) === "40101 / 40102 / 40103", head(a));
   a = await ask("pax civil a zone");
   ok("'pax civil a zone' -> 40101 only", head(a) === "40101" && nums(a).length === 1, JSON.stringify(nums(a)));
   ok("'pax civil zone b' -> 40102", head(await ask("pax civil zone b")) === "40102");
@@ -146,13 +147,13 @@ async function main() {
   ok("'pax rajesh kumar': a person has no PAX: not found, with the folded explanation that PAX is for departments and places", head(a) === "Not found" && /not to individual people/.test(a?.card.details?.[0]?.text ?? ""));
   // ---- a number to its name ----
   a = await ask("who has 42046");
-  ok("'who has 42046': the NAME is the headline", head(a) === "Fire Service" && /^PAX 42046 is Fire Service, in the plant\.$/.test(a?.summary ?? ""), a?.summary);
+  ok("'who has 42046': the NAME is the headline", head(a) === "Fire Service" && /^PAX 42046 is Fire Service\.$/.test(a?.summary ?? ""), a?.summary);
   ok("'42046' alone is answered the same", head(await ask("42046")) === "Fire Service");
   a = await ask("who has 42043");
   ok("'who has 42043': two names share it", head(a) === "2 names share 42043" && a?.card.table?.rows.length === 2 && (a?.card.notes ?? []).length === 1, JSON.stringify(a?.card.headline));
   a = await ask("pax 46298");
-  ok("'pax 46298': CISF Main Hospital, area NOT classified, said in a red note", head(a) === "CISF Main Hospital" && a?.card.table?.rows[0][2] === "Not classified" && (a?.card.notes ?? []).some((n) => /46298 is not classified/.test(n)), JSON.stringify(a?.card));
-  ok("'pax 45221' is outside the plant", /outside the plant/.test((await ask("pax 45221"))?.summary ?? ""));
+  ok("'pax 46298': CISF | Main Hospital | 46298; nothing is said about the area, no red note", head(a) === "CISF Main Hospital" && a?.card.table?.rows[0].join("|") === "CISF|Main Hospital|46298" && !(a?.card.notes ?? []).length && !/plant|classified/i.test(JSON.stringify(a?.card)), JSON.stringify(a?.card));
+  ok("'pax 45221' is the PAX Complain line, with no word about the area in the answer", /Complain/.test((await ask("pax 45221"))?.card.table?.rows[0][0] ?? "") && !/outside the plant|in the plant/.test((await ask("pax 45221"))?.summary ?? ""));
   a = await ask("pax 99999");
   ok("'pax 99999': not found (the word pax makes it ours)", head(a) === "Not found" && /not in the Telecom directory/.test(a?.summary ?? ""));
   ok("'99999' alone and 'who has 99999': NOT ours (nothing is claimed that is not found)", (await ask("99999")) === null && (await ask("who has 99999")) === null);
@@ -162,27 +163,40 @@ async function main() {
   ok("two numbers at once: both found", head(a) === "2 of 2 numbers found" && nums(a).length === 2);
   a = await ask("pax 42046 and 11111");
   ok("two numbers, one missing: 1 of 2, and the missing one is named", head(a) === "1 of 2 numbers found" && (a?.card.lines ?? []).some((l) => /Not in the directory: 11111/.test(l)));
+  // ---- a department with more than one number: ONE row, "first / second" (owner, 31 Oct 2026); a name that shares a number joins that department ----
+  const TWO: PaxRow[] = [mk("CISF Tumla Gate", "40926"), mk("CISF Tumla Gate", "42043"), mk("Weigh Bridge - Tumla Gate", "42043"), mk("CISF (PCR)", "42041"), mk("Fire Service", "42046"), mk("Fire Service", "42050")];
+  a = await ask("pax tumla gate", TWO);
+  ok("'pax tumla gate': CISF Tumla Gate with two numbers is ONE row '40926 / 42043'; Weigh Bridge - Tumla Gate is under CISF too (it shares 42043)", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["CISF", "Tumla Gate", "40926 / 42043"], ["CISF", "Weigh Bridge - Tumla Gate", "42043"]]), JSON.stringify(a?.card.table?.rows));
+  ok("...the headline is the numbers 'first / second'", head(a) === "40926 / 42043", head(a));
+  ok("...the red note says it in the table's own terms: CISF · Tumla Gate; CISF · Weigh Bridge - Tumla Gate", (a?.card.notes ?? []).some((n) => /^42043 is listed under 2 names \(CISF · Tumla Gate; CISF · Weigh Bridge - Tumla Gate\)/.test(n)), JSON.stringify(a?.card.notes));
+  a = await ask("pax fire service", TWO);
+  ok("'pax fire service' with two numbers: ONE row 'Fire Service | | 42046 / 42050', the headline and the sentence say 'first / second'", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["Fire Service", "", "42046 / 42050"]]) && head(a) === "42046 / 42050" && a?.summary === "Fire Service — PAX 42046 / 42050.", JSON.stringify(a?.card.table?.rows) + a?.summary);
+  a = await ask("who has 42043", TWO);
+  ok("'who has 42043': the two lines that hold it, both under CISF", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["CISF", "Tumla Gate", "42043"], ["CISF", "Weigh Bridge - Tumla Gate", "42043"]]) && head(a) === "2 names share 42043", JSON.stringify(a?.card.table?.rows));
+  a = await ask("pax", TWO);
+  ok("the whole list counts numbers, not rows: 5 numbers on 4 table rows (and 6 entries, said)", head(a) === "5 PAX numbers" && a?.card.table?.rows.length === 4 && (a?.card.lines ?? []).some((l) => /6 entries in all/.test(l)), JSON.stringify(a?.card.table?.rows) + JSON.stringify(a?.card.lines));
+
   // ---- lists, counts, areas ----
   a = await ask("pax");
   ok("'pax': the whole directory, the headline is the count of numbers", head(a) === `${DISTINCT} PAX numbers` && a?.card.table?.rows.length === ROWS.length, head(a));
-  ok("...the area breakdown is a bullet each, the double listing is explained", (a?.card.lines ?? []).some((l) => /^In plant: \d+$/.test(l)) && (a?.card.lines ?? []).some((l) => /^Outside plant: \d+$/.test(l)) && (a?.card.lines ?? []).some((l) => /^Not classified: 1$/.test(l)) && (a?.card.lines ?? []).some((l) => /19 entries in all/.test(l)), JSON.stringify(a?.card.lines));
-  ok("...plant numbers first, then outside, then not classified", a?.card.table?.rows[0][2] === "In plant" && a?.card.table?.rows[ROWS.length - 1][2] === "Not classified");
+  ok("...no area breakdown (nothing about plant or outside plant); only the double listing is explained", (a?.card.lines ?? []).length === 1 && /19 entries in all/.test(a?.card.lines?.[0] ?? ""), JSON.stringify(a?.card.lines));
+  ok("...the first column is in A to Z order", JSON.stringify(col(a, "Department")) === JSON.stringify([...col(a, "Department")].sort((x, y) => x.localeCompare(y, "en", { numeric: true, sensitivity: "base" }))), JSON.stringify(col(a, "Department")));
   a = await ask("how many pax numbers");
   ok("'how many pax numbers': the headline is the bare count", head(a) === String(DISTINCT), head(a));
   a = await ask("pax numbers outside plant");
-  ok("'pax numbers outside plant': only outside numbers (46298 is not classified, so not among them)", nums(a).length === 3 && (a?.card.table?.rows ?? []).every((r) => r[2] === "Outside plant") && head(a) === "3 PAX numbers", JSON.stringify(nums(a)));
+  ok("'pax numbers outside plant': only the outside numbers (46298 is not classified, so not among them); the filter still works though no area column is shown", JSON.stringify(nums(a).sort()) === JSON.stringify(["45221", "45310", "45401"]) && head(a) === "3 PAX numbers", JSON.stringify(nums(a)));
   ok("'township pax numbers' is the same", JSON.stringify(nums(await ask("township pax numbers"))) === JSON.stringify(nums(a)));
   a = await ask("pax numbers in plant");
-  ok("'pax numbers in plant': plant rows only, none outside", (a?.card.table?.rows ?? []).every((r) => r[2] === "In plant") && nums(a).length === ROWS.filter((r) => r.area === "plant").length);
+  ok("'pax numbers in plant': the plant numbers only, none outside", nums(a).length === ROWS.filter((r) => r.area === "plant").length && nums(a).every((n) => ROWS.find((r) => r.number === n)?.area === "plant"));
   a = await ask("how many pax numbers in plant");
   ok("'how many pax numbers in plant': a bare count", head(a) === String(new Set(ROWS.filter((r) => r.area === "plant").map((r) => r.number)).size));
   a = await ask("pax complaint");
-  ok("'pax complaint': both complaint numbers", head(a) === "40221 · 45221" && a?.card.title === "PAX complaint numbers", JSON.stringify(a?.card));
-  ok("...'pax not working' and 'pax out of order' are the same", head(await ask("pax not working")) === "40221 · 45221" && head(await ask("pax out of order")) === "40221 · 45221");
+  ok("'pax complaint': both complaint numbers", head(a) === "40221 / 45221" && a?.card.title === "PAX complaint numbers", JSON.stringify(a?.card));
+  ok("...'pax not working' and 'pax out of order' are the same", head(await ask("pax not working")) === "40221 / 45221" && head(await ask("pax out of order")) === "40221 / 45221");
   a = await ask("pax electrical complaint");
   ok("'pax electrical complaint' finds the ELECTRICAL desk (MRS Control), the words are not thrown away", head(a) === "40601" && nums(a).length === 1, JSON.stringify(a?.card));
   a = await ask("pax not working in civil");
-  ok("'pax not working in civil': 'civil' matches no complaint row, so the PAX complaint desk answers and the unused word is SAID", head(a) === "40221 · 45221" && (a?.card.lines ?? []).some((l) => /Words not used: civil/.test(l)), JSON.stringify(a?.card));
+  ok("'pax not working in civil': 'civil' matches no complaint row, so the PAX complaint desk answers and the unused word is SAID", head(a) === "40221 / 45221" && (a?.card.lines ?? []).some((l) => /Words not used: civil/.test(l)), JSON.stringify(a?.card));
   ok("a weak cue with a fault ('my phone is not working', 'telephone out of order') is NEVER taken: that is not a PAX question without the word pax", (await ask("my phone is not working")) === null && (await ask("telephone out of order")) === null);
   ok("'pax fire service department' and 'pax no of fire service dept' -> 42046 (department is filler)", head(await ask("pax fire service department")) === "42046" && head(await ask("pax no of fire service dept")) === "42046");
   a = await ask("pax complaint township");
@@ -195,7 +209,7 @@ async function main() {
   ok("a count of a name: 'how many pax numbers does civil have' = 3", head(a) === "3", JSON.stringify(a?.card.headline));
   // an empty directory, a bad row
   ok("an empty table: an honest 'Empty', never a crash", head(await ask("pax", [])) === "Empty");
-  ok("a note in a row adds a Note column", (await ask("pax fire service", [{ ...ROWS[3], note: "Day shift only" }]))?.card.table?.columns.join() === "PAX,Name,Area,Note");
+  ok("a note in a row adds a Note column (after PAX)", (await ask("pax fire service", [{ ...ROWS[3], note: "Day shift only" }]))?.card.table?.columns.join() === "Department,Location,PAX,Note");
   ok("a failing read: a strong cue says 'Not available' plainly; a weak or bare-number question is simply not taken", head(await answerPax("pax fire service", async () => { throw new Error("down"); })) === "Not available" && (await answerPax("who has 42046", async () => { throw new Error("down"); })) === null);
   ok("buildPaxAnswer is pure: the same plan and rows give the same card twice", JSON.stringify(buildPaxAnswer(planPaxQuery("pax civil")!, ROWS)) === JSON.stringify(buildPaxAnswer(planPaxQuery("pax civil")!, ROWS)));
   ok("matchByNumber / matchByName basics", matchByNumber(ROWS, ["42043"]).length === 2 && matchByName(ROWS, ["fire"], false).rows.length === 1);

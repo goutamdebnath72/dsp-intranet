@@ -66,7 +66,7 @@ async function main() {
 
   const real = (q: string) => answerPax(q, () => loadPaxRows(query));
   let a = await real("pax number of fire service");
-  ok("end to end from the table: 'pax number of fire service' -> 42046, in the plant", a?.card.headline?.text === "42046" && /in the plant/.test(a.summary), JSON.stringify(a?.card.headline));
+  ok("end to end from the table: 'pax number of fire service' -> 42046", a?.card.headline?.text === "42046" && a.summary === "Fire Service — PAX 42046.", JSON.stringify(a?.card.headline));
   a = await real("who has 42043");
   ok("end to end: 'who has 42043' -> two names share it (the number the handoff says is on two names)", a?.card.headline?.text === "2 names share 42043");
   a = await real("pax complaint township");

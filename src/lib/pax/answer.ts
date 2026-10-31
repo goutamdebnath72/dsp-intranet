@@ -9,7 +9,8 @@
 // a name that merely shares some words is shown as "closest", never as the answer.
 
 import type { HospitalAnswer, HospitalTable } from "@/lib/hospital/types";
-import { filterByArea, matchByName, matchByNumber, planPaxQuery, sortPaxRows, uniqueRows, type PaxArea, type PaxPlan, type PaxRow } from "./matcher";
+import { compareParts, splitLabels } from "./display";
+import { filterByArea, matchByName, matchByNumber, planPaxQuery, uniqueRows, type PaxArea, type PaxPlan, type PaxRow } from "./matcher";
 
 export interface PaxAnswer {
   /** The plain sentence (the payload's `answer`: copy, export, screen readers). */
@@ -19,8 +20,6 @@ export interface PaxAnswer {
   interpretation: string;
 }
 
-const AREA_CELL: Record<PaxArea, string> = { plant: "In plant", outside: "Outside plant", unclassified: "Not classified" };
-const AREA_SENTENCE: Record<PaxArea, string> = { plant: "in the plant", outside: "outside the plant", unclassified: "area not classified" };
 const AREA_ONLY: Record<PaxArea, string> = { plant: "in the plant", outside: "outside the plant", unclassified: "not classified" };
 
 const WHAT_IS_PAX = {
@@ -33,39 +32,60 @@ const distinct = <T,>(xs: T[]): T[] => Array.from(new Set(xs));
 const numbersOf = (rows: PaxRow[]) => distinct(rows.map((r) => r.number));
 const labelsOf = (rows: PaxRow[]) => distinct(rows.map((r) => r.label));
 
-function tableOf(rows: PaxRow[], areaFirst = false): HospitalTable {
-  const sorted = sortPaxRows(rows, areaFirst);
-  const withNote = sorted.some((r) => r.note.trim());
-  return {
-    columns: withNote ? ["PAX", "Name", "Area", "Note"] : ["PAX", "Name", "Area"],
-    rows: sorted.map((r) => (withNote ? [r.number, r.label, AREA_CELL[r.area], r.note.trim()] : [r.number, r.label, AREA_CELL[r.area]])),
-  };
-}
-
-/** Red points at the foot: a number on two names, a number whose area the rule cannot tell. Only where it applies. */
-function notesFor(rows: PaxRow[]): string[] {
-  const notes: string[] = [];
-  for (const n of numbersOf(rows)) {
-    const names = labelsOf(rows.filter((r) => r.number === n));
-    if (names.length > 1) notes.push(`${n} is listed under ${names.length} names (${names.join("; ")}). Telecom can say which is current.`);
-  }
-  for (const n of numbersOf(rows.filter((r) => r.area === "unclassified"))) {
-    notes.push(`The area of ${n} is not classified: its number fits neither the plant nor the outside-plant pattern.`);
-  }
-  return notes;
-}
-
-/** Up to three numbers are the headline itself; more are a count. */
-const numbersHeadline = (rows: PaxRow[]): string => {
-  const nums = numbersOf(sortPaxRows(rows));
-  return nums.length <= 3 ? nums.join(" · ") : `${nums.length} PAX numbers`;
-};
-
 const quote = (s: string) => `“${s}”`;
 const noteFromCorrections = (c: Array<[string, string]>) => (c.length ? ` Read ${c.map(([a, b]) => `${quote(a)} as ${quote(b)}`).join(", ")}.` : "");
 
-function notFound(headline: string, title: string, sentence: string, interpretation: string, lines: string[] = [], rows: PaxRow[] = []): PaxAnswer {
-  return {
+/**
+ * The pieces of a card, made for one directory. `directory` = EVERY row of the list: which names share a department is read from the whole list (display.ts), not from the few rows shown.
+ * The table is Department | Location | PAX, the departments A to Z, with no column for plant or outside plant (owner, 31 Oct 2026).
+ * A department (one place) with more than one number is ONE row: "40926 / 42043", the numbers in order.
+ */
+function cards(directory: PaxRow[]) {
+  const partsOf = (rows: PaxRow[]) => splitLabels(directory.concat(rows));
+  const arranged = (rows: PaxRow[]) => {
+    const parts = partsOf(rows);
+    const merged = new Map<string, { department: string; location: string; numbers: string[]; notes: string[] }>();
+    for (const r of rows) {
+      const p = parts.get(r.label.trim()) ?? { department: r.label, location: "" };
+      const key = `${p.department.toLowerCase()}|${p.location.toLowerCase()}`;
+      const m = merged.get(key) ?? { department: p.department, location: p.location, numbers: [], notes: [] };
+      if (!m.numbers.includes(r.number)) m.numbers.push(r.number);
+      if (r.note.trim() && !m.notes.includes(r.note.trim())) m.notes.push(r.note.trim());
+      merged.set(key, m);
+    }
+    return Array.from(merged.values())
+      .map((m) => ({ department: m.department, location: m.location, numbers: [...m.numbers].sort((a, b) => a.localeCompare(b, "en", { numeric: true })), note: m.notes.join("; ") }))
+      .map((m) => ({ ...m, number: m.numbers[0] }))
+      .sort(compareParts);
+  };
+  const tableOf = (rows: PaxRow[]): HospitalTable => {
+    const lines = arranged(rows);
+    const withNote = lines.some((l) => l.note);
+    return {
+      columns: withNote ? ["Department", "Location", "PAX", "Note"] : ["Department", "Location", "PAX"],
+      rows: lines.map((l) => (withNote ? [l.department, l.location, l.numbers.join(" / "), l.note] : [l.department, l.location, l.numbers.join(" / ")])),
+    };
+  };
+  /** Up to three numbers are the headline itself, "first / second" (in the order of the table); more are a count. */
+  const numbersHeadline = (rows: PaxRow[]): string => {
+    const nums = distinct(arranged(rows).flatMap((l) => l.numbers));
+    return nums.length <= 3 ? nums.join(" / ") : `${nums.length} PAX numbers`;
+  };
+  /** Red points at the foot: a number that stands on two names, said in the table's own terms (department, location). */
+  const notesFor = (rows: PaxRow[]): string[] => {
+    const parts = partsOf(rows);
+    const show = (label: string) => {
+      const p = parts.get(label.trim());
+      return p ? (p.location ? `${p.department} · ${p.location}` : p.department) : label;
+    };
+    const notes: string[] = [];
+    for (const n of numbersOf(rows)) {
+      const names = labelsOf(rows.filter((r) => r.number === n));
+      if (names.length > 1) notes.push(`${n} is listed under ${names.length} names (${names.map(show).join("; ")}). Telecom can say which is current.`);
+    }
+    return notes;
+  };
+  const notFound = (headline: string, title: string, sentence: string, interpretation: string, lines: string[] = [], rows: PaxRow[] = []): PaxAnswer => ({
     summary: sentence,
     interpretation,
     card: {
@@ -76,24 +96,24 @@ function notFound(headline: string, title: string, sentence: string, interpretat
       ...(lines.length ? { lines } : {}),
       details: [WHAT_IS_PAX],
     },
+  });
+  const found = (headline: string, title: string, sentence: string, interpretation: string, rows: PaxRow[], extra: { lines?: string[] } = {}): PaxAnswer => {
+    const notes = notesFor(rows);
+    return {
+      summary: sentence,
+      interpretation,
+      card: {
+        title,
+        headline: { text: headline, tone: "info" },
+        status: { tone: "info", text: sentence },
+        table: tableOf(rows),
+        ...(extra.lines?.length ? { lines: extra.lines } : {}),
+        ...(notes.length ? { notes } : {}),
+        details: [WHAT_IS_PAX],
+      },
+    };
   };
-}
-
-function found(headline: string, title: string, sentence: string, interpretation: string, rows: PaxRow[], extra: { lines?: string[]; areaFirst?: boolean } = {}): PaxAnswer {
-  const notes = notesFor(rows);
-  return {
-    summary: sentence,
-    interpretation,
-    card: {
-      title,
-      headline: { text: headline, tone: "info" },
-      status: { tone: "info", text: sentence },
-      table: tableOf(rows, extra.areaFirst),
-      ...(extra.lines?.length ? { lines: extra.lines } : {}),
-      ...(notes.length ? { notes } : {}),
-      details: [WHAT_IS_PAX],
-    },
-  };
+  return { found, notFound, numbersHeadline, arranged };
 }
 
 const areaPhrase = (a: PaxArea | null) => (a ? `, ${AREA_ONLY[a]} only` : "");
@@ -102,6 +122,7 @@ const areaPhrase = (a: PaxArea | null) => (a ? `, ${AREA_ONLY[a]} only` : "");
 export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   if (plan.kind === "person") return null; // a person is not in the directory (people.ts)
   const rows = uniqueRows(all);
+  const { found, notFound, numbersHeadline, arranged } = cards(rows);
 
   // ---- a LIST or a COUNT of the whole directory (or one area of it) ----
   if (plan.kind === "list") {
@@ -116,14 +137,8 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
       ? `${plural(nums.length, "PAX number", "PAX numbers")} ${AREA_ONLY[plan.area]}.`
       : `${plural(nums.length, "PAX number", "PAX numbers")} in the directory.`;
     const lines: string[] = [];
-    if (!plan.area) {
-      for (const a of ["plant", "outside", "unclassified"] as PaxArea[]) {
-        const k = numbersOf(rows.filter((r) => r.area === a)).length;
-        if (k > 0) lines.push(`${AREA_CELL[a]}: ${k}`);
-      }
-    }
     if (shown.length !== nums.length) lines.push(`${plural(shown.length, "entry", "entries")} in all: a number can be listed under two names.`);
-    return found(plan.count ? String(nums.length) : `${nums.length} PAX numbers`, plan.count ? `PAX numbers${areaPhrase(plan.area) || " in the directory"}` : `PAX directory${areaPhrase(plan.area)}`, sentence, interp, shown, { lines, areaFirst: true });
+    return found(plan.count ? String(nums.length) : `${nums.length} PAX numbers`, plan.count ? `PAX numbers${areaPhrase(plan.area) || " in the directory"}` : `PAX directory${areaPhrase(plan.area)}`, sentence, interp, shown, { lines });
   }
 
   // ---- a NUMBER: who has it ----
@@ -149,7 +164,7 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
       const names = labelsOf(area);
       const r = area[0];
       const headline = names.length === 1 ? names[0] : `${names.length} names share ${asked}`;
-      const sentence = names.length === 1 ? `PAX ${asked} is ${names[0]}, ${AREA_SENTENCE[r.area]}.` : `PAX ${asked} is listed under ${names.length} names: ${names.join(" and ")}.`;
+      const sentence = names.length === 1 ? `PAX ${asked} is ${names[0]}.` : `PAX ${asked} is listed under ${names.length} names: ${names.join(" and ")}.`;
       return found(headline, `Who has PAX ${asked}`, sentence, interp, area, { lines });
     }
     return found(`${foundNums.length} of ${plan.numbers.length} numbers found`, `Who has PAX ${asked}`, `${foundNums.length} of ${plan.numbers.length} numbers are in the directory.`, interp, area, { lines });
@@ -187,9 +202,11 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   if (plan.count) {
     return found(String(nums.length), `PAX numbers for ${quote(asked)}${areaPhrase(plan.area)}`, `${plural(nums.length, "PAX number", "PAX numbers")} for ${quote(asked)}.`, interp, narrowed);
   }
+  // one department (one place) with several numbers is ONE line: "Fire Service — PAX 42046 / 42050."
+  const oneLine = arranged(narrowed).length === 1 ? arranged(narrowed)[0] : null;
   const sentence =
-    narrowed.length === 1
-      ? `${narrowed[0].label} — PAX ${narrowed[0].number}, ${AREA_SENTENCE[narrowed[0].area]}.${noteFromCorrections(m.corrections)}`
+    oneLine
+      ? `${narrowed[0].label} — PAX ${oneLine.numbers.join(" / ")}.${noteFromCorrections(m.corrections)}`
       : `${plural(narrowed.length, "entry matches", "entries match")} ${quote(asked)}${areaPhrase(plan.area)}: see the table.${noteFromCorrections(m.corrections)}`;
   return found(numbersHeadline(narrowed), title, sentence, interp, narrowed, { lines: notUsed });
 }
@@ -206,7 +223,7 @@ export async function answerPax(typed: string, load: () => Promise<PaxRow[]>): P
     rows = await load();
   } catch {
     if (plan.claim !== "always") return null;
-    return notFound("Not available", "PAX directory", "The PAX directory could not be read just now. Please try again in a moment.", "PAX directory");
+    return cards([]).notFound("Not available", "PAX directory", "The PAX directory could not be read just now. Please try again in a moment.", "PAX directory");
   }
   const answer = buildPaxAnswer(plan, rows);
   if (!answer) return null;
