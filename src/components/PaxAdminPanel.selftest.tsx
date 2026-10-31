@@ -4,7 +4,7 @@
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ConflictView, EntryFormView, EntryList, HistoryList, PaxAdminPanel, conflictText } from "./PaxAdminPanel";
+import { ConflictView, EntryFormView, EntryList, HistoryList, PaxAdminHeader, PaxAdminPanel, conflictText } from "./PaxAdminPanel";
 import type { PaxConflict, PaxEntryView } from "@/lib/pax/admin/types";
 
 let pass = 0, fail = 0;
@@ -91,6 +91,15 @@ ok("'delegate' opens the authorised-people tab for the HOD", h(<PaxAdminPanel op
 ok("a delegate who somehow gets the 'delegate' op still gets no people tab content (the server refuses anyway)", !h(<PaxAdminPanel open={{ op: "delegate", role: "delegate" }} />).includes("Authorise an executive"));
 ok("the tabs are a real tab list with the chosen one marked", hod.includes('role="tablist"') && /role="tab" aria-selected="true"[^>]*>[^<]*(<svg[^>]*>.*?<\/svg>)?Add/.test(hod.replace(/\n/g, "")));
 ok("all panel text is escaped (a prefill with a tag is text)", !h(<PaxAdminPanel open={{ op: "add", role: "hod", prefill: { department: "<img src=x onerror=alert(1)>" } }} />).includes("<img"));
+
+// ---- the top line: the title, the NAME of the logged-in person, the role: the same gap between the three ----
+const head = h(<PaxAdminHeader authority="delegate" name="RAKESH OJHA" />);
+ok("the header reads: PAX directory editor, then the person's NAME, then 'Authorised executive' (in this order)", head.indexOf("PAX directory editor") > 0 && head.indexOf("PAX directory editor") < head.indexOf("RAKESH OJHA") && head.indexOf("RAKESH OJHA") < head.indexOf("Authorised executive"), head);
+ok("...the three sit in ONE row with ONE gap between them (a single gap class on the row, and no margin or padding classes on the three that would make the gaps unequal)", (head.match(/gap-x-3/g) ?? []).length === 1 && !/\b(?:ml|mr|mx|pl|pr)-\d/.test(head.replace(/rounded-full bg-slate-100 px-2/, "")) && /data-pax-title="true"/.test(head) && /data-pax-actor="true"/.test(head) && /data-role="delegate"/.test(head));
+ok("the HOD's header names him before 'HOD of C&IT'", (() => { const x = h(<PaxAdminHeader authority="hod" name="MOHD ANWAR ULLAH" />); return x.indexOf("MOHD ANWAR ULLAH") < x.indexOf("HOD of C&amp;IT") && x.indexOf("PAX directory editor") < x.indexOf("MOHD ANWAR ULLAH"); })());
+ok("until the name has arrived: the title and the role only, no empty gap element", (() => { const x = h(<PaxAdminHeader authority="hod" name={null} />); return !x.includes("data-pax-actor") && x.includes("PAX directory editor") && x.includes("HOD of C&amp;IT") && !h(<PaxAdminHeader authority="hod" name="" />).includes("data-pax-actor"); })());
+ok("the name is escaped", !h(<PaxAdminHeader authority="hod" name="<img src=x onerror=alert(1)>" />).includes("<img"));
+ok("the panel uses this header", hod.includes('data-pax-header="true"') && del.includes('data-pax-header="true"'));
 
 // ---- guards for the two ways a form can hang (the tests above draw on the server, where effects never run; the clicks are covered by the sandbox run described in STATUS) ----
 import { readFileSync } from "node:fs";

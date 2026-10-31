@@ -205,6 +205,25 @@ const ACTION_WORD: Record<PaxAuditView["action"], string> = { add: "Added", modi
  * an added line and a deleted line look the same. For a change the new line is shown and the old one is said under "Changed"; for a deleted line, the line that went; an authorisation or a withdrawal has
  * no line, so the executive concerned is named under the action and the three line columns show a dash.
  */
+/**
+ * The top line of the editor (owner, 31 Oct 2026): the title, then the NAME of the person who is logged in, then the role label ("HOD of C&IT" or "Authorised executive"), with the same gap between the three.
+ * The name is the login's (the server's answer to `me`), shown as soon as it arrives; until then the line has the title and the role.
+ */
+export function PaxAdminHeader({ authority, name }: { authority: PaxAdminOpen["role"]; name?: string | null }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-pax-header="true">
+      <ShieldCheck className="h-4 w-4 text-blue-700" aria-hidden="true" />
+      <p className="text-sm font-bold text-neutral-900" data-pax-title="true">PAX directory editor</p>
+      {name ? (
+        <p className="text-sm font-semibold text-neutral-700" data-pax-actor="true">{name}</p>
+      ) : null}
+      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700" data-role={authority}>
+        {authority === "hod" ? "HOD of C&IT" : "Authorised executive"}
+      </span>
+    </div>
+  );
+}
+
 export function HistoryList({ history }: { history: PaxAuditView[] }) {
   if (history.length === 0) return <p className="text-sm text-neutral-600">No change has been made from this panel yet.</p>;
   return (
@@ -297,6 +316,9 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   const [editConflict, setEditConflict] = useState<{ conflicts: PaxConflict[]; acknowledgeable: Acknowledge[]; entry: FormValues } | null>(null);
   const [deleting, setDeleting] = useState<PaxEntryView | null>(null);
 
+  // who is logged in (the server's answer; the name comes from the people directory)
+  const [me, setMe] = useState<string | null>(null);
+
   // people and history
   const [delegates, setDelegates] = useState<PaxDelegateView[] | null>(null);
   const [who, setWho] = useState("");
@@ -309,6 +331,12 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   useEffect(() => {
     alive.current = true;
     return () => { alive.current = false; };
+  }, []);
+  useEffect(() => {
+    void (async () => {
+      const r = await call({ op: "me" });
+      if (alive.current && r.ok && typeof r.body.name === "string" && r.body.name.trim()) setMe(r.body.name.trim());
+    })();
   }, []);
   const guard = useCallback(async <T,>(fn: () => Promise<T>, keepNotice = false): Promise<T | undefined> => {
     setBusy(true);
@@ -500,13 +528,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
 
   return (
     <div className="space-y-3" data-pax-admin="true">
-      <div className="flex flex-wrap items-center gap-2">
-        <ShieldCheck className="h-4 w-4 text-blue-700" aria-hidden="true" />
-        <p className="text-sm font-bold text-neutral-900">PAX directory editor</p>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700" data-role={open.role}>
-          {isHod ? "HOD of C&IT" : "Authorised executive"}
-        </span>
-      </div>
+      <PaxAdminHeader authority={open.role} name={me} />
 
       <div role="tablist" aria-label="PAX directory editor" className="flex flex-wrap gap-1 border-b border-neutral-200 pb-2">
         {tabs.filter((t) => t.show).map((t) => (
