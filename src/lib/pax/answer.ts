@@ -2,7 +2,7 @@
 //
 // THE PAX ANSWER (step 63a): from the question and the rows of the directory to the card the omnibar draws.
 // The owner's standing rule (26 Oct 2026): the ONE clean answer stands first as a single big bold statement (the number, the name, a count; amber "Not found" when it is not there),
-// the table after it, the explanations folded away. The card is the same one the hospital answers use (HospitalAnswerCard: headline, one sentence, table, bullets, red notes, folded details),
+// the table after it, no explanation and no red note (owner, 31 Oct 2026). The card is the same one the hospital answers use (HospitalAnswerCard: headline, one sentence, table, bullets, red notes, folded details),
 // so the screen needs no new component. Plain text only (React escapes it).
 //
 // Nothing here is invented: a number is shown only when it is a row of the table; a word read through a spelling slip is SAID ("read 'servise' as 'service'");
@@ -22,10 +22,6 @@ export interface PaxAnswer {
 
 const AREA_ONLY: Record<PaxArea, string> = { plant: "in the plant", outside: "outside the plant", unclassified: "not classified" };
 
-const WHAT_IS_PAX = {
-  summary: "What is PAX?",
-  text: "PAX is the land-line phone that works only inside DSP work areas. Its numbers have five digits and are kept by the Telecom department; this list is Telecom's. PAX numbers belong to departments and places, not to individual people.",
-};
 
 /** TEMPORARY (owner, 31 Oct 2026): a name with no location is shown with this word in the Location column until Telecom's list says better. Only the screen is affected; nothing is stored. */
 export const EMPTY_LOCATION = "Office";
@@ -74,20 +70,6 @@ function cards(directory: PaxRow[]) {
     const nums = distinct(arranged(rows).flatMap((l) => l.numbers));
     return nums.length <= 3 ? nums.join(" / ") : `${nums.length} PAX numbers`;
   };
-  /** Red points at the foot: a number that stands on two names, said in the table's own terms (department, location). */
-  const notesFor = (rows: PaxRow[]): string[] => {
-    const parts = partsOf(rows);
-    const show = (label: string) => {
-      const p = parts.get(label.trim());
-      return p ? (p.location ? `${p.department} · ${p.location}` : p.department) : label;
-    };
-    const notes: string[] = [];
-    for (const n of numbersOf(rows)) {
-      const names = labelsOf(rows.filter((r) => r.number === n));
-      if (names.length > 1) notes.push(`${n} is listed under ${names.length} names (${names.map(show).join("; ")}). Telecom can say which is current.`);
-    }
-    return notes;
-  };
   const notFound = (headline: string, title: string, sentence: string, interpretation: string, lines: string[] = [], rows: PaxRow[] = []): PaxAnswer => ({
     summary: sentence,
     interpretation,
@@ -97,11 +79,9 @@ function cards(directory: PaxRow[]) {
       status: { tone: "unknown", text: sentence },
       ...(rows.length ? { table: tableOf(rows) } : {}),
       ...(lines.length ? { lines } : {}),
-      details: [WHAT_IS_PAX],
     },
   });
   const found = (headline: string, title: string, sentence: string, interpretation: string, rows: PaxRow[], extra: { lines?: string[] } = {}): PaxAnswer => {
-    const notes = notesFor(rows);
     return {
       summary: sentence,
       interpretation,
@@ -111,8 +91,6 @@ function cards(directory: PaxRow[]) {
         status: { tone: "info", text: sentence },
         table: tableOf(rows),
         ...(extra.lines?.length ? { lines: extra.lines } : {}),
-        ...(notes.length ? { notes } : {}),
-        details: [WHAT_IS_PAX],
       },
     };
   };

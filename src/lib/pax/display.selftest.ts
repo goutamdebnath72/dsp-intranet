@@ -36,6 +36,13 @@ ok("PAX Complain (In Plant) -> PAX Complain | In Plant (a place name, kept as pr
 // a name that stands alone: cut at its bracket
 ok("Plant Medical (PMU) -> Plant Medical | PMU (alone: cut at the bracket)", at("Plant Medical (PMU)") === "Plant Medical|PMU");
 // the owner's rule of 31 Oct: complete department names are never cut, although both begin with "Plant"
+// the REAL list prints "Weigh Bridge – 60T" with an en dash: the dash is a separator, not a word of the department (owner's screen, 31 Oct 2026)
+const wb = splitLabels(["Weigh Bridge – 60T", "Weigh Bridge – 80T", "Weigh Bridge – Gate 5(Oxy)", "Weigh Bridge – North End", "Weigh Bridge – Tumla Gate"].map((label, i) => ({ label, number: String(40100 + i) })));
+ok("Weigh Bridge – 60T -> Weigh Bridge | 60T (no dash left on the department, none at the start of the location)", wb.get("Weigh Bridge – 60T")?.department === "Weigh Bridge" && wb.get("Weigh Bridge – 60T")?.location === "60T", JSON.stringify([...wb]));
+ok("...Gate 5(Oxy), North End, Tumla Gate likewise", wb.get("Weigh Bridge – Gate 5(Oxy)")?.location === "Gate 5(Oxy)" && wb.get("Weigh Bridge – North End")?.location === "North End" && wb.get("Weigh Bridge – Tumla Gate")?.location === "Tumla Gate");
+const dashes = splitLabels(["Weigh Bridge - A", "Weigh Bridge - B", "Store — X", "Store — Y", "Yard : P", "Yard : Q"].map((label) => ({ label })));
+ok("...a hyphen, an em dash and a colon are separators too", dashes.get("Weigh Bridge - A")?.department === "Weigh Bridge" && dashes.get("Store — X")?.department === "Store" && dashes.get("Store — X")?.location === "X" && dashes.get("Yard : P")?.department === "Yard" && dashes.get("Yard : P")?.location === "P", JSON.stringify([...dashes]));
+ok("...a dash INSIDE a name is kept (Gate 5 - Oxy stays as printed in a location)", splitLabels([{ label: "Weigh Bridge – Gate 5 - Oxy" }, { label: "Weigh Bridge – North End" }]).get("Weigh Bridge – Gate 5 - Oxy")?.location === "Gate 5 - Oxy");
 ok("Plant Control is a COMPLETE department name: Plant Control | (empty), not Plant | Control", at("Plant Control") === "Plant Control|", at("Plant Control"));
 ok("Plant Medical (PMU) is a complete name too: Plant Medical | PMU, not Plant | Medical (PMU)", at("Plant Medical (PMU)") === "Plant Medical|PMU", at("Plant Medical (PMU)"));
 const plants = splitLabels(["Plant Control", "Plant Medical (PMU)", "Plant Garage", "Plant Water"].map((label, i) => ({ label, number: String(40000 + i) })));

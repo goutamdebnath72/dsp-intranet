@@ -107,7 +107,7 @@ async function main() {
   p = await run("contact number of biswajit mondal");
   ok("a NON-EXECUTIVE person with the weak cue is not answered: null (the other routes answer as before)", p === null && calls.name.length === 1);
   p = await run("pax number of biswajit mondal");
-  ok("...with the word 'pax' it is an honest 'Not found' that says PAX belongs to departments and places", p?.hospital?.headline?.text === "Not found" && /not to individual people/.test(p.hospital.details?.[0]?.text ?? ""));
+  ok("...with the word 'pax' it is an honest 'Not found', nothing more said", p?.hospital?.headline?.text === "Not found" && !p.hospital.details && !p.hospital.notes);
   ok("a sound-alike is not a match: 'contact number of sanjay roi' -> null", (await run("contact number of sanjay roi")) === null);
   ok("nothing found at all: 'contact number of water pump', 'contact number of mediclaim' -> null", (await run("contact number of water pump")) === null && (await run("contact number of mediclaim")) === null);
   ok("a sentence is no name: more than four words never runs the name search", (await run("contact number of one two three four five")) === null && calls.name.length === 0);

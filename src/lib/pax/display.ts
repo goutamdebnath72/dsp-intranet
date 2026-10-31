@@ -33,6 +33,9 @@ function splitBracket(label: string): { base: string; inside: string | null } {
   return m ? { base: m[1].trim(), inside: m[2].trim() } : { base: label.trim(), inside: null };
 }
 
+/** A dash or colon standing alone between two parts of a printed name ("Weigh Bridge – 60T"): a separator, never a word of the department or the location. */
+const SEPARATOR = /^[-–—−:]+$/;
+
 /** The words that every name of the group begins with (compared without regard to case). */
 function commonLead(bases: string[][]): string[] {
   const lead: string[] = [];
@@ -41,6 +44,7 @@ function commonLead(bases: string[][]): string[] {
     if (w === undefined || !bases.every((b) => b[i] !== undefined && lower(b[i]) === lower(w))) break;
     lead.push(w);
   }
+  while (lead.length > 0 && SEPARATOR.test(lead[lead.length - 1])) lead.pop(); // "Weigh Bridge –" is the department "Weigh Bridge"
   return lead;
 }
 
@@ -79,7 +83,7 @@ export function splitLabels(entries: Entry[]): Map<string, Parts> {
         for (const l of members) {
           grouped.add(l);
           // the location = what is printed after the shared words, verbatim; only a lone bracket loses its brackets
-          const rest = l.trim().replace(/\s+/g, " ").slice(lead.join(" ").length).trim();
+          const rest = l.trim().replace(/\s+/g, " ").slice(lead.join(" ").length).replace(/^[\s\-–—−:]+/, "").trim();
           const lone = BRACKET.exec(rest);
           out.set(l, { department: lead.join(" "), location: lone && lone[1] === "" ? lone[2].trim() : rest });
         }
