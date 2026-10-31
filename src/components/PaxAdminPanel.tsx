@@ -377,6 +377,10 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   }
 
   // ---- add ----
+  /** The add form saves only when its required inputs are there (the department and a PAX number of exactly 5 digits starting with 4; the location is optional): the button stays off until then (owner, 31 Oct 2026), and says what is missing. */
+  const addValid = validateEntry(addForm);
+  const addHint = addValid.ok ? undefined : (addValid.errors.department ?? addValid.errors.number ?? addValid.errors.location);
+
   async function submitAdd(ack: Acknowledge[] = []) {
     const v = validateEntry(addForm);
     if (!v.ok) return setAddErrors(v.errors);
@@ -555,7 +559,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
       {tab === "add" && (
         <div className="space-y-3">
           <p className="text-sm text-neutral-700">Type the department, the location and the new PAX number. Every entry is checked against what is saved.</p>
-          <EntryFormView idPrefix="pax-add" values={addForm} errors={addErrors} busy={busy} submitLabel="Check and save" onChange={(v) => { setAddForm(v); setAddConflict(null); }} onSubmit={() => void submitAdd()} />
+          <EntryFormView idPrefix="pax-add" values={addForm} errors={addErrors} busy={busy} submitLabel="Check and save" submitDisabled={!addValid.ok} submitHint={addHint} onChange={(v) => { setAddForm(v); setAddConflict(null); }} onSubmit={() => void submitAdd()} />
           {addConflict && (
             <ConflictView
               conflicts={addConflict.conflicts}

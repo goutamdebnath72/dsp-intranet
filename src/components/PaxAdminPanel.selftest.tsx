@@ -92,6 +92,18 @@ ok("a delegate who somehow gets the 'delegate' op still gets no people tab conte
 ok("the tabs are a real tab list with the chosen one marked", hod.includes('role="tablist"') && /role="tab" aria-selected="true"[^>]*>[^<]*(<svg[^>]*>.*?<\/svg>)?Add/.test(hod.replace(/\n/g, "")));
 ok("all panel text is escaped (a prefill with a tag is text)", !h(<PaxAdminPanel open={{ op: "add", role: "hod", prefill: { department: "<img src=x onerror=alert(1)>" } }} />).includes("<img"));
 
+// ---- the Add tab: "Check and save" stays OFF until the department is typed and the PAX number is valid (owner, 31 Oct 2026) ----
+const addOff = (el: string) => /<button[^>]*disabled=""[^>]*>Check and save</.test(el);
+const addPanel = (prefill?: { department?: string; number?: string }) => h(<PaxAdminPanel open={{ op: "add", role: "hod", ...(prefill ? { prefill } : {}) }} />);
+const empty = addPanel();
+ok("the Add form starts with the button OFF, and the reason under it: type the department", addOff(empty) && empty.includes('data-submit-hint="true"') && empty.includes("Type the department."), empty.slice(0, 200));
+const both = addPanel({ department: "garage", number: "42555" });
+ok("with a department and a valid number already in the fields (from the sentence typed in the search bar) the button is ON and there is no hint", !addOff(both) && !both.includes('data-submit-hint="true"'));
+ok("only a number: still OFF, 'Type the department.'", addOff(addPanel({ number: "42555" })) && addPanel({ number: "42555" }).includes("Type the department."));
+ok("only a department: still OFF, 'Type the PAX number.'", addOff(addPanel({ department: "garage" })) && addPanel({ department: "garage" }).includes("Type the PAX number."));
+ok("the location is NOT required: a department and a number are enough (the form above has no location)", !addOff(both) && both.includes('id="pax-add-location"'));
+ok("the Change form keeps its own rule (it is not drawn until a line is chosen, so the Add rule cannot leak into it)", !addPanel().includes("pax-edit-number"));
+
 // ---- the top line: the title, the NAME of the logged-in person, the role: the same gap between the three ----
 const head = h(<PaxAdminHeader authority="delegate" name="RAKESH OJHA" />);
 ok("the header reads: PAX directory editor, then the person's NAME, then 'Authorised executive' (in this order)", head.indexOf("PAX directory editor") > 0 && head.indexOf("PAX directory editor") < head.indexOf("RAKESH OJHA") && head.indexOf("RAKESH OJHA") < head.indexOf("Authorised executive"), head);
