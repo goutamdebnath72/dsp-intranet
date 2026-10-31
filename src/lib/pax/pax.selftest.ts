@@ -203,6 +203,15 @@ async function main() {
     const x = await ask(q, REAL);
     ok(`"${q}" -> ${want}`, head(x) === want, `got ${head(x)}`);
   }
+  // "Gate No. 2" is the same gate as "Gate No. 2A" (owner, 31 Oct 2026), both ways; another number is not
+  const G2: PaxRow[] = [mk("CISF Gate No. 2A", "42384"), mk("CISF Gate No. 2B", "42385"), mk("CISF Gate No. 5", "42748"), mk("CISF Gate No. 20", "42120"), mk("Weigh Bridge – Gate 5(Oxy)", "42746")];
+  ok("'pax gate no 2' finds Gate No. 2A and 2B (not 5, not 20)", JSON.stringify(nums(await ask("pax gate no 2", G2)).sort()) === JSON.stringify(["42384", "42385"]));
+  ok("'pax cisf gate 2' and 'phone number of gate no 2' are the same", JSON.stringify(nums(await ask("pax cisf gate 2", G2)).sort()) === JSON.stringify(["42384", "42385"]) && JSON.stringify(nums(await ask("phone number of gate no 2", G2)).sort()) === JSON.stringify(["42384", "42385"]));
+  ok("'pax gate no 2a' shows 2A and 2B alike: the number is what counts, a letter after it does not separate gates", JSON.stringify(nums(await ask("pax gate no 2a", G2)).sort()) === JSON.stringify(["42384", "42385"]));
+  const G2PLAIN: PaxRow[] = [mk("CISF Gate No. 2", "42380"), mk("CISF Gate No. 5", "42748")];
+  ok("the other way: 'pax gate no 2a' finds a row printed 'Gate No. 2'", JSON.stringify(nums(await ask("pax gate no 2a", G2PLAIN))) === JSON.stringify(["42380"]));
+  ok("'pax gate 5' still finds only the 5s, 'pax gate no 20' only 20", JSON.stringify(nums(await ask("pax gate 5", G2)).sort()) === JSON.stringify(["42746", "42748"]) && JSON.stringify(nums(await ask("pax gate no 20", G2))) === JSON.stringify(["42120"]));
+  ok("'pax cisf gate 2a' in the real-names fixture -> 42384 (as before)", head(await ask("pax cisf gate 2a", REAL)) === "42384" && head(await ask("pax gate no 2", REAL)) === "42384");
   ok("'pax weigh bridge tumla gate' names ONE line (Weigh Bridge | Tumla Gate), not the CISF one", JSON.stringify((await ask("pax weigh bridge tumla gate", REAL))?.card.table?.rows) === JSON.stringify([["Weigh Bridge", "Tumla Gate", "42043"]]));
   ok("a short number is part of a name ('gate 5'), a group of three to five digits is a number", JSON.stringify((planPaxQuery("pax gate 5") as { tokens: string[] }).tokens) === JSON.stringify(["gate", "5"]) && planPaxQuery("pax gate 42746")?.kind === "number");
   ok("a trailing 'in' is only a narrowing word: 'pax numbers in plant' is still the area, not a name", (planPaxQuery("pax numbers in plant") as { area: string }).area === "plant" && planPaxQuery("pax numbers in plant")?.kind === "list");

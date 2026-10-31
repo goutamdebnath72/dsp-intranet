@@ -111,6 +111,14 @@ export type TokenHit = { kind: "exact" | "prefix" | "fuzzy"; hit: string };
 /** Does one word of the question match one of the row's words? exact; prefix ("hosp" for "hospital", "services" for "service"); or a spelling slip. */
 export function matchToken(q: string, tokens: Set<string>): TokenHit | null {
   if (tokens.has(q)) return { kind: "exact", hit: q };
+  // a short number and the same number with one letter after it are the same gate (owner, 31 Oct 2026): "gate no 2" = "Gate No. 2A", and "2a" = "2"
+  const num = /^(\d{1,2})[a-z]?$/.exec(q);
+  if (num) {
+    for (const t of tokens) {
+      const m = /^(\d{1,2})[a-z]?$/.exec(t);
+      if (m && m[1] === num[1]) return { kind: "prefix", hit: t };
+    }
+  }
   if (q.length >= 4) {
     for (const t of tokens) {
       if (t.startsWith(q)) return { kind: "prefix", hit: t };
