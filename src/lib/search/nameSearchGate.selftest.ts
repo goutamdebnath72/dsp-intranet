@@ -24,6 +24,8 @@ for (const q of [
 ])
   ok(`a sentence: "${q.slice(0, 54)}" does NOT run the name search`, looksLikeNameSearch(q) === false);
 
+ok("PAX: a question about the directory of land-line numbers is a topic, not a name (\"pax fire service\", \"civil pax\", \"extension of c&it\")", ["pax fire service", "civil pax", "extension of c&it", "pax 42046"].every((q) => looksLikeNameSearch(q) === false));
+ok("...and a bare department word stays searchable as a name (\"fire service\", \"civil\"): the PAX route does not take it", looksLikeNameSearch("fire service") === true && looksLikeNameSearch("civil") === true);
 ok("a question mark is never a name", looksLikeNameSearch("sanjay debnath?") === false);
 ok("five words are too many for a name (four are the limit)", looksLikeNameSearch("one two three four five") === false && looksLikeNameSearch("one two three four") === true);
 ok("empty, one letter, spaces: no", looksLikeNameSearch("") === false && looksLikeNameSearch("a") === false && looksLikeNameSearch("   ") === false);

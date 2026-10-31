@@ -15,7 +15,7 @@ const OPENS_A_SENTENCE = new Set([
 /** A word that names a TOPIC (people in general, a list, a holiday, a degree ...): a short text that holds one ("super speciality doctors", "holiday list 2024") is a topic, not a name. */
 const TOPIC_WORDS = new Set([
   "doctor", "doctors", "employee", "employees", "people", "staff", "executive", "executives", "officers", "holiday", "holidays", "list", "lists", "circular", "circulars", "policy", "policies", "department", "departments",
-  "section", "sections", "salary", "leave", "opd", "degree", "degrees", "qualification", "qualifications", "specialisation", "speciality", "specialty", "hospital", "announcement", "announcements", "schedule", "checkup", "health",
+  "section", "sections", "salary", "leave", "opd", "degree", "degrees", "qualification", "qualifications", "specialisation", "speciality", "specialty", "hospital", "announcement", "announcements", "schedule", "checkup", "health", "pax", "extension",
 ]);
 
 export const MAX_NAME_WORDS = 4;

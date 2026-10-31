@@ -91,6 +91,8 @@ export interface OmnibarDeps {
   holiday: (q: string) => Promise<AnalyticsPayload | null>;
   /** A question about the hospital OPD (days, doctors, open or closed, timings), answered from the hospital data with no model call (step 51a); null when the question is not about it. Optional, so older callers need nothing. */
   hospital?: (q: string) => Promise<AnalyticsPayload | null>;
+  /** A question about the PAX directory (step 63a): the land-line numbers of the departments and places, read from public.pax_directory with the application's OWN connection (never the model's read-only client, never the nlq schema); null when the question is not a PAX question. Optional, so older callers need nothing. */
+  pax?: (q: string) => Promise<AnalyticsPayload | null>;
   /** The previous rule-based employee engine (safety net). */
   legacy: (q: string) => Promise<AnalyticsPayload | null>;
   /** Different people who must confirm an answer before it is served without the model. */
@@ -320,6 +322,12 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
   }
 
   if (!retry) {
+    // 0-. a question about the PAX directory (step 63a): "pax number of fire service", "who has 42046", "pax numbers outside plant", "pax not working": answered from Telecom's list, no model call.
+    //     It comes BEFORE the hospital route because the word "pax" is explicit ("pax number of hospital opd" is a PAX question, not an OPD one); it takes nothing without a clear PAX signal (src/lib/pax/matcher.ts).
+    //     Tagged "holiday" for the feedback record, like the hospital's: the feedback table's list of sources has no PAX entry.
+    const pax = deps.pax ? await deps.pax(q).catch(() => null) : null;
+    if (pax) return { ...pax, source: "holiday", attempt };
+
     // 0. a question about the hospital OPD: answered from the hospital data, no model call (step 51a). It needs an explicit OPD cue, so it does not take holiday or employee questions.
     //    Tagged "holiday" for the feedback record: the feedback table's list of sources has no "hospital" yet.
     const hospital = deps.hospital ? await deps.hospital(q).catch(() => null) : null;
@@ -454,6 +462,15 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
     skipModel: opts.skipModel,
     llm: groqLlm(),
     withClient: withDefaultClient,
+    pax: async (qq) => {
+      // the application's OWN connection (getDb), never withDefaultClient: that one is the model's read-only role when NL2SQL_DATABASE_URL is set, and the PAX table is closed to it on purpose
+      const { answerPax } = await import("@/lib/pax/answer");
+      const { loadPaxRows } = await import("@/lib/pax/store");
+      const { getDb } = await import("@/lib/db");
+      const r = await answerPax(qq, () => loadPaxRows(async (sql, params) => (await getDb()).query(sql, params)));
+      if (!r) return null;
+      return { kind: "count", answer: r.summary, hospital: r.card, interpretation: r.interpretation };
+    },
     hospital: async (qq) => {
       const { answerHospital } = await import("@/lib/hospital/engine");
       const { holidaysOn } = await import("@/lib/hospital/holidaysOn");
