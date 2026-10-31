@@ -180,6 +180,33 @@ async function main() {
 
   ok("TEMPORARY: an empty location is shown as 'Office' (owner, 31 Oct 2026); a location that exists is never replaced", (a?.card.table?.rows ?? []).every((r) => r[1] !== "") && (await ask("pax civil"))?.card.table?.rows.map((r) => r[1]).join() === "A - Zone,B - Zone,C - Zone");
 
+  // ---- a question can start from ANY of the three columns (owner, 31 Oct 2026): Department, Location or PAX. The names and numbers are the ones seen in the owner's screenshots. ----
+  const REAL: PaxRow[] = ([
+    ["Weigh Bridge – 60T", "40173"], ["Weigh Bridge – 80T", "40273"], ["Weigh Bridge – Gate 5(Oxy)", "42746"], ["Weigh Bridge – North End", "41241"], ["Weigh Bridge – South End", "40591"], ["Weigh Bridge – Tumla Gate", "42043"], ["Weigh Bridge – Waria Gate", "40373"],
+    ["Water Supply (A – Zone)", "45622"], ["Water Supply (B – Zone)", "45109"], ["Tumla Invoice", "41837"],
+    ["CISF Admin Gate", "40384"], ["CISF Gate No. 2A", "42384"], ["CISF Gate No. 5", "42748"], ["CISF Main Gate (IN)", "40385"], ["CISF Main Gate (OUT)", "42773"], ["CISF Tumla Gate", "40926"], ["CISF Tumla Gate", "42043"], ["CISF (PCR)", "42777"],
+    ["C & IT (Console)", "42046"], ["C & IT (DR)", "42901"], ["Fire Service", "42050"], ["Plant Control", "40001"], ["Plant Medical (PMU)", "41301"],
+  ] as Array<[string, string]>).map(([l, n]) => mk(l, n));
+  const byHead: Array<[string, string]> = [
+    // from the LOCATION column
+    ["pax north end", "41241"], ["pax 60t", "40173"], ["pax oxy", "42746"], ["pax a zone", "45622"], ["pax pcr", "42777"], ["pax console", "42046"], ["pax tumla gate", "40926 / 42043"],
+    ["pax gate 5", "42748 / 42746"], ["pax gate no 5", "42748 / 42746"], ["pax cisf gate 2a", "42384"],
+    ["pax main gate in", "40385"], ["pax main gate out", "42773"], ["pax main gate", "40385 / 42773"], ["pax fire service in", "42050"],
+    // from the DEPARTMENT column
+    ["pax weigh bridge", "7 PAX numbers"], ["phone number of water supply", "45622 / 45109"], ["pax c&it", "42046 / 42901"], ["contact number of plant control", "40001"], ["pax cisf", "8 PAX numbers"],
+    // from the PAX column
+    ["who has 42043", "2 names share 42043"], ["42746", "Weigh Bridge – Gate 5(Oxy)"], ["pax 4204", "2 numbers start with 4204"], ["whose number is 40173", "Weigh Bridge – 60T"], ["pax 41301 and 40001", "2 of 2 numbers found"],
+    // a department AND a location together
+    ["pax weigh bridge tumla gate", "42043"], ["pax cisf main gate", "40385 / 42773"], ["pax weigh bridge north end", "41241"], ["pax cisf pcr", "42777"],
+  ];
+  for (const [q, want] of byHead) {
+    const x = await ask(q, REAL);
+    ok(`"${q}" -> ${want}`, head(x) === want, `got ${head(x)}`);
+  }
+  ok("'pax weigh bridge tumla gate' names ONE line (Weigh Bridge | Tumla Gate), not the CISF one", JSON.stringify((await ask("pax weigh bridge tumla gate", REAL))?.card.table?.rows) === JSON.stringify([["Weigh Bridge", "Tumla Gate", "42043"]]));
+  ok("a short number is part of a name ('gate 5'), a group of three to five digits is a number", JSON.stringify((planPaxQuery("pax gate 5") as { tokens: string[] }).tokens) === JSON.stringify(["gate", "5"]) && planPaxQuery("pax gate 42746")?.kind === "number");
+  ok("a trailing 'in' is only a narrowing word: 'pax numbers in plant' is still the area, not a name", (planPaxQuery("pax numbers in plant") as { area: string }).area === "plant" && planPaxQuery("pax numbers in plant")?.kind === "list");
+
   // ---- the owner's screenshot of 31 Oct: en-dash names, 42043 on two names, nothing at the foot ----
   const WB: PaxRow[] = [mk("Weigh Bridge – 60T", "40173"), mk("Weigh Bridge – Tumla Gate", "42043"), mk("CISF Tumla Gate", "42043"), mk("CISF (PCR)", "42041")];
   a = await ask("pax number of departments", WB);

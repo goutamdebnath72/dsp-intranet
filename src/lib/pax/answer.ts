@@ -155,7 +155,7 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   // a FAULT goes to the complaint desk. The rows named "PAX Complain" come first (the "MRS Control (Electrical Complain)" line is the electrical desk, not the PAX one);
   // any other complaint row is the fallback; and words that match nothing ("not working in civil") never hide the desk: they are said as not used.
   let tokens = plan.tokens;
-  let m = matchByName(rows, tokens, false);
+  let m = matchByName(rows, tokens, false, plan.optional);
   let ignored: string[] = [];
   if (plan.fault) {
     const extra = plan.tokens;

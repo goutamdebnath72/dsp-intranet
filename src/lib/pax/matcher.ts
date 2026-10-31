@@ -35,7 +35,8 @@ export interface PaxRow {
 
 export type PaxPlan =
   | { kind: "number"; claim: "always" | "ifFound"; numbers: string[]; area: PaxArea | null; count: boolean }
-  | { kind: "name"; claim: "always" | "ifFound"; tokens: string[]; area: PaxArea | null; count: boolean; fault: boolean }
+  /** `optional`: words that narrow the match when they can (a trailing "in" = the IN of "Main Gate (IN)") and are dropped when no name has them. */
+  | { kind: "name"; claim: "always" | "ifFound"; tokens: string[]; optional: string[]; area: PaxArea | null; count: boolean; fault: boolean }
   /** "contact number of 498301": the subject is a person, given by ticket (answered only for an executive, people.ts). */
   | { kind: "person"; claim: "ifFound"; ticket: string }
   | { kind: "list"; claim: "always"; area: PaxArea | null; count: boolean };
@@ -66,7 +67,7 @@ const QUERY_STOP = new Set([
 ]);
 
 /** Filler of the ROWS: only the joining words. */
-const ROW_STOP = new Set(["and", "of", "the", "in", "at", "for", "s"]);
+const ROW_STOP = new Set(["and", "of", "the", "at", "for", "s"]); // "in" stays: it is the IN of "Main Gate (IN)"
 
 export const rowTokens = (r: Pick<PaxRow, "label" | "deptName" | "location">): Set<string> => {
   const out = new Set<string>();
@@ -193,7 +194,8 @@ export function planPaxQuery(typed: string): PaxPlan | null {
 
   // a fault question: its fault words are not part of a name ("pax not working in civil" = civil), they only say "the complaint desk"
   const forName = faultAsked ? rest.replace(new RegExp(FAULT.source, "g"), " ") : rest;
-  const content = forName.split(" ").filter((t) => t && !QUERY_STOP.has(t) && !/^\d+$/.test(t));
+  // a group of 3 to 5 digits is a number (handled apart); one or two digits are part of a name ("Gate 5")
+  const content = forName.split(" ").filter((t) => t && !QUERY_STOP.has(t) && !/^\d{3,}$/.test(t));
   // the bare word "plant" with nothing else asks for the area, not for a name ("pax plant")
   let tokens = content;
   // a single letter beside "zone" is the zone ("civil a zone" = Civil (A - Zone)): it is kept, whereas a lone "a" is only filler ("give me a pax number")
@@ -203,11 +205,14 @@ export function planPaxQuery(typed: string): PaxPlan | null {
   }
   if (tokens.length === 1 && tokens[0] === "plant" && area === null) { area = "plant"; tokens = []; }
 
+  // a trailing "in" after a name is the IN of "Main Gate (IN)", not filler: it narrows the match when some name has it
+  const optional = tokens.length > 0 && /(^| )in$/.test(rest.trim()) ? ["in"] : [];
+
   if (strong) {
     if (numbers.length > 0) return { kind: "number", claim: "always", numbers: Array.from(new Set(numbers)), area, count: false };
-    if (faultAsked) return { kind: "name", claim: "always", tokens, area, count, fault: true };
+    if (faultAsked) return { kind: "name", claim: "always", tokens, optional: [], area, count, fault: true };
     if (tokens.length === 0) return { kind: "list", claim: "always", area, count };
-    return { kind: "name", claim: "always", tokens, area, count, fault: false };
+    return { kind: "name", claim: "always", tokens, optional, area, count, fault: false };
   }
 
   if (weak) {
@@ -219,7 +224,7 @@ export function planPaxQuery(typed: string): PaxPlan | null {
     if (faultAsked) return null; // "my phone is not working" is not a PAX question without the word pax
     // "phone number of departments", "contact number of all departments": the subject is a non-human one (the departments), the same list as "pax number of departments" (owner, 31 Oct 2026)
     if (tokens.length === 0) return DEPARTMENT_WORDS.test(norm) ? { kind: "list", claim: "always", area, count } : null; // "phone" or "extension" alone: not a PAX question without the word "pax"
-    return { kind: "name", claim: "ifFound", tokens, area, count: false, fault: false };
+    return { kind: "name", claim: "ifFound", tokens, optional, area, count: false, fault: false };
   }
 
   // no cue: one bare 5-digit number and nothing but filler words ("who has 42046", "42046")
@@ -261,7 +266,16 @@ export function matchByNumber(rows: PaxRow[], numbers: string[]): PaxRow[] {
   return uniqueRows(out);
 }
 
-export function matchByName(rows: PaxRow[], tokens: string[], exactOnly: boolean): PaxMatch {
+/** Match by name; the optional words narrow the result when some name holds them all, and are dropped otherwise. */
+export function matchByName(rows: PaxRow[], tokens: string[], exactOnly: boolean, optional: string[] = []): PaxMatch {
+  if (optional.length > 0) {
+    const narrowed = matchByNameCore(rows, [...tokens, ...optional], exactOnly);
+    if (narrowed.rows.length > 0) return narrowed;
+  }
+  return matchByNameCore(rows, tokens, exactOnly);
+}
+
+function matchByNameCore(rows: PaxRow[], tokens: string[], exactOnly: boolean): PaxMatch {
   type Scored = { row: PaxRow; kinds: TokenHit[] | null; matched: number };
   const scored: Scored[] = rows.map((row) => {
     const set = rowTokens(row);
