@@ -9,8 +9,8 @@
 // change. This is a SERVER-ONLY var (no NEXT_PUBLIC_ prefix) — read in
 // auth.ts (session callback) and the admin access-log API, both server-side.
 //
-//   .env.local / Vercel:  SUPERADMIN_TICKETS=498301
-//   (multiple: SUPERADMIN_TICKETS=498301,490123)
+//   .env.local / Vercel:  SUPERADMIN_TICKETS=<ticket>
+//   (multiple: SUPERADMIN_TICKETS=<ticket>,<ticket>)
 
 const SUPERADMIN_TICKETS: ReadonlySet<string> = new Set(
   (process.env.SUPERADMIN_TICKETS || "")
