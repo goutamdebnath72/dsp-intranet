@@ -14,6 +14,9 @@ export type QueryFn = (sql: string, params?: unknown[]) => Promise<Array<Record<
 /** The directory is a few dozen to a few thousand rows: it is read whole and matched in memory (spelling slips, abbreviations). */
 export const PAX_ROW_LIMIT = 5000;
 
+/** The `source` of a line made or changed in the admin panel (Telecom's own list carries its file name there). */
+export const PORTAL_SOURCE = "portal";
+
 export function normalizeArea(v: unknown): PaxArea {
   const s = String(v ?? "").trim().toLowerCase().replace(/[_-]+/g, " ");
   if (/\b(?:outside|outer|township)\b/.test(s)) return "outside";
@@ -23,7 +26,7 @@ export function normalizeArea(v: unknown): PaxArea {
 
 export async function loadPaxRows(query: QueryFn): Promise<PaxRow[]> {
   const rows = await query(
-    `SELECT label, dept_name, location, "number"::text AS number, note, public.pax_area("number") AS area
+    `SELECT id, label, dept_name, location, "number"::text AS number, note, source, public.pax_area("number") AS area
        FROM public.pax_directory
       ORDER BY label, "number"
       LIMIT ${PAX_ROW_LIMIT}`,
@@ -36,6 +39,8 @@ export async function loadPaxRows(query: QueryFn): Promise<PaxRow[]> {
       number: String(r.number ?? "").trim(),
       note: String(r.note ?? "").trim(),
       area: normalizeArea(r.area),
+      id: r.id === null || r.id === undefined ? undefined : Number(r.id),
+      curated: String(r.source ?? "") === PORTAL_SOURCE,
     }))
     .filter((r) => r.label && r.number);
 }

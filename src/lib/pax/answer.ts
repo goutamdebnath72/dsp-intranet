@@ -9,7 +9,7 @@
 // a name that merely shares some words is shown as "closest", never as the answer.
 
 import type { HospitalAnswer, HospitalTable } from "@/lib/hospital/types";
-import { compareParts, splitLabels } from "./display";
+import { compareParts, splitLabels, toEntries } from "./display";
 import { filterByArea, matchByName, matchByNumber, planPaxQuery, uniqueRows, type PaxArea, type PaxPlan, type PaxRow } from "./matcher";
 
 export interface PaxAnswer {
@@ -40,7 +40,7 @@ const noteFromCorrections = (c: Array<[string, string]>) => (c.length ? ` Read $
  * A department (one place) with more than one number is ONE row: "40926 / 42043", the numbers in order.
  */
 function cards(directory: PaxRow[]) {
-  const partsOf = (rows: PaxRow[]) => splitLabels(directory.concat(rows));
+  const partsOf = (rows: PaxRow[]) => splitLabels(toEntries(directory.concat(rows)));
   const arranged = (rows: PaxRow[]) => {
     const parts = partsOf(rows);
     const merged = new Map<string, { department: string; location: string; numbers: string[]; notes: string[] }>();

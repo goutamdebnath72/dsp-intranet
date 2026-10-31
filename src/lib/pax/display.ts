@@ -21,7 +21,11 @@ export interface Parts { department: string; location: string }
  */
 export const WHOLE_DEPARTMENTS: readonly string[] = ["Plant Control", "Plant Medical"];
 /** A printed name and, when it is known, its number (the sharing of a number needs it). */
-export interface Entry { label: string; number?: string }
+export interface Entry { label: string; number?: string; /** a line made in the admin panel: its two parts are exactly what was typed, never guessed */ fixed?: Parts }
+
+/** The entries of a list of rows, as splitLabels reads them (a line made in the panel carries its own parts). */
+export const toEntries = (rows: ReadonlyArray<{ label: string; number: string; deptName: string; location: string; curated?: boolean }>): Entry[] =>
+  rows.map((r) => ({ label: r.label, number: r.number, ...(r.curated ? { fixed: { department: r.deptName, location: r.location } } : {}) }));
 
 const BRACKET = /^(.*?)\s*\(([^)]*)\)\s*$/;
 const words = (s: string): string[] => s.trim().split(/\s+/).filter(Boolean);
@@ -50,7 +54,10 @@ function commonLead(bases: string[][]): string[] {
 
 /** The department and the location of every distinct printed name, worked out from ALL the names of the directory (the sharing of first words needs the whole list). */
 export function splitLabels(entries: Entry[]): Map<string, Parts> {
-  const distinct = Array.from(new Set(entries.map((e) => e.label.trim()).filter(Boolean)));
+  // a line made in the panel is taken exactly as typed and takes no part in the guessing below
+  const fixedParts = new Map<string, Parts>();
+  for (const e of entries) if (e.fixed && e.label.trim()) fixedParts.set(e.label.trim(), e.fixed);
+  const distinct = Array.from(new Set(entries.map((e) => e.label.trim()).filter((l) => l && !fixedParts.has(l))));
   const numbersOf = new Map<string, Set<string>>();
   for (const e of entries) {
     const l = e.label.trim();
@@ -95,6 +102,7 @@ export function splitLabels(entries: Entry[]): Map<string, Parts> {
       out.set(l, { department: base, location: inside ?? "" });
     }
   }
+  for (const [l, parts] of fixedParts) out.set(l, parts);
   // a name that stands alone but uses the number of a department's name joins that department; its whole printed name is the location
   for (const s of distinct) {
     if (grouped.has(s)) continue;

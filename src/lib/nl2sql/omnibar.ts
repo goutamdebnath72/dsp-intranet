@@ -93,6 +93,8 @@ export interface OmnibarDeps {
   hospital?: (q: string) => Promise<AnalyticsPayload | null>;
   /** A question about the PAX directory (step 63a): the land-line numbers of the departments and places, read from public.pax_directory with the application's OWN connection (never the model's read-only client, never the nlq schema); null when the question is not a PAX question. Optional, so older callers need nothing. */
   pax?: (q: string) => Promise<AnalyticsPayload | null>;
+  /** A request to CHANGE the PAX directory (step 64a): "add new pax number", "delete pax 42046", "delegate pax to ...". The editor opens for the HOD C&IT and for an executive he authorised; for anybody else a plain message says why not. The person is the login's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
+  paxAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** The previous rule-based employee engine (safety net). */
   legacy: (q: string) => Promise<AnalyticsPayload | null>;
   /** Different people who must confirm an answer before it is served without the model. */
@@ -322,6 +324,10 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
   }
 
   if (!retry) {
+    // 0--. a request to CHANGE the PAX directory (step 64a): the sentence is read first (pure); only such a sentence asks who the person is. It comes before the question about the directory below.
+    const paxAdmin = deps.paxAdmin ? await deps.paxAdmin(q, userKey).catch(() => null) : null;
+    if (paxAdmin) return { ...paxAdmin, source: "holiday", attempt };
+
     // 0-. a question about the PAX directory (step 63a): "pax number of fire service", "who has 42046", "pax numbers outside plant", "pax not working": answered from Telecom's list, no model call.
     //     It comes BEFORE the hospital route because the word "pax" is explicit ("pax number of hospital opd" is a PAX question, not an OPD one); it takes nothing without a clear PAX signal (src/lib/pax/matcher.ts).
     //     Tagged "holiday" for the feedback record, like the hospital's: the feedback table's list of sources has no PAX entry.
@@ -462,6 +468,13 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
     skipModel: opts.skipModel,
     llm: groqLlm(),
     withClient: withDefaultClient,
+    paxAdmin: async (qq, ticket) => {
+      // the editor of the PAX directory (step 64a, src/lib/pax/admin/omnibar.ts): the sentence is read first, the database is asked only for a sentence that IS such a request
+      const { answerPaxAdmin } = await import("@/lib/pax/admin/omnibar");
+      const { authorityForTicket } = await import("@/lib/pax/admin/access");
+      const { getDb } = await import("@/lib/db");
+      return answerPaxAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t) });
+    },
     pax: async (qq) => {
       // the PAX directory (a department's number) or an executive's CUG number, decided by the subject (step 63b, src/lib/pax/route.ts: it reads with the application's OWN connection, never the model's)
       const { answerPaxRoute } = await import("@/lib/pax/route");

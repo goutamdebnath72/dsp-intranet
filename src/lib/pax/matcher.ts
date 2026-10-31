@@ -31,6 +31,10 @@ export interface PaxRow {
   number: string;
   note: string;
   area: PaxArea;
+  /** The row's id in the table (known when it was read from the database; the panel needs it to modify or delete). */
+  id?: number;
+  /** True for a line made or changed in the panel: its department and location are exactly what the HOD typed (deptName, location), never guessed from the printed name. */
+  curated?: boolean;
 }
 
 export type PaxPlan =

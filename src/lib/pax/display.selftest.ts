@@ -2,7 +2,7 @@
 // Step 63c: how a printed name is split into Department | Location for the PAX table (owner, 31 Oct 2026). The labels below are the REAL printed names the owner showed on screen (screenshot of "pax numbers")
 // and in the handoff; only the order and the splitting are tested here.
 
-import { compareParts, splitLabels } from "./display";
+import { compareParts, splitLabels, toEntries } from "./display";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => {
@@ -43,6 +43,17 @@ ok("...Gate 5(Oxy), North End, Tumla Gate likewise", wb.get("Weigh Bridge – Ga
 const dashes = splitLabels(["Weigh Bridge - A", "Weigh Bridge - B", "Store — X", "Store — Y", "Yard : P", "Yard : Q"].map((label) => ({ label })));
 ok("...a hyphen, an em dash and a colon are separators too", dashes.get("Weigh Bridge - A")?.department === "Weigh Bridge" && dashes.get("Store — X")?.department === "Store" && dashes.get("Store — X")?.location === "X" && dashes.get("Yard : P")?.department === "Yard" && dashes.get("Yard : P")?.location === "P", JSON.stringify([...dashes]));
 ok("...a dash INSIDE a name is kept (Gate 5 - Oxy stays as printed in a location)", splitLabels([{ label: "Weigh Bridge – Gate 5 - Oxy" }, { label: "Weigh Bridge – North End" }]).get("Weigh Bridge – Gate 5 - Oxy")?.location === "Gate 5 - Oxy");
+// lines made in the admin panel carry their own two parts (step 64a): taken exactly as typed, never guessed
+const withPortal = splitLabels([
+  { label: "CISF Admin Gate", number: "40384" }, { label: "CISF Main Gate (IN)", number: "40385" },
+  { label: "Stores (Main Gate)", number: "42555", fixed: { department: "Stores", location: "Main Gate" } },
+  { label: "Plant Stores (Annex)", number: "42556", fixed: { department: "Plant Stores", location: "Annex" } },
+  { label: "CISF (Gate 7)", number: "42557", fixed: { department: "CISF", location: "Gate 7" } },
+]);
+ok("a line made in the panel is shown exactly as typed", withPortal.get("Stores (Main Gate)")?.department === "Stores" && withPortal.get("Stores (Main Gate)")?.location === "Main Gate" && withPortal.get("Plant Stores (Annex)")?.department === "Plant Stores", JSON.stringify([...withPortal]));
+ok("...it does not take part in the guessing: the old CISF names are grouped as before, and 'CISF (Gate 7)' keeps the department typed", withPortal.get("CISF Admin Gate")?.department === "CISF" && withPortal.get("CISF Admin Gate")?.location === "Admin Gate" && withPortal.get("CISF (Gate 7)")?.department === "CISF" && withPortal.get("CISF (Gate 7)")?.location === "Gate 7");
+ok("...a lone old name that shares a NUMBER does not join a line made in the panel (only Telecom's own groups are joined)", splitLabels([{ label: "Weigh Bridge – Gate", number: "42555" }, { label: "Stores (Main Gate)", number: "42555", fixed: { department: "Stores", location: "Main Gate" } }]).get("Weigh Bridge – Gate")?.department === "Weigh Bridge – Gate");
+ok("toEntries gives the parts only to the lines marked as made in the panel", (() => { const e = toEntries([{ label: "A (b)", number: "40001", deptName: "A", location: "b", curated: true }, { label: "C d", number: "40002", deptName: "C", location: "d" }]); return !!e[0].fixed && e[0].fixed.department === "A" && e[0].fixed.location === "b" && e[1].fixed === undefined; })());
 ok("Plant Control is a COMPLETE department name: Plant Control | (empty), not Plant | Control", at("Plant Control") === "Plant Control|", at("Plant Control"));
 ok("Plant Medical (PMU) is a complete name too: Plant Medical | PMU, not Plant | Medical (PMU)", at("Plant Medical (PMU)") === "Plant Medical|PMU", at("Plant Medical (PMU)"));
 const plants = splitLabels(["Plant Control", "Plant Medical (PMU)", "Plant Garage", "Plant Water"].map((label, i) => ({ label, number: String(40000 + i) })));

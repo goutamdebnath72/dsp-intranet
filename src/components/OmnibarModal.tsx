@@ -42,6 +42,7 @@ import { withTitle } from "@/lib/employees/honorific";
 import { PersonBadges } from "@/components/PersonBadges";
 import { ClarifyChoices } from "@/components/ClarifyChoices";
 import { HospitalAnswerCard } from "@/components/HospitalAnswerCard";
+import { PaxAdminPanel } from "@/components/PaxAdminPanel";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
@@ -782,7 +783,9 @@ export function OmnibarModal({
                             {analytics.lead && (
                               <p className="mb-2 text-sm font-semibold text-neutral-800">{analytics.headline ? afterVerdict(analytics.lead) : analytics.lead}</p>
                             )}
-                            {analytics.hospital ? (
+                            {analytics.paxAdmin ? (
+                              <PaxAdminPanel open={analytics.paxAdmin} />
+                            ) : analytics.hospital ? (
                               <HospitalAnswerCard answer={analytics.hospital} />
                             ) : analytics.holidayCompare ? (
                               <HolidayCompareCard view={analytics.holidayCompare} />

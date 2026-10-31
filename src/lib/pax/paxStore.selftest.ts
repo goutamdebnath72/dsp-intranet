@@ -64,6 +64,11 @@ async function main() {
   ok("...with the label as printed, the number, and the area from the database function", rows.some((r) => r.label === "Fire Service" && r.number === "42046" && r.area === "plant") && rows.some((r) => r.number === "45221" && r.area === "outside") && rows.some((r) => r.number === "46298" && r.area === "unclassified"));
   ok("...dept_name and location are kept for matching", rows.some((r) => r.deptName === "Civil" && r.location === "A - Zone"));
 
+  ok("the loader reads the id of each row and whether it was made in the admin panel (source 'portal'); Telecom's own lines are not", rows.every((r) => typeof r.id === "number" && r.id > 0) && rows.every((r) => r.curated === false));
+  await c.query(`UPDATE public.pax_directory SET source = 'portal' WHERE number = '42046'`);
+  const rowsAfter = await loadPaxRows(query);
+  ok("...a row whose source is 'portal' is marked curated", rowsAfter.find((r) => r.number === "42046")?.curated === true && rowsAfter.filter((r) => r.curated).length === 1);
+  await c.query(`UPDATE public.pax_directory SET source = 'PAX_Phone_numbers.docx' WHERE number = '42046'`);
   const real = (q: string) => answerPax(q, () => loadPaxRows(query));
   let a = await real("pax number of fire service");
   ok("end to end from the table: 'pax number of fire service' -> 42046", a?.card.headline?.text === "42046" && a.summary === "Fire Service — PAX 42046.", JSON.stringify(a?.card.headline));
