@@ -10,7 +10,7 @@ const ok = (name: string, cond: boolean, extra = "") => {
   else { fail++; console.log(`FAIL ${name} ${extra}`); }
 };
 
-for (const q of ["how many promotee officers are there in each department", "list all JOs in C&IT", "show promoted officers who are DGM", "how many direct recruits joined on day 1", "list day-1 executives", "day one executives in BF", "promoty officers in the plant garage", "list d1 executives", "how many jo are there", "Direct Recruit GMs"]) {
+for (const q of ["how many promotee officers are there in each department", "list all JOs in C&IT", "show promoted officers who are DGM", "how many direct recruits are there", "list MT executives", "management trainee executives in BF", "promoty officers in the plant garage", "list the MTs", "how many MTs are there", "how many jo are there", "Direct Recruit GMs"]) {
   ok(`a question about origin is recognised: ${q}`, isOriginQuestion(q));
 }
 for (const q of ["how many executives work in each section of C&IT", "list the GMs of the plant", "who is more senior, Mohd Anwar Ullah or Rana Saha", "which designation has the most executives", "show the directors", "how many people have a health check-up on 5 January 2026", "everyone whose surname is Joshi", "list employees whose name starts with joy"]) {

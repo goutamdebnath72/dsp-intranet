@@ -39,7 +39,7 @@ export function OriginSwitch() {
       </button>
       {on && (
         <span className="text-[11px] text-slate-500">
-          <span className="text-indigo-700">{"\u25CB"} day 1</span> {"\u00B7"} <span className="text-amber-700">{"\u25CF"} promoted</span>
+          <span className="text-indigo-700">{"\u25CB"} MT</span> {"\u00B7"} <span className="text-amber-700">{"\u25CF"} promotee</span>
         </span>
       )}
     </span>

@@ -16,6 +16,7 @@
  */
 export const DR_TICKETS: readonly string[] = [
   "440480", // Partha Mukhopadhyay, Asst. Manager, Business Excellence: holds a PhD, promoted from the non-executives (confirmed by the owner, 24 Oct 2026)
+  "497823", // Gautam Kumar Mandal, IED: holds a PhD, a direct recruit (confirmed by the owner, 27 Oct 2026)
 ];
 
 export type Title = "Dr.";

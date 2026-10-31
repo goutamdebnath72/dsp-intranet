@@ -124,13 +124,13 @@ export interface PromptInput {
 
 /** Added to the prompt ONLY when the question is about promotees or direct recruits (it costs the other questions nothing: the prompt has a size limit). */
 const ORIGIN_DOC = `PROMOTEES, DIRECT RECRUITS AND JOs -- "promotee" and "direct recruit" are CLASSES read from nlq.employees.ticket_no; they hold for a whole service life, whatever the designation is today. An executive ticket is 4 + a second digit + four more digits.
-  Second digit 9 = joined as an executive on day 1 (a DIRECT RECRUIT; "day 1", "day-one", "direct"). Any other second digit = PROMOTED from the non-executives (a PROMOTEE; "promotee", "promoted officer(s)", "promoty").
+  Second digit 9 = joined directly as an executive: a Management Trainee (MT) for the whole training, then Asst. Manager (a DIRECT RECRUIT; "MT", "MTs", "management trainee(s)", "direct"). Any other second digit = PROMOTED from the non-executives (a PROMOTEE; "promotee", "promoted officer(s)", "promoty").
   promotees: cohort = 'executive' AND substr(ticket_no, 2, 1) <> '9'      direct recruits: cohort = 'executive' AND substr(ticket_no, 2, 1) = '9'
   "JO" / "JOs" / "Junior Officer" is a DESIGNATION, not a class: a promotee is called JO for the first 18 months, then becomes Asst. Manager. Filter it by title: lower(designation) LIKE 'junior officer%'. There may be none now (no promotion for over two years): then the honest answer is 0 rows; never answer a JO question with promotees or direct recruits.
   A designation the question also names is a second, separate condition ("promotee DGMs" = promotee AND designation 'Dy. General Manager'). Non-executives are neither.
   Example -- "how many promotee officers are there in each department": SELECT department_code, department, count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND substr(ticket_no, 2, 1) <> '9' GROUP BY department_id, department_code, department ORDER BY count DESC, department_code
 `;
-export const isOriginQuestion = (q: string): boolean => /\b(promotee|promotees|promoty|promoted|jo|jos|direct recruits?|day[ -]?(1|one)|d1)\b/i.test(q || "");
+export const isOriginQuestion = (q: string): boolean => /\b(promotee|promotees|promoty|promoted|jo|jos|direct recruits?|mts?|management trainees?)\b/i.test(q || "");
 
 export function buildPrompt(input: PromptInput): string {
   const health = isHealthQuestion(input.question);

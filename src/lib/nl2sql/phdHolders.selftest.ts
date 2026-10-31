@@ -28,7 +28,7 @@ for (const q of left) ok(`left alone: ${q}`, !isPhdQuestion(q));
 ok("an empty or missing question is left alone", !isPhdQuestion("") && !isPhdQuestion(undefined as never));
 
 // ---- the SQL: by ticket, six digits, once each, through the guard
-ok("the list of the owner (24 Oct 2026) is one ticket, 440480 (Partha Mukhopadhyay)", DR_TICKETS.length >= 1 && DR_TICKETS.includes("440480"));
+ok("the list of the owner is 440480 (Partha Mukhopadhyay, 24 Oct 2026) and 497823 (Gautam Kumar Mandal, IED, 27 Oct 2026)", DR_TICKETS.length >= 2 && DR_TICKETS.includes("440480") && DR_TICKETS.includes("497823"));
 const sql = phdSql(["440480", "440480", " 123456 ", "12345", "ABCDEF", "4404801"]) as string;
 ok("only six-digit tickets, each once, in order", sql.includes("IN ('440480', '123456')") && !sql.includes("12345'") && !sql.includes("ABCDEF") && !sql.includes("4404801"), sql);
 ok("no ticket, no SQL", phdSql([]) === null && phdSql(["x", "12"]) === null);

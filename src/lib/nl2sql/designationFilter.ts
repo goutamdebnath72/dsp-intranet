@@ -12,8 +12,8 @@
 //   * a designation can be combined with a word:  "roy gm"  (the General Managers named Roy)
 //   * which titles exist is read from the list itself, so nothing here has to be kept up to date; a title that is not in the list shows no rows
 //   * the ORIGIN of an executive, read from the ticket: an executive ticket is 4 + a second digit + four more digits, and the second digit never changes in a whole service life:
-//     9 = joined as an executive on day 1 (a direct recruit); any other digit = promoted from the non-executives (a promotee: called JO for the first 18 months, then holding the normal
-//     designation, a DGM or AGM later). "promotee", "promotees", "promoty", "promoted officers" show the promotees whatever their designation is today; "direct", "direct recruit", "day 1", "d1" the
+//     9 = joined directly as an executive (a direct recruit: a Management Trainee, MT, for the whole training, then Asst. Manager); any other digit = promoted from the non-executives (a promotee: called JO for the first 18 months, then holding the normal
+//     designation, a DGM or AGM later). "promotee", "promotees", "promoty", "promoted officers" show the promotees whatever their designation is today; "mt", "mts", "management trainee(s)", "direct", "direct recruit" the
 //     direct recruits. They combine with a designation or a word ("promotee agm", "direct gm", "promotee roy"). They work when the list shows a ticket column (otherwise they are plain text).
 //     "jo" is NOT one of these words: it is a designation (above), found by its title like any other.
 // Anything that is not a designation or an origin (a name, a ticket, a department, a code) is found as before, as text anywhere in the row.
@@ -67,7 +67,7 @@ export const splitAlternatives = (query: string): string[] =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-/** Where an executive came from, read from the ticket: "promotee" (promoted from the non-executives), "direct" (joined as an executive on day 1) or "" (no executive ticket). */
+/** Where an executive came from, read from the ticket: "promotee" (promoted from the non-executives), "direct" (joined directly as an executive: an MT, a Management Trainee) or "" (no executive ticket). */
 export type Origin = "promotee" | "direct" | "";
 /** 49xxxx = direct recruit; 40xxxx to 48xxxx = promotee; anything else (a non-executive ticket, a blank, a code) = no origin. */
 export const originOfTicket = (ticket: string): Origin => {
@@ -79,18 +79,17 @@ export const originOfTicket = (ticket: string): Origin => {
 /** True for the column that holds the ticket number. */
 export const isTicketColumn = (c: { key: string; label: string; kind: string }): boolean => /ticket/i.test(c.key) && !/mail|phone|mobile/i.test(c.key);
 
-/** The words that ask for an origin (dots, dashes and capitals do not matter: "Day-1", "JO", "Promotee Officers"). */
+/** The words that ask for an origin (dots, dashes and capitals do not matter: "MT", "mts", "Promotee Officers"; "M.T." is two initials, a name search, not this). MT is the official term (owner, 30 Oct 2026). */
 const ORIGIN_PHRASES: Record<string, Origin> = {};
 for (const w of ["promotee", "promotees", "promoty", "promoted"]) ORIGIN_PHRASES[w] = "promotee";
 for (const w of ["officer", "officers", "executive", "executives"]) {
   ORIGIN_PHRASES[`promotee ${w}`] = "promotee";
   ORIGIN_PHRASES[`promoted ${w}`] = "promotee";
   ORIGIN_PHRASES[`direct ${w}`] = "direct";
-  ORIGIN_PHRASES[`day 1 ${w}`] = "direct";
-  ORIGIN_PHRASES[`day one ${w}`] = "direct";
-  ORIGIN_PHRASES[`day1 ${w}`] = "direct";
+  ORIGIN_PHRASES[`mt ${w}`] = "direct";
+  ORIGIN_PHRASES[`management trainee ${w}`] = "direct";
 }
-for (const w of ["direct", "day1", "d1", "day 1", "day one", "direct recruit", "direct recruits"]) ORIGIN_PHRASES[w] = "direct";
+for (const w of ["direct", "mt", "mts", "management trainee", "management trainees", "direct recruit", "direct recruits"]) ORIGIN_PHRASES[w] = "direct";
 
 export interface CompiledAlternative {
   /** The designation this alternative asks for (in canonical spelling), or null when it asks for none. */

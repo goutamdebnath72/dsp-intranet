@@ -26,6 +26,8 @@ ok("the real list is well formed: six digits, no ticket twice", DR_TICKETS.every
 
 eq("the owner's confirmed PhD holder (a non-medical executive) gets the title; the other Partha (235067, Mukherjee) does not", [titleFor("440480", "managerial"), titleFor("235067", "nonexec")], ["Dr.", null]);
 eq("...and is shown as the owner expects", withTitle("PARTHA MUKHOPADHYAY", titleFor("440480", "managerial")), "Dr. PARTHA MUKHOPADHYAY");
+eq("the second confirmed PhD holder (Gautam Kumar Mandal, IED, ticket 497823, owner 27 Oct 2026) gets the title and the badge, shown as 'Dr. GAUTAM KUMAR MANDAL'", [titleFor("497823", "managerial"), isPhdHolder("497823", "managerial"), withTitle("GAUTAM KUMAR MANDAL", titleFor("497823", "managerial"))], ["Dr.", true, "Dr. GAUTAM KUMAR MANDAL"]);
+ok("the list holds both confirmed PhD holders", DR_TICKETS.includes("440480") && DR_TICKETS.includes("497823"), JSON.stringify(DR_TICKETS));
 
 // ---- the PhD badge (only the listed non-medical people)
 const ph = makePhdHolder(["441772", " 240203 "]);

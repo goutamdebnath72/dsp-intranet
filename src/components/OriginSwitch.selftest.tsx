@@ -1,6 +1,7 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/OriginSwitch.selftest.tsx
 // The optional ticket colours: off by default, indigo + hollow dot for a direct recruit (49xxxx), amber + filled dot for a promotee, nothing for anything else.
 
+import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OriginSwitch, TicketText } from "./OriginSwitch";
@@ -25,6 +26,13 @@ ok("neither colour is red or green", !/red|green|emerald/.test(originClass("dire
 
 const sw = h(<OriginSwitch />);
 ok("the switch is off by default: pressed false, no legend", /aria-pressed="false"/.test(sw) && /Ticket colours/.test(sw) && !/promoted/.test(sw), sw);
+
+{
+  // the legend is drawn only when the switch is on (a browser setting): its words are checked in the source of the component
+  const src = readFileSync("src/components/OriginSwitch.tsx", "utf8");
+  ok("the legend says MT and promotee (owner, 30 Oct 2026), nothing else", /\{"\\u25CB"\} MT<\/span>/.test(src) && /\{"\\u25CF"\} promotee<\/span>/.test(src), src.slice(src.indexOf("u25CB") - 40, src.indexOf("u25CB") + 160));
+  ok("the retired wording is gone from the legend, and 'promoted' with it", !/day\s?(1|one)/i.test(src) && !/promoted<\/span>/.test(src));
+}
 
 const columns = [{ key: "ticket_no", label: "Ticket No", kind: "code" as const }, { key: "name", label: "Name", kind: "text" as const }];
 const rows = [{ ticket_no: "490001", name: "A" }, { ticket_no: "420133", name: "B" }];
