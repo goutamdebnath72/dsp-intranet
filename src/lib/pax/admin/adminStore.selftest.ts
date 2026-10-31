@@ -37,7 +37,9 @@ async function main() {
     CREATE TABLE public.pax_directory (
       id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY, dept_name text NOT NULL, location text, number text NOT NULL, label text NOT NULL,
       note text, source text NOT NULL DEFAULT 'PAX_Phone_numbers.docx', created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-      UNIQUE (label, number), CHECK (number ~ '^[0-9]{3,6}$'));
+      UNIQUE (label, number), CHECK (number ~ '^[0-9]{3,6}$'),
+      CONSTRAINT pax_directory_location_check CHECK (location IS NULL OR length(btrim(location)) > 0), CONSTRAINT pax_directory_note_check CHECK (note IS NULL OR length(btrim(note)) > 0),
+      CONSTRAINT pax_directory_dept_check CHECK (length(btrim(dept_name)) > 0 AND length(btrim(label)) > 0));
     CREATE FUNCTION public.pax_area(n text) RETURNS text LANGUAGE sql IMMUTABLE AS $f$
       SELECT CASE WHEN n ~ '^4[0-2][0-9]{3}$' THEN 'plant' WHEN n ~ '^45[0-9]{3}$' OR n ~ '^5[0-9]{4}$' THEN 'outside plant' ELSE 'not classified' END $f$;
     ALTER TABLE public.pax_directory ENABLE ROW LEVEL SECURITY;
@@ -48,7 +50,7 @@ async function main() {
     ["CISF", "Gate No. 2A", "42384", "CISF Gate No. 2A"], ["Weigh Bridge", "Tumla Gate", "42043", "Weigh Bridge – Tumla Gate"], ["Weigh Bridge", "60T", "40173", "Weigh Bridge – 60T"],
     ["Fire Service", "", "42050", "Fire Service"], ["Plant Medical", "PMU", "41301", "Plant Medical (PMU)"],
   ];
-  for (const [d, l, n, label] of legacy) await pool.query(`INSERT INTO public.pax_directory (dept_name, location, number, label, note) VALUES ($1,$2,$3,$4,'')`, [d, l, n, label]);
+  for (const [d, l, n, label] of legacy) await pool.query(`INSERT INTO public.pax_directory (dept_name, location, number, label, note) VALUES ($1, NULLIF($2,''), $3, $4, NULL)`, [d, l, n, label]);
 
   // the real migration file, run twice: it must be safe to run again
   const migration = readFileSync("src/lib/nl2sql/sql/13_pax_admin.sql", "utf8");
@@ -97,6 +99,7 @@ async function main() {
   const shown = await answerPax("pax stores", () => loadPaxRows((sql, p) => pool.query(sql, p as never[]).then((x) => x.rows)));
   ok("...and the search shows it exactly as typed: Stores | Main Gate | 42555", shown?.card.table?.rows[0].join("|") === "Stores|Main Gate|42555", JSON.stringify(shown?.card.table));
   r = await store.addEntry(db, HOD, { department: "Garage", location: "", number: "42556" });
+  ok("a line with NO location is saved with a true empty (NULL) location and no note, because the live table REFUSES an empty text there (pax_directory_location_check)", r.status === "ok" && (await rowsNow()).find((x) => x.number === "42556")?.location === null && (await rowsNow()).find((x) => x.number === "42556")?.note === null, JSON.stringify(r));
   ok("a line without a location is saved with an empty one (the table shows Office)", r.status === "ok" && (await answerPax("pax garage", () => loadPaxRows((s, p) => pool.query(s, p as never[]).then((x) => x.rows))))?.card.table?.rows[0].join("|") === "Garage|Office|42556");
   const before = (await rowsNow()).length;
   for (const bad of ["52555", "4255", "425550", "4255a", "", "42 555"]) {
@@ -204,7 +207,7 @@ async function main() {
 
   // ---- the history as the panel shows it ----
   const hist = await store.recentAudit(db, 100);
-  ok("recent changes: newest first, each says who and what in words", hist.length === (await auditNow()).length && hist[0].action === "revoke" && /^Withdrew the authority of RAKESH OJHA \(invented\) \(412345\)$/.test(hist[0].summary) && hist.some((h) => h.action === "add" && /^Added Stores · Main Gate · 42555$/.test(h.summary) && h.actorName === HOD.name) && hist.some((h) => /^Changed Fire Service · Office · 42050 to Fire Service · Main Station · 42050$/.test(h.summary)) && hist.some((h) => /^Deleted Stores · Main Gate · 42555$/.test(h.summary)) && hist.some((h) => /^Authorised RAKESH OJHA \(invented\) \(412345\)$/.test(h.summary)), JSON.stringify(hist.slice(0, 3)));
+  ok("recent changes: newest first, each says who and what in words", hist.length === (await auditNow()).length && hist[0].action === "revoke" && /^Withdrew the authority of RAKESH OJHA \(invented\) \(412345\)$/.test(hist[0].summary) && hist.some((h) => h.action === "add" && /^Added Stores - Main Gate \(42555\)$/.test(h.summary) && h.actorName === HOD.name) && hist.some((h) => /^Changed Fire Service \(42050\) to Fire Service - Main Station \(42050\)$/.test(h.summary)) && hist.some((h) => /^Deleted Stores - Main Gate \(42555\)$/.test(h.summary)) && hist.some((h) => /^Authorised RAKESH OJHA \(invented\) \(412345\)$/.test(h.summary)), JSON.stringify(hist.slice(0, 3)));
 
   // ---- two people at the same moment ----
   const before2 = (await rowsNow()).length;

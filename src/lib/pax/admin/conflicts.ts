@@ -9,7 +9,7 @@
 
 import { matchToken } from "../matcher";
 import { normalizePax, type PaxRow } from "../matcher";
-import { splitLabels, toEntries } from "../display";
+import { placeName, splitLabels, toEntries } from "../display";
 import { EMPTY_LOCATION } from "../answer";
 import type { Acknowledge, PaxConflict, PaxEntryView } from "./types";
 import type { EntryInput } from "./validate";
@@ -77,7 +77,7 @@ export function findConflicts(rows: PaxRow[], candidate: EntryInput, opts: Confl
 }
 
 /** The words the panel shows for a saved line: "CISF · Tumla Gate · 40926". */
-export const describeLine = (l: PaxEntryView): string => `${l.department} · ${l.location || EMPTY_LOCATION} · ${l.number}`;
+export const describeLine = (l: PaxEntryView): string => `${placeName(l)} (${l.number})`;
 
 /**
  * May the person go on after answering? A number is never shared. The other two clashes may be answered, each by its own answer and only when it is true:

@@ -30,12 +30,12 @@ async function main() {
   p = await answerPaxAdmin("edit pax number", "412345", authorityIs("delegate"));
   ok("an authorised executive gets the editor, as a delegate", p?.paxAdmin?.op === "modify" && p.paxAdmin.role === "delegate");
   p = await answerPaxAdmin("revoke pax access of Rakesh Ojha", "412345", authorityIs("delegate"));
-  ok("an authorised executive asking to authorise or revoke is told that only the HOD does that (no editor)", !p?.paxAdmin && headline(p) === "Not allowed" && /Only the HOD C&IT can authorise/.test(p?.answer ?? ""), JSON.stringify(p));
+  ok("an authorised executive asking to authorise or revoke is told that only the HOD does that (no editor)", !p?.paxAdmin && headline(p) === "Not allowed" && /Only the HOD of C&IT can authorise/.test(p?.answer ?? ""), JSON.stringify(p));
   // ---- who does not ----
   p = await answerPaxAdmin("add new pax number", null, authorityIs("hod"));
   ok("nobody logged in: asked to log in, no editor", !p?.paxAdmin && headline(p) === "Please log in" && /Log in with your ticket number/.test(p?.answer ?? ""));
   p = await answerPaxAdmin("add new pax number", "123456", authorityIs(null));
-  ok("logged in without authority: 'Not allowed', and it says who can", !p?.paxAdmin && headline(p) === "Not allowed" && p?.hospital?.headline?.tone === "no" && /Only the HOD C&IT, or an executive he has authorised/.test(p?.answer ?? ""));
+  ok("logged in without authority: 'Not allowed', and it says who can", !p?.paxAdmin && headline(p) === "Not allowed" && p?.hospital?.headline?.tone === "no" && /Only the HOD of C&IT, or an executive he has authorised/.test(p?.answer ?? ""));
   p = await answerPaxAdmin("add new pax number", "400001", { authority: async () => { throw new Error("db down"); } });
   ok("when the authority cannot be read, the editor is NEVER opened on doubt", !p?.paxAdmin && headline(p) === "Not allowed");
   ok("the person is the login's ticket: the ticket is what is asked, whatever the sentence says ('add pax as 400001')", await (async () => { asked.length = 0; await answerPaxAdmin("add pax as ticket 400001", "123456", authorityIs(null)); return asked.join() === "123456"; })());

@@ -154,7 +154,7 @@ async function main() {
   a = await ask("who has 42043");
   ok("'who has 42043': two names share it", head(a) === "2 names share 42043" && a?.card.table?.rows.length === 2 && !a?.card.notes, JSON.stringify(a?.card.headline));
   a = await ask("pax 46298");
-  ok("'pax 46298': CISF | Main Hospital | 46298; nothing is said about the area, no red note", head(a) === "CISF Main Hospital" && a?.card.table?.rows[0].join("|") === "CISF|Main Hospital|46298" && !(a?.card.notes ?? []).length && !/plant|classified/i.test(JSON.stringify(a?.card)), JSON.stringify(a?.card));
+  ok("'pax 46298': CISF | Main Hospital | 46298; nothing is said about the area, no red note", head(a) === "CISF - Main Hospital" && a?.card.table?.rows[0].join("|") === "CISF|Main Hospital|46298" && !(a?.card.notes ?? []).length && !/plant|classified/i.test(JSON.stringify(a?.card)), JSON.stringify(a?.card));
   ok("'pax 45221' is the PAX Complain line, with no word about the area in the answer", /Complain/.test((await ask("pax 45221"))?.card.table?.rows[0][0] ?? "") && !/outside the plant|in the plant/.test((await ask("pax 45221"))?.summary ?? ""));
   a = await ask("pax 99999");
   ok("'pax 99999': not found (the word pax makes it ours)", head(a) === "Not found" && /not in the Telecom directory/.test(a?.summary ?? ""));
@@ -195,7 +195,7 @@ async function main() {
     // from the DEPARTMENT column
     ["pax weigh bridge", "7 PAX numbers"], ["phone number of water supply", "45622 / 45109"], ["pax c&it", "42046 / 42901"], ["contact number of plant control", "40001"], ["pax cisf", "8 PAX numbers"],
     // from the PAX column
-    ["who has 42043", "2 names share 42043"], ["42746", "Weigh Bridge – Gate 5(Oxy)"], ["pax 4204", "2 numbers start with 4204"], ["whose number is 40173", "Weigh Bridge – 60T"], ["pax 41301 and 40001", "2 of 2 numbers found"],
+    ["who has 42043", "2 names share 42043"], ["42746", "Weigh Bridge - Gate 5(Oxy)"], ["pax 4204", "2 numbers start with 4204"], ["whose number is 40173", "Weigh Bridge - 60T"], ["pax 41301 and 40001", "2 of 2 numbers found"],
     // a department AND a location together
     ["pax weigh bridge tumla gate", "42043"], ["pax cisf main gate", "40385 / 42773"], ["pax weigh bridge north end", "41241"], ["pax cisf pcr", "42777"],
   ];
@@ -212,6 +212,10 @@ async function main() {
   ok("the other way: 'pax gate no 2a' finds a row printed 'Gate No. 2'", JSON.stringify(nums(await ask("pax gate no 2a", G2PLAIN))) === JSON.stringify(["42380"]));
   ok("'pax gate 5' still finds only the 5s, 'pax gate no 20' only 20", JSON.stringify(nums(await ask("pax gate 5", G2)).sort()) === JSON.stringify(["42746", "42748"]) && JSON.stringify(nums(await ask("pax gate no 20", G2))) === JSON.stringify(["42120"]));
   ok("'pax cisf gate 2a' in the real-names fixture -> 42384 (as before)", head(await ask("pax cisf gate 2a", REAL)) === "42384" && head(await ask("pax gate no 2", REAL)) === "42384");
+  // a department and its location are written together ONE way: "Weigh Bridge - 60T" (owner, 31 Oct 2026), whatever dash or bracket the printed list used
+  ok("the sentence of a lookup writes it 'Weigh Bridge - 60T', not with the printed en dash", (await ask("pax 60t", REAL))?.summary === "Weigh Bridge - 60T — PAX 40173." && (await ask("pax main gate in", REAL))?.summary === "CISF - Main Gate (IN) — PAX 40385.", (await ask("pax 60t", REAL))?.summary);
+  ok("a name from a number is written the same way: 'who has 42746' -> Weigh Bridge - Gate 5(Oxy); a department with no location stays alone: Fire Service", (await ask("who has 42746", REAL))?.summary === "PAX 42746 is Weigh Bridge - Gate 5(Oxy)." && (await ask("who has 42050", REAL))?.summary === "PAX 42050 is Fire Service.");
+  ok("the 'closest names' line uses it too (and never the printed en dash)", /Closest names in the directory: Weigh Bridge - /.test((await ask("pax weigh bridge pump", REAL))?.card.lines?.[0] ?? "") && !((await ask("pax weigh bridge pump", REAL))?.card.lines?.[0] ?? "").includes("–"));
   ok("'pax weigh bridge tumla gate' names ONE line (Weigh Bridge | Tumla Gate), not the CISF one", JSON.stringify((await ask("pax weigh bridge tumla gate", REAL))?.card.table?.rows) === JSON.stringify([["Weigh Bridge", "Tumla Gate", "42043"]]));
   ok("a short number is part of a name ('gate 5'), a group of three to five digits is a number", JSON.stringify((planPaxQuery("pax gate 5") as { tokens: string[] }).tokens) === JSON.stringify(["gate", "5"]) && planPaxQuery("pax gate 42746")?.kind === "number");
   ok("a trailing 'in' is only a narrowing word: 'pax numbers in plant' is still the area, not a name", (planPaxQuery("pax numbers in plant") as { area: string }).area === "plant" && planPaxQuery("pax numbers in plant")?.kind === "list");

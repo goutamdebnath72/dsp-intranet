@@ -23,3 +23,8 @@ SELECT c.relrowsecurity AS rls_on,
        has_table_privilege('anon', 'public.pax_directory', 'SELECT') AS anon_can_read,
        has_table_privilege('authenticated', 'public.pax_directory', 'SELECT') AS authenticated_can_read
   FROM pg_class c WHERE c.oid = 'public.pax_directory'::regclass;
+
+-- 5. The RULES of the table (every CHECK, UNIQUE and key), so a new line made by the PAX editor can be written to satisfy them.
+--    The editor stores an empty location as NULL because the table refuses an empty text there (pax_directory_location_check).
+SELECT conname AS rule, contype AS kind, pg_get_constraintdef(oid) AS definition
+FROM pg_constraint WHERE conrelid = 'public.pax_directory'::regclass ORDER BY contype, conname;

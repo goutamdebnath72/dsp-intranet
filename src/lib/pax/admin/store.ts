@@ -2,7 +2,7 @@
 //
 // THE PAX ADMIN OPERATIONS (step 64a; owner, 31 Oct 2026): add, modify, delete a line; authorise and revoke an executive; read the history. Every operation
 //   - runs in ONE transaction, under one lock (two people cannot add the same number at the same moment),
-//   - checks the person's authority INSIDE the transaction (the HOD C&IT by SUPERADMIN_TICKETS, or an executive the HOD has authorised and not revoked),
+//   - checks the person's authority INSIDE the transaction (the HOD of C&IT by SUPERADMIN_TICKETS, or an executive the HOD has authorised and not revoked),
 //   - writes its audit line in the same transaction: a change cannot be saved without the record of who made it (ticket and name from the login), and the line before and after.
 // The database is reached through a tiny interface (PaxDb), so the same code runs against the application's connection and against a scratch database in the tests.
 // SECURITY: like pax_directory, the tables here are closed to the public API roles; only the application's own connection (never the language model's read-only client) touches them.
@@ -10,6 +10,7 @@
 import { isSuperAdmin } from "@/lib/superAdmin";
 import { loadPaxRows, PORTAL_SOURCE, type QueryFn } from "../store";
 import type { PaxRow } from "../matcher";
+import { placeName } from "../display";
 import { acknowledgementCovers, findConflicts, savedLines } from "./conflicts";
 import type { Acknowledge, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView } from "./types";
 import { composeLabel, validateEntry, type EntryInput, type FieldErrors } from "./validate";
@@ -25,7 +26,7 @@ export type Authority = "hod" | "delegate";
 const LOCK = "SELECT pg_advisory_xact_lock(hashtext('pax_directory')::bigint)";
 const EXECUTIVE = /^4\d{5}$/;
 
-/** Who the person is for this purpose: the HOD C&IT (by ticket, from the environment), an authorised and not revoked executive, or nobody. */
+/** Who the person is for this purpose: the HOD of C&IT (by ticket, from the environment), an authorised and not revoked executive, or nobody. */
 export async function authorityOf(q: QueryFn, ticket: string | null | undefined): Promise<Authority | null> {
   const t = String(ticket ?? "").trim();
   if (!t) return null;
@@ -95,7 +96,8 @@ export async function addEntry(db: PaxDb, actor: Actor, raw: Partial<Record<keyo
       if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts, acknowledgeable: acknowledgeable(conflicts) };
       const label = composeLabel(v.value.department, v.value.location);
       const ins = await q(
-        `INSERT INTO public.pax_directory (dept_name, location, "number", label, note, source) VALUES ($1, $2, $3, $4, '', $5) RETURNING id`,
+        // an empty location and no note are stored as a true empty (NULL): the live table REFUSES an empty text there (pax_directory_location_check, seen in the owner's log of 31 Oct 2026)
+        `INSERT INTO public.pax_directory (dept_name, location, "number", label, note, source) VALUES ($1, NULLIF($2, ''), $3, $4, NULL, $5) RETURNING id`,
         [v.value.department, v.value.location, v.value.number, label, PORTAL_SOURCE],
       );
       const id = Number(ins[0].id);
@@ -124,7 +126,7 @@ export async function modifyEntry(db: PaxDb, actor: Actor, id: number, raw: Part
       if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts, acknowledgeable: acknowledgeable(conflicts) };
       const label = composeLabel(v.value.department, v.value.location);
       await q(
-        `UPDATE public.pax_directory SET dept_name = $1, location = $2, "number" = $3, label = $4, source = $5, updated_at = now() WHERE id = $6`,
+        `UPDATE public.pax_directory SET dept_name = $1, location = NULLIF($2, ''), "number" = $3, label = $4, source = $5, updated_at = now() WHERE id = $6`,
         [v.value.department, v.value.location, v.value.number, label, PORTAL_SOURCE, id],
       );
       await audit(q, actor, role, "modify", id, null, snapshot({ department: mine.department, location: mine.location, number: mine.number, label: old.label }), snapshot({ ...v.value, label }));
@@ -155,7 +157,7 @@ export async function deleteEntry(db: PaxDb, actor: Actor, id: number): Promise<
   }
 }
 
-// ---- delegation: only the HOD C&IT authorises and revokes ----
+// ---- delegation: only the HOD of C&IT authorises and revokes ----
 
 export type DelegateResult =
   | { status: "ok" }
@@ -174,7 +176,7 @@ export async function grantDelegate(db: PaxDb, actor: Actor, target: { ticket: s
   const name = String(target.name ?? "").replace(/\s+/g, " ").trim();
   if (!EXECUTIVE.test(ticket)) return { status: "invalid", reason: "Only an executive (a six-digit ticket number that starts with 4) can be authorised." };
   if (!name) return { status: "invalid", reason: "The executive's name is missing." };
-  if (isSuperAdmin(ticket)) return { status: "invalid", reason: "The HOD C&IT already has this authority." };
+  if (isSuperAdmin(ticket)) return { status: "invalid", reason: "The HOD of C&IT already has this authority." };
   try {
     return await db.run(async (q): Promise<DelegateResult> => {
       const role = await begin(q, actor, true);
@@ -214,7 +216,7 @@ export async function revokeDelegate(db: PaxDb, actor: Actor, ticketNo: string):
 
 const line = (j: unknown): string => {
   const o = (j ?? null) as { department?: string; location?: string; number?: string } | null;
-  return o && o.department ? `${o.department} · ${o.location || "Office"} · ${o.number}` : "";
+  return o && o.department ? `${placeName({ department: o.department, location: o.location ?? "" })} (${o.number})` : "";
 };
 
 export async function recentAudit(db: PaxDb, limit = 50): Promise<PaxAuditView[]> {

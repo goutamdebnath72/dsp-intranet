@@ -24,6 +24,9 @@ export const WHOLE_DEPARTMENTS: readonly string[] = ["Plant Control", "Plant Med
 export interface Entry { label: string; number?: string; /** a line made in the admin panel: its two parts are exactly what was typed, never guessed */ fixed?: Parts }
 
 /** The entries of a list of rows, as splitLabels reads them (a line made in the panel carries its own parts). */
+/** A department and its location written together, the one way everywhere (owner, 31 Oct 2026): "Weigh Bridge - 60T". With no location, the department alone. */
+export const placeName = (p: Parts): string => (p.location ? `${p.department} - ${p.location}` : p.department);
+
 export const toEntries = (rows: ReadonlyArray<{ label: string; number: string; deptName: string; location: string; curated?: boolean }>): Entry[] =>
   rows.map((r) => ({ label: r.label, number: r.number, ...(r.curated ? { fixed: { department: r.deptName, location: r.location } } : {}) }));
 

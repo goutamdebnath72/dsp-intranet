@@ -7,7 +7,7 @@ export type PaxAdminOp = "add" | "modify" | "delete" | "delegate" | "manage";
 /** What the omnibar hands the panel when an authorised person asked to change the directory. */
 export interface PaxAdminOpen {
   op: PaxAdminOp;
-  /** hod = the HOD C&IT (SUPERADMIN_TICKETS); delegate = an executive the HOD has authorised. Only the HOD may delegate. */
+  /** hod = the HOD of C&IT (SUPERADMIN_TICKETS); delegate = an executive the HOD has authorised. Only the HOD may delegate. */
   role: "hod" | "delegate";
   /** Words and a number picked out of the typed sentence, only to save typing; the person can change every one. */
   prefill?: { department?: string; number?: string; query?: string };

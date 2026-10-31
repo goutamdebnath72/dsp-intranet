@@ -156,7 +156,7 @@ function AccessLogContent() {
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
               <h1 className="text-3xl font-bold font-heading text-neutral-800">Contact Access Log</h1>
-              <p className="text-sm text-neutral-500 mt-1">HOD C&amp;IT only · newest first · filterable</p>
+              <p className="text-sm text-neutral-500 mt-1">HOD of C&amp;IT only · newest first · filterable</p>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-neutral-500">

@@ -1,6 +1,6 @@
 // src/lib/pax/admin/intent.ts
 //
-// "I WANT TO CHANGE THE PAX DIRECTORY" (step 64a; owner, 31 Oct 2026). The HOD C&IT types it into the search bar in his own words; this reads which change he means. PURE.
+// "I WANT TO CHANGE THE PAX DIRECTORY" (step 64a; owner, 31 Oct 2026). The HOD of C&IT types it into the search bar in his own words; this reads which change he means. PURE.
 //   add       "add new pax number", "new pax entry", "register a pax extension for stores", "please enter pax 42555 for Garage", "pax addition"
 //   modify    "edit pax number", "update the pax of fire service", "change pax 42046", "correct a pax entry", "pax modification"
 //   delete    "delete pax 42046", "remove a pax number", "pax deletion"

@@ -9,7 +9,7 @@
 // a name that merely shares some words is shown as "closest", never as the answer.
 
 import type { HospitalAnswer, HospitalTable } from "@/lib/hospital/types";
-import { compareParts, splitLabels, toEntries } from "./display";
+import { compareParts, placeName, splitLabels, toEntries } from "./display";
 import { filterByArea, matchByName, matchByNumber, planPaxQuery, uniqueRows, type PaxArea, type PaxPlan, type PaxRow } from "./matcher";
 
 export interface PaxAnswer {
@@ -41,6 +41,11 @@ const noteFromCorrections = (c: Array<[string, string]>) => (c.length ? ` Read $
  */
 function cards(directory: PaxRow[]) {
   const partsOf = (rows: PaxRow[]) => splitLabels(toEntries(directory.concat(rows)));
+  /** A printed name written the one way: department - location ("Weigh Bridge - 60T"), whatever dash or bracket the printed list used. */
+  const nameOf = (label: string): string => {
+    const p = partsOf([]).get(label.trim());
+    return p ? placeName(p) : label;
+  };
   const arranged = (rows: PaxRow[]) => {
     const parts = partsOf(rows);
     const merged = new Map<string, { department: string; location: string; numbers: string[]; notes: string[] }>();
@@ -94,7 +99,7 @@ function cards(directory: PaxRow[]) {
       },
     };
   };
-  return { found, notFound, numbersHeadline, arranged };
+  return { found, notFound, numbersHeadline, arranged, nameOf };
 }
 
 const areaPhrase = (a: PaxArea | null) => (a ? `, ${AREA_ONLY[a]} only` : "");
@@ -103,7 +108,7 @@ const areaPhrase = (a: PaxArea | null) => (a ? `, ${AREA_ONLY[a]} only` : "");
 export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   if (plan.kind === "person") return null; // a person is not in the directory (people.ts)
   const rows = uniqueRows(all);
-  const { found, notFound, numbersHeadline, arranged } = cards(rows);
+  const { found, notFound, numbersHeadline, arranged, nameOf } = cards(rows);
 
   // ---- a LIST or a COUNT of the whole directory (or one area of it) ----
   if (plan.kind === "list") {
@@ -142,7 +147,7 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
     const missing = plan.numbers.filter((n) => !foundNums.includes(n));
     const lines = missing.length ? [`Not in the directory: ${missing.join(", ")}`] : [];
     if (plan.numbers.length === 1) {
-      const names = labelsOf(area);
+      const names = labelsOf(area).map(nameOf);
       const r = area[0];
       const headline = names.length === 1 ? names[0] : `${names.length} names share ${asked}`;
       const sentence = names.length === 1 ? `PAX ${asked} is ${names[0]}.` : `PAX ${asked} is listed under ${names.length} names: ${names.join(" and ")}.`;
@@ -169,13 +174,13 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   const interp = `${baseInterp}${areaPhrase(plan.area)}.${noteFromCorrections(m.corrections)}`.replace(/\.\./g, ".");
   const title = plan.fault ? "PAX complaint numbers" : `PAX number for ${quote(asked)}`;
   if (m.rows.length === 0) {
-    const lines = m.closest.length ? [`Closest names in the directory: ${m.closest.join("; ")}`] : [];
+    const lines = m.closest.length ? [`Closest names in the directory: ${distinct(m.closest.map(nameOf)).join("; ")}`] : [];
     const sentence = plan.fault ? "The directory has no PAX complaint number." : `No PAX number matches ${quote(asked)} in the Telecom directory.`;
     return notFound("Not found", title, sentence, interp, lines);
   }
   const narrowed = filterByArea(m.rows, plan.area);
   if (narrowed.length === 0) {
-    const sentence = `${plan.fault ? "The complaint desk" : labelsOf(m.rows).length === 1 ? labelsOf(m.rows)[0] : quote(asked)} has no PAX number ${AREA_ONLY[plan.area as PaxArea]}; the numbers it has are shown.`;
+    const sentence = `${plan.fault ? "The complaint desk" : labelsOf(m.rows).length === 1 ? nameOf(labelsOf(m.rows)[0]) : quote(asked)} has no PAX number ${AREA_ONLY[plan.area as PaxArea]}; the numbers it has are shown.`;
     return notFound("None", title, sentence, interp, [], m.rows);
   }
   const nums = numbersOf(narrowed);
@@ -187,7 +192,7 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   const oneLine = arranged(narrowed).length === 1 ? arranged(narrowed)[0] : null;
   const sentence =
     oneLine
-      ? `${narrowed[0].label} — PAX ${oneLine.numbers.join(" / ")}.${noteFromCorrections(m.corrections)}`
+      ? `${nameOf(narrowed[0].label)} — PAX ${oneLine.numbers.join(" / ")}.${noteFromCorrections(m.corrections)}`
       : `${plural(narrowed.length, "entry matches", "entries match")} ${quote(asked)}${areaPhrase(plan.area)}: see the table.${noteFromCorrections(m.corrections)}`;
   return found(numbersHeadline(narrowed), title, sentence, interp, narrowed, { lines: notUsed });
 }

@@ -5,7 +5,7 @@
 // database transaction (store.ts), so the panel hiding a button is a courtesy, never the protection.
 //   logged out                                    -> 401
 //   logged in, no authority (not the HOD, not authorised) -> 403 for everything except "me"
-//   the HOD C&IT (SUPERADMIN_TICKETS)             -> everything
+//   the HOD of C&IT (SUPERADMIN_TICKETS)             -> everything
 //   an authorised executive                       -> entries (list, add, modify, delete) and the history; NOT authorising or revoking, NOT the list of authorised people
 // The executive to authorise is looked up by the SERVER in the people directory (a typed name is never trusted): only an executive (ticket 4xxxxx) exists for this purpose.
 
@@ -80,8 +80,8 @@ export async function handlePaxAdmin(body: unknown, ctx: ApiContext): Promise<Ap
 
   const authority = await ctx.db.run((q) => store.authorityOf(q, actor.ticket));
   if (op === "me") return reply(200, { role: authority, name: actor.name, ticket: actor.ticket });
-  if (!authority) return reply(403, { error: "Only the HOD C&IT, or an executive he has authorised, can change the PAX directory." });
-  if (HOD_OPS.has(op) && authority !== "hod") return reply(403, { error: "Only the HOD C&IT can authorise or withdraw an executive." });
+  if (!authority) return reply(403, { error: "Only the HOD of C&IT, or an executive he has authorised, can change the PAX directory." });
+  if (HOD_OPS.has(op) && authority !== "hod") return reply(403, { error: "Only the HOD of C&IT can authorise or withdraw an executive." });
 
   if (op === "list") return reply(200, { entries: await store.listEntries(ctx.db, text(b.q, 80)) });
   if (op === "audit") return reply(200, { history: await store.recentAudit(ctx.db, 50) });

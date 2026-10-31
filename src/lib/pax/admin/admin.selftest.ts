@@ -49,7 +49,7 @@ const find = (d: string, l: string, n: string, o = {}) => findConflicts(SAVED, {
 const kinds = (c: ReturnType<typeof find>) => c.map((x) => x.kind).sort().join(",");
 
 ok("a new place with a new number: no clash", find("Stores", "Main", "42555").length === 0);
-ok("same NUMBER as a saved line: 'same-number', and it names the line (department · location · number)", (() => { const c = find("Stores", "Main", "41241"); return kinds(c) === "same-number" && describeLine(c[0].existing[0]) === "Weigh Bridge · North End · 41241"; })(), kinds(find("Stores", "Main", "41241")));
+ok("same NUMBER as a saved line: 'same-number', and it names the line (department - location (number))", (() => { const c = find("Stores", "Main", "41241"); return kinds(c) === "same-number" && describeLine(c[0].existing[0]) === "Weigh Bridge - North End (41241)"; })(), kinds(find("Stores", "Main", "41241")));
 ok("42043 stands on TWO saved lines: both are named", (() => { const c = find("Stores", "Main", "42043"); return c.length === 1 && c[0].kind === "same-number" && c[0].existing.length === 2; })());
 ok("same PLACE with another number: 'same-place', all numbers of the place are named (CISF Tumla Gate has two)", (() => { const c = find("CISF", "Tumla Gate", "42777"); return kinds(c) === "same-place" && c[0].existing.map((e) => e.number).sort().join() === "40926,42043"; })(), kinds(find("CISF", "Tumla Gate", "42777")));
 ok("same place, written in other case and spaces: still the same place", kinds(find("cisf", "  tumla   GATE ", "42777")) === "same-place");
@@ -71,6 +71,7 @@ ok("...and its name still clashes when it is the place of another line (id 10 re
 // what a line made in the panel looks like
 const withPortal = [...SAVED, row(20, "Stores (Main Gate)", "42555", { department: "Stores", location: "Main Gate" })];
 ok("a line made in the panel is read exactly as typed (its own two parts), also for the clash message", (() => { const l = savedLines(withPortal).find((x) => x.id === 20)!; return l.department === "Stores" && l.location === "Main Gate"; })());
+ok("a line is written 'department - location (number)', and a department with no location alone: 'Fire Service (42050)'", describeLine({ id: 1, department: "Weigh Bridge", location: "60T", number: "40173" }) === "Weigh Bridge - 60T (40173)" && describeLine({ id: 2, department: "Fire Service", location: "", number: "42050" }) === "Fire Service (42050)");
 ok("placeKey equal for the same words", placeKey("CISF", "Tumla Gate") === placeKey(" cisf ", "tumla  gate"));
 // the answers
 const c1 = find("CISF", "Tumla Gate", "42777"), c2 = find("Fire Servise", "", "42999"), c3 = find("Stores", "Main", "41241");

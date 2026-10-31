@@ -2,7 +2,7 @@
 
 // src/components/PaxAdminPanel.tsx
 //
-// THE PAX DIRECTORY EDITOR (step 64a; owner, 31 Oct 2026). It opens in the answer area of the search bar when the HOD C&IT (or an executive he has authorised) types that he wants to add, change or delete a PAX
+// THE PAX DIRECTORY EDITOR (step 64a; owner, 31 Oct 2026). It opens in the answer area of the search bar when the HOD of C&IT (or an executive he has authorised) types that he wants to add, change or delete a PAX
 // number, or to authorise or withdraw an executive. Three inputs: Department, Location, PAX number. Nothing is protected by what this panel hides: the SERVER decides who may do what (src/lib/pax/admin/api.ts),
 // and checks every rule again. The panel only tells the person early, and asks the questions the owner wanted when an entry clashes with a saved one:
 // "do you want to edit the existing line, or have you made a mistake?".
@@ -14,6 +14,7 @@ import { History, Pencil, Plus, ShieldCheck, Trash2, Users } from "lucide-react"
 import type { Acknowledge, PaxAdminOpen, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView } from "@/lib/pax/admin/types";
 import { EMPTY_LOCATION } from "@/lib/pax/answer";
 import { describeLine } from "@/lib/pax/admin/conflicts";
+import { placeName } from "@/lib/pax/display";
 import { validateEntry, PAX_NUMBER_RULE, type FieldErrors } from "@/lib/pax/admin/validate";
 
 type Tab = "add" | "modify" | "delete" | "people" | "history";
@@ -93,10 +94,9 @@ export function EntryFormView(props: {
 
 /** The sentence for each kind of clash, in the table's own words. */
 export function conflictText(c: PaxConflict, entry: FormValues): string {
-  const lines = c.existing.map(describeLine).join("; ");
-  if (c.kind === "same-number") return `The number ${entry.number} is already assigned to ${lines}. A PAX number belongs to one place only.`;
-  if (c.kind === "same-place") return `${lines.split(" · ").slice(0, 2).join(" · ")} is already saved with ${c.existing.map((e) => e.number).join(" / ")}.`;
-  return `What you typed reads almost like ${lines}.`;
+  if (c.kind === "same-number") return `The number ${entry.number} is already assigned to ${Array.from(new Set(c.existing.map(placeName))).join("; ")}. A PAX number belongs to one place only.`;
+  if (c.kind === "same-place") return `${placeName(c.existing[0])} is already saved with ${c.existing.map((e) => e.number).join(" / ")}.`;
+  return `What you typed reads almost like ${c.existing.map(describeLine).join("; ")}.`;
 }
 
 export function ConflictView(props: {
@@ -198,7 +198,7 @@ export function HistoryList({ history }: { history: PaxAuditView[] }) {
         <li key={i} className="border-b border-neutral-100 pb-1 last:border-0">
           <span className="font-semibold text-neutral-800">{h.summary}</span>
           <span className="block text-neutral-500">
-            {h.actorName} ({h.actorTicket}, {h.actorRole === "hod" ? "HOD C&IT" : "authorised executive"}) · {new Date(h.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+            {h.actorName} ({h.actorTicket}, {h.actorRole === "hod" ? "HOD of C&IT" : "authorised executive"}) · {new Date(h.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
           </span>
         </li>
       ))}
@@ -451,7 +451,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
         <ShieldCheck className="h-4 w-4 text-blue-700" aria-hidden="true" />
         <p className="text-sm font-bold text-neutral-900">PAX directory editor</p>
         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700" data-role={open.role}>
-          {isHod ? "HOD C&IT" : "Authorised executive"}
+          {isHod ? "HOD of C&IT" : "Authorised executive"}
         </span>
       </div>
 
