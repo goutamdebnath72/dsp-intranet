@@ -236,6 +236,7 @@ async function main() {
   const { handlePaxAdmin, isSameOrigin, findExecutives, errorReply } = await import("./api");
   const { rowsOf } = await import("./rows");
   const DIRECTORY = [
+    { id: "u0", ticketNo: "400001", name: "HOD C&IT (invented)", designation: "General Manager (C&IT)", department: "C&IT" },
     { id: "u1", ticketNo: "412345", name: "RAKESH OJHA", designation: "Chief Manager", department: "C&IT" }, { id: "u2", ticketNo: "498301", name: "ANIL DAS", designation: "Sr. Manager", department: "Civil" },
     { id: "u3", ticketNo: "123456", name: "RAKESH KUMAR", designation: "Technician", department: "Civil" }, { id: "u4", ticketNo: "450001", name: "RAKESH OJHA", designation: "Manager", department: "Mines" },
     { id: "u5", ticketNo: "412346", name: "RAKESH OJHAA", designation: "Manager", department: "Mines" },
@@ -267,6 +268,24 @@ async function main() {
   ok("authorising: the name saved is the DIRECTORY's, never the one the browser sent", (h.body.result as { status: string }).status === "ok" && (await store.listDelegates(db)).find((d) => d.ticket === "498301")?.name === "ANIL DAS");
   ok("authorising a ticket that is not an executive, or does not exist, is refused with the reason", ((await handlePaxAdmin({ op: "grant", ticket: "123456" }, ctx(HOD))).body.result as { status: string; reason: string }).status === "invalid" && ((await handlePaxAdmin({ op: "grant", ticket: "499999" }, ctx(HOD))).body.result as { reason: string }).reason.includes("No executive"));
   ok("revoking through the request", ((await handlePaxAdmin({ op: "revoke", ticket: "498301" }, ctx(HOD))).body.result as { status: string }).status === "ok");
+  ok("the history carries, for each kind of action, the line it is about and what to say under it (for the history TABLE)", (() => {
+    const by = (f: (h: Awaited<ReturnType<typeof store.recentAudit>>[number]) => boolean) => hist.find(f);
+    const add = by((h) => h.action === "add" && h.number === "42555" && h.location === "Main Gate"), mod = by((h) => h.action === "modify" && h.department === "Fire Service"), del = by((h) => h.action === "delete" && h.number === "42555");
+    const gr = by((h) => h.action === "grant"), rv = by((h) => h.action === "revoke");
+    return !!add && add.department === "Stores" && add.location === "Main Gate" && add.detail === ""
+      && !!mod && mod.location === "Main Station" && mod.number === "42050" && mod.detail === "Fire Service (42050)"
+      && !!del && del.department === "Stores" && del.location === "Main Gate" && del.number === "42555" && del.detail === ""
+      && !!gr && gr.department === "" && gr.number === "" && /^RAKESH OJHA \(invented\) \(412345\)$/.test(gr.detail)
+      && !!rv && rv.department === "" && /\(412345\)$/.test(rv.detail);
+  })());
+  ok("a line with no location is empty in the history row (the panel shows Office)", hist.some((h) => h.action === "add" && h.department === "Garage" && h.location === ""));
+  ok("the history through the request carries each editor's POST from the people directory (one look-up per person); a person not found, or a failing look-up, gives an empty post", await (async () => {
+    const x = (await handlePaxAdmin({ op: "audit" }, ctx(HOD))).body.history as Array<{ actorTicket: string; actorDesignation: string }>;
+    const hodRows = x.filter((h) => h.actorTicket === "400001"), delRows = x.filter((h) => h.actorTicket === "412345");
+    const failing = await handlePaxAdmin({ op: "audit" }, { ...ctx(HOD), findByTicket: async () => { throw new Error("db"); } });
+    const bad = failing.body.history as Array<{ actorDesignation: string }>;
+    return hodRows.length > 0 && hodRows.every((h) => h.actorDesignation === "General Manager (C&IT)") && delRows.length > 0 && delRows.every((h) => h.actorDesignation === "Chief Manager") && failing.status === 200 && bad.length > 0 && bad.every((h) => h.actorDesignation === "");
+  })());
   ok("the history through the request lists the newest first", ((await handlePaxAdmin({ op: "audit" }, ctx(HOD))).body.history as Array<{ action: string }>)[0].action === "revoke");
   ok("a page of ANOTHER site cannot use the login: origin must be this site (no Origin header = not a page of another site)", isSameOrigin("https://intranet.example", "intranet.example") && !isSameOrigin("https://evil.example", "intranet.example") && isSameOrigin(null, "intranet.example") && !isSameOrigin("not a url", "intranet.example") && !isSameOrigin("https://intranet.example", null));
   ok("a missing admin table (sql/13 not run) gets a reply that NAMES the fix, in the form TypeORM raises it; any other failure stays generic (no detail leaked)", (() => {

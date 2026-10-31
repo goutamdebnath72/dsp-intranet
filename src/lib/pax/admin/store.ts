@@ -225,12 +225,18 @@ export async function recentAudit(db: PaxDb, limit = 50): Promise<PaxAuditView[]
   return r.map((x) => {
     const action = String(x.action) as PaxAuditView["action"];
     const before = x.before, after = x.after as { name?: string; ticket?: string } | null;
+    const shown = (action === "delete" ? before : action === "add" || action === "modify" ? after : null) as { department?: string; location?: string; number?: string } | null;
+    const who = action === "grant" ? after : action === "revoke" ? (before as { name?: string; ticket?: string } | null) : null;
+    const detail = action === "modify" ? line(before) : who ? `${who.name ?? ""} (${String(x.target_ticket)})` : "";
     const summary =
       action === "add" ? `Added ${line(after)}`
       : action === "modify" ? `Changed ${line(before)} to ${line(after)}`
       : action === "delete" ? `Deleted ${line(before)}`
       : action === "grant" ? `Authorised ${after?.name ?? ""} (${String(x.target_ticket)})`
       : `Withdrew the authority of ${(before as { name?: string } | null)?.name ?? ""} (${String(x.target_ticket)})`;
-    return { at: new Date(x.at as string).toISOString(), actorName: String(x.actor_name), actorTicket: String(x.actor_ticket), actorRole: String(x.actor_role) as "hod" | "delegate", action, summary };
+    return {
+      at: new Date(x.at as string).toISOString(), actorName: String(x.actor_name), actorTicket: String(x.actor_ticket), actorRole: String(x.actor_role) as "hod" | "delegate", actorDesignation: "",
+      action, department: shown?.department ?? "", location: shown?.location ?? "", number: shown?.number ?? "", detail, summary,
+    };
   });
 }

@@ -45,6 +45,14 @@ export interface PaxAuditView {
   actorName: string;
   actorTicket: string;
   actorRole: "hod" | "delegate";
+  /** The editor's post, looked up in the people directory when the history is shown (the history itself keeps ticket and name); empty when not found. */
+  actorDesignation: string;
   action: "add" | "modify" | "delete" | "grant" | "revoke";
+  /** The line as the history table shows it: the NEW line for an add or a change, the line that was removed for a delete; empty for an authorisation or a withdrawal. */
+  department: string;
+  location: string;
+  number: string;
+  /** For a change: the line as it was. For an authorisation or a withdrawal: the executive concerned, "RAKESH OJHA (412345)". */
+  detail: string;
   summary: string;
 }

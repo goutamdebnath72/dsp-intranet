@@ -15,7 +15,7 @@ import type { Acknowledge, PaxAdminOpen, PaxAuditView, PaxConflict, PaxDelegateV
 import { EMPTY_LOCATION } from "@/lib/pax/answer";
 import { describeLine } from "@/lib/pax/admin/conflicts";
 import { placeName } from "@/lib/pax/display";
-import { validateEntry, PAX_NUMBER_RULE, type FieldErrors } from "@/lib/pax/admin/validate";
+import { cleanInput, validateEntry, PAX_NUMBER_RULE, type FieldErrors } from "@/lib/pax/admin/validate";
 
 type Tab = "add" | "modify" | "delete" | "people" | "history";
 
@@ -36,15 +36,18 @@ export function EntryFormView(props: {
   errors: FieldErrors;
   busy: boolean;
   submitLabel: string;
+  /** The button stays off (greyed) while this is true, whatever else is true; `submitHint` says in words what is still needed. Enter in a field does nothing then either. */
+  submitDisabled?: boolean;
+  submitHint?: string;
   onChange: (next: FormValues) => void;
   onSubmit: () => void;
   onCancel?: () => void;
 }) {
-  const { idPrefix, values, errors, busy, submitLabel, onChange, onSubmit, onCancel } = props;
+  const { idPrefix, values, errors, busy, submitLabel, submitDisabled = false, submitHint, onChange, onSubmit, onCancel } = props;
   const enter = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      onSubmit();
+      if (!submitDisabled) onSubmit();
     }
   };
   const field = (key: keyof FormValues, label: string, hint: string, extra: { inputMode?: "numeric"; maxLength?: number; placeholder: string }) => (
@@ -79,7 +82,7 @@ export function EntryFormView(props: {
         {field("number", "PAX number", PAX_NUMBER_RULE, { placeholder: "4xxxx", inputMode: "numeric", maxLength: 5 })}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={PRIMARY} disabled={busy} onClick={onSubmit}>
+        <button type="button" className={PRIMARY} disabled={busy || submitDisabled} onClick={onSubmit} aria-describedby={submitDisabled && submitHint ? `${idPrefix}-submit-hint` : undefined}>
           {submitLabel}
         </button>
         {onCancel && (
@@ -88,6 +91,11 @@ export function EntryFormView(props: {
           </button>
         )}
       </div>
+      {submitDisabled && submitHint && (
+        <p id={`${idPrefix}-submit-hint`} className="text-xs font-semibold text-neutral-600" data-submit-hint="true">
+          {submitHint}
+        </p>
+      )}
     </div>
   );
 }
@@ -190,19 +198,51 @@ export function EntryList(props: { entries: PaxEntryView[]; actionLabel: string;
   );
 }
 
+const ACTION_WORD: Record<PaxAuditView["action"], string> = { add: "Added", modify: "Changed", delete: "Deleted", grant: "Authorised", revoke: "Withdrawn" };
+
+/**
+ * The history as a table (owner, 31 Oct 2026): Department, Location, the number, and who did it (name, ticket number, designation). Two columns more say WHAT was done and WHEN, because without them
+ * an added line and a deleted line look the same. For a change the new line is shown and the old one is said under "Changed"; for a deleted line, the line that went; an authorisation or a withdrawal has
+ * no line, so the executive concerned is named under the action and the three line columns show a dash.
+ */
 export function HistoryList({ history }: { history: PaxAuditView[] }) {
   if (history.length === 0) return <p className="text-sm text-neutral-600">No change has been made from this panel yet.</p>;
   return (
-    <ul className="max-h-72 space-y-1 overflow-auto rounded-lg border border-neutral-200 bg-white p-2 text-xs sm:text-sm">
-      {history.map((h, i) => (
-        <li key={i} className="border-b border-neutral-100 pb-1 last:border-0">
-          <span className="font-semibold text-neutral-800">{h.summary}</span>
-          <span className="block text-neutral-500">
-            {h.actorName} ({h.actorTicket}, {h.actorRole === "hod" ? "HOD of C&IT" : "authorised executive"}) · {new Date(h.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <div className="max-h-80 overflow-auto rounded-lg border border-neutral-200 bg-white" data-pax-history="true">
+      <table className="min-w-full text-left text-xs sm:text-sm">
+        <thead className="sticky top-0 bg-neutral-50 text-neutral-600">
+          <tr>
+            <th scope="col" className="whitespace-nowrap px-3 py-2 font-semibold">When</th>
+            <th scope="col" className="px-3 py-2 font-semibold">What</th>
+            <th scope="col" className="px-3 py-2 font-semibold">Department</th>
+            <th scope="col" className="px-3 py-2 font-semibold">Location</th>
+            <th scope="col" className="whitespace-nowrap px-3 py-2 font-semibold">PAX</th>
+            <th scope="col" className="px-3 py-2 font-semibold">Done by</th>
+          </tr>
+        </thead>
+        <tbody>
+          {history.map((h, i) => {
+            const hasLine = h.action === "add" || h.action === "modify" || h.action === "delete";
+            return (
+              <tr key={i} className="border-t border-neutral-100 align-top">
+                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-600">{new Date(h.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</td>
+                <td className="px-3 py-1.5 text-neutral-800">
+                  <span className="font-semibold">{ACTION_WORD[h.action]}</span>
+                  {h.detail && <span className="block text-xs text-neutral-500">{h.action === "modify" ? `was ${h.detail}` : h.detail}</span>}
+                </td>
+                <td className="px-3 py-1.5 font-medium text-neutral-800">{hasLine ? h.department : "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-700">{hasLine ? h.location || EMPTY_LOCATION : "—"}</td>
+                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-700">{hasLine ? h.number : "—"}</td>
+                <td className="px-3 py-1.5 text-neutral-800">
+                  <span className="font-semibold">{h.actorName}</span> <span className="whitespace-nowrap text-neutral-500">({h.actorTicket})</span>
+                  <span className="block text-xs text-neutral-500">{[h.actorDesignation, h.actorRole === "hod" ? "HOD of C&IT" : "authorised executive"].filter(Boolean).join(" · ")}</span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -343,8 +383,21 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
     setNotice(null);
     setTab("modify");
   }
+  /** The change form saves only when the PAX number has been changed to ANOTHER number that satisfies the whole rule (owner, 31 Oct 2026), and the rest is valid too. */
+  const editClean = cleanInput(editForm);
+  const editValid = validateEntry(editForm);
+  const editNumberChanged = editing !== null && editClean.number !== editing.number;
+  const canSaveEdit = editing !== null && editNumberChanged && editValid.ok;
+  const editHint = !editing || canSaveEdit
+    ? undefined
+    : !editNumberChanged
+      ? "To save, change the PAX number to a different number: exactly 5 digits, starting with 4."
+      : editValid.ok
+        ? undefined
+        : editValid.errors.number ?? editValid.errors.department ?? editValid.errors.location;
+
   async function submitEdit(ack: Acknowledge[] = []) {
-    if (!editing) return;
+    if (!editing || !canSaveEdit) return;
     const v = validateEntry(editForm);
     if (!v.ok) return setEditErrors(v.errors);
     setEditErrors({});
@@ -500,7 +553,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
           {editing ? (
             <>
               <p className="text-sm text-neutral-700">Changing <span className="font-semibold">{describeLine(editing)}</span></p>
-              <EntryFormView idPrefix="pax-edit" values={editForm} errors={editErrors} busy={busy} submitLabel="Check and save the change" onChange={(v) => { setEditForm(v); setEditConflict(null); }} onSubmit={() => void submitEdit()} onCancel={() => { setEditing(null); setEditConflict(null); }} />
+              <EntryFormView idPrefix="pax-edit" values={editForm} errors={editErrors} busy={busy} submitLabel="Check and save the change" submitDisabled={!canSaveEdit} submitHint={editHint} onChange={(v) => { setEditForm(v); setEditConflict(null); }} onSubmit={() => void submitEdit()} onCancel={() => { setEditing(null); setEditConflict(null); }} />
               {editConflict && (
                 <ConflictView
                   conflicts={editConflict.conflicts}

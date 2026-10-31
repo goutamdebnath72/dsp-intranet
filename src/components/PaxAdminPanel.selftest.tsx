@@ -25,6 +25,10 @@ ok("NO <form> tag (the search modal holds a text area: forms must not nest)", !/
 const bad = h(<EntryFormView idPrefix="pax-add" values={{ department: "", location: "", number: "52555" }} errors={{ department: "Type the department.", number: "A PAX number is exactly 5 digits and starts with 4 (for example 42046)." }} busy={false} submitLabel="Go" onChange={noop} onSubmit={noop} />);
 ok("an error replaces the hint, is announced (role alert), and is red", /role="alert"[^>]*>Type the department\./.test(bad) && /text-red-700/.test(bad) && !bad.includes("For example CISF, Weigh Bridge, Fire Service."), bad.slice(0, 300));
 ok("...only the fields that are wrong are marked invalid", (bad.match(/aria-invalid="true"/g) ?? []).length === 2);
+const off = h(<EntryFormView idPrefix="pax-edit" values={{ department: "Weigh Bridge", location: "60T", number: "40173" }} errors={{}} busy={false} submitLabel="Check and save the change" submitDisabled={true} submitHint="To save, change the PAX number to a different number: exactly 5 digits, starting with 4." onChange={noop} onSubmit={noop} />);
+ok("a form can keep its button OFF (greyed) and says in words what is still needed", /<button[^>]*disabled=""[^>]*>Check and save the change</.test(off) && off.includes('data-submit-hint="true"') && off.includes("To save, change the PAX number to a different number"));
+ok("...when the button is on, there is no hint", !h(<EntryFormView idPrefix="pax-edit" values={{ department: "A1", location: "", number: "42046" }} errors={{}} busy={false} submitLabel="Go" submitDisabled={false} submitHint="x" onChange={noop} onSubmit={noop} />).includes("data-submit-hint"));
+ok("the add form is unchanged: its button is on when not busy", !/<button[^>]*disabled=""[^>]*>Check and save</.test(form));
 ok("a busy form cannot be sent again: the button is disabled", /<button[^>]*disabled=""[^>]*>Check and save</.test(h(<EntryFormView idPrefix="p" values={{ department: "", location: "", number: "" }} errors={{}} busy={true} submitLabel="Check and save" onChange={noop} onSubmit={noop} />)));
 ok("all typed text is escaped (a script in a field is text, not markup)", !h(<EntryFormView idPrefix="p" values={{ department: "<img src=x onerror=alert(1)>", location: "", number: "" }} errors={{}} busy={false} submitLabel="Go" onChange={noop} onSubmit={noop} />).includes("<img"));
 
@@ -57,8 +61,21 @@ ok("the list shows Department, Location, PAX and a button per line that says whi
 ok("an empty location is shown as Office", h(<EntryList entries={[{ id: 1, department: "Fire Service", location: "", number: "42050" }]} actionLabel="Change" actionClass="x" busy={false} onPick={noop} />).includes(">Office<"));
 ok("no lines: a plain sentence", h(<EntryList entries={[]} actionLabel="Change" actionClass="x" busy={false} onPick={noop} />).includes("No saved line matches."));
 ok("a long list is cut with a word about narrowing it", h(<EntryList entries={Array.from({ length: 45 }, (_, i) => ({ id: i + 1, department: `D${i}`, location: "", number: String(40000 + i) }))} actionLabel="Change" actionClass="x" busy={false} onPick={noop} />).includes("5 more: type more of the name or the number to narrow the list."));
-const hist = h(<HistoryList history={[{ at: "2026-10-31T10:00:00.000Z", actorName: "HOD C&IT", actorTicket: "400001", actorRole: "hod", action: "add", summary: "Added Stores · Main Gate · 42555" }, { at: "2026-10-31T11:00:00.000Z", actorName: "RAKESH OJHA", actorTicket: "412345", actorRole: "delegate", action: "delete", summary: "Deleted Garage · Office · 42556" }]} />);
-ok("the history says what, who (name, ticket, as what) and when", hist.includes("Added Stores · Main Gate · 42555") && hist.includes("HOD C&amp;IT (400001, HOD of C&amp;IT)") && hist.includes("RAKESH OJHA (412345, authorised executive)"));
+const H = (over: Partial<import("@/lib/pax/admin/types").PaxAuditView>): import("@/lib/pax/admin/types").PaxAuditView => ({ at: "2026-10-31T10:00:00.000Z", actorName: "MOHD ANWAR ULLAH", actorTicket: "498301", actorRole: "hod", actorDesignation: "Chief Manager", action: "add", department: "Stores", location: "Main Gate", number: "42555", detail: "", summary: "", ...over });
+const hist = h(<HistoryList history={[
+  H({}),
+  H({ action: "modify", department: "Weigh Bridge", location: "60 Ton", number: "40174", detail: "Weigh Bridge - 60T (40173)", at: "2026-10-31T11:00:00.000Z" }),
+  H({ action: "delete", department: "Garage", location: "", number: "42556", actorName: "RAKESH OJHA", actorTicket: "412345", actorRole: "delegate", actorDesignation: "Manager", at: "2026-10-31T12:00:00.000Z" }),
+  H({ action: "grant", department: "", location: "", number: "", detail: "RAKESH OJHA (412345)", at: "2026-10-31T13:00:00.000Z" }),
+]} />);
+ok("the history is a TABLE with these columns: When, What, Department, Location, PAX, Done by", ["When", "What", "Department", "Location", "PAX", "Done by"].every((c) => hist.includes(`>${c}<`)) && hist.includes("<table") && hist.includes('data-pax-history="true"'));
+ok("an added line: Added, then its department, location and number in their own cells", /<td[^>]*><span[^>]*>Added<\/span><\/td><td[^>]*>Stores<\/td><td[^>]*>Main Gate<\/td><td[^>]*>42555<\/td>/.test(hist), hist.slice(0, 600));
+ok("a changed line shows the NEW line and says what it was", hist.includes(">Changed<") && hist.includes("was Weigh Bridge - 60T (40173)") && hist.includes(">60 Ton<") && hist.includes(">40174<"));
+ok("a deleted line shows the line that went; an empty location is shown as Office", hist.includes(">Deleted<") && hist.includes(">Garage<") && hist.includes(">42556<") && />Garage<\/td><td[^>]*>Office<\/td>/.test(hist));
+ok("an authorisation has no line: three dashes, and the executive is named under the action", hist.includes(">Authorised<") && hist.includes("RAKESH OJHA (412345)") && (hist.match(/>—</g) ?? []).length === 3);
+ok("who did it: the name, the TICKET NUMBER, and the DESIGNATION (with the role)", hist.includes("MOHD ANWAR ULLAH") && hist.includes("(498301)") && hist.includes("Chief Manager · HOD of C&amp;IT") && hist.includes("RAKESH OJHA") && hist.includes("(412345)") && hist.includes("Manager · authorised executive"));
+ok("without a post in the directory, only the role is shown (no empty dot)", h(<HistoryList history={[H({ actorDesignation: "" })]} />).includes(">HOD of C&amp;IT<") && !h(<HistoryList history={[H({ actorDesignation: "" })]} />).includes("· HOD"));
+ok("history text is escaped", !h(<HistoryList history={[H({ department: "<img src=x onerror=alert(1)>", actorName: "<b>x</b>" })]} />).match(/<img|<b>x/));
 ok("an empty history says so", h(<HistoryList history={[]} />).includes("No change has been made from this panel yet."));
 
 // ---- the panel: what each person sees first ----

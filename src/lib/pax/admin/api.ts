@@ -84,7 +84,16 @@ export async function handlePaxAdmin(body: unknown, ctx: ApiContext): Promise<Ap
   if (HOD_OPS.has(op) && authority !== "hod") return reply(403, { error: "Only the HOD of C&IT can authorise or withdraw an executive." });
 
   if (op === "list") return reply(200, { entries: await store.listEntries(ctx.db, text(b.q, 80)) });
-  if (op === "audit") return reply(200, { history: await store.recentAudit(ctx.db, 50) });
+  if (op === "audit") {
+    const history = await store.recentAudit(ctx.db, 50);
+    // the editor's post comes from the people directory (the history keeps ticket and name only); one look-up per person, a failing look-up leaves the post empty
+    const posts = new Map<string, string>();
+    for (const t of Array.from(new Set(history.map((h) => h.actorTicket)))) {
+      const found = (await ctx.findByTicket(t).catch(() => [])).find((p) => String(p.ticketNo).trim() === t);
+      posts.set(t, found?.designation ?? "");
+    }
+    return reply(200, { history: history.map((h) => ({ ...h, actorDesignation: posts.get(h.actorTicket) ?? "" })) });
+  }
   if (op === "delegates") return reply(200, { delegates: await store.listDelegates(ctx.db) });
   if (op === "find-executive") return reply(200, { executives: await findExecutives(text(b.q, 80), ctx) });
 
