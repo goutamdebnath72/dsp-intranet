@@ -87,6 +87,13 @@ async function main() {
   ok("two executives of one name: 'Rajesh Kumar' is both RAJESH KUMAR and RAJESH KUMAR SINGH (every typed word is a word of the name): 2 executives, 2 cards", ph(p) === "2 executives match" && p?.people?.length === 2 && p.count === 2, JSON.stringify(p?.headline));
   p = await run("phone number of kumar");
   ok("one common word: 'kumar' is many executives: the first 10 are shown, the total is said, the list is marked truncated", /^1\d executives match$/.test(ph(p) ?? "") && p?.people?.length === 10 && p.listTruncated === true && /first 10 are shown/.test(p.answer), JSON.stringify(p?.headline));
+  // "phone number of departments": the same list as "pax number of departments", no person is looked up
+  for (const q of ["phone number of departments", "contact number of all departments", "pax number of departments"]) {
+    const x = await run(q);
+    ok(`"${q}": the whole PAX list (the number of numbers is the headline, the table is the directory), and no person is looked up`, /^\d+ PAX numbers$/.test(x?.hospital?.headline?.text ?? "") && (x?.hospital?.table?.rows.length ?? 0) === ROWS.length && !x?.people && calls.name.length === 0, JSON.stringify(x?.hospital?.headline));
+  }
+  ok("...and a bare 'contact number' or 'phone number' is still not ours", (await run("contact number")) === null && (await run("phone number")) === null);
+
   // the department comes first
   p = await run("contact number of fire service");
   ok("a DEPARTMENT is answered by its PAX number, and no person is looked up", ph({ headline: p?.hospital?.headline } as never) === "42046" && !p?.people && calls.name.length === 0 && calls.loadPax === 1, JSON.stringify(p?.hospital?.headline));

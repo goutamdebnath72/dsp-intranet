@@ -27,6 +27,9 @@ const WHAT_IS_PAX = {
   text: "PAX is the land-line phone that works only inside DSP work areas. Its numbers have five digits and are kept by the Telecom department; this list is Telecom's. PAX numbers belong to departments and places, not to individual people.",
 };
 
+/** TEMPORARY (owner, 31 Oct 2026): a name with no location is shown with this word in the Location column until Telecom's list says better. Only the screen is affected; nothing is stored. */
+export const EMPTY_LOCATION = "Office";
+
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const distinct = <T,>(xs: T[]): T[] => Array.from(new Set(xs));
 const numbersOf = (rows: PaxRow[]) => distinct(rows.map((r) => r.number));
@@ -63,7 +66,7 @@ function cards(directory: PaxRow[]) {
     const withNote = lines.some((l) => l.note);
     return {
       columns: withNote ? ["Department", "Location", "PAX", "Note"] : ["Department", "Location", "PAX"],
-      rows: lines.map((l) => (withNote ? [l.department, l.location, l.numbers.join(" / "), l.note] : [l.department, l.location, l.numbers.join(" / ")])),
+      rows: lines.map((l) => (withNote ? [l.department, l.location || EMPTY_LOCATION, l.numbers.join(" / "), l.note] : [l.department, l.location || EMPTY_LOCATION, l.numbers.join(" / ")])),
     };
   };
   /** Up to three numbers are the headline itself, "first / second" (in the order of the table); more are a count. */

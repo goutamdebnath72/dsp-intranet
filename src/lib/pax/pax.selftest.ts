@@ -67,6 +67,8 @@ async function main() {
   ok("'pax 42046', 'is 42046 a pax number', 'pax 42 046' are number questions, always ours", ["pax 42046", "is 42046 a pax number", "pax 42 046", "pax 42-046"].every((q) => { const p = plan(q); return p?.kind === "number" && p.claim === "always" && (p as { numbers: string[] }).numbers[0] === "42046"; }));
   ok("'pax 420' asks for the numbers that start so", JSON.stringify((plan("pax 420") as { numbers: string[] }).numbers) === JSON.stringify(["420"]));
   for (const q of ["pax", "pax directory", "list all pax numbers", "pax numbers", "complete pax directory", "give me the pax list"]) ok(`"${q}" is the list`, plan(q)?.kind === "list");
+  for (const q of ["phone number of departments", "contact number of all departments", "telephone numbers of the departments", "extension of depts", "pax number of departments", "phone number of department"]) ok(`"${q}": the departments are a non-human subject: the directory list (like "pax number of departments")`, plan(q)?.kind === "list", JSON.stringify(plan(q)));
+  ok("...but a bare 'phone', 'contact number', 'telephone' claim nothing (no subject)", plan("phone") === null && plan("contact number") === null && plan("telephone number") === null && plan("contact") === null);
   ok("'how many pax numbers' is a count", (plan("how many pax numbers") as { count: boolean }).count === true && plan("how many pax numbers")?.kind === "list");
   ok("areas: 'pax numbers outside plant', 'township pax numbers', 'pax in plant', 'pax plant'", (plan("pax numbers outside plant") as { area: string }).area === "outside" && (plan("township pax numbers") as { area: string }).area === "outside" && (plan("pax in plant") as { area: string }).area === "plant" && (plan("pax plant") as { area: string }).area === "plant");
   ok("...but 'pax plant medical' is a NAME (Plant Medical), not the plant area", plan("pax plant medical")?.kind === "name" && (plan("pax plant medical") as { area: string | null }).area === null);
@@ -99,7 +101,7 @@ async function main() {
   let a = await ask("pax number of fire service");
   ok("fire service: the headline is the number, big and bold", head(a) === "42046" && tone(a) === "info", JSON.stringify(a?.card.headline));
   ok("...the sentence names it, with no word about plant or outside plant", /^Fire Service — PAX 42046\.$/.test(a?.summary ?? ""), a?.summary);
-  ok("...the table: Department | Location | PAX (the PAX number is the THIRD column, no Area column, no Note column when no row has a note)", JSON.stringify(a?.card.table?.columns) === JSON.stringify(["Department", "Location", "PAX"]) && a?.card.table?.rows[0].join("|") === "Fire Service||42046", JSON.stringify(a?.card.table));
+  ok("...the table: Department | Location | PAX (the PAX number is the THIRD column, no Area column, no Note column when no row has a note)", JSON.stringify(a?.card.table?.columns) === JSON.stringify(["Department", "Location", "PAX"]) && a?.card.table?.rows[0].join("|") === "Fire Service|Office|42046", JSON.stringify(a?.card.table));
   ok("...what PAX is, folded away (not a long paragraph on top)", a?.card.details?.[0]?.summary === "What is PAX?" && !a?.card.lines?.length);
   ok("...no red notes when nothing is wrong", !a?.card.notes?.length);
   ok("...'Understood as' says how it was read", /PAX number for “fire service”/.test(a?.interpretation ?? ""), a?.interpretation);
@@ -170,11 +172,13 @@ async function main() {
   ok("...the headline is the numbers 'first / second'", head(a) === "40926 / 42043", head(a));
   ok("...the red note says it in the table's own terms: CISF · Tumla Gate; CISF · Weigh Bridge - Tumla Gate", (a?.card.notes ?? []).some((n) => /^42043 is listed under 2 names \(CISF · Tumla Gate; CISF · Weigh Bridge - Tumla Gate\)/.test(n)), JSON.stringify(a?.card.notes));
   a = await ask("pax fire service", TWO);
-  ok("'pax fire service' with two numbers: ONE row 'Fire Service | | 42046 / 42050', the headline and the sentence say 'first / second'", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["Fire Service", "", "42046 / 42050"]]) && head(a) === "42046 / 42050" && a?.summary === "Fire Service — PAX 42046 / 42050.", JSON.stringify(a?.card.table?.rows) + a?.summary);
+  ok("'pax fire service' with two numbers: ONE row 'Fire Service | Office | 42046 / 42050', the headline and the sentence say 'first / second'", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["Fire Service", "Office", "42046 / 42050"]]) && head(a) === "42046 / 42050" && a?.summary === "Fire Service — PAX 42046 / 42050.", JSON.stringify(a?.card.table?.rows) + a?.summary);
   a = await ask("who has 42043", TWO);
   ok("'who has 42043': the two lines that hold it, both under CISF", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["CISF", "Tumla Gate", "42043"], ["CISF", "Weigh Bridge - Tumla Gate", "42043"]]) && head(a) === "2 names share 42043", JSON.stringify(a?.card.table?.rows));
   a = await ask("pax", TWO);
   ok("the whole list counts numbers, not rows: 5 numbers on 4 table rows (and 6 entries, said)", head(a) === "5 PAX numbers" && a?.card.table?.rows.length === 4 && (a?.card.lines ?? []).some((l) => /6 entries in all/.test(l)), JSON.stringify(a?.card.table?.rows) + JSON.stringify(a?.card.lines));
+
+  ok("TEMPORARY: an empty location is shown as 'Office' (owner, 31 Oct 2026); a location that exists is never replaced", (a?.card.table?.rows ?? []).every((r) => r[1] !== "") && (await ask("pax civil"))?.card.table?.rows.map((r) => r[1]).join() === "A - Zone,B - Zone,C - Zone");
 
   // ---- lists, counts, areas ----
   a = await ask("pax");

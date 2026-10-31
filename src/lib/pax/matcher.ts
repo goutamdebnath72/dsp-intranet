@@ -142,6 +142,7 @@ const OUT_AREA = /\b(?:township|outside (?:the )?plant|out side plant|out of (?:
 const IN_AREA = /\b(?:(?:in|inside|within) (?:the )?plant|plant area|in plant|plant side)\b/;
 /** A fault: the question is about the complaint desk ("PAX Complain" in the list). */
 const FAULT = /\b(?:complain|complaint|complaints|complained|fault|faults|faulty|not working|out of order|no tone|no dial tone|dead|repair|repairs|problem|problems|defective|trouble|disturbance|breakdown|not ringing|not responding)\b/;
+const DEPARTMENT_WORDS = /\b(?:departments?|depts?)\b/;
 const LIST_WORDS = /\b(?:list|all|every|complete|entire|full|directory|everything|whole)\b/;
 const COUNT_WORDS = /\b(?:how many|count|total)\b/;
 
@@ -216,7 +217,8 @@ export function planPaxQuery(typed: string): PaxPlan | null {
     }
     if (numbers.length > 0) return null;
     if (faultAsked) return null; // "my phone is not working" is not a PAX question without the word pax
-    if (tokens.length === 0) return null; // "extension" alone: not a PAX question without the word "pax"
+    // "phone number of departments", "contact number of all departments": the subject is a non-human one (the departments), the same list as "pax number of departments" (owner, 31 Oct 2026)
+    if (tokens.length === 0) return DEPARTMENT_WORDS.test(norm) ? { kind: "list", claim: "always", area, count } : null; // "phone" or "extension" alone: not a PAX question without the word "pax"
     return { kind: "name", claim: "ifFound", tokens, area, count: false, fault: false };
   }
 
