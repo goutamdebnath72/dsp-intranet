@@ -180,6 +180,15 @@ async function main() {
 
   ok("TEMPORARY: an empty location is shown as 'Office' (owner, 31 Oct 2026); a location that exists is never replaced", (a?.card.table?.rows ?? []).every((r) => r[1] !== "") && (await ask("pax civil"))?.card.table?.rows.map((r) => r[1]).join() === "A - Zone,B - Zone,C - Zone");
 
+  // ---- complete department names are never cut (owner, 31 Oct 2026) ----
+  const PLANTS: PaxRow[] = [mk("Plant Control", "40001"), mk("Plant Medical (PMU)", "41301"), mk("Fire Service", "42046")];
+  a = await ask("pax plant control", PLANTS);
+  ok("'pax plant control': Plant Control | Office | 40001 (the department is whole; no location, so the temporary word)", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["Plant Control", "Office", "40001"]]) && head(a) === "40001", JSON.stringify(a?.card.table?.rows));
+  a = await ask("pax plant medical", PLANTS);
+  ok("'pax plant medical': Plant Medical | PMU | 41301", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["Plant Medical", "PMU", "41301"]]) && head(a) === "41301", JSON.stringify(a?.card.table?.rows));
+  ok("'phone number of plant control' is the same (an alias)", (await ask("phone number of plant control", PLANTS))?.card.table?.rows[0].join("|") === "Plant Control|Office|40001");
+  ok("the whole list shows both whole, in A to Z order (Fire Service, Plant Control, Plant Medical)", JSON.stringify((await ask("pax", PLANTS))?.card.table?.rows.map((r) => r[0])) === JSON.stringify(["Fire Service", "Plant Control", "Plant Medical"]));
+
   // ---- lists, counts, areas ----
   a = await ask("pax");
   ok("'pax': the whole directory, the headline is the count of numbers", head(a) === `${DISTINCT} PAX numbers` && a?.card.table?.rows.length === ROWS.length, head(a));

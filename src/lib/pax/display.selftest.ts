@@ -14,7 +14,7 @@ const LABELS = [
   "C & IT (Console)", "C & IT (DR)", "CISF (PCR)", "CISF Admin Gate", "CISF Bhiringi main control room", "CISF Gate No. 2A", "CISF Gate No. 5",
   "CISF Main Gate (IN)", "CISF Main Gate (OUT)", "CISF Pass section(Opp Admin. Bldg.)", "CISF Tumla Gate", "CISF Main Hospital",
   "Civil (A - Zone)", "Civil (B - Zone)", "Network Team (C & IT)", "Network Team (CMMS)", "PAX Complain (In Plant)", "PAX Complain (Township)",
-  "Plant Medical (PMU)", "Fire Service", "Weigh Bridge - Tumla Gate", "MRS Control (Electrical Complain)",
+  "Plant Medical (PMU)", "Plant Control", "Fire Service", "Weigh Bridge - Tumla Gate", "MRS Control (Electrical Complain)",
 ];
 // the numbers where the owner told them: 42043 is on CISF Tumla Gate AND on Weigh Bridge - Tumla Gate; the others are only here to give every name a number
 const NUMBER: Record<string, string> = { "CISF Tumla Gate": "42043", "Weigh Bridge - Tumla Gate": "42043" };
@@ -35,6 +35,13 @@ ok("Civil (A - Zone) -> Civil | A - Zone", at("Civil (A - Zone)") === "Civil|A -
 ok("PAX Complain (In Plant) -> PAX Complain | In Plant (a place name, kept as printed)", at("PAX Complain (In Plant)") === "PAX Complain|In Plant" && at("PAX Complain (Township)") === "PAX Complain|Township");
 // a name that stands alone: cut at its bracket
 ok("Plant Medical (PMU) -> Plant Medical | PMU (alone: cut at the bracket)", at("Plant Medical (PMU)") === "Plant Medical|PMU");
+// the owner's rule of 31 Oct: complete department names are never cut, although both begin with "Plant"
+ok("Plant Control is a COMPLETE department name: Plant Control | (empty), not Plant | Control", at("Plant Control") === "Plant Control|", at("Plant Control"));
+ok("Plant Medical (PMU) is a complete name too: Plant Medical | PMU, not Plant | Medical (PMU)", at("Plant Medical (PMU)") === "Plant Medical|PMU", at("Plant Medical (PMU)"));
+const plants = splitLabels(["Plant Control", "Plant Medical (PMU)", "Plant Garage", "Plant Water"].map((label, i) => ({ label, number: String(40000 + i) })));
+ok("...also next to other names that begin with 'Plant': the two protected names stay whole, and the other two (which only share the word) are grouped like CISF is: Plant | Garage, Plant | Water", plants.get("Plant Control")?.department === "Plant Control" && plants.get("Plant Medical (PMU)")?.department === "Plant Medical" && plants.get("Plant Garage")?.department === "Plant" && plants.get("Plant Garage")?.location === "Garage" && plants.get("Plant Water")?.location === "Water", JSON.stringify([...plants]));
+ok("...a word that only LOOKS like a protected name is not protected (Plant Controller, Plant Medicals)", splitLabels([{ label: "Plant Controller" }, { label: "Plant Medicals (X)" }]).get("Plant Controller")?.department !== "Plant Control");
+ok("...whatever follows a protected name is its location (Plant Control (Telecom) -> Telecom; Plant Control Room -> Room)", splitLabels([{ label: "Plant Control (Telecom)" }]).get("Plant Control (Telecom)")?.location === "Telecom" && splitLabels([{ label: "Plant Control Room" }]).get("Plant Control Room")?.location === "Room");
 ok("MRS Control (Electrical Complain) -> MRS Control | Electrical Complain", at("MRS Control (Electrical Complain)") === "MRS Control|Electrical Complain");
 ok("Fire Service -> Fire Service | (empty)", at("Fire Service") === "Fire Service|");
 // the owner's rule of 31 Oct: a name that uses the number of a department's name belongs to that department, its whole printed name is the location

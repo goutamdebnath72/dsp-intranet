@@ -12,6 +12,14 @@
 //       CISF Tumla Gate and Weigh Bridge - Tumla Gate both have 42043  ->  CISF | Tumla Gate  and  CISF | Weigh Bridge - Tumla Gate
 
 export interface Parts { department: string; location: string }
+
+/**
+ * COMPLETE department names that are never cut (owner, 31 Oct 2026: "Plant Control and Plant Medical are the complete department names, can not break the words").
+ * Without this, the names that merely START with the same word ("Plant Control", "Plant Medical (PMU)") would be read as one department "Plant". A name that begins with one of these is that department,
+ * the rest of the printed name (if any) is the location: Plant Medical (PMU) -> Plant Medical | PMU; Plant Control -> Plant Control | (empty).
+ * Add a name here when a department's own name begins with a word that other departments share.
+ */
+export const WHOLE_DEPARTMENTS: readonly string[] = ["Plant Control", "Plant Medical"];
 /** A printed name and, when it is known, its number (the sharing of a number needs it). */
 export interface Entry { label: string; number?: string }
 
@@ -44,13 +52,26 @@ export function splitLabels(entries: Entry[]): Map<string, Parts> {
     const l = e.label.trim();
     if (l && e.number) numbersOf.set(l, (numbersOf.get(l) ?? new Set<string>()).add(e.number.trim()));
   }
-  const grouped = new Set<string>(); // the names that share their first words with another name
+  const grouped = new Set<string>(); // the names that share their first words with another name (or are a whole department name)
+  const out = new Map<string, Parts>();
+  // a name that begins with a complete department name is that department, whole; it takes no part in the sharing of first words
+  const whole = new Set<string>();
+  for (const l of distinct) {
+    const w = words(l).map(lower);
+    const dep = WHOLE_DEPARTMENTS.find((d) => { const dw = words(d).map(lower); return dw.every((x, i) => w[i] === x); });
+    if (!dep) continue;
+    const rest = l.replace(/\s+/g, " ").slice(dep.length).trim();
+    const lone = BRACKET.exec(rest);
+    out.set(l, { department: dep, location: lone && lone[1] === "" ? lone[2].trim() : rest });
+    whole.add(l);
+    grouped.add(l);
+  }
   const groups = new Map<string, string[]>();
   for (const l of distinct) {
+    if (whole.has(l)) continue;
     const key = lower(words(splitBracket(l).base)[0] ?? l);
     groups.set(key, [...(groups.get(key) ?? []), l]);
   }
-  const out = new Map<string, Parts>();
   for (const members of groups.values()) {
     if (members.length >= 2) {
       const lead = commonLead(members.map((l) => words(splitBracket(l).base)));
