@@ -71,10 +71,15 @@ async function main() {
   ok("...but 'pax plant medical' is a NAME (Plant Medical), not the plant area", plan("pax plant medical")?.kind === "name" && (plan("pax plant medical") as { area: string | null }).area === null);
   for (const q of ["pax not working", "pax complaint", "pax complain in plant", "pax out of order", "my pax is dead"]) ok(`"${q}" is a fault question (the complaint desk)`, (plan(q) as { fault: boolean })?.fault === true, JSON.stringify(plan(q)));
   ok("'pax complaint township' is narrowed to the outside area", (plan("pax complaint township") as { area: string }).area === "outside");
-  for (const q of ["telephone number of fire service", "extension of c&it console", "intercom civil"]) {
+  for (const q of ["telephone number of fire service", "extension of c&it console", "intercom civil", "phone number of civil", "contact number of fire service", "fire service contact"]) {
     const p = plan(q);
-    ok(`"${q}": a weak cue is ours only if found, and only on exact words`, p?.kind === "name" && p.claim === "ifFound" && (p as { exactOnly: boolean }).exactOnly === true, JSON.stringify(p));
+    ok(`"${q}": the aliases (phone, telephone, contact, extension...) are ours only if the subject is found`, p?.kind === "name" && p.claim === "ifFound", JSON.stringify(p));
   }
+  for (const [q, ticket] of [["contact number of 498301", "498301"], ["phone number of ticket 498301", "498301"], ["pax of 498301", "498301"]] as const) {
+    const p = plan(q);
+    ok(`"${q}": the subject is a person by ticket`, p?.kind === "person" && p.ticket === ticket, JSON.stringify(p));
+  }
+  ok("a ticket with other words, two tickets, a mobile number: not a person plan", plan("contact number of 498301 and 498302") === null && plan("contact number of civil 498301") === null && plan("phone 9434012345") === null && plan("498301") === null);
 
   // ---- what the route must NOT take ----
   for (const q of [
@@ -108,7 +113,8 @@ async function main() {
   ok("'pax tumlah gate' is found", nums(await ask("pax tumla gaet")).includes("42043"));
   ok("a different word 4 letters long is NOT guessed ('pax date' is not 'gate')", head(await ask("pax date")) === "Not found");
   a = await ask("telephone number of fire servise");
-  ok("a weak cue never uses a spelling guess: 'telephone number of fire servise' is not taken", a === null);
+  ok("the aliases are the same keyword as pax: 'telephone number of fire servise' finds Fire Service and SAYS the correction", head(a) === "42046" && /Read “servise” as “service”/.test(a?.summary ?? ""), JSON.stringify(a?.card.headline));
+  ok("'contact number of fire service' and 'phone number of fire service' -> 42046", head(await ask("contact number of fire service")) === "42046" && head(await ask("phone number of fire service")) === "42046");
   // abbreviations and groups
   a = await ask("pax c&it");
   ok("'pax c&it': all four C & IT numbers, counted in the headline", head(a) === "4 PAX numbers" && JSON.stringify(nums(a).sort()) === JSON.stringify(["40511", "40512", "40513", "40521"]), JSON.stringify(nums(a)));
@@ -254,8 +260,10 @@ async function main() {
   // ---- the wiring in the file itself: the application's own connection, never the model's ----
   const src = readFileSync("src/lib/nl2sql/omnibar.ts", "utf8");
   const wiring = src.slice(src.indexOf("pax: async (qq)"), src.indexOf("hospital: async (qq)"));
-  ok("omnibar.ts wires the PAX route to getDb() (the app's own connection)", wiring.includes("getDb") && wiring.includes("loadPaxRows") && wiring.includes("answerPax"), wiring.slice(0, 300));
-  ok("...and the PAX wiring's CODE never uses withClient / withDefaultClient / nlq_reader (its comment may name them)", !/withClient|withDefaultClient|nlq_reader|NL2SQL_DATABASE_URL/.test(wiring.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n")));
+  const code = (t: string) => t.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+  const routeSrc = readFileSync("src/lib/pax/route.ts", "utf8");
+  ok("omnibar.ts calls answerPaxRoute (src/lib/pax/route.ts), which reads with getDb() (the app's own connection)", wiring.includes("answerPaxRoute") && routeSrc.includes("getDb") && routeSrc.includes("loadPaxRows"), wiring.slice(0, 300));
+  ok("...and neither the wiring's nor route.ts's CODE ever uses withClient / withDefaultClient / nlq_reader (comments may name them)", !/withClient|withDefaultClient|nlq_reader|NL2SQL_DATABASE_URL/.test(code(wiring) + code(routeSrc)));
   ok("...the route sits BEFORE the hospital route in runOmnibar", src.indexOf("deps.pax ?") > 0 && src.indexOf("deps.pax ?") < src.indexOf("deps.hospital ?"));
   ok("the table is not in the model's schema: no nlq view mentions pax_directory", !/pax_directory/.test(readFileSync("src/lib/nl2sql/context.ts", "utf8")));
 

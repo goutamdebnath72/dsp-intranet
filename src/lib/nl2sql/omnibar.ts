@@ -463,13 +463,9 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
     llm: groqLlm(),
     withClient: withDefaultClient,
     pax: async (qq) => {
-      // the application's OWN connection (getDb), never withDefaultClient: that one is the model's read-only role when NL2SQL_DATABASE_URL is set, and the PAX table is closed to it on purpose
-      const { answerPax } = await import("@/lib/pax/answer");
-      const { loadPaxRows } = await import("@/lib/pax/store");
-      const { getDb } = await import("@/lib/db");
-      const r = await answerPax(qq, () => loadPaxRows(async (sql, params) => (await getDb()).query(sql, params)));
-      if (!r) return null;
-      return { kind: "count", answer: r.summary, hospital: r.card, interpretation: r.interpretation };
+      // the PAX directory (a department's number) or an executive's CUG number, decided by the subject (step 63b, src/lib/pax/route.ts: it reads with the application's OWN connection, never the model's)
+      const { answerPaxRoute } = await import("@/lib/pax/route");
+      return answerPaxRoute(qq);
     },
     hospital: async (qq) => {
       const { answerHospital } = await import("@/lib/hospital/engine");

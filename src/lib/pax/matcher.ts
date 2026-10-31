@@ -10,10 +10,13 @@
 //   - a FAULT:              "pax not working", "pax complaint" (the Telecom complaint numbers)
 //   - an AREA:              "in plant" / "township" / "outside plant" narrows any of the above
 //
+// ALIASES (owner, 31 Oct 2026): "pax number", "phone number" and "contact number" are ONE keyword. The SUBJECT decides what the number is: a department, a place or any other non-human entity
+// gives its PAX number (this file and answer.ts); a person who is an executive (ticket 4xxxxx) gives his or her CUG mobile number (people.ts, route.ts). The plan only reads the words; the route decides.
+//
 // WHEN THE ROUTE TAKES A QUESTION (a wrong confident answer is worse than no answer, so it is careful):
 //   STRONG cue = the word "pax": always ours (a found answer, or an honest "not found").
-//   WEAK cue   = extension, extn, intercom, landline, telephone, phone: ours ONLY when every word of the question matches a directory name EXACTLY (no spelling guess),
-//                the question is short, and it is not about a person, a doctor, the hospital OPD or a circular ("phone number of Rajesh Kumar" is not ours).
+//   WEAK cue   = phone, telephone, contact, extension, extn, intercom, landline: ours ONLY when the subject is found (a directory entry, or an executive); never when the question is about a doctor,
+//                the hospital OPD, a mobile number, a fault or a circular, and never when nothing is found (the other routes then answer as before).
 //   NO cue     = ONE bare 5-digit number (with only words like "who has") is ours ONLY when that number is in the directory; otherwise the question goes on untouched.
 //   A number of six or more digits (a ticket, a mobile) or a word about circulars (notice, policy, tariff ...) is never ours.
 
@@ -32,7 +35,9 @@ export interface PaxRow {
 
 export type PaxPlan =
   | { kind: "number"; claim: "always" | "ifFound"; numbers: string[]; area: PaxArea | null; count: boolean }
-  | { kind: "name"; claim: "always" | "ifFound"; tokens: string[]; area: PaxArea | null; count: boolean; fault: boolean; exactOnly: boolean }
+  | { kind: "name"; claim: "always" | "ifFound"; tokens: string[]; area: PaxArea | null; count: boolean; fault: boolean }
+  /** "contact number of 498301": the subject is a person, given by ticket (answered only for an executive, people.ts). */
+  | { kind: "person"; claim: "ifFound"; ticket: string }
   | { kind: "list"; claim: "always"; area: PaxArea | null; count: boolean };
 
 // ---- text ----------------------------------------------------------------------------------------
@@ -128,17 +133,20 @@ export function matchToken(q: string, tokens: Set<string>): TokenHit | null {
 // ---- reading the question ------------------------------------------------------------------------
 
 const STRONG_CUE = /\b(?:pax|p a x)\b/;
-const WEAK_CUE = /\b(?:extension|extn|ext|intercom|landline|land line|telephone|phone|tel)\b/;
+const WEAK_CUE = /\b(?:extension|extn|ext|intercom|landline|land line|telephone|phone|contact|contacts|tel)\b/;
 /** A question about a document, not the directory ("pax billing notice", "tariff for ..."). */
 const DOCUMENT_WORDS = /\b(?:circular|circulars|notice|notices|policy|policies|memo|rule|rules|tariff|bill|bills|billing|rate|rates|charges|allowance|amendment|guideline|guidelines|office order)\b/;
 /** A question about a person, a doctor or the hospital OPD: the other routes own it unless the word "pax" itself is there. */
-const PEOPLE_WORDS = /\b(?:mobile|cell|email|e mail|mail|ticket|pno|doctor|doctors|opd|hospital|employee|employees|staff|officer|officers|executive|executives)\b/;
+const PEOPLE_WORDS = /\b(?:mobile|cell|email|e mail|mail|ticket|pno|opd|hospital|employee|employees|staff|officer|officers|executive|executives)\b/;
 const OUT_AREA = /\b(?:township|outside (?:the )?plant|out side plant|out of (?:the )?plant|outside area|outer plant)\b/;
 const IN_AREA = /\b(?:(?:in|inside|within) (?:the )?plant|plant area|in plant|plant side)\b/;
 /** A fault: the question is about the complaint desk ("PAX Complain" in the list). */
 const FAULT = /\b(?:complain|complaint|complaints|complained|fault|faults|faulty|not working|out of order|no tone|no dial tone|dead|repair|repairs|problem|problems|defective|trouble|disturbance|breakdown|not ringing|not responding)\b/;
 const LIST_WORDS = /\b(?:list|all|every|complete|entire|full|directory|everything|whole)\b/;
 const COUNT_WORDS = /\b(?:how many|count|total)\b/;
+
+/** Words that only introduce a ticket number. */
+const TICKET_WORDS = new Set(["ticket", "tkt", "emp", "employee", "id", "sailpno"]);
 
 const digitRuns = (s: string): string[] => s.match(/\d+/g) ?? [];
 
@@ -158,7 +166,13 @@ export function planPaxQuery(typed: string): PaxPlan | null {
 
   // a ticket, a mobile number or any long number is somebody else's question
   const runs = digitRuns(norm);
-  if (runs.some((r) => r.length >= 6)) return null;
+  if (runs.some((r) => r.length >= 6)) {
+    // "contact number of 498301" / "phone of ticket 498301": the subject is a person, by ticket (one six-digit ticket and nothing else but ticket words)
+    const six = runs.filter((r) => r.length === 6);
+    const others = norm.split(" ").filter((t) => t && !QUERY_STOP.has(t) && !/^\d+$/.test(t) && !TICKET_WORDS.has(t));
+    if ((strong || weak) && six.length === 1 && runs.length === 1 && others.length === 0 && !DOCUMENT_WORDS.test(norm)) return { kind: "person", claim: "ifFound", ticket: six[0] };
+    return null;
+  }
   if (DOCUMENT_WORDS.test(norm)) return null;
   if (!strong && wordCount > 8) return null;
 
@@ -190,9 +204,9 @@ export function planPaxQuery(typed: string): PaxPlan | null {
 
   if (strong) {
     if (numbers.length > 0) return { kind: "number", claim: "always", numbers: Array.from(new Set(numbers)), area, count: false };
-    if (faultAsked) return { kind: "name", claim: "always", tokens, area, count, fault: true, exactOnly: false };
+    if (faultAsked) return { kind: "name", claim: "always", tokens, area, count, fault: true };
     if (tokens.length === 0) return { kind: "list", claim: "always", area, count };
-    return { kind: "name", claim: "always", tokens, area, count, fault: false, exactOnly: false };
+    return { kind: "name", claim: "always", tokens, area, count, fault: false };
   }
 
   if (weak) {
@@ -203,7 +217,7 @@ export function planPaxQuery(typed: string): PaxPlan | null {
     if (numbers.length > 0) return null;
     if (faultAsked) return null; // "my phone is not working" is not a PAX question without the word pax
     if (tokens.length === 0) return null; // "extension" alone: not a PAX question without the word "pax"
-    return { kind: "name", claim: "ifFound", tokens, area, count: false, fault: false, exactOnly: true };
+    return { kind: "name", claim: "ifFound", tokens, area, count: false, fault: false };
   }
 
   // no cue: one bare 5-digit number and nothing but filler words ("who has 42046", "42046")

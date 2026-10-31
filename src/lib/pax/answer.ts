@@ -100,6 +100,7 @@ const areaPhrase = (a: PaxArea | null) => (a ? `, ${AREA_ONLY[a]} only` : "");
 
 /** The pure core: a plan, the rows of the directory, the words of the question. */
 export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
+  if (plan.kind === "person") return null; // a person is not in the directory (people.ts)
   const rows = uniqueRows(all);
 
   // ---- a LIST or a COUNT of the whole directory (or one area of it) ----
@@ -158,14 +159,14 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   // a FAULT goes to the complaint desk. The rows named "PAX Complain" come first (the "MRS Control (Electrical Complain)" line is the electrical desk, not the PAX one);
   // any other complaint row is the fallback; and words that match nothing ("not working in civil") never hide the desk: they are said as not used.
   let tokens = plan.tokens;
-  let m = matchByName(rows, tokens, plan.exactOnly);
+  let m = matchByName(rows, tokens, false);
   let ignored: string[] = [];
   if (plan.fault) {
     const extra = plan.tokens;
-    m = matchByName(rows, ["pax", "complain", ...extra], plan.exactOnly);
+    m = matchByName(rows, ["pax", "complain", ...extra], false);
     tokens = ["pax", "complain", ...extra];
-    if (m.rows.length === 0) { m = matchByName(rows, ["complain", ...extra], plan.exactOnly); tokens = ["complain", ...extra]; }
-    if (m.rows.length === 0 && extra.length > 0) { m = matchByName(rows, ["pax", "complain"], plan.exactOnly); tokens = ["pax", "complain"]; ignored = extra; }
+    if (m.rows.length === 0) { m = matchByName(rows, ["complain", ...extra], false); tokens = ["complain", ...extra]; }
+    if (m.rows.length === 0 && extra.length > 0) { m = matchByName(rows, ["pax", "complain"], false); tokens = ["pax", "complain"]; ignored = extra; }
   }
   const asked = plan.fault ? plan.tokens.join(" ") || "complaint" : tokens.join(" ");
   const baseInterp = plan.fault ? "PAX complaint numbers (the Telecom complaint desk)" : `PAX number for ${quote(asked)}`;
