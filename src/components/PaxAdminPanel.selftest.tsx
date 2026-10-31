@@ -75,5 +75,12 @@ ok("a delegate who somehow gets the 'delegate' op still gets no people tab conte
 ok("the tabs are a real tab list with the chosen one marked", hod.includes('role="tablist"') && /role="tab" aria-selected="true"[^>]*>[^<]*(<svg[^>]*>.*?<\/svg>)?Add/.test(hod.replace(/\n/g, "")));
 ok("all panel text is escaped (a prefill with a tag is text)", !h(<PaxAdminPanel open={{ op: "add", role: "hod", prefill: { department: "<img src=x onerror=alert(1)>" } }} />).includes("<img"));
 
+// ---- guards for the two ways a form can hang (the tests above draw on the server, where effects never run; the clicks are covered by the sandbox run described in STATUS) ----
+import { readFileSync } from "node:fs";
+const src = readFileSync("src/components/PaxAdminPanel.tsx", "utf8");
+ok("the 'still mounted' flag is switched ON again at every mount (React's StrictMode, used by npm run dev, mounts, unmounts and mounts again: without this every answer is thrown away and the button stays greyed)", /useEffect\(\(\) => \{\s*alive\.current = true;\s*return \(\) => \{ alive\.current = false; \};\s*\}, \[\]\);/.test(src) && !/useEffect\(\(\) => \(\) => \{ alive\.current = false; \}, \[\]\)/.test(src));
+ok("a request that is not answered ends: the call is aborted after a time limit and the timer is cleared", /AbortController/.test(src) && /REQUEST_TIMEOUT_MS = 20_000/.test(src) && /signal: ctl\.signal/.test(src) && /clearTimeout\(timer\)/.test(src));
+ok("a missing-table reply (503) shows the server's own sentence on screen, not a generic one", /String\(r\.body\.error \?\? "Something went wrong/.test(src));
+
 console.log(`PaxAdminPanel selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -230,7 +230,7 @@ async function main() {
   ok("...Telecom's own lines are split as the table shows them (Weigh Bridge | 60T)", weigh.includes("Weigh Bridge|60T|40173") && weigh.includes("Weigh Bridge|Tumla Gate|42043"), JSON.stringify(weigh));
 
   // ---- the requests (api.ts): who is asking comes from the login, never from the request ----
-  const { handlePaxAdmin, isSameOrigin, findExecutives } = await import("./api");
+  const { handlePaxAdmin, isSameOrigin, findExecutives, errorReply } = await import("./api");
   const { rowsOf } = await import("./rows");
   const DIRECTORY = [
     { id: "u1", ticketNo: "412345", name: "RAKESH OJHA", designation: "Chief Manager", department: "C&IT" }, { id: "u2", ticketNo: "498301", name: "ANIL DAS", designation: "Sr. Manager", department: "Civil" },
@@ -266,6 +266,13 @@ async function main() {
   ok("revoking through the request", ((await handlePaxAdmin({ op: "revoke", ticket: "498301" }, ctx(HOD))).body.result as { status: string }).status === "ok");
   ok("the history through the request lists the newest first", ((await handlePaxAdmin({ op: "audit" }, ctx(HOD))).body.history as Array<{ action: string }>)[0].action === "revoke");
   ok("a page of ANOTHER site cannot use the login: origin must be this site (no Origin header = not a page of another site)", isSameOrigin("https://intranet.example", "intranet.example") && !isSameOrigin("https://evil.example", "intranet.example") && isSameOrigin(null, "intranet.example") && !isSameOrigin("not a url", "intranet.example") && !isSameOrigin("https://intranet.example", null));
+  ok("a missing admin table (sql/13 not run) gets a reply that NAMES the fix, in the form TypeORM raises it; any other failure stays generic (no detail leaked)", (() => {
+    const missing = errorReply(Object.assign(new Error('relation "public.pax_delegate" does not exist'), { code: "42P01" }));
+    const viaDriver = errorReply(Object.assign(new Error('relation "public.pax_directory_audit" does not exist'), { driverError: { code: "42P01" } }));
+    const other = errorReply(new Error("connection terminated: secret-host.example:5432"));
+    const otherTable = errorReply(Object.assign(new Error('relation "public.something_else" does not exist'), { code: "42P01" }));
+    return missing.status === 503 && /13_pax_admin\.sql/.test(String(missing.body.error)) && missing.body.setupNeeded === true && viaDriver.status === 503 && other.status === 500 && !JSON.stringify(other.body).includes("secret-host") && otherTable.status === 500;
+  })());
   ok("TypeORM returns [rows, count] for UPDATE and DELETE: rowsOf puts every shape right", rowsOf([[{ name: "x" }], 1]).length === 1 && rowsOf([[], 0]).length === 0 && rowsOf([{ a: 1 }, { a: 2 }]).length === 2 && rowsOf([]).length === 0 && rowsOf(undefined).length === 0 && rowsOf([{ a: 1 }, { a: 2 }])[1].a === 2);
 
   await pool.end();

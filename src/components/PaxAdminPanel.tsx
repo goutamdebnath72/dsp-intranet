@@ -211,9 +211,14 @@ export function HistoryList({ history }: { history: PaxAuditView[] }) {
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+/** A request that is not answered in this time ends with a message: a form must never stay greyed (busy) for ever. */
+const REQUEST_TIMEOUT_MS = 20_000;
+
 async function call(payload: Json): Promise<{ ok: boolean; status: number; body: Json }> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const res = await fetch("/api/pax/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), credentials: "same-origin" });
+    const res = await fetch("/api/pax/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), credentials: "same-origin", signal: ctl.signal });
     let body: Json = {};
     try {
       body = await res.json();
@@ -223,6 +228,8 @@ async function call(payload: Json): Promise<{ ok: boolean; status: number; body:
     return { ok: res.ok, status: res.status, body };
   } catch {
     return { ok: false, status: 0, body: { error: "The network did not answer. Please try again." } };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -258,7 +265,11 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   const [history, setHistory] = useState<PaxAuditView[] | null>(null);
 
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  // React's StrictMode (npm run dev) mounts, unmounts and mounts again: the flag must be switched ON again at every mount, or every answer would be thrown away and the button would stay greyed for ever
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
   const guard = useCallback(async <T,>(fn: () => Promise<T>, keepNotice = false): Promise<T | undefined> => {
     setBusy(true);
     if (!keepNotice) setNotice(null); // a reload that follows an action must not wipe the message that action has just set

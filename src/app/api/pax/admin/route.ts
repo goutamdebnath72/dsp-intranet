@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { handlePaxAdmin, isSameOrigin } from "@/lib/pax/admin/api";
+import { errorReply, handlePaxAdmin, isSameOrigin } from "@/lib/pax/admin/api";
 import { sessionActor, typeormPaxDb } from "@/lib/pax/admin/access";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     return NextResponse.json(out.body, { status: out.status, headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     console.error("pax admin:", e);
-    return NextResponse.json({ error: "The PAX directory could not be changed just now. Please try again; if it keeps happening, tell the Telecom team (the admin tables of sql/13 may not be created yet)." }, { status: 500 });
+    const out = errorReply(e);
+    return NextResponse.json(out.body, { status: out.status });
   }
 }
