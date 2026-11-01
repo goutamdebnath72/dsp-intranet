@@ -93,6 +93,8 @@ export interface OmnibarDeps {
   hospital?: (q: string) => Promise<AnalyticsPayload | null>;
   /** A question about the PAX directory (step 63a): the land-line numbers of the departments and places, read from public.pax_directory with the application's OWN connection (never the model's read-only client, never the nlq schema); null when the question is not a PAX question. Optional, so older callers need nothing. */
   pax?: (q: string) => Promise<AnalyticsPayload | null>;
+  /** A request to CHANGE employee data (step 66a): the HOD of C&IT, and an executive he has authorised, get the employee manager; everybody else, logged in or not, one plain sentence; null when the sentence is not such a request. */
+  employeeAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** The date of birth or date of joining of an employee (step 65b): ONLY the HOD of C&IT may know them. For him an answer; for everybody else, logged in or not, one plain sentence; null when the sentence is not about an employee. The person is the LOGIN's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
   dates?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** A request to CHANGE the PAX directory (step 64a): "add new pax number", "delete pax 42046", "delegate pax to ...". The editor opens for the HOD C&IT and for an executive he authorised; for anybody else a plain message says why not. The person is the login's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
@@ -326,6 +328,10 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
   }
 
   if (!retry) {
+    // 0----. a request to CHANGE employee data (step 66a): "add new employee", "edit employee record", "change dob of X", "delete employee 498880", "delegate employee editing to X". The sentence is read first (pure) and an action word has to LEAD it, so a question about employees never lands here; only such a sentence asks who the person is.
+    const employeeAdmin = deps.employeeAdmin ? await deps.employeeAdmin(q, userKey).catch(() => null) : null;
+    if (employeeAdmin) return { ...employeeAdmin, source: "holiday", attempt };
+
     // 0---. the date of birth / date of joining of an employee (step 65b): ONLY the HOD of C&IT; everybody else gets a plain refusal and the database is not asked for the dates. It comes FIRST: a question about somebody's dates is settled before any other route sees it.
     const dates = deps.dates ? await deps.dates(q, userKey).catch(() => null) : null;
     if (dates) return { ...dates, source: "holiday", attempt };
@@ -474,6 +480,13 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
     skipModel: opts.skipModel,
     llm: groqLlm(),
     withClient: withDefaultClient,
+    employeeAdmin: async (qq, ticket) => {
+      // the employee manager (step 66a, src/lib/employees/admin/omnibar.ts): the sentence is read first (pure), the database is asked only for a sentence that IS such a request
+      const { answerEmployeeAdmin } = await import("@/lib/employees/admin/omnibar");
+      const { authorityForTicket } = await import("@/lib/employees/admin/access");
+      const { getDb } = await import("@/lib/db");
+      return answerEmployeeAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t) });
+    },
     dates: async (qq, ticket) => {
       // the date of birth / date of joining of an employee: ONLY the HOD of C&IT (step 65b, src/lib/peopleEvents/datesLookup.ts). `ticket` is the LOGIN's (the route ignores the one in the URL); the sentence is read first,
       // the people directory and the dates are asked only for a sentence that IS such a question, with the application's own connection (never the model's)

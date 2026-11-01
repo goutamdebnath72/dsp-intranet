@@ -5,7 +5,8 @@
 //     (SUPERADMIN_TICKETS, by the LOGIN's ticket; an authorised executive of the PAX editor is not the HOD and is refused like everybody else);
 //   - everybody else, logged in or not, gets one plain sentence, and the database is not even asked for the dates;
 //   - a sentence that is not about an employee (a circular about retirement benefits, an age limit) is not ours: null, and the other routes answer as before.
-// This is one of the TWO files that read the date columns (the other is query.ts, the lists); a test fails if any other file ever does.
+// This is one of the THREE files that read the date columns (the others are query.ts, the lists, and employees/admin/store.ts, the employee manager, which hands the dates to the HOD of C&IT alone: its tests prove that
+// an authorised executive never receives one, in the form, the search or the history); a test fails if any other file ever does.
 // The reader is the application's own connection (never the AI search's read-only role, which cannot see these columns anyway).
 
 import { DateTime } from "luxon";

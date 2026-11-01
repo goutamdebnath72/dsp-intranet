@@ -43,6 +43,7 @@ import { PersonBadges } from "@/components/PersonBadges";
 import { ClarifyChoices } from "@/components/ClarifyChoices";
 import { HospitalAnswerCard } from "@/components/HospitalAnswerCard";
 import { PaxAdminPanel } from "@/components/PaxAdminPanel";
+import { EmployeeAdminPanel } from "@/components/EmployeeAdminPanel";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
@@ -785,6 +786,8 @@ export function OmnibarModal({
                             )}
                             {analytics.paxAdmin ? (
                               <PaxAdminPanel open={analytics.paxAdmin} />
+                            ) : analytics.employeeAdmin ? (
+                              <EmployeeAdminPanel open={analytics.employeeAdmin} />
                             ) : analytics.hospital ? (
                               <HospitalAnswerCard answer={analytics.hospital} />
                             ) : analytics.holidayCompare ? (

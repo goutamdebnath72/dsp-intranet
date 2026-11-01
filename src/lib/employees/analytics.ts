@@ -106,6 +106,8 @@ export interface AnalyticsPayload {
   ask?: import("@/lib/nl2sql/departmentAsk").DepartmentAsk;
   /** A hospital OPD answer (step 51a), drawn as a card by HospitalAnswerCard. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   hospital?: import("@/lib/hospital/types").HospitalAnswer;
+  /** The employee manager was asked for by someone who may use it (step 66a): drawn as a panel by EmployeeAdminPanel. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  employeeAdmin?: import("@/lib/employees/admin/types").EmployeeAdminOpen;
   /** The PAX directory editor was asked for by someone who may use it (step 64a): drawn as a panel by PaxAdminPanel. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   paxAdmin?: import("@/lib/pax/admin/types").PaxAdminOpen;
   /** The ONE clean answer, shown first, big and bold (step 61a): a Yes or No (holiday verdicts), the date asked for, the department asked for. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */

@@ -163,10 +163,15 @@ async function main() {
   };
   walk(join(process.cwd(), "src"));
   // api.ts names the columns only to RECOGNISE the error "the migration has not been run" in a failure message; it reads nothing (no SELECT, no FROM): proved just below
-  const READERS = ["src/lib/peopleEvents/datesLookup.ts", "src/lib/peopleEvents/query.ts"];
+  // the employee manager (employees/admin/store.ts) reads and writes the dates for the HOD of C&IT ALONE: a delegate never receives one (its own tests prove it); named here on purpose, so a fourth reader cannot appear unnoticed
+  const READERS = ["src/lib/employees/admin/store.ts", "src/lib/peopleEvents/datesLookup.ts", "src/lib/peopleEvents/query.ts"];
   const NAMES_ONLY = ["src/lib/peopleEvents/api.ts"];
-  ok("ONLY TWO FILES of the program read the date columns: the lists (query.ts) and this lookup (datesLookup.ts); one more (api.ts) names them only in an error message. Any other file fails this test", JSON.stringify(readers.filter((x) => !NAMES_ONLY.includes(x)).sort()) === JSON.stringify(READERS) && readers.every((x) => READERS.includes(x) || NAMES_ONLY.includes(x)), JSON.stringify(readers));
+  ok("ONLY THREE FILES of the program read the date columns: the lists (query.ts), this lookup (datesLookup.ts) and the employee manager's store (for the HOD alone); one more (api.ts) names them only in an error message. Any other file fails this test", JSON.stringify(readers.filter((x) => !NAMES_ONLY.includes(x)).sort()) === JSON.stringify(READERS) && readers.every((x) => READERS.includes(x) || NAMES_ONLY.includes(x)), JSON.stringify(readers));
   ok("...and api.ts, the one that only names them, contains no query (no SELECT, no FROM, no query call)", !/\bSELECT\b|\bFROM\b|\.query\(/.test(code(readFileSync("src/lib/peopleEvents/api.ts", "utf8")).replace(/\/\*[\s\S]*?\*\//g, "")));
+  const empStore = code(readFileSync("src/lib/employees/admin/store.ts", "utf8"));
+  ok("in the employee manager's store every date handed OUT sits behind the HOD-only flag: the record shows a date only when canSeeDates, and the history says 'hidden' unless canSeeDates", /dateOfBirth: canSeeDates \? str\(r\.dob\)/.test(empStore) && /dateOfJoining: canSeeDates \? str\(r\.doj\)/.test(empStore) && /DATE_FIELDS\.has\(f\) && !canSeeDates \? \{ field: f, label: LABEL\[f\], from: "hidden", to: "hidden" \}/.test(empStore));
+  ok("...and the handler passes that flag from the LOGIN's authority (hod), never from the request", /const hod = authority === "hod"/.test(code(readFileSync("src/lib/employees/admin/api.ts", "utf8"))) && !/b\.canSeeDates|b\.hod|b\.datesVisible/.test(readFileSync("src/lib/employees/admin/api.ts", "utf8")));
+  ok("the employee manager's panel reads no date column (it only shows what the server sent)", !/date_of_birth|date_of_joining/.test(code(readFileSync("src/components/EmployeeAdminPanel.tsx", "utf8"))));
   ok("the AI search can never be shown these dates: the model's schema description does not name them", !/date_of_birth|date_of_joining|dates_source/.test(readFileSync("src/lib/nl2sql/context.ts", "utf8")) && !/date_of_birth|date_of_joining/.test(readFileSync("src/lib/nl2sql/sql/01_nlq_schema_views_role.sql", "utf8")));
 
   console.log(`peopleEvents datesLookup selftest: ${pass} passed, ${fail} failed`);
