@@ -1,10 +1,12 @@
 // src/lib/employees/admin/validate.ts
 //
 // THE RULES OF AN EMPLOYEE RECORD (step 66a; owner, 1 Nov 2026). PURE: the same function runs in the panel (so a mistake is shown as it is typed) and on the server (so nothing depends on the panel).
-//   Ticket          six digits. An executive's ticket starts with 4 (and the cohort follows from it: it is never typed); 49xxxx is a direct recruit (a Management Trainee); any other digit after the 4 is promoted.
+//   Ticket          six digits, not starting with 0. An executive's ticket starts with 4 (and the cohort follows from it: it is never typed); 49xxxx is a direct recruit (a Management Trainee); any other digit after the 4 is promoted.
 //   Name            letters, spaces and . ' - only; kept in capitals, one space between words (as the roster has it).
 //   Designation     must exist, and must fit the ticket: a non-executive grade (S-1 ... S-11) for a non-executive, a managerial or medical grade for an executive.
 //   Department      must exist, and must fit the cohort (a department reserved to executives is not for a non-executive, and the other way round).
+//   SAIL P.No.      required for a new employee (it is the first password of his login account); letters and digits.
+//   Contact         (contact.ts) an executive: NIC mail @sail.in, web-mail @saildsp.co.in, a CUG mobile (94347 + 9, 2 or 3) that is required; a non-executive: one e-mail (any domain) and an optional mobile.
 //   Dates           (only the HOD of C&IT sees and sets them) a real calendar day; born not before 1930 and not in the future; joined not in the future; joined at 18 or later, at 23 or later for a direct recruit;
 //                   not past the retirement day (the last day of the month in which 60 is reached). Joining after 32 is allowed but WARNED (an age relaxation may be real).
 // Luxon only.
@@ -12,15 +14,17 @@
 import { DateTime } from "luxon";
 import { IST } from "@/lib/dates";
 import { isMtTicket, minJoiningAge, parseDay, retirementDate, jubileeDate, ZONE } from "@/lib/peopleEvents/rules";
+import { CUG_RE, MOBILE_HINT_EXECUTIVE, MOBILE_RE, NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, isEmail, normalizeMobile } from "./contact";
 import type { Cohort, DepartmentRef, EmployeeInput, FieldErrors, GradeRef, Lookups } from "./types";
 
+/** A ticket number: six digits, never starting with 0. */
+export const isTicket = (t: string): boolean => /^[1-9]\d{5}$/.test(String(t).trim());
 export const cohortOfTicket = (ticketNo: string): Cohort => (/^4\d{5}$/.test(String(ticketNo).trim()) ? "executive" : "nonexecutive");
 
 export const cleanText = (v: unknown, max = 300): string =>
   String(v ?? "").normalize("NFKC").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 
 const NAME_OK = /^[A-Za-z][A-Za-z .'\-]*[A-Za-z.]$/;
-const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PNO_OK = /^[A-Za-z0-9]{1,15}$/;
 export const MAX_JOINING_AGE_ADVERTISED = 32;
 export const MIN_BIRTH = "1930-01-01";
@@ -31,6 +35,10 @@ export interface ValidateOptions {
   canEditDates: boolean;
   /** In a change the ticket is fixed: it is not an input. */
   fixedTicket?: string;
+  /** A new employee must have a SAIL P.No.; in a change it is required only when he has one already. */
+  requirePno?: boolean;
+  /** The person already has a mobile number in his login account: an executive's mobile may then stay empty (unchanged). */
+  hasMobile?: boolean;
 }
 
 export type Validated = { ok: true; value: EmployeeInput; warnings: string[] } | { ok: false; errors: FieldErrors };
@@ -54,7 +62,7 @@ export function validateEmployee(raw: Record<string, unknown>, lookups: Lookups,
   const today = opts.today.setZone(IST).startOf("day");
 
   const ticketNo = opts.fixedTicket ?? cleanText(raw.ticketNo, 20);
-  if (!/^\d{6}$/.test(ticketNo)) errors.ticketNo = "A ticket number is exactly 6 digits.";
+  if (!isTicket(ticketNo)) errors.ticketNo = "A ticket number is exactly 6 digits and does not start with 0.";
   const cohort = cohortOfTicket(ticketNo);
 
   const nameRaw = cleanText(raw.name, 80);
@@ -63,19 +71,20 @@ export function validateEmployee(raw: Record<string, unknown>, lookups: Lookups,
   else if (name.length < 3 || !NAME_OK.test(name)) errors.name = "A name has letters, spaces and . ' - only, and at least 3 characters.";
 
   const sailPno = cleanText(raw.sailPno, 15).toUpperCase();
-  if (sailPno && !PNO_OK.test(sailPno)) errors.sailPno = "The SAIL P.No. has letters and digits only (up to 15).";
+  if (!sailPno && opts.requirePno) errors.sailPno = "Type the SAIL P.No. (it is his first password).";
+  else if (sailPno && !PNO_OK.test(sailPno)) errors.sailPno = "The SAIL P.No. has letters and digits only (up to 15).";
 
   const gradeId = intOrNull(raw.gradeId);
   const grade = gradeId === null || Number.isNaN(gradeId) ? undefined : lookups.grades.find((g) => g.id === gradeId);
   if (!grade) errors.gradeId = "Choose the designation.";
-  else if (/^\d{6}$/.test(ticketNo) && !gradeFitsCohort(grade, cohort)) {
+  else if (isTicket(ticketNo) && !gradeFitsCohort(grade, cohort)) {
     errors.gradeId = cohort === "executive" ? "An executive (ticket starting with 4) cannot hold a non-executive grade." : "A non-executive (ticket not starting with 4) cannot hold an executive designation.";
   }
 
   const departmentId = intOrNull(raw.departmentId);
   const dept = departmentId === null || Number.isNaN(departmentId) ? undefined : lookups.departments.find((d) => d.id === departmentId);
   if (!dept) errors.departmentId = "Choose the department.";
-  else if (/^\d{6}$/.test(ticketNo) && !departmentFitsCohort(dept, cohort)) {
+  else if (isTicket(ticketNo) && !departmentFitsCohort(dept, cohort)) {
     errors.departmentId = cohort === "executive" ? "This department is reserved for non-executives." : "This department is reserved for executives.";
   }
 
@@ -83,10 +92,21 @@ export function validateEmployee(raw: Record<string, unknown>, lookups: Lookups,
   if (position !== null && (Number.isNaN(position) || position < 1 || position > 9999)) errors.position = "The position in the grade is a whole number from 1 to 9999 (leave it empty to place the person last in the grade).";
 
   const address = cleanText(raw.address, 300);
-  const emailNic = cleanText(raw.emailNic, 120).toLowerCase();
-  const webmail = cleanText(raw.webmail, 120).toLowerCase();
-  if (emailNic && !EMAIL_OK.test(emailNic)) errors.emailNic = "This is not an e-mail address.";
-  if (webmail && !EMAIL_OK.test(webmail)) errors.webmail = "This is not an e-mail address.";
+  // contact: the rules differ by cohort (contact.ts). What does not belong to the cohort is not an input: it is ignored.
+  const nicRaw = cleanText(raw.emailNic, 120).toLowerCase(), webRaw = cleanText(raw.webmail, 120).toLowerCase(), mailRaw = cleanText(raw.email, 120).toLowerCase();
+  const mobileRaw = normalizeMobile(raw.mobile);
+  let emailNic = "", webmail = "", email = "", mobile = "";
+  if (isTicket(ticketNo)) {
+    if (cohort === "executive") {
+      if (nicRaw) { if (!isEmail(nicRaw) || !endsWithDomain(nicRaw, NIC_DOMAIN)) errors.emailNic = `The NIC mail ends with ${NIC_DOMAIN}.`; else emailNic = nicRaw; }
+      if (webRaw) { if (!isEmail(webRaw) || !endsWithDomain(webRaw, WEBMAIL_DOMAIN)) errors.webmail = `The web-mail ends with ${WEBMAIL_DOMAIN}.`; else webmail = webRaw; }
+      if (mobileRaw) { if (!CUG_RE.test(mobileRaw)) errors.mobile = `Not a CUG number. ${MOBILE_HINT_EXECUTIVE}`; else mobile = mobileRaw; }
+      else if (!opts.hasMobile) errors.mobile = "Type the CUG mobile number (every executive has one).";
+    } else {
+      if (mailRaw) { if (!isEmail(mailRaw)) errors.email = "This is not an e-mail address."; else email = mailRaw; }
+      if (mobileRaw) { if (!MOBILE_RE.test(mobileRaw)) errors.mobile = "A mobile number is 10 digits and does not start with 0."; else mobile = mobileRaw; }
+    }
+  }
 
   const doctor = raw.doctor === true || raw.doctor === "true" ? true : raw.doctor === false || raw.doctor === "false" ? false : null;
 
@@ -106,7 +126,7 @@ export function validateEmployee(raw: Record<string, unknown>, lookups: Lookups,
       if (doj > today) errors.dateOfJoining = "Joined in the future?";
       else dateOfJoining = dojText;
     }
-    if (dateOfBirth && dateOfJoining && /^\d{6}$/.test(ticketNo)) {
+    if (dateOfBirth && dateOfJoining && isTicket(ticketNo)) {
       const min = minJoiningAge(ticketNo, cohort);
       if (parseDay(dateOfJoining) < parseDay(dateOfBirth).plus({ years: min })) {
         errors.dateOfJoining = isMtTicket(ticketNo, cohort)
@@ -122,7 +142,7 @@ export function validateEmployee(raw: Record<string, unknown>, lookups: Lookups,
   return {
     ok: true,
     warnings,
-    value: { ticketNo, sailPno, name, gradeId: grade!.id, departmentId: dept!.id, position, address, emailNic, webmail, doctor, dateOfBirth, dateOfJoining },
+    value: { ticketNo, sailPno, name, gradeId: grade!.id, departmentId: dept!.id, position, address, emailNic, webmail, mobile, email, doctor, dateOfBirth, dateOfJoining },
   };
 }
 

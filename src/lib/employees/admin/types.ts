@@ -33,6 +33,9 @@ export interface EmployeeRecord {
   address: string;
   emailNic: string;
   webmail: string;
+  /** The login account's mobile and e-mail as the search cards show them (never whole): empty when there is none. */
+  mobileMasked: string;
+  emailMasked: string;
   /** TRUE = a doctor with an ordinary managerial designation; null = not decided (the column may not exist). */
   doctor: boolean | null;
   dateOfBirth: string;
@@ -52,6 +55,9 @@ export interface EmployeeInput {
   address: string;
   emailNic: string;
   webmail: string;
+  /** The mobile (the CUG number of an executive) and the one general e-mail of a non-executive: the login account's. Empty on a change = keep what is there. */
+  mobile: string;
+  email: string;
   doctor: boolean | null;
   dateOfBirth: string | null;
   dateOfJoining: string | null;

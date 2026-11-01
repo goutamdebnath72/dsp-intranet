@@ -2,7 +2,8 @@
 // Step 66a: the rules of an employee record. PURE.
 
 import { DateTime } from "luxon";
-import { cleanText, cohortOfTicket, departmentFitsCohort, describeDates, gradeFitsCohort, seniorityRank, validateEmployee } from "./validate";
+import { cleanText, cohortOfTicket, departmentFitsCohort, describeDates, gradeFitsCohort, isTicket, seniorityRank, validateEmployee } from "./validate";
+import { maskEmail, maskMobile, normalizeMobile } from "./contact";
 import type { Lookups } from "./types";
 
 let pass = 0, fail = 0;
@@ -21,17 +22,17 @@ const L: Lookups = {
     { id: 3, code: 9003, name: "L & D OFFICE", scope: "nonexecutive" },
   ],
 };
-const GOOD = { ticketNo: "412345", name: "rakesh  ojha", gradeId: 1, departmentId: 1, sailPno: "d107659", address: "", emailNic: "R.Ojha@nic.in", webmail: "", doctor: null, dateOfBirth: "1975-06-30", dateOfJoining: "2001-10-12" };
-const v = (over: Record<string, unknown> = {}, o: Partial<{ canEditDates: boolean; fixedTicket: string }> = {}) => validateEmployee({ ...GOOD, ...over }, L, { today: TODAY, canEditDates: true, ...o });
+const GOOD = { ticketNo: "412345", name: "rakesh  ojha", gradeId: 1, departmentId: 1, sailPno: "d107659", address: "", emailNic: "R.Ojha@SAIL.in", webmail: "", mobile: "9434791234", email: "", doctor: null, dateOfBirth: "1975-06-30", dateOfJoining: "2001-10-12" };
+const v = (over: Record<string, unknown> = {}, o: Partial<{ canEditDates: boolean; fixedTicket: string; requirePno: boolean; hasMobile: boolean }> = {}) => validateEmployee({ ...GOOD, ...over }, L, { today: TODAY, canEditDates: true, ...o });
 const err = (over: Record<string, unknown> = {}, o = {}) => { const r = v(over, o); return r.ok ? {} : r.errors; };
 
 // ---- the whole record ----
 const good = v();
-ok("a good record is accepted and tidied: the name in capitals with single spaces, the P.No. in capitals, e-mail in lower case", good.ok && good.value.name === "RAKESH OJHA" && good.value.sailPno === "D107659" && good.value.emailNic === "r.ojha@nic.in" && good.value.ticketNo === "412345");
+ok("a good record is accepted and tidied: the name in capitals with single spaces, the P.No. in capitals, e-mail in lower case", good.ok && good.value.name === "RAKESH OJHA" && good.value.sailPno === "D107659" && good.value.emailNic === "r.ojha@sail.in" && good.value.ticketNo === "412345");
 ok("the cohort follows from the ticket (never typed): 4xxxxx executive, anything else not", cohortOfTicket("412345") === "executive" && cohortOfTicket("498880") === "executive" && cohortOfTicket("342461") === "nonexecutive" && cohortOfTicket("123456") === "nonexecutive" && cohortOfTicket("41234") === "nonexecutive");
 
 // ---- ticket ----
-for (const bad of ["", "41234", "4123456", "41234a", "abcdef", " 4123 45 "]) ok(`ticket "${bad}" is refused (exactly 6 digits)`, !!err({ ticketNo: bad }).ticketNo, JSON.stringify(err({ ticketNo: bad })));
+for (const bad of ["", "41234", "4123456", "41234a", "abcdef", " 4123 45 ", "012345", "000000"]) ok(`ticket "${bad}" is refused (exactly 6 digits)`, !!err({ ticketNo: bad }).ticketNo, JSON.stringify(err({ ticketNo: bad })));
 ok("in a change the ticket is fixed: what is typed is ignored", (() => { const r = v({ ticketNo: "999999" }, { fixedTicket: "412345" }); return r.ok && r.value.ticketNo === "412345"; })());
 
 // ---- name ----
@@ -59,6 +60,32 @@ ok("joined after 32: accepted but WARNED (an age relaxation may be real); at 32 
 ok("either date may be empty (the HOD may not have both): no error", !!v({ dateOfBirth: "", dateOfJoining: "" }).ok && !!v({ dateOfBirth: "", dateOfJoining: "2001-10-12" }).ok && !!v({ dateOfBirth: "1975-06-30", dateOfJoining: "" }).ok);
 const nodates = validateEmployee({ ...GOOD, dateOfBirth: "garbage", dateOfJoining: "garbage" }, L, { today: TODAY, canEditDates: false });
 ok("for anybody but the HOD the two dates are IGNORED (even rubbish raises no error, and nothing is carried)", nodates.ok && nodates.value.dateOfBirth === null && nodates.value.dateOfJoining === null);
+
+// ---- the ticket: six digits, never a leading 0 ----
+ok("isTicket: six digits not starting with 0", isTicket("412345") && isTicket("100000") && isTicket("999999") && !isTicket("012345") && !isTicket("41234") && !isTicket("4123456") && !isTicket("41234x") && !isTicket(""));
+
+// ---- the SAIL P.No. is required for a new employee (his first password), optional in a change when he has none ----
+ok("a new employee must have a SAIL P.No.: empty is refused in words; in a change it is not required", !!err({ sailPno: "" }, { requirePno: true }).sailPno && /first password/.test(err({ sailPno: "" }, { requirePno: true }).sailPno ?? "") && !err({ sailPno: "" }).sailPno && !err({ sailPno: "d111086" }, { requirePno: true }).sailPno);
+
+// ---- contact: an EXECUTIVE ----
+ok("an executive's NIC mail must end with @sail.in (any case), the web-mail with @saildsp.co.in; each other domain is refused in words", !err({ emailNic: "a.b@sail.in" }).emailNic && !err({ webmail: "a.b@SAILDSP.CO.IN" }).webmail && !!err({ emailNic: "a@gmail.com" }).emailNic && /@sail\.in/.test(err({ emailNic: "a@gmail.com" }).emailNic ?? "") && !!err({ webmail: "a@sail.in" }).webmail && /@saildsp\.co\.in/.test(err({ webmail: "a@sail.in" }).webmail ?? "") && !!err({ emailNic: "a@sail.inx" }).emailNic && !!err({ emailNic: "sail.in" }).emailNic);
+ok("both mail fields are optional for an executive", !err({ emailNic: "", webmail: "" }).emailNic && !err({ emailNic: "", webmail: "" }).webmail);
+ok("an executive's CUG mobile: 94347 then 9 (usual), 2 or 3 (exceptions) then four digits are accepted", ["9434791234", "9434721234", "9434731234"].every((m) => !err({ mobile: m }).mobile));
+ok("...anything else is refused in words: 94347 then 4, another prefix, nine or eleven digits, letters", ["9434741234", "9434601234", "943479123", "94347912345", "9876543210", "abc"].every((m) => !!err({ mobile: m }).mobile) && /CUG/.test(err({ mobile: "9876543210" }).mobile ?? ""));
+ok("...the usual ways of writing a number are understood (+91, 0, spaces, dashes)", ["+91 94347 91234", "094347-91234", "91 9434791234", "94347 91234"].every((m) => { const r = v({ mobile: m }); return r.ok && r.value.mobile === "9434791234"; }));
+ok("an executive's mobile is REQUIRED (every executive has one): empty is refused; in a change it may stay empty only when he already has one", !!err({ mobile: "" }).mobile && /every executive has one/.test(err({ mobile: "" }).mobile ?? "") && !err({ mobile: "" }, { hasMobile: true }).mobile);
+ok("the general e-mail field is not an executive's: whatever is in it is ignored (nothing carried)", (() => { const r = v({ email: "x@gmail.com" }); return r.ok && r.value.email === ""; })());
+
+// ---- contact: a NON-EXECUTIVE ----
+const NE = { ticketNo: "123456", gradeId: 20, departmentId: 1, emailNic: "", webmail: "", mobile: "", email: "" };
+ok("a non-executive: one e-mail, ANY domain (gmail, hotmail, sail.in ...), optional", !err({ ...NE, email: "a@gmail.com" }).email && !err({ ...NE, email: "a@hotmail.com" }).email && !err({ ...NE, email: "a@sail.in" }).email && !err({ ...NE, email: "" }).email && !!err({ ...NE, email: "not an email" }).email);
+ok("a non-executive's mobile: optional; any 10 digits not starting with 0; the CUG pattern is not required of him", !err({ ...NE, mobile: "" }).mobile && !err({ ...NE, mobile: "9876543210" }).mobile && !err({ ...NE, mobile: "9434791234" }).mobile && !!err({ ...NE, mobile: "0123456789" }).mobile && !!err({ ...NE, mobile: "98765" }).mobile);
+ok("a non-executive has no NIC or web-mail field: if the browser sends them they are ignored (nothing carried)", (() => { const r = v({ ...NE, emailNic: "x@gmail.com", webmail: "bad" }); return r.ok && r.value.emailNic === "" && r.value.webmail === ""; })());
+ok("a non-executive's record is complete without any contact at all", v({ ...NE }).ok);
+
+// ---- the masks (the same as the search cards) ----
+ok("masks: a mobile as its first six digits and x; an e-mail as xxxxxx and the domain; nothing for nothing", maskMobile("9434791234") === "943479xxxx" && maskMobile("") === "" && maskMobile(null) === "" && maskMobile("123") === "xxxx" && maskEmail("abc@sail.in") === "xxxxxx@sail.in" && maskEmail("") === "" && maskEmail("nodomain") === "xxxxxx");
+ok("normalizeMobile: digits only, +91 and a leading 0 removed", normalizeMobile("+91 94347-91234") === "9434791234" && normalizeMobile("094347 91234") === "9434791234" && normalizeMobile("abc") === "" && normalizeMobile(null) === "");
 
 // ---- helpers ----
 ok("the HR formula for seniority: the grade's order x 10000 + the position", seniorityRank({ rankOrder: 3 }, 17) === 30017 && seniorityRank({ rankOrder: 14 }, 1853) === 141853);

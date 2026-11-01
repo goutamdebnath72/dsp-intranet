@@ -5,7 +5,10 @@
 // THE EMPLOYEE MANAGER (step 66a; owner, 1 Nov 2026). It opens in the answer area of the search bar when the HOD of C&IT (or an executive he has authorised) types that he wants to add, change or delete an
 // employee, or to authorise or withdraw an executive. Nothing is protected by what this panel hides: the SERVER decides who may do what (src/lib/employees/admin/api.ts) and checks every rule again.
 // The panel only tells the person early: the same validation function runs here as the person types (so a mistake is shown at once and the button stays off until the record is right) and again on the server.
-//   Four sections: Identity (ticket, SAIL P.No., name), Posting (designation, department, position), Service dates (the HOD of C&IT ONLY: an authorised executive sees a locked card), Contact (e-mails, address).
+//   Four sections: Identity (ticket, SAIL P.No., name), Posting (designation CODE, department CODE), Service dates (the HOD of C&IT ONLY: an authorised executive sees a locked card), Contact (by cohort, see contact.ts).
+//   The Posting fields stay INACTIVE until the Identity is right (a ticket of 6 digits not starting with 0, the SAIL P.No., the name); then they offer only the codes that are valid for that ticket.
+//   Adding and changing have SEPARATE forms: what was typed or loaded in one is never in the other (step 66b: a saved change used to appear in the Add form).
+//   Mobile numbers and e-mails are shown as the search cards show them (masked); typing replaces, empty keeps.
 //   A live card shows how the person will appear; a review step shows exactly what will change before anything is saved; a delete asks for the ticket number to be typed back.
 // Plain text only (React escapes it). No <form> tag: the search modal already holds a text area, and forms must not nest; Enter in a field is left alone (the buttons act).
 
@@ -13,7 +16,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DateTime } from "luxon";
 import { CalendarDays, History, Lock, Pencil, Search, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { IST } from "@/lib/dates";
-import { cohortOfTicket, departmentFitsCohort, describeDates, gradeFitsCohort, validateEmployee } from "@/lib/employees/admin/validate";
+import { MOBILE_HINT_EXECUTIVE, MOBILE_HINT_NONEXECUTIVE, NIC_DOMAIN, WEBMAIL_DOMAIN, maskEmail, maskMobile, normalizeMobile } from "@/lib/employees/admin/contact";
+import { cohortOfTicket, departmentFitsCohort, describeDates, gradeFitsCohort, isTicket, validateEmployee } from "@/lib/employees/admin/validate";
 import type { AuditView, Authority, DelegateView, DepartmentRef, EmployeeConflict, EmployeeRecord, EmployeeAdminOpen, FieldErrors, GradeRef, Lookups } from "@/lib/employees/admin/types";
 
 type Tab = "add" | "modify" | "delete" | "people" | "history";
@@ -27,30 +31,32 @@ const DANGER = "rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white
 // the form's values (everything is text while it is typed)
 // ---------------------------------------------------------------------------------------------------------------------------------
 export interface FormValues {
-  ticketNo: string; sailPno: string; name: string; gradeId: string; departmentText: string; position: string;
-  address: string; emailNic: string; webmail: string; doctor: boolean; dateOfBirth: string; dateOfJoining: string;
+  ticketNo: string; sailPno: string; name: string; gradeId: string; departmentCode: string; address: string;
+  emailNic: string; webmail: string; email: string; mobile: string; doctor: boolean; dateOfBirth: string; dateOfJoining: string;
 }
-export const EMPTY_FORM: FormValues = { ticketNo: "", sailPno: "", name: "", gradeId: "", departmentText: "", position: "", address: "", emailNic: "", webmail: "", doctor: false, dateOfBirth: "", dateOfJoining: "" };
-export const formFromRecord = (r: EmployeeRecord): FormValues => ({
-  ticketNo: r.ticketNo, sailPno: r.sailPno, name: r.name, gradeId: String(r.gradeId), departmentText: r.departmentName, position: String(r.position),
-  address: r.address, emailNic: r.emailNic, webmail: r.webmail, doctor: r.doctor === true, dateOfBirth: r.dateOfBirth, dateOfJoining: r.dateOfJoining,
+export const EMPTY_FORM: FormValues = { ticketNo: "", sailPno: "", name: "", gradeId: "", departmentCode: "", address: "", emailNic: "", webmail: "", email: "", mobile: "", doctor: false, dateOfBirth: "", dateOfJoining: "" };
+/** A person loaded into the Change form: the mobile and the e-mails start EMPTY (they are shown masked as a hint: typing replaces, empty keeps). */
+export const formFromRecord = (r: EmployeeRecord, lookups: Lookups): FormValues => ({
+  ticketNo: r.ticketNo, sailPno: r.sailPno, name: r.name, gradeId: String(r.gradeId), departmentCode: String(lookups.departments.find((d) => d.id === r.departmentId)?.code ?? ""),
+  address: r.address, emailNic: "", webmail: "", email: "", mobile: "", doctor: r.doctor === true, dateOfBirth: r.dateOfBirth, dateOfJoining: r.dateOfJoining,
 });
 
-/** The department a typed name stands for: the exact name (any case), among those that fit the cohort when the ticket is known. */
-export function resolveDepartment(text: string, lookups: Lookups, ticketNo: string): DepartmentRef | null {
-  const t = text.trim().toLowerCase();
-  if (!t) return null;
-  const cohort = /^\d{6}$/.test(ticketNo) ? cohortOfTicket(ticketNo) : null;
-  const hits = lookups.departments.filter((d) => d.name.trim().toLowerCase() === t);
-  return hits.find((d) => cohort && d.scope === cohort) ?? hits.find((d) => !cohort || departmentFitsCohort(d, cohort)) ?? hits[0] ?? null;
+/** The department a typed CODE stands for: among those that fit the cohort (the same code can exist for executives and for non-executives). */
+export function resolveDepartment(code: string, lookups: Lookups, ticketNo: string): DepartmentRef | null {
+  const t = code.trim();
+  if (!/^\d+$/.test(t)) return null;
+  const cohort = isTicket(ticketNo) ? cohortOfTicket(ticketNo) : null;
+  const hits = lookups.departments.filter((d) => String(d.code) === t);
+  return hits.find((d) => cohort && d.scope === cohort) ?? hits.find((d) => !cohort || departmentFitsCohort(d, cohort)) ?? null;
 }
+export const gradeLabel = (g: Pick<GradeRef, "code" | "title">): string => `${g.code} · ${g.title}`;
 
-/** What validateEmployee is given for the values on the screen. */
+/** What validateEmployee is given for the values on the screen (the position is never typed: the server places him last in his grade). */
 export function rawOf(v: FormValues, lookups: Lookups, original: EmployeeRecord | null): Record<string, unknown> {
-  const dept = resolveDepartment(v.departmentText, lookups, v.ticketNo);
+  const dept = resolveDepartment(v.departmentCode, lookups, v.ticketNo);
   return {
     ticketNo: v.ticketNo, sailPno: v.sailPno, name: v.name, gradeId: v.gradeId === "" ? null : Number(v.gradeId), departmentId: dept ? dept.id : null,
-    position: v.position === "" ? null : Number(v.position), address: v.address, emailNic: v.emailNic, webmail: v.webmail,
+    position: null, address: v.address, emailNic: v.emailNic, webmail: v.webmail, email: v.email, mobile: v.mobile,
     doctor: v.doctor ? true : original?.doctor === true ? false : null, dateOfBirth: v.dateOfBirth, dateOfJoining: v.dateOfJoining,
   };
 }
@@ -66,24 +72,27 @@ export const initialsOf = (name: string): string => {
   return w.length === 0 ? "?" : (w[0][0] + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase();
 };
 
-/** The changes between the saved record and the form, field by field, for the review step. Dates only when the person may see them. */
+/** The changes between the saved record and the form, field by field, for the review step. Dates only when the person may see them; a typed mobile or e-mail is shown masked (it REPLACES the one there). */
 export function changesOf(original: EmployeeRecord, v: FormValues, lookups: Lookups, datesVisible: boolean): Array<{ label: string; from: string; to: string }> {
-  const dash = (s: string) => (s === "" ? "—" : s);
+  const dash = (x: string) => (x === "" ? "—" : x);
   const grade = lookups.grades.find((g) => String(g.id) === v.gradeId);
-  const dept = resolveDepartment(v.departmentText, lookups, original.ticketNo);
+  const dept = resolveDepartment(v.departmentCode, lookups, original.ticketNo);
   const rows: Array<[string, string, string]> = [
     ["Name", original.name, v.name.trim().replace(/\s+/g, " ").toUpperCase()],
     ["SAIL P.No.", original.sailPno, v.sailPno.trim().toUpperCase()],
     ["Designation", original.gradeTitle, grade?.title ?? ""],
-    ["Department", original.departmentName, dept?.name ?? v.departmentText.trim()],
-    ["Position in grade", String(original.position), v.position.trim() === "" ? (grade && String(grade.id) !== String(original.gradeId) ? "last in the new grade" : String(original.position)) : v.position.trim()],
-    ["E-mail (NIC)", original.emailNic, v.emailNic.trim().toLowerCase()],
-    ["Web-mail (SAIL DSP)", original.webmail, v.webmail.trim().toLowerCase()],
+    ["Department", original.departmentName, dept?.name ?? v.departmentCode.trim()],
+    ["Position in grade", String(original.position), grade && String(grade.id) !== String(original.gradeId) ? "last in the new grade" : String(original.position)],
     ["Address", original.address, v.address.trim()],
     ["Doctor", original.doctor === true ? "Yes" : "No", v.doctor ? "Yes" : "No"],
   ];
   if (datesVisible) rows.push(["Date of birth", original.dateOfBirth, v.dateOfBirth.trim()], ["Date of joining", original.dateOfJoining, v.dateOfJoining.trim()]);
-  return rows.filter(([, a, b]) => a !== b).map(([label, a, b]) => ({ label, from: dash(a), to: dash(b) }));
+  const out = rows.filter(([, a, b]) => a !== b).map(([label, a, b]) => ({ label, from: dash(a), to: dash(b) }));
+  const typed = (label: string, now: string, value: string, mask: (x: string) => string) => { if (value.trim() !== "") out.push({ label, from: dash(now), to: `${mask(value.trim())} (replaces it)` }); };
+  typed("Mobile", original.mobileMasked, normalizeMobile(v.mobile), maskMobile);
+  if (original.cohort === "executive") { typed("NIC mail", original.emailNic, v.emailNic.toLowerCase(), maskEmail); typed("Web-mail", original.webmail, v.webmail.toLowerCase(), maskEmail); }
+  else typed("E-mail", original.emailMasked, v.email.toLowerCase(), maskEmail);
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -155,6 +164,10 @@ export interface EmployeeFormProps {
   warnings: string[];
   /** The HOD of C&IT only: for anybody else the dates are a locked card and nothing is sent. */
   datesVisible: boolean;
+  /** The Identity (ticket, SAIL P.No., name) is right: only then are the designation, the department and the contact fields active. */
+  identityOk: boolean;
+  /** The person being changed (for the masked "now" hints), or null when adding. */
+  original: EmployeeRecord | null;
   today: DateTime;
   busy: boolean;
   submitLabel: string;
@@ -166,17 +179,22 @@ export interface EmployeeFormProps {
 }
 
 export function EmployeeForm(p: EmployeeFormProps) {
-  const { values: v, lookups, errors, idPrefix } = p;
-  const cohort = /^\d{6}$/.test(v.ticketNo) ? cohortOfTicket(v.ticketNo) : null;
+  const { values: v, lookups, errors, idPrefix, original } = p;
+  const cohort = isTicket(v.ticketNo) ? cohortOfTicket(v.ticketNo) : null;
   const grades = lookups.grades.filter((g) => !cohort || gradeFitsCohort(g, cohort));
   const departments = lookups.departments.filter((d) => !cohort || departmentFitsCohort(d, cohort));
-  const dept = resolveDepartment(v.departmentText, lookups, v.ticketNo);
+  const dept = resolveDepartment(v.departmentCode, lookups, v.ticketNo);
   const grade = lookups.grades.find((g) => String(g.id) === v.gradeId);
   const id = (k: string) => `${idPrefix}-${k}`;
   const set = (k: keyof FormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => p.onChange({ ...v, [k]: e.target.value } as FormValues, k);
   const live = describeDates(v.dateOfBirth || null, v.dateOfJoining || null, p.today);
   const groups: Array<[string, GradeRef[]]> = [["Managerial", grades.filter((g) => g.track === "managerial")], ["Medical", grades.filter((g) => g.track === "medical")], ["Non-executive", grades.filter((g) => g.track === "nonexec")]];
   const todayIso = p.today.toISODate() as string;
+  const posting = p.identityOk;               // designation and department: only after the Identity is right
+  const contact = cohort !== null;            // the contact fields depend on the cohort, known from the ticket
+  const executive = cohort === "executive";
+  const nowHint = (now: string | undefined, rule: string) => (now ? `Now ${now}. Type a new one to replace it. ${rule}` : rule);
+  const waitText = "Fill in the ticket number, the SAIL P.No. and the name first.";
   return (
     <div className="space-y-3" data-emp-form={p.mode}>
       <div className="grid gap-3 xl:grid-cols-[1fr_16rem]">
@@ -186,7 +204,7 @@ export function EmployeeForm(p: EmployeeFormProps) {
               <Field id={id("ticketNo")} label="Ticket number" error={errors.ticketNo} hint={p.mode === "modify" ? "The ticket cannot be changed here." : ORIGIN_TEXT(v.ticketNo)}>
                 <input id={id("ticketNo")} data-emp-field="ticketNo" className={`${FIELD} ${errors.ticketNo ? "border-red-500" : ""}`} value={v.ticketNo} onChange={set("ticketNo")} disabled={p.mode === "modify"} inputMode="numeric" maxLength={6} placeholder="6 digits" autoComplete="off" aria-invalid={errors.ticketNo ? true : undefined} />
               </Field>
-              <Field id={id("sailPno")} label="SAIL P.No." error={errors.sailPno} hint="Optional.">
+              <Field id={id("sailPno")} label="SAIL P.No." error={errors.sailPno} hint="His first password: letters and digits.">
                 <input id={id("sailPno")} data-emp-field="sailPno" className={`${FIELD} ${errors.sailPno ? "border-red-500" : ""}`} value={v.sailPno} onChange={set("sailPno")} maxLength={15} placeholder="For example D107659" autoComplete="off" aria-invalid={errors.sailPno ? true : undefined} />
               </Field>
               <Field id={id("name")} label="Name" error={errors.name} hint="Kept in capitals." className="sm:col-span-2">
@@ -195,31 +213,30 @@ export function EmployeeForm(p: EmployeeFormProps) {
             </div>
           </Section>
 
-          <Section icon={<Pencil className="h-4 w-4" />} title="Posting">
+          <Section icon={<Pencil className="h-4 w-4" />} title="Posting" note={posting ? undefined : waitText}>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field id={id("gradeId")} label="Designation" error={errors.gradeId} hint={cohort ? "Only the designations that fit the ticket." : "Type the ticket first."}>
-                <select id={id("gradeId")} data-emp-field="gradeId" className={`${FIELD} ${errors.gradeId ? "border-red-500" : ""}`} value={v.gradeId} onChange={set("gradeId")} aria-invalid={errors.gradeId ? true : undefined}>
-                  <option value="">Choose…</option>
-                  {groups.filter(([, list]) => list.length > 0).map(([label, list]) => (
+              <Field id={id("gradeId")} label="Designation code" error={errors.gradeId} hint={grade ? `${grade.title} · ${grade.track === "nonexec" ? "non-executive" : grade.track === "medical" ? "medical" : "managerial"}` : posting ? "Only the codes that fit the ticket." : "Inactive until the Identity is right."}>
+                <select id={id("gradeId")} data-emp-field="gradeId" className={`${FIELD} ${errors.gradeId ? "border-red-500" : ""}`} value={v.gradeId} onChange={set("gradeId")} disabled={!posting} aria-invalid={errors.gradeId ? true : undefined}>
+                  <option value="">{posting ? "Choose the code…" : "—"}</option>
+                  {posting && groups.filter(([, list]) => list.length > 0).map(([label, list]) => (
                     <optgroup key={label} label={label}>
-                      {list.map((g) => <option key={g.id} value={String(g.id)}>{g.title}</option>)}
+                      {list.map((g) => <option key={g.id} value={String(g.id)}>{gradeLabel(g)}</option>)}
                     </optgroup>
                   ))}
                 </select>
               </Field>
-              <Field id={id("departmentText")} label="Department" error={errors.departmentId} hint="Start typing, then choose one from the list.">
-                <input id={id("departmentText")} data-emp-field="departmentText" list={id("departments")} className={`${FIELD} ${errors.departmentId ? "border-red-500" : ""}`} value={v.departmentText} onChange={set("departmentText")} maxLength={80} placeholder="Department" autoComplete="off" aria-invalid={errors.departmentId ? true : undefined} />
-                <datalist id={id("departments")}>
-                  {departments.map((d) => <option key={d.id} value={d.name} />)}
-                </datalist>
-              </Field>
-              <Field id={id("position")} label="Position in the grade" error={errors.position} hint="Leave empty to place him last.">
-                <input id={id("position")} data-emp-field="position" className={`${FIELD} ${errors.position ? "border-red-500" : ""}`} value={v.position} onChange={set("position")} inputMode="numeric" maxLength={4} placeholder="Optional" autoComplete="off" aria-invalid={errors.position ? true : undefined} />
+              <Field id={id("departmentCode")} label="Department code" error={errors.departmentId} hint={dept ? dept.name : posting ? "Choose a code from the list." : "Inactive until the Identity is right."}>
+                <input id={id("departmentCode")} data-emp-field="departmentCode" list={posting ? id("departments") : undefined} className={`${FIELD} ${errors.departmentId ? "border-red-500" : ""}`} value={v.departmentCode} onChange={set("departmentCode")} disabled={!posting} inputMode="numeric" maxLength={6} placeholder={posting ? "Code" : "—"} autoComplete="off" aria-invalid={errors.departmentId ? true : undefined} />
+                {posting && (
+                  <datalist id={id("departments")}>
+                    {departments.map((d) => <option key={d.id} value={String(d.code)} label={d.name} />)}
+                  </datalist>
+                )}
               </Field>
             </div>
-            {cohort === "executive" && (
+            {executive && (
               <label className="mt-2 flex items-center gap-2 text-xs text-neutral-700">
-                <input type="checkbox" data-emp-field="doctor" checked={v.doctor} onChange={(e) => p.onChange({ ...v, doctor: e.target.checked }, "doctor")} />
+                <input type="checkbox" data-emp-field="doctor" checked={v.doctor} onChange={(e) => p.onChange({ ...v, doctor: e.target.checked }, "doctor")} disabled={!posting} />
                 A doctor who holds an ordinary managerial designation
               </label>
             )}
@@ -243,13 +260,27 @@ export function EmployeeForm(p: EmployeeFormProps) {
             </Section>
           )}
 
-          <Section icon={<Users className="h-4 w-4" />} title="Contact">
+          <Section icon={<Users className="h-4 w-4" />} title="Contact" note={contact ? (executive ? "Executive" : "Non-executive") : "Type the ticket number first."}>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field id={id("emailNic")} label="E-mail (NIC)" error={errors.emailNic} hint="Optional.">
-                <input id={id("emailNic")} data-emp-field="emailNic" className={`${FIELD} ${errors.emailNic ? "border-red-500" : ""}`} value={v.emailNic} onChange={set("emailNic")} maxLength={120} placeholder="name@nic.in" autoComplete="off" aria-invalid={errors.emailNic ? true : undefined} />
-              </Field>
-              <Field id={id("webmail")} label="Web-mail (SAIL DSP)" error={errors.webmail} hint="Optional.">
-                <input id={id("webmail")} data-emp-field="webmail" className={`${FIELD} ${errors.webmail ? "border-red-500" : ""}`} value={v.webmail} onChange={set("webmail")} maxLength={120} placeholder="name@sail-dsp.in" autoComplete="off" aria-invalid={errors.webmail ? true : undefined} />
+              {executive ? (
+                <>
+                  <Field id={id("emailNic")} label={`NIC mail (${NIC_DOMAIN})`} error={errors.emailNic} hint={nowHint(original?.emailNic, "Optional.")}>
+                    <input id={id("emailNic")} data-emp-field="emailNic" className={`${FIELD} ${errors.emailNic ? "border-red-500" : ""}`} value={v.emailNic} onChange={set("emailNic")} maxLength={120} placeholder={`name${NIC_DOMAIN}`} autoComplete="off" aria-invalid={errors.emailNic ? true : undefined} />
+                  </Field>
+                  <Field id={id("webmail")} label={`Web-mail (${WEBMAIL_DOMAIN})`} error={errors.webmail} hint={nowHint(original?.webmail, "Optional.")}>
+                    <input id={id("webmail")} data-emp-field="webmail" className={`${FIELD} ${errors.webmail ? "border-red-500" : ""}`} value={v.webmail} onChange={set("webmail")} maxLength={120} placeholder={`name${WEBMAIL_DOMAIN}`} autoComplete="off" aria-invalid={errors.webmail ? true : undefined} />
+                  </Field>
+                  <Field id={id("email")} label="E-mail" hint="Not used for an executive.">
+                    <input id={id("email")} data-emp-field="email" className={FIELD} value="" disabled placeholder="—" readOnly />
+                  </Field>
+                </>
+              ) : (
+                <Field id={id("email")} label="E-mail" error={errors.email} hint={nowHint(original?.emailMasked, contact ? "Optional; any address." : "Type the ticket number first.")}>
+                  <input id={id("email")} data-emp-field="email" className={`${FIELD} ${errors.email ? "border-red-500" : ""}`} value={v.email} onChange={set("email")} disabled={!contact} maxLength={120} placeholder="name@gmail.com" autoComplete="off" aria-invalid={errors.email ? true : undefined} />
+                </Field>
+              )}
+              <Field id={id("mobile")} label={executive ? "CUG mobile number" : "Mobile number"} error={errors.mobile} hint={nowHint(original?.mobileMasked, executive ? MOBILE_HINT_EXECUTIVE : contact ? MOBILE_HINT_NONEXECUTIVE : "Type the ticket number first.")}>
+                <input id={id("mobile")} data-emp-field="mobile" className={`${FIELD} ${errors.mobile ? "border-red-500" : ""}`} value={v.mobile} onChange={set("mobile")} disabled={!contact} inputMode="numeric" maxLength={16} placeholder={executive ? "94347…" : "10 digits"} autoComplete="off" aria-invalid={errors.mobile ? true : undefined} />
               </Field>
               <Field id={id("address")} label="Address" error={errors.address} hint="Optional." className="sm:col-span-2">
                 <textarea id={id("address")} data-emp-field="address" className={`${FIELD} min-h-[3.5rem]`} value={v.address} onChange={set("address")} maxLength={300} placeholder="Residential address" />
@@ -373,6 +404,17 @@ export function TabBar({ tab, authority, onTab }: { tab: Tab; authority: Authori
 type Reply = { ok: boolean; status: number; body: Record<string, unknown> };
 const TIMEOUT_MS = 20000;
 
+/** One form's state: its values, the fields the person has been in, the server's errors, the review step and the same-name question. Adding and changing each get their own. */
+function useFormBlock(initial: FormValues) {
+  const [values, setValues] = useState<FormValues>(initial);
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
+  const [review, setReview] = useState(false);
+  const [conflicts, setConflicts] = useState<EmployeeConflict[]>([]);
+  const reset = (v: FormValues = EMPTY_FORM) => { setValues(v); setTouched(new Set()); setServerErrors({}); setReview(false); setConflicts([]); };
+  return { values, setValues, touched, setTouched, serverErrors, setServerErrors, review, setReview, conflicts, setConflicts, reset };
+}
+
 export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   const role: Authority = open.role;
   const isHod = role === "hod";
@@ -413,18 +455,20 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
     })();
   }, [call]);
 
-  // ---- the form (one at a time: adding, or changing the chosen person) ----
-  const [values, setValues] = useState<FormValues>({ ...EMPTY_FORM, name: open.op === "add" ? (open.prefill?.name ?? "") : "", ticketNo: open.op === "add" ? (open.prefill?.ticket ?? "") : "" });
+  // ---- the forms: ADDING and CHANGING each have their own state (step 66b): what is typed or loaded in one is never in the other ----
+  const addB = useFormBlock({ ...EMPTY_FORM, name: open.op === "add" ? (open.prefill?.name ?? "") : "", ticketNo: open.op === "add" ? (open.prefill?.ticket ?? "") : "" });
+  const modB = useFormBlock(EMPTY_FORM);
   const [original, setOriginal] = useState<EmployeeRecord | null>(null);
-  const [touched, setTouched] = useState<Set<string>>(new Set());
-  const [serverErrors, setServerErrors] = useState<FieldErrors>({});
-  const [review, setReview] = useState(false);
-  const [conflicts, setConflicts] = useState<EmployeeConflict[]>([]);
   const lk: Lookups = lookups ?? { grades: [], departments: [] };
   const mode: "add" | "modify" = tab === "modify" && original ? "modify" : "add";
+  const B = mode === "modify" ? modB : addB;
+  const values = B.values;
 
   const validation = useMemo(
-    () => (lookups ? validateEmployee(rawOf(values, lk, mode === "modify" ? original : null), lk, { today, canEditDates: datesVisible, fixedTicket: mode === "modify" ? original?.ticketNo : undefined }) : null),
+    () => (lookups ? validateEmployee(rawOf(values, lk, mode === "modify" ? original : null), lk, {
+      today, canEditDates: datesVisible, fixedTicket: mode === "modify" ? original?.ticketNo : undefined,
+      requirePno: mode === "add" || (original?.sailPno ?? "") !== "", hasMobile: mode === "modify" && !!original?.mobileMasked,
+    }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [values, lookups, original, mode, datesVisible, today],
   );
@@ -433,42 +477,41 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   const shownErrors: FieldErrors = useMemo(() => {
     const out: FieldErrors = {};
     for (const [k, msg] of Object.entries(liveErrors)) {
-      const field = k === "departmentId" ? "departmentText" : k;
-      if (touched.has(field) || touched.has(k)) (out as Record<string, string>)[k] = msg as string;
+      const field = k === "departmentId" ? "departmentCode" : k;
+      if (B.touched.has(field) || B.touched.has(k)) (out as Record<string, string>)[k] = msg as string;
     }
-    return { ...out, ...serverErrors };
+    return { ...out, ...B.serverErrors };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [validation, touched, serverErrors]);
+  }, [validation, B.touched, B.serverErrors]);
+
+  // the Identity is right: a ticket of 6 digits (not starting with 0), the SAIL P.No. (required for a new employee) and the name; only then are the designation, the department and the contact fields active
+  const idFilled = values.ticketNo.trim() !== "" && values.name.trim() !== "" && (mode === "modify" || values.sailPno.trim() !== "");
+  const identityOk = !!lookups && idFilled && !liveErrors.ticketNo && !liveErrors.sailPno && !liveErrors.name;
 
   const changeList = mode === "modify" && original ? changesOf(original, values, lk, datesVisible) : [];
   const valid = !!validation && validation.ok;
   const submitDisabled = !lookups || !valid || (mode === "modify" && changeList.length === 0);
   const submitHint = !lookups ? "Loading…" : !valid ? (Object.values(liveErrors)[0] as string | undefined) ?? "Fill in the record." : mode === "modify" && changeList.length === 0 ? "Change something to save." : undefined;
 
-  // a new designation puts a person LAST in that grade: the old position number belonged to the old grade, so it is cleared (an explicit one would collide with somebody already there)
-  const onFormChange = (next: FormValues, field: string) => { if (field === "gradeId" && mode === "modify" && original && next.gradeId !== String(original.gradeId)) next = { ...next, position: "" }; setValues(next); setTouched((t) => new Set(t).add(field)); setServerErrors({}); setConflicts([]); setMessage(null); };
-  const resetForm = () => { setValues({ ...EMPTY_FORM }); setOriginal(null); setTouched(new Set()); setServerErrors({}); setReview(false); setConflicts([]); };
+  const onFormChange = (next: FormValues, field: string) => { B.setValues(next); B.setTouched((t) => new Set(t).add(field)); B.setServerErrors({}); B.setConflicts([]); setMessage(null); };
 
-  const fieldsOut = () => {
-    const raw = rawOf(values, lk, mode === "modify" ? original : null);
-    return raw;
-  };
   const save = async (acknowledge: boolean) => {
     setBusy(true); setMessage(null);
+    const fields = rawOf(values, lk, mode === "modify" ? original : null);
     const r = mode === "modify" && original
-      ? await call({ op: "modify", id: original.id, fields: fieldsOut(), acknowledge: acknowledge ? ["same-name"] : [] })
-      : await call({ op: "add", fields: fieldsOut(), acknowledge: acknowledge ? ["same-name"] : [] });
+      ? await call({ op: "modify", id: original.id, fields, acknowledge: acknowledge ? ["same-name"] : [] })
+      : await call({ op: "add", fields, acknowledge: acknowledge ? ["same-name"] : [] });
     if (!alive.current) return;
     setBusy(false);
     if (!r.ok) return fail(r);
     const res = r.body.result as { status: string; employee?: EmployeeRecord; errors?: FieldErrors; conflicts?: EmployeeConflict[] };
     if (res.status === "ok" && res.employee) {
       setMessage({ tone: "ok", text: mode === "modify" ? `Saved: ${res.employee.name} (${res.employee.ticketNo}) has been changed.` : `Saved: ${res.employee.name} (${res.employee.ticketNo}) is on the roll.` });
-      if (mode === "modify") { setOriginal(res.employee); setValues(formFromRecord(res.employee)); setReview(false); } else resetForm();
-    } else if (res.status === "conflict") { setConflicts(res.conflicts ?? []); setReview(true); }
-    else if (res.status === "invalid") { setServerErrors(res.errors ?? {}); setReview(false); setMessage({ tone: "error", text: "Please correct what is marked." }); }
-    else if (res.status === "unchanged") { setMessage({ tone: "ok", text: "Nothing was changed." }); setReview(false); }
-    else if (res.status === "missing") { setMessage({ tone: "error", text: "This employee is not on the roll any more." }); setReview(false); }
+      if (mode === "modify") { setOriginal(res.employee); modB.reset(formFromRecord(res.employee, lk)); } else addB.reset();
+    } else if (res.status === "conflict") { B.setConflicts(res.conflicts ?? []); B.setReview(true); }
+    else if (res.status === "invalid") { B.setServerErrors(res.errors ?? {}); B.setReview(false); setMessage({ tone: "error", text: "Please correct what is marked." }); }
+    else if (res.status === "unchanged") { setMessage({ tone: "ok", text: "Nothing was changed." }); B.setReview(false); }
+    else if (res.status === "missing") { setMessage({ tone: "error", text: "This employee is not on the roll any more." }); B.setReview(false); }
     else setMessage({ tone: "error", text: "You are not allowed to do that." });
   };
 
@@ -490,7 +533,7 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
     }, 300);
     return () => clearTimeout(timer);
   }, [query, tab, original, call]);
-  const startChange = (e: EmployeeRecord) => { setOriginal(e); setValues(formFromRecord(e)); setTouched(new Set()); setServerErrors({}); setReview(false); setConflicts([]); setMessage(null); setTab("modify"); };
+  const startChange = (e: EmployeeRecord) => { setOriginal(e); modB.reset(formFromRecord(e, lk)); setMessage(null); setTab("modify"); };
 
   // ---- delete ----
   const [target, setTarget] = useState<EmployeeRecord | null>(null);
@@ -523,12 +566,13 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   const grant = async (ticket: string) => { setBusy(true); const r = await call({ op: "grant", ticket }); if (!alive.current) return; setBusy(false); if (!r.ok) return fail(r); const res = r.body.result as { status: string; reason?: string }; if (res.status === "ok") { setMessage({ tone: "ok", text: "Authorised. From now on this executive can add and change employees (not the dates, and not delete)." }); setFound(null); setFind(""); void loadDelegates(); } else setMessage({ tone: "error", text: res.status === "already" ? "He is already authorised." : res.reason ?? "That did not work." }); };
   const revoke = async (ticket: string) => { setBusy(true); const r = await call({ op: "revoke", ticket }); if (!alive.current) return; setBusy(false); if (!r.ok) return fail(r); setMessage({ tone: "ok", text: "The authority is withdrawn." }); void loadDelegates(); };
 
-  const onTab = (t: Tab) => { setTab(t); setMessage(null); if (t === "add") { setOriginal(null); } };
+  const onTab = (t: Tab) => { setTab(t); setMessage(null); };
   const grade = lk.grades.find((g) => String(g.id) === values.gradeId);
-  const dept = resolveDepartment(values.departmentText, lk, values.ticketNo);
+  const dept = resolveDepartment(values.departmentCode, lk, values.ticketNo);
   const summary: Array<[string, string]> = [
     ["Ticket number", values.ticketNo], ["Name", values.name.trim().replace(/\s+/g, " ").toUpperCase()], ["SAIL P.No.", values.sailPno.trim().toUpperCase()], ["Designation", grade?.title ?? ""], ["Department", dept?.name ?? ""],
-    ["Position in grade", values.position.trim() || "last in the grade"], ["E-mail (NIC)", values.emailNic.trim().toLowerCase()], ["Web-mail", values.webmail.trim().toLowerCase()], ["Address", values.address.trim()],
+    ["Position in grade", "last in the grade"], ...(isTicket(values.ticketNo) && cohortOfTicket(values.ticketNo) === "executive" ? ([["NIC mail", maskEmail(values.emailNic.trim().toLowerCase())], ["Web-mail", maskEmail(values.webmail.trim().toLowerCase())]] as Array<[string, string]>) : ([["E-mail", maskEmail(values.email.trim().toLowerCase())]] as Array<[string, string]>)),
+    ["Mobile", maskMobile(normalizeMobile(values.mobile))], ["Address", values.address.trim()],
     ...(datesVisible ? ([["Date of birth", values.dateOfBirth], ["Date of joining", values.dateOfJoining]] as Array<[string, string]>) : []),
   ];
 
@@ -539,14 +583,14 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
       {message && <p className={`rounded-lg px-3 py-2 text-sm font-semibold ${message.tone === "ok" ? "border border-emerald-300 bg-emerald-50 text-emerald-900" : "border border-red-300 bg-red-50 text-red-900"}`} role={message.tone === "error" ? "alert" : "status"} data-emp-message={message.tone}>{message.text}</p>}
 
       {(tab === "add" || (tab === "modify" && original)) && (
-        review && valid ? (
-          <ReviewView mode={mode} title={mode === "modify" ? `Review the changes to ${original?.name} (${original?.ticketNo})` : "Review the new employee"} changes={changeList} summary={summary} warnings={warnings} conflicts={conflicts} busy={busy} onConfirm={(ack) => void save(ack)} onBack={() => { setReview(false); setConflicts([]); }} />
+        B.review && valid ? (
+          <ReviewView mode={mode} title={mode === "modify" ? `Review the changes to ${original?.name} (${original?.ticketNo})` : "Review the new employee"} changes={changeList} summary={summary} warnings={warnings} conflicts={B.conflicts} busy={busy} onConfirm={(ack) => void save(ack)} onBack={() => { B.setReview(false); B.setConflicts([]); }} />
         ) : (
           <>
             {tab === "modify" && original && <p className="text-sm text-neutral-700">Changing <span className="font-bold">{original.name}</span> ({original.ticketNo})</p>}
-            <EmployeeForm mode={mode} idPrefix={`emp-${mode}`} values={values} lookups={lk} errors={shownErrors} warnings={warnings} datesVisible={datesVisible} today={today} busy={busy}
+            <EmployeeForm mode={mode} idPrefix={`emp-${mode}`} values={values} lookups={lk} errors={shownErrors} warnings={warnings} datesVisible={datesVisible} identityOk={identityOk} original={mode === "modify" ? original : null} today={today} busy={busy}
               submitLabel={mode === "modify" ? "Review the changes" : "Review and save"} submitDisabled={submitDisabled} submitHint={submitHint}
-              onChange={onFormChange} onSubmit={() => setReview(true)} onCancel={mode === "modify" ? () => { setOriginal(null); resetForm(); setResults(null); } : undefined} />
+              onChange={onFormChange} onSubmit={() => B.setReview(true)} onCancel={mode === "modify" ? () => { setOriginal(null); modB.reset(); setResults(null); } : undefined} />
           </>
         )
       )}

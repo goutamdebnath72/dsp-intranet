@@ -74,7 +74,7 @@ export const DESIGNATION_SHORT_FORMS: [string, string[]][] = [
   ["Dy. General Manager", ["DGM", "deputy general manager", "Dy GM"]],
   ["Sr. Deputy Director", ["senior deputy director"]],
   ["DMO/Consultant", ["DMO", "deputy medical officer"]],
-  ["Asst.General Manager", ["AGM", "assistant general manager", "Asst GM"]],
+  ["Asst. General Manager", ["AGM", "assistant general manager", "Asst GM"]],
   ["Asst. Director/Sr. Consultant", ["assistant director", "senior consultant"]],
   ["Sr. Manager", ["senior manager", "Sr Mgr"]],
   ["Manager", ["Mgr"]],

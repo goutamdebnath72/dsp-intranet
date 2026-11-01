@@ -8,13 +8,19 @@
 //   - the two DATES (birth, joining) are the HOD's alone: for anybody else they are neither shown nor changed, in the form and in the history (the owner: "no user can search the dob and doj ... except the HOD");
 //   - only the HOD DELETES a person (it can never be the HOD himself), and he may remove the person's login account with him;
 //   - the table is the live roster, whose exact columns this code does not assume: the optional ones (address, e-mails, the doctor flag, the dates, source_snapshot_date) are DISCOVERED in the database.
+// THE LOGIN ACCOUNT (step 66b): the mobile number and the general e-mail of an employee are kept in his login account (public."user": contactNo, email: what the search cards mask and reveal), so adding an employee
+// also creates that account, with his SAIL P.No. as the first password (bcrypt, as the other accounts are); a person who has an account already (the same ticket) is linked, not duplicated. A change keeps the
+// account's name, P.No., designation, mobile and e-mail in step with the roster and NEVER touches the password. The manager never shows a whole mobile number or e-mail: the masks of the search cards.
 // The database is reached through a tiny interface (EmpDb) so the same code runs against the application's connection and against a scratch database in the tests.
 
+import { randomBytes } from "node:crypto";
+import bcrypt from "bcryptjs";
 import { DateTime } from "luxon";
 import { IST, toIsoInstant } from "@/lib/dates";
 import { isSuperAdmin } from "@/lib/superAdmin";
 import type { QueryFn } from "@/lib/pax/store";
 import type { AcknowledgeKind, Authority, AuditView, ChangeView, DelegateView, DepartmentRef, EmployeeConflict, EmployeeRecord, FieldErrors, GradeRef, Lookups } from "./types";
+import { NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, maskEmail, maskMobile } from "./contact";
 import { cleanText, seniorityRank, validateEmployee } from "./validate";
 
 export interface EmpDb { run<T>(fn: (q: QueryFn) => Promise<T>): Promise<T> }
@@ -23,6 +29,8 @@ export interface Actor { ticket: string; name: string }
 const LOCK = "SELECT pg_advisory_xact_lock(hashtext('employee_roster')::bigint)";
 const EXECUTIVE = /^4\d{5}$/;
 export class Forbidden extends Error {}
+/** A login-account rule that refuses the whole change (carries the field errors); thrown inside the transaction so that nothing is kept, caught outside it. */
+class LoginRefused extends Error { constructor(public errors: FieldErrors) { super("login refused"); } }
 
 export async function authorityOf(q: QueryFn, ticket: string | null | undefined): Promise<Authority | null> {
   const t = String(ticket ?? "").trim();
@@ -40,17 +48,18 @@ async function begin(q: QueryFn, actor: Actor, needHod = false): Promise<Authori
 }
 
 // ---- what the live tables look like (discovered, not assumed) ----
-interface Cols { has: Set<string>; notNullNoDefault: Set<string>; deptScope: boolean }
+interface Cols { has: Set<string>; notNullNoDefault: Set<string>; deptScope: boolean; user: Set<string> }
 async function discover(q: QueryFn): Promise<Cols> {
-  const rows = await q(`SELECT table_name, column_name, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('employee_roster', 'sail_department')`);
-  const has = new Set<string>(), notNullNoDefault = new Set<string>();
+  const rows = await q(`SELECT table_name, column_name, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('employee_roster', 'sail_department', 'user')`);
+  const has = new Set<string>(), notNullNoDefault = new Set<string>(), user = new Set<string>();
   let deptScope = false;
   for (const r of rows) {
+    if (r.table_name === "user") { user.add(String(r.column_name)); continue; }
     if (r.table_name === "sail_department") { if (r.column_name === "cohort_scope") deptScope = true; continue; }
     has.add(String(r.column_name));
     if (r.is_nullable === "NO" && r.column_default === null) notNullNoDefault.add(String(r.column_name));
   }
-  return { has, notNullNoDefault, deptScope };
+  return { has, notNullNoDefault, deptScope, user };
 }
 
 export async function loadLookups(q: QueryFn, cols?: Cols): Promise<Lookups> {
@@ -68,15 +77,16 @@ const opt = (c: Cols, col: string, cast = "") => (c.has.has(col) ? `er.${col}${c
 const SELECT = (c: Cols) => `SELECT er.id, er.ticket_no, ${opt(c, "sail_pno")} AS sail_pno, er.name, er.cohort, er.designation_grade_id AS grade_id, dg.title AS grade_title,
        er.sail_department_id AS department_id, sd.name AS department_name, er.within_grade_position AS position, ${opt(c, "address")} AS address, ${opt(c, "email_nic")} AS email_nic,
        ${opt(c, "webmail_saildsp")} AS webmail, ${opt(c, "doctor_override")} AS doctor, ${opt(c, "date_of_birth", "::text")} AS dob, ${opt(c, "date_of_joining", "::text")} AS doj,
-       ${opt(c, "user_id")} AS user_id
-  FROM public.employee_roster er JOIN public.designation_grade dg ON dg.id = er.designation_grade_id LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id`;
+       ${opt(c, "user_id")} AS user_id, ${c.user.has("contactNo") ? 'u."contactNo"' : "NULL"} AS contact_no, ${c.user.has("email") ? "u.email" : "NULL"} AS user_email
+  FROM public.employee_roster er JOIN public.designation_grade dg ON dg.id = er.designation_grade_id LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id
+  LEFT JOIN public."user" u ON u.id = ${c.has.has("user_id") ? "er.user_id" : "NULL"}`;
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 export function rowToRecord(r: Record<string, unknown>, canSeeDates: boolean): EmployeeRecord {
   return {
     id: Number(r.id), ticketNo: str(r.ticket_no).trim(), sailPno: str(r.sail_pno), name: str(r.name), cohort: r.cohort === "executive" ? "executive" : "nonexecutive",
     gradeId: Number(r.grade_id), gradeTitle: str(r.grade_title), departmentId: r.department_id === null || r.department_id === undefined ? null : Number(r.department_id), departmentName: str(r.department_name),
-    position: Number(r.position), address: str(r.address), emailNic: str(r.email_nic), webmail: str(r.webmail), doctor: typeof r.doctor === "boolean" ? r.doctor : null,
+    position: Number(r.position), address: str(r.address), emailNic: maskEmail(str(r.email_nic)), webmail: maskEmail(str(r.webmail)), mobileMasked: maskMobile(str(r.contact_no)), emailMasked: maskEmail(str(r.user_email)), doctor: typeof r.doctor === "boolean" ? r.doctor : null,
     dateOfBirth: canSeeDates ? str(r.dob).slice(0, 10) : "", dateOfJoining: canSeeDates ? str(r.doj).slice(0, 10) : "", datesVisible: canSeeDates, hasLogin: r.user_id !== null && r.user_id !== undefined,
   };
 }
@@ -84,7 +94,7 @@ export function rowToRecord(r: Record<string, unknown>, canSeeDates: boolean): E
 /** What the history keeps of a person: every editable field, the dates included (the history is read by the HOD with the dates, by everybody else without). */
 const snap = (r: EmployeeRecord) => ({
   ticketNo: r.ticketNo, sailPno: r.sailPno, name: r.name, gradeId: r.gradeId, gradeTitle: r.gradeTitle, departmentId: r.departmentId, departmentName: r.departmentName, position: r.position,
-  address: r.address, emailNic: r.emailNic, webmail: r.webmail, doctor: r.doctor, dateOfBirth: r.dateOfBirth, dateOfJoining: r.dateOfJoining,
+  address: r.address, emailNic: r.emailNic, webmail: r.webmail, mobile: r.mobileMasked, email: r.emailMasked, doctor: r.doctor, dateOfBirth: r.dateOfBirth, dateOfJoining: r.dateOfJoining,
 });
 type Snap = ReturnType<typeof snap>;
 
@@ -156,6 +166,51 @@ async function sameNameElsewhere(q: QueryFn, name: string, departmentId: number 
 
 const nullable = (s: string) => (s === "" ? null : s);
 
+/** The roster's two corporate mail columns for an input: an executive's own two fields; a non-executive's one e-mail goes to a column only when it IS a SAIL address (the rare privilege). */
+export function rosterMails(cohort: "executive" | "nonexecutive", x: { emailNic: string; webmail: string; email: string }, keep: { emailNic: string; webmail: string }): { emailNic: string; webmail: string } {
+  if (cohort === "executive") return { emailNic: x.emailNic, webmail: x.webmail };
+  return { emailNic: endsWithDomain(x.email, NIC_DOMAIN) ? x.email : keep.emailNic, webmail: endsWithDomain(x.email, WEBMAIL_DOMAIN) ? x.email : keep.webmail };
+}
+/** The e-mail the login account carries: an executive's NIC mail (else his web-mail); a non-executive's own e-mail. */
+export const loginEmailOf = (cohort: "executive" | "nonexecutive", x: { emailNic: string; webmail: string; email: string }): string => (cohort === "executive" ? x.emailNic || x.webmail : x.email);
+
+const newLoginId = () => `c${randomBytes(12).toString("hex")}`;
+const digits = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+
+/**
+ * The employee's login account (public."user"): created when there is none (his SAIL P.No. is the first password, hashed like every other), or linked when the same ticket already has one; its mobile and e-mail are
+ * set from what was typed (empty = leave as it is). Only the columns that exist are written. The password of an account that exists is NEVER changed. Returns the field errors when an e-mail is already another login's.
+ */
+async function ensureLogin(q: QueryFn, cols: Cols, p: { rosterId: number; ticketNo: string; name: string; sailPno: string; gradeTitle: string; mobile: string; loginEmail: string; emailField: "emailNic" | "email" }): Promise<{ errors?: FieldErrors }> {
+  if (!cols.user.has("id") || !cols.user.has("ticketNo")) return {};
+  const existing = await q(`SELECT id FROM public."user" WHERE "ticketNo" = $1 LIMIT 1`, [p.ticketNo]);
+  if (p.loginEmail && cols.user.has("email")) {
+    const clash = await q(`SELECT 1 FROM public."user" WHERE lower(email) = $1 AND "ticketNo" <> $2 LIMIT 1`, [p.loginEmail, p.ticketNo]);
+    if (clash.length) return { errors: { [p.emailField]: "This e-mail already belongs to another login account." } };
+  }
+  let id: string;
+  if (existing.length) {
+    id = String(existing[0].id);
+    const sets: string[] = [], vals: unknown[] = [];
+    if (p.mobile && cols.user.has("contactNo")) { vals.push(p.mobile); sets.push(`"contactNo" = $${vals.length}`); }
+    if (p.loginEmail && cols.user.has("email")) { vals.push(p.loginEmail); sets.push(`email = $${vals.length}`); }
+    if (sets.length) { vals.push(id); await q(`UPDATE public."user" SET ${sets.join(", ")} WHERE id = $${vals.length}`, vals); }
+  } else {
+    id = newLoginId();
+    const names = ["id", `"ticketNo"`], vals: unknown[] = [id, p.ticketNo];
+    const add = (c: string, col: string, v: unknown) => { if (cols.user.has(c)) { names.push(col); vals.push(v); } };
+    add("name", "name", p.name);
+    add("password", "password", await bcrypt.hash(p.sailPno, 10));
+    add("sailPNo", `"sailPNo"`, nullable(p.sailPno));
+    add("designation", "designation", nullable(p.gradeTitle));
+    add("contactNo", `"contactNo"`, nullable(p.mobile));
+    add("email", "email", nullable(p.loginEmail));
+    await q(`INSERT INTO public."user" (${names.join(", ")}) VALUES (${vals.map((_, i) => `$${i + 1}`).join(", ")})`, vals);
+  }
+  if (cols.has.has("user_id")) await q(`UPDATE public.employee_roster SET user_id = $1 WHERE id = $2`, [id, p.rosterId]);
+  return {};
+}
+
 export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, unknown>, acks: AcknowledgeKind[] = []): Promise<SaveResult> {
   try {
     return await db.run(async (q): Promise<SaveResult> => {
@@ -163,7 +218,7 @@ export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, u
       const cols = await discover(q);
       const lk = await loadLookups(q, cols);
       const now = DateTime.now().setZone(IST);
-      const v = validateEmployee(raw, lk, { today: now, canEditDates: role === "hod" });
+      const v = validateEmployee(raw, lk, { today: now, canEditDates: role === "hod", requirePno: true });
       if (!v.ok) return { status: "invalid", errors: v.errors };
       const x = v.value;
       const dup = await q(`SELECT name FROM public.employee_roster WHERE ticket_no = $1 LIMIT 1`, [x.ticketNo]);
@@ -186,8 +241,9 @@ export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, u
       const addOpt = (col: string, value: unknown) => { if (cols.has.has(col)) { names.push(col); vals.push(value); } };
       addOpt("sail_pno", nullable(x.sailPno));
       addOpt("address", nullable(x.address));
-      addOpt("email_nic", nullable(x.emailNic));
-      addOpt("webmail_saildsp", nullable(x.webmail));
+      const mails = rosterMails(cohort, x, { emailNic: "", webmail: "" });
+      addOpt("email_nic", nullable(mails.emailNic));
+      addOpt("webmail_saildsp", nullable(mails.webmail));
       if (x.doctor !== null) addOpt("doctor_override", x.doctor);
       if (role === "hod" && cols.has.has("date_of_birth") && cols.has.has("date_of_joining") && (x.dateOfBirth || x.dateOfJoining)) {
         names.push("date_of_birth", "date_of_joining"); vals.push(x.dateOfBirth, x.dateOfJoining);
@@ -196,20 +252,24 @@ export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, u
       if (cols.notNullNoDefault.has("source_snapshot_date") && !names.includes("source_snapshot_date")) { names.push("source_snapshot_date"); vals.push(now.toISODate()); }
       const ins = await q(`INSERT INTO public.employee_roster (${names.join(", ")}) VALUES (${vals.map((_, i) => `$${i + 1}`).join(", ")}) RETURNING id`, vals);
       const id = Number(ins[0].id);
+      // his login account: created (SAIL P.No. = first password) or linked; an e-mail that is another login's is refused and NOTHING of the addition is kept
+      const login = await ensureLogin(q, cols, { rosterId: id, ticketNo: x.ticketNo, name: x.name, sailPno: x.sailPno, gradeTitle: grade.title, mobile: x.mobile, loginEmail: loginEmailOf(cohort, x), emailField: cohort === "executive" ? "emailNic" : "email" });
+      if (login.errors) throw new LoginRefused(login.errors); // thrown inside the transaction: it is rolled back, nothing of the addition is kept
       const rec = rowToRecord(await getRow(q, cols, id), true);
-      await audit(q, actor, role, "add", id, rec.ticketNo, rec.name, null, snap(rec));
+      await audit(q, actor, role, "add", id, rec.ticketNo, rec.name, null, snap(rec), rec.hasLogin ? "login account made, first password = SAIL P.No." : null);
       await refreshNameCodes(q);
       return { status: "ok", employee: rowToRecord(await getRow(q, cols, id), role === "hod") };
     });
   } catch (e) {
     if (e instanceof Forbidden) return { status: "forbidden" };
+    if (e instanceof LoginRefused) return { status: "invalid", errors: e.errors };
     if (isUnique(e)) return { status: "invalid", errors: { ticketNo: "This ticket number (or SAIL P.No.) is already on the roll." } };
     if (isCheck(e)) return { status: "invalid", errors: { dateOfJoining: "The database refused these dates: nobody joins before 18 (23 for a direct recruit, ticket 49xxxx)." } };
     throw e;
   }
 }
 
-const EDITABLE: Array<keyof Snap> = ["sailPno", "name", "gradeId", "departmentId", "position", "address", "emailNic", "webmail", "doctor", "dateOfBirth", "dateOfJoining"];
+const EDITABLE: Array<keyof Snap> = ["sailPno", "name", "gradeId", "departmentId", "position", "address", "doctor", "dateOfBirth", "dateOfJoining"];
 
 export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: Record<string, unknown>, acks: AcknowledgeKind[] = []): Promise<SaveResult> {
   try {
@@ -221,7 +281,7 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
       const cur = rowToRecord(curRow, true);
       const lk = await loadLookups(q, cols);
       const hod = role === "hod";
-      const v = validateEmployee(raw, lk, { today: DateTime.now().setZone(IST), canEditDates: hod, fixedTicket: cur.ticketNo });
+      const v = validateEmployee(raw, lk, { today: DateTime.now().setZone(IST), canEditDates: hod, fixedTicket: cur.ticketNo, requirePno: cur.sailPno !== "", hasMobile: digits(curRow.contact_no) !== "" });
       if (!v.ok) return { status: "invalid", errors: v.errors };
       const x = v.value;
       const grade = lk.grades.find((g) => g.id === x.gradeId)!;
@@ -229,15 +289,23 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
       let position = x.position;
       if (position === null) position = x.gradeId === cur.gradeId ? cur.position : Number((await q(`SELECT coalesce(max(within_grade_position), 0) + 1 AS n FROM public.employee_roster WHERE designation_grade_id = $1`, [grade.id]))[0].n);
       if (position > 9999) return { status: "invalid", errors: { position: "This grade is full (the position would pass 9999)." } };
+      // the roster's two mail columns by cohort (a non-executive's own columns stay as they are unless he typed a SAIL address); the login account's mobile and e-mail: changed only when something was typed
+      const curNic = str(curRow.email_nic), curWeb = str(curRow.webmail);
+      // empty keeps (a mail is shown masked, so typing is replacing); an executive's own two fields, a non-executive's SAIL address kept as such
+      const mails = cur.cohort === "executive" ? { emailNic: x.emailNic || curNic, webmail: x.webmail || curWeb } : rosterMails(cur.cohort, x, { emailNic: curNic, webmail: curWeb });
+      const nicChanged = mails.emailNic !== curNic, webChanged = mails.webmail !== curWeb;
+      const loginEmail = loginEmailOf(cur.cohort, x);
+      const mobileChanged = x.mobile !== "" && x.mobile !== digits(curRow.contact_no);
+      const emailChanged = loginEmail !== "" && loginEmail !== str(curRow.user_email).toLowerCase();
       // for anybody but the HOD the dates stay as they are
       const next: Snap = {
         ...snap(cur), sailPno: x.sailPno, name: x.name, gradeId: x.gradeId as number, gradeTitle: grade.title, departmentId: x.departmentId, departmentName: lk.departments.find((d) => d.id === x.departmentId)?.name ?? "",
-        position, address: x.address, emailNic: x.emailNic, webmail: x.webmail, doctor: x.doctor === null ? cur.doctor : x.doctor,
+        position, address: x.address, emailNic: maskEmail(mails.emailNic), webmail: maskEmail(mails.webmail), doctor: x.doctor === null ? cur.doctor : x.doctor,
         dateOfBirth: hod ? (x.dateOfBirth ?? "") : cur.dateOfBirth, dateOfJoining: hod ? (x.dateOfJoining ?? "") : cur.dateOfJoining,
       };
       const before = snap(cur);
       const changed = EDITABLE.filter((f) => before[f] !== next[f]);
-      if (changed.length === 0) return { status: "unchanged" };
+      if (changed.length === 0 && !mobileChanged && !emailChanged && !nicChanged && !webChanged) return { status: "unchanged" };
 
       if (changed.includes("sailPno") && next.sailPno && cols.has.has("sail_pno")) {
         const p = await q(`SELECT name, ticket_no FROM public.employee_roster WHERE upper(sail_pno) = $1 AND id <> $2 LIMIT 1`, [next.sailPno, id]);
@@ -257,8 +325,8 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
       if (changed.includes("departmentId")) set("sail_department_id", next.departmentId);
       if (changed.includes("gradeId") || changed.includes("position")) { set("within_grade_position", next.position); set("global_seniority_rank", seniorityRank(grade, next.position)); }
       if (changed.includes("address") && col("address")) set("address", nullable(next.address));
-      if (changed.includes("emailNic") && col("email_nic")) set("email_nic", nullable(next.emailNic));
-      if (changed.includes("webmail") && col("webmail_saildsp")) set("webmail_saildsp", nullable(next.webmail));
+      if (nicChanged && col("email_nic")) set("email_nic", nullable(mails.emailNic));
+      if (webChanged && col("webmail_saildsp")) set("webmail_saildsp", nullable(mails.webmail));
       if (changed.includes("doctor") && col("doctor_override")) set("doctor_override", next.doctor);
       const datesTouched = hod && (changed.includes("dateOfBirth") || changed.includes("dateOfJoining")) && col("date_of_birth") && col("date_of_joining");
       if (datesTouched) {
@@ -267,16 +335,36 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
         // a date the HOD sets by hand is a real date, no longer a sample; with both dates cleared the label goes too
         if (col("dates_source")) set("dates_source", next.dateOfBirth || next.dateOfJoining ? "hr" : null);
       }
-      if (sets.length === 0) return { status: "unchanged" };
-      vals.push(id);
-      await q(`UPDATE public.employee_roster SET ${sets.join(", ")} WHERE id = $${vals.length}`, vals);
+      if (sets.length === 0 && !mobileChanged && !emailChanged && !nicChanged && !webChanged) return { status: "unchanged" };
+      if (sets.length > 0) {
+        vals.push(id);
+        await q(`UPDATE public.employee_roster SET ${sets.join(", ")} WHERE id = $${vals.length}`, vals);
+      }
+      // the login account: mobile and e-mail replaced when typed; name, P.No. and designation kept in step; the PASSWORD is never touched. A person without an account who is given a mobile or e-mail gets one (it needs his P.No.).
+      const hasLogin = curRow.user_id !== null && curRow.user_id !== undefined;
+      if (mobileChanged || emailChanged) {
+        const pno = next.sailPno || cur.sailPno;
+        if (!hasLogin && !pno) throw new LoginRefused({ sailPno: "A login account needs the SAIL P.No. (it is his first password): type it first." });
+        const login = await ensureLogin(q, cols, { rosterId: id, ticketNo: cur.ticketNo, name: next.name, sailPno: pno, gradeTitle: next.gradeTitle, mobile: mobileChanged ? x.mobile : "", loginEmail: emailChanged ? loginEmail : "", emailField: cur.cohort === "executive" ? "emailNic" : "email" });
+        if (login.errors) throw new LoginRefused(login.errors);
+      }
+      if (hasLogin || mobileChanged || emailChanged) {
+        const us: string[] = [], uv: unknown[] = [];
+        const uset = (c: string, col: string, v: unknown) => { if (cols.user.has(c)) { uv.push(v); us.push(`${col} = $${uv.length}`); } };
+        if (changed.includes("name")) uset("name", "name", next.name);
+        if (changed.includes("sailPno")) uset("sailPNo", `"sailPNo"`, nullable(next.sailPno));
+        if (changed.includes("gradeId")) uset("designation", "designation", nullable(next.gradeTitle));
+        if (us.length) { uv.push(cur.ticketNo); await q(`UPDATE public."user" SET ${us.join(", ")} WHERE "ticketNo" = $${uv.length}`, uv); }
+      }
       const rec = rowToRecord(await getRow(q, cols, id), true);
-      await audit(q, actor, role, "modify", id, rec.ticketNo, rec.name, before, snap(rec));
+      const contactNote = [mobileChanged ? "mobile number replaced" : "", nicChanged ? "NIC mail replaced" : "", webChanged ? "web-mail replaced" : "", emailChanged && !nicChanged && !webChanged ? "e-mail replaced" : ""].filter(Boolean).join("; ") || null;
+      await audit(q, actor, role, "modify", id, rec.ticketNo, rec.name, before, snap(rec), contactNote);
       if (changed.includes("name")) await refreshNameCodes(q);
       return { status: "ok", employee: rowToRecord(await getRow(q, cols, id), hod) };
     });
   } catch (e) {
     if (e instanceof Forbidden) return { status: "forbidden" };
+    if (e instanceof LoginRefused) return { status: "invalid", errors: e.errors };
     if (isUnique(e)) return { status: "invalid", errors: { sailPno: "This SAIL P.No. is already on the roll." } };
     if (isCheck(e)) return { status: "invalid", errors: { dateOfJoining: "The database refused these dates: nobody joins before 18 (23 for a direct recruit, ticket 49xxxx)." } };
     throw e;
@@ -395,7 +483,7 @@ export async function recentAudit(db: EmpDb, limit = 50, canSeeDates = false): P
     const changes = action === "modify" ? diffSnapshots(x.before as Partial<Snap> | null, after, canSeeDates) : [];
     const summary =
       action === "add" ? `Added ${who}${after?.gradeTitle ? `, ${after.gradeTitle}` : ""}${after?.departmentName ? `, ${after.departmentName}` : ""}`
-      : action === "modify" ? `Changed ${who}`
+      : action === "modify" ? `Changed ${who}${x.note ? ` (${str(x.note)})` : ""}`
       : action === "delete" ? `Deleted ${who}${after?.loginRemoved ? " and his login account" : ""}`
       : action === "grant" ? `Authorised ${who}`
       : `Withdrew the authority of ${who}${x.note ? ` (${str(x.note)})` : ""}`;

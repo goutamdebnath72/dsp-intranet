@@ -8,29 +8,32 @@
  * fails when a size has no rule (an unlisted size would simply not grow).
  */
 .omni-scale {
-  font-size: calc(1rem * var(--omni-k, 1));
+  /* step 66b (owner, 1 Nov 2026: "reduce the font size of all kind of texts in the omnibar modal by 1 point, all texts are looking a bit awkwardly larger"): every size below, and the line height that goes with it,
+   * is ONE POINT smaller. This is the only place the amount is written: change it here. */
+  --omni-shrink: 1pt;
+  font-size: calc(1rem * var(--omni-k, 1) - var(--omni-shrink, 1pt));
 }
 .omni-scale .omni-noscale {
   --omni-k: 1;
-  font-size: 1rem;
+  font-size: calc(1rem - var(--omni-shrink, 1pt));
 }
 
-.omni-scale .text-xs { font-size: calc(0.75rem * var(--omni-k, 1)); line-height: calc(1rem * var(--omni-k, 1)); }
-.omni-scale .text-sm { font-size: calc(0.875rem * var(--omni-k, 1)); line-height: calc(1.25rem * var(--omni-k, 1)); }
-.omni-scale .text-base { font-size: calc(1rem * var(--omni-k, 1)); line-height: calc(1.5rem * var(--omni-k, 1)); }
-.omni-scale .text-lg { font-size: calc(1.125rem * var(--omni-k, 1)); line-height: calc(1.75rem * var(--omni-k, 1)); }
-.omni-scale .text-xl { font-size: calc(1.25rem * var(--omni-k, 1)); line-height: calc(1.75rem * var(--omni-k, 1)); }
-.omni-scale .text-2xl { font-size: calc(1.5rem * var(--omni-k, 1)); line-height: calc(2rem * var(--omni-k, 1)); }
-.omni-scale .text-3xl { font-size: calc(1.875rem * var(--omni-k, 1)); line-height: calc(2.25rem * var(--omni-k, 1)); }
-.omni-scale .text-4xl { font-size: calc(2.25rem * var(--omni-k, 1)); line-height: calc(2.5rem * var(--omni-k, 1)); }
+.omni-scale .text-xs { font-size: calc(0.75rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(1rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-sm { font-size: calc(0.875rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(1.25rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-base { font-size: calc(1rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(1.5rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-lg { font-size: calc(1.125rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(1.75rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-xl { font-size: calc(1.25rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(1.75rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-2xl { font-size: calc(1.5rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(2rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-3xl { font-size: calc(1.875rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(2.25rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-4xl { font-size: calc(2.25rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(2.5rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
 
-.omni-scale .text-\[9px\] { font-size: calc(9px * var(--omni-k, 1)); }
-.omni-scale .text-\[10px\] { font-size: calc(10px * var(--omni-k, 1)); }
-.omni-scale .text-\[11px\] { font-size: calc(11px * var(--omni-k, 1)); }
-.omni-scale .text-\[13px\] { font-size: calc(13px * var(--omni-k, 1)); }
-.omni-scale .text-\[15px\] { font-size: calc(15px * var(--omni-k, 1)); }
-.omni-scale .text-\[17px\] { font-size: calc(17px * var(--omni-k, 1)); }
-.omni-scale .text-\[28px\] { font-size: calc(28px * var(--omni-k, 1)); }
+.omni-scale .text-\[9px\] { font-size: calc(9px * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-\[10px\] { font-size: calc(10px * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-\[11px\] { font-size: calc(11px * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-\[13px\] { font-size: calc(13px * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-\[15px\] { font-size: calc(15px * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-\[17px\] { font-size: calc(17px * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+.omni-scale .text-\[28px\] { font-size: calc(28px * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
 
 /* a leading class wins over the line height of a size class (as in Tailwind); these are unitless, so they follow the new font size by themselves */
 .omni-scale .leading-none { line-height: 1; }
@@ -42,6 +45,6 @@
 
 /* the responsive forms Tailwind emits (sm = 640px): AFTER the leading classes, as in Tailwind's own sheet, so that at 640px and above they win over a leading class */
 @media (min-width: 640px) {
-  .omni-scale .sm\:text-sm { font-size: calc(0.875rem * var(--omni-k, 1)); line-height: calc(1.25rem * var(--omni-k, 1)); }
-  .omni-scale .sm\:text-base { font-size: calc(1rem * var(--omni-k, 1)); line-height: calc(1.5rem * var(--omni-k, 1)); }
+  .omni-scale .sm\:text-sm { font-size: calc(0.875rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(1.25rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
+  .omni-scale .sm\:text-base { font-size: calc(1rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); line-height: calc(1.5rem * var(--omni-k, 1) - var(--omni-shrink, 1pt)); }
 }

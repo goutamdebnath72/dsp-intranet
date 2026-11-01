@@ -33,7 +33,7 @@ const acksOf = (v: unknown): AcknowledgeKind[] => (Array.isArray(v) ? v.filter((
 const fieldsOf = (v: unknown): Record<string, unknown> => {
   const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   const out: Record<string, unknown> = {};
-  for (const k of ["ticketNo", "sailPno", "name", "gradeId", "departmentId", "position", "address", "emailNic", "webmail", "doctor", "dateOfBirth", "dateOfJoining"]) if (k in o) out[k] = o[k];
+  for (const k of ["ticketNo", "sailPno", "name", "gradeId", "departmentId", "position", "address", "emailNic", "webmail", "mobile", "email", "doctor", "dateOfBirth", "dateOfJoining"]) if (k in o) out[k] = o[k];
   return out;
 };
 

@@ -49,8 +49,14 @@ ok("no fixed-size leading class (leading-5, leading-[18px]) that would not follo
 ok("no other unit of arbitrary font size that has no rule (px and em are handled: em follows its parent)", uniq(/text-\[[0-9.]+rem\]/g).length === 0);
 
 // ---- the stylesheet itself
-ok("the stylesheet scales the root of the modal and lets a table opt out (the variable is 1 inside it)", /\.omni-scale \{\s*font-size: calc\(1rem \* var\(--omni-k, 1\)\);\s*\}/.test(css) && /\.omni-scale \.omni-noscale \{\s*--omni-k: 1;\s*font-size: 1rem;\s*\}/.test(css));
+ok("the stylesheet scales the root of the modal and lets a table opt out (the variable is 1 inside it)", /\.omni-scale \{[^}]*font-size: calc\(1rem \* var\(--omni-k, 1\) - var\(--omni-shrink, 1pt\)\);\s*\}/.test(css) && /\.omni-scale \.omni-noscale \{\s*--omni-k: 1;\s*font-size: calc\(1rem - var\(--omni-shrink, 1pt\)\);\s*\}/.test(css));
 ok("every size rule multiplies by the variable, with 1 as the fallback (no variable, no change)", (css.match(/var\(--omni-k, 1\)/g) ?? []).length === 28 && !/var\(--omni-k\)/.test(css));
+// ---- step 66b: every text of the modal is ONE POINT smaller (owner, 1 Nov 2026)
+ok("the shrink is written ONCE, as 1pt, on the modal's root (change it there)", (css.match(/--omni-shrink: 1pt;/g) ?? []).length === 1 && /\.omni-scale \{[^}]*--omni-shrink: 1pt;/.test(css));
+const sizeRules = [...css.matchAll(/(?:font-size|line-height): calc\([^;]*\);/g)].map((m) => m[0]);
+ok("EVERY font size and line height of the sheet that follows the factor also subtracts the shrink (no size can escape it)", sizeRules.filter((r) => r.includes("var(--omni-k, 1)")).length === 28 && sizeRules.filter((r) => r.includes("var(--omni-k, 1)")).every((r) => r.includes("- var(--omni-shrink, 1pt)")), sizeRules.filter((r) => r.includes("var(--omni-k, 1)") && !r.includes("var(--omni-shrink")).join(" | "));
+ok("the table that opts out of the growth (omni-noscale) is one point smaller too", /\.omni-noscale \{[^}]*font-size: calc\(1rem - var\(--omni-shrink, 1pt\)\)/.test(css));
+ok("the sizes of the factor are untouched: 28 uses of the variable still, none without its fallback", (css.match(/var\(--omni-k, 1\)/g) ?? []).length === 28 && !/var\(--omni-k\)/.test(css));
 ok("the leading classes come BEFORE the sm: rules, as in Tailwind's own sheet", css.indexOf(".omni-scale .leading-relaxed") > 0 && css.indexOf(".omni-scale .leading-relaxed") < css.indexOf("@media (min-width: 640px)"));
 
 // ---- the wiring
