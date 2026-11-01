@@ -9,6 +9,8 @@ export interface PaxAdminOpen {
   op: PaxAdminOp;
   /** hod = the HOD of C&IT (SUPERADMIN_TICKETS); delegate = an executive the HOD has authorised. Only the HOD may delegate. */
   role: "hod" | "delegate";
+  /** The logged-in person's name, sent WITH the answer that opens the editor (step 67b) so that the header shows it on the very first paint, with no request. Looked up by the server from the session's ticket, never typed. */
+  name?: string;
   /** Words and a number picked out of the typed sentence, only to save typing; the person can change every one. */
   prefill?: { department?: string; number?: string; query?: string };
 }
@@ -19,7 +21,12 @@ export interface PaxEntryView {
   department: string;
   location: string;
   number: string;
+  /** The VERSION of this line as the person sees it (src/lib/concurrency/version.ts): a change or a delete must send it back; if the line has changed since, the save is refused ("stale"). Set by the server. */
+  version?: string;
 }
+
+/** The last change the editor recorded for a line: who, when, and what kind. Shown when a save is refused because somebody else changed the line first. */
+export interface PaxLastChange { at: string; actorName: string; actorTicket: string; action: string }
 
 export type ConflictKind = "same-number" | "same-place" | "similar-place";
 

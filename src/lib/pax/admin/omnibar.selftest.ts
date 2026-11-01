@@ -89,6 +89,33 @@ async function main() {
   ok("...its code never touches the model's client either", !/withClient|withDefaultClient|nlq_reader/.test(code(route)) && !/withClient|withDefaultClient|nlq_reader/.test(code(readFileSync("src/lib/pax/admin/access.ts", "utf8"))));
   ok("the tables of the editor are not in the model's schema: no nlq view or prompt mentions them", !/pax_delegate|pax_directory_audit/.test(readFileSync("src/lib/nl2sql/context.ts", "utf8")));
 
+  // ---- THE NAME TRAVELS WITH THE ANSWER (step 67b): the editor's header has it on the first paint ----
+  const NAMES: Record<string, string | null> = { "400001": "MOHD ANWAR ULLAH", "412345": "  RAKESH OJHA  " };
+  const nameOf = async (t: string) => NAMES[t] ?? null;
+  p = await answerPaxAdmin("add new pax number", "400001", { ...authorityIs("hod"), nameOf });
+  ok("the HOD's name is in the payload that opens the editor (so the header has it at once, with no request)", p?.paxAdmin?.name === "MOHD ANWAR ULLAH" && p.paxAdmin.role === "hod");
+  p = await answerPaxAdmin("edit pax number", "412345", { ...authorityIs("delegate"), nameOf });
+  ok("an authorised executive's own name is sent, trimmed", p?.paxAdmin?.name === "RAKESH OJHA" && p.paxAdmin.role === "delegate");
+  p = await answerPaxAdmin("add new pax number", "400001", { ...authorityIs("hod"), nameOf: async () => "   " });
+  ok("a blank name is left out of the payload (the panel will ask for it)", p?.paxAdmin !== undefined && !("name" in (p?.paxAdmin ?? {})));
+  p = await answerPaxAdmin("add new pax number", "400001", { ...authorityIs("hod"), nameOf: async () => { throw new Error("directory down"); } });
+  ok("if the name cannot be read the editor STILL opens, without a name", p?.paxAdmin?.op === "add" && !("name" in (p?.paxAdmin ?? {})));
+  p = await answerPaxAdmin("add new pax number", "400001", authorityIs("hod"));
+  ok("without a name function (as before) the payload is what it always was", p?.paxAdmin?.role === "hod" && !("name" in (p?.paxAdmin ?? {})));
+  p = await answerPaxAdmin("add new pax number", "499999", { ...authorityIs(null), nameOf: async () => "SOMEBODY" });
+  ok("a person with no authority gets a plain sentence and his name is not sent anywhere", !p?.paxAdmin && JSON.stringify(p).indexOf("SOMEBODY") < 0);
+  let nameAsked = 0;
+  const notRequest = await answerPaxAdmin("who has pax 42046", "400001", { ...authorityIs("hod"), nameOf: async () => { nameAsked++; return "X"; } });
+  ok("a question about the directory (not a change request) never reaches the name lookup", notRequest === null && nameAsked === 0);
+  ok("the authority and the name are asked TOGETHER (both start before either answers): the name adds no waiting", await (async () => {
+    let release!: () => void;
+    const nameStarted = new Promise<void>((res) => { release = res; });
+    const run = answerPaxAdmin("add new pax number", "400001", { authority: async () => { await nameStarted; return "hod" as Authority; }, nameOf: async () => { release(); return "MOHD ANWAR ULLAH"; } });
+    const out = await Promise.race([run, new Promise<"timeout">((res) => setTimeout(() => res("timeout"), 800))]);
+    return out !== "timeout" && (out as Awaited<ReturnType<typeof answerPaxAdmin>>)?.paxAdmin?.name === "MOHD ANWAR ULLAH";
+  })());
+  ok("the search bar's wiring hands the editor the directory's name function (the one the session's actor already uses)", /nameOf: async \(t\) => nameOfTicket\(await getDb\(\), t\)/.test(wiring) && /authorityForTicket, nameOfTicket \} = await import\("@\/lib\/pax\/admin\/access"\)/.test(wiring));
+
   console.log(`pax admin omnibar selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

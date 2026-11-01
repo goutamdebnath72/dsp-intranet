@@ -8,12 +8,13 @@
 // SECURITY: like pax_directory, the tables here are closed to the public API roles; only the application's own connection (never the language model's read-only client) touches them.
 
 import { toIsoInstant } from "../../dates";
+import { sameVersion, versionOf } from "@/lib/concurrency/version";
 import { isSuperAdmin } from "@/lib/superAdmin";
 import { loadPaxRows, PORTAL_SOURCE, type QueryFn } from "../store";
 import type { PaxRow } from "../matcher";
 import { placeName } from "../display";
 import { acknowledgementCovers, findConflicts, savedLines } from "./conflicts";
-import type { Acknowledge, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView } from "./types";
+import type { Acknowledge, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView, PaxLastChange } from "./types";
 import { composeLabel, validateEntry, type EntryInput, type FieldErrors } from "./validate";
 
 /** Runs the function inside one transaction (committed when it returns, rolled back when it throws). */
@@ -72,15 +73,36 @@ export type EntryResult =
   | { status: "invalid"; errors: FieldErrors }
   | { status: "conflict"; conflicts: PaxConflict[]; acknowledgeable: Acknowledge[] }
   | { status: "unchanged" }
+  /** The line is not what the person saw: somebody changed it first. Nothing was written. `current` is the line as it is now, `last` the change recorded last. */
+  | { status: "stale"; current: PaxEntryView; last: PaxLastChange | null }
   | { status: "missing" }
   | { status: "forbidden" };
+
+/**
+ * THE VERSION of a line, worked out from the RAW row (its label, department, location and number), signed with the server's secret (src/lib/concurrency/version.ts). The same line, whatever the way it is read
+ * (the list, a clash's "edit this line", the answer to a save), has the same version.
+ */
+export const versionOfRow = (r: { id?: number; label: string; deptName: string; location: string; number: string }): string => versionOf("pax", [r.id, r.label, r.deptName, r.location, r.number]);
+const viewOfRow = (lines: PaxEntryView[], rows: PaxRow[]): PaxEntryView[] => lines.map((l) => { const row = rows.find((r) => r.id === l.id); return row ? { ...l, version: versionOfRow(row) } : l; });
+const withVersions = (conflicts: PaxConflict[], rows: PaxRow[]): PaxConflict[] => conflicts.map((c) => ({ ...c, existing: viewOfRow(c.existing, rows) }));
+
+/** LOCK the line's row BEFORE it is read for a change or a delete: any writer that does not know the global lock (a SQL script) must wait until this transaction ends, and the version check then sees what it did. */
+async function lockEntry(q: QueryFn, id: number): Promise<void> {
+  await q(`SELECT 1 FROM public.pax_directory WHERE id = $1 FOR UPDATE`, [id]);
+}
+
+/** What the editor last recorded for this line (an add or a change): who and when. Only the facts, never a value. */
+async function lastChangeOf(q: QueryFn, id: number): Promise<PaxLastChange | null> {
+  const r = (await q(`SELECT at, actor_name, actor_ticket, action FROM public.pax_directory_audit WHERE pax_id = $1 AND action IN ('add', 'modify') ORDER BY id DESC LIMIT 1`, [id]))[0];
+  return r ? { at: toIsoInstant(r.at) ?? "", actorName: String(r.actor_name ?? ""), actorTicket: String(r.actor_ticket ?? ""), action: String(r.action ?? "") } : null;
+}
 
 const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === "23505";
 
 /** Every saved line in the table's own words (department, location, number), in the order of the table. */
 export async function listEntries(db: PaxDb, search = ""): Promise<PaxEntryView[]> {
   const rows = await db.run((q) => loadPaxRows(q));
-  const lines = savedLines(rows).map(({ id, department, location, number }) => ({ id, department, location, number }));
+  const lines = viewOfRow(savedLines(rows).map(({ id, department, location, number }) => ({ id, department, location, number })), rows);
   const words = search.toLowerCase().split(/\s+/).filter(Boolean);
   const hit = (l: PaxEntryView) => words.every((w) => `${l.department} ${l.location} ${l.number}`.toLowerCase().includes(w));
   return lines.filter(hit).sort((a, b) => a.department.localeCompare(b.department, "en", { numeric: true, sensitivity: "base" }) || a.location.localeCompare(b.location, "en", { numeric: true, sensitivity: "base" }) || a.number.localeCompare(b.number));
@@ -94,7 +116,7 @@ export async function addEntry(db: PaxDb, actor: Actor, raw: Partial<Record<keyo
       const role = await begin(q, actor);
       const rows = await loadPaxRows(q);
       const conflicts = findConflicts(rows, v.value);
-      if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts, acknowledgeable: acknowledgeable(conflicts) };
+      if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts: withVersions(conflicts, rows), acknowledgeable: acknowledgeable(conflicts) };
       const label = composeLabel(v.value.department, v.value.location);
       const ins = await q(
         // an empty location and no note are stored as a true empty (NULL): the live table REFUSES an empty text there (pax_directory_location_check, seen in the owner's log of 31 Oct 2026)
@@ -103,7 +125,7 @@ export async function addEntry(db: PaxDb, actor: Actor, raw: Partial<Record<keyo
       );
       const id = Number(ins[0].id);
       await audit(q, actor, role, "add", id, null, null, snapshot({ ...v.value, label }));
-      return { status: "ok", entry: { id, department: v.value.department, location: v.value.location, number: v.value.number } };
+      return { status: "ok", entry: { id, department: v.value.department, location: v.value.location, number: v.value.number, version: versionOfRow({ id, label, deptName: v.value.department, location: v.value.location, number: v.value.number }) } };
     });
   } catch (e) {
     if (e instanceof Forbidden) return { status: "forbidden" };
@@ -112,26 +134,29 @@ export async function addEntry(db: PaxDb, actor: Actor, raw: Partial<Record<keyo
   }
 }
 
-export async function modifyEntry(db: PaxDb, actor: Actor, id: number, raw: Partial<Record<keyof EntryInput, unknown>>, acks: Acknowledge[] = []): Promise<EntryResult> {
+export async function modifyEntry(db: PaxDb, actor: Actor, id: number, raw: Partial<Record<keyof EntryInput, unknown>>, acks: Acknowledge[] = [], version?: string): Promise<EntryResult> {
   const v = validateEntry(raw);
   if (!v.ok) return { status: "invalid", errors: v.errors };
   try {
     return await db.run(async (q): Promise<EntryResult> => {
       const role = await begin(q, actor);
+      await lockEntry(q, id);
       const rows = await loadPaxRows(q);
       const mine = savedLines(rows).find((l) => l.id === id);
       if (!mine) return { status: "missing" };
       const old = rows.find((r) => r.id === id) as PaxRow;
+      // THE GUARD AGAINST A LOST UPDATE: the save is for the line AS THE PERSON SAW IT. If it is not that any more, nothing is written, and he is told what it is now and who changed it.
+      if (!sameVersion(version, versionOfRow(old))) return { status: "stale", current: { id, department: mine.department, location: mine.location, number: mine.number, version: versionOfRow(old) }, last: await lastChangeOf(q, id) };
       if (mine.department === v.value.department && mine.location === v.value.location && mine.number === v.value.number) return { status: "unchanged" };
       const conflicts = findConflicts(rows, v.value, { ignoreId: id, keepsNumber: mine.number === v.value.number });
-      if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts, acknowledgeable: acknowledgeable(conflicts) };
+      if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts: withVersions(conflicts, rows), acknowledgeable: acknowledgeable(conflicts) };
       const label = composeLabel(v.value.department, v.value.location);
       await q(
         `UPDATE public.pax_directory SET dept_name = $1, location = NULLIF($2, ''), "number" = $3, label = $4, source = $5, updated_at = now() WHERE id = $6`,
         [v.value.department, v.value.location, v.value.number, label, PORTAL_SOURCE, id],
       );
       await audit(q, actor, role, "modify", id, null, snapshot({ department: mine.department, location: mine.location, number: mine.number, label: old.label }), snapshot({ ...v.value, label }));
-      return { status: "ok", entry: { id, department: v.value.department, location: v.value.location, number: v.value.number } };
+      return { status: "ok", entry: { id, department: v.value.department, location: v.value.location, number: v.value.number, version: versionOfRow({ id, label, deptName: v.value.department, location: v.value.location, number: v.value.number }) } };
     });
   } catch (e) {
     if (e instanceof Forbidden) return { status: "forbidden" };
@@ -140,14 +165,17 @@ export async function modifyEntry(db: PaxDb, actor: Actor, id: number, raw: Part
   }
 }
 
-export async function deleteEntry(db: PaxDb, actor: Actor, id: number): Promise<EntryResult> {
+export async function deleteEntry(db: PaxDb, actor: Actor, id: number, version?: string): Promise<EntryResult> {
   try {
     return await db.run(async (q): Promise<EntryResult> => {
       const role = await begin(q, actor);
+      await lockEntry(q, id);
       const rows = await loadPaxRows(q);
       const mine = savedLines(rows).find((l) => l.id === id);
       if (!mine) return { status: "missing" };
       const old = rows.find((r) => r.id === id) as PaxRow;
+      // a line is deleted AS THE PERSON SAW IT: if it has been changed since, nothing is deleted and he looks again
+      if (!sameVersion(version, versionOfRow(old))) return { status: "stale", current: { id, department: mine.department, location: mine.location, number: mine.number, version: versionOfRow(old) }, last: await lastChangeOf(q, id) };
       await q(`DELETE FROM public.pax_directory WHERE id = $1`, [id]);
       await audit(q, actor, role, "delete", id, null, snapshot({ department: mine.department, location: mine.location, number: mine.number, label: old.label }), null);
       return { status: "ok", entry: { id, department: mine.department, location: mine.location, number: mine.number } };

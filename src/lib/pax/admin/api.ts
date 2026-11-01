@@ -101,8 +101,10 @@ export async function handlePaxAdmin(body: unknown, ctx: ApiContext): Promise<Ap
   if (op === "modify" || op === "delete") {
     const id = idOf(b.id);
     if (id === null) return reply(400, { error: "Which line? (the id is missing)" });
-    if (op === "delete") return reply(200, { result: await store.deleteEntry(ctx.db, actor, id) });
-    return reply(200, { result: await store.modifyEntry(ctx.db, actor, id, { department: b.department, location: b.location, number: b.number }, acksOf(b.acknowledge)) });
+    // the version the person SAW travels with every change and delete (src/lib/concurrency/version.ts): the store refuses a save whose version is not the line's now
+    const version = String(b.version ?? "").slice(0, 64);
+    if (op === "delete") return reply(200, { result: await store.deleteEntry(ctx.db, actor, id, version) });
+    return reply(200, { result: await store.modifyEntry(ctx.db, actor, id, { department: b.department, location: b.location, number: b.number }, acksOf(b.acknowledge), version) });
   }
 
   if (op === "grant") {

@@ -69,6 +69,37 @@ async function main() {
   ok("...never to the model's client or its read-only role", !/withClient|withDefaultClient|nlq_reader|NL2SQL_DATABASE_URL/.test(code(wiring)));
   ok("...the route comes BEFORE the date lookup, inside the block that a retry skips", src.indexOf("deps.employeeAdmin ?") > 0 && src.indexOf("deps.employeeAdmin ?") < src.indexOf("deps.dates ?") && src.lastIndexOf("if (!retry) {", src.indexOf("deps.employeeAdmin ?")) > 0);
 
+  // ---- THE NAME TRAVELS WITH THE ANSWER (step 67b): the panel's header has it on the first paint ----
+  type PN = { employeeAdmin?: { op: string; role: string; name?: string }; hospital?: unknown };
+  const NAMES: Record<string, string | null> = { "400001": "MOHD ANWAR ULLAH", "412345": "  RAKESH OJHA  ", "412346": "   " };
+  const nameOf = async (t: string) => NAMES[t] ?? null;
+  let n = (await answerEmployeeAdmin("add new employee", "400001", { authority: auth(MAP), nameOf })) as PN;
+  ok("the HOD's name is in the payload that opens the manager (so the header has it at once, with no request)", n.employeeAdmin?.name === "MOHD ANWAR ULLAH" && n.employeeAdmin?.role === "hod");
+  n = (await answerEmployeeAdmin("edit employee 498880", "412345", { authority: auth(MAP), nameOf })) as PN;
+  ok("an authorised executive's own name is sent, trimmed", n.employeeAdmin?.name === "RAKESH OJHA" && n.employeeAdmin?.role === "delegate");
+  n = (await answerEmployeeAdmin("add new employee", "400001", { authority: auth(MAP), nameOf: async () => "   " })) as PN;
+  ok("a blank name is left out of the payload (the panel will ask for it)", n.employeeAdmin !== undefined && !("name" in (n.employeeAdmin ?? {})));
+  n = (await answerEmployeeAdmin("add new employee", "400001", { authority: auth(MAP), nameOf: async () => { throw new Error("directory down"); } })) as PN;
+  ok("if the name cannot be read the panel STILL opens, without a name", n.employeeAdmin?.op === "add" && !("name" in (n.employeeAdmin ?? {})));
+  n = (await answerEmployeeAdmin("add new employee", "400001", { authority: auth(MAP) })) as PN;
+  ok("without a name function (as before) the payload is what it always was", n.employeeAdmin?.role === "hod" && !("name" in (n.employeeAdmin ?? {})));
+  let asked = 0;
+  n = (await answerEmployeeAdmin("delete employee 498880", "412345", { authority: auth(MAP), nameOf: async (t) => { asked++; return NAMES[t] ?? null; } })) as PN;
+  ok("a person who is refused gets no panel, so his name is not sent anywhere", !n.employeeAdmin && JSON.stringify(n).indexOf("RAKESH") < 0);
+  n = (await answerEmployeeAdmin("add new employee", "499999", { authority: auth(MAP), nameOf: async (t) => { asked++; return "SOMEBODY"; } })) as PN;
+  ok("a person with no authority at all gets a plain sentence and no name", !n.employeeAdmin && JSON.stringify(n).indexOf("SOMEBODY") < 0);
+  asked = 0;
+  const nothing = await answerEmployeeAdmin("what is the weather", "400001", { authority: auth(MAP), nameOf: async () => { asked++; return "X"; } });
+  ok("a sentence that is not such a request never reaches the name lookup either", nothing === null && asked === 0);
+  ok("the authority and the name are asked TOGETHER (both start before either answers): the name adds no waiting", await (async () => {
+    let release!: () => void;
+    const nameStarted = new Promise<void>((res) => { release = res; });
+    const run = answerEmployeeAdmin("add new employee", "400001", { authority: async () => { await nameStarted; return "hod" as Authority; }, nameOf: async () => { release(); return "MOHD ANWAR ULLAH"; } });
+    const out = await Promise.race([run, new Promise<"timeout">((res) => setTimeout(() => res("timeout"), 800))]);
+    return out !== "timeout" && (out as PN).employeeAdmin?.name === "MOHD ANWAR ULLAH";
+  })());
+  ok("the search bar's wiring hands the manager the directory's name function (the one the session's actor already uses)", /answerEmployeeAdmin\(qq, ticket, \{ authority: async \(t\) => authorityForTicket\(await getDb\(\), t\), nameOf: async \(t\) => nameOfTicket\(await getDb\(\), t\) \}\)/.test(wiring) && /nameOfTicket \} = await import\("@\/lib\/pax\/admin\/access"\)/.test(wiring));
+
   console.log(`employee admin omnibar selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

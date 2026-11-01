@@ -10,7 +10,7 @@
 
 import React from "react";
 import { DateTime } from "luxon";
-import { AlertCircle, ArrowRight, AtSign, BadgeCheck, Briefcase, Building2, CalendarCheck, CalendarDays, Check, CheckCircle2, History, Info, Lock, Mail, MapPin, Pencil, Phone, ShieldCheck, Sparkles, Stethoscope, Trash2, User, UserPlus, Users, Hash } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowRight, AtSign, BadgeCheck, Briefcase, Building2, CalendarCheck, CalendarDays, Check, CheckCircle2, History, Info, Lock, Mail, MapPin, Pencil, Phone, ShieldCheck, Sparkles, Stethoscope, Trash2, User, UserPlus, Users, Hash } from "lucide-react";
 import { IST } from "@/lib/dates";
 import { MOBILE_HINT_EXECUTIVE, MOBILE_HINT_NONEXECUTIVE, NIC_DOMAIN, WEBMAIL_DOMAIN } from "@/lib/employees/admin/contact";
 import { cohortOfTicket, departmentFitsCohort, describeDates, gradeFitsCohort, isTicket } from "@/lib/employees/admin/validate";
@@ -66,13 +66,46 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** A message after an action: green for what worked, rose for what did not. */
-export function Banner({ tone, children }: { tone: "ok" | "error"; children: React.ReactNode }) {
-  const ok = tone === "ok";
+/** A message after an action: green for what worked, amber for what needs a look, rose for what did not. */
+export function Banner({ tone, children }: { tone: "ok" | "warn" | "error"; children: React.ReactNode }) {
+  const ok = tone === "ok", warn = tone === "warn";
   return (
-    <div className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-sm font-medium shadow-sm ring-1 ${ok ? "bg-emerald-50 text-emerald-900 ring-emerald-200" : "bg-rose-50 text-rose-900 ring-rose-200"}`} role={ok ? "status" : "alert"} data-emp-message={tone}>
-      {ok ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />}
+    <div className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-sm font-medium shadow-sm ring-1 ${ok ? "bg-emerald-50 text-emerald-900 ring-emerald-200" : warn ? "bg-amber-50 text-amber-950 ring-amber-200" : "bg-rose-50 text-rose-900 ring-rose-200"}`} role={tone === "error" ? "alert" : "status"} data-emp-message={tone}>
+      {ok ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" /> : warn ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />}
       <p>{children}</p>
+    </div>
+  );
+}
+
+/**
+ * "SOMEBODY ELSE CHANGED THIS RECORD WHILE YOU WERE EDITING IT" (step 67b): a save was refused because the record is not what the person opened. Nothing of his was saved. The card says who and when
+ * (the last change the manager recorded), lists WHAT changed, and offers the two safe ways on: take their version (his edits are dropped), or keep his edits on top of it (a three-way merge: only the fields he
+ * changed are his, everything else is theirs, so he cannot put back what they changed).
+ */
+export function StaleCard(props: { who: { name: string; ticket: string; at: string } | null; changes: Array<{ label: string; from: string; to: string }>; busy: boolean; onTheirs: () => void; onMine: () => void }) {
+  const when = props.who ? DateTime.fromISO(props.who.at).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium", timeStyle: "short" }) : "";
+  return (
+    <div role="alert" className="overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white text-sm text-amber-950 shadow-[0_18px_44px_-22px_rgba(217,119,6,0.5)]" data-emp-stale="true">
+      <div className="flex items-center gap-3 border-b border-amber-100 bg-amber-100/50 px-5 py-3"><AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" /><p className="font-bold">Somebody else changed this record while you were editing it.</p></div>
+      <div className="space-y-3 p-5">
+        <p>{props.who ? <>{props.who.name} ({props.who.ticket}) saved a change on {when}.</> : "It was changed after you opened it."} <span className="font-semibold">Nothing of yours has been saved.</span></p>
+        {props.changes.length > 0 ? (
+          <table className="min-w-full text-left" data-emp-stale-changes="true">
+            <thead className="text-xs uppercase tracking-wide text-amber-800/70"><tr><th className="py-1 pr-4 font-semibold">What they changed</th><th className="py-1 pr-4 font-semibold">It was</th><th className="py-1 font-semibold">It is now</th></tr></thead>
+            <tbody>{props.changes.map((c) => (
+              <tr key={c.label} className="border-t border-amber-100">
+                <td className="py-1.5 pr-4 font-semibold">{c.label}</td>
+                <td className="py-1.5 pr-4"><span className="rounded-md bg-white/80 px-2 py-0.5 text-slate-600 line-through decoration-slate-300">{c.from}</span></td>
+                <td className="py-1.5"><span className="rounded-md bg-white px-2 py-0.5 font-semibold text-slate-900 ring-1 ring-amber-200">{c.to}</span></td>
+              </tr>))}</tbody>
+          </table>
+        ) : <p className="rounded-xl bg-white/80 px-3 py-2 text-slate-700 ring-1 ring-amber-100">A detail that is not shown here (a contact number) was changed.</p>}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={PRIMARY} disabled={props.busy} onClick={props.onMine} data-emp-stale-mine="true">Keep my edits on top of their version</button>
+          <button type="button" className={SECONDARY} disabled={props.busy} onClick={props.onTheirs} data-emp-stale-theirs="true">Show their version (drop my edits)</button>
+        </div>
+        <p className="text-xs text-amber-900/80">"Keep my edits" puts only the fields YOU changed on top of the new version: everything else is taken from theirs, so you cannot put back what they changed. You will see the review before anything is saved.</p>
+      </div>
     </div>
   );
 }

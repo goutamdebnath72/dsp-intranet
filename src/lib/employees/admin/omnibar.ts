@@ -12,6 +12,8 @@ import type { Authority } from "./types";
 
 export interface EmployeeAdminOmnibarDeps {
   authority: (ticket: string) => Promise<Authority | null>;
+  /** The logged-in person's name, to be sent with the answer (optional: without it the panel asks for the name itself). */
+  nameOf?: (ticket: string) => Promise<string | null>;
 }
 
 const message = (headline: string, tone: "unknown" | "no", text: string): AnalyticsPayload => {
@@ -25,9 +27,11 @@ export async function answerEmployeeAdmin(typed: string, ticket: string | null, 
   if (!ticket) {
     return message("Please log in", "unknown", "Changing employee records is only for the HOD of C&IT, or an executive he has authorised. Log in with your ticket number, then ask again.");
   }
-  const role = await deps.authority(ticket).catch(() => null);
+  // the authority and the NAME are asked together (no extra waiting): the name rides along with the answer that opens the panel, so that its header has it on the very first paint (step 67b)
+  const [role, name] = await Promise.all([deps.authority(ticket).catch(() => null), deps.nameOf ? deps.nameOf(ticket).catch(() => null) : Promise.resolve(null)]);
+  const who = name && name.trim() ? { name: name.trim() } : {};
   if (!role) return message("Not allowed", "no", "Only the HOD of C&IT, or an executive he has authorised, can change employee records.");
   if (intent.op === "delegate" && role !== "hod") return message("Not allowed", "no", "Only the HOD of C&IT can authorise an executive, or withdraw the authority of one.");
   if (intent.op === "delete" && role !== "hod") return message("Not allowed", "no", "Only the HOD of C&IT can delete an employee.");
-  return { kind: "count", answer: "The employee manager is open below.", employeeAdmin: { op: intent.op, role, ...(intent.prefill ? { prefill: intent.prefill } : {}) } };
+  return { kind: "count", answer: "The employee manager is open below.", employeeAdmin: { op: intent.op, role, ...who, ...(intent.prefill ? { prefill: intent.prefill } : {}) } };
 }

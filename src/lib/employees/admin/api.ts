@@ -85,8 +85,10 @@ export async function handleEmployeeAdmin(body: unknown, ctx: ApiContext): Promi
   if (op === "modify" || op === "delete") {
     const id = idOf(b.id);
     if (id === null) return reply(400, { error: "Which employee? (the id is missing)" });
-    if (op === "modify") return reply(200, { result: await store.modifyEmployee(ctx.db, actor, id, fieldsOf(b.fields), acksOf(b.acknowledge)) });
-    return reply(200, { result: await store.deleteEmployee(ctx.db, actor, id, { confirmTicket: text(b.confirmTicket, 20), removeLogin: b.removeLogin === true }) });
+    // the version the person SAW travels with every change and delete (src/lib/concurrency/version.ts): the store refuses a save whose version is not the record's now
+    const version = text(b.version, 64);
+    if (op === "modify") return reply(200, { result: await store.modifyEmployee(ctx.db, actor, id, fieldsOf(b.fields), acksOf(b.acknowledge), version) });
+    return reply(200, { result: await store.deleteEmployee(ctx.db, actor, id, { confirmTicket: text(b.confirmTicket, 20), removeLogin: b.removeLogin === true, version }) });
   }
   if (op === "grant") {
     const ticket = text(b.ticket, 20).trim();

@@ -13,13 +13,19 @@ export const typeormPaxDb = (ds: DataSource): PaxDb => ({
   run: (fn) => ds.transaction((m) => fn(async (sql, params) => rowsOf(await m.query(sql, params as never[])))),
 });
 
+/** The name of an employee from the people directory, by ticket; null when there is none (or the read fails: the name is only shown, never decided on). */
+export async function nameOfTicket(ds: DataSource, ticket: string | null | undefined): Promise<string | null> {
+  if (!ticket) return null;
+  const { searchEmployeesById } = await import("@/lib/search/employeeSearch");
+  const rows = await searchEmployeesById(ds, { kind: "ticket", value: ticket }).catch(() => []);
+  return rows.find((r) => String(r.ticketNo).trim() === ticket)?.name?.trim() || null;
+}
+
 /** The logged-in person: the ticket from the session, the name from the people directory (the audit line carries both). Null when nobody is logged in. */
 export async function sessionActor(ds: DataSource): Promise<Actor | null> {
   const ticket = await getSessionTicket();
   if (!ticket) return null;
-  const { searchEmployeesById } = await import("@/lib/search/employeeSearch");
-  const rows = await searchEmployeesById(ds, { kind: "ticket", value: ticket }).catch(() => []);
-  const name = rows.find((r) => String(r.ticketNo).trim() === ticket)?.name?.trim();
+  const name = await nameOfTicket(ds, ticket);
   return { ticket, name: name || ticket };
 }
 

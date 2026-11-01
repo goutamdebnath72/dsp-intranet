@@ -102,3 +102,45 @@ export function reasonFor(errors: FieldErrors, unlocked: Unlocked, o: { loaded: 
     (!o.valid ? "Fill in the record." : o.mode === "modify" && o.changes === 0 ? "Change something to save." : undefined)
   );
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// TWO PEOPLE AT ONCE (step 67b): when a save is refused because somebody else changed the record first, what the person is shown and what he can choose
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+export const FIELD_LABELS: Record<keyof FormValues, string> = {
+  ticketNo: "Ticket number", sailPno: "SAIL P.No.", name: "Name", gradeId: "Designation", departmentCode: "Department", address: "Address", emailNic: "NIC mail", webmail: "Web-mail",
+  email: "E-mail", mobile: "Mobile", doctor: "Doctor", dateOfBirth: "Date of birth", dateOfJoining: "Date of joining",
+};
+
+/** What the OTHER person changed: the record the person opened against the record as it is now, field by field (as this person may see them: no dates for an executive, contact only as masked). */
+export function theirChanges(original: EmployeeRecord, current: EmployeeRecord, datesVisible: boolean): Array<{ label: string; from: string; to: string }> {
+  const yn = (d: boolean | null) => (d === true ? "Yes" : "No");
+  const rows: Array<[string, string, string]> = [
+    ["Name", original.name, current.name], ["SAIL P.No.", original.sailPno, current.sailPno], ["Designation", original.gradeTitle, current.gradeTitle], ["Department", original.departmentName, current.departmentName],
+    ["Position in grade", String(original.position), String(current.position)], ["Address", original.address, current.address], ["Doctor", yn(original.doctor), yn(current.doctor)],
+  ];
+  if (datesVisible) rows.push(["Date of birth", original.dateOfBirth, current.dateOfBirth], ["Date of joining", original.dateOfJoining, current.dateOfJoining]);
+  rows.push(["Mobile", original.mobileMasked, current.mobileMasked]);
+  if (current.cohort === "executive") rows.push(["NIC mail", original.emailNic, current.emailNic], ["Web-mail", original.webmail, current.webmail]);
+  else rows.push(["E-mail", original.emailMasked, current.emailMasked]);
+  return rows.filter(([, a, b]) => a !== b).map(([label, from, to]) => ({ label, from: from || "—", to: to || "—" }));
+}
+
+/**
+ * THE THREE-WAY MERGE. `base` is the form as it was when the person opened the record, `mine` what is in the form now, `theirs` the form of the record as it is now.
+ * A field the person CHANGED (mine is not base) keeps his value; every other field takes THEIR value. So his work is never lost and, above all, he can never put back what the other person changed by
+ * saving a form that is out of date. `overlaps` are the fields BOTH changed to different values: his value is kept, and he is told to look at them. The ticket is never his to change.
+ */
+export function rebaseForm(base: FormValues, mine: FormValues, theirs: FormValues): { values: FormValues; kept: Array<keyof FormValues>; overlaps: Array<keyof FormValues> } {
+  const values: Record<string, unknown> = { ...theirs };
+  const kept: Array<keyof FormValues> = [], overlaps: Array<keyof FormValues> = [];
+  for (const k of Object.keys(base) as Array<keyof FormValues>) {
+    if (k === "ticketNo") continue;
+    if (mine[k] !== base[k]) {
+      values[k] = mine[k];
+      kept.push(k);
+      if (theirs[k] !== base[k] && theirs[k] !== mine[k]) overlaps.push(k);
+    }
+  }
+  return { values: values as unknown as FormValues, kept, overlaps };
+}

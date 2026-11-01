@@ -16,11 +16,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DateTime } from "luxon";
 import { Search, Trash2 } from "lucide-react";
 import { IST } from "@/lib/dates";
+import { useSessionName } from "@/hooks/useSessionName";
 import { maskEmail, maskMobile, normalizeMobile } from "@/lib/employees/admin/contact";
 import { cohortOfTicket, isTicket, validateEmployee } from "@/lib/employees/admin/validate";
-import type { AuditView, Authority, DelegateView, EmployeeConflict, EmployeeRecord, EmployeeAdminOpen, FieldErrors, Lookups } from "@/lib/employees/admin/types";
-import { EMPTY_FORM, changesOf, formFromRecord, rawOf, reasonFor, resolveDepartment, unlockedSections, type FormValues } from "./employeeFormModel";
-import { Avatar, Banner, DANGER, EmployeeAdminHeader, EmployeeForm, EmployeeHistory, EmployeeList, FIELD, PRIMARY, PanelShell, ReviewView, SECONDARY, TabBar, type Tab } from "./EmployeeAdminUi";
+import type { AuditView, Authority, DelegateView, EmployeeConflict, EmployeeRecord, EmployeeAdminOpen, FieldErrors, LastChange, Lookups } from "@/lib/employees/admin/types";
+import { EMPTY_FORM, FIELD_LABELS, changesOf, formFromRecord, rawOf, reasonFor, rebaseForm, resolveDepartment, theirChanges, unlockedSections, type FormValues } from "./employeeFormModel";
+import { Avatar, Banner, DANGER, EmployeeAdminHeader, EmployeeForm, EmployeeHistory, EmployeeList, FIELD, PRIMARY, PanelShell, ReviewView, SECONDARY, StaleCard, TabBar, type Tab } from "./EmployeeAdminUi";
 
 // what the tests and the rest of the app have always imported from this file
 export * from "./employeeFormModel";
@@ -50,8 +51,12 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   const initialTab: Tab = open.op === "modify" ? "modify" : open.op === "delete" && isHod ? "delete" : open.op === "delegate" && isHod ? "people" : "add";
   const [tab, setTab] = useState<Tab>(initialTab);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
-  const [me, setMe] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ tone: "ok" | "warn" | "error"; text: string } | null>(null);
+  // the name is already known (step 67b): it travelled with the answer that opened the panel (the people directory's name, the one the history records), or else it is in the login cookie's session. The header has it on the
+  // first paint and NO request is made for it. Only when neither has it is it asked for (below). It is only shown: nothing is decided on it.
+  const sessionName = useSessionName();
+  const initialName = (typeof open.name === "string" && open.name.trim()) || sessionName || null;
+  const [me, setMe] = useState<string | null>(initialName);
   const [lookups, setLookups] = useState<Lookups | null>(null);
   const [datesVisible, setDatesVisible] = useState(isHod);
   const today = useMemo(() => DateTime.now().setZone(IST).startOf("day"), []);
@@ -72,19 +77,22 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   const fail = (r: Reply) => setMessage({ tone: "error", text: typeof r.body.error === "string" ? r.body.error : "That did not work. Please try again." });
 
   useEffect(() => {
+    // without a name in the answer that opened the panel (an older answer, or the name could not be read) the name is asked for, and SHOWN AS SOON AS IT ARRIVES: it never waits for the lookups
+    if (!initialName) void call({ op: "me" }).then((m) => { if (alive.current && m.ok && typeof m.body.name === "string" && m.body.name.trim()) setMe(m.body.name.trim()); }).catch(() => undefined);
     void (async () => {
-      const [m, l] = await Promise.all([call({ op: "me" }), call({ op: "lookups" })]);
+      const l = await call({ op: "lookups" });
       if (!alive.current) return;
-      if (m.ok && typeof m.body.name === "string" && m.body.name.trim()) setMe(m.body.name.trim());
       if (l.ok && l.body.lookups) { setLookups(l.body.lookups as Lookups); setDatesVisible(l.body.datesVisible === true); }
       else if (!l.ok) fail(l);
     })();
-  }, [call]);
+  }, [call, initialName]);
 
   // ---- the forms: ADDING and CHANGING each have their own state (step 66b): what is typed or loaded in one is never in the other ----
   const addB = useFormBlock({ ...EMPTY_FORM, name: open.op === "add" ? (open.prefill?.name ?? "") : "", ticketNo: open.op === "add" ? (open.prefill?.ticket ?? "") : "" });
   const modB = useFormBlock(EMPTY_FORM);
   const [original, setOriginal] = useState<EmployeeRecord | null>(null);
+  // TWO PEOPLE AT ONCE (step 67b): set when a save is refused because somebody else changed the record first (the record as it is now, and who changed it last); the card lets the person choose
+  const [stale, setStale] = useState<{ current: EmployeeRecord; last: LastChange | null } | null>(null);
   const lk: Lookups = lookups ?? { grades: [], departments: [] };
   const mode: "add" | "modify" = tab === "modify" && original ? "modify" : "add";
   const B = mode === "modify" ? modB : addB;
@@ -116,9 +124,9 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   const changeList = mode === "modify" && original ? changesOf(original, values, lk, datesVisible) : [];
   const valid = !!validation && validation.ok;
   const complete = valid && unlocked.contact;
-  const submitDisabled = !lookups || !valid || !unlocked.contact || (mode === "modify" && changeList.length === 0);
+  const submitDisabled = !lookups || !valid || !unlocked.contact || (mode === "modify" && changeList.length === 0) || (mode === "modify" && !!stale);
   // the reason the button is off: the first thing missing, in the order of the form (employeeFormModel.ts)
-  const submitHint = reasonFor(liveErrors, unlocked, { loaded: !!lookups, valid, mode, changes: changeList.length });
+  const submitHint = mode === "modify" && stale ? "Somebody else changed this record: choose one of the two buttons above first." : reasonFor(liveErrors, unlocked, { loaded: !!lookups, valid, mode, changes: changeList.length });
 
   const onFormChange = (next: FormValues, field: string) => { B.setValues(next); B.setTouched((t) => new Set(t).add(field)); B.setServerErrors({}); B.setConflicts([]); setMessage(null); };
 
@@ -126,20 +134,36 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
     setBusy(true); setMessage(null);
     const fields = rawOf(values, lk, mode === "modify" ? original : null);
     const r = mode === "modify" && original
-      ? await call({ op: "modify", id: original.id, fields, acknowledge: acknowledge ? ["same-name"] : [] })
+      ? await call({ op: "modify", id: original.id, fields, acknowledge: acknowledge ? ["same-name"] : [], version: original.version })
       : await call({ op: "add", fields, acknowledge: acknowledge ? ["same-name"] : [] });
     if (!alive.current) return;
     setBusy(false);
     if (!r.ok) return fail(r);
-    const res = r.body.result as { status: string; employee?: EmployeeRecord; errors?: FieldErrors; conflicts?: EmployeeConflict[] };
+    const res = r.body.result as { status: string; employee?: EmployeeRecord; errors?: FieldErrors; conflicts?: EmployeeConflict[]; current?: EmployeeRecord; last?: LastChange | null };
     if (res.status === "ok" && res.employee) {
       setMessage({ tone: "ok", text: mode === "modify" ? `Saved: ${res.employee.name} (${res.employee.ticketNo}) has been changed.` : `Saved: ${res.employee.name} (${res.employee.ticketNo}) is on the roll.` });
       if (mode === "modify") { setOriginal(res.employee); modB.reset(formFromRecord(res.employee, lk)); } else addB.reset();
     } else if (res.status === "conflict") { B.setConflicts(res.conflicts ?? []); B.setReview(true); }
     else if (res.status === "invalid") { B.setServerErrors(res.errors ?? {}); B.setReview(false); setMessage({ tone: "error", text: "Please correct what is marked." }); }
+    else if (res.status === "stale" && res.current) { setStale({ current: res.current, last: res.last ?? null }); B.setReview(false); B.setConflicts([]); }
     else if (res.status === "unchanged") { setMessage({ tone: "ok", text: "Nothing was changed." }); B.setReview(false); }
     else if (res.status === "missing") { setMessage({ tone: "error", text: "This employee is not on the roll any more." }); B.setReview(false); }
     else setMessage({ tone: "error", text: "You are not allowed to do that." });
+  };
+
+  // the two ways on after "somebody else changed this record": take their version, or keep my edits on top of it (a three-way merge: only the fields I changed are mine)
+  const takeTheirs = () => {
+    if (!stale) return;
+    setOriginal(stale.current); modB.reset(formFromRecord(stale.current, lk)); setStale(null);
+    setMessage({ tone: "ok", text: "Their version is loaded. Your edits were dropped." });
+  };
+  const keepMine = () => {
+    if (!stale || !original) return;
+    const r = rebaseForm(formFromRecord(original, lk), modB.values, formFromRecord(stale.current, lk));
+    setOriginal(stale.current); modB.setValues(r.values); modB.setTouched(new Set()); modB.setServerErrors({}); modB.setConflicts([]); modB.setReview(false); setStale(null);
+    setMessage(r.overlaps.length
+      ? { tone: "warn", text: `Your edits are now on top of their version. You both changed ${r.overlaps.map((k) => FIELD_LABELS[k]).join(", ")}: your value is kept; please check it.` }
+      : { tone: "ok", text: "Your edits are now on top of their version. Check the review, then save." });
   };
 
   // ---- the search (Change and Delete) ----
@@ -160,7 +184,7 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
     }, 300);
     return () => clearTimeout(timer);
   }, [query, tab, original, call]);
-  const startChange = (e: EmployeeRecord) => { setOriginal(e); modB.reset(formFromRecord(e, lk)); setMessage(null); setTab("modify"); };
+  const startChange = (e: EmployeeRecord) => { setOriginal(e); setStale(null); modB.reset(formFromRecord(e, lk)); setMessage(null); setTab("modify"); };
 
   // ---- delete ----
   const [target, setTarget] = useState<EmployeeRecord | null>(null);
@@ -169,12 +193,13 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   const doDelete = async () => {
     if (!target || confirmTicket.trim() !== target.ticketNo) return;
     setBusy(true); setMessage(null);
-    const r = await call({ op: "delete", id: target.id, confirmTicket: confirmTicket.trim(), removeLogin });
+    const r = await call({ op: "delete", id: target.id, confirmTicket: confirmTicket.trim(), removeLogin, version: target.version });
     if (!alive.current) return;
     setBusy(false);
     if (!r.ok) return fail(r);
-    const res = r.body.result as { status: string; name?: string; ticketNo?: string; loginRemoved?: boolean; reason?: string };
+    const res = r.body.result as { status: string; name?: string; ticketNo?: string; loginRemoved?: boolean; reason?: string; current?: EmployeeRecord; last?: LastChange | null };
     if (res.status === "ok") { setMessage({ tone: "ok", text: `Deleted: ${res.name} (${res.ticketNo})${res.loginRemoved ? " and his login account" : ""}. The history keeps the record.` }); setTarget(null); setConfirmTicket(""); setResults(null); setQuery(""); }
+    else if (res.status === "stale" && res.current) { setTarget(res.current); setConfirmTicket(""); setMessage({ tone: "warn", text: `${res.current.name} was changed${res.last ? ` by ${res.last.actorName} (${res.last.actorTicket})` : ""} after you opened him. He is shown below as he is now: look again, then type his ticket number to confirm.` }); }
     else if (res.status === "protected") setMessage({ tone: "error", text: "The HOD of C&IT, and your own record, cannot be deleted." });
     else if (res.status === "invalid") setMessage({ tone: "error", text: res.reason ?? "The ticket number typed does not match." });
     else if (res.status === "missing") setMessage({ tone: "error", text: "This employee is not on the roll any more." });
@@ -208,6 +233,9 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
       <EmployeeAdminHeader authority={role} name={me} />
       <TabBar tab={tab} authority={role} onTab={onTab} />
       {message && <Banner tone={message.tone}>{message.text}</Banner>}
+      {tab === "modify" && original && stale && (
+        <StaleCard who={stale.last ? { name: stale.last.actorName, ticket: stale.last.actorTicket, at: stale.last.at } : null} changes={theirChanges(original, stale.current, datesVisible)} busy={busy} onTheirs={takeTheirs} onMine={keepMine} />
+      )}
 
       {(tab === "add" || (tab === "modify" && original)) && (
         B.review && valid ? (
@@ -217,7 +245,7 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
             {tab === "modify" && original && <div className="flex items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-indigo-100"><Avatar name={original.name} /><p className="text-sm text-slate-600">Changing <span className="font-bold text-slate-900">{original.name}</span> <span className="font-mono text-xs">({original.ticketNo})</span></p></div>}
             <EmployeeForm mode={mode} idPrefix={`emp-${mode}`} values={values} lookups={lk} errors={shownErrors} warnings={warnings} datesVisible={datesVisible} unlocked={unlocked} allErrors={liveErrors} complete={complete} original={mode === "modify" ? original : null} today={today} busy={busy}
               submitLabel={mode === "modify" ? "Review the changes" : "Review and save"} submitDisabled={submitDisabled} submitHint={submitHint}
-              onChange={onFormChange} onSubmit={() => B.setReview(true)} onCancel={mode === "modify" ? () => { setOriginal(null); modB.reset(); setResults(null); } : undefined} />
+              onChange={onFormChange} onSubmit={() => B.setReview(true)} onCancel={mode === "modify" ? () => { setOriginal(null); setStale(null); modB.reset(); setResults(null); } : undefined} />
           </>
         )
       )}

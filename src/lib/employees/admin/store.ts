@@ -19,7 +19,8 @@ import { DateTime } from "luxon";
 import { IST, toIsoInstant } from "@/lib/dates";
 import { isSuperAdmin } from "@/lib/superAdmin";
 import type { QueryFn } from "@/lib/pax/store";
-import type { AcknowledgeKind, Authority, AuditView, ChangeView, DelegateView, DepartmentRef, EmployeeConflict, EmployeeRecord, FieldErrors, GradeRef, Lookups } from "./types";
+import type { AcknowledgeKind, Authority, AuditView, ChangeView, DelegateView, DepartmentRef, EmployeeConflict, EmployeeRecord, FieldErrors, GradeRef, Lookups, LastChange } from "./types";
+import { sameVersion, versionOf } from "@/lib/concurrency/version";
 import { NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, maskEmail, maskMobile } from "./contact";
 import { cleanText, seniorityRank, validateEmployee } from "./validate";
 
@@ -82,12 +83,24 @@ const SELECT = (c: Cols) => `SELECT er.id, er.ticket_no, ${opt(c, "sail_pno")} A
   LEFT JOIN public."user" u ON u.id = ${c.has.has("user_id") ? "er.user_id" : "NULL"}`;
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+
+/**
+ * THE VERSION of a row, worked out from the RAW values of every field the manager can change (the real mobile and e-mails, not the masks), signed with the server's secret (src/lib/concurrency/version.ts).
+ * The dates are part of it only for somebody who may see them: an authorised executive's version does not move when the HOD changes only a date he cannot even see.
+ */
+export function versionOfRow(r: Record<string, unknown>, canSeeDates: boolean): string {
+  return versionOf("employee", [
+    r.id, r.sail_pno, r.name, r.grade_id, r.department_id, r.position, r.address, r.email_nic, r.webmail, r.doctor, r.contact_no, r.user_email, r.user_id,
+    ...(canSeeDates ? [str(r.dob).slice(0, 10), str(r.doj).slice(0, 10)] : []),
+  ]);
+}
+
 export function rowToRecord(r: Record<string, unknown>, canSeeDates: boolean): EmployeeRecord {
   return {
     id: Number(r.id), ticketNo: str(r.ticket_no).trim(), sailPno: str(r.sail_pno), name: str(r.name), cohort: r.cohort === "executive" ? "executive" : "nonexecutive",
     gradeId: Number(r.grade_id), gradeTitle: str(r.grade_title), departmentId: r.department_id === null || r.department_id === undefined ? null : Number(r.department_id), departmentName: str(r.department_name),
     position: Number(r.position), address: str(r.address), emailNic: maskEmail(str(r.email_nic)), webmail: maskEmail(str(r.webmail)), mobileMasked: maskMobile(str(r.contact_no)), emailMasked: maskEmail(str(r.user_email)), doctor: typeof r.doctor === "boolean" ? r.doctor : null,
-    dateOfBirth: canSeeDates ? str(r.dob).slice(0, 10) : "", dateOfJoining: canSeeDates ? str(r.doj).slice(0, 10) : "", datesVisible: canSeeDates, hasLogin: r.user_id !== null && r.user_id !== undefined,
+    dateOfBirth: canSeeDates ? str(r.dob).slice(0, 10) : "", dateOfJoining: canSeeDates ? str(r.doj).slice(0, 10) : "", datesVisible: canSeeDates, hasLogin: r.user_id !== null && r.user_id !== undefined, version: versionOfRow(r, canSeeDates),
   };
 }
 
@@ -101,6 +114,21 @@ type Snap = ReturnType<typeof snap>;
 async function getRow(q: QueryFn, cols: Cols, id: number) {
   const r = await q(`${SELECT(cols)} WHERE er.id = $1`, [id]);
   return r[0];
+}
+
+/**
+ * LOCK the person's row (and his login account's) BEFORE it is read for a change or a delete. The global write lock every save takes already makes two saves of this manager wait for each other; this row lock
+ * closes the gap for any writer that does not know that lock (a SQL script, another program): it has to wait until this transaction ends, and the version check that follows then sees what it did.
+ */
+async function lockRow(q: QueryFn, cols: Cols, id: number): Promise<void> {
+  await q(`SELECT 1 FROM public.employee_roster WHERE id = $1 FOR UPDATE`, [id]);
+  if (cols.has.has("user_id") && cols.user.has("id")) await q(`SELECT 1 FROM public."user" WHERE id = (SELECT user_id FROM public.employee_roster WHERE id = $1) FOR UPDATE`, [id]);
+}
+
+/** What the manager last recorded for this person (an add or a change): who and when. Only the facts, never a value, so that nothing the reader may not see is told. */
+async function lastChangeOf(q: QueryFn, id: number): Promise<LastChange | null> {
+  const r = (await q(`SELECT at, actor_name, actor_ticket, action FROM public.employee_admin_audit WHERE employee_id = $1 AND action IN ('add', 'modify') ORDER BY id DESC LIMIT 1`, [id]))[0];
+  return r ? { at: toIsoInstant(r.at) ?? "", actorName: str(r.actor_name), actorTicket: str(r.actor_ticket), action: str(r.action) } : null;
 }
 
 const escapeLike = (w: string) => w.replace(/[\\%_]/g, (m) => `\\${m}`);
@@ -151,6 +179,8 @@ export type SaveResult =
   | { status: "invalid"; errors: FieldErrors; warnings?: string[] }
   | { status: "conflict"; conflicts: EmployeeConflict[]; acknowledgeable: AcknowledgeKind[] }
   | { status: "unchanged" }
+  /** The record is not what the person saw: somebody changed it first. Nothing was written. `current` is the record as it is now (as this person may see it), `last` the change recorded last. */
+  | { status: "stale"; current: EmployeeRecord; last: LastChange | null }
   | { status: "missing" }
   | { status: "forbidden" };
 
@@ -271,16 +301,19 @@ export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, u
 
 const EDITABLE: Array<keyof Snap> = ["sailPno", "name", "gradeId", "departmentId", "position", "address", "doctor", "dateOfBirth", "dateOfJoining"];
 
-export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: Record<string, unknown>, acks: AcknowledgeKind[] = []): Promise<SaveResult> {
+export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: Record<string, unknown>, acks: AcknowledgeKind[] = [], version?: string): Promise<SaveResult> {
   try {
     return await db.run(async (q): Promise<SaveResult> => {
       const role = await begin(q, actor);
       const cols = await discover(q);
+      await lockRow(q, cols, id);
       const curRow = await getRow(q, cols, id);
       if (!curRow) return { status: "missing" };
+      const hod = role === "hod";
+      // THE GUARD AGAINST A LOST UPDATE: the save is for the record AS THE PERSON SAW IT. If it is not that any more, nothing is written (not even a part), and he is told what it is now and who changed it.
+      if (!sameVersion(version, versionOfRow(curRow, hod))) return { status: "stale", current: rowToRecord(curRow, hod), last: await lastChangeOf(q, id) };
       const cur = rowToRecord(curRow, true);
       const lk = await loadLookups(q, cols);
-      const hod = role === "hod";
       const v = validateEmployee(raw, lk, { today: DateTime.now().setZone(IST), canEditDates: hod, fixedTicket: cur.ticketNo, requirePno: cur.sailPno !== "", hasMobile: digits(curRow.contact_no) !== "" });
       if (!v.ok) return { status: "invalid", errors: v.errors };
       const x = v.value;
@@ -375,17 +408,22 @@ export type DeleteResult =
   | { status: "ok"; name: string; ticketNo: string; loginRemoved: boolean }
   | { status: "invalid"; reason: string }
   | { status: "protected" }
+  /** The record has changed since the person saw it: nothing was deleted; he is shown the record as it is now. */
+  | { status: "stale"; current: EmployeeRecord; last: LastChange | null }
   | { status: "missing" }
   | { status: "forbidden" };
 
 /** Only the HOD of C&IT deletes. The ticket must be typed back; the HOD himself (and the actor's own record) can never be deleted. */
-export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: { confirmTicket: string; removeLogin: boolean }): Promise<DeleteResult> {
+export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: { confirmTicket: string; removeLogin: boolean; version?: string }): Promise<DeleteResult> {
   try {
     return await db.run(async (q): Promise<DeleteResult> => {
       const role = await begin(q, actor, true);
       const cols = await discover(q);
+      await lockRow(q, cols, id);
       const row = await getRow(q, cols, id);
       if (!row) return { status: "missing" };
+      // a person is deleted AS THE HOD SAW HIM: if he has been changed since, nothing is deleted and the HOD looks again
+      if (!sameVersion(opts.version, versionOfRow(row, true))) return { status: "stale", current: rowToRecord(row, true), last: await lastChangeOf(q, id) };
       const cur = rowToRecord(row, true);
       if (String(opts.confirmTicket ?? "").trim() !== cur.ticketNo) return { status: "invalid", reason: "The ticket number typed does not match this employee." };
       if (isSuperAdmin(cur.ticketNo) || cur.ticketNo === actor.ticket) return { status: "protected" };

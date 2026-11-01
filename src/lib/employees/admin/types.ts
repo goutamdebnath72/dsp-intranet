@@ -9,6 +9,8 @@ export type Authority = "hod" | "delegate";
 export interface EmployeeAdminOpen {
   op: EmployeeAdminOp;
   role: Authority;
+  /** The logged-in person's name, sent WITH the answer that opens the manager (step 67b) so that the header shows it on the very first paint, with no request. Looked up by the server from the session's ticket, never typed. */
+  name?: string;
   prefill?: { name?: string; ticket?: string; query?: string };
 }
 
@@ -42,7 +44,12 @@ export interface EmployeeRecord {
   dateOfJoining: string;
   datesVisible: boolean;
   hasLogin: boolean;
+  /** The VERSION of this record as the person sees it (src/lib/concurrency/version.ts): a change or a delete must send it back; if the record has changed since, the save is refused ("stale"). */
+  version: string;
 }
+
+/** The last change the manager recorded for a person: who, when, and what kind. Shown when a save is refused because somebody else changed the record first. */
+export interface LastChange { at: string; actorName: string; actorTicket: string; action: string }
 
 /** What a person may type (everything optional here: validate.ts says what is required). */
 export interface EmployeeInput {

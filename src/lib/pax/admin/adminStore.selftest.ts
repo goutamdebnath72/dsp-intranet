@@ -80,6 +80,11 @@ async function main() {
   const RAKESH = { ticket: "412345", name: "RAKESH OJHA (invented)" };
   const STRANGER = { ticket: "123456", name: "A TECHNICIAN (invented)" };
   const count = async (sql: string) => Number((await pool.query(sql)).rows[0].n);
+  // a person LOADS the line and then saves what he typed WITH THE VERSION HE SAW (src/lib/concurrency/version.ts)
+  const seenV = async (id: number) => (await store.listEntries(db, "")).find((e) => e.id === id)?.version;
+  const modX = async (actor: { ticket: string; name: string }, id: number, raw: { department: string; location: string; number: string }, acks: Array<"second-number" | "different"> = []) => store.modifyEntry(db, actor, id, raw, acks, await seenV(id));
+  const delX = async (actor: { ticket: string; name: string }, id: number) => store.deleteEntry(db, actor, id, await seenV(id));
+
   const rowsNow = async () => (await pool.query(`SELECT * FROM public.pax_directory ORDER BY id`)).rows;
   const auditNow = async () => (await pool.query(`SELECT * FROM public.pax_directory_audit ORDER BY id`)).rows;
 
@@ -87,7 +92,7 @@ async function main() {
   ok("authority: the HOD by ticket; nobody else yet", (await db.run((q) => store.authorityOf(q, "400001"))) === "hod" && (await db.run((q) => store.authorityOf(q, "412345"))) === null && (await db.run((q) => store.authorityOf(q, null))) === null && (await db.run((q) => store.authorityOf(q, "")) ) === null);
   let r = await store.addEntry(db, STRANGER, { department: "Stores", location: "Main", number: "42555" });
   ok("a person with no authority cannot add: 'forbidden', nothing saved, nothing in the history", r.status === "forbidden" && (await rowsNow()).length === legacy.length && (await auditNow()).length === 0, JSON.stringify(r));
-  ok("...nor modify, delete, authorise or revoke", (await store.modifyEntry(db, STRANGER, 1, { department: "X1", location: "", number: "42556" })).status === "forbidden" && (await store.deleteEntry(db, STRANGER, 1)).status === "forbidden" && (await store.grantDelegate(db, STRANGER, { ticket: "412345", name: "R" })).status === "forbidden" && (await store.revokeDelegate(db, STRANGER, "412345")).status === "forbidden");
+  ok("...nor modify, delete, authorise or revoke", (await modX(STRANGER, 1, { department: "X1", location: "", number: "42556" })).status === "forbidden" && (await delX(STRANGER, 1)).status === "forbidden" && (await store.grantDelegate(db, STRANGER, { ticket: "412345", name: "R" })).status === "forbidden" && (await store.revokeDelegate(db, STRANGER, "412345")).status === "forbidden");
 
   // ---- adding ----
   r = await store.addEntry(db, HOD, { department: "  Stores  ", location: "Main Gate", number: "42555" });
@@ -138,38 +143,38 @@ async function main() {
 
   // ---- modifying ----
   const fire = (await rowsNow()).find((x) => x.label === "Fire Service");
-  r = await store.modifyEntry(db, HOD, Number(fire.id), { department: "Fire Service", location: "Main Station", number: "42050" });
+  r = await modX(HOD, Number(fire.id), { department: "Fire Service", location: "Main Station", number: "42050" });
   ok("change the location of a line, keeping its number: ok", r.status === "ok" && r.entry.location === "Main Station", JSON.stringify(r));
   const fireNow = (await rowsNow()).find((x) => Number(x.id) === Number(fire.id));
   ok("...a line of Telecom's own list becomes a 'portal' line with its own parts; the printed name is rebuilt", fireNow.source === "portal" && fireNow.dept_name === "Fire Service" && fireNow.location === "Main Station" && fireNow.label === "Fire Service (Main Station)" && fireNow.updated_at > fireNow.created_at);
   log = await auditNow();
   const last = log[log.length - 1];
   ok("...the history keeps the line BEFORE (with its printed name) and AFTER, and who", last.action === "modify" && last.before.label === "Fire Service" && last.before.location === "" && last.after.location === "Main Station" && last.actor_ticket === "400001", JSON.stringify(last));
-  r = await store.modifyEntry(db, HOD, Number(fire.id), { department: "Fire Service", location: "Main Station", number: "42050" });
+  r = await modX(HOD, Number(fire.id), { department: "Fire Service", location: "Main Station", number: "42050" });
   ok("saving a line with nothing changed: 'unchanged', no history line", r.status === "unchanged" && (await auditNow()).length === log.length);
-  r = await store.modifyEntry(db, HOD, Number(fire.id), { department: "Fire Service", location: "Main Station", number: "40173" });
+  r = await modX(HOD, Number(fire.id), { department: "Fire Service", location: "Main Station", number: "40173" });
   ok("changing to a number that another line has: 'conflict', the line is as it was", r.status === "conflict" && r.conflicts[0].kind === "same-number" && (await rowsNow()).find((x) => Number(x.id) === Number(fire.id)).number === "42050");
-  r = await store.modifyEntry(db, HOD, Number(fire.id), { department: "Fire Service", location: "Main Station", number: "52050" });
+  r = await modX(HOD, Number(fire.id), { department: "Fire Service", location: "Main Station", number: "52050" });
   ok("changing to a number that is not 5 digits starting with 4: 'invalid'", r.status === "invalid");
-  r = await store.modifyEntry(db, HOD, 99999, { department: "Nowhere", location: "", number: "42999" });
+  r = await modX(HOD, 99999, { department: "Nowhere", location: "", number: "42999" });
   ok("a line that does not exist: 'missing'", r.status === "missing");
   const tumlaCisf = (await rowsNow()).find((x) => x.label === "CISF Tumla Gate" && x.number === "42043");
-  r = await store.modifyEntry(db, HOD, Number(tumlaCisf.id), { department: "CISF", location: "Tumla Gate (Main)", number: "42043" });
+  r = await modX(HOD, Number(tumlaCisf.id), { department: "CISF", location: "Tumla Gate (Main)", number: "42043" });
   ok("42043 is on two lines: changing only the location of one of them (keeping the number) is possible", r.status === "ok", JSON.stringify(r));
   const garage = (await rowsNow()).find((x) => x.number === "42556");
-  r = await store.modifyEntry(db, HOD, Number(garage.id), { department: "Stores", location: "Main Gate", number: "42556" });
+  r = await modX(HOD, Number(garage.id), { department: "Stores", location: "Main Gate", number: "42556" });
   ok("changing a line INTO the place of another: 'same-place', second number may be answered", r.status === "conflict" && r.conflicts[0].kind === "same-place");
-  r = await store.modifyEntry(db, HOD, Number(garage.id), { department: "Stores", location: "Main Gate", number: "42556" }, ["second-number"]);
+  r = await modX(HOD, Number(garage.id), { department: "Stores", location: "Main Gate", number: "42556" }, ["second-number"]);
   ok("...and then it is saved", r.status === "ok");
 
   // ---- deleting ----
   const stores = (await rowsNow()).find((x) => x.number === "42555");
   const nBefore = (await rowsNow()).length;
-  r = await store.deleteEntry(db, HOD, Number(stores.id));
+  r = await delX(HOD, Number(stores.id));
   ok("delete a line: ok, gone from the table", r.status === "ok" && (await rowsNow()).length === nBefore - 1 && !(await rowsNow()).some((x) => x.number === "42555"));
   log = await auditNow();
   ok("...the history keeps what was deleted, and who deleted it", log[log.length - 1].action === "delete" && log[log.length - 1].before.number === "42555" && log[log.length - 1].after === null && log[log.length - 1].actor_ticket === "400001");
-  ok("deleting a line that is not there: 'missing'", (await store.deleteEntry(db, HOD, Number(stores.id))).status === "missing");
+  ok("deleting a line that is not there: 'missing'", (await delX(HOD, Number(stores.id))).status === "missing");
   ok("a deleted number can be used again", (await store.addEntry(db, HOD, { department: "Stores", location: "Annex", number: "42555" })).status === "ok");
 
   // ---- the history cannot be changed ----
@@ -197,13 +202,13 @@ async function main() {
   log = await auditNow();
   ok("...and the history says it was HIM, as a delegate, not the HOD", log[log.length - 1].actor_ticket === "412345" && log[log.length - 1].actor_role === "delegate" && log[log.length - 1].actor_name === RAKESH.name);
   const canteen = (await rowsNow()).find((x) => x.number === "42600");
-  ok("the delegate can modify and delete", (await store.modifyEntry(db, RAKESH, Number(canteen.id), { department: "Canteen", location: "Block A", number: "42600" })).status === "ok" && (await store.deleteEntry(db, RAKESH, Number(canteen.id))).status === "ok");
+  ok("the delegate can modify and delete", (await modX(RAKESH, Number(canteen.id), { department: "Canteen", location: "Block A", number: "42600" })).status === "ok" && (await delX(RAKESH, Number(canteen.id))).status === "ok");
   ok("the delegate can NOT authorise or revoke anybody (only the HOD does)", (await store.grantDelegate(db, RAKESH, { ticket: "498301", name: "ANIL DAS" })).status === "forbidden" && (await store.revokeDelegate(db, RAKESH, "412345")).status === "forbidden");
   ok("the HOD revokes him", (await store.revokeDelegate(db, HOD, "412345")).status === "ok" && (await store.listDelegates(db)).length === 0);
   ok("...revoking again is 'not-delegate'", (await store.revokeDelegate(db, HOD, "412345")).status === "not-delegate");
   ok("after the revocation he can no longer add", (await store.addEntry(db, RAKESH, { department: "Canteen", location: "", number: "42601" })).status === "forbidden");
   ok("he can be authorised again, and both periods stay in the table (the revoked one with who revoked it)", (await store.grantDelegate(db, HOD, RAKESH)).status === "ok" && (await count(`SELECT count(*) AS n FROM public.pax_delegate WHERE ticket_no = '412345'`)) === 2 && (await count(`SELECT count(*) AS n FROM public.pax_delegate WHERE ticket_no = '412345' AND revoked_by_ticket = '400001'`)) === 1);
-  ok("a delegate who is authorised and then revoked while a change is being made cannot slip through: authority is checked inside the transaction (revoked person refused)", (await store.revokeDelegate(db, HOD, "412345")).status === "ok" && (await store.deleteEntry(db, RAKESH, 1)).status === "forbidden");
+  ok("a delegate who is authorised and then revoked while a change is being made cannot slip through: authority is checked inside the transaction (revoked person refused)", (await store.revokeDelegate(db, HOD, "412345")).status === "ok" && (await delX(RAKESH, 1)).status === "forbidden");
 
   // ---- the history as the panel shows it ----
   const hist = await store.recentAudit(db, 100);
@@ -296,6 +301,75 @@ async function main() {
     return missing.status === 503 && /13_pax_admin\.sql/.test(String(missing.body.error)) && missing.body.setupNeeded === true && viaDriver.status === 503 && other.status === 500 && !JSON.stringify(other.body).includes("secret-host") && otherTable.status === 500;
   })());
   ok("TypeORM returns [rows, count] for UPDATE and DELETE: rowsOf puts every shape right", rowsOf([[{ name: "x" }], 1]).length === 1 && rowsOf([[], 0]).length === 0 && rowsOf([{ a: 1 }, { a: 2 }]).length === 2 && rowsOf([]).length === 0 && rowsOf(undefined).length === 0 && rowsOf([{ a: 1 }, { a: 2 }])[1].a === 2);
+
+  // ---- TWO PEOPLE AT ONCE: the guard against a LOST UPDATE (step 67b, src/lib/concurrency/version.ts) ----
+  await store.grantDelegate(db, HOD, { ticket: "412345", name: "RAKESH OJHA (invented)" });
+  type V = { id: number; department: string; location: string; number: string; version?: string };
+  const line = async (department: string, location: string, number: string): Promise<V> => { const r = await store.addEntry(db, HOD, { department, location, number }); if (r.status !== "ok") throw new Error(`could not add ${department}: ${JSON.stringify(r)}`); return r.entry as V; };
+  const numberOf = async (id: number) => (await pool.query(`SELECT "number"::text AS n FROM public.pax_directory WHERE id = $1`, [id])).rows[0]?.n as string | undefined;
+  const modifiesOf = async (id: number) => count(`SELECT count(*) AS n FROM public.pax_directory_audit WHERE pax_id = ${id} AND action = 'modify'`);
+
+  const L1 = await line("Conc Dept One", "Gate 1", "43601");
+  ok("a line saved or listed carries its VERSION, and it is the same whichever way it is read (the answer to the save, the list)", !!L1.version && L1.version === (await store.listEntries(db, "Conc Dept One")).find((e) => e.id === L1.id)?.version);
+  const cA = await store.modifyEntry(db, HOD, L1.id, { department: "Conc Dept One", location: "Gate 1", number: "43602" }, [], L1.version);
+  ok("A changes the number: it is saved, and the line has a NEW version (the one the answer carries is the one the list carries)", cA.status === "ok" && cA.entry.version !== L1.version && cA.entry.version === (await store.listEntries(db, "Conc Dept One")).find((e) => e.id === L1.id)?.version);
+  const bStale = await store.modifyEntry(db, RAKESH, L1.id, { department: "Conc Dept One Renamed", location: "Gate 1", number: "43601" }, [], L1.version);
+  ok("B, whose form is out of date (it still holds the OLD number), saves: REFUSED as stale, with the line as it is now", bStale.status === "stale" && bStale.current.number === "43602" && bStale.current.department === "Conc Dept One" && bStale.current.version === (cA.status === "ok" ? cA.entry.version : ""));
+  ok("...NOTHING of B's was written: A's number is exactly as A left it (B's save would have put the old number back), and no second history line", (await numberOf(L1.id)) === "43602" && (await modifiesOf(L1.id)) === 1);
+  ok("...the answer says WHO changed it and WHEN, and tells no value", bStale.status === "stale" && bStale.last?.actorName === HOD.name && bStale.last?.actorTicket === "400001" && bStale.last?.action === "modify" && !Number.isNaN(Date.parse(bStale.last?.at ?? "")) && Object.keys(bStale.last ?? {}).sort().join() === "action,actorName,actorTicket,at");
+  const fresh = (await store.listEntries(db, "Conc Dept One")).find((e) => e.id === L1.id)!;
+  const bOk = await store.modifyEntry(db, RAKESH, L1.id, { department: "Conc Dept One Renamed", location: "Gate 1", number: "43602" }, [], fresh.version);
+  ok("B looks again (the current version) and saves: it works, A's number is kept", bOk.status === "ok" && bOk.entry.department === "Conc Dept One Renamed" && (await numberOf(L1.id)) === "43602");
+  ok("a save with NO version, or a made-up one, is refused the same way and writes nothing", await (async () => { const r1 = await store.modifyEntry(db, HOD, L1.id, { department: "Conc Dept One Renamed", location: "Gate 1", number: "43603" }, []); const r2 = await store.modifyEntry(db, HOD, L1.id, { department: "Conc Dept One Renamed", location: "Gate 1", number: "43603" }, [], "AAAAAAAAAAAAAAAAAAAAAA"); const r3 = await store.modifyEntry(db, HOD, L1.id, { department: "Conc Dept One Renamed", location: "Gate 1", number: "43603" }, [], "' OR 1=1 --"); return r1.status === "stale" && r2.status === "stale" && r3.status === "stale" && (await numberOf(L1.id)) === "43602"; })());
+
+  // the delete
+  const L2 = await line("Conc Dept Two", "", "43611");
+  await store.modifyEntry(db, HOD, L2.id, { department: "Conc Dept Two", location: "Annexe", number: "43611" }, [], L2.version);
+  const dStale = await store.deleteEntry(db, HOD, L2.id, L2.version);
+  ok("a DELETE of a line that was changed since the person saw it is refused (stale): the line is still there, and he is shown it as it is now", dStale.status === "stale" && dStale.current.location === "Annexe" && (await numberOf(L2.id)) === "43611");
+  ok("...a delete with the current version works; with no version it does not", await (async () => { const none = await store.deleteEntry(db, HOD, L2.id); const okR = await store.deleteEntry(db, HOD, L2.id, dStale.status === "stale" ? dStale.current.version : ""); return none.status === "stale" && okR.status === "ok" && (await numberOf(L2.id)) === undefined; })());
+
+  // the very same moment
+  const L3 = await line("Conc Dept Three", "", "43621");
+  const sameMoment = await Promise.all([
+    store.modifyEntry(db, HOD, L3.id, { department: "Conc Dept Three", location: "First", number: "43621" }, [], L3.version),
+    store.modifyEntry(db, RAKESH, L3.id, { department: "Conc Dept Three", location: "Second", number: "43621" }, [], L3.version),
+  ]);
+  ok("TWO saves of the same version at the very same moment (two connections): exactly ONE is saved, the other is refused as stale", sameMoment.filter((r) => r.status === "ok").length === 1 && sameMoment.filter((r) => r.status === "stale").length === 1, JSON.stringify(sameMoment.map((r) => r.status)));
+  ok("...the line holds the winner's text whole, and exactly one history line was written", (await pool.query(`SELECT location FROM public.pax_directory WHERE id = $1`, [L3.id])).rows[0].location === (sameMoment[0].status === "ok" ? "First" : "Second") && (await modifiesOf(L3.id)) === 1);
+  const L4 = await line("Conc Dept Four", "", "43631");
+  const changeVsDelete = await Promise.all([
+    store.modifyEntry(db, HOD, L4.id, { department: "Conc Dept Four", location: "Late", number: "43631" }, [], L4.version),
+    store.deleteEntry(db, HOD, L4.id, L4.version),
+  ]);
+  const left = await count(`SELECT count(*) AS n FROM public.pax_directory WHERE id = ${L4.id}`);
+  ok("a change and a delete at the same moment: one wins and the other is told (a delete first, then 'missing'; a change first, then 'stale'): never both", (changeVsDelete[1].status === "ok" && changeVsDelete[0].status === "missing" && left === 0) || (changeVsDelete[0].status === "ok" && changeVsDelete[1].status === "stale" && left === 1), JSON.stringify(changeVsDelete.map((r) => r.status)));
+  const five: V[] = [];
+  for (let i = 1; i <= 5; i++) five.push(await line(`Parallel Dept ${["Alpha", "Bravo", "Charlie", "Delta", "Echo"][i - 1]}`, "", `4364${i}`));
+  const fiveR = await Promise.all(five.map((l) => store.modifyEntry(db, HOD, l.id, { department: l.department, location: "Parallel", number: l.number }, [], l.version)));
+  ok("five DIFFERENT lines changed at the same moment: all five are saved (only the same line has to wait), none is lost", fiveR.every((r) => r.status === "ok") && (await count(`SELECT count(*) AS n FROM public.pax_directory WHERE location = 'Parallel'`)) === 5);
+
+  // a writer that does not know our lock (a SQL script)
+  const L5 = await line("Conc Dept Five", "", "43651");
+  const script = await pool.connect();
+  await script.query("BEGIN"); await script.query(`UPDATE public.pax_directory SET location = 'sql script' WHERE id = $1`, [L5.id]);
+  let settled = false;
+  const waiting = store.modifyEntry(db, HOD, L5.id, { department: "Conc Dept Five", location: "my edit", number: "43651" }, [], L5.version).then((r) => { settled = true; return r; });
+  await new Promise((r) => setTimeout(r, 400));
+  const stillWaiting = !settled;
+  await script.query("COMMIT"); script.release();
+  const afterScript = await waiting;
+  ok("a writer that does NOT know our lock (a SQL script with a change not yet committed): the save WAITS for it, and when the script has committed the save is refused as stale: the script's change is NOT overwritten", stillWaiting && afterScript.status === "stale" && (await pool.query(`SELECT location FROM public.pax_directory WHERE id = $1`, [L5.id])).rows[0].location === "sql script", `${stillWaiting} ${afterScript.status}`);
+
+  // the number belongs to ONE place: two people add it at the same moment
+  const sameNumber = await Promise.all([
+    store.addEntry(db, HOD, { department: "Race Dept One", location: "", number: "43661" }),
+    store.addEntry(db, RAKESH, { department: "Race Dept Two", location: "", number: "43661" }),
+  ]);
+  ok("two people add the SAME PAX number (for two different places) at the same moment: one is saved, the other is told that a number belongs to one place only", sameNumber.filter((r) => r.status === "ok").length === 1 && sameNumber.filter((r) => r.status === "conflict").length === 1 && (await count(`SELECT count(*) AS n FROM public.pax_directory WHERE "number"::text = '43661'`)) === 1, JSON.stringify(sameNumber.map((r) => r.status)));
+  const clash = await store.addEntry(db, HOD, { department: "Somebody Else", location: "", number: "43661" });
+  const listNow = await store.listEntries(db, "");
+  ok("the lines named in a clash carry their version too (the same one the list shows), so that 'Edit this line' from the question can be saved at once", clash.status === "conflict" && clash.conflicts.length > 0 && clash.conflicts.every((c) => c.existing.length > 0 && c.existing.every((l) => !!l.version && l.version === listNow.find((e) => e.id === l.id)?.version)));
 
   await pool.end();
   console.log(`adminStore selftest: ${pass} passed, ${fail} failed`);

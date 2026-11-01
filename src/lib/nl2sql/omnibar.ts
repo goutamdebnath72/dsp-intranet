@@ -484,8 +484,9 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
       // the employee manager (step 66a, src/lib/employees/admin/omnibar.ts): the sentence is read first (pure), the database is asked only for a sentence that IS such a request
       const { answerEmployeeAdmin } = await import("@/lib/employees/admin/omnibar");
       const { authorityForTicket } = await import("@/lib/employees/admin/access");
+      const { nameOfTicket } = await import("@/lib/pax/admin/access");
       const { getDb } = await import("@/lib/db");
-      return answerEmployeeAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t) });
+      return answerEmployeeAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
     },
     dates: async (qq, ticket) => {
       // the date of birth / date of joining of an employee: ONLY the HOD of C&IT (step 65b, src/lib/peopleEvents/datesLookup.ts). `ticket` is the LOGIN's (the route ignores the one in the URL); the sentence is read first,
@@ -505,9 +506,9 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
     paxAdmin: async (qq, ticket) => {
       // the editor of the PAX directory (step 64a, src/lib/pax/admin/omnibar.ts): the sentence is read first, the database is asked only for a sentence that IS such a request
       const { answerPaxAdmin } = await import("@/lib/pax/admin/omnibar");
-      const { authorityForTicket } = await import("@/lib/pax/admin/access");
+      const { authorityForTicket, nameOfTicket } = await import("@/lib/pax/admin/access");
       const { getDb } = await import("@/lib/db");
-      return answerPaxAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t) });
+      return answerPaxAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
     },
     pax: async (qq) => {
       // the PAX directory (a department's number) or an executive's CUG number, decided by the subject (step 63b, src/lib/pax/route.ts: it reads with the application's OWN connection, never the model's)

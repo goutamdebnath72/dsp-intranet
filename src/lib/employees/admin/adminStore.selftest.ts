@@ -64,6 +64,10 @@ async function main() {
     },
   };
   const full = (f: Record<string, unknown>) => ({ sailPno: `PN${f.ticketNo}`, mobile: /^4/.test(String(f.ticketNo)) ? "9434791234" : "", ...f });
+  // a person LOADS the record and then saves what he typed WITH THE VERSION HE SAW (src/lib/concurrency/version.ts); the HOD sees the dates, the others do not
+  const seen = async (actor: { ticket: string }, id: number) => (await store.getEmployee(db, id, actor.ticket === "400001"))?.version;
+  const modX = async (actor: { ticket: string; name: string }, id: number, fields: Record<string, unknown>, acks: Array<"same-name"> = []) => store.modifyEmployee(db, actor, id, fields, acks, await seen(actor, id));
+  const delX = async (actor: { ticket: string; name: string }, id: number, opts: { confirmTicket: string; removeLogin: boolean }) => store.deleteEmployee(db, actor, id, { ...opts, version: (await store.getEmployee(db, id, true))?.version });
   const addX = (actor: { ticket: string; name: string }, f: Record<string, unknown>, acks: Array<"same-name"> = []) => store.addEmployee(db, actor, full(f), acks);
   const HOD = { ticket: "400001", name: "HOD C&IT TEST" }, RAKESH = { ticket: "412345", name: "RAKESH OJHA" }, ANIL = { ticket: "412346", name: "ANIL DAS" }, NOBODY = { ticket: "342462", name: "SUMIT BASU" };
   const rows = (sql: string, p: unknown[] = []) => q(sql, p);
@@ -121,44 +125,44 @@ async function main() {
 
   // ---- changing ----
   const goutam = (await store.searchEmployees(db, "342461", true))[0];
-  const mod = await store.modifyEmployee(db, HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 20, departmentId: 4, sailPno: "", address: "New address", emailNic: "", webmail: "", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining, ticketNo: "999999" });
+  const mod = await modX(HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 20, departmentId: 4, sailPno: "", address: "New address", emailNic: "", webmail: "", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining, ticketNo: "999999" });
   ok("the HOD changes a name and a department: ok; a ticket typed in the form is IGNORED (the ticket is fixed)", mod.status === "ok" && mod.employee.name === "GOUTAM KUMAR DEBNATH" && mod.employee.departmentName === "FIRE SERVICE" && mod.employee.ticketNo === "342461" && mod.employee.address === "New address", JSON.stringify(mod));
   const ma = (await rows(`SELECT * FROM public.employee_admin_audit WHERE action='modify' ORDER BY id DESC LIMIT 1`))[0];
   ok("...the history keeps the record BEFORE and AFTER", ma.before.name === "GOUTAM DEBNATH" && ma.after.name === "GOUTAM KUMAR DEBNATH" && ma.before.departmentName === "L & D OFFICE" && ma.after.departmentName === "FIRE SERVICE");
-  ok("changing nothing is 'unchanged' and writes no history", (await store.modifyEmployee(db, HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 20, departmentId: 4, address: "New address", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining })).status === "unchanged" && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='modify'`)) === 1);
-  const promoted = await store.modifyEmployee(db, HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 21, departmentId: 4, address: "New address", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining });
+  ok("changing nothing is 'unchanged' and writes no history", (await modX(HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 20, departmentId: 4, address: "New address", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining })).status === "unchanged" && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='modify'`)) === 1);
+  const promoted = await modX(HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 21, departmentId: 4, address: "New address", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining });
   const rGr = (await rows(`SELECT within_grade_position AS p, global_seniority_rank AS r FROM public.employee_roster WHERE id=$1`, [goutam.id]))[0];
   ok("a change of designation puts him LAST in the new grade and the rank follows the formula (15 x 10000 + position)", promoted.status === "ok" && rGr.r === 150000 + rGr.p && rGr.p >= 3, JSON.stringify(rGr));
-  const wrong = await store.modifyEmployee(db, HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 1, departmentId: 4 });
+  const wrong = await modX(HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 1, departmentId: 4 });
   ok("a designation that does not fit the ticket is refused when changing too", wrong.status === "invalid" && !!wrong.errors.gradeId);
-  ok("a change of a person who is not on the roll: 'missing'", (await store.modifyEmployee(db, HOD, 999999, { name: "Nobody Here", gradeId: 9, departmentId: 1 })).status === "missing");
-  const hodDates = await store.modifyEmployee(db, HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 21, departmentId: 4, address: "New address", dateOfBirth: "1990-05-05", dateOfJoining: "2012-06-01" });
+  ok("a change of a person who is not on the roll: 'missing'", (await modX(HOD, 999999, { name: "Nobody Here", gradeId: 9, departmentId: 1 })).status === "missing");
+  const hodDates = await modX(HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 21, departmentId: 4, address: "New address", dateOfBirth: "1990-05-05", dateOfJoining: "2012-06-01" });
   const rDs = (await rows(`SELECT dates_source, date_of_birth::text AS dob FROM public.employee_roster WHERE id=$1`, [goutam.id]))[0];
   ok("the HOD changes the dates: they become REAL (hr), replacing the sample", hodDates.status === "ok" && rDs.dates_source === "hr" && rDs.dob === "1990-05-05");
-  const delMod = await store.modifyEmployee(db, RAKESH, goutam.id, { name: "goutam k debnath", gradeId: 21, departmentId: 4, address: "New address", dateOfBirth: "1970-01-01", dateOfJoining: "1990-01-01" });
+  const delMod = await modX(RAKESH, goutam.id, { name: "goutam k debnath", gradeId: 21, departmentId: 4, address: "New address", dateOfBirth: "1970-01-01", dateOfJoining: "1990-01-01" });
   const rDs2 = (await rows(`SELECT date_of_birth::text AS dob, date_of_joining::text AS doj FROM public.employee_roster WHERE id=$1`, [goutam.id]))[0];
   ok("a delegate changes the name: ok; the dates he sent are IGNORED, the stored ones stay", delMod.status === "ok" && rDs2.dob === "1990-05-05" && rDs2.doj === "2012-06-01" && delMod.status === "ok" && delMod.employee.name === "GOUTAM K DEBNATH" && delMod.employee.dateOfBirth === "");
-  const clear = await store.modifyEmployee(db, HOD, goutam.id, { name: "goutam k debnath", gradeId: 21, departmentId: 4, address: "New address", dateOfBirth: "", dateOfJoining: "" });
+  const clear = await modX(HOD, goutam.id, { name: "goutam k debnath", gradeId: 21, departmentId: 4, address: "New address", dateOfBirth: "", dateOfJoining: "" });
   const rDs3 = (await rows(`SELECT date_of_birth, date_of_joining, dates_source FROM public.employee_roster WHERE id=$1`, [goutam.id]))[0];
   ok("the HOD clears both dates: they go, and so does the label", clear.status === "ok" && rDs3.date_of_birth === null && rDs3.date_of_joining === null && rDs3.dates_source === null);
-  ok("a person's name typed again with the name of another in the same department asks first (a change too)", await (async () => { const r = await store.modifyEmployee(db, HOD, (await store.searchEmployees(db, "412346", true))[0].id, { name: "rakesh ojha", gradeId: 9, departmentId: 1, mobile: "9434791234" }); return r.status === "conflict" && r.conflicts[0].with.ticketNo === "412345"; })());
+  ok("a person's name typed again with the name of another in the same department asks first (a change too)", await (async () => { const r = await modX(HOD, (await store.searchEmployees(db, "412346", true))[0].id, { name: "rakesh ojha", gradeId: 9, departmentId: 1, mobile: "9434791234" }); return r.status === "conflict" && r.conflicts[0].with.ticketNo === "412345"; })());
 
   // ---- deleting: the HOD alone ----
   const tapan = (await store.searchEmployees(db, "342470", true))[0];
-  ok("a delegate cannot delete", (await store.deleteEmployee(db, RAKESH, tapan.id, { confirmTicket: "342470", removeLogin: false })).status === "forbidden" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342470'`)) === 1);
-  ok("the ticket must be typed back: a wrong one is refused", (await store.deleteEmployee(db, HOD, tapan.id, { confirmTicket: "342471", removeLogin: false })).status === "invalid" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342470'`)) === 1);
+  ok("a delegate cannot delete", (await delX(RAKESH, tapan.id, { confirmTicket: "342470", removeLogin: false })).status === "forbidden" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342470'`)) === 1);
+  ok("the ticket must be typed back: a wrong one is refused", (await delX(HOD, tapan.id, { confirmTicket: "342471", removeLogin: false })).status === "invalid" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342470'`)) === 1);
   const hodRow = (await store.searchEmployees(db, "400001", true))[0];
-  ok("the HOD cannot delete himself, and nobody can delete a record whose ticket is the HOD's", (await store.deleteEmployee(db, HOD, hodRow.id, { confirmTicket: "400001", removeLogin: false })).status === "protected" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='400001'`)) === 1);
-  const d1 = await store.deleteEmployee(db, HOD, tapan.id, { confirmTicket: "342470", removeLogin: false });
+  ok("the HOD cannot delete himself, and nobody can delete a record whose ticket is the HOD's", (await delX(HOD, hodRow.id, { confirmTicket: "400001", removeLogin: false })).status === "protected" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='400001'`)) === 1);
+  const d1 = await delX(HOD, tapan.id, { confirmTicket: "342470", removeLogin: false });
   ok("the HOD deletes an employee: gone from the roster, ONE history line with the whole record before", d1.status === "ok" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342470'`)) === 0 && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='delete' AND target_ticket='342470' AND before->>'name' = 'TAPAN ROY'`)) === 1);
   const rak = (await store.searchEmployees(db, "412345", true))[0];
-  const d2 = await store.deleteEmployee(db, HOD, rak.id, { confirmTicket: "412345", removeLogin: true });
+  const d2 = await delX(HOD, rak.id, { confirmTicket: "412345", removeLogin: true });
   ok("deleting an employee with a login account and the box 'remove his login too': both gone; the history says so", d2.status === "ok" && d2.loginRemoved === true && (await count(`SELECT count(*) AS n FROM public."user" WHERE id='u-rakesh'`)) === 0 && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='delete' AND after->>'loginRemoved' = 'true'`)) === 1);
   ok("...he was a delegate: the authority went with him (a 'withdrawn' history line, with the reason)", (await db.run((x) => store.authorityOf(x, "412345"))) === null && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='revoke' AND target_ticket='412345' AND note LIKE 'deleted%'`)) === 1);
   const gout = (await store.searchEmployees(db, "342461", true))[0];
-  const d3 = await store.deleteEmployee(db, HOD, gout.id, { confirmTicket: "342461", removeLogin: false });
+  const d3 = await delX(HOD, gout.id, { confirmTicket: "342461", removeLogin: false });
   ok("without the box the login account STAYS (and the roster's link to it simply goes with the row)", d3.status === "ok" && d3.loginRemoved === false && (await count(`SELECT count(*) AS n FROM public."user" WHERE id='u-goutam'`)) === 1);
-  ok("deleting somebody not on the roll: 'missing'", (await store.deleteEmployee(db, HOD, 999999, { confirmTicket: "111111", removeLogin: false })).status === "missing");
+  ok("deleting somebody not on the roll: 'missing'", (await delX(HOD, 999999, { confirmTicket: "111111", removeLogin: false })).status === "missing");
 
   // ---- the history ----
   const hist = await store.recentAudit(db, 100, true);
@@ -204,7 +208,7 @@ async function main() {
   ok("'get' by id: the HOD with the dates, a delegate without; a missing person is 404", /\d{4}-\d{2}-\d{2}/.test(JSON.stringify((await handleEmployeeAdmin({ op: "get", id: meena.id }, ctxFor(HOD))).body)) && !/\d{4}-\d{2}-\d{2}/.test(JSON.stringify((await handleEmployeeAdmin({ op: "get", id: meena.id }, ctxFor(ANIL_D))).body)) && (await handleEmployeeAdmin({ op: "get", id: 987654 }, ctxFor(HOD))).status === 404 && (await handleEmployeeAdmin({ op: "get" }, ctxFor(HOD))).status === 400);
   ok("a delegate's change through the handler leaves the dates alone even when the browser sends some, and a ticket sent by the browser as 'actor' changes nothing", await (async () => {
     const before = (await rows(`SELECT date_of_birth::text AS d FROM public.employee_roster WHERE id=$1`, [meena.id]))[0].d;
-    const r = await handleEmployeeAdmin({ op: "modify", id: meena.id, actor: { ticket: "400001" }, ticket: "400001", role: "hod", fields: { name: "Meena Gupta Sen", gradeId: 9, departmentId: 2, mobile: "9434791235", sailPno: "PN498880", dateOfBirth: "1960-01-01" } }, ctxFor(ANIL_D));
+    const r = await handleEmployeeAdmin({ op: "modify", id: meena.id, version: await seen(ANIL_D, meena.id), actor: { ticket: "400001" }, ticket: "400001", role: "hod", fields: { name: "Meena Gupta Sen", gradeId: 9, departmentId: 2, mobile: "9434791235", sailPno: "PN498880", dateOfBirth: "1960-01-01" } }, ctxFor(ANIL_D));
     const after = (await rows(`SELECT date_of_birth::text AS d FROM public.employee_roster WHERE id=$1`, [meena.id]))[0].d;
     return r.status === 200 && (r.body.result as { status: string }).status === "ok" && before === after && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE actor_ticket='412346' AND actor_role='delegate' AND action='modify'`)) === 1;
   })());
@@ -236,20 +240,107 @@ async function main() {
   ok("a login account that already exists for the same ticket is LINKED, not duplicated, and its password is left exactly as it was", await (async () => { const r = await addX(HOD, { ticketNo: "342505", name: "Old Login", gradeId: 21, departmentId: 4, mobile: "9123456780" }); const u = await rows(`SELECT * FROM public."user" WHERE "ticketNo"='342505'`); return r.status === "ok" && u.length === 1 && u[0].id === "u-old" && u[0].password.startsWith("$2a$10$existinghash") && u[0].contactNo === "9123456780" && (await rows(`SELECT user_id FROM public.employee_roster WHERE ticket_no='342505'`))[0].user_id === "u-old"; })());
   // changing the contact
   const ravId = raviRec.id, pwBefore = (await userOf("498999")).password;
-  const mc = await store.modifyEmployee(db, HOD, ravId, { name: "ravi kumar", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "9434721111", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" });
+  const mc = await modX(HOD, ravId, { name: "ravi kumar", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "9434721111", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" });
   ok("the HOD types a NEW mobile: the login account has it, the history says 'mobile number replaced' (and keeps no number), the password is untouched", mc.status === "ok" && (await userOf("498999")).contactNo === "9434721111" && (await userOf("498999")).password === pwBefore && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='modify' AND note = 'mobile number replaced' AND target_ticket='498999'`)) === 1);
-  ok("...an empty mobile field in a change means KEEP what is there (an executive may leave it empty when he has one)", (await store.modifyEmployee(db, HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await userOf("498999")).contactNo === "9434721111");
+  ok("...an empty mobile field in a change means KEEP what is there (an executive may leave it empty when he has one)", (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await userOf("498999")).contactNo === "9434721111");
   ok("...his login account's name follows the roster's (a change of name), the password still untouched", (await userOf("498999")).name === "RAVI KUMAR SEN" && (await userOf("498999")).password === pwBefore);
-  ok("changing ONLY the mobile is a change (not 'unchanged'); typing the same number again is 'unchanged'", (await store.modifyEmployee(db, HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "9434731111", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await store.modifyEmployee(db, HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "9434731111", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "unchanged");
-  ok("an executive's web-mail with the wrong domain in a change is refused", (await store.modifyEmployee(db, HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", webmail: "ravi@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "invalid");
-  ok("an executive's NIC mail is shown masked; an EMPTY field keeps it, a typed one replaces it (the roster column and the history note 'NIC mail replaced')", (await store.modifyEmployee(db, HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "unchanged" && (await rows(`SELECT email_nic FROM public.employee_roster WHERE id=$1`, [ravId]))[0].email_nic === "ravi@sail.in" && (await store.modifyEmployee(db, HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "r.kumar@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await rows(`SELECT email_nic FROM public.employee_roster WHERE id=$1`, [ravId]))[0].email_nic === "r.kumar@sail.in" && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='modify' AND note LIKE '%NIC mail replaced%'`)) === 1);
-  ok("a person with NO login who is given a mobile gets one (it needs his P.No.): a change without a P.No. is refused in words", await (async () => { const p = (await store.searchEmployees(db, "342500", true))[0]; const noP = await store.modifyEmployee(db, HOD, p.id, { name: "plain person", gradeId: 21, departmentId: 4, mobile: "9876500000" }); return noP.status === "invalid" && !!noP.errors.sailPno && (await count(`SELECT count(*) AS n FROM public."user" WHERE "ticketNo"='342500'`)) === 1; })());
+  ok("changing ONLY the mobile is a change (not 'unchanged'); typing the same number again is 'unchanged'", (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "9434731111", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "9434731111", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "unchanged");
+  ok("an executive's web-mail with the wrong domain in a change is refused", (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", webmail: "ravi@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "invalid");
+  ok("an executive's NIC mail is shown masked; an EMPTY field keeps it, a typed one replaces it (the roster column and the history note 'NIC mail replaced')", (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "unchanged" && (await rows(`SELECT email_nic FROM public.employee_roster WHERE id=$1`, [ravId]))[0].email_nic === "ravi@sail.in" && (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "r.kumar@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await rows(`SELECT email_nic FROM public.employee_roster WHERE id=$1`, [ravId]))[0].email_nic === "r.kumar@sail.in" && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='modify' AND note LIKE '%NIC mail replaced%'`)) === 1);
+  ok("a person with NO login who is given a mobile gets one (it needs his P.No.): a change without a P.No. is refused in words", await (async () => { const p = (await store.searchEmployees(db, "342500", true))[0]; const noP = await modX(HOD, p.id, { name: "plain person", gradeId: 21, departmentId: 4, mobile: "9876500000" }); return noP.status === "invalid" && !!noP.errors.sailPno && (await count(`SELECT count(*) AS n FROM public."user" WHERE "ticketNo"='342500'`)) === 1; })());
+
+  // ---- TWO PEOPLE AT ONCE: the guard against a LOST UPDATE (step 67b, src/lib/concurrency/version.ts) ----
+  type Rec = NonNullable<Awaited<ReturnType<typeof store.getEmployee>>>;
+  const F = (r: Rec, over: Record<string, unknown> = {}) => ({ name: r.name, gradeId: r.gradeId, departmentId: r.departmentId, sailPno: r.sailPno, address: r.address, dateOfBirth: r.dateOfBirth, dateOfJoining: r.dateOfJoining, ...over });
+  const person = async (ticket: string, name: string, over: Record<string, unknown> = {}): Promise<Rec> => { const r = await addX(HOD, { ticketNo: ticket, name, gradeId: 9, departmentId: 1, ...over }); if (r.status !== "ok") throw new Error(`could not add ${name}: ${JSON.stringify(r)}`); return (await store.getEmployee(db, r.employee.id, true))!; };
+  const addressOf = async (id: number) => (await rows(`SELECT address FROM public.employee_roster WHERE id=$1`, [id]))[0]?.address as string | null;
+  const modifies = async (id: number) => count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE employee_id = ${id} AND action = 'modify'`);
+
+  // the lost update that used to happen
+  const P1 = await person("412601", "Conc Person One");
+  const a1 = await store.modifyEmployee(db, HOD, P1.id, F(P1, { address: "A's address", gradeId: 10 }), [], P1.version);
+  ok("A changes the record (a new designation and an address): it is saved, and the record has a NEW version", a1.status === "ok" && a1.employee.version !== P1.version && a1.employee.gradeId === 10);
+  const bStale = await store.modifyEmployee(db, HOD, P1.id, F(P1, { address: "B's address" }), [], P1.version);
+  ok("B, whose form is out of date (it still holds the OLD designation), saves: REFUSED as stale, with the record as it is now", bStale.status === "stale" && bStale.current.gradeId === 10 && bStale.current.address === "A's address" && bStale.current.version === (a1.status === "ok" ? a1.employee.version : ""));
+  ok("...NOTHING of B's was written: A's designation and address are exactly as A left them (B's save used to put the old designation back)", (await store.getEmployee(db, P1.id, true))!.gradeId === 10 && (await addressOf(P1.id)) === "A's address");
+  ok("...and no history line was written for B (only A's change is there)", (await modifies(P1.id)) === 1);
+  ok("...the answer says WHO changed it and WHEN (the last change the manager recorded), and tells no value", bStale.status === "stale" && bStale.last?.actorName === HOD.name && bStale.last?.actorTicket === "400001" && bStale.last?.action === "modify" && !Number.isNaN(Date.parse(bStale.last?.at ?? "")) && Object.keys(bStale.last ?? {}).sort().join() === "action,actorName,actorTicket,at");
+  const reloaded = (await store.getEmployee(db, P1.id, true))!;
+  const bOk = await store.modifyEmployee(db, HOD, P1.id, F(reloaded, { address: "B's address" }), [], reloaded.version);
+  ok("B loads the record again and saves: it works, A's designation is kept, and the version moves on", bOk.status === "ok" && bOk.employee.gradeId === 10 && bOk.employee.address === "B's address" && bOk.employee.version !== reloaded.version);
+  ok("a save with NO version, or a made-up one, is refused the same way and writes nothing", await (async () => { const cur = (await store.getEmployee(db, P1.id, true))!; const r1 = await store.modifyEmployee(db, HOD, P1.id, F(cur, { address: "no version" }), []); const r2 = await store.modifyEmployee(db, HOD, P1.id, F(cur, { address: "made up" }), [], "AAAAAAAAAAAAAAAAAAAAAA"); const r3 = await store.modifyEmployee(db, HOD, P1.id, F(cur, { address: "other kind" }), [], "' OR 1=1 --"); return r1.status === "stale" && r2.status === "stale" && r3.status === "stale" && (await addressOf(P1.id)) === "B's address"; })());
+
+  // the delete
+  const P2 = await person("412602", "Conc Person Two");
+  await store.modifyEmployee(db, HOD, P2.id, F(P2, { address: "changed meanwhile" }), [], P2.version);
+  const dStale = await store.deleteEmployee(db, HOD, P2.id, { confirmTicket: "412602", removeLogin: true, version: P2.version });
+  ok("a DELETE of a person who was changed since the HOD saw him is refused (stale): he is still on the roll and still has his login, and the HOD is shown him as he is now", dStale.status === "stale" && dStale.current.address === "changed meanwhile" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE id=${P2.id}`)) === 1 && (await count(`SELECT count(*) AS n FROM public."user" WHERE "ticketNo"='412602'`)) === 1);
+  ok("...after looking again (the current version) the delete goes through", (await store.deleteEmployee(db, HOD, P2.id, { confirmTicket: "412602", removeLogin: true, version: dStale.status === "stale" ? dStale.current.version : "" })).status === "ok");
+  ok("a delete with no version is refused too", await (async () => { const p = await person("412603", "Conc Person Three"); const r = await store.deleteEmployee(db, HOD, p.id, { confirmTicket: "412603", removeLogin: false }); return r.status === "stale" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE id=${p.id}`)) === 1; })());
+
+  // the very same moment
+  const P3 = await person("412604", "Conc Person Four");
+  const sameMoment = await Promise.all([
+    store.modifyEmployee(db, HOD, P3.id, F(P3, { address: "first writer" }), [], P3.version),
+    store.modifyEmployee(db, ANIL_D, P3.id, F(P3, { address: "second writer" }), [], (await store.getEmployee(db, P3.id, false))!.version),
+  ]);
+  const winners = sameMoment.filter((r) => r.status === "ok").length, losers = sameMoment.filter((r) => r.status === "stale").length;
+  ok("TWO saves of the same version at the very same moment (two connections): exactly ONE is saved, the other is refused as stale", winners === 1 && losers === 1, JSON.stringify(sameMoment.map((r) => r.status)));
+  ok("...the record holds the winner's text whole (never a mixture), and exactly one history line was written", (await addressOf(P3.id)) === (sameMoment[0].status === "ok" ? "first writer" : "second writer") && (await modifies(P3.id)) === 1);
+  const P4 = await person("412605", "Conc Person Five");
+  const raceDel = await Promise.all([
+    store.modifyEmployee(db, HOD, P4.id, F(P4, { address: "late edit" }), [], P4.version),
+    store.deleteEmployee(db, HOD, P4.id, { confirmTicket: "412605", removeLogin: false, version: P4.version }),
+  ]);
+  const left = await count(`SELECT count(*) AS n FROM public.employee_roster WHERE id=${P4.id}`);
+  ok("a change and a delete at the same moment: one wins and the other is told (a delete first, then 'missing'; a change first, then 'stale'): never both", (raceDel[1].status === "ok" && raceDel[0].status === "missing" && left === 0) || (raceDel[0].status === "ok" && raceDel[1].status === "stale" && left === 1), JSON.stringify(raceDel.map((r) => r.status)));
+  const WORDS = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"];
+  const fivePeople: Rec[] = [];
+  for (let i = 0; i < 5; i++) fivePeople.push(await person(`41262${i + 1}`, `Parallel Person ${WORDS[i]}`));
+  const five = await Promise.all(fivePeople.map((p) => store.modifyEmployee(db, HOD, p.id, F(p, { address: `parallel ${p.ticketNo}` }), [], p.version)));
+  ok("five DIFFERENT people changed at the same moment: all five are saved (the guard makes only the same record wait), and none is lost", five.every((r) => r.status === "ok") && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE address LIKE 'parallel 41262%'`)) === 5);
+
+  // a writer that does not know our lock (a SQL script)
+  const P5 = await person("412606", "Conc Person Six");
+  const script = await pool.connect();
+  await script.query("BEGIN"); await script.query(`UPDATE public.employee_roster SET address = 'sql script' WHERE id = $1`, [P5.id]);
+  let settled = false;
+  const blocked = store.modifyEmployee(db, HOD, P5.id, F(P5, { address: "my edit" }), [], P5.version).then((r) => { settled = true; return r; });
+  await new Promise((r) => setTimeout(r, 400));
+  const stillWaiting = !settled;
+  await script.query("COMMIT"); script.release();
+  const afterScript = await blocked;
+  ok("a writer that does NOT know our lock (a SQL script with a change not yet committed): the save WAITS for it (the row is locked), and when the script has committed the save is refused as stale: the script's change is NOT overwritten", stillWaiting && afterScript.status === "stale" && (await addressOf(P5.id)) === "sql script", `${stillWaiting} ${afterScript.status}`);
+  ok("...and the version now reflects the script's change (the token is of the CONTENT, so a change by anything is seen)", afterScript.status === "stale" && afterScript.current.address === "sql script");
+
+  // what the token covers
+  const P6 = await person("412607", "Conc Person Seven", { mobile: "9434791500" });
+  await rows(`UPDATE public."user" SET "contactNo" = '9434791501' WHERE "ticketNo" = '412607'`);
+  ok("a change of the LOGIN account's mobile (shown only masked) by another route makes the version stale: the token covers the real number", (await store.modifyEmployee(db, HOD, P6.id, F(P6, { address: "x" }), [], P6.version)).status === "stale");
+  const P7 = await person("412608", "Conc Person Eight");
+  const hodDate = await store.modifyEmployee(db, HOD, P7.id, F(P7, { dateOfBirth: "1980-05-05" }), [], P7.version);
+  const delegateSaw = (await store.getEmployee(db, P7.id, false))!;
+  ok("the HOD changes ONLY a date: an executive who opened the record WITHOUT dates still has a valid version (he cannot see it, it does not concern him)", hodDate.status === "ok" && delegateSaw.dateOfBirth === "" && delegateSaw.version === (await store.getEmployee(db, P7.id, false))!.version);
+  const P8 = await person("412609", "Conc Person Nine");
+  const delegateV = (await store.getEmployee(db, P8.id, false))!.version;
+  await store.modifyEmployee(db, HOD, P8.id, F(P8, { dateOfBirth: "1981-06-06" }), [], P8.version);
+  const delegateSave = await store.modifyEmployee(db, ANIL_D, P8.id, { name: P8.name, gradeId: P8.gradeId, departmentId: P8.departmentId, sailPno: P8.sailPno, address: "delegate's address" }, [], delegateV);
+  ok("...so the executive's save, made after the HOD changed only a date, goes through and does not touch the date; the HOD's own old version would have been refused", delegateSave.status === "ok" && (await rows(`SELECT date_of_birth::text AS d FROM public.employee_roster WHERE id=$1`, [P8.id]))[0].d === "1981-06-06" && (await store.modifyEmployee(db, HOD, P8.id, F(P8, { address: "hod late" }), [], P8.version)).status === "stale");
+  ok("what a refused DELEGATE is shown has no date at all (the record as HE may see it), only who and when", await (async () => { const p = await person("412610", "Conc Person Ten", {}); await store.modifyEmployee(db, HOD, p.id, F(p, { address: "x1", dateOfBirth: "1979-07-07" }), [], p.version); const r = await store.modifyEmployee(db, ANIL_D, p.id, { name: p.name, gradeId: p.gradeId, departmentId: p.departmentId, sailPno: p.sailPno, address: "y" }, [], (await store.getEmployee(db, p.id, false))!.version.replace(/.$/, "A")); return r.status === "stale" && r.current.dateOfBirth === "" && r.current.datesVisible === false && !JSON.stringify(r).includes("1979-07-07"); })());
+  ok("the version is NOT in the history: only the person's own values are (nothing to replay)", !JSON.stringify(await rows(`SELECT before, after FROM public.employee_admin_audit`)).includes(P1.version));
+
+  // two people adding the same person at the same moment
+  const twins = await Promise.all([
+    addX(HOD, { ticketNo: "412630", name: "Twin Person", gradeId: 9, departmentId: 1 }),
+    addX(ANIL_D, { ticketNo: "412631", name: "Twin Person", gradeId: 9, departmentId: 1 }),
+  ]);
+  ok("two people add the SAME name in the SAME department at the same moment: one is saved and the other is asked 'is this a different person?' (the check and the write cannot be separated)", twins.filter((r) => r.status === "ok").length === 1 && twins.filter((r) => r.status === "conflict").length === 1 && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE name = 'TWIN PERSON'`)) === 1, JSON.stringify(twins.map((r) => r.status)));
 
   // ---- a roster whose optional columns differ ----
   await pool.query(`ALTER TABLE public.employee_roster DROP COLUMN address CASCADE, DROP COLUMN webmail_saildsp CASCADE, DROP COLUMN doctor_override CASCADE`);
   const slim = await addX(HOD, { ticketNo: "412392", name: "Slim Table", gradeId: 9, departmentId: 1, address: "ignored", webmail: "a@saildsp.co.in", doctor: true });
   ok("a roster WITHOUT the address, web-mail and doctor columns: add still works (those fields are simply not stored), the record shows them empty", slim.status === "ok" && slim.employee.address === "" && slim.employee.webmail === "" && slim.employee.doctor === null);
-  const slimMod = slim.status === "ok" ? await store.modifyEmployee(db, HOD, slim.employee.id, { name: "Slim Table Two", gradeId: 9, departmentId: 1, sailPno: "PN412392" }) : null;
+  const slimMod = slim.status === "ok" ? await modX(HOD, slim.employee.id, { name: "Slim Table Two", gradeId: 9, departmentId: 1, sailPno: "PN412392" }) : null;
   ok("...and a change still works", slimMod?.status === "ok");
   await pool.query(`ALTER TABLE public.employee_roster ADD COLUMN address text, ADD COLUMN webmail_saildsp text, ADD COLUMN doctor_override boolean`);
   const withDoc = await addX(HOD, { ticketNo: "412393", name: "Doc Tor", gradeId: 10, departmentId: 1, doctor: true });

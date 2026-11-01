@@ -15,11 +15,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { DateTime } from "luxon";
 import { IST } from "@/lib/dates";
+import { useSessionName } from "@/hooks/useSessionName";
 import { AlertTriangle, History, Pencil, PhoneOff, Plus, ShieldCheck, Trash2, Users } from "lucide-react";
-import type { Acknowledge, PaxAdminOpen, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView } from "@/lib/pax/admin/types";
+import type { Acknowledge, PaxAdminOpen, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView, PaxLastChange } from "@/lib/pax/admin/types";
 import { describeLine } from "@/lib/pax/admin/conflicts";
 import { cleanInput, validateEntry, type FieldErrors } from "@/lib/pax/admin/validate";
-import { AuthoriseCard, ChangingBanner, ConfirmCard, ConflictView, DANGER, EntryFormView, EntryList, FIELD, HistoryList, IconField, Notice, PRIMARY, PaxAdminHeader, PaxShell, PaxTabs, PersonRow, SECONDARY, SearchBar, LineAboutToGo, type FormValues } from "./PaxAdminUi";
+import { AuthoriseCard, ChangingBanner, ConfirmCard, ConflictView, DANGER, EntryFormView, EntryList, FIELD, HistoryList, IconField, Notice, PRIMARY, PaxAdminHeader, PaxShell, PaxTabs, PersonRow, SECONDARY, SearchBar, LineAboutToGo, StaleCard, rebaseEntry, theirEntryChanges, wordOfField, type FormValues } from "./PaxAdminUi";
 
 // what the tests and the rest of the app have always imported from this file
 export { ConflictView, EntryFormView, EntryList, HistoryList, PaxAdminHeader, conflictText } from "./PaxAdminUi";
@@ -61,7 +62,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   const isHod = open.role === "hod";
   const [tab, setTab] = useState<Tab>(tabFor(open.op));
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "error"; text: string } | null>(null);
 
   // add
   const [addForm, setAddForm] = useState<FormValues>(emptyForm(open.prefill));
@@ -73,13 +74,19 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   const [entries, setEntries] = useState<PaxEntryView[]>([]);
   const [listed, setListed] = useState(false);
   const [editing, setEditing] = useState<PaxEntryView | null>(null);
+  // TWO PEOPLE AT ONCE (step 67b): set when a save is refused because somebody else changed the line first (the line as it is now, and who changed it last); the card lets the person choose
+  const [stale, setStale] = useState<{ current: PaxEntryView; last: PaxLastChange | null } | null>(null);
   const [editForm, setEditForm] = useState<FormValues>(emptyForm());
   const [editErrors, setEditErrors] = useState<FieldErrors>({});
   const [editConflict, setEditConflict] = useState<{ conflicts: PaxConflict[]; acknowledgeable: Acknowledge[]; entry: FormValues } | null>(null);
   const [deleting, setDeleting] = useState<PaxEntryView | null>(null);
 
   // who is logged in (the server's answer; the name comes from the people directory)
-  const [me, setMe] = useState<string | null>(null);
+  // the name is already known (step 67b): it travelled with the answer that opened the editor (the people directory's name, the one the history records), or else it is in the login cookie's session. The header has it on
+  // the first paint and NO request is made for it. Only when neither has it is it asked for (below). It is only shown: nothing is decided on it.
+  const sessionName = useSessionName();
+  const initialName = (typeof open.name === "string" && open.name.trim()) || sessionName || null;
+  const [me, setMe] = useState<string | null>(initialName);
 
   // people and history
   const [delegates, setDelegates] = useState<PaxDelegateView[] | null>(null);
@@ -95,11 +102,12 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
     return () => { alive.current = false; };
   }, []);
   useEffect(() => {
+    if (initialName) return; // the name came with the answer: nothing to ask
     void (async () => {
       const r = await call({ op: "me" });
       if (alive.current && r.ok && typeof r.body.name === "string" && r.body.name.trim()) setMe(r.body.name.trim());
     })();
-  }, []);
+  }, [initialName]);
   const guard = useCallback(async <T,>(fn: () => Promise<T>, keepNotice = false): Promise<T | undefined> => {
     setBusy(true);
     if (!keepNotice) setNotice(null); // a reload that follows an action must not wipe the message that action has just set
@@ -169,6 +177,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   // ---- modify ----
   function startEdit(line: PaxEntryView) {
     setEditing(line);
+    setStale(null);
     setEditForm({ department: line.department, location: line.location, number: line.number });
     setEditErrors({});
     setEditConflict(null);
@@ -195,7 +204,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
     const v = validateEntry(editForm);
     if (!v.ok) return setEditErrors(v.errors);
     setEditErrors({});
-    const r = await guard(() => call({ op: "modify", id: editing.id, ...v.value, acknowledge: ack }));
+    const r = await guard(() => call({ op: "modify", id: editing.id, ...v.value, acknowledge: ack, version: editing.version }));
     if (!r || !alive.current) return;
     if (!r.ok) return fail(r);
     const res = r.body.result as Json;
@@ -208,6 +217,9 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
       void loadEntries(query, true);
     } else if (res.status === "conflict") {
       setEditConflict({ conflicts: res.conflicts as PaxConflict[], acknowledgeable: res.acknowledgeable as Acknowledge[], entry: v.value });
+    } else if (res.status === "stale") {
+      setEditConflict(null);
+      setStale({ current: res.current as PaxEntryView, last: (res.last ?? null) as PaxLastChange | null });
     } else if (res.status === "unchanged") {
       setNotice({ tone: "ok", text: "Nothing was changed: the line is as it was." });
     } else if (res.status === "missing") {
@@ -219,13 +231,38 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
     }
   }
 
+  // the two ways on after "somebody else changed this line": take their version, or keep my edits on top of it (a three-way merge: only what I changed is mine)
+  function takeTheirs() {
+    if (!stale) return;
+    setEditing(stale.current);
+    setEditForm({ department: stale.current.department, location: stale.current.location, number: stale.current.number });
+    setEditErrors({}); setEditConflict(null); setStale(null);
+    setNotice({ tone: "ok", text: "Their version is loaded. Your edits were dropped." });
+  }
+  function keepMine() {
+    if (!stale || !editing) return;
+    const asForm = (l: PaxEntryView): FormValues => ({ department: l.department, location: l.location, number: l.number });
+    const r = rebaseEntry(asForm(editing), editForm, asForm(stale.current));
+    setEditing(stale.current); setEditForm(r.values); setEditErrors({}); setEditConflict(null); setStale(null);
+    setNotice(r.overlaps.length
+      ? { tone: "warn", text: `Your edits are now on top of their version. You both changed ${r.overlaps.map(wordOfField).join(", ")}: your value is kept; please check it.` }
+      : { tone: "ok", text: "Your edits are now on top of their version. Check the form, then save." });
+  }
+
   // ---- delete ----
   async function confirmDelete() {
     if (!deleting) return;
-    const r = await guard(() => call({ op: "delete", id: deleting.id }));
+    const r = await guard(() => call({ op: "delete", id: deleting.id, version: deleting.version }));
     if (!r || !alive.current) return;
     if (!r.ok) return fail(r);
     const res = r.body.result as Json;
+    if (res.status === "stale") {
+      // the line was changed after the person opened it: nothing was deleted; he is shown the line as it is now and confirms again
+      const last = res.last as PaxLastChange | null;
+      setDeleting(res.current as PaxEntryView);
+      setNotice({ tone: "warn", text: `${describeLine(res.current as PaxEntryView)} was changed${last ? ` by ${last.actorName} (${last.actorTicket})` : ""} after you opened it. It is shown below as it is now: look again, then confirm.` });
+      return;
+    }
     if (res.status === "ok") setNotice({ tone: "ok", text: `Deleted: ${describeLine(res.entry as PaxEntryView)}. The history keeps a record.` });
     else if (res.status === "missing") setNotice({ tone: "error", text: "This line no longer exists." });
     setDeleting(null);
@@ -308,7 +345,8 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
           {editing ? (
             <>
               <ChangingBanner line={editing} />
-              <EntryFormView idPrefix="pax-edit" values={editForm} errors={editErrors} busy={busy} submitLabel="Check and save the change" submitDisabled={!canSaveEdit} submitHint={editHint} editing onChange={(v) => { setEditForm(v); setEditConflict(null); }} onSubmit={() => void submitEdit()} onCancel={() => { setEditing(null); setEditConflict(null); }}>
+              {stale && <StaleCard who={stale.last ? { name: stale.last.actorName, ticket: stale.last.actorTicket, at: stale.last.at } : null} changes={theirEntryChanges(editing, stale.current)} busy={busy} onTheirs={takeTheirs} onMine={keepMine} />}
+              <EntryFormView idPrefix="pax-edit" values={editForm} errors={editErrors} busy={busy} submitLabel="Check and save the change" submitDisabled={!canSaveEdit || !!stale} submitHint={stale ? "Somebody else changed this line: choose one of the two buttons above first." : editHint} editing onChange={(v) => { setEditForm(v); setEditConflict(null); }} onSubmit={() => void submitEdit()} onCancel={() => { setEditing(null); setEditConflict(null); setStale(null); }}>
                 {editConflict && (
                   <ConflictView
                     conflicts={editConflict.conflicts}
