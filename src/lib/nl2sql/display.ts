@@ -12,6 +12,7 @@
 //   GUARANTEE: every column the SQL returned is shown, exactly once. A hint can reorder and retitle the
 //   columns; it can never hide one.
 
+import { toDateTime } from "../dates";
 import { alternativeMatches, canonicalTitle, compileAlternative, isDesignationColumn, isTicketColumn, originOfTicket, splitAlternatives, squash } from "./designationFilter";
 
 export type ColumnKind = "number" | "percent" | "boolean" | "code" | "date" | "text";
@@ -239,11 +240,9 @@ export function formatCell(value: unknown, kind: ColumnKind): string {
     return `${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
   }
   if (kind === "date") {
-    const d = value instanceof Date ? value : new Date(String(value));
-    if (!Number.isNaN(d.getTime())) {
-      const dateOnly = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
-      return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", ...(dateOnly ? { timeZone: "UTC" } : {}) });
-    }
+    // Luxon (step 65c): a date without a time is that calendar day (read in UTC, so that no zone moves it); a moment is shown in the zone of the machine, as before
+    const d = toDateTime(value instanceof Date ? value : String(value));
+    if (d.isValid) return d.setLocale("en-GB").toLocaleString({ day: "2-digit", month: "short", year: "numeric" });
   }
   return String(value);
 }

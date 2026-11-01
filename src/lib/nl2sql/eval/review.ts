@@ -16,6 +16,7 @@
 // stops cleanly and --resume continues later. Only the read-only nlq_reader role touches your data.
 // Output (git-ignored by the pattern nl2sql-eval-*): nl2sql-eval-review.md and nl2sql-eval-review-results.json
 
+import { nowIso } from "../../dates";
 import { Client } from "pg";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 
@@ -63,7 +64,7 @@ function writeReport(items: Item[], model: string, stopped: string | null) {
   md.push("# Review sheet: real questions run through the language model");
   if (stopped) md.push(`\n> **Stopped early:** ${stopped}\n`);
   md.push(
-    `\n- Model: \`${model}\`   Updated: ${new Date().toISOString()}\n- Questions: ${items.length} (answered ${by("answered")}, asked to clarify ${by("clarify")}, declined as unanswerable ${by("unanswerable")}, not about employees ${by("out_of_scope")}, errors ${by("error")})\n` +
+    `\n- Model: \`${model}\`   Updated: ${nowIso()}\n- Questions: ${items.length} (answered ${by("answered")}, asked to clarify ${by("clarify")}, declined as unanswerable ${by("unanswerable")}, not about employees ${by("out_of_scope")}, errors ${by("error")})\n` +
       `- Tokens per question: ${avgTok} (cached ${avgCached}, so about ${Math.max(0, avgTok - avgCached)} count toward the provider's limit)\n` +
       `- Employee data in this sheet: ${previewRows ? `the first ${previewRows} rows of each list of people, plus aggregate numbers` : "none (only aggregate numbers such as counts, with SQL)"}\n`,
   );

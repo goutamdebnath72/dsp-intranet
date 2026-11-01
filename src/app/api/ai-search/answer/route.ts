@@ -7,6 +7,7 @@
 // Generic: it knows nothing about any particular circular. Off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true (404 otherwise).
 // Traced like every search: x-omni-* headers and one "[front-path] answer ..." console line with the model's exact tokens.
 
+import { toIsoInstant } from "@/lib/dates";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { groqLlm } from "@/lib/nl2sql/llm";
@@ -45,7 +46,7 @@ async function loadDocs(items: { type: PassageType; id: number }[]): Promise<Doc
       const rows = await db.query(`SELECT page_number, chunk_index, text FROM circular_chunks WHERE circular_id = $1 ORDER BY page_number, chunk_index`, [it.id]);
       const chunks = rows.map((r: any) => ({ page: r.page_number == null ? null : Number(r.page_number), index: Number(r.chunk_index), text: String(r.text ?? "") }));
       docs.push({
-        type: "circular", id: it.id, title: String(head[0].headline), date: head[0].publishedAt ? new Date(head[0].publishedAt).toISOString() : null,
+        type: "circular", id: it.id, title: String(head[0].headline), date: head[0].publishedAt ? toIsoInstant(head[0].publishedAt) : null,
         chunks,
         // what a second reader said about the numbers of these pages (only for pages whose stored text is still the text that was checked)
         checks: await loadPageChecks((sql, params) => db.query(sql, params), it.id, chunks),
@@ -59,7 +60,7 @@ async function loadDocs(items: { type: PassageType; id: number }[]): Promise<Doc
       const rows = await db.query(`SELECT id, title, "contentText", date FROM announcement WHERE id = $1`, [it.id]);
       if (!rows[0]) continue;
       const r = rows[0];
-      docs.push({ type: "announcement", id: it.id, title: String(r.title), date: r.date ? new Date(r.date).toISOString() : null, chunks: [{ page: null, index: 0, text: String(r.contentText ?? "") }] });
+      docs.push({ type: "announcement", id: it.id, title: String(r.title), date: r.date ? toIsoInstant(r.date) : null, chunks: [{ page: null, index: 0, text: String(r.contentText ?? "") }] });
     }
   }
   return docs;

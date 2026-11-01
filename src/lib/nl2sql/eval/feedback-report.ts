@@ -11,6 +11,7 @@
 // Read-only. Writes nl2sql-eval-feedback.md (git-ignored). NOTE: it contains the questions people typed,
 // which can include names; read it before sharing it.
 
+import { nowIso } from "../../dates";
 import { Client } from "pg";
 import { writeFileSync } from "fs";
 import type { SqlClient } from "../types";
@@ -23,7 +24,7 @@ export async function buildReport(db: SqlClient, days = 30, minConfirms = 1): Pr
   const win = `now() - make_interval(days => ${Math.max(1, Math.floor(days))})`;
   const q = async (sql: string, p: any[] = []) => (await db.query(sql, p)).rows as any[];
   const md: string[] = [];
-  md.push(`# Feedback report — last ${days} days\n\n_Generated ${new Date().toISOString()}. Contains the questions people typed._\n`);
+  md.push(`# Feedback report — last ${days} days\n\n_Generated ${nowIso()}. Contains the questions people typed._\n`);
 
   // 1. Yes / No by route
   const bySource = await q(

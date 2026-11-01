@@ -31,6 +31,7 @@
 // band is strictly rank-monotonic so any downstream similarity sort preserves
 // this engine's order.
 
+import { toDateTime } from "../dates";
 import { DataSource } from "typeorm";
 import { generateEmbedding, normalizeVector } from "@/lib/ai/embedding.service";
 import { hybridWithFallback } from "./searchResilience";
@@ -290,7 +291,7 @@ export async function executePolicySearch(
     const yearOf = (id: number): number => {
       const d = meta.get(id)?.publishedAt;
       if (!d) return 0;
-      const t = new Date(d).getFullYear();
+      const t = toDateTime(d).year;
       return Number.isFinite(t) ? t : 0;
     };
     fused.sort((a, b) => {

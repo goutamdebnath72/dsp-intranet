@@ -11,6 +11,7 @@
 // BOTH RH and FH) are counted/listed AS-IS, no dedup -- confirmed with the
 // user as intentional, not a bug to design around.
 
+import { toDateTime } from "../dates";
 import { DateTime } from "luxon";
 import { getDb } from "@/lib/db";
 import { HolidayType } from "@/lib/db/models/holiday-master.model";
@@ -184,7 +185,7 @@ function buildWhere(f: HolidayFilters): { where: string; params: any[] } {
 }
 
 function rowToHoliday(r: any): HolidayRow {
-  const d: DateTime = DateTime.fromJSDate(new Date(r.date));
+  const d: DateTime = toDateTime(r.date);
   return {
     id: r.id,
     name: r.name,

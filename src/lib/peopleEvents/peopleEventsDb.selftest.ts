@@ -37,7 +37,7 @@ async function main() {
   await pool.query(readFileSync(join(SQL_DIR, "01_nlq_schema_views_role.sql"), "utf8"));
   await pool.query(`INSERT INTO public.designation_grade (id, code, title, track, rank_order) VALUES
       (1,1,'Chief General Manager','exec',1),(2,2,'General Manager','exec',2),(3,3,'Dy. General Manager','exec',3),(4,4,'Asst. General Manager','exec',4),(5,5,'Sr. Manager','exec',5),
-      (6,6,'Manager','exec',6),(7,7,'Dy. Manager','exec',7),(8,8,'Asst. Manager','exec',8),(9,9,'Management Trainee','exec',9),(20,20,'Operative','nonexec',20)`);
+      (6,6,'Manager','exec',6),(7,7,'Dy. Manager','exec',7),(8,8,'Asst. Manager','exec',8),(9,9,'Management Trainee','exec',9),(10,10,'Medical Officer','medical',10),(20,20,'Operative','nonexec',20)`);
   await pool.query(`INSERT INTO public.sail_department (id, code, name) VALUES (1,1,'C & IT'),(2,2,'Finance & A/C'),(3,3,'Maintenance'),(4,4,'Public Relations'),(5,5,'Logistics')`);
   // the stand-in user table has no photo column; the real one has (the User entity: `image`)
   await pool.query(`ALTER TABLE public."user" ADD COLUMN image varchar`);
@@ -51,6 +51,8 @@ async function main() {
              CASE WHEN i <= 800 THEN 'executive' ELSE 'nonexecutive' END,
              i, i, CASE WHEN i = 801 THEN 'u-photo' ELSE NULL END
         FROM generate_series(1, ${N}) AS i`);
+  // about forty doctors among the executives (designation grade 10, track medical: not direct recruits of the 49 series)
+  await pool.query(`UPDATE public.employee_roster SET designation_grade_id = 10 WHERE id BETWEEN 301 AND 340 AND ticket_no !~ '^49'`);
 
   // ---- the migration ----
   const migration = readFileSync(join(SQL_DIR, "14_people_events.sql"), "utf8");
@@ -105,6 +107,15 @@ async function main() {
   ok("the placeholder ages follow seniority: the most senior tenth of the executives is on average more than 12 years older than the most junior tenth", mean(ages(senior)) - mean(ages(junior)) > 12, `${mean(ages(senior)).toFixed(1)} vs ${mean(ages(junior)).toFixed(1)}`);
   ok("the most senior executives are in their fifties (mean age between 54 and 60), the most junior in their twenties or early thirties (under 33)", mean(ages(senior)) > 54 && mean(ages(senior)) < 60 && mean(ages(junior)) < 33, `${mean(ages(senior)).toFixed(1)} / ${mean(ages(junior)).toFixed(1)}`);
   ok("nobody is older than 60 and a few months (still in service), nobody younger than 18", ages(all).every((x) => x <= 60.1 && x >= 18 - 1e-9), `${Math.max(...ages(all)).toFixed(2)}`);
+  const doctorIds = new Set((await q(`SELECT id FROM public.employee_roster WHERE designation_grade_id = 10`)).map((r) => r.id as number));
+  const doctors = all.filter((r) => doctorIds.has(r.id));
+  const promoted = all.filter((r) => r.cohort === "executive" && !/^49/.test(r.ticket_no) && !doctorIds.has(r.id));
+  const ageToday = (r: { dob: string }) => today.diff(parseDay(r.dob), "years").years;
+  ok("PROMOTED executives (they joined as non-executives): none is younger than 35 today (an executive of 19 is impossible: he is promoted after many years), none past 60, and they still joined between 18 and 32", promoted.length > 300 && promoted.every((r) => ageToday(r) >= 35 - 1e-9 && ageToday(r) <= 60.1 && minAgeAtJoin(r) >= 18 - 1e-9 && minAgeAtJoin(r) < 32.01), `${promoted.length}: ${Math.min(...promoted.map(ageToday)).toFixed(2)}`);
+  const juniorPromoted = [...promoted].sort((a, b) => b.global_seniority_rank - a.global_seniority_rank).slice(0, 40);
+  ok("...even the most junior promoted executives (the entry grade) are in their late thirties on average, not in their twenties", mean(juniorPromoted.map(ageToday)) >= 35.5 && mean(juniorPromoted.map(ageToday)) < 45, `${mean(juniorPromoted.map(ageToday)).toFixed(1)}`);
+  ok("DOCTORS (the 34 of the test roster that are not direct recruits): none is younger than 25 today, and every one joined at 23 or later (an MBBS takes years) and before 32", doctors.length === doctorIds.size && doctors.length >= 30 && doctors.every((r) => ageToday(r) >= 25 - 1e-9 && minAgeAtJoin(r) >= 23 - 1e-9 && minAgeAtJoin(r) < 32.01), `${doctors.length}`);
+  ok("no executive of any kind is younger than 23 today", all.filter((r) => r.cohort === "executive").every((r) => ageToday(r) >= 23 - 1e-9));
   const byYear = new Map<number, number>();
   for (const r of all) byYear.set(parseDay(r.dob).year, (byYear.get(parseDay(r.dob).year) ?? 0) + 1);
   ok("the birth years are spread over the working ages (no pile-up on one boundary: no single birth date holds more than 1% of the staff)", (() => { const days = new Map<string, number>(); for (const r of all) days.set(r.dob, (days.get(r.dob) ?? 0) + 1); return Math.max(...days.values()) <= N * 0.01; })());

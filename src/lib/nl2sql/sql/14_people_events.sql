@@ -13,6 +13,8 @@
 --      the ticket number, so running this file again gives the same dates; they are tied to seniority (a General Manager is not 26 years old); the age at joining is spread EVENLY between the
 --      minimum (18, or 23 for a direct-recruit executive) and 32, the ceiling of a recruitment advertisement, so not everybody joins at the minimum; and every one satisfies the rules above and
 --      is still "in service" today (nobody is past the retirement day, which is the last day of the month in which the age of 60 is reached).
+--   WHERE THE DATES LIVE (decided 1 Nov 2026): as columns of employee_roster, next to the person, not in a separate table. THE ONE RULE THAT GOES WITH IT: if the roster is ever reloaded from an HR export,
+--   UPDATE or UPSERT the rows by ticket number and NEVER empty, drop or re-create the table, because the three date columns (and the sample dates in them) would go with it.
 --   NO INDEX is created on purpose: the widget reads the roster (about 6,500 rows) once per page view, and the test measured that read at a few milliseconds. An index on these
 --   date expressions would only add work to every write. Add expression indexes if the roster ever grows past about 100,000 rows.
 --   A REAL DATE (dates_source = 'hr') IS NEVER TOUCHED. NOTE ON RE-RUNNING: this file RE-MAKES every placeholder each time it is run (so a change of the rules is applied to all of them, and an earlier
@@ -59,7 +61,9 @@ UPDATE public.employee_roster SET date_of_birth = NULL, date_of_joining = NULL, 
 
 -- ---------------------------------------------------------------------------------------------------------------------------------
 -- PLACEHOLDER DATES (for every employee that has no date at all)
---   age today      about  60 - seniority * (60 - (minimum joining age + 1))  years, give or take 3 years: the most senior are near 60, the most junior just past the joining age.
+--   age today      about  60 - seniority * (60 - (youngest age + 1))  years, give or take 3 years: the most senior are near 60, the most junior just past the youngest age. The YOUNGEST age today is
+--                  23 for a direct-recruit executive (a Management Trainee), 25 for a doctor (an MBBS takes years), 35 for an executive who was PROMOTED from the non-executives (he joined at 18 or later
+--                  and is promoted after many years: an executive of 19 is impossible), 18 for a non-executive.
 --                  Seniority is the person's place among the employees of the SAME cohort (executive / non-executive) by global_seniority_rank.
 --                  The age is chosen in a window of about 6 years around that, inside [minimum joining age, still in service], so nobody is piled up on a boundary.
 --   date joined    the age at joining is spread EVENLY from the minimum joining age (18, or 23 for a direct-recruit executive) up to 32 (a promotee executive joined as a non-executive,
@@ -73,13 +77,17 @@ ranked AS (
   -- the place of each employee among ALL the employees of the same cohort (computed BEFORE the filter below, so that a new employee, filled later on his own, is still the junior he is)
   SELECT er.id, er.ticket_no, er.cohort, er.date_of_birth, er.date_of_joining,
          coalesce(dg.title ~* 'trainee', false) AS is_trainee,
+         coalesce(dg.track = 'medical', false) AS is_medical,
          percent_rank() OVER (PARTITION BY er.cohort ORDER BY er.global_seniority_rank) AS seniority
   FROM public.employee_roster er
   LEFT JOIN public.designation_grade dg ON dg.id = er.designation_grade_id
 ),
 base AS (
   SELECT r.id, r.is_trainee,
-         CASE WHEN r.cohort = 'executive' AND r.ticket_no ~ '^49[0-9]{4}$' THEN 23 ELSE 18 END AS min_join,
+         -- the youngest age at joining: a direct recruit (49xxxx) and a doctor 23, everybody else 18
+         CASE WHEN r.cohort = 'executive' AND r.ticket_no ~ '^49[0-9]{4}$' THEN 23 WHEN r.is_medical THEN 23 ELSE 18 END AS min_join,
+         -- the youngest age TODAY: a direct recruit 23, a doctor 25, a promoted executive 35, a non-executive 18
+         CASE WHEN r.cohort = 'executive' AND r.ticket_no ~ '^49[0-9]{4}$' THEN 23 WHEN r.is_medical THEN 25 WHEN r.cohort = 'executive' THEN 35 ELSE 18 END AS min_age_now,
          r.seniority,
          ('x' || substr(md5(r.ticket_no || ':dob'), 1, 7))::bit(28)::int AS h_dob,
          ('x' || substr(md5(r.ticket_no || ':doj'), 1, 7))::bit(28)::int AS h_doj
@@ -90,9 +98,9 @@ window_days AS (
   SELECT b.id, b.min_join, b.h_dob, b.h_doj,
          -- the oldest age that is still in service today: the 60th birthday is in this month or later
          (t.d - date_trunc('month', t.d - INTERVAL '60 years')::date) AS max_age_days,
-         -- the youngest: exactly the minimum joining age today
-         (t.d - (t.d - b.min_join * INTERVAL '1 year')::date) AS min_age_days,
-         round((60 - b.seniority * (60 - (b.min_join + 1))) * 365.25)::int AS target_days
+         -- the youngest: exactly the youngest age today
+         (t.d - (t.d - b.min_age_now * INTERVAL '1 year')::date) AS min_age_days,
+         round((60 - b.seniority * (60 - (b.min_age_now + 1))) * 365.25)::int AS target_days
   FROM base b CROSS JOIN today t
 ),
 ages AS (

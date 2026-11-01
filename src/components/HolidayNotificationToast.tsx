@@ -14,6 +14,7 @@
 
 "use client";
 
+import { DateTime } from "luxon";
 import { useEffect, useState } from "react";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { X, Bell, BellOff } from "lucide-react";
@@ -44,8 +45,7 @@ type ToastState =
   | { view: "notification"; upcoming: UpcomingHoliday[]; suppressAfterFirstView: boolean };
 
 function formatDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return DateTime.fromISO(iso).setLocale("en-IN").toLocaleString({ day: "numeric", month: "short" });
 }
 
 export function HolidayNotificationToast() {

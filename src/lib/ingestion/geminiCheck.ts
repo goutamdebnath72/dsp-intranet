@@ -6,6 +6,7 @@
  * a rate-limit refusal waits for the window to clear, and a run stops after a limit on live calls, so one command cannot burn the quota.
  * Nothing here touches the database: it reads, compares and reports.
  */
+import { nowIso } from "../dates";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -84,7 +85,7 @@ export async function checkCircularPages(a: CheckArgs): Promise<CheckResult> {
       // an incomplete reading is worth showing but not worth keeping: it is read again next time
       if (a.useCache && !second.includes(STOPPED_MARKER)) {
         mkdirSync(join(a.cacheDir, "gemini"), { recursive: true });
-        writeFileSync(file, JSON.stringify({ url, reader: a.reader.name, savedAt: new Date().toISOString(), text: second }));
+        writeFileSync(file, JSON.stringify({ url, reader: a.reader.name, savedAt: nowIso(), text: second }));
       }
       await a.sleep(a.pauseMs);
     }

@@ -7,6 +7,7 @@
 // The database is reached through a tiny interface (PaxDb), so the same code runs against the application's connection and against a scratch database in the tests.
 // SECURITY: like pax_directory, the tables here are closed to the public API roles; only the application's own connection (never the language model's read-only client) touches them.
 
+import { toIsoInstant } from "../../dates";
 import { isSuperAdmin } from "@/lib/superAdmin";
 import { loadPaxRows, PORTAL_SOURCE, type QueryFn } from "../store";
 import type { PaxRow } from "../matcher";
@@ -168,7 +169,7 @@ export type DelegateResult =
 
 export async function listDelegates(db: PaxDb): Promise<PaxDelegateView[]> {
   const r = await db.run((q) => q(`SELECT ticket_no, name, granted_by_name, granted_by_ticket, granted_at FROM public.pax_delegate WHERE revoked_at IS NULL ORDER BY name`));
-  return r.map((x) => ({ ticket: String(x.ticket_no), name: String(x.name), grantedByName: String(x.granted_by_name), grantedByTicket: String(x.granted_by_ticket), grantedAt: new Date(x.granted_at as string).toISOString() }));
+  return r.map((x) => ({ ticket: String(x.ticket_no), name: String(x.name), grantedByName: String(x.granted_by_name), grantedByTicket: String(x.granted_by_ticket), grantedAt: toIsoInstant(x.granted_at) ?? "" }));
 }
 
 export async function grantDelegate(db: PaxDb, actor: Actor, target: { ticket: string; name: string }): Promise<DelegateResult> {
@@ -235,7 +236,7 @@ export async function recentAudit(db: PaxDb, limit = 50): Promise<PaxAuditView[]
       : action === "grant" ? `Authorised ${after?.name ?? ""} (${String(x.target_ticket)})`
       : `Withdrew the authority of ${(before as { name?: string } | null)?.name ?? ""} (${String(x.target_ticket)})`;
     return {
-      at: new Date(x.at as string).toISOString(), actorName: String(x.actor_name), actorTicket: String(x.actor_ticket), actorRole: String(x.actor_role) as "hod" | "delegate", actorDesignation: "",
+      at: toIsoInstant(x.at) ?? "", actorName: String(x.actor_name), actorTicket: String(x.actor_ticket), actorRole: String(x.actor_role) as "hod" | "delegate", actorDesignation: "",
       action, department: shown?.department ?? "", location: shown?.location ?? "", number: shown?.number ?? "", detail, summary,
     };
   });

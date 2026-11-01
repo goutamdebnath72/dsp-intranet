@@ -16,6 +16,7 @@
 // cleanly and tells you the exact command to continue later with --resume (wordings that already got a
 // real answer are not asked again). Only the read-only nlq_reader role touches your data.
 
+import { nowIso } from "../../dates";
 import { Client } from "pg";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 
@@ -67,7 +68,7 @@ function writeReport(rows: Row[], model: string, stoppedEarly: string | null) {
   const md: string[] = [];
   md.push(`# Natural-language SQL: live evaluation`);
   if (stoppedEarly) md.push(`\n> **Stopped early:** ${stoppedEarly}\n`);
-  md.push(`\n- Model: \`${model}\`\n- Updated: ${new Date().toISOString()}\n- **Wordings correct: ${passed} of ${total}** (${total ? Math.round((passed / total) * 100) : 0}%)`);
+  md.push(`\n- Model: \`${model}\`\n- Updated: ${nowIso()}\n- **Wordings correct: ${passed} of ${total}** (${total ? Math.round((passed / total) * 100) : 0}%)`);
   md.push(`- Of those that got a real answer from the model (not a provider error): ${realPassed} of ${real.length}`);
   md.push(`- Passed on the first attempt: ${firstTry}\n- Average time per question: ${avgMs} ms\n- Tokens per question (all): ${avgTok}; of which cached: ${avgCached}${avgCached ? "" : " (the provider reported no cached tokens, so assume all of them count)"}\n- Tokens that COUNT toward the provider's limits (all minus cached): about ${counted}${counted ? ` -> a 200,000-token daily allowance is about ${Math.floor(200000 / counted)} questions\n` : "\n"}`);
   md.push(`## By question\n\n| Question | Passed | Notes |\n|---|---|---|`);

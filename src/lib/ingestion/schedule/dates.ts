@@ -4,6 +4,8 @@
 // Nothing is guessed silently: a date whose YEAR is plainly wrong for its schedule is corrected only when day and month are consistent,
 // and the correction is recorded; a date that does not fit at all is reported, never stored as if it were fine.
 
+import { DateTime } from "luxon";
+
 export interface ParsedDate {
   day: number;
   month: number; // 1-12
@@ -27,7 +29,7 @@ export function parsePrintedDate(text: string): ParsedDate | null {
   const two = m[3].length === 2;
   const year = two ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10);
   if (month < 1 || month > 12 || day < 1 || year < 2000 || year > 2100) return null;
-  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const last = DateTime.utc(year, month, 1).daysInMonth ?? 31;
   if (day > last) return null;
   return { day, month, year, twoDigitYear: two };
 }
@@ -43,7 +45,7 @@ export function parseScheduleMonth(text: string): { month: number; year: number 
 export const iso = (d: { day: number; month: number; year: number }) =>
   `${String(d.year).padStart(4, "0")}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
 
-export const isSunday = (d: { day: number; month: number; year: number }) => new Date(Date.UTC(d.year, d.month - 1, d.day)).getUTCDay() === 0;
+export const isSunday = (d: { day: number; month: number; year: number }) => DateTime.utc(d.year, d.month, d.day).weekday === 7;
 
 export interface JudgedDate {
   ok: boolean;

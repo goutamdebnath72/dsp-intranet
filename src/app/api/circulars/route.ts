@@ -671,7 +671,7 @@ export async function GET(req: Request) {
     const yearParam = searchParams.get("year");
     const year = yearParam
       ? Number.parseInt(yearParam, 10)
-      : new Date().getFullYear();
+      : DateTime.now().setZone("Asia/Kolkata").year;
 
     if (!Number.isFinite(year)) {
       return NextResponse.json({ error: "Invalid year" }, { status: 400 });

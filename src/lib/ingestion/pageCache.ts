@@ -6,6 +6,7 @@
 // Keyed on the page's URL (a blob URL never changes its content) and on OCR_MERGE_VERSION (a changed merge rule invalidates it).
 // A failed read is NEVER cached, and neither is a reading whose English pass was empty: they are tried again next time.
 
+import { nowIso } from "../dates";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -34,7 +35,7 @@ export function cachedReadPage(opts: { dir: string; read: ReadPage; enabled?: bo
     const trustworthy = !result.fellBackToIndicPass && result.englishChars > 0;
     if (enabled && trustworthy) {
       mkdirSync(opts.dir, { recursive: true });
-      writeFileSync(file, JSON.stringify({ version: OCR_MERGE_VERSION, url, savedAt: new Date().toISOString(), result }));
+      writeFileSync(file, JSON.stringify({ version: OCR_MERGE_VERSION, url, savedAt: nowIso(), result }));
     }
     return result;
   };

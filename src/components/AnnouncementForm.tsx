@@ -1,5 +1,7 @@
 "use client";
 
+import { DateTime } from "luxon";
+import { IST } from "@/lib/dates";
 import React, { useState, useTransition, useEffect } from "react";
 import { mutate } from "swr";
 import toast from "react-hot-toast";
@@ -16,7 +18,7 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
   const [content, setContent] = useState("");
   const [initialTitle, setInitialTitle] = useState("");
   const [initialContent, setInitialContent] = useState("");
-  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  const [currentDateTime, setCurrentDateTime] = useState(() => DateTime.now().setZone(IST));
   const [isPending, startTransition] = useTransition();
 
   const isEdit = !!editId;
@@ -39,7 +41,7 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
   // Effect to update the time
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentDateTime(new Date());
+      setCurrentDateTime(DateTime.now().setZone(IST));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -64,7 +66,7 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
         body: JSON.stringify({
           title,
           content,
-          date: currentDateTime.toISOString(),
+          date: currentDateTime.toUTC().toISO() as string,
         }),
       });
 
@@ -137,13 +139,12 @@ export default function AnnouncementForm({ editId }: AnnouncementFormProps) {
             <input
               type="date"
               id="date"
-              value={currentDateTime.toISOString().split("T")[0]}
+              value={currentDateTime.toISODate() ?? ""}
               readOnly
               className="block w-full rounded-md py-2 px-3 text-slate-500 bg-slate-100 font-medium shadow-md ring-1 ring-inset ring-slate-500 cursor-not-allowed font-mono"
             />
             <span className="rounded-md py-2 px-3 text-slate-500 bg-slate-100 font-medium shadow-md ring-1 ring-inset ring-slate-500 whitespace-nowrap font-mono">
-              {currentDateTime.toLocaleTimeString("en-IN", {
-                timeZone: "Asia/Kolkata",
+              {currentDateTime.setLocale("en-IN").toLocaleString({
                 hour: "2-digit",
                 minute: "2-digit",
                 second: "2-digit",

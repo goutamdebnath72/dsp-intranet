@@ -15,6 +15,7 @@
 //
 // Everything outside the logic (images, OCR, embeddings, the database) is injected, so it is tested without network access.
 
+import { nowIso } from "../dates";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPageUnits, documentEmbeddingText, planChunks, type PlannedChunk } from "./chunking";
@@ -183,7 +184,7 @@ export async function applyReread(client: SqlClient, deps: Pick<RereadDeps, "emb
   const doc = await client.query(`SELECT embedding::text AS embedding FROM public.circulars WHERE id = $1`, [plan.id]);
   mkdirSync(backupDir, { recursive: true });
   const backupFile = join(backupDir, `circular-${plan.id}-${Date.now()}.json`);
-  writeFileSync(backupFile, JSON.stringify({ circularId: plan.id, headline: plan.headline, savedAt: new Date().toISOString(), documentEmbedding: doc.rows[0]?.embedding ?? null, chunks: old.rows }, null, 1));
+  writeFileSync(backupFile, JSON.stringify({ circularId: plan.id, headline: plan.headline, savedAt: nowIso(), documentEmbedding: doc.rows[0]?.embedding ?? null, chunks: old.rows }, null, 1));
 
   // 3. One transaction: all of it or none of it.
   await client.query("BEGIN");

@@ -1,4 +1,5 @@
 // src/app/api/holidays/extraction-staging/[id]/reject/route.ts
+import { DateTime } from "luxon";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { HolidayExtractionStaging } from "@/lib/db/models/holiday-extraction-staging.model";
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     staged.status = "rejected";
     staged.reviewedBy = reviewedBy;
-    staged.reviewedAt = new Date();
+    staged.reviewedAt = DateTime.now().toJSDate();
     await stagingRepo.save(staged);
 
     return NextResponse.json({ message: "Rejected" });

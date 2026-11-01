@@ -23,6 +23,7 @@
 //
 // Pure (no database, no network): unit-tested by circularAnswer.selftest.ts. The model call is passed in (an LlmFn).
 
+import { DateTime } from "luxon";
 import { numbersOf } from "../ingestion/readingCheck";
 import { detectSynthesisIntent } from "./synthesisIntent";
 
@@ -449,8 +450,8 @@ function columnInValueCell(quote: string, column: string, value: string): boolea
 const MONTHS: Record<string, number> = { january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8, september: 9, sep: 9, sept: 9, october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12 };
 const dateKey = (y: number, m: number, d: number): string | null => {
   if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1) return null;
-  const real = new Date(Date.UTC(y, m - 1, d)); // the calendar decides: 31.02.2024 is no date
-  return real.getUTCFullYear() === y && real.getUTCMonth() === m - 1 && real.getUTCDate() === d ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
+  const real = DateTime.utc(y, m, d); // the calendar decides: 31.02.2024 is no date
+  return real.isValid ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
 };
 
 /**

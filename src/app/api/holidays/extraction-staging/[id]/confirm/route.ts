@@ -128,7 +128,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
       staged.status = "confirmed";
       staged.reviewedBy = reviewedBy;
-      staged.reviewedAt = new Date();
+      staged.reviewedAt = DateTime.now().toJSDate();
       await manager.getRepository(HolidayExtractionStaging).save(staged);
     });
 

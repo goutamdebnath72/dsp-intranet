@@ -9,6 +9,8 @@
 //
 // Plain text only (React escapes it). No <form> tag: the search modal already holds a text area, and forms must not nest; Enter in a field does the same as the button.
 
+import { DateTime } from "luxon";
+import { IST } from "@/lib/dates";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { History, Pencil, Plus, ShieldCheck, Trash2, Users } from "lucide-react";
 import type { Acknowledge, PaxAdminOpen, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView } from "@/lib/pax/admin/types";
@@ -244,7 +246,7 @@ export function HistoryList({ history }: { history: PaxAuditView[] }) {
             const hasLine = h.action === "add" || h.action === "modify" || h.action === "delete";
             return (
               <tr key={i} className="border-t border-neutral-100 align-top">
-                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-600">{new Date(h.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</td>
+                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-600">{DateTime.fromISO(h.at).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium", timeStyle: "short" })}</td>
                 <td className="px-3 py-1.5 text-neutral-800">
                   <span className="font-semibold">{ACTION_WORD[h.action]}</span>
                   {h.detail && <span className="block text-xs text-neutral-500">{h.action === "modify" ? `was ${h.detail}` : h.detail}</span>}
@@ -631,7 +633,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
                 {delegates.map((d) => (
                   <li key={d.ticket} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm">
                     <span>
-                      <span className="font-semibold text-neutral-800">{d.name}</span> <span className="text-neutral-500">({d.ticket}) · authorised by {d.grantedByName} on {new Date(d.grantedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</span>
+                      <span className="font-semibold text-neutral-800">{d.name}</span> <span className="text-neutral-500">({d.ticket}) · authorised by {d.grantedByName} on {DateTime.fromISO(d.grantedAt).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium" })}</span>
                     </span>
                     <button type="button" className={SECONDARY} disabled={busy} onClick={() => { setRevoking(d); setNotice(null); }} aria-label={`Withdraw the authority of ${d.name}`}>Withdraw</button>
                   </li>
