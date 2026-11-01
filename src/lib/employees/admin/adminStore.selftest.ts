@@ -336,6 +336,32 @@ async function main() {
   ]);
   ok("two people add the SAME name in the SAME department at the same moment: one is saved and the other is asked 'is this a different person?' (the check and the write cannot be separated)", twins.filter((r) => r.status === "ok").length === 1 && twins.filter((r) => r.status === "conflict").length === 1 && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE name = 'TWIN PERSON'`)) === 1, JSON.stringify(twins.map((r) => r.status)));
 
+  // ---- A ROSTER WHOSE id HAS NO AUTOMATIC NUMBERING, as the live one (owner's log, 1 Nov 2026: "null value in column id ... violates not-null constraint") ----
+  const idDefault = (await rows(`SELECT column_default AS d FROM information_schema.columns WHERE table_schema='public' AND table_name='employee_roster' AND column_name='id'`))[0].d as string | null;
+  await rows(`ALTER TABLE public.employee_roster ALTER COLUMN id DROP DEFAULT`);
+  const maxId = async () => Number((await rows(`SELECT max(id) AS m FROM public.employee_roster`))[0].m);
+  const before0 = await maxId();
+  const noDef = await addX(HOD, { ticketNo: "342701", name: "No Default One", gradeId: 21, departmentId: 4 });
+  ok("a roster whose id has NO default: the person is added (it used to fail with 'null value in column id'), with the NEXT id (highest plus one)", noDef.status === "ok" && noDef.employee.id === before0 + 1, JSON.stringify(noDef));
+  const twoAtOnce = await Promise.all([addX(HOD, { ticketNo: "342702", name: "No Default Two", gradeId: 21, departmentId: 4 }), addX(ANIL_D, { ticketNo: "342703", name: "No Default Three", gradeId: 21, departmentId: 4 })]);
+  ok("...two people added at the same moment both succeed and get DIFFERENT ids, one after the other", twoAtOnce.every((r) => r.status === "ok") && new Set(twoAtOnce.map((r) => (r.status === "ok" ? r.employee.id : 0))).size === 2, JSON.stringify(twoAtOnce.map((r) => r.status)));
+  const scriptRow = await pool.connect();
+  const nextForScript = (await maxId()) + 1;
+  await scriptRow.query("BEGIN");
+  await scriptRow.query(`INSERT INTO public.employee_roster (id, ticket_no, name, designation_grade_id, sail_department_id, cohort, within_grade_position, global_seniority_rank, source_snapshot_date) VALUES ($1, '342799', 'SCRIPT PERSON', 21, 4, 'nonexecutive', 9000, 159000, '2026-09-26')`, [nextForScript]);
+  let addDone = false;
+  const addWaiting = addX(HOD, { ticketNo: "342704", name: "No Default Four", gradeId: 21, departmentId: 4 }).then((r) => { addDone = true; return r; });
+  await new Promise((r) => setTimeout(r, 400));
+  const waited = !addDone;
+  await scriptRow.query("COMMIT"); scriptRow.release();
+  const afterScriptAdd = await addWaiting;
+  ok("a SQL script inserting a row at the same moment (its row not yet committed): the add WAITS for it and then takes the NEXT id after it: no collision, nothing lost", waited && afterScriptAdd.status === "ok" && afterScriptAdd.employee.id === nextForScript + 1 && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no = '342799'`)) === 1, `${waited} ${JSON.stringify(afterScriptAdd)}`);
+  ok("...and the new person's login is linked as usual", noDef.status === "ok" && (await rows(`SELECT user_id FROM public.employee_roster WHERE id = $1`, [noDef.employee.id]))[0].user_id !== null);
+  if (idDefault) await rows(`ALTER TABLE public.employee_roster ALTER COLUMN id SET DEFAULT ${idDefault}`);
+  if (idDefault) await rows(`SELECT setval(pg_get_serial_sequence('public.employee_roster', 'id'), (SELECT max(id) FROM public.employee_roster))`); // the counter moves past the ids made by hand, as a real restore would
+  const withDef = await addX(HOD, { ticketNo: "342705", name: "With Default Five", gradeId: 21, departmentId: 4 });
+  ok("a roster whose id DOES number itself is left alone: the add takes the id the table gives (no table lock, no hand-made id)", idDefault !== null && withDef.status === "ok");
+
   // ---- a roster whose optional columns differ ----
   await pool.query(`ALTER TABLE public.employee_roster DROP COLUMN address CASCADE, DROP COLUMN webmail_saildsp CASCADE, DROP COLUMN doctor_override CASCADE`);
   const slim = await addX(HOD, { ticketNo: "412392", name: "Slim Table", gradeId: 9, departmentId: 1, address: "ignored", webmail: "a@saildsp.co.in", doctor: true });

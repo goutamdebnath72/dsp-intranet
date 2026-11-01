@@ -269,6 +269,12 @@ export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, u
       const names: string[] = ["ticket_no", "name", "designation_grade_id", "sail_department_id", "cohort", "within_grade_position", "global_seniority_rank"];
       const vals: unknown[] = [x.ticketNo, x.name, grade.id, x.departmentId, cohort, position, seniorityRank(grade, position)];
       const addOpt = (col: string, value: unknown) => { if (cols.has.has(col)) { names.push(col); vals.push(value); } };
+      // THE LIVE ROSTER'S id HAS NO AUTOMATIC NUMBERING (its rows were loaded with fixed ids; seen in the owner's log of 1 Nov 2026: "null value in column id violates not-null constraint"): then the next id is taken here, with the
+      // table locked against every writer (also one that does not know the global lock: a SQL script waits until this transaction ends), so that two inserts can never take the same number. A table that numbers its own ids is left alone.
+      if (cols.notNullNoDefault.has("id")) {
+        await q(`LOCK TABLE public.employee_roster IN SHARE ROW EXCLUSIVE MODE`);
+        names.push("id"); vals.push(Number((await q(`SELECT coalesce(max(id), 0) + 1 AS n FROM public.employee_roster`))[0].n));
+      }
       addOpt("sail_pno", nullable(x.sailPno));
       addOpt("address", nullable(x.address));
       const mails = rosterMails(cohort, x, { emailNic: "", webmail: "" });
