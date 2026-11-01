@@ -68,7 +68,7 @@ UPDATE public.employee_roster SET date_of_birth = NULL, date_of_joining = NULL, 
 --                  The age is chosen in a window of about 6 years around that, inside [minimum joining age, still in service], so nobody is piled up on a boundary.
 --   date joined    the age at joining is spread EVENLY from the minimum joining age (18, or 23 for a direct-recruit executive) up to 32 (a promotee executive joined as a non-executive,
 --                  so his range is 18 to 32 too); never after today (a young employee has only the years he has lived).
---   a TRAINEE       a person whose designation is "Management Trainee" is still in training (the designation changes to Asst. Manager when the service is made permanent), so he joined
+--   a TRAINEE       a person whose designation is "Management Trainee" (or SOT, JOT, TA: the non-executives' training designations) is still in training (the designation changes to Asst. Manager when the service is made permanent), so he joined
 --                  within the last 12 months, at an age spread evenly from the minimum to 32: his date of joining is chosen first, then his date of birth. (12 months is the assumed length of the training:
 --                  change the 366 below if it is not.)
 -- ---------------------------------------------------------------------------------------------------------------------------------
@@ -76,7 +76,7 @@ WITH today AS (SELECT (now() AT TIME ZONE 'Asia/Kolkata')::date AS d),
 ranked AS (
   -- the place of each employee among ALL the employees of the same cohort (computed BEFORE the filter below, so that a new employee, filled later on his own, is still the junior he is)
   SELECT er.id, er.ticket_no, er.cohort, er.date_of_birth, er.date_of_joining,
-         coalesce(dg.title ~* 'trainee', false) AS is_trainee,
+         coalesce(dg.title ~* 'trainee' OR dg.title IN ('SOT', 'JOT', 'TA'), false) AS is_trainee,
          coalesce(dg.track = 'medical', false) AS is_medical,
          percent_rank() OVER (PARTITION BY er.cohort ORDER BY er.global_seniority_rank) AS seniority
   FROM public.employee_roster er

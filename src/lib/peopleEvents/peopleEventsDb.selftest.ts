@@ -37,7 +37,7 @@ async function main() {
   await pool.query(readFileSync(join(SQL_DIR, "01_nlq_schema_views_role.sql"), "utf8"));
   await pool.query(`INSERT INTO public.designation_grade (id, code, title, track, rank_order) VALUES
       (1,1,'Chief General Manager','exec',1),(2,2,'General Manager','exec',2),(3,3,'Dy. General Manager','exec',3),(4,4,'Asst. General Manager','exec',4),(5,5,'Sr. Manager','exec',5),
-      (6,6,'Manager','exec',6),(7,7,'Dy. Manager','exec',7),(8,8,'Asst. Manager','exec',8),(9,9,'Management Trainee','exec',9),(10,10,'Medical Officer','medical',10),(20,20,'Operative','nonexec',20)`);
+      (6,6,'Manager','exec',6),(7,7,'Dy. Manager','exec',7),(8,8,'Asst. Manager','exec',8),(9,9,'Management Trainee','exec',9),(10,10,'Medical Officer','medical',10),(20,20,'Operative','nonexec',20),(22,22,'SOT','nonexec',25)`);
   await pool.query(`INSERT INTO public.sail_department (id, code, name) VALUES (1,1,'C & IT'),(2,2,'Finance & A/C'),(3,3,'Maintenance'),(4,4,'Public Relations'),(5,5,'Logistics')`);
   // the stand-in user table has no photo column; the real one has (the User entity: `image`)
   await pool.query(`ALTER TABLE public."user" ADD COLUMN image varchar`);
@@ -53,6 +53,8 @@ async function main() {
         FROM generate_series(1, ${N}) AS i`);
   // about forty doctors among the executives (designation grade 10, track medical: not direct recruits of the 49 series)
   await pool.query(`UPDATE public.employee_roster SET designation_grade_id = 10 WHERE id BETWEEN 301 AND 340 AND ticket_no !~ '^49'`);
+  // forty non-executives in training (SOT): they must be treated like the Management Trainees
+  await pool.query(`UPDATE public.employee_roster SET designation_grade_id = 22 WHERE id BETWEEN 2000 AND 2039`);
 
   // ---- the migration ----
   const migration = readFileSync(join(SQL_DIR, "14_people_events.sql"), "utf8");
@@ -99,6 +101,8 @@ async function main() {
   ok("the Management Trainees (80): every one has joined within the last 12 months (the designation changes to Asst. Manager when the service is made permanent)", trainees.length >= 80 && trainees.every((r) => today.diff(parseDay(r.doj), "days").days <= 366 && today.diff(parseDay(r.doj), "days").days >= 0), `${trainees.length}`);
   ok("...at an age spread over 23 to 32 on the day they joined (at least 6 different years of age are used), and every ticket is 49xxxx", trainees.every((r) => /^49\d{4}$/.test(r.ticket_no) && minAgeAtJoin(r) >= 23 - 1e-9 && minAgeAtJoin(r) < 32.01) && new Set(trainees.map((r) => Math.floor(minAgeAtJoin(r)))).size >= 6, `${Math.min(...trainees.map(minAgeAtJoin)).toFixed(2)}..${Math.max(...trainees.map(minAgeAtJoin)).toFixed(2)}`);
   ok("...and none of them is older than 33 today (32 at joining + at most a year of training)", trainees.every((r) => today.diff(parseDay(r.dob), "years").years < 33.2));
+  const sots = await q(`SELECT er.id, er.date_of_birth::text AS dob, er.date_of_joining::text AS doj FROM public.employee_roster er WHERE er.designation_grade_id = 22`);
+  ok("SOT (a non-executives' training designation): all 40 joined within the last 12 months, at 18 to 32, none is older than 33 today", sots.length === 40 && sots.every((r) => today.diff(parseDay(r.doj), "days").days <= 366 && today.diff(parseDay(r.doj), "days").days >= 0 && minAgeAtJoin(r) >= 18 - 1e-9 && minAgeAtJoin(r) < 32.01 && today.diff(parseDay(r.dob), "years").years < 33.2), `${sots.length}`);
   ok("nobody anywhere joined before 18; the youngest joining age found is at least 18", all.every((r) => minAgeAtJoin(r) >= 18 - 1e-9));
   const ages = (rs: typeof all) => rs.map((r) => today.diff(parseDay(r.dob), "years").years);
   const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
