@@ -2,270 +2,30 @@
 
 // src/components/PaxAdminPanel.tsx
 //
-// THE PAX DIRECTORY EDITOR (step 64a; owner, 31 Oct 2026). It opens in the answer area of the search bar when the HOD of C&IT (or an executive he has authorised) types that he wants to add, change or delete a PAX
-// number, or to authorise or withdraw an executive. Three inputs: Department, Location, PAX number. Nothing is protected by what this panel hides: the SERVER decides who may do what (src/lib/pax/admin/api.ts),
+// THE PAX DIRECTORY EDITOR (step 64a; owner, 31 Oct 2026). It opens in the answer area of the search bar when the HOD of C&IT (or an executive he has authorised) types that he wants to add, change or
+// delete a PAX number, or to authorise or withdraw an executive. Three inputs: Department, Location, PAX number. Nothing is protected by what this panel hides: the SERVER decides who may do what (src/lib/pax/admin/api.ts)
 // and checks every rule again. The panel only tells the person early, and asks the questions the owner wanted when an entry clashes with a saved one:
 // "do you want to edit the existing line, or have you made a mistake?".
 //
+// THIS FILE holds the state and the requests, and every rule of what happens when. THE LOOK (the teal frame, the underline tabs, the three-node rail, the telephone-line plate, the action bar, the dialogs, the lists)
+// is in PaxAdminUi.tsx and decides nothing (step 67a; owner, 1 Nov 2026: "implement it, keeping all the logic intact"). It re-exports what it has always exported.
+//
 // Plain text only (React escapes it). No <form> tag: the search modal already holds a text area, and forms must not nest; Enter in a field does the same as the button.
 
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { DateTime } from "luxon";
 import { IST } from "@/lib/dates";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { History, Pencil, Plus, ShieldCheck, Trash2, Users } from "lucide-react";
+import { AlertTriangle, History, Pencil, PhoneOff, Plus, ShieldCheck, Trash2, Users } from "lucide-react";
 import type { Acknowledge, PaxAdminOpen, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView } from "@/lib/pax/admin/types";
-import { EMPTY_LOCATION } from "@/lib/pax/answer";
 import { describeLine } from "@/lib/pax/admin/conflicts";
-import { placeName } from "@/lib/pax/display";
-import { cleanInput, validateEntry, PAX_NUMBER_RULE, type FieldErrors } from "@/lib/pax/admin/validate";
+import { cleanInput, validateEntry, type FieldErrors } from "@/lib/pax/admin/validate";
+import { AuthoriseCard, ChangingBanner, ConfirmCard, ConflictView, DANGER, EntryFormView, EntryList, FIELD, HistoryList, IconField, Notice, PRIMARY, PaxAdminHeader, PaxShell, PaxTabs, PersonRow, SECONDARY, SearchBar, LineAboutToGo, type FormValues } from "./PaxAdminUi";
+
+// what the tests and the rest of the app have always imported from this file
+export { ConflictView, EntryFormView, EntryList, HistoryList, PaxAdminHeader, conflictText } from "./PaxAdminUi";
+export type { FormValues } from "./PaxAdminUi";
 
 type Tab = "add" | "modify" | "delete" | "people" | "history";
-
-const FIELD = "w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
-const PRIMARY = "rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50";
-const SECONDARY = "rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50";
-const DANGER = "rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50";
-
-// ---------------------------------------------------------------------------------------------------------------------------------
-// display pieces (no state: they are given everything, so they can be drawn and tested alone)
-// ---------------------------------------------------------------------------------------------------------------------------------
-
-export interface FormValues { department: string; location: string; number: string }
-
-export function EntryFormView(props: {
-  idPrefix: string;
-  values: FormValues;
-  errors: FieldErrors;
-  busy: boolean;
-  submitLabel: string;
-  /** The button stays off (greyed) while this is true, whatever else is true; `submitHint` says in words what is still needed. Enter in a field does nothing then either. */
-  submitDisabled?: boolean;
-  submitHint?: string;
-  onChange: (next: FormValues) => void;
-  onSubmit: () => void;
-  onCancel?: () => void;
-}) {
-  const { idPrefix, values, errors, busy, submitLabel, submitDisabled = false, submitHint, onChange, onSubmit, onCancel } = props;
-  const enter = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (!submitDisabled) onSubmit();
-    }
-  };
-  const field = (key: keyof FormValues, label: string, hint: string, extra: { inputMode?: "numeric"; maxLength?: number; placeholder: string }) => (
-    <div className="min-w-0">
-      <label htmlFor={`${idPrefix}-${key}`} className="mb-1 block text-xs font-semibold text-neutral-700">
-        {label}
-      </label>
-      <input
-        id={`${idPrefix}-${key}`}
-        type="text"
-        value={values[key]}
-        onChange={(e) => onChange({ ...values, [key]: e.target.value })}
-        onKeyDown={enter}
-        inputMode={extra.inputMode}
-        maxLength={extra.maxLength}
-        placeholder={extra.placeholder}
-        autoComplete="off"
-        aria-invalid={errors[key] ? true : undefined}
-        aria-describedby={`${idPrefix}-${key}-note`}
-        className={`${FIELD} ${errors[key] ? "border-red-500" : ""}`}
-      />
-      <p id={`${idPrefix}-${key}-note`} className={`mt-1 text-xs ${errors[key] ? "font-semibold text-red-700" : "text-neutral-500"}`} role={errors[key] ? "alert" : undefined}>
-        {errors[key] ?? hint}
-      </p>
-    </div>
-  );
-  return (
-    <div className="space-y-3" data-pax-form={idPrefix}>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {field("department", "Department", "For example CISF, Weigh Bridge, Fire Service.", { placeholder: "Department", maxLength: 80 })}
-        {field("location", "Location", `Leave empty if there is none: the table then shows ${EMPTY_LOCATION}.`, { placeholder: "Location (optional)", maxLength: 80 })}
-        {field("number", "PAX number", PAX_NUMBER_RULE, { placeholder: "4xxxx", inputMode: "numeric", maxLength: 5 })}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className={PRIMARY} disabled={busy || submitDisabled} onClick={onSubmit} aria-describedby={submitDisabled && submitHint ? `${idPrefix}-submit-hint` : undefined}>
-          {submitLabel}
-        </button>
-        {onCancel && (
-          <button type="button" className={SECONDARY} disabled={busy} onClick={onCancel}>
-            Cancel
-          </button>
-        )}
-      </div>
-      {submitDisabled && submitHint && (
-        <p id={`${idPrefix}-submit-hint`} className="text-xs font-semibold text-neutral-600" data-submit-hint="true">
-          {submitHint}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** The sentence for each kind of clash, in the table's own words. */
-export function conflictText(c: PaxConflict, entry: FormValues): string {
-  if (c.kind === "same-number") return `The number ${entry.number} is already assigned to ${Array.from(new Set(c.existing.map(placeName))).join("; ")}. A PAX number belongs to one place only.`;
-  if (c.kind === "same-place") return `${placeName(c.existing[0])} is already saved with ${c.existing.map((e) => e.number).join(" / ")}.`;
-  return `What you typed reads almost like ${c.existing.map(describeLine).join("; ")}.`;
-}
-
-export function ConflictView(props: {
-  conflicts: PaxConflict[];
-  acknowledgeable: Acknowledge[];
-  entry: FormValues;
-  busy: boolean;
-  /** open a saved line for editing */
-  onEdit: (line: PaxEntryView) => void;
-  /** go back and correct what was typed */
-  onFix: () => void;
-  onAcknowledge: (a: Acknowledge) => void;
-}) {
-  const { conflicts, acknowledgeable, entry, busy, onEdit, onFix, onAcknowledge } = props;
-  const editable = Array.from(new Map(conflicts.flatMap((c) => c.existing).map((l) => [l.id, l])).values());
-  return (
-    <div role="alert" className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" data-pax-conflict="true">
-      <p className="font-bold">This clashes with what is already saved.</p>
-      {conflicts.length === 0 && <p>The table already holds a line with this department, location and number.</p>}
-      <ul className="list-disc space-y-1 pl-5">
-        {conflicts.map((c, i) => (
-          <li key={i} data-conflict={c.kind}>
-            {conflictText(c, entry)}
-          </li>
-        ))}
-      </ul>
-      <p className="font-semibold">Do you want to edit an existing line, or have you made a mistake?</p>
-      <div className="flex flex-wrap gap-2">
-        {editable.map((l) => (
-          <button key={l.id} type="button" className={SECONDARY} disabled={busy} onClick={() => onEdit(l)}>
-            Edit {describeLine(l)}
-          </button>
-        ))}
-        <button type="button" className={SECONDARY} disabled={busy} onClick={onFix}>
-          I made a mistake: let me correct my entry
-        </button>
-      </div>
-      {acknowledgeable.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-amber-200 pt-2">
-          <span className="text-xs font-semibold">Or, only if it is true:</span>
-          {acknowledgeable.includes("second-number") && (
-            <button type="button" className={PRIMARY} disabled={busy} onClick={() => onAcknowledge("second-number")}>
-              Yes, {entry.number} is another number of this place
-            </button>
-          )}
-          {acknowledgeable.includes("different") && (
-            <button type="button" className={PRIMARY} disabled={busy} onClick={() => onAcknowledge("different")}>
-              It is a different place: add it
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function EntryList(props: { entries: PaxEntryView[]; actionLabel: string; actionClass: string; busy: boolean; onPick: (e: PaxEntryView) => void; truncatedAt?: number }) {
-  const { entries, actionLabel, actionClass, busy, onPick, truncatedAt = 40 } = props;
-  const shown = entries.slice(0, truncatedAt);
-  if (entries.length === 0) return <p className="text-sm text-neutral-600">No saved line matches.</p>;
-  return (
-    <div className="space-y-1">
-      <div className="max-h-64 overflow-auto rounded-lg border border-neutral-200 bg-white">
-        <table className="min-w-full text-left text-xs sm:text-sm">
-          <thead className="sticky top-0 bg-neutral-50 text-neutral-600">
-            <tr>
-              <th scope="col" className="px-3 py-2 font-semibold">Department</th>
-              <th scope="col" className="px-3 py-2 font-semibold">Location</th>
-              <th scope="col" className="px-3 py-2 font-semibold">PAX</th>
-              <th scope="col" className="px-3 py-2"><span className="sr-only">Action</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((e) => (
-              <tr key={e.id} className="border-t border-neutral-100">
-                <td className="px-3 py-1.5 font-medium text-neutral-800">{e.department}</td>
-                <td className="px-3 py-1.5 text-neutral-700">{e.location || EMPTY_LOCATION}</td>
-                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-700">{e.number}</td>
-                <td className="px-3 py-1.5 text-right">
-                  <button type="button" className={actionClass} disabled={busy} onClick={() => onPick(e)} aria-label={`${actionLabel} ${describeLine(e)}`}>
-                    {actionLabel}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {entries.length > shown.length && <p className="text-xs text-neutral-500">{entries.length - shown.length} more: type more of the name or the number to narrow the list.</p>}
-    </div>
-  );
-}
-
-const ACTION_WORD: Record<PaxAuditView["action"], string> = { add: "Added", modify: "Changed", delete: "Deleted", grant: "Authorised", revoke: "Withdrawn" };
-
-/**
- * The history as a table (owner, 31 Oct 2026): Department, Location, the number, and who did it (name, ticket number, designation). Two columns more say WHAT was done and WHEN, because without them
- * an added line and a deleted line look the same. For a change the new line is shown and the old one is said under "Changed"; for a deleted line, the line that went; an authorisation or a withdrawal has
- * no line, so the executive concerned is named under the action and the three line columns show a dash.
- */
-/**
- * The top line of the editor (owner, 31 Oct 2026): the title, then the NAME of the person who is logged in, then the role label ("HOD of C&IT" or "Authorised executive"), with the same gap between the three.
- * The name is the login's (the server's answer to `me`), shown as soon as it arrives; until then the line has the title and the role.
- */
-export function PaxAdminHeader({ authority, name }: { authority: PaxAdminOpen["role"]; name?: string | null }) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-pax-header="true">
-      <ShieldCheck className="h-4 w-4 text-blue-700" aria-hidden="true" />
-      <p className="text-sm font-bold text-neutral-900" data-pax-title="true">PAX directory editor</p>
-      {name ? (
-        <p className="text-sm font-semibold text-neutral-700" data-pax-actor="true">{name}</p>
-      ) : null}
-      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700" data-role={authority}>
-        {authority === "hod" ? "HOD of C&IT" : "Authorised executive"}
-      </span>
-    </div>
-  );
-}
-
-export function HistoryList({ history }: { history: PaxAuditView[] }) {
-  if (history.length === 0) return <p className="text-sm text-neutral-600">No change has been made from this panel yet.</p>;
-  return (
-    <div className="max-h-80 overflow-auto rounded-lg border border-neutral-200 bg-white" data-pax-history="true">
-      <table className="min-w-full text-left text-xs sm:text-sm">
-        <thead className="sticky top-0 bg-neutral-50 text-neutral-600">
-          <tr>
-            <th scope="col" className="whitespace-nowrap px-3 py-2 font-semibold">When</th>
-            <th scope="col" className="px-3 py-2 font-semibold">What</th>
-            <th scope="col" className="px-3 py-2 font-semibold">Department</th>
-            <th scope="col" className="px-3 py-2 font-semibold">Location</th>
-            <th scope="col" className="whitespace-nowrap px-3 py-2 font-semibold">PAX</th>
-            <th scope="col" className="px-3 py-2 font-semibold">Done by</th>
-          </tr>
-        </thead>
-        <tbody>
-          {history.map((h, i) => {
-            const hasLine = h.action === "add" || h.action === "modify" || h.action === "delete";
-            return (
-              <tr key={i} className="border-t border-neutral-100 align-top">
-                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-600">{DateTime.fromISO(h.at).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium", timeStyle: "short" })}</td>
-                <td className="px-3 py-1.5 text-neutral-800">
-                  <span className="font-semibold">{ACTION_WORD[h.action]}</span>
-                  {h.detail && <span className="block text-xs text-neutral-500">{h.action === "modify" ? `was ${h.detail}` : h.detail}</span>}
-                </td>
-                <td className="px-3 py-1.5 font-medium text-neutral-800">{hasLine ? h.department : "—"}</td>
-                <td className="px-3 py-1.5 text-neutral-700">{hasLine ? h.location || EMPTY_LOCATION : "—"}</td>
-                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-700">{hasLine ? h.number : "—"}</td>
-                <td className="px-3 py-1.5 text-neutral-800">
-                  <span className="font-semibold">{h.actorName}</span> <span className="whitespace-nowrap text-neutral-500">({h.actorTicket})</span>
-                  <span className="block text-xs text-neutral-500">{[h.actorDesignation, h.actorRole === "hod" ? "HOD of C&IT" : "authorised executive"].filter(Boolean).join(" · ")}</span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // the panel
@@ -505,94 +265,62 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
     void refreshDelegates();
   }
 
+
   const tabs: Array<{ id: Tab; label: string; icon: React.ReactNode; show: boolean }> = [
-    { id: "add", label: "Add", icon: <Plus className="h-3.5 w-3.5" aria-hidden="true" />, show: true },
-    { id: "modify", label: "Change", icon: <Pencil className="h-3.5 w-3.5" aria-hidden="true" />, show: true },
-    { id: "delete", label: "Delete", icon: <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />, show: true },
-    { id: "people", label: "Authorised people", icon: <Users className="h-3.5 w-3.5" aria-hidden="true" />, show: isHod },
-    { id: "history", label: "Recent changes", icon: <History className="h-3.5 w-3.5" aria-hidden="true" />, show: true },
+    { id: "add", label: "Add", icon: <Plus className="h-4 w-4" aria-hidden="true" />, show: true },
+    { id: "modify", label: "Change", icon: <Pencil className="h-4 w-4" aria-hidden="true" />, show: true },
+    { id: "delete", label: "Delete", icon: <Trash2 className="h-4 w-4" aria-hidden="true" />, show: true },
+    { id: "people", label: "Authorised people", icon: <Users className="h-4 w-4" aria-hidden="true" />, show: isHod },
+    { id: "history", label: "Recent changes", icon: <History className="h-4 w-4" aria-hidden="true" />, show: true },
   ];
 
-  const searchBox = (
-    <div className="flex flex-wrap items-end gap-2">
-      <div className="min-w-[12rem] flex-1">
-        <label htmlFor="pax-admin-search" className="mb-1 block text-xs font-semibold text-neutral-700">Find a saved line</label>
-        <input
-          id="pax-admin-search"
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void loadEntries(query); } }}
-          placeholder="Department, location or number"
-          autoComplete="off"
-          className={FIELD}
-        />
-      </div>
-      <button type="button" className={SECONDARY} disabled={busy} onClick={() => void loadEntries(query)}>Search</button>
-    </div>
-  );
+  const searchBox = <SearchBar id="pax-admin-search" label="Find a saved line" value={query} placeholder="Department, location or number" busy={busy} onChange={setQuery} onSearch={() => void loadEntries(query)} />;
 
   return (
-    <div className="space-y-3" data-pax-admin="true">
+    <PaxShell>
       <PaxAdminHeader authority={open.role} name={me} />
 
-      <div role="tablist" aria-label="PAX directory editor" className="flex flex-wrap gap-1 border-b border-neutral-200 pb-2">
-        {tabs.filter((t) => t.show).map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => { setTab(t.id); setNotice(null); }}
-            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold sm:text-sm ${tab === t.id ? "bg-blue-600 text-white" : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"}`}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <PaxTabs tabs={tabs} tab={tab} onTab={(id) => { setTab(id); setNotice(null); }} />
 
-      {notice && (
-        <p role={notice.tone === "error" ? "alert" : "status"} className={`rounded-md border px-2.5 py-1.5 text-sm font-semibold ${notice.tone === "ok" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-red-300 bg-red-50 text-red-900"}`}>
-          {notice.text}
-        </p>
-      )}
+      {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
 
       {tab === "add" && (
-        <div className="space-y-3">
-          <p className="text-sm text-neutral-700">Type the department, the location and the new PAX number. Every entry is checked against what is saved.</p>
-          <EntryFormView idPrefix="pax-add" values={addForm} errors={addErrors} busy={busy} submitLabel="Check and save" submitDisabled={!addValid.ok} submitHint={addHint} onChange={(v) => { setAddForm(v); setAddConflict(null); }} onSubmit={() => void submitAdd()} />
-          {addConflict && (
-            <ConflictView
-              conflicts={addConflict.conflicts}
-              acknowledgeable={addConflict.acknowledgeable}
-              entry={addConflict.entry}
-              busy={busy}
-              onEdit={startEdit}
-              onFix={() => { setAddConflict(null); document.getElementById("pax-add-number")?.focus(); }}
-              onAcknowledge={(a) => void submitAdd([a])}
-            />
-          )}
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">Type the department, the location and the new PAX number. Every entry is checked against what is saved.</p>
+          <EntryFormView idPrefix="pax-add" values={addForm} errors={addErrors} busy={busy} submitLabel="Check and save" submitDisabled={!addValid.ok} submitHint={addHint} onChange={(v) => { setAddForm(v); setAddConflict(null); }} onSubmit={() => void submitAdd()}>
+            {addConflict && (
+              <ConflictView
+                conflicts={addConflict.conflicts}
+                acknowledgeable={addConflict.acknowledgeable}
+                entry={addConflict.entry}
+                busy={busy}
+                onEdit={startEdit}
+                onFix={() => { setAddConflict(null); document.getElementById("pax-add-number")?.focus(); }}
+                onAcknowledge={(a) => void submitAdd([a])}
+              />
+            )}
+          </EntryFormView>
         </div>
       )}
 
       {tab === "modify" && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {editing ? (
             <>
-              <p className="text-sm text-neutral-700">Changing <span className="font-semibold">{describeLine(editing)}</span></p>
-              <EntryFormView idPrefix="pax-edit" values={editForm} errors={editErrors} busy={busy} submitLabel="Check and save the change" submitDisabled={!canSaveEdit} submitHint={editHint} onChange={(v) => { setEditForm(v); setEditConflict(null); }} onSubmit={() => void submitEdit()} onCancel={() => { setEditing(null); setEditConflict(null); }} />
-              {editConflict && (
-                <ConflictView
-                  conflicts={editConflict.conflicts}
-                  acknowledgeable={editConflict.acknowledgeable}
-                  entry={editConflict.entry}
-                  busy={busy}
-                  onEdit={startEdit}
-                  onFix={() => { setEditConflict(null); document.getElementById("pax-edit-number")?.focus(); }}
-                  onAcknowledge={(a) => void submitEdit([a])}
-                />
-              )}
+              <ChangingBanner line={editing} />
+              <EntryFormView idPrefix="pax-edit" values={editForm} errors={editErrors} busy={busy} submitLabel="Check and save the change" submitDisabled={!canSaveEdit} submitHint={editHint} editing onChange={(v) => { setEditForm(v); setEditConflict(null); }} onSubmit={() => void submitEdit()} onCancel={() => { setEditing(null); setEditConflict(null); }}>
+                {editConflict && (
+                  <ConflictView
+                    conflicts={editConflict.conflicts}
+                    acknowledgeable={editConflict.acknowledgeable}
+                    entry={editConflict.entry}
+                    busy={busy}
+                    onEdit={startEdit}
+                    onFix={() => { setEditConflict(null); document.getElementById("pax-edit-number")?.focus(); }}
+                    onAcknowledge={(a) => void submitEdit([a])}
+                  />
+                )}
+              </EntryFormView>
             </>
           ) : (
             <>
@@ -604,80 +332,76 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
       )}
 
       {tab === "delete" && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {searchBox}
           {listed && <EntryList entries={entries} actionLabel="Delete" actionClass={DANGER} busy={busy} onPick={(e) => { setDeleting(e); setNotice(null); }} />}
           {deleting && (
-            <div role="alertdialog" aria-label="Confirm the deletion" className="space-y-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-950" data-pax-delete="true">
-              <p className="font-bold">Delete {describeLine(deleting)}?</p>
+            <ConfirmCard kind="delete" ariaLabel="Confirm the deletion" icon={<PhoneOff className="h-5 w-5 shrink-0" aria-hidden="true" />} title={`Delete ${describeLine(deleting)}?`}>
+              <LineAboutToGo entry={deleting} />
               <p>The line leaves the PAX directory at once. The history keeps a record of what it was and who deleted it.</p>
               <div className="flex gap-2">
                 <button type="button" className={DANGER} disabled={busy} onClick={() => void confirmDelete()}>Yes, delete it</button>
                 <button type="button" className={SECONDARY} disabled={busy} onClick={() => setDeleting(null)}>No, keep it</button>
               </div>
-            </div>
+            </ConfirmCard>
           )}
         </div>
       )}
 
       {tab === "people" && isHod && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-neutral-800">Executives who may change PAX numbers</p>
+            <p className="flex items-center gap-2 text-sm font-bold text-slate-800"><ShieldCheck className="h-4 w-4 text-teal-600" aria-hidden="true" />Executives who may change PAX numbers</p>
             {delegates === null ? (
-              <p className="text-sm text-neutral-600">Loading…</p>
+              <p className="text-sm text-slate-600">Loading…</p>
             ) : delegates.length === 0 ? (
-              <p className="text-sm text-neutral-600">Nobody else has been authorised: only you can change the PAX directory.</p>
+              <p className="text-sm text-slate-600">Nobody else has been authorised: only you can change the PAX directory.</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-2">
                 {delegates.map((d) => (
-                  <li key={d.ticket} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm">
-                    <span>
-                      <span className="font-semibold text-neutral-800">{d.name}</span> <span className="text-neutral-500">({d.ticket}) · authorised by {d.grantedByName} on {DateTime.fromISO(d.grantedAt).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium" })}</span>
-                    </span>
-                    <button type="button" className={SECONDARY} disabled={busy} onClick={() => { setRevoking(d); setNotice(null); }} aria-label={`Withdraw the authority of ${d.name}`}>Withdraw</button>
-                  </li>
+                  <PersonRow key={d.ticket} name={d.name} action={<button type="button" className={SECONDARY} disabled={busy} onClick={() => { setRevoking(d); setNotice(null); }} aria-label={`Withdraw the authority of ${d.name}`}>Withdraw</button>}>
+                    ({d.ticket}) · authorised by {d.grantedByName} on {DateTime.fromISO(d.grantedAt).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium" })}
+                  </PersonRow>
                 ))}
               </ul>
             )}
             {revoking && (
-              <div role="alertdialog" aria-label="Confirm the withdrawal" className="space-y-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-950" data-pax-revoke="true">
-                <p className="font-bold">Withdraw the authority of {revoking.name} ({revoking.ticket})?</p>
+              <ConfirmCard kind="revoke" ariaLabel="Confirm the withdrawal" icon={<AlertTriangle className="h-5 w-5 shrink-0" aria-hidden="true" />} title={`Withdraw the authority of ${revoking.name} (${revoking.ticket})?`}>
                 <p>He or she can no longer add, change or delete PAX numbers. What was already done stays in the history.</p>
                 <div className="flex gap-2">
                   <button type="button" className={DANGER} disabled={busy} onClick={() => void confirmRevoke()}>Yes, withdraw it</button>
                   <button type="button" className={SECONDARY} disabled={busy} onClick={() => setRevoking(null)}>No</button>
                 </div>
-              </div>
+              </ConfirmCard>
             )}
           </div>
-          <div className="space-y-2 border-t border-neutral-200 pt-3">
-            <p className="text-sm font-semibold text-neutral-800">Authorise an executive</p>
+          <AuthoriseCard>
+            <p className="text-sm font-bold text-slate-800">Authorise an executive</p>
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[12rem] flex-1">
-                <label htmlFor="pax-admin-who" className="mb-1 block text-xs font-semibold text-neutral-700">Name or ticket number</label>
-                <input id="pax-admin-who" type="text" value={who} onChange={(e) => setWho(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void searchPeople(); } }} placeholder="For example Rakesh Ojha or 412345" autoComplete="off" className={FIELD} />
+                <IconField id="pax-admin-who" label="Name or ticket number" icon={<Users className="h-[18px] w-[18px]" aria-hidden="true" />}>
+                  <input id="pax-admin-who" type="text" value={who} onChange={(e) => setWho(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void searchPeople(); } }} placeholder="For example Rakesh Ojha or 412345" autoComplete="off" className={FIELD} />
+                </IconField>
               </div>
               <button type="button" className={SECONDARY} disabled={busy || !who.trim()} onClick={() => void searchPeople()}>Find</button>
             </div>
-            <p className="text-xs text-neutral-500">Only an executive (a six-digit ticket number that starts with 4) can be authorised.</p>
+            <p className="text-xs text-slate-500">Only an executive (a six-digit ticket number that starts with 4) can be authorised.</p>
             {found && (found.length === 0 ? (
-              <p className="text-sm text-neutral-600">No executive found with this name or ticket number. Type the full name as in the directory.</p>
+              <p className="text-sm text-slate-600">No executive found with this name or ticket number. Type the full name as in the directory.</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-2">
                 {found.map((p) => (
-                  <li key={p.ticket} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm">
-                    <span><span className="font-semibold text-neutral-800">{p.name}</span> <span className="text-neutral-500">({p.ticket}) · {[p.designation, p.department].filter(Boolean).join(", ")}</span></span>
-                    <button type="button" className={PRIMARY} disabled={busy} onClick={() => void grant(p.ticket)} aria-label={`Authorise ${p.name}`}>Authorise</button>
-                  </li>
+                  <PersonRow key={p.ticket} name={p.name} action={<button type="button" className={PRIMARY} disabled={busy} onClick={() => void grant(p.ticket)} aria-label={`Authorise ${p.name}`}>Authorise</button>}>
+                    ({p.ticket}) · {[p.designation, p.department].filter(Boolean).join(", ")}
+                  </PersonRow>
                 ))}
               </ul>
             ))}
-          </div>
+          </AuthoriseCard>
         </div>
       )}
 
-      {tab === "history" && (history === null ? <p className="text-sm text-neutral-600">Loading…</p> : <HistoryList history={history} />)}
-    </div>
+      {tab === "history" && (history === null ? <p className="text-sm text-slate-600">Loading…</p> : <HistoryList history={history} />)}
+    </PaxShell>
   );
 }
