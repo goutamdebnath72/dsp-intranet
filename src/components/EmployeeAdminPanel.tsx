@@ -17,7 +17,7 @@ import { DateTime } from "luxon";
 import { Search, Trash2 } from "lucide-react";
 import { IST } from "@/lib/dates";
 import { useSessionName } from "@/hooks/useSessionName";
-import { maskEmail, maskMobile, normalizeMobile } from "@/lib/employees/admin/contact";
+import { normalizeMobile } from "@/lib/employees/admin/contact";
 import { cohortOfTicket, isTicket, validateEmployee } from "@/lib/employees/admin/validate";
 import type { AuditView, Authority, DelegateView, EmployeeConflict, EmployeeRecord, EmployeeAdminOpen, FieldErrors, LastChange, Lookups } from "@/lib/employees/admin/types";
 import { EMPTY_FORM, FIELD_LABELS, changesOf, formFromRecord, rawOf, reasonFor, rebaseForm, resolveDepartment, theirChanges, unlockedSections, type FormValues } from "./employeeFormModel";
@@ -102,7 +102,7 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   const validation = useMemo(
     () => (lookups ? validateEmployee(rawOf(values, lk, mode === "modify" ? original : null), lk, {
       today, canEditDates: datesVisible, fixedTicket: mode === "modify" ? original?.ticketNo : undefined,
-      requirePno: mode === "add" || (original?.sailPno ?? "") !== "", hasMobile: mode === "modify" && !!original?.mobileMasked,
+      requirePno: mode === "add" || (original?.sailPno ?? "") !== ""
     }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [values, lookups, original, mode, datesVisible, today],
@@ -224,8 +224,8 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   const dept = resolveDepartment(values.departmentCode, lk, values.ticketNo);
   const summary: Array<[string, string]> = [
     ["Ticket number", values.ticketNo], ["Name", values.name.trim().replace(/\s+/g, " ").toUpperCase()], ["SAIL P.No.", values.sailPno.trim().toUpperCase()], ["Designation", grade?.title ?? ""], ["Department", dept?.name ?? ""],
-    ["Position in grade", "last in the grade"], ...(isTicket(values.ticketNo) && cohortOfTicket(values.ticketNo) === "executive" ? ([["NIC mail", maskEmail(values.emailNic.trim().toLowerCase())], ["Web-mail", maskEmail(values.webmail.trim().toLowerCase())]] as Array<[string, string]>) : ([["E-mail", maskEmail(values.email.trim().toLowerCase())]] as Array<[string, string]>)),
-    ["Mobile", maskMobile(normalizeMobile(values.mobile))], ["Address", values.address.trim()],
+    ["Position in grade", "last in the grade"], ...(isTicket(values.ticketNo) && cohortOfTicket(values.ticketNo) === "executive" ? ([["NIC mail", values.emailNic.trim().toLowerCase()], ["Web-mail", values.webmail.trim().toLowerCase()]] as Array<[string, string]>) : ([["E-mail", values.email.trim().toLowerCase()]] as Array<[string, string]>)),
+    ["Mobile", normalizeMobile(values.mobile)], ["Address", values.address.trim()],
     ...(datesVisible ? ([["Date of birth", values.dateOfBirth], ["Date of joining", values.dateOfJoining]] as Array<[string, string]>) : []),
   ];
 

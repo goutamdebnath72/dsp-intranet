@@ -81,7 +81,7 @@ ok("an empty history says so", h(<HistoryList history={[]} />).includes("No chan
 
 // ---- the panel: what each person sees first ----
 const hod = h(<PaxAdminPanel open={{ op: "add", role: "hod" }} />);
-ok("the HOD sees all five tabs, with the role named", ["Add", "Change", "Delete", "Authorised people", "Recent changes"].every((t) => hod.includes(t)) && hod.includes('data-role="hod"') && hod.includes("HOD of C&amp;IT"));
+ok("the HOD sees all five tabs, with the role named", ["Add", "Modify", "Delete", "Authorised people", "Recent changes"].every((t) => hod.includes(t)) && !hod.includes(">Change<") && hod.includes('data-role="hod"') && hod.includes("HOD of C&amp;IT"));
 const del = h(<PaxAdminPanel open={{ op: "add", role: "delegate" }} />);
 ok("an authorised executive sees NO 'Authorised people' tab, and is named as such", !del.includes("Authorised people") && del.includes("Authorised executive") && del.includes('data-role="delegate"') && del.includes("Recent changes"));
 ok("'add' opens the add form first (three inputs)", hod.includes('data-pax-form="pax-add"') && hod.includes("Every entry is checked against what is saved."));
@@ -199,6 +199,9 @@ ok("the PAX delete card: the title is the place without the number, the number i
 ok("the button waits for the right number, and the number typed goes to the server", /disabled=\{busy \|\| confirmNumber\.trim\(\) !== deleting\.number\}/.test(delSrc69) && /confirmNumber: confirmNumber\.trim\(\)/.test(delSrc69));
 ok("what was typed belongs to one line as it stood: another line, or the same line changed by somebody, starts with an empty box (and 'No' and choosing a line clear it)", /const deleteKey = deleting \? `\$\{deleting\.id\}:\$\{deleting\.version \?\? ""\}` : ""/.test(delSrc69) && /typed\.forKey === deleteKey \? typed\.value : ""/.test(delSrc69) && /setTyped\(\{ forKey: "", value: "" \}\)/.test(delSrc69));
 ok("a refusal for a wrong number is shown as an error with the server's sentence", /res\.status === "invalid"\) setNotice\(\{ tone: "error"/.test(delSrc69));
+
+// ---- STEP 69b ----
+ok("the PAX tab and the list button are called MODIFY too (the two tools read alike)", /\{ id: "modify", label: "Modify",/.test(readFileSync("src/components/PaxAdminPanel.tsx", "utf8")) && /actionLabel="Modify" actionClass=\{SECONDARY\} busy=\{busy\} onPick=\{startEdit\}/.test(readFileSync("src/components/PaxAdminPanel.tsx", "utf8")));
 
 console.log(`PaxAdminPanel selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

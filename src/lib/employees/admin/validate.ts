@@ -6,7 +6,7 @@
 //   Designation     must exist, and must fit the ticket: a non-executive grade (S-1 ... S-11) for a non-executive, a managerial or medical grade for an executive.
 //   Department      must exist, and must fit the cohort (a department reserved to executives is not for a non-executive, and the other way round).
 //   SAIL P.No.      required for a new employee (it is the first password of his login account); letters and digits.
-//   Contact         (contact.ts) an executive: NIC mail @sail.in, web-mail @saildsp.co.in, a CUG mobile (94347 + 9, 2 or 3) that is required; a non-executive: one e-mail (any domain) and an optional mobile.
+//   Contact         (contact.ts) an executive: NIC mail @sail.in, web-mail @saildsp.co.in, a CUG mobile (94347 + 9, 2 or 3), OPTIONAL; a non-executive: one e-mail (any domain) and an optional mobile.
 //   Dates           (only the HOD of C&IT sees and sets them) a real calendar day; born not before 1930 and not in the future; joined not in the future; joined at 18 or later, at 23 or later for a direct recruit;
 //                   not past the retirement day (the last day of the month in which 60 is reached). Joining after 32 is allowed but WARNED (an age relaxation may be real).
 // Luxon only.
@@ -14,7 +14,7 @@
 import { DateTime } from "luxon";
 import { IST } from "@/lib/dates";
 import { isMtTicket, minJoiningAge, parseDay, retirementDate, jubileeDate, ZONE } from "@/lib/peopleEvents/rules";
-import { CUG_RE, MOBILE_HINT_EXECUTIVE, MOBILE_RE, NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, isEmail, normalizeMobile } from "./contact";
+import { CUG_RE, CUG_RULE, MOBILE_RE, NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, isEmail, normalizeMobile } from "./contact";
 import type { Cohort, DepartmentRef, EmployeeInput, FieldErrors, GradeRef, Lookups } from "./types";
 
 /** A ticket number: six digits, never starting with 0. */
@@ -38,7 +38,6 @@ export interface ValidateOptions {
   /** A new employee must have a SAIL P.No.; in a change it is required only when he has one already. */
   requirePno?: boolean;
   /** The person already has a mobile number in his login account: an executive's mobile may then stay empty (unchanged). */
-  hasMobile?: boolean;
 }
 
 export type Validated = { ok: true; value: EmployeeInput; warnings: string[] } | { ok: false; errors: FieldErrors };
@@ -95,16 +94,16 @@ export function validateEmployee(raw: Record<string, unknown>, lookups: Lookups,
   // contact: the rules differ by cohort (contact.ts). What does not belong to the cohort is not an input: it is ignored.
   const nicRaw = cleanText(raw.emailNic, 120).toLowerCase(), webRaw = cleanText(raw.webmail, 120).toLowerCase(), mailRaw = cleanText(raw.email, 120).toLowerCase();
   const mobileRaw = normalizeMobile(raw.mobile);
+  const mobileTyped = String(raw.mobile ?? "").trim() !== ""; // something was typed: even only letters is judged (and refused), never silently dropped
   let emailNic = "", webmail = "", email = "", mobile = "";
   if (isTicket(ticketNo)) {
     if (cohort === "executive") {
       if (nicRaw) { if (!isEmail(nicRaw) || !endsWithDomain(nicRaw, NIC_DOMAIN)) errors.emailNic = `The NIC mail ends with ${NIC_DOMAIN}.`; else emailNic = nicRaw; }
       if (webRaw) { if (!isEmail(webRaw) || !endsWithDomain(webRaw, WEBMAIL_DOMAIN)) errors.webmail = `The web-mail ends with ${WEBMAIL_DOMAIN}.`; else webmail = webRaw; }
-      if (mobileRaw) { if (!CUG_RE.test(mobileRaw)) errors.mobile = `Not a CUG number. ${MOBILE_HINT_EXECUTIVE}`; else mobile = mobileRaw; }
-      else if (!opts.hasMobile) errors.mobile = "Type the CUG mobile number (every executive has one).";
+      if (mobileRaw || mobileTyped) { if (!CUG_RE.test(mobileRaw)) errors.mobile = `Not a CUG number. The CUG number: ${CUG_RULE}`; else mobile = mobileRaw; } // OPTIONAL (step 69b): added later when it arrives
     } else {
       if (mailRaw) { if (!isEmail(mailRaw)) errors.email = "This is not an e-mail address."; else email = mailRaw; }
-      if (mobileRaw) { if (!MOBILE_RE.test(mobileRaw)) errors.mobile = "A mobile number is 10 digits and does not start with 0."; else mobile = mobileRaw; }
+      if (mobileRaw || mobileTyped) { if (!MOBILE_RE.test(mobileRaw)) errors.mobile = "A mobile number is 10 digits and does not start with 0."; else mobile = mobileRaw; }
     }
   }
 

@@ -133,7 +133,7 @@ export function EmployeeAdminHeader({ authority, name }: { authority: Authority;
 
 export function TabBar({ tab, authority, onTab }: { tab: Tab; authority: Authority; onTab: (t: Tab) => void }) {
   const tabs: Array<[Tab, string, React.ReactNode, boolean]> = [
-    ["add", "Add", <UserPlus key="a" className="h-4 w-4" />, true], ["modify", "Change", <Pencil key="m" className="h-4 w-4" />, true],
+    ["add", "Add", <UserPlus key="a" className="h-4 w-4" />, true], ["modify", "Modify", <Pencil key="m" className="h-4 w-4" />, true],
     ["delete", "Delete", <Trash2 key="d" className="h-4 w-4" />, authority === "hod"], ["people", "Authorised people", <Users key="p" className="h-4 w-4" />, authority === "hod"], ["history", "Recent changes", <History key="h" className="h-4 w-4" />, true],
   ];
   return (
@@ -192,7 +192,7 @@ export function EmployeePreviewCard({ values, gradeTitle, departmentName }: { va
 function Guide({ cohort }: { cohort: "executive" | "nonexecutive" | null }) {
   const lines =
     cohort === "executive"
-      ? ["The ticket starts with 4; 49 and four digits is a direct recruit (MT).", `The NIC mail ends with ${NIC_DOMAIN}, the web-mail with ${WEBMAIL_DOMAIN}.`, "The CUG mobile is required."]
+      ? ["The ticket starts with 4; 49 and four digits is a direct recruit (MT).", `The NIC mail ends with ${NIC_DOMAIN}, the web-mail with ${WEBMAIL_DOMAIN}.`, "The CUG mobile is optional: it can be added later in Modify."]
       : cohort === "nonexecutive"
         ? ["Any other ticket of 6 digits is a non-executive.", "One e-mail, any address, and an optional mobile."]
         : ["A ticket has 6 digits and never starts with 0.", "Fill the sections from the top: each one opens when the one above is complete."];
@@ -325,6 +325,16 @@ export function EmployeeForm(p: EmployeeFormProps) {
   const grade = lookups.grades.find((g) => String(g.id) === v.gradeId);
   const id = (k: string) => `${idPrefix}-${k}`;
   const set = (k: keyof FormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => p.onChange({ ...v, [k]: e.target.value } as FormValues, k);
+  /** A box that is typed in CAPITALS whatever the keys do (the name; owner, 2 Nov 2026): the capitals show at once and the caret stays where it was. */
+  const setUpper = (k: keyof FormValues) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const el = e.target;
+    const start = el.selectionStart, end = el.selectionEnd, upper = el.value.toUpperCase();
+    p.onChange({ ...v, [k]: upper } as FormValues, k);
+    if (start !== null && end !== null && upper !== el.value) {
+      const later = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (f: () => void) => setTimeout(f, 0);
+      later(() => { try { el.setSelectionRange(start, end); } catch { /* the box is gone */ } });
+    }
+  };
   const live = describeDates(v.dateOfBirth || null, v.dateOfJoining || null, p.today);
   const groups: Array<[string, GradeRef[]]> = [["Managerial", grades.filter((g) => g.track === "managerial")], ["Medical", grades.filter((g) => g.track === "medical")], ["Non-executive", grades.filter((g) => g.track === "nonexec")]];
   const todayIso = p.today.toISODate() as string;
@@ -362,7 +372,7 @@ export function EmployeeForm(p: EmployeeFormProps) {
                 <input id={id("sailPno")} data-emp-field="sailPno" className={cls("sailPno")} value={v.sailPno} onChange={set("sailPno")} maxLength={15} placeholder="For example D107659" autoComplete="off" aria-invalid={errors.sailPno ? true : undefined} />
               </Field>
               <Field id={id("name")} label="Name" error={errors.name} hint="Kept in capitals." icon={<User className={ico} />} status={status("name")} className="sm:col-span-2">
-                <input id={id("name")} data-emp-field="name" className={cls("name")} value={v.name} onChange={set("name")} maxLength={80} placeholder="Full name" autoComplete="off" aria-invalid={errors.name ? true : undefined} />
+                <input id={id("name")} data-emp-field="name" className={cls("name")} value={v.name} onChange={setUpper("name")} maxLength={80} placeholder="Full name" autoComplete="off" aria-invalid={errors.name ? true : undefined} />
               </Field>
             </div>
           </StepCard>
@@ -524,7 +534,7 @@ export function EmployeeList({ employees, onEdit, onDelete, canDelete }: { emplo
               <td className="px-3 py-2 text-slate-700">{e.gradeTitle}</td>
               <td className="px-3 py-2 text-slate-700">{e.departmentName}</td>
               <td className="whitespace-nowrap px-3 py-2 text-right">
-                <button type="button" data-emp-edit={e.id} className="mr-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50" onClick={() => onEdit(e)}>Change</button>
+                <button type="button" data-emp-edit={e.id} className="mr-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50" onClick={() => onEdit(e)}>Modify</button>
                 {canDelete && <button type="button" data-emp-delete={e.id} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700" onClick={() => onDelete(e)}>Delete</button>}
               </td>
             </tr>

@@ -377,7 +377,7 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
       // THE GUARD AGAINST A LOST UPDATE: the save is for the record AS THE PERSON SAW IT. If it is not that any more, nothing is written (not even a part), and he is told what it is now and who changed it.
       if (!sameVersion(version, versionOfRow(curRow, hod))) return { status: "stale", current: rowToRecord(curRow, hod), last: await lastChangeOf(q, id) };
       const cur = rowToRecord(curRow, true);
-      const { lk, v } = await validateHealing(db, q, cols, raw, { today: DateTime.now().setZone(IST), canEditDates: hod, fixedTicket: cur.ticketNo, requirePno: cur.sailPno !== "", hasMobile: digits(curRow.contact_no) !== "" }, await lookupsFor(db, q, cols));
+      const { lk, v } = await validateHealing(db, q, cols, raw, { today: DateTime.now().setZone(IST), canEditDates: hod, fixedTicket: cur.ticketNo, requirePno: cur.sailPno !== "" }, await lookupsFor(db, q, cols));
       if (!v.ok) return { status: "invalid", errors: v.errors };
       const x = v.value;
       const grade = lk.grades.find((g) => g.id === x.gradeId)!;

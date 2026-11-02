@@ -3,7 +3,7 @@
 // THE RULES BEHIND THE EMPLOYEE FORM (step 66e): what the form holds, how a typed department code and a chosen designation become ids, what changes between the saved record and the form, and WHICH SECTION IS OPEN.
 // PURE: no React, no drawing. The look of the form is in EmployeeAdminUi.tsx; the requests and the state are in EmployeeAdminPanel.tsx.
 
-import { maskEmail, maskMobile, normalizeMobile } from "@/lib/employees/admin/contact";
+import { normalizeMobile } from "@/lib/employees/admin/contact";
 import { cohortOfTicket, departmentFitsCohort, isTicket } from "@/lib/employees/admin/validate";
 import type { DepartmentRef, EmployeeRecord, FieldErrors, GradeRef, Lookups } from "@/lib/employees/admin/types";
 
@@ -65,10 +65,11 @@ export function changesOf(original: EmployeeRecord, v: FormValues, lookups: Look
   ];
   if (datesVisible) rows.push(["Date of birth", original.dateOfBirth, v.dateOfBirth.trim()], ["Date of joining", original.dateOfJoining, v.dateOfJoining.trim()]);
   const out = rows.filter(([, a, b]) => a !== b).map(([label, a, b]) => ({ label, from: dash(a), to: dash(b) }));
-  const typed = (label: string, now: string, value: string, mask: (x: string) => string) => { if (value.trim() !== "") out.push({ label, from: dash(now), to: `${mask(value.trim())} (replaces it)` }); };
-  typed("Mobile", original.mobileMasked, normalizeMobile(v.mobile), maskMobile);
-  if (original.cohort === "executive") { typed("NIC mail", original.emailNic, v.emailNic.toLowerCase(), maskEmail); typed("Web-mail", original.webmail, v.webmail.toLowerCase(), maskEmail); }
-  else typed("E-mail", original.emailMasked, v.email.toLowerCase(), maskEmail);
+  // the NEW value is shown as typed (the person checks what he typed); the stored one ("from") stays masked: no stored contact is shown without the logged reveal
+  const typed = (label: string, now: string, value: string) => { if (value.trim() !== "") out.push({ label, from: dash(now), to: `${value.trim()} (replaces it)` }); };
+  typed("Mobile", original.mobileMasked, normalizeMobile(v.mobile));
+  if (original.cohort === "executive") { typed("NIC mail", original.emailNic, v.emailNic.toLowerCase()); typed("Web-mail", original.webmail, v.webmail.toLowerCase()); }
+  else typed("E-mail", original.emailMasked, v.email.toLowerCase());
   return out;
 }
 

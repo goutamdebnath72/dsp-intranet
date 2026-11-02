@@ -312,7 +312,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
 
   const tabs: Array<{ id: Tab; label: string; icon: React.ReactNode; show: boolean }> = [
     { id: "add", label: "Add", icon: <Plus className="h-4 w-4" aria-hidden="true" />, show: true },
-    { id: "modify", label: "Change", icon: <Pencil className="h-4 w-4" aria-hidden="true" />, show: true },
+    { id: "modify", label: "Modify", icon: <Pencil className="h-4 w-4" aria-hidden="true" />, show: true },
     { id: "delete", label: "Delete", icon: <Trash2 className="h-4 w-4" aria-hidden="true" />, show: true },
     { id: "people", label: "Authorised people", icon: <Users className="h-4 w-4" aria-hidden="true" />, show: isHod },
     { id: "history", label: "Recent changes", icon: <History className="h-4 w-4" aria-hidden="true" />, show: true },
@@ -370,7 +370,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
           ) : (
             <>
               {searchBox}
-              {listed && <EntryList entries={entries} actionLabel="Change" actionClass={SECONDARY} busy={busy} onPick={startEdit} />}
+              {listed && <EntryList entries={entries} actionLabel="Modify" actionClass={SECONDARY} busy={busy} onPick={startEdit} />}
             </>
           )}
         </div>

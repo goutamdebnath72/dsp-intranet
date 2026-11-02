@@ -2,7 +2,7 @@
 //
 // THE CONTACT RULES OF AN EMPLOYEE RECORD (step 66b; owner, 1 Nov 2026). PURE.
 //   Executive      the NIC mail ends with @sail.in, the web-mail with @saildsp.co.in (both optional, the domains are enforced); the one general e-mail field is NOT used.
-//                  The mobile is the CUG number: ten digits, 94347 and then 9 (the usual) or 2 or 3 (the exceptions) and four digits. Every executive has one: it is required.
+//                  The mobile is the CUG number: ten digits, 94347 and then 9 (the usual) or 2 or 3 (the exceptions) and four digits. Every executive gets one, often later: it is OPTIONAL when he is added (step 69b); it was required.
 //   Non-executive  ONE e-mail field, any domain (gmail, hotmail ...), optional; (in rare cases a non-executive has the privilege of a SAIL address: he types it in this one field and it is kept as such).
 //                  The mobile is any ten-digit number that does not start with 0, optional.
 // WHERE THEY ARE KEPT (the app's own tables): the mobile and the general e-mail are in the employee's LOGIN account (user.contactNo, user.email: what the search cards mask and reveal); the NIC and the
@@ -39,5 +39,8 @@ export function maskEmail(e: string | null | undefined): string {
   return at <= 0 ? "xxxxxx" : `xxxxxx${String(e).slice(at)}`;
 }
 
-export const MOBILE_HINT_EXECUTIVE = "The CUG number: 10 digits, 94347 and then 9 (or 2, 3).";
+/** The rule of a CUG number, in words (used in the hint and in the error). */
+export const CUG_RULE = "10 digits, 94347 and then 9 (or 2, 3).";
+/** An executive's CUG mobile is OPTIONAL (owner, 2 Nov 2026: it comes with some delay and is added later in Modify). */
+export const MOBILE_HINT_EXECUTIVE = `Optional: the CUG number, ${CUG_RULE} It can be added later.`;
 export const MOBILE_HINT_NONEXECUTIVE = "Optional: 10 digits.";

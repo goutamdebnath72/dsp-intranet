@@ -14,8 +14,8 @@ const L: Lookups = {
   grades: [{ id: 5, code: 221, title: "General Manager", track: "managerial", rankOrder: 4 }, { id: 20, code: 415, title: "S-11", track: "nonexec", rankOrder: 14 }],
   departments: [{ id: 2, code: 107, name: "L & D", scope: "executive" }, { id: 4, code: 40017, name: "FIRE SERVICE", scope: "shared" }],
 };
-const errorsOf = (v: FormValues, o: { mode?: "add" | "modify"; datesVisible?: boolean; hasMobile?: boolean } = {}): FieldErrors => {
-  const r = validateEmployee(rawOf(v, L, null), L, { today: TODAY, canEditDates: o.datesVisible ?? true, requirePno: (o.mode ?? "add") === "add", hasMobile: o.hasMobile });
+const errorsOf = (v: FormValues, o: { mode?: "add" | "modify"; datesVisible?: boolean } = {}): FieldErrors => {
+  const r = validateEmployee(rawOf(v, L, null), L, { today: TODAY, canEditDates: o.datesVisible ?? true, requirePno: (o.mode ?? "add") === "add" });
   return r.ok ? {} : r.errors;
 };
 const open = (v: FormValues, o: { mode?: "add" | "modify"; datesVisible?: boolean } = {}) => unlockedSections(v, L, errorsOf(v, o), { mode: o.mode ?? "add", datesVisible: o.datesVisible ?? true, loaded: true });
@@ -49,7 +49,7 @@ ok("an empty form says what is wrong with the TICKET first", /6 digits/.test(why
 ok("with the Identity right it asks for the designation, then the department", /designation/i.test(why(id) ?? "") && /department/i.test(why({ ...id, gradeId: "5" }) ?? ""));
 ok("with Posting right and the dates empty it says to fill in BOTH DATES (not the mobile that is not open yet)", why(posting) === "Fill in both service dates to continue.");
 ok("a wrong date is named before anything of the contact", /joins at 23 or later/.test(why({ ...dates, ticketNo: "498880", dateOfBirth: "2001-03-10", dateOfJoining: "2022-03-09" }) ?? ""));
-ok("with the dates right, an executive is asked for the CUG mobile", /CUG mobile/.test(why(dates) ?? ""));
+ok("with the dates right, an executive is NOT asked for the CUG mobile (it is optional, added later): nothing stands in the way of the review", (why(dates) ?? "") === "" && !/mobile/i.test(why(dates) ?? ""), String(why(dates)));
 ok("...a wrong NIC mail is named before the missing mobile (form order: the mails are above the mobile)", /@sail\.in/.test(why({ ...dates, emailNic: "x@gmail.com" }) ?? ""));
 ok("a complete record has no reason; a change with nothing changed says so", why({ ...dates, mobile: "9434791234" }) === undefined && why({ ...dates, mobile: "9434791234" }, { mode: "modify", changes: 0 }) === "Change something to save.");
 ok("a delegate (no dates) with Posting done is not asked for dates", !/dates/.test(why(posting, { datesVisible: false }) ?? ""));
