@@ -86,3 +86,15 @@ export async function revokeDelegate(db: FacilityDb, facility: FacilityKey, acto
     throw e;
   }
 }
+
+/**
+ * Withdraw EVERY active authorisation of one person, in every tool at once (owner, 2 Nov 2026: an employee who is deleted must lose the authority of every tool, not only of the employee manager).
+ * One history line per tool, in that tool's own history, in the SAME transaction as what caused it (the deletion): both happen or neither. Returns the tools he lost (empty when he had none).
+ */
+export async function revokeEverywhere(q: QueryFn, actor: Actor, role: Authority, ticket: string, note: string): Promise<Array<{ facility: string; name: string }>> {
+  const t = String(ticket ?? "").trim();
+  const r = await q(`UPDATE public.facility_delegate SET revoked_at = now(), revoked_by_ticket = $2, revoked_by_name = $3 WHERE ticket_no = $1 AND revoked_at IS NULL RETURNING facility, name`, [t, actor.ticket, actor.name]);
+  const lost = r.map((x) => ({ facility: str(x.facility), name: str(x.name) })).sort((a, b) => (a.facility < b.facility ? -1 : a.facility > b.facility ? 1 : 0));
+  for (const l of lost) await writeAudit(q, l.facility as FacilityKey, actor, role, "revoke", { targetTicket: t, targetName: l.name, before: { ticket: t, name: l.name }, note });
+  return lost;
+}

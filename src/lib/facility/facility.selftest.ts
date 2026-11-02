@@ -150,6 +150,20 @@ async function main() {
   ok("a record nobody ever added or changed has no last change; a grant is not a change of a record", (await db.run((q) => audit.lastChangeOf(q, "pax", 99999))) === null);
   ok("a line without a before or an after is stored as empty, and a bad action word is refused by the table", (await rows(`SELECT before, after FROM public.facility_audit WHERE facility='employee' AND actor_ticket='412345' AND target_id = 77 AND note IS NULL`)).length === 1 && await db.run((q) => audit.writeAudit(q, "pax", HOD, "hod", "Bad Action")).then(() => false, () => true));
 
+  // ---- STEP 68d: withdrawing EVERYWHERE (an employee who is deleted loses the authority of every tool) ----
+  await g("employee", HOD, "412700", "EVERYWHERE PERSON"); await g("pax", HOD, "412700", "EVERYWHERE PERSON");
+  await rows(`INSERT INTO public.facility_delegate (facility, ticket_no, name, granted_by_ticket, granted_by_name) VALUES ('holiday', '412700', 'EVERYWHERE PERSON', '400001', 'HOD'), ('pax', '412701', 'OTHER PERSON', '400001', 'HOD')`);
+  const everywhere = (ticket: string, note = "deleted with the employee") => db.run((q) => auth.revokeEverywhere(q, HOD, "hod", ticket, note));
+  const lostAll = await everywhere("412700");
+  ok("withdrawing everywhere takes the person's authority in EVERY tool at once, even a tool the registry does not know yet, and says which tools", lostAll.map((x) => x.facility).join() === "employee,holiday,pax" && (await who("employee", "412700")) === null && (await who("pax", "412700")) === null && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE ticket_no='412700' AND revoked_at IS NULL`)) === 0);
+  ok("...one history line in EACH of those tools, in that tool's own history, saying who did it, as what, whom and why", (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE action='revoke' AND target_ticket='412700' AND actor_ticket='400001' AND actor_role='hod' AND note='deleted with the employee' AND before->>'name'='EVERYWHERE PERSON' AND facility IN ('employee','holiday','pax')`)) === 3 && (await count(`SELECT count(DISTINCT facility) AS n FROM public.facility_audit WHERE action='revoke' AND target_ticket='412700' AND note='deleted with the employee'`)) === 3);
+  const linesBefore = await count(`SELECT count(*) AS n FROM public.facility_audit`);
+  ok("...another person's authorisation is untouched; withdrawing again changes nothing and writes nothing; a person with no authorisation: nothing happens", (await who("pax", "412701")) === "delegate" && (await everywhere("412700")).length === 0 && (await everywhere("412799")).length === 0 && (await count(`SELECT count(*) AS n FROM public.facility_audit`)) === linesBefore);
+  ok("...a withdrawal made earlier keeps its own dates and its own 'who' (the revoked rows are left alone)", (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='employee' AND ticket_no='412346' AND revoked_by_name = 'HOD'`)) === 1 && (await everywhere("412346")).length === 0);
+  await g("employee", HOD, "412702", "ROLLBACK PERSON");
+  await db.run(async (q) => { await auth.revokeEverywhere(q, HOD, "hod", "412702", "x"); throw new Error("stop"); }).catch(() => undefined);
+  ok("...it is part of the caller's transaction: when that is rolled back the person keeps the authority and no history line is left", (await who("employee", "412702")) === "delegate" && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE action='revoke' AND target_ticket='412702'`)) === 0);
+
   await pool.end();
   const b = new Pool({ connectionString: adminUrl, max: 1 });
   await b.query(`DROP DATABASE IF EXISTS ${DB} WITH (FORCE)`);

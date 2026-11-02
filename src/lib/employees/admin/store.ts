@@ -21,7 +21,7 @@ import { isSuperAdmin } from "@/lib/superAdmin";
 import type { QueryFn } from "@/lib/pax/store";
 import type { AcknowledgeKind, Authority, AuditView, ChangeView, DelegateView, DepartmentRef, EmployeeConflict, EmployeeRecord, FieldErrors, GradeRef, Lookups, LastChange } from "./types";
 import { sameVersion, versionOf } from "@/lib/concurrency/version";
-import { Forbidden, authorityOf as sharedAuthorityOf, begin as sharedBegin, grantDelegate as sharedGrant, listDelegates as sharedList, revokeDelegate as sharedRevoke } from "@/lib/facility/authority";
+import { Forbidden, authorityOf as sharedAuthorityOf, begin as sharedBegin, grantDelegate as sharedGrant, listDelegates as sharedList, revokeDelegate as sharedRevoke, revokeEverywhere } from "@/lib/facility/authority";
 import { lastChangeOf as sharedLastChange, recentAuditRows, writeAudit } from "@/lib/facility/audit";
 import type { DelegateResult } from "@/lib/facility/types";
 import { NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, maskEmail, maskMobile } from "./contact";
@@ -496,10 +496,9 @@ export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: 
       await q(`DELETE FROM public.employee_roster WHERE id = $1`, [id]);
       let loginRemoved = false;
       if (opts.removeLogin && login) { await q(`DELETE FROM public."user" WHERE id = $1`, [loginId]); loginRemoved = true; }
-      // somebody who was authorised to manage employees and is deleted loses it with the job
-      const wasDelegate = await q(`UPDATE public.facility_delegate SET revoked_at = now(), revoked_by_ticket = $2, revoked_by_name = $3 WHERE facility = 'employee' AND ticket_no = $1 AND revoked_at IS NULL RETURNING name`, [cur.ticketNo, actor.ticket, actor.name]);
       await audit(q, actor, role, "delete", id, cur.ticketNo, cur.name, snap(cur), { loginRemoved, ...(login ? { login: { id: String(login.id), ticketNo: str(login.ticketNo), name: str(login.name) } } : {}) });
-      if (wasDelegate.length) await audit(q, actor, role, "revoke", null, cur.ticketNo, cur.name, { ticket: cur.ticketNo, name: cur.name }, null, "deleted with the employee");
+      // an employee who was authorised for ANY tool and is deleted loses every one of those authorities with the job (owner's decision, 2 Nov 2026): one history line in each tool, in this same transaction
+      await revokeEverywhere(q, actor, role, cur.ticketNo, "deleted with the employee");
       await refreshNameCodes(q);
       return { status: "ok", name: cur.name, ticketNo: cur.ticketNo, loginRemoved };
     });
