@@ -24,7 +24,11 @@ import { sameVersion, versionOf } from "@/lib/concurrency/version";
 import { NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, maskEmail, maskMobile } from "./contact";
 import { cleanText, seniorityRank, validateEmployee } from "./validate";
 
-export interface EmpDb { run<T>(fn: (q: QueryFn) => Promise<T>): Promise<T> }
+export interface EmpDb {
+  run<T>(fn: (q: QueryFn) => Promise<T>): Promise<T>;
+  /** What the remembered table layout and code lists hang on (the database connection): without it nothing is remembered and every call reads them again (as the tests' wrappers do). */
+  cacheKey?: object;
+}
 export interface Actor { ticket: string; name: string }
 
 const LOCK = "SELECT pg_advisory_xact_lock(hashtext('employee_roster')::bigint)";
@@ -132,11 +136,70 @@ async function lastChangeOf(q: QueryFn, id: number): Promise<LastChange | null> 
 }
 
 const escapeLike = (w: string) => w.replace(/[\\%_]/g, (m) => `\\${m}`);
+// ---------------------------------------------------------------------------------------------------------------------------------
+// REMEMBERING THE TABLE LAYOUT AND THE CODE LISTS (step 67d; owner, 1 Nov 2026: "speed up saves by remembering the table layout and the code lists for a few minutes instead of reading them on every save").
+// Every search, add, change and delete first asked the database what columns the tables have (discover) and, for add and change, for the whole list of designations and departments (loadLookups): three
+// round trips to Supabase, each about half a second on a development machine, on EVERY save. They change only when somebody runs a migration, so they are remembered for 5 minutes, SEPARATELY (the layout and the lists).
+// WHERE: on the database connection (`db.cacheKey`), not in a global: another database, a test database or a restarted server never sees this memory, and a wrapper without a key remembers nothing.
+// WHY IT CANNOT MAKE A SAVE WRONG:
+//   * when a panel opens (the `lookups` request) both are read FRESH and remembered, so what is on the screen is never staler than the moment it was opened;
+//   * a save refused only because a designation or department is not in the REMEMBERED list reads the real list and checks again before it gives up (a designation added by a script a minute ago works at once);
+//   * a designation or department removed since it was remembered is refused by the database (a foreign key): that becomes a clear message, the memory is cleared, and nothing is half written.
+// Only the layout and the codes and titles are remembered: nothing about a person, so nothing private.
+// ---------------------------------------------------------------------------------------------------------------------------------
+export const SCHEMA_MEMORY_MS = 5 * 60 * 1000;
+interface Remembered { cols?: { v: Cols; at: number }; lookups?: { v: Lookups; at: number } }
+const memory = new WeakMap<object, Remembered>();
+/** `now` can be moved by a test; `clear(db)` forgets everything of one database. */
+export const schemaMemory = {
+  now: (): number => Date.now(),
+  ttlMs: SCHEMA_MEMORY_MS,
+  clear(db: EmpDb): void { if (db.cacheKey) memory.delete(db.cacheKey); },
+};
+const alive = (e: { at: number } | undefined): boolean => !!e && schemaMemory.now() - e.at <= schemaMemory.ttlMs;
+const keep = (db: EmpDb, patch: Remembered): void => { if (db.cacheKey) memory.set(db.cacheKey, { ...(memory.get(db.cacheKey) ?? {}), ...patch }); };
+
+/** The table layout: from the memory while it is fresh, else read (and remembered). */
+async function colsFor(db: EmpDb, q: QueryFn): Promise<Cols> {
+  const m = db.cacheKey ? memory.get(db.cacheKey) : undefined;
+  if (m?.cols && alive(m.cols)) return m.cols.v;
+  const v = await discover(q);
+  keep(db, { cols: { v, at: schemaMemory.now() } });
+  return v;
+}
+/** The designations and departments: from the memory while fresh (`cached` says so), else read (and remembered). */
+async function lookupsFor(db: EmpDb, q: QueryFn, cols: Cols): Promise<{ lk: Lookups; cached: boolean }> {
+  const m = db.cacheKey ? memory.get(db.cacheKey) : undefined;
+  if (m?.lookups && alive(m.lookups)) return { lk: m.lookups.v, cached: true };
+  const v = await loadLookups(q, cols);
+  keep(db, { lookups: { v, at: schemaMemory.now() } });
+  return { lk: v, cached: false };
+}
+/** Read the real lists NOW and remember them. */
+async function freshLookups(db: EmpDb, q: QueryFn, cols: Cols): Promise<Lookups> {
+  const v = await loadLookups(q, cols);
+  keep(db, { lookups: { v, at: schemaMemory.now() } });
+  return v;
+}
+/**
+ * Validate a record against the lists. If the lists came from the MEMORY and the only trouble is that a designation or department is not in them, the real lists are read and the record is checked once more:
+ * the memory can be a few minutes old, and a refusal must never be because of that.
+ */
+async function validateHealing(db: EmpDb, q: QueryFn, cols: Cols, raw: Record<string, unknown>, opts: Parameters<typeof validateEmployee>[2], first: { lk: Lookups; cached: boolean }): Promise<{ lk: Lookups; v: ReturnType<typeof validateEmployee> }> {
+  let lk = first.lk;
+  let v = validateEmployee(raw, lk, opts);
+  if (!v.ok && first.cached && (v.errors.gradeId || v.errors.departmentId)) {
+    lk = await freshLookups(db, q, cols);
+    v = validateEmployee(raw, lk, opts);
+  }
+  return { lk, v };
+}
+
 export async function searchEmployees(db: EmpDb, text: string, canSeeDates: boolean, limit = 25): Promise<EmployeeRecord[]> {
   const words = cleanText(text, 80).toLowerCase().split(" ").filter(Boolean).slice(0, 5);
   if (words.length === 0) return [];
   return db.run(async (q) => {
-    const cols = await discover(q);
+    const cols = await colsFor(db, q);
     const params: unknown[] = [];
     const conds = words.map((w) => {
       params.push(escapeLike(w));
@@ -150,12 +213,17 @@ export async function searchEmployees(db: EmpDb, text: string, canSeeDates: bool
 
 export async function getEmployee(db: EmpDb, id: number, canSeeDates: boolean): Promise<EmployeeRecord | null> {
   return db.run(async (q) => {
-    const row = await getRow(q, await discover(q), id);
+    const row = await getRow(q, await colsFor(db, q), id);
     return row ? rowToRecord(row, canSeeDates) : null;
   });
 }
 
-export const lookups = (db: EmpDb): Promise<Lookups> => db.run((q) => loadLookups(q));
+/** Asked once when a panel opens: reads the layout AND the lists fresh from the database and remembers them, so that what the person sees is as fresh as the moment he opened the panel. */
+export const lookups = (db: EmpDb): Promise<Lookups> => db.run(async (q) => {
+  const cols = await discover(q);
+  keep(db, { cols: { v: cols, at: schemaMemory.now() } });
+  return freshLookups(db, q, cols);
+});
 
 // ---- the audit line ----
 async function audit(q: QueryFn, actor: Actor, role: Authority, action: "add" | "modify" | "delete" | "grant" | "revoke", employeeId: number | null, targetTicket: string | null, targetName: string | null, before: unknown, after: unknown, note: string | null = null) {
@@ -173,6 +241,9 @@ async function refreshNameCodes(q: QueryFn): Promise<void> {
 
 const isUnique = (e: unknown) => (e as { code?: string })?.code === "23505";
 const isCheck = (e: unknown) => (e as { code?: string })?.code === "23514";
+/** A foreign key refused the write: a designation or a department that was in the remembered list is no longer in the table. */
+const isForeignKey = (e: unknown) => (e as { code?: string })?.code === "23503";
+const LISTS_CHANGED: FieldErrors = { form: "The list of designations or departments has just changed: please open the form again and choose once more." };
 
 export type SaveResult =
   | { status: "ok"; employee: EmployeeRecord }
@@ -245,10 +316,9 @@ export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, u
   try {
     return await db.run(async (q): Promise<SaveResult> => {
       const role = await begin(q, actor);
-      const cols = await discover(q);
-      const lk = await loadLookups(q, cols);
+      const cols = await colsFor(db, q);
       const now = DateTime.now().setZone(IST);
-      const v = validateEmployee(raw, lk, { today: now, canEditDates: role === "hod", requirePno: true });
+      const { lk, v } = await validateHealing(db, q, cols, raw, { today: now, canEditDates: role === "hod", requirePno: true }, await lookupsFor(db, q, cols));
       if (!v.ok) return { status: "invalid", errors: v.errors };
       const x = v.value;
       const dup = await q(`SELECT name FROM public.employee_roster WHERE ticket_no = $1 LIMIT 1`, [x.ticketNo]);
@@ -299,6 +369,7 @@ export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, u
   } catch (e) {
     if (e instanceof Forbidden) return { status: "forbidden" };
     if (e instanceof LoginRefused) return { status: "invalid", errors: e.errors };
+    if (isForeignKey(e)) { schemaMemory.clear(db); return { status: "invalid", errors: LISTS_CHANGED }; }
     if (isUnique(e)) return { status: "invalid", errors: { ticketNo: "This ticket number (or SAIL P.No.) is already on the roll." } };
     if (isCheck(e)) return { status: "invalid", errors: { dateOfJoining: "The database refused these dates: nobody joins before 18 (23 for a direct recruit, ticket 49xxxx)." } };
     throw e;
@@ -311,7 +382,7 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
   try {
     return await db.run(async (q): Promise<SaveResult> => {
       const role = await begin(q, actor);
-      const cols = await discover(q);
+      const cols = await colsFor(db, q);
       await lockRow(q, cols, id);
       const curRow = await getRow(q, cols, id);
       if (!curRow) return { status: "missing" };
@@ -319,8 +390,7 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
       // THE GUARD AGAINST A LOST UPDATE: the save is for the record AS THE PERSON SAW IT. If it is not that any more, nothing is written (not even a part), and he is told what it is now and who changed it.
       if (!sameVersion(version, versionOfRow(curRow, hod))) return { status: "stale", current: rowToRecord(curRow, hod), last: await lastChangeOf(q, id) };
       const cur = rowToRecord(curRow, true);
-      const lk = await loadLookups(q, cols);
-      const v = validateEmployee(raw, lk, { today: DateTime.now().setZone(IST), canEditDates: hod, fixedTicket: cur.ticketNo, requirePno: cur.sailPno !== "", hasMobile: digits(curRow.contact_no) !== "" });
+      const { lk, v } = await validateHealing(db, q, cols, raw, { today: DateTime.now().setZone(IST), canEditDates: hod, fixedTicket: cur.ticketNo, requirePno: cur.sailPno !== "", hasMobile: digits(curRow.contact_no) !== "" }, await lookupsFor(db, q, cols));
       if (!v.ok) return { status: "invalid", errors: v.errors };
       const x = v.value;
       const grade = lk.grades.find((g) => g.id === x.gradeId)!;
@@ -404,6 +474,7 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
   } catch (e) {
     if (e instanceof Forbidden) return { status: "forbidden" };
     if (e instanceof LoginRefused) return { status: "invalid", errors: e.errors };
+    if (isForeignKey(e)) { schemaMemory.clear(db); return { status: "invalid", errors: LISTS_CHANGED }; }
     if (isUnique(e)) return { status: "invalid", errors: { sailPno: "This SAIL P.No. is already on the roll." } };
     if (isCheck(e)) return { status: "invalid", errors: { dateOfJoining: "The database refused these dates: nobody joins before 18 (23 for a direct recruit, ticket 49xxxx)." } };
     throw e;
@@ -424,7 +495,7 @@ export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: 
   try {
     return await db.run(async (q): Promise<DeleteResult> => {
       const role = await begin(q, actor, true);
-      const cols = await discover(q);
+      const cols = await colsFor(db, q);
       await lockRow(q, cols, id);
       const row = await getRow(q, cols, id);
       if (!row) return { status: "missing" };

@@ -5,11 +5,21 @@
 
 import type { DataSource } from "typeorm";
 import { typeormPaxDb } from "@/lib/pax/admin/access";
+import { rowsOf } from "@/lib/pax/admin/rows";
 import type { QueryFn } from "@/lib/pax/store";
-import { authorityOf } from "./store";
+import { authorityOf, type EmpDb } from "./store";
 import type { Authority } from "./types";
 
-export { sessionActor, typeormPaxDb as typeormEmpDb } from "@/lib/pax/admin/access";
+export { sessionActor } from "@/lib/pax/admin/access";
+
+/**
+ * The employee manager's database: the application's own connection, in a transaction per request. It carries the connection as its KEY (step 67d), so that the store can remember the table layout and the code
+ * lists for a few minutes per database: a new wrapper is made for every request, the connection is the one thing that stays.
+ */
+export const typeormEmpDb = (ds: DataSource): EmpDb => ({
+  cacheKey: ds,
+  run: (fn) => ds.transaction((m) => fn(async (sql, params) => rowsOf(await m.query(sql, params as never[])))),
+});
 
 /** HOD, delegate, or null for this ticket. A failing read means null (never open the manager on doubt). */
 export async function authorityForTicket(ds: DataSource, ticket: string | null | undefined): Promise<Authority | null> {

@@ -362,6 +362,76 @@ async function main() {
   const withDef = await addX(HOD, { ticketNo: "342705", name: "With Default Five", gradeId: 21, departmentId: 4 });
   ok("a roster whose id DOES number itself is left alone: the add takes the id the table gives (no table lock, no hand-made id)", idDefault !== null && withDef.status === "ok");
 
+  // ---- REMEMBERING THE TABLE LAYOUT AND THE CODE LISTS (step 67d) ----
+  // a database wrapper that COUNTS what it sends: the layout reads (information_schema) and the reads of the designations and departments
+  const counting = (key?: object) => {
+    const n = { all: 0, layout: 0, lists: 0 };
+    const d: import("./store").EmpDb = { ...(key ? { cacheKey: key } : {}), run: (fn) => db.run((q) => fn(async (sql, params) => { n.all++; if (/information_schema\.columns/.test(sql)) n.layout++; if (/FROM public\.(designation_grade|sail_department)\b/.test(sql)) n.lists++; return q(sql, params); })) };
+    return { n, d };
+  };
+  const snapshot = (n: { all: number; layout: number; lists: number }) => ({ ...n });
+  const saveAs = async (d: import("./store").EmpDb, p: Rec, over: Record<string, unknown>, version: string) => store.modifyEmployee(d, HOD, p.id, F(p, over), [], version);
+  const KEY = {}, c1 = counting(KEY);
+  const M1 = await person("412801", "Memory Person One");
+  const memSave1 = await saveAs(c1.d, M1, { address: "first save" }, M1.version);
+  const after1 = snapshot(c1.n);
+  const memSave2 = memSave1.status === "ok" ? await saveAs(c1.d, M1, { address: "second save" }, memSave1.employee.version) : memSave1;
+  const after2 = snapshot(c1.n);
+  ok("the FIRST save reads the table layout and the two code lists from the database", memSave1.status === "ok" && after1.layout >= 1 && after1.lists === 2, JSON.stringify(after1));
+  ok("the SECOND save reads NEITHER (they are remembered): no layout read, no read of the designations or departments", memSave2.status === "ok" && after2.layout === after1.layout && after2.lists === after1.lists, JSON.stringify(after2));
+  ok("...so it sends at least THREE queries fewer to the database than the first (one for the layout, two for the lists)", after1.all - (after2.all - after1.all) >= 3 && (after2.all - after1.all) < after1.all, `${after1.all} then ${after2.all - after1.all}`);
+  ok("...and the save is right all the same (both texts were saved in turn)", (await addressOf(M1.id)) === "second save");
+  const c0 = counting();
+  const M2 = await person("412802", "Memory Person Two");
+  await saveAs(c0.d, M2, { address: "a" }, M2.version); const z1 = c0.n.layout;
+  await saveAs(c0.d, M2, { address: "b" }, (await store.getEmployee(db, M2.id, true))!.version); const z2 = c0.n.layout;
+  ok("a wrapper WITHOUT a key remembers nothing: every call reads the layout again (so the other tests, and any other use, are unchanged)", z1 >= 1 && z2 > z1);
+  const c2 = counting({});
+  await store.searchEmployees(c2.d, "412801", true); await store.searchEmployees(c2.d, "412801", true); await store.getEmployee(c2.d, M1.id, true);
+  ok("the memory is PER DATABASE (a connection of its own has its own): a second key reads the layout itself, once; a search and a read afterwards use it", c2.n.layout === 1, JSON.stringify(c2.n));
+
+  // it expires
+  const realNow = store.schemaMemory.now;
+  store.schemaMemory.now = () => realNow() + 6 * 60 * 1000;
+  const beforeExpiry = snapshot(c1.n);
+  const cur1 = (await store.getEmployee(db, M1.id, true))!;
+  await saveAs(c1.d, M1, { address: "after expiry" }, cur1.version);
+  store.schemaMemory.now = realNow;
+  ok("after FIVE minutes the memory has expired: the next save reads the layout and the lists again", c1.n.layout === beforeExpiry.layout + 1 && c1.n.lists === beforeExpiry.lists + 2, JSON.stringify([beforeExpiry, c1.n]));
+  ok("...and then it is remembered again (the save after that reads nothing)", await (async () => { const b = snapshot(c1.n); const cur = (await store.getEmployee(db, M1.id, true))!; await saveAs(c1.d, M1, { address: "again" }, cur.version); return c1.n.layout === b.layout && c1.n.lists === b.lists; })());
+  const bForget = snapshot(c1.n);
+  store.schemaMemory.clear(c1.d);
+  await saveAs(c1.d, M1, { address: "after clear" }, (await store.getEmployee(db, M1.id, true))!.version);
+  ok("the memory can be cleared by hand (clear): the next save reads again", c1.n.layout === bForget.layout + 1 && c1.n.lists === bForget.lists + 2);
+
+  // opening a panel always reads fresh
+  await saveAs(c1.d, M1, { address: "warm" }, (await store.getEmployee(db, M1.id, true))!.version);
+  await rows(`INSERT INTO public.designation_grade (id, code, title, track, rank_order) VALUES (977, 410, 'Memory Probe', 'nonexec', 30)`);
+  const bOpen = snapshot(c1.n);
+  const listed = await store.lookups(c1.d);
+  ok("opening a panel (the lookups request) reads the lists FRESH even while the memory is valid: a designation added a moment ago by a script is on the screen at once", listed.grades.some((g) => g.title === "Memory Probe") && c1.n.layout === bOpen.layout + 1 && c1.n.lists === bOpen.lists + 2, JSON.stringify([bOpen, c1.n]));
+  ok("...and what that read found is what the saves use afterwards (nothing more to read)", await (async () => { const b = snapshot(c1.n); await saveAs(c1.d, M1, { address: "after open" }, (await store.getEmployee(db, M1.id, true))!.version); return c1.n.layout === b.layout && c1.n.lists === b.lists; })());
+
+  // a designation added behind the memory's back
+  await rows(`INSERT INTO public.designation_grade (id, code, title, track, rank_order) VALUES (978, 411, 'Memory Probe Two', 'nonexec', 31)`);
+  const healed = await store.addEmployee(c1.d, HOD, full({ ticketNo: "342811", name: "Healed Person", gradeId: 978, departmentId: 4 }));
+  ok("a designation ADDED by a script after the lists were remembered: a save using it is NOT refused (the refusal is checked against the real list once): the person is added", healed.status === "ok" && healed.employee.gradeId === 978, JSON.stringify(healed));
+  ok("...and the real list is remembered from then on (the next save with it reads nothing)", await (async () => { const b = snapshot(c1.n); const r = await store.addEmployee(c1.d, HOD, full({ ticketNo: "342812", name: "Healed Person Two", gradeId: 978, departmentId: 4 })); return r.status === "ok" && c1.n.lists === b.lists; })());
+  ok("a designation that does NOT exist anywhere is still refused (the check against the real list does not let anything through): it says so, and nothing is written", await (async () => { const r = await store.addEmployee(c1.d, HOD, full({ ticketNo: "342813", name: "Nobody Grade", gradeId: 9999, departmentId: 4 })); return r.status === "invalid" && !!r.errors.gradeId && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342813'`)) === 0; })());
+
+  // a designation removed behind the memory's back
+  await rows(`DELETE FROM public.employee_roster WHERE ticket_no IN ('342811', '342812')`);
+  await rows(`DELETE FROM public.designation_grade WHERE id = 978`);
+  const gone = await store.addEmployee(c1.d, HOD, full({ ticketNo: "342814", name: "Gone Grade", gradeId: 978, departmentId: 4 }));
+  ok("a designation REMOVED after the lists were remembered: the database refuses it, and the answer is a clear message (not a crash), and nothing is half written", gone.status === "invalid" && /has just changed/.test(gone.errors.form ?? "") && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342814'`)) === 0 && (await count(`SELECT count(*) AS n FROM public."user" WHERE "ticketNo"='342814'`)) === 0, JSON.stringify(gone));
+  ok("...the memory was cleared by that: the same try again is now an ordinary refusal against the real list", await (async () => { const r = await store.addEmployee(c1.d, HOD, full({ ticketNo: "342814", name: "Gone Grade", gradeId: 978, departmentId: 4 })); return r.status === "invalid" && !!r.errors.gradeId; })());
+  await rows(`DELETE FROM public.designation_grade WHERE id = 977`);
+  store.schemaMemory.clear(c1.d);
+  const nodeFs = await import("node:fs");
+  const accessSrc = nodeFs.readFileSync("src/lib/employees/admin/access.ts", "utf8");
+  ok("the production wrapper carries the shared database connection as the memory's key (a new wrapper is made for every request, the connection is what stays), and it is the employee manager's own (the PAX editor's is not touched)", /export const typeormEmpDb = \(ds: DataSource\): EmpDb => \(\{\s*cacheKey: ds,/.test(accessSrc) && !/typeormPaxDb as typeormEmpDb/.test(accessSrc));
+  ok("only the layout and the codes and titles are remembered, never anything about a person (the memory holds nothing but the table layout and the two lists)", /interface Remembered \{ cols\?: \{ v: Cols; at: number \}; lookups\?: \{ v: Lookups; at: number \} \}/.test(nodeFs.readFileSync("src/lib/employees/admin/store.ts", "utf8")));
+
   // ---- a roster whose optional columns differ ----
   await pool.query(`ALTER TABLE public.employee_roster DROP COLUMN address CASCADE, DROP COLUMN webmail_saildsp CASCADE, DROP COLUMN doctor_override CASCADE`);
   const slim = await addX(HOD, { ticketNo: "412392", name: "Slim Table", gradeId: 9, departmentId: 1, address: "ignored", webmail: "a@saildsp.co.in", doctor: true });
