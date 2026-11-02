@@ -53,8 +53,15 @@ async function main() {
   await pool.query(readFileSync(join(SQL_DIR, "14_people_events.sql"), "utf8")); // sample dates for the seven, as in the live database
   const m15 = readFileSync(join(SQL_DIR, "15_employee_admin.sql"), "utf8");
   await pool.query(m15);
+  // step 68b: the authorisations and the history live in the SHARED tables (sql/17); its closing check reads the PAX editor's two old tables too, so sql/13 runs here as it did live
+  await pool.query(`CREATE TABLE IF NOT EXISTS public.pax_directory (id serial PRIMARY KEY, dept_name text, location text, "number" text, label text, note text, source text, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now())`);
+  await pool.query(readFileSync(join(SQL_DIR, "13_pax_admin.sql"), "utf8"));
+  const m17 = readFileSync(join(SQL_DIR, "17_facility_kit.sql"), "utf8");
+  await pool.query(m17);
   let again = true; try { await pool.query(m15); } catch { again = false; }
   ok("the migration sql/15 runs twice without error", again);
+  let again17 = true; try { await pool.query(m17); } catch { again17 = false; }
+  ok("the migration sql/17 runs twice without error", again17);
 
   const db: import("./store").EmpDb = {
     run: async (fn) => {
@@ -74,11 +81,11 @@ async function main() {
   const count = async (sql: string, p: unknown[] = []) => Number((await q(sql, p))[0].n);
 
   // ---- the tables ----
-  ok("both tables are closed to the public API roles, with row level security on", (await count(`SELECT count(*) AS n FROM pg_tables WHERE schemaname='public' AND tablename IN ('employee_admin_delegate','employee_admin_audit') AND rowsecurity`)) === 2 && !(await q(`SELECT has_table_privilege('anon','public.employee_admin_audit','SELECT') AS x`))[0].x && !(await q(`SELECT has_table_privilege('authenticated','public.employee_admin_delegate','SELECT') AS x`))[0].x);
+  ok("both tables are closed to the public API roles, with row level security on", (await count(`SELECT count(*) AS n FROM pg_tables WHERE schemaname='public' AND tablename IN ('facility_delegate','facility_audit') AND rowsecurity`)) === 2 && !(await q(`SELECT has_table_privilege('anon','public.facility_audit','SELECT') AS x`))[0].x && !(await q(`SELECT has_table_privilege('authenticated','public.facility_delegate','SELECT') AS x`))[0].x);
 
   // ---- who is who ----
   ok("the HOD (by the environment) is the HOD; nobody else is anything yet", (await db.run((x) => store.authorityOf(x, "400001"))) === "hod" && (await db.run((x) => store.authorityOf(x, "412345"))) === null && (await db.run((x) => store.authorityOf(x, ""))) === null && (await db.run((x) => store.authorityOf(x, null))) === null);
-  ok("a person who is not authorised cannot add (nothing is written, not even a history line)", (await store.addEmployee(db, NOBODY, { ticketNo: "412399", name: "X Y Z", gradeId: 9, departmentId: 1 })).status === "forbidden" && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit`)) === 0 && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='412399'`)) === 0);
+  ok("a person who is not authorised cannot add (nothing is written, not even a history line)", (await store.addEmployee(db, NOBODY, { ticketNo: "412399", name: "X Y Z", gradeId: 9, departmentId: 1 })).status === "forbidden" && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee'`)) === 0 && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='412399'`)) === 0);
   ok("only the HOD authorises: a stranger and a would-be delegate are refused", (await store.grantDelegate(db, NOBODY, { ticket: "412345", name: "RAKESH OJHA" })).status === "forbidden");
   ok("the HOD authorises RAKESH OJHA: he is a delegate, and the history says who and when", (await store.grantDelegate(db, HOD, { ticket: "412345", name: "RAKESH OJHA" })).status === "ok" && (await db.run((x) => store.authorityOf(x, "412345"))) === "delegate" && (await store.listDelegates(db)).some((d) => d.ticket === "412345" && d.grantedByTicket === "400001"));
   ok("a second authorisation of the same person: 'already'; a non-executive, the HOD himself, a missing name: refused in words", (await store.grantDelegate(db, HOD, { ticket: "412345", name: "RAKESH OJHA" })).status === "already" && (await store.grantDelegate(db, HOD, { ticket: "342461", name: "X" })).status === "invalid" && (await store.grantDelegate(db, HOD, { ticket: "400001", name: "HOD" })).status === "invalid" && (await store.grantDelegate(db, HOD, { ticket: "412346", name: " " })).status === "invalid");
@@ -101,7 +108,7 @@ async function main() {
   const rowAdded = (await rows(`SELECT * FROM public.employee_roster WHERE ticket_no='498999'`))[0];
   ok("...stored: the rank is order x 10000 + position (12 x 10000 + 3), empty fields are true NULLs, the snapshot date (NOT NULL in this table) is today in India, and his login account is linked", rowAdded.global_seniority_rank === 120003 && rowAdded.webmail_saildsp === null && rowAdded.cohort === "executive" && rowAdded.user_id !== null && String(rowAdded.source_snapshot_date).length > 0, JSON.stringify(rowAdded));
   ok("...the dates the HOD typed are marked as REAL (hr), no longer samples", rowAdded.dates_source === "hr" && String(rowAdded.date_of_birth).includes("2001") && String(rowAdded.date_of_joining).includes("2025"));
-  const au = await rows(`SELECT * FROM public.employee_admin_audit WHERE action='add'`);
+  const au = await rows(`SELECT * FROM public.facility_audit WHERE facility='employee' AND action='add'`);
   ok("...ONE history line, in the same commit: who (ticket, name, role), whom, and the record after", au.length === 1 && au[0].actor_ticket === "400001" && au[0].actor_role === "hod" && au[0].target_ticket === "498999" && au[0].before === null && au[0].after.name === "RAVI KUMAR" && au[0].after.dateOfBirth === "2001-03-10");
   ok("the new person is found by the people search of the whole application (the AI search's own view of the roster)", (await q(`SELECT 1 FROM nlq.employees WHERE ticket_no = '498999'`)).length === 1);
 
@@ -121,15 +128,15 @@ async function main() {
   const byDelegate = await addX(RAKESH, { ticketNo: "342470", name: "Tapan Roy", gradeId: 21, departmentId: 4, dateOfBirth: "1990-01-01", dateOfJoining: "2010-01-01" });
   const rowDel = (await rows(`SELECT * FROM public.employee_roster WHERE ticket_no='342470'`))[0];
   ok("a delegate adds a non-executive: ok; the two dates he sent are IGNORED (nothing stored, no label)", byDelegate.status === "ok" && rowDel.date_of_birth === null && rowDel.date_of_joining === null && rowDel.dates_source === null && byDelegate.status === "ok" && byDelegate.employee.datesVisible === false, JSON.stringify(rowDel));
-  ok("...the history line says role 'delegate'", (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='add' AND actor_role='delegate' AND target_ticket='342470'`)) === 1);
+  ok("...the history line says role 'delegate'", (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='add' AND actor_role='delegate' AND target_ticket='342470'`)) === 1);
 
   // ---- changing ----
   const goutam = (await store.searchEmployees(db, "342461", true))[0];
   const mod = await modX(HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 20, departmentId: 4, sailPno: "", address: "New address", emailNic: "", webmail: "", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining, ticketNo: "999999" });
   ok("the HOD changes a name and a department: ok; a ticket typed in the form is IGNORED (the ticket is fixed)", mod.status === "ok" && mod.employee.name === "GOUTAM KUMAR DEBNATH" && mod.employee.departmentName === "FIRE SERVICE" && mod.employee.ticketNo === "342461" && mod.employee.address === "New address", JSON.stringify(mod));
-  const ma = (await rows(`SELECT * FROM public.employee_admin_audit WHERE action='modify' ORDER BY id DESC LIMIT 1`))[0];
+  const ma = (await rows(`SELECT * FROM public.facility_audit WHERE facility='employee' AND action='modify' ORDER BY id DESC LIMIT 1`))[0];
   ok("...the history keeps the record BEFORE and AFTER", ma.before.name === "GOUTAM DEBNATH" && ma.after.name === "GOUTAM KUMAR DEBNATH" && ma.before.departmentName === "L & D OFFICE" && ma.after.departmentName === "FIRE SERVICE");
-  ok("changing nothing is 'unchanged' and writes no history", (await modX(HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 20, departmentId: 4, address: "New address", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining })).status === "unchanged" && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='modify'`)) === 1);
+  ok("changing nothing is 'unchanged' and writes no history", (await modX(HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 20, departmentId: 4, address: "New address", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining })).status === "unchanged" && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='modify'`)) === 1);
   const promoted = await modX(HOD, goutam.id, { name: "goutam kumar debnath", gradeId: 21, departmentId: 4, address: "New address", dateOfBirth: goutam.dateOfBirth, dateOfJoining: goutam.dateOfJoining });
   const rGr = (await rows(`SELECT within_grade_position AS p, global_seniority_rank AS r FROM public.employee_roster WHERE id=$1`, [goutam.id]))[0];
   ok("a change of designation puts him LAST in the new grade and the rank follows the formula (15 x 10000 + position)", promoted.status === "ok" && rGr.r === 150000 + rGr.p && rGr.p >= 3, JSON.stringify(rGr));
@@ -154,11 +161,11 @@ async function main() {
   const hodRow = (await store.searchEmployees(db, "400001", true))[0];
   ok("the HOD cannot delete himself, and nobody can delete a record whose ticket is the HOD's", (await delX(HOD, hodRow.id, { confirmTicket: "400001", removeLogin: false })).status === "protected" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='400001'`)) === 1);
   const d1 = await delX(HOD, tapan.id, { confirmTicket: "342470", removeLogin: false });
-  ok("the HOD deletes an employee: gone from the roster, ONE history line with the whole record before", d1.status === "ok" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342470'`)) === 0 && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='delete' AND target_ticket='342470' AND before->>'name' = 'TAPAN ROY'`)) === 1);
+  ok("the HOD deletes an employee: gone from the roster, ONE history line with the whole record before", d1.status === "ok" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342470'`)) === 0 && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='delete' AND target_ticket='342470' AND before->>'name' = 'TAPAN ROY'`)) === 1);
   const rak = (await store.searchEmployees(db, "412345", true))[0];
   const d2 = await delX(HOD, rak.id, { confirmTicket: "412345", removeLogin: true });
-  ok("deleting an employee with a login account and the box 'remove his login too': both gone; the history says so", d2.status === "ok" && d2.loginRemoved === true && (await count(`SELECT count(*) AS n FROM public."user" WHERE id='u-rakesh'`)) === 0 && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='delete' AND after->>'loginRemoved' = 'true'`)) === 1);
-  ok("...he was a delegate: the authority went with him (a 'withdrawn' history line, with the reason)", (await db.run((x) => store.authorityOf(x, "412345"))) === null && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='revoke' AND target_ticket='412345' AND note LIKE 'deleted%'`)) === 1);
+  ok("deleting an employee with a login account and the box 'remove his login too': both gone; the history says so", d2.status === "ok" && d2.loginRemoved === true && (await count(`SELECT count(*) AS n FROM public."user" WHERE id='u-rakesh'`)) === 0 && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='delete' AND after->>'loginRemoved' = 'true'`)) === 1);
+  ok("...he was a delegate: the authority went with him (a 'withdrawn' history line, with the reason)", (await db.run((x) => store.authorityOf(x, "412345"))) === null && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='revoke' AND target_ticket='412345' AND note LIKE 'deleted%'`)) === 1);
   const gout = (await store.searchEmployees(db, "342461", true))[0];
   const d3 = await delX(HOD, gout.id, { confirmTicket: "342461", removeLogin: false });
   ok("without the box the login account STAYS (and the roster's link to it simply goes with the row)", d3.status === "ok" && d3.loginRemoved === false && (await count(`SELECT count(*) AS n FROM public."user" WHERE id='u-goutam'`)) === 1);
@@ -170,15 +177,15 @@ async function main() {
   ok("...the HOD sees a change field by field, dates included (old to new)", hist.some((h) => h.action === "modify" && h.changes.some((c) => c.field === "dateOfBirth" && c.to === "1990-05-05")));
   const histD = await store.recentAudit(db, 100, false);
   ok("...a delegate sees the same change, but a date reads 'hidden' (never its value)", histD.some((h) => h.action === "modify" && h.changes.some((c) => c.field === "dateOfBirth" && c.from === "hidden" && c.to === "hidden")) && !JSON.stringify(histD).match(/1990-05-05|2012-06-01|2001-03-10/));
-  ok("the history cannot be altered or erased, not even by the application's own connection", await (async () => { let a1 = false, a2 = false; try { await pool.query(`UPDATE public.employee_admin_audit SET actor_name='x'`); } catch { a1 = true; } try { await pool.query(`DELETE FROM public.employee_admin_audit`); } catch { a2 = true; } return a1 && a2; })());
+  ok("the history cannot be altered or erased, not even by the application's own connection", await (async () => { let a1 = false, a2 = false; try { await pool.query(`UPDATE public.facility_audit SET actor_name='x'`); } catch { a1 = true; } try { await pool.query(`DELETE FROM public.facility_audit WHERE facility='employee'`); } catch { a2 = true; } return a1 && a2; })());
 
   // ---- all or nothing ----
-  await pool.query(`ALTER TABLE public.employee_admin_audit RENAME TO employee_admin_audit_x`);
+  await pool.query(`ALTER TABLE public.facility_audit RENAME TO facility_audit_x`);
   let threw = false; try { await addX(HOD, { ticketNo: "412390", name: "Atomic Test", gradeId: 9, departmentId: 1 }); } catch { threw = true; }
-  await pool.query(`ALTER TABLE public.employee_admin_audit_x RENAME TO employee_admin_audit`);
+  await pool.query(`ALTER TABLE public.facility_audit_x RENAME TO facility_audit`);
   ok("if the history line cannot be written, the change is NOT saved either (one transaction)", threw && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='412390'`)) === 0);
-  const missingTables = errorReply(Object.assign(new Error('relation "public.employee_admin_audit" does not exist'), { code: "42P01" }));
-  ok("a missing admin table is named in the reply (503 and the file to run)", missingTables.status === 503 && /15_employee_admin\.sql/.test(JSON.stringify(missingTables.body)) && errorReply(new Error("secret-host password=x")).status === 500 && !JSON.stringify(errorReply(new Error("secret-host password=x")).body).includes("secret"));
+  const missingTables = errorReply(Object.assign(new Error('relation "public.facility_audit" does not exist'), { code: "42P01" }));
+  ok("a missing shared table is named in the reply (503 and the file to run)", missingTables.status === 503 && /17_facility_kit\.sql/.test(JSON.stringify(missingTables.body)) && errorReply(new Error("secret-host password=x")).status === 500 && !JSON.stringify(errorReply(new Error("secret-host password=x")).body).includes("secret"));
 
   // ---- two people at the same moment ----
   const race = await Promise.all([addX(HOD, { ticketNo: "412391", name: "Race One", gradeId: 9, departmentId: 1 }), addX(HOD, { ticketNo: "412391", name: "Race Two", gradeId: 9, departmentId: 1 })]);
@@ -210,7 +217,7 @@ async function main() {
     const before = (await rows(`SELECT date_of_birth::text AS d FROM public.employee_roster WHERE id=$1`, [meena.id]))[0].d;
     const r = await handleEmployeeAdmin({ op: "modify", id: meena.id, version: await seen(ANIL_D, meena.id), actor: { ticket: "400001" }, ticket: "400001", role: "hod", fields: { name: "Meena Gupta Sen", gradeId: 9, departmentId: 2, mobile: "9434791235", sailPno: "PN498880", dateOfBirth: "1960-01-01" } }, ctxFor(ANIL_D));
     const after = (await rows(`SELECT date_of_birth::text AS d FROM public.employee_roster WHERE id=$1`, [meena.id]))[0].d;
-    return r.status === 200 && (r.body.result as { status: string }).status === "ok" && before === after && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE actor_ticket='412346' AND actor_role='delegate' AND action='modify'`)) === 1;
+    return r.status === 200 && (r.body.result as { status: string }).status === "ok" && before === after && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND actor_ticket='412346' AND actor_role='delegate' AND action='modify'`)) === 1;
   })());
   ok("the 'grant' request looks the executive up by ticket in the people directory (a typed name is never trusted): a non-executive and an unknown ticket are refused", (await handleEmployeeAdmin({ op: "grant", ticket: "342462" }, ctxFor(HOD))).body.result !== undefined && ((await handleEmployeeAdmin({ op: "grant", ticket: "342462" }, ctxFor(HOD))).body.result as { status: string }).status === "invalid" && ((await handleEmployeeAdmin({ op: "grant", ticket: "499999" }, ctxFor(HOD))).body.result as { status: string }).status === "invalid");
   const histApi = await handleEmployeeAdmin({ op: "audit" }, ctxFor(HOD));
@@ -229,7 +236,7 @@ async function main() {
   ok("...the stand-in login table has no sailPNo, designation or role column: only the columns that exist were written (the discovery works for the login table too)", !("sailPNo" in ravi) && !("designation" in ravi));
   const raviRec = (await store.searchEmployees(db, "498999", true))[0];
   ok("the record shows the mobile and e-mail ONLY as the search cards do (first six digits; xxxxxx and the domain), never whole", raviRec.mobileMasked === "943479xxxx" && raviRec.emailMasked === "xxxxxx@sail.in" && raviRec.hasLogin === true && !JSON.stringify(raviRec).includes("9434791234") && !JSON.stringify(raviRec).includes("ravi@sail.in"));
-  const auAll = JSON.stringify(await rows(`SELECT before, after, note FROM public.employee_admin_audit`));
+  const auAll = JSON.stringify(await rows(`SELECT before, after, note FROM public.facility_audit WHERE facility='employee'`));
   ok("...and the history keeps no whole mobile number or e-mail either", !auAll.includes("9434791234") && !auAll.includes("9434791235") && !auAll.includes("ravi@sail.in"));
   ok("an executive without a mobile is refused (every executive has a CUG number); a non-executive without one is fine", (await addX(HOD, { ticketNo: "412500", name: "No Mobile", gradeId: 9, departmentId: 1, mobile: "" })).status === "invalid" && (await addX(HOD, { ticketNo: "342500", name: "Plain Person", gradeId: 21, departmentId: 4 })).status === "ok");
   ok("an executive's mobile that is not a CUG number, a NIC mail with another domain: refused, and nothing is saved (no roster row, no login)", await (async () => { const a1 = await addX(HOD, { ticketNo: "412501", name: "Bad Mobile", gradeId: 9, departmentId: 1, mobile: "9876543210" }); const a2 = await addX(HOD, { ticketNo: "412502", name: "Bad Mail", gradeId: 9, departmentId: 1, emailNic: "x@gmail.com" }); return a1.status === "invalid" && a2.status === "invalid" && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no IN ('412501','412502')`)) === 0 && (await count(`SELECT count(*) AS n FROM public."user" WHERE "ticketNo" IN ('412501','412502')`)) === 0; })());
@@ -241,12 +248,12 @@ async function main() {
   // changing the contact
   const ravId = raviRec.id, pwBefore = (await userOf("498999")).password;
   const mc = await modX(HOD, ravId, { name: "ravi kumar", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "9434721111", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" });
-  ok("the HOD types a NEW mobile: the login account has it, the history says 'mobile number replaced' (and keeps no number), the password is untouched", mc.status === "ok" && (await userOf("498999")).contactNo === "9434721111" && (await userOf("498999")).password === pwBefore && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='modify' AND note = 'mobile number replaced' AND target_ticket='498999'`)) === 1);
+  ok("the HOD types a NEW mobile: the login account has it, the history says 'mobile number replaced' (and keeps no number), the password is untouched", mc.status === "ok" && (await userOf("498999")).contactNo === "9434721111" && (await userOf("498999")).password === pwBefore && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='modify' AND note = 'mobile number replaced' AND target_ticket='498999'`)) === 1);
   ok("...an empty mobile field in a change means KEEP what is there (an executive may leave it empty when he has one)", (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await userOf("498999")).contactNo === "9434721111");
   ok("...his login account's name follows the roster's (a change of name), the password still untouched", (await userOf("498999")).name === "RAVI KUMAR SEN" && (await userOf("498999")).password === pwBefore);
   ok("changing ONLY the mobile is a change (not 'unchanged'); typing the same number again is 'unchanged'", (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "9434731111", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", mobile: "9434731111", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "unchanged");
   ok("an executive's web-mail with the wrong domain in a change is refused", (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "ravi@sail.in", webmail: "ravi@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "invalid");
-  ok("an executive's NIC mail is shown masked; an EMPTY field keeps it, a typed one replaces it (the roster column and the history note 'NIC mail replaced')", (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "unchanged" && (await rows(`SELECT email_nic FROM public.employee_roster WHERE id=$1`, [ravId]))[0].email_nic === "ravi@sail.in" && (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "r.kumar@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await rows(`SELECT email_nic FROM public.employee_roster WHERE id=$1`, [ravId]))[0].email_nic === "r.kumar@sail.in" && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE action='modify' AND note LIKE '%NIC mail replaced%'`)) === 1);
+  ok("an executive's NIC mail is shown masked; an EMPTY field keeps it, a typed one replaces it (the roster column and the history note 'NIC mail replaced')", (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "unchanged" && (await rows(`SELECT email_nic FROM public.employee_roster WHERE id=$1`, [ravId]))[0].email_nic === "ravi@sail.in" && (await modX(HOD, ravId, { name: "ravi kumar sen", gradeId: 9, departmentId: 2, sailPno: "B002233", emailNic: "r.kumar@sail.in", mobile: "", dateOfBirth: "2001-03-10", dateOfJoining: "2025-07-01" })).status === "ok" && (await rows(`SELECT email_nic FROM public.employee_roster WHERE id=$1`, [ravId]))[0].email_nic === "r.kumar@sail.in" && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='modify' AND note LIKE '%NIC mail replaced%'`)) === 1);
   ok("a person with NO login who is given a mobile gets one (it needs his P.No.): a change without a P.No. is refused in words", await (async () => { const p = (await store.searchEmployees(db, "342500", true))[0]; const noP = await modX(HOD, p.id, { name: "plain person", gradeId: 21, departmentId: 4, mobile: "9876500000" }); return noP.status === "invalid" && !!noP.errors.sailPno && (await count(`SELECT count(*) AS n FROM public."user" WHERE "ticketNo"='342500'`)) === 1; })());
 
   // ---- TWO PEOPLE AT ONCE: the guard against a LOST UPDATE (step 67b, src/lib/concurrency/version.ts) ----
@@ -254,7 +261,7 @@ async function main() {
   const F = (r: Rec, over: Record<string, unknown> = {}) => ({ name: r.name, gradeId: r.gradeId, departmentId: r.departmentId, sailPno: r.sailPno, address: r.address, dateOfBirth: r.dateOfBirth, dateOfJoining: r.dateOfJoining, ...over });
   const person = async (ticket: string, name: string, over: Record<string, unknown> = {}): Promise<Rec> => { const r = await addX(HOD, { ticketNo: ticket, name, gradeId: 9, departmentId: 1, ...over }); if (r.status !== "ok") throw new Error(`could not add ${name}: ${JSON.stringify(r)}`); return (await store.getEmployee(db, r.employee.id, true))!; };
   const addressOf = async (id: number) => (await rows(`SELECT address FROM public.employee_roster WHERE id=$1`, [id]))[0]?.address as string | null;
-  const modifies = async (id: number) => count(`SELECT count(*) AS n FROM public.employee_admin_audit WHERE employee_id = ${id} AND action = 'modify'`);
+  const modifies = async (id: number) => count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND target_id = ${id} AND action = 'modify'`);
 
   // the lost update that used to happen
   const P1 = await person("412601", "Conc Person One");
@@ -327,7 +334,7 @@ async function main() {
   const delegateSave = await store.modifyEmployee(db, ANIL_D, P8.id, { name: P8.name, gradeId: P8.gradeId, departmentId: P8.departmentId, sailPno: P8.sailPno, address: "delegate's address" }, [], delegateV);
   ok("...so the executive's save, made after the HOD changed only a date, goes through and does not touch the date; the HOD's own old version would have been refused", delegateSave.status === "ok" && (await rows(`SELECT date_of_birth::text AS d FROM public.employee_roster WHERE id=$1`, [P8.id]))[0].d === "1981-06-06" && (await store.modifyEmployee(db, HOD, P8.id, F(P8, { address: "hod late" }), [], P8.version)).status === "stale");
   ok("what a refused DELEGATE is shown has no date at all (the record as HE may see it), only who and when", await (async () => { const p = await person("412610", "Conc Person Ten", {}); await store.modifyEmployee(db, HOD, p.id, F(p, { address: "x1", dateOfBirth: "1979-07-07" }), [], p.version); const r = await store.modifyEmployee(db, ANIL_D, p.id, { name: p.name, gradeId: p.gradeId, departmentId: p.departmentId, sailPno: p.sailPno, address: "y" }, [], (await store.getEmployee(db, p.id, false))!.version.replace(/.$/, "A")); return r.status === "stale" && r.current.dateOfBirth === "" && r.current.datesVisible === false && !JSON.stringify(r).includes("1979-07-07"); })());
-  ok("the version is NOT in the history: only the person's own values are (nothing to replay)", !JSON.stringify(await rows(`SELECT before, after FROM public.employee_admin_audit`)).includes(P1.version));
+  ok("the version is NOT in the history: only the person's own values are (nothing to replay)", !JSON.stringify(await rows(`SELECT before, after FROM public.facility_audit WHERE facility='employee'`)).includes(P1.version));
 
   // two people adding the same person at the same moment
   const twins = await Promise.all([
@@ -442,6 +449,22 @@ async function main() {
   const withDoc = await addX(HOD, { ticketNo: "412393", name: "Doc Tor", gradeId: 10, departmentId: 1, doctor: true });
   ok("with the doctor column back, the flag is stored (a doctor with an ordinary designation)", withDoc.status === "ok" && withDoc.employee.doctor === true);
 
+  // ---- STEP 68b: the employee manager lives on the shared kit (src/lib/facility) ----
+  ok("the employee manager no longer writes to its OLD tables: after everything above they hold nothing, and the shared tables hold the history", (await count(`SELECT count(*) AS n FROM public.employee_admin_delegate`)) === 0 && (await count(`SELECT count(*) AS n FROM public.employee_admin_audit`)) === 0 && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee'`)) > 10);
+  await rows(`INSERT INTO public.facility_delegate (facility, ticket_no, name, granted_by_ticket, granted_by_name) VALUES ('employee', '412777', 'SQL GRANTED', '400001', 'HOD'), ('pax', '412778', 'ONLY PAX', '400001', 'HOD')`);
+  ok("a row in the shared table is enough: an executive authorised there for the employee manager IS a delegate at once; one authorised only for the PAX editor is NOT", (await db.run((x) => store.authorityOf(x, "412777"))) === "delegate" && (await db.run((x) => store.authorityOf(x, "412778"))) === null);
+  await rows(`UPDATE public.facility_delegate SET revoked_at = now(), revoked_by_ticket = '400001', revoked_by_name = 'HOD' WHERE ticket_no = '412777'`);
+  ok("...and withdrawn there is withdrawn at once", (await db.run((x) => store.authorityOf(x, "412777"))) === null);
+  const storeSrc = readFileSync(join(process.cwd(), "src/lib/employees/admin/store.ts"), "utf8");
+  ok("the store names no old table, keeps no lock words of its own, and takes its lock and its authority through the shared kit (one Forbidden for all)", !/employee_admin_(delegate|audit)/.test(storeSrc) && !/const LOCK\b/.test(storeSrc) && /sharedBegin\(q, "employee", actor, needHod\)/.test(storeSrc) && /sharedAuthorityOf\(q, "employee", ticket\)/.test(storeSrc) && /export \{ Forbidden \}/.test(storeSrc));
+  { // deleting a delegate withdraws his authority in THIS tool only (as before the kit); his authorisation for another tool is not touched
+    const dd = await addX(HOD, { ticketNo: "412880", name: "Double Delegate", gradeId: 9, departmentId: 1 });
+    ok("(set-up) an executive is added, authorised for the employee manager (by the HOD) and for the PAX editor (by a script)", dd.status === "ok" && (await store.grantDelegate(db, HOD, { ticket: "412880", name: "DOUBLE DELEGATE" })).status === "ok" && (await rows(`INSERT INTO public.facility_delegate (facility, ticket_no, name, granted_by_ticket, granted_by_name) VALUES ('pax', '412880', 'DOUBLE DELEGATE', '400001', 'HOD') RETURNING id`)).length === 1);
+    if (dd.status === "ok") {
+      const del = await delX(HOD, dd.employee.id, { confirmTicket: "412880", removeLogin: true });
+      ok("deleting him withdraws his authority in the employee manager (with the history line) and ONLY there: his PAX authorisation row is untouched", del.status === "ok" && (await db.run((x) => store.authorityOf(x, "412880"))) === null && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='employee' AND ticket_no='412880' AND revoked_at IS NOT NULL`)) === 1 && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='pax' AND ticket_no='412880' AND revoked_at IS NULL`)) === 1 && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='revoke' AND target_ticket='412880' AND note LIKE 'deleted%'`)) === 1);
+    }
+  }
   await pool.end();
   console.log(`employee admin store selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

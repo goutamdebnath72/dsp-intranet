@@ -37,12 +37,12 @@ const fieldsOf = (v: unknown): Record<string, unknown> => {
   return out;
 };
 
-/** The reply for an error the handler did not expect. A missing admin table (sql/15 not yet run) is named, so nobody has to read a server log to learn it. */
+/** The reply for an error the handler did not expect. A missing shared table (sql/17 not yet run) is named, so nobody has to read a server log to learn it. */
 export function errorReply(e: unknown): ApiReply {
   const err = e as { code?: string; message?: string; driverError?: { code?: string } };
   const code = err?.code ?? err?.driverError?.code;
-  if (code === "42P01" && /employee_admin_delegate|employee_admin_audit/.test(String(err?.message ?? ""))) {
-    return reply(503, { error: "The employee manager's tables have not been created yet. Run src/lib/nl2sql/sql/15_employee_admin.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
+  if (code === "42P01" && /facility_delegate|facility_audit/.test(String(err?.message ?? ""))) {
+    return reply(503, { error: "The tables of the tools' authorisations and history have not been created yet. Run src/lib/nl2sql/sql/17_facility_kit.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
   }
   return reply(500, { error: "The employee records could not be changed just now. Please try again; if it keeps happening, tell the C&IT department." });
 }

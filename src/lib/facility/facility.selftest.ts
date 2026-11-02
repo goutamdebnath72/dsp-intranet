@@ -131,9 +131,10 @@ async function main() {
     ok("...and the lock is let go when the transaction ends", (await rows(`SELECT pg_try_advisory_xact_lock(hashtext('employee_roster')::bigint) AS got`))[0].got === true);
   }
   const L = (f: string, file: string, re: RegExp) => { const m = readFileSync(join(process.cwd(), file), "utf8").match(re); return m ? m[1] : null; };
-  const empLock = L("employee", "src/lib/employees/admin/store.ts", /const LOCK = "([^"]+)"/);
   const paxLock = L("pax", "src/lib/pax/admin/store.ts", /const LOCK = "([^"]+)"/);
-  ok("the lock words of the two tools are EXACTLY what the employee manager and the PAX editor already use (moving onto the kit changes nothing about how they lock)", empLock === reg.lockSql("employee") && paxLock === reg.lockSql("pax"), `${empLock} | ${paxLock}`);
+  ok("the lock words are EXACTLY the ones the employee manager and the PAX editor always used (moving onto the kit changes nothing about how they lock)", reg.lockSql("employee") === "SELECT pg_advisory_xact_lock(hashtext('employee_roster')::bigint)" && paxLock === reg.lockSql("pax"), `${paxLock}`);
+  const empSrc = readFileSync(join(process.cwd(), "src/lib/employees/admin/store.ts"), "utf8");
+  ok("step 68b: the employee manager takes its lock and its authority through the kit (it has no lock words of its own any more)", !/const LOCK\b/.test(empSrc) && /sharedBegin\(q, "employee"/.test(empSrc));
   ok("the registry knows the two tools and nothing else", reg.isFacilityKey("employee") && reg.isFacilityKey("pax") && !reg.isFacilityKey("holiday") && !reg.isFacilityKey("") && !reg.isFacilityKey(undefined) && !reg.isFacilityKey("toString"));
 
   // ---- the history ----

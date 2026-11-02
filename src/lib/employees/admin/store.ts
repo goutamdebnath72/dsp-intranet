@@ -21,6 +21,9 @@ import { isSuperAdmin } from "@/lib/superAdmin";
 import type { QueryFn } from "@/lib/pax/store";
 import type { AcknowledgeKind, Authority, AuditView, ChangeView, DelegateView, DepartmentRef, EmployeeConflict, EmployeeRecord, FieldErrors, GradeRef, Lookups, LastChange } from "./types";
 import { sameVersion, versionOf } from "@/lib/concurrency/version";
+import { Forbidden, authorityOf as sharedAuthorityOf, begin as sharedBegin, grantDelegate as sharedGrant, listDelegates as sharedList, revokeDelegate as sharedRevoke } from "@/lib/facility/authority";
+import { lastChangeOf as sharedLastChange, recentAuditRows, writeAudit } from "@/lib/facility/audit";
+import type { DelegateResult } from "@/lib/facility/types";
 import { NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, maskEmail, maskMobile } from "./contact";
 import { cleanText, seniorityRank, validateEmployee } from "./validate";
 
@@ -31,26 +34,16 @@ export interface EmpDb {
 }
 export interface Actor { ticket: string; name: string }
 
-const LOCK = "SELECT pg_advisory_xact_lock(hashtext('employee_roster')::bigint)";
 const EXECUTIVE = /^4\d{5}$/;
-export class Forbidden extends Error {}
+/** One Forbidden for every tool (src/lib/facility/authority.ts): the kit's `begin` throws it and this store's catch blocks recognise it. */
+export { Forbidden };
 /** A login-account rule that refuses the whole change (carries the field errors); thrown inside the transaction so that nothing is kept, caught outside it. */
 class LoginRefused extends Error { constructor(public errors: FieldErrors) { super("login refused"); } }
 
-export async function authorityOf(q: QueryFn, ticket: string | null | undefined): Promise<Authority | null> {
-  const t = String(ticket ?? "").trim();
-  if (!t) return null;
-  if (isSuperAdmin(t)) return "hod";
-  const r = await q(`SELECT 1 FROM public.employee_admin_delegate WHERE ticket_no = $1 AND revoked_at IS NULL LIMIT 1`, [t]);
-  return r.length > 0 ? "delegate" : null;
-}
+export const authorityOf = (q: QueryFn, ticket: string | null | undefined): Promise<Authority | null> => sharedAuthorityOf(q, "employee", ticket);
 
-async function begin(q: QueryFn, actor: Actor, needHod = false): Promise<Authority> {
-  await q(LOCK);
-  const a = await authorityOf(q, actor.ticket);
-  if (!a || (needHod && a !== "hod")) throw new Forbidden();
-  return a;
-}
+/** The start of every write: the tool's global write lock, then who is acting (the kit's, src/lib/facility/authority.ts). */
+const begin = (q: QueryFn, actor: Actor, needHod = false): Promise<Authority> => sharedBegin(q, "employee", actor, needHod);
 
 // ---- what the live tables look like (discovered, not assumed) ----
 interface Cols { has: Set<string>; notNullNoDefault: Set<string>; deptScope: boolean; user: Set<string> }
@@ -130,10 +123,7 @@ async function lockRow(q: QueryFn, cols: Cols, id: number): Promise<void> {
 }
 
 /** What the manager last recorded for this person (an add or a change): who and when. Only the facts, never a value, so that nothing the reader may not see is told. */
-async function lastChangeOf(q: QueryFn, id: number): Promise<LastChange | null> {
-  const r = (await q(`SELECT at, actor_name, actor_ticket, action FROM public.employee_admin_audit WHERE employee_id = $1 AND action IN ('add', 'modify') ORDER BY id DESC LIMIT 1`, [id]))[0];
-  return r ? { at: toIsoInstant(r.at) ?? "", actorName: str(r.actor_name), actorTicket: str(r.actor_ticket), action: str(r.action) } : null;
-}
+const lastChangeOf = (q: QueryFn, id: number): Promise<LastChange | null> => sharedLastChange(q, "employee", id);
 
 const escapeLike = (w: string) => w.replace(/[\\%_]/g, (m) => `\\${m}`);
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -227,10 +217,7 @@ export const lookups = (db: EmpDb): Promise<Lookups> => db.run(async (q) => {
 
 // ---- the audit line ----
 async function audit(q: QueryFn, actor: Actor, role: Authority, action: "add" | "modify" | "delete" | "grant" | "revoke", employeeId: number | null, targetTicket: string | null, targetName: string | null, before: unknown, after: unknown, note: string | null = null) {
-  await q(
-    `INSERT INTO public.employee_admin_audit (actor_ticket, actor_name, actor_role, action, employee_id, target_ticket, target_name, before, after, note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10)`,
-    [actor.ticket, actor.name, role, action, employeeId, targetTicket, targetName, before === null ? null : JSON.stringify(before), after === null ? null : JSON.stringify(after), note],
-  );
+  await writeAudit(q, "employee", actor, role, action, { targetId: employeeId, targetTicket, targetName, before, after, note });
 }
 
 /** The name-search helper tables are refreshed after a name changes; a database without that function (or any failure in it) must never undo the change itself, hence the savepoint. */
@@ -510,7 +497,7 @@ export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: 
       let loginRemoved = false;
       if (opts.removeLogin && login) { await q(`DELETE FROM public."user" WHERE id = $1`, [loginId]); loginRemoved = true; }
       // somebody who was authorised to manage employees and is deleted loses it with the job
-      const wasDelegate = await q(`UPDATE public.employee_admin_delegate SET revoked_at = now(), revoked_by_ticket = $2, revoked_by_name = $3 WHERE ticket_no = $1 AND revoked_at IS NULL RETURNING name`, [cur.ticketNo, actor.ticket, actor.name]);
+      const wasDelegate = await q(`UPDATE public.facility_delegate SET revoked_at = now(), revoked_by_ticket = $2, revoked_by_name = $3 WHERE facility = 'employee' AND ticket_no = $1 AND revoked_at IS NULL RETURNING name`, [cur.ticketNo, actor.ticket, actor.name]);
       await audit(q, actor, role, "delete", id, cur.ticketNo, cur.name, snap(cur), { loginRemoved, ...(login ? { login: { id: String(login.id), ticketNo: str(login.ticketNo), name: str(login.name) } } : {}) });
       if (wasDelegate.length) await audit(q, actor, role, "revoke", null, cur.ticketNo, cur.name, { ticket: cur.ticketNo, name: cur.name }, null, "deleted with the employee");
       await refreshNameCodes(q);
@@ -523,50 +510,12 @@ export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: 
 }
 
 // ---- delegation: only the HOD of C&IT authorises and withdraws ----
-export type DelegateResult = { status: "ok" } | { status: "forbidden" } | { status: "invalid"; reason: string } | { status: "already" } | { status: "not-delegate" };
+export type { DelegateResult };
 
-export async function listDelegates(db: EmpDb): Promise<DelegateView[]> {
-  const r = await db.run((q) => q(`SELECT ticket_no, name, granted_by_name, granted_by_ticket, granted_at FROM public.employee_admin_delegate WHERE revoked_at IS NULL ORDER BY name`));
-  return r.map((x) => ({ ticket: str(x.ticket_no), name: str(x.name), grantedByName: str(x.granted_by_name), grantedByTicket: str(x.granted_by_ticket), grantedAt: toIsoInstant(x.granted_at) ?? "" }));
-}
-
-export async function grantDelegate(db: EmpDb, actor: Actor, target: { ticket: string; name: string }): Promise<DelegateResult> {
-  const ticket = String(target.ticket ?? "").trim();
-  const name = String(target.name ?? "").replace(/\s+/g, " ").trim();
-  if (!EXECUTIVE.test(ticket)) return { status: "invalid", reason: "Only an executive (a six-digit ticket number that starts with 4) can be authorised." };
-  if (!name) return { status: "invalid", reason: "The executive's name is missing." };
-  if (isSuperAdmin(ticket)) return { status: "invalid", reason: "The HOD of C&IT already has this authority." };
-  try {
-    return await db.run(async (q): Promise<DelegateResult> => {
-      const role = await begin(q, actor, true);
-      const active = await q(`SELECT 1 FROM public.employee_admin_delegate WHERE ticket_no = $1 AND revoked_at IS NULL`, [ticket]);
-      if (active.length > 0) return { status: "already" };
-      await q(`INSERT INTO public.employee_admin_delegate (ticket_no, name, granted_by_ticket, granted_by_name) VALUES ($1, $2, $3, $4)`, [ticket, name, actor.ticket, actor.name]);
-      await audit(q, actor, role, "grant", null, ticket, name, null, { ticket, name });
-      return { status: "ok" };
-    });
-  } catch (e) {
-    if (e instanceof Forbidden) return { status: "forbidden" };
-    if (isUnique(e)) return { status: "already" };
-    throw e;
-  }
-}
-
-export async function revokeDelegate(db: EmpDb, actor: Actor, ticketNo: string): Promise<DelegateResult> {
-  const ticket = String(ticketNo ?? "").trim();
-  try {
-    return await db.run(async (q): Promise<DelegateResult> => {
-      const role = await begin(q, actor, true);
-      const r = await q(`UPDATE public.employee_admin_delegate SET revoked_at = now(), revoked_by_ticket = $2, revoked_by_name = $3 WHERE ticket_no = $1 AND revoked_at IS NULL RETURNING name`, [ticket, actor.ticket, actor.name]);
-      if (r.length === 0) return { status: "not-delegate" };
-      await audit(q, actor, role, "revoke", null, ticket, str(r[0].name), { ticket, name: str(r[0].name) }, null);
-      return { status: "ok" };
-    });
-  } catch (e) {
-    if (e instanceof Forbidden) return { status: "forbidden" };
-    throw e;
-  }
-}
+/** The authorised executives, the authorising and the withdrawing are the kit's (src/lib/facility/authority.ts): the same code, the same rules and words, for every tool. */
+export const listDelegates = (db: EmpDb): Promise<DelegateView[]> => sharedList(db, "employee");
+export const grantDelegate = (db: EmpDb, actor: Actor, target: { ticket: string; name: string }): Promise<DelegateResult> => sharedGrant(db, "employee", actor, target);
+export const revokeDelegate = (db: EmpDb, actor: Actor, ticketNo: string): Promise<DelegateResult> => sharedRevoke(db, "employee", actor, ticketNo);
 
 // ---- the history ----
 const LABEL: Record<string, string> = {
@@ -588,20 +537,19 @@ export function diffSnapshots(before: Partial<Snap> | null, after: Partial<Snap>
 }
 
 export async function recentAudit(db: EmpDb, limit = 50, canSeeDates = false): Promise<AuditView[]> {
-  const n = Math.min(200, Math.max(1, Math.floor(limit)));
-  const r = await db.run((q) => q(`SELECT at, actor_ticket, actor_name, actor_role, action, target_ticket, target_name, before, after, note FROM public.employee_admin_audit ORDER BY at DESC, id DESC LIMIT ${n}`));
-  return r.map((x): AuditView => {
-    const action = String(x.action) as AuditView["action"];
-    const targetName = str(x.target_name), targetTicket = str(x.target_ticket);
+  const lines = await recentAuditRows(db, "employee", limit);
+  return lines.map((x): AuditView => {
+    const action = x.action as AuditView["action"];
+    const targetName = x.targetName, targetTicket = x.targetTicket;
     const who = `${targetName} (${targetTicket})`;
     const after = x.after as (Partial<Snap> & { loginRemoved?: boolean }) | null;
     const changes = action === "modify" ? diffSnapshots(x.before as Partial<Snap> | null, after, canSeeDates) : [];
     const summary =
       action === "add" ? `Added ${who}${after?.gradeTitle ? `, ${after.gradeTitle}` : ""}${after?.departmentName ? `, ${after.departmentName}` : ""}`
-      : action === "modify" ? `Changed ${who}${x.note ? ` (${str(x.note)})` : ""}`
+      : action === "modify" ? `Changed ${who}${x.note ? ` (${x.note})` : ""}`
       : action === "delete" ? `Deleted ${who}${after?.loginRemoved ? " and his login account" : ""}`
       : action === "grant" ? `Authorised ${who}`
-      : `Withdrew the authority of ${who}${x.note ? ` (${str(x.note)})` : ""}`;
-    return { at: toIsoInstant(x.at) ?? "", actorName: str(x.actor_name), actorTicket: str(x.actor_ticket), actorRole: str(x.actor_role) as Authority, actorDesignation: "", action, targetTicket, targetName, changes, summary };
+      : `Withdrew the authority of ${who}${x.note ? ` (${x.note})` : ""}`;
+    return { at: x.at, actorName: x.actorName, actorTicket: x.actorTicket, actorRole: x.actorRole, actorDesignation: "", action, targetTicket, targetName, changes, summary };
   });
 }
