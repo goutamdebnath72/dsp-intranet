@@ -57,7 +57,7 @@ ok("changing a person: the ticket field is locked and says so", (() => { const m
 
 // ---- the CONTACT section by cohort ----
 ok("while the sections above are not complete the contact fields are inactive, and the card says what to complete first", form(EMPTY_FORM, { unlocked: ALL_LOCKED }).includes("Complete the service dates first.") && disabledField(form(EMPTY_FORM, { unlocked: ALL_LOCKED }), "mobile") && disabledField(form(EMPTY_FORM, { unlocked: ALL_LOCKED }), "email") && disabledField(form(EMPTY_FORM, { unlocked: ALL_LOCKED }), "address"));
-ok("an EXECUTIVE: the NIC mail field (@sail.in) and the web-mail field (@saildsp.co.in) are active, the general E-mail field is shown but COMPLETELY INACTIVE ('Not used for an executive')", hasField(fx, "emailNic") && hasField(fx, "webmail") && !disabledField(fx, "emailNic") && !disabledField(fx, "webmail") && disabledField(fx, "email") && fx.includes("NIC mail (@sail.in)") && fx.includes("Web-mail (@saildsp.co.in)") && fx.includes("Not used for an executive."));
+ok("an EXECUTIVE: the NIC mail field (@sail.in) and the web-mail field (@saildsp.co.in) are active and there is NO general E-mail field at all (owner, 2 Nov 2026: it was only a greyed 'Not used for an executive')", hasField(fx, "emailNic") && hasField(fx, "webmail") && !disabledField(fx, "emailNic") && !disabledField(fx, "webmail") && !hasField(fx, "email") && fx.includes("NIC mail (@sail.in)") && fx.includes("Web-mail (@saildsp.co.in)") && !fx.includes("Not used for an executive"));
 ok("...the web-mail domain is the right one (@saildsp.co.in), and the wrong 'sail-dsp.in' appears nowhere", fx.includes("@saildsp.co.in") && !fx.includes("sail-dsp"));
 ok("...the executive's mobile is the CUG number: labelled so, with the rule (94347 and then 9, 2 or 3)", fx.includes(">CUG mobile number<") && fx.includes("94347 and then 9 (or 2, 3)"));
 ok("a NON-EXECUTIVE: ONE e-mail field, any address, optional; NO NIC mail and NO web-mail field; a plain optional mobile", hasField(fn, "email") && !disabledField(fn, "email") && !hasField(fn, "emailNic") && !hasField(fn, "webmail") && fn.includes("Optional; any address.") && fn.includes(">Mobile number<") && fn.includes("Optional: 10 digits.") && !disabledField(fn, "mobile"));
@@ -198,6 +198,11 @@ ok("the panel never decides who may do what: no ticket, no role is sent, only th
 ok("dates are drawn with Luxon only (no built-in Date)", !/new Date\(|toLocaleDateString|getFullYear/.test(src));
 const modal = readFileSync("src/components/OmnibarModal.tsx", "utf8");
 ok("the search modal draws the manager from analytics.employeeAdmin, after the PAX editor and before the hospital card", modal.includes('import { EmployeeAdminPanel } from "@/components/EmployeeAdminPanel";') && modal.indexOf("analytics.employeeAdmin ? (") > modal.indexOf("analytics.paxAdmin ? (") && modal.indexOf("analytics.employeeAdmin ? (") < modal.indexOf("analytics.hospital ? ("));
+
+// ---- STEP 69a: the typed confirmation of a deletion ----
+const delSrc = readFileSync("src/components/EmployeeAdminPanel.tsx", "utf8");
+ok("the delete card does not print the ticket number: the title is only the name, and the label says 'Type his ticket number to confirm' (no number in it)", /Delete \{target\.name\}\?<\/p>/.test(delSrc) && /label="Type his ticket number to confirm"/.test(delSrc) && !/Delete \{target\.name\} \(\{target\.ticketNo\}\)/.test(delSrc) && !/Type his ticket number, \$\{target\.ticketNo\}/.test(delSrc));
+ok("the box is the shared TypedConfirm (pasting switched off) with the same mark as before, and the button still waits for the right number", /import \{ TypedConfirm \} from "\.\/facility\/TypedConfirm"/.test(delSrc) && /<TypedConfirm id="emp-confirm"/.test(delSrc) && /mark=\{\{ name: "data-emp-field", value: "confirm" \}\}/.test(delSrc) && /disabled=\{busy \|\| confirmTicket\.trim\(\) !== target\.ticketNo\}/.test(delSrc));
 
 console.log(`EmployeeAdminPanel selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

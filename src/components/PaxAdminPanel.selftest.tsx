@@ -191,5 +191,14 @@ ok("the 'still mounted' flag is switched ON again at every mount (React's Strict
 ok("a request that is not answered ends: the call is aborted after a time limit and the timer is cleared", /AbortController/.test(src) && /REQUEST_TIMEOUT_MS = 20_000/.test(src) && /signal: ctl\.signal/.test(src) && /clearTimeout\(timer\)/.test(src));
 ok("a missing-table reply (503) shows the server's own sentence on screen, not a generic one", /String\(r\.body\.error \?\? "Something went wrong/.test(src));
 
+// ---- STEP 69a: the typed confirmation of a deletion ----
+const E69: PaxEntryView = { id: 5, department: "Stores", location: "Main Gate", number: "42555", version: "v9" };
+ok("the line about to go shows its number normally, and with hideNumber shows only dots (the number appears nowhere)", h(<LineAboutToGo entry={E69} />).includes("42555") && !h(<LineAboutToGo entry={E69} hideNumber />).includes("42555") && h(<LineAboutToGo entry={E69} hideNumber />).includes("•••••") && h(<LineAboutToGo entry={E69} hideNumber />).includes("Stores · Main Gate"));
+const delSrc69 = readFileSync("src/components/PaxAdminPanel.tsx", "utf8");
+ok("the PAX delete card: the title is the place without the number, the number is hidden on the card, and the typed box is the shared TypedConfirm", /title=\{`Delete \$\{placeName\(deleting\)\}\?`\}/.test(delSrc69) && /<LineAboutToGo entry=\{deleting\} hideNumber \/>/.test(delSrc69) && /<TypedConfirm id="pax-confirm" label="Type the PAX number to confirm"/.test(delSrc69) && /mark=\{\{ name: "data-pax-field", value: "confirm" \}\}/.test(delSrc69));
+ok("the button waits for the right number, and the number typed goes to the server", /disabled=\{busy \|\| confirmNumber\.trim\(\) !== deleting\.number\}/.test(delSrc69) && /confirmNumber: confirmNumber\.trim\(\)/.test(delSrc69));
+ok("what was typed belongs to one line as it stood: another line, or the same line changed by somebody, starts with an empty box (and 'No' and choosing a line clear it)", /const deleteKey = deleting \? `\$\{deleting\.id\}:\$\{deleting\.version \?\? ""\}` : ""/.test(delSrc69) && /typed\.forKey === deleteKey \? typed\.value : ""/.test(delSrc69) && /setTyped\(\{ forKey: "", value: "" \}\)/.test(delSrc69));
+ok("a refusal for a wrong number is shown as an error with the server's sentence", /res\.status === "invalid"\) setNotice\(\{ tone: "error"/.test(delSrc69));
+
 console.log(`PaxAdminPanel selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

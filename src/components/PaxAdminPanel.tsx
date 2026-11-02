@@ -19,8 +19,10 @@ import { useSessionName } from "@/hooks/useSessionName";
 import { AlertTriangle, History, Pencil, PhoneOff, Plus, ShieldCheck, Trash2, Users } from "lucide-react";
 import type { Acknowledge, PaxAdminOpen, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView, PaxLastChange } from "@/lib/pax/admin/types";
 import { describeLine } from "@/lib/pax/admin/conflicts";
+import { placeName } from "@/lib/pax/display";
+import { TypedConfirm } from "./facility/TypedConfirm";
 import { cleanInput, validateEntry, type FieldErrors } from "@/lib/pax/admin/validate";
-import { AuthoriseCard, ChangingBanner, ConfirmCard, ConflictView, DANGER, EntryFormView, EntryList, FIELD, HistoryList, IconField, Notice, PRIMARY, PaxAdminHeader, PaxShell, PaxTabs, PersonRow, SECONDARY, SearchBar, LineAboutToGo, StaleCard, rebaseEntry, theirEntryChanges, wordOfField, type FormValues } from "./PaxAdminUi";
+import { AuthoriseCard, ChangingBanner, ConfirmCard, CONFIRM_INPUT, ConflictView, DANGER, EntryFormView, EntryList, FIELD, HistoryList, IconField, Notice, PRIMARY, PaxAdminHeader, PaxShell, PaxTabs, PersonRow, SECONDARY, SearchBar, LineAboutToGo, StaleCard, rebaseEntry, theirEntryChanges, wordOfField, type FormValues } from "./PaxAdminUi";
 
 // what the tests and the rest of the app have always imported from this file
 export { ConflictView, EntryFormView, EntryList, HistoryList, PaxAdminHeader, conflictText } from "./PaxAdminUi";
@@ -80,6 +82,10 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   const [editErrors, setEditErrors] = useState<FieldErrors>({});
   const [editConflict, setEditConflict] = useState<{ conflicts: PaxConflict[]; acknowledgeable: Acknowledge[]; entry: FormValues } | null>(null);
   const [deleting, setDeleting] = useState<PaxEntryView | null>(null);
+  // what has been typed to confirm a deletion belongs to ONE line as it stood (its id and version): another line, or the same line changed by somebody, starts with an empty box
+  const [typed, setTyped] = useState<{ forKey: string; value: string }>({ forKey: "", value: "" });
+  const deleteKey = deleting ? `${deleting.id}:${deleting.version ?? ""}` : "";
+  const confirmNumber = typed.forKey === deleteKey ? typed.value : "";
 
   // who is logged in (the server's answer; the name comes from the people directory)
   // the name is already known (step 67b): it travelled with the answer that opened the editor (the people directory's name, the one the history records), or else it is in the login cookie's session. The header has it on
@@ -252,7 +258,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   // ---- delete ----
   async function confirmDelete() {
     if (!deleting) return;
-    const r = await guard(() => call({ op: "delete", id: deleting.id, version: deleting.version }));
+    const r = await guard(() => call({ op: "delete", id: deleting.id, version: deleting.version, confirmNumber: confirmNumber.trim() }));
     if (!r || !alive.current) return;
     if (!r.ok) return fail(r);
     const res = r.body.result as Json;
@@ -263,7 +269,8 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
       setNotice({ tone: "warn", text: `${describeLine(res.current as PaxEntryView)} was changed${last ? ` by ${last.actorName} (${last.actorTicket})` : ""} after you opened it. It is shown below as it is now: look again, then confirm.` });
       return;
     }
-    if (res.status === "ok") setNotice({ tone: "ok", text: `Deleted: ${describeLine(res.entry as PaxEntryView)}. The history keeps a record.` });
+    if (res.status === "invalid") setNotice({ tone: "error", text: String(((res.errors ?? {}) as Json).number ?? "The PAX number typed does not match this line.") });
+    else if (res.status === "ok") setNotice({ tone: "ok", text: `Deleted: ${describeLine(res.entry as PaxEntryView)}. The history keeps a record.` });
     else if (res.status === "missing") setNotice({ tone: "error", text: "This line no longer exists." });
     setDeleting(null);
     setHistory(null);
@@ -372,14 +379,15 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
       {tab === "delete" && (
         <div className="space-y-4">
           {searchBox}
-          {listed && <EntryList entries={entries} actionLabel="Delete" actionClass={DANGER} busy={busy} onPick={(e) => { setDeleting(e); setNotice(null); }} />}
+          {listed && <EntryList entries={entries} actionLabel="Delete" actionClass={DANGER} busy={busy} onPick={(e) => { setDeleting(e); setTyped({ forKey: "", value: "" }); setNotice(null); }} />}
           {deleting && (
-            <ConfirmCard kind="delete" ariaLabel="Confirm the deletion" icon={<PhoneOff className="h-5 w-5 shrink-0" aria-hidden="true" />} title={`Delete ${describeLine(deleting)}?`}>
-              <LineAboutToGo entry={deleting} />
+            <ConfirmCard kind="delete" ariaLabel="Confirm the deletion" icon={<PhoneOff className="h-5 w-5 shrink-0" aria-hidden="true" />} title={`Delete ${placeName(deleting)}?`}>
+              <LineAboutToGo entry={deleting} hideNumber />
               <p>The line leaves the PAX directory at once. The history keeps a record of what it was and who deleted it.</p>
+              <TypedConfirm id="pax-confirm" label="Type the PAX number to confirm" value={confirmNumber} onChange={(v) => setTyped({ forKey: deleteKey, value: v })} className={CONFIRM_INPUT} inputMode="numeric" maxLength={6} mark={{ name: "data-pax-field", value: "confirm" }} />
               <div className="flex gap-2">
-                <button type="button" className={DANGER} disabled={busy} onClick={() => void confirmDelete()}>Yes, delete it</button>
-                <button type="button" className={SECONDARY} disabled={busy} onClick={() => setDeleting(null)}>No, keep it</button>
+                <button type="button" data-pax-delete-go="true" className={DANGER} disabled={busy || confirmNumber.trim() !== deleting.number} onClick={() => void confirmDelete()}>Yes, delete it</button>
+                <button type="button" className={SECONDARY} disabled={busy} onClick={() => { setDeleting(null); setTyped({ forKey: "", value: "" }); }}>No, keep it</button>
               </div>
             </ConfirmCard>
           )}

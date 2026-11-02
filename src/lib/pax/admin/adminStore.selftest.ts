@@ -89,7 +89,8 @@ async function main() {
   // a person LOADS the line and then saves what he typed WITH THE VERSION HE SAW (src/lib/concurrency/version.ts)
   const seenV = async (id: number) => (await store.listEntries(db, "")).find((e) => e.id === id)?.version;
   const modX = async (actor: { ticket: string; name: string }, id: number, raw: { department: string; location: string; number: string }, acks: Array<"second-number" | "different"> = []) => store.modifyEntry(db, actor, id, raw, acks, await seenV(id));
-  const delX = async (actor: { ticket: string; name: string }, id: number) => store.deleteEntry(db, actor, id, await seenV(id));
+  const typedNumber = async (id: number) => String((await pool.query(`SELECT "number"::text AS n FROM public.pax_directory WHERE id = $1`, [id])).rows[0]?.n ?? "");
+  const delX = async (actor: { ticket: string; name: string }, id: number) => store.deleteEntry(db, actor, id, { version: await seenV(id), confirmNumber: await typedNumber(id) });
 
   const rowsNow = async () => (await pool.query(`SELECT * FROM public.pax_directory ORDER BY id`)).rows;
   const auditNow = async () => (await pool.query(`SELECT * FROM public.facility_audit WHERE facility='pax' ORDER BY id`)).rows;
@@ -331,9 +332,9 @@ async function main() {
   // the delete
   const L2 = await line("Conc Dept Two", "", "43611");
   await store.modifyEntry(db, HOD, L2.id, { department: "Conc Dept Two", location: "Annexe", number: "43611" }, [], L2.version);
-  const dStale = await store.deleteEntry(db, HOD, L2.id, L2.version);
+  const dStale = await store.deleteEntry(db, HOD, L2.id, { version: L2.version, confirmNumber: L2.number });
   ok("a DELETE of a line that was changed since the person saw it is refused (stale): the line is still there, and he is shown it as it is now", dStale.status === "stale" && dStale.current.location === "Annexe" && (await numberOf(L2.id)) === "43611");
-  ok("...a delete with the current version works; with no version it does not", await (async () => { const none = await store.deleteEntry(db, HOD, L2.id); const okR = await store.deleteEntry(db, HOD, L2.id, dStale.status === "stale" ? dStale.current.version : ""); return none.status === "stale" && okR.status === "ok" && (await numberOf(L2.id)) === undefined; })());
+  ok("...a delete with the current version works; with no version it does not", await (async () => { const none = await store.deleteEntry(db, HOD, L2.id, { confirmNumber: L2.number }); const okR = await store.deleteEntry(db, HOD, L2.id, { version: dStale.status === "stale" ? dStale.current.version : "", confirmNumber: L2.number }); return none.status === "stale" && okR.status === "ok" && (await numberOf(L2.id)) === undefined; })());
 
   // the very same moment
   const L3 = await line("Conc Dept Three", "", "43621");
@@ -346,7 +347,7 @@ async function main() {
   const L4 = await line("Conc Dept Four", "", "43631");
   const changeVsDelete = await Promise.all([
     store.modifyEntry(db, HOD, L4.id, { department: "Conc Dept Four", location: "Late", number: "43631" }, [], L4.version),
-    store.deleteEntry(db, HOD, L4.id, L4.version),
+    store.deleteEntry(db, HOD, L4.id, { version: L4.version, confirmNumber: L4.number }),
   ]);
   const left = await count(`SELECT count(*) AS n FROM public.pax_directory WHERE id = ${L4.id}`);
   ok("a change and a delete at the same moment: one wins and the other is told (a delete first, then 'missing'; a change first, then 'stale'): never both", (changeVsDelete[1].status === "ok" && changeVsDelete[0].status === "missing" && left === 0) || (changeVsDelete[0].status === "ok" && changeVsDelete[1].status === "stale" && left === 1), JSON.stringify(changeVsDelete.map((r) => r.status)));
@@ -398,6 +399,25 @@ async function main() {
   ok("...and withdrawn there is withdrawn at once", (await db.run((q) => store.authorityOf(q, "412777"))) === null);
   const paxSrc = readFileSync("src/lib/pax/admin/store.ts", "utf8");
   ok("the store names no old table, keeps no lock words of its own, and takes its lock and its authority through the shared kit", !/pax_delegate|pax_directory_audit/.test(paxSrc) && !/const LOCK\b/.test(paxSrc) && /sharedBegin\(q, "pax", actor, needHod\)/.test(paxSrc) && /sharedAuthorityOf\(q, "pax", ticket\)/.test(paxSrc));
+  // ---- STEP 69a: a deletion needs the line's number typed (the card never prints it), and the history shows the reason of a withdrawal ----
+  const T1 = await line("Typed Delete One", "Gate 1", "43771");
+  const wrong = await store.deleteEntry(db, HOD, T1.id, { version: T1.version, confirmNumber: "43772" });
+  ok("a delete with the WRONG number typed is refused (invalid, with the sentence) and the line is still there", wrong.status === "invalid" && /does not match/.test(String(wrong.errors.number)) && (await numberOf(T1.id)) === "43771", JSON.stringify(wrong));
+  ok("...with NOTHING typed, or only blanks, it is refused too (no way to skip the confirmation)", (await store.deleteEntry(db, HOD, T1.id, { version: T1.version, confirmNumber: "" })).status === "invalid" && (await store.deleteEntry(db, HOD, T1.id, { version: T1.version, confirmNumber: "   " })).status === "invalid" && (await store.deleteEntry(db, HOD, T1.id, { version: T1.version } as never)).status === "invalid" && (await numberOf(T1.id)) === "43771");
+  ok("...the number typed with spaces around it is fine; it deletes and the history line is written", (await store.deleteEntry(db, HOD, T1.id, { version: T1.version, confirmNumber: " 43771 " })).status === "ok" && (await numberOf(T1.id)) === undefined);
+  const T2 = await line("Typed Delete Two", "", "43773");
+  ok("a delete by a person without authority is 'forbidden' whatever he typed; a stale version is 'stale' before the number is judged (he looks again first)", (await store.deleteEntry(db, { ticket: "999999", name: "X" }, T2.id, { version: T2.version, confirmNumber: "43773" })).status === "forbidden" && (await store.deleteEntry(db, HOD, T2.id, { version: "old", confirmNumber: "43773" })).status === "stale" && (await numberOf(T2.id)) === "43773");
+  await line("Reason Tester", "", "43774");
+  await db.run((q) => grantAndWithdraw(q));
+  const withdrawnLines = await store.recentAudit(db, 5);
+  async function grantAndWithdraw(q: (sql: string, params?: unknown[]) => Promise<Array<Record<string, unknown>>>) {
+    const facility = await import("@/lib/facility/authority");
+    await q(`INSERT INTO public.facility_delegate (facility, ticket_no, name, granted_by_ticket, granted_by_name) VALUES ('pax', '412966', 'REASON PERSON', '400001', 'HOD')`);
+    await facility.revokeEverywhere(q, HOD, "hod", "412966", "deleted with the employee");
+  }
+  const reasonLine = withdrawnLines.find((x) => x.action === "revoke" && /REASON PERSON/.test(x.summary));
+  ok("the history of a withdrawal shows its REASON, as the employee manager's does: in the sentence and under the name", !!reasonLine && /\(deleted with the employee\)$/.test(reasonLine.summary) && /REASON PERSON \(412966\) · deleted with the employee/.test(reasonLine.detail), JSON.stringify(reasonLine));
+  ok("...and a withdrawal made by hand (no reason) reads as before, with nothing added", await (async () => { await store.grantDelegate(db, HOD, { ticket: "412967", name: "PLAIN PERSON" }); await store.revokeDelegate(db, HOD, "412967"); const l = (await store.recentAudit(db, 3)).find((x) => /PLAIN PERSON/.test(x.summary) && x.action === "revoke"); return !!l && l.summary === "Withdrew the authority of PLAIN PERSON (412967)" && l.detail === "PLAIN PERSON (412967)"; })());
   await pool.end();
   console.log(`adminStore selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

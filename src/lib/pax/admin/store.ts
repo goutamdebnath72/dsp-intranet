@@ -148,7 +148,8 @@ export async function modifyEntry(db: PaxDb, actor: Actor, id: number, raw: Part
   }
 }
 
-export async function deleteEntry(db: PaxDb, actor: Actor, id: number, version?: string): Promise<EntryResult> {
+/** Deletes a line as the person SAW it (`version`) and only when he typed its number (`confirmNumber`: the card never prints it, and pasting is switched off, so he has to know it). */
+export async function deleteEntry(db: PaxDb, actor: Actor, id: number, opts: { confirmNumber: string; version?: string }): Promise<EntryResult> {
   try {
     return await db.run(async (q): Promise<EntryResult> => {
       const role = await begin(q, actor);
@@ -158,7 +159,8 @@ export async function deleteEntry(db: PaxDb, actor: Actor, id: number, version?:
       if (!mine) return { status: "missing" };
       const old = rows.find((r) => r.id === id) as PaxRow;
       // a line is deleted AS THE PERSON SAW IT: if it has been changed since, nothing is deleted and he looks again
-      if (!sameVersion(version, versionOfRow(old))) return { status: "stale", current: { id, department: mine.department, location: mine.location, number: mine.number, version: versionOfRow(old) }, last: await lastChangeOf(q, id) };
+      if (!sameVersion(opts.version, versionOfRow(old))) return { status: "stale", current: { id, department: mine.department, location: mine.location, number: mine.number, version: versionOfRow(old) }, last: await lastChangeOf(q, id) };
+      if (String(opts.confirmNumber ?? "").trim() !== String(mine.number)) return { status: "invalid", errors: { number: "The PAX number typed does not match this line." } };
       await q(`DELETE FROM public.pax_directory WHERE id = $1`, [id]);
       await audit(q, actor, role, "delete", id, null, snapshot({ department: mine.department, location: mine.location, number: mine.number, label: old.label }), null);
       return { status: "ok", entry: { id, department: mine.department, location: mine.location, number: mine.number } };
@@ -192,13 +194,13 @@ export async function recentAudit(db: PaxDb, limit = 50): Promise<PaxAuditView[]
     const before = x.before, after = x.after as { name?: string; ticket?: string } | null;
     const shown = (action === "delete" ? before : action === "add" || action === "modify" ? after : null) as { department?: string; location?: string; number?: string } | null;
     const who = action === "grant" ? after : action === "revoke" ? (before as { name?: string; ticket?: string } | null) : null;
-    const detail = action === "modify" ? line(before) : who ? `${who.name ?? ""} (${x.targetTicket})` : "";
+    const detail = action === "modify" ? line(before) : who ? `${who.name ?? ""} (${x.targetTicket})${x.note ? ` · ${x.note}` : ""}` : "";
     const summary =
       action === "add" ? `Added ${line(after)}`
       : action === "modify" ? `Changed ${line(before)} to ${line(after)}`
       : action === "delete" ? `Deleted ${line(before)}`
       : action === "grant" ? `Authorised ${after?.name ?? ""} (${x.targetTicket})`
-      : `Withdrew the authority of ${(before as { name?: string } | null)?.name ?? ""} (${x.targetTicket})`;
+      : `Withdrew the authority of ${(before as { name?: string } | null)?.name ?? ""} (${x.targetTicket})${x.note ? ` (${x.note})` : ""}`;
     return {
       at: x.at, actorName: x.actorName, actorTicket: x.actorTicket, actorRole: x.actorRole, actorDesignation: "",
       action, department: shown?.department ?? "", location: shown?.location ?? "", number: shown?.number ?? "", detail, summary,

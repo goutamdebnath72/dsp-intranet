@@ -425,9 +425,6 @@ export function EmployeeForm(p: EmployeeFormProps) {
                   <Field id={id("webmail")} label={`Web-mail (${WEBMAIL_DOMAIN})`} error={errors.webmail} hint={contact ? nowHint(original?.webmail, "Optional.") : lockedHint} icon={<Mail className={ico} />} status={contact ? status("webmail") : null}>
                     <input id={id("webmail")} data-emp-field="webmail" className={cls("webmail")} value={v.webmail} onChange={set("webmail")} disabled={!contact} maxLength={120} placeholder={`name${WEBMAIL_DOMAIN}`} autoComplete="off" aria-invalid={errors.webmail ? true : undefined} />
                   </Field>
-                  <Field id={id("email")} label="E-mail" hint="Not used for an executive." icon={<Mail className={ico} />}>
-                    <input id={id("email")} data-emp-field="email" className={INPUT} value="" disabled placeholder="—" readOnly />
-                  </Field>
                 </>
               ) : (
                 <Field id={id("email")} label="E-mail" error={errors.email} hint={contact ? nowHint(original?.emailMasked, "Optional; any address.") : lockedHint} icon={<Mail className={ico} />} status={contact ? status("email") : null}>

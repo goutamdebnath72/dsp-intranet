@@ -22,6 +22,7 @@ import { cohortOfTicket, isTicket, validateEmployee } from "@/lib/employees/admi
 import type { AuditView, Authority, DelegateView, EmployeeConflict, EmployeeRecord, EmployeeAdminOpen, FieldErrors, LastChange, Lookups } from "@/lib/employees/admin/types";
 import { EMPTY_FORM, FIELD_LABELS, changesOf, formFromRecord, rawOf, reasonFor, rebaseForm, resolveDepartment, theirChanges, unlockedSections, type FormValues } from "./employeeFormModel";
 import { Avatar, Banner, DANGER, EmployeeAdminHeader, EmployeeForm, EmployeeHistory, EmployeeList, FIELD, PRIMARY, PanelShell, ReviewView, SECONDARY, StaleCard, TabBar, type Tab } from "./EmployeeAdminUi";
+import { TypedConfirm } from "./facility/TypedConfirm";
 
 // what the tests and the rest of the app have always imported from this file
 export * from "./employeeFormModel";
@@ -264,17 +265,14 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
 
       {tab === "delete" && target && (
         <div className="space-y-3 rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 to-white p-5 shadow-[0_18px_44px_-22px_rgba(225,29,72,0.45)]" data-emp-delete-confirm="true">
-          <p className="flex items-center gap-2 text-sm font-bold text-rose-950"><Trash2 className="h-4 w-4" aria-hidden="true" />Delete {target.name} ({target.ticketNo})?</p>
+          <p className="flex items-center gap-2 text-sm font-bold text-rose-950"><Trash2 className="h-4 w-4" aria-hidden="true" />Delete {target.name}?</p>
           <p className="text-sm text-rose-900">{target.gradeTitle}, {target.departmentName}. He leaves the roll at once. The history keeps the whole record and who deleted it.</p>
           {target.hasLogin && (
             <label className="flex items-center gap-2 text-sm text-red-950">
               <input type="checkbox" data-emp-remove-login="true" checked={removeLogin} onChange={(e) => setRemoveLogin(e.target.checked)} /> Also delete his login account (and what hangs on it: sessions, read marks)
             </label>
           )}
-          <div>
-            <label htmlFor="emp-confirm" className="mb-1.5 block text-xs font-semibold text-rose-900">{`Type his ticket number, ${target.ticketNo}, to confirm`}</label>
-            <input id="emp-confirm" data-emp-field="confirm" className={`${FIELD} pl-3`} value={confirmTicket} onChange={(e) => setConfirmTicket(e.target.value)} inputMode="numeric" maxLength={6} autoComplete="off" />
-          </div>
+          <TypedConfirm id="emp-confirm" label="Type his ticket number to confirm" value={confirmTicket} onChange={setConfirmTicket} className={`${FIELD} pl-3`} inputMode="numeric" maxLength={6} mark={{ name: "data-emp-field", value: "confirm" }} />
           <div className="flex gap-2">
             <button type="button" data-emp-delete-go="true" className={DANGER} disabled={busy || confirmTicket.trim() !== target.ticketNo} onClick={() => void doDelete()}>Yes, delete him</button>
             <button type="button" className={SECONDARY} disabled={busy} onClick={() => { setTarget(null); setConfirmTicket(""); }}>No, keep him</button>

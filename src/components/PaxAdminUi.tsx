@@ -31,6 +31,9 @@ const INPUT_OK = "border-teal-200 bg-white";
 const INPUT_BAD = "border-rose-300 bg-white";
 export const PRIMARY = "inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 via-cyan-600 to-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/30 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:from-slate-300 disabled:via-slate-300 disabled:to-slate-300 disabled:shadow-none disabled:hover:brightness-100";
 export const SECONDARY = "inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-teal-300 hover:bg-teal-50/60 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
+/** The box of the typed confirmation of a deletion (shared component src/components/facility/TypedConfirm.tsx), in the PAX editor's colours. */
+export const CONFIRM_INPUT = "h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-3 text-sm text-slate-900 shadow-inner outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100";
+
 export const DANGER = "inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-500/30 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-300 disabled:shadow-none";
 const ROW_ACTION = "rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition hover:border-teal-300 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50";
 const ROW_DANGER = "rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50";
@@ -510,11 +513,13 @@ export function ConfirmCard(props: { kind: "delete" | "revoke"; ariaLabel: strin
 }
 
 /** The line that is about to go: its place and its number struck through. */
-export function LineAboutToGo({ entry }: { entry: PaxEntryView }) {
+export function LineAboutToGo({ entry, hideNumber = false }: { entry: PaxEntryView; hideNumber?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-rose-100">
       <span className="font-semibold text-slate-800">{entry.department} · {entry.location || EMPTY_LOCATION}</span>
-      <span className="rounded-lg bg-rose-50 px-2 py-1 font-mono text-sm font-bold text-rose-700 line-through decoration-rose-300">{entry.number}</span>
+      {hideNumber
+        ? <span className="rounded-lg bg-rose-50 px-2 py-1 font-mono text-sm font-bold text-rose-700" aria-label="the number is not shown here">•••••</span>
+        : <span className="rounded-lg bg-rose-50 px-2 py-1 font-mono text-sm font-bold text-rose-700 line-through decoration-rose-300">{entry.number}</span>}
     </div>
   );
 }
