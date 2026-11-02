@@ -131,10 +131,11 @@ async function main() {
     ok("...and the lock is let go when the transaction ends", (await rows(`SELECT pg_try_advisory_xact_lock(hashtext('employee_roster')::bigint) AS got`))[0].got === true);
   }
   const L = (f: string, file: string, re: RegExp) => { const m = readFileSync(join(process.cwd(), file), "utf8").match(re); return m ? m[1] : null; };
-  const paxLock = L("pax", "src/lib/pax/admin/store.ts", /const LOCK = "([^"]+)"/);
-  ok("the lock words are EXACTLY the ones the employee manager and the PAX editor always used (moving onto the kit changes nothing about how they lock)", reg.lockSql("employee") === "SELECT pg_advisory_xact_lock(hashtext('employee_roster')::bigint)" && paxLock === reg.lockSql("pax"), `${paxLock}`);
+  ok("the lock words are EXACTLY the ones the employee manager and the PAX editor always used (moving onto the kit changes nothing about how they lock)", reg.lockSql("employee") === "SELECT pg_advisory_xact_lock(hashtext('employee_roster')::bigint)" && reg.lockSql("pax") === "SELECT pg_advisory_xact_lock(hashtext('pax_directory')::bigint)");
   const empSrc = readFileSync(join(process.cwd(), "src/lib/employees/admin/store.ts"), "utf8");
   ok("step 68b: the employee manager takes its lock and its authority through the kit (it has no lock words of its own any more)", !/const LOCK\b/.test(empSrc) && /sharedBegin\(q, "employee"/.test(empSrc));
+  const paxSrc2 = readFileSync(join(process.cwd(), "src/lib/pax/admin/store.ts"), "utf8");
+  ok("step 68c: the PAX editor takes its lock and its authority through the kit too (no lock words of its own), and both tools throw and catch the SAME Forbidden", !/const LOCK\b/.test(paxSrc2) && /sharedBegin\(q, "pax"/.test(paxSrc2) && /import \{ Forbidden,/.test(paxSrc2) && /export \{ Forbidden \}/.test(empSrc));
   ok("the registry knows the two tools and nothing else", reg.isFacilityKey("employee") && reg.isFacilityKey("pax") && !reg.isFacilityKey("holiday") && !reg.isFacilityKey("") && !reg.isFacilityKey(undefined) && !reg.isFacilityKey("toString"));
 
   // ---- the history ----

@@ -58,6 +58,12 @@ async function main() {
   let again = true;
   try { await pool.query(migration); } catch { again = false; }
   ok("the migration (sql/13) runs, and runs again without error", again);
+  // step 68c: the authorisations and the history live in the SHARED tables (sql/17); its closing check also reads the employee manager's two old tables, so sql/15 runs here as it did live
+  await pool.query(readFileSync("src/lib/nl2sql/sql/15_employee_admin.sql", "utf8"));
+  const m17 = readFileSync("src/lib/nl2sql/sql/17_facility_kit.sql", "utf8");
+  await pool.query(m17);
+  let again17 = true; try { await pool.query(m17); } catch { again17 = false; }
+  ok("the migration sql/17 runs twice without error", again17);
 
   // the database as the code sees it: each operation in its own transaction on its own connection
   const db: import("./store").PaxDb = {
@@ -86,7 +92,7 @@ async function main() {
   const delX = async (actor: { ticket: string; name: string }, id: number) => store.deleteEntry(db, actor, id, await seenV(id));
 
   const rowsNow = async () => (await pool.query(`SELECT * FROM public.pax_directory ORDER BY id`)).rows;
-  const auditNow = async () => (await pool.query(`SELECT * FROM public.pax_directory_audit ORDER BY id`)).rows;
+  const auditNow = async () => (await pool.query(`SELECT * FROM public.facility_audit WHERE facility='pax' ORDER BY id`)).rows;
 
   // ---- who may do what ----
   ok("authority: the HOD by ticket; nobody else yet", (await db.run((q) => store.authorityOf(q, "400001"))) === "hod" && (await db.run((q) => store.authorityOf(q, "412345"))) === null && (await db.run((q) => store.authorityOf(q, null))) === null && (await db.run((q) => store.authorityOf(q, "")) ) === null);
@@ -100,7 +106,7 @@ async function main() {
   const added = (await rowsNow()).find((x) => x.number === "42555");
   ok("...saved with its own parts, a printed name, and the source 'portal'", added?.dept_name === "Stores" && added.location === "Main Gate" && added.label === "Stores (Main Gate)" && added.source === "portal");
   let log = await auditNow();
-  ok("...ONE history line: who (ticket and name), as what, what was added", log.length === 1 && log[0].actor_ticket === "400001" && log[0].actor_name === HOD.name && log[0].actor_role === "hod" && log[0].action === "add" && log[0].after.number === "42555" && log[0].before === null && Number(log[0].pax_id) === Number(added.id), JSON.stringify(log[0]));
+  ok("...ONE history line: who (ticket and name), as what, what was added", log.length === 1 && log[0].actor_ticket === "400001" && log[0].actor_name === HOD.name && log[0].actor_role === "hod" && log[0].action === "add" && log[0].after.number === "42555" && log[0].before === null && Number(log[0].target_id) === Number(added.id), JSON.stringify(log[0]));
   const shown = await answerPax("pax stores", () => loadPaxRows((sql, p) => pool.query(sql, p as never[]).then((x) => x.rows)));
   ok("...and the search shows it exactly as typed: Stores | Main Gate | 42555", shown?.card.table?.rows[0].join("|") === "Stores|Main Gate|42555", JSON.stringify(shown?.card.table));
   r = await store.addEntry(db, HOD, { department: "Garage", location: "", number: "42556" });
@@ -179,12 +185,12 @@ async function main() {
 
   // ---- the history cannot be changed ----
   let blocked = 0;
-  try { await pool.query(`UPDATE public.pax_directory_audit SET actor_name = 'someone else'`); } catch { blocked++; }
-  try { await pool.query(`DELETE FROM public.pax_directory_audit`); } catch { blocked++; }
+  try { await pool.query(`UPDATE public.facility_audit SET actor_name = 'someone else'`); } catch { blocked++; }
+  try { await pool.query(`DELETE FROM public.facility_audit`); } catch { blocked++; }
   ok("the history is append only: an UPDATE and a DELETE are both refused, even for the application", blocked === 2);
   // ---- closed to the public API roles ----
   let denied = 0;
-  for (const table of ["pax_delegate", "pax_directory_audit", "pax_directory"]) {
+  for (const table of ["facility_delegate", "facility_audit", "pax_directory"]) {
     const c = await pool.connect();
     try { await c.query("SET ROLE anon"); await c.query(`SELECT * FROM public.${table}`); } catch { denied++; } finally { await c.query("RESET ROLE"); c.release(); }
   }
@@ -207,7 +213,7 @@ async function main() {
   ok("the HOD revokes him", (await store.revokeDelegate(db, HOD, "412345")).status === "ok" && (await store.listDelegates(db)).length === 0);
   ok("...revoking again is 'not-delegate'", (await store.revokeDelegate(db, HOD, "412345")).status === "not-delegate");
   ok("after the revocation he can no longer add", (await store.addEntry(db, RAKESH, { department: "Canteen", location: "", number: "42601" })).status === "forbidden");
-  ok("he can be authorised again, and both periods stay in the table (the revoked one with who revoked it)", (await store.grantDelegate(db, HOD, RAKESH)).status === "ok" && (await count(`SELECT count(*) AS n FROM public.pax_delegate WHERE ticket_no = '412345'`)) === 2 && (await count(`SELECT count(*) AS n FROM public.pax_delegate WHERE ticket_no = '412345' AND revoked_by_ticket = '400001'`)) === 1);
+  ok("he can be authorised again, and both periods stay in the table (the revoked one with who revoked it)", (await store.grantDelegate(db, HOD, RAKESH)).status === "ok" && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='pax' AND ticket_no = '412345'`)) === 2 && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='pax' AND ticket_no = '412345' AND revoked_by_ticket = '400001'`)) === 1);
   ok("a delegate who is authorised and then revoked while a change is being made cannot slip through: authority is checked inside the transaction (revoked person refused)", (await store.revokeDelegate(db, HOD, "412345")).status === "ok" && (await delX(RAKESH, 1)).status === "forbidden");
 
   // ---- the history as the panel shows it ----
@@ -293,12 +299,12 @@ async function main() {
   })());
   ok("the history through the request lists the newest first", ((await handlePaxAdmin({ op: "audit" }, ctx(HOD))).body.history as Array<{ action: string }>)[0].action === "revoke");
   ok("a page of ANOTHER site cannot use the login: origin must be this site (no Origin header = not a page of another site)", isSameOrigin("https://intranet.example", "intranet.example") && !isSameOrigin("https://evil.example", "intranet.example") && isSameOrigin(null, "intranet.example") && !isSameOrigin("not a url", "intranet.example") && !isSameOrigin("https://intranet.example", null));
-  ok("a missing admin table (sql/13 not run) gets a reply that NAMES the fix, in the form TypeORM raises it; any other failure stays generic (no detail leaked)", (() => {
-    const missing = errorReply(Object.assign(new Error('relation "public.pax_delegate" does not exist'), { code: "42P01" }));
-    const viaDriver = errorReply(Object.assign(new Error('relation "public.pax_directory_audit" does not exist'), { driverError: { code: "42P01" } }));
+  ok("a missing shared table (sql/17 not run) gets a reply that NAMES the fix, in the form TypeORM raises it; any other failure stays generic (no detail leaked)", (() => {
+    const missing = errorReply(Object.assign(new Error('relation "public.facility_delegate" does not exist'), { code: "42P01" }));
+    const viaDriver = errorReply(Object.assign(new Error('relation "public.facility_audit" does not exist'), { driverError: { code: "42P01" } }));
     const other = errorReply(new Error("connection terminated: secret-host.example:5432"));
     const otherTable = errorReply(Object.assign(new Error('relation "public.something_else" does not exist'), { code: "42P01" }));
-    return missing.status === 503 && /13_pax_admin\.sql/.test(String(missing.body.error)) && missing.body.setupNeeded === true && viaDriver.status === 503 && other.status === 500 && !JSON.stringify(other.body).includes("secret-host") && otherTable.status === 500;
+    return missing.status === 503 && /17_facility_kit\.sql/.test(String(missing.body.error)) && missing.body.setupNeeded === true && viaDriver.status === 503 && other.status === 500 && !JSON.stringify(other.body).includes("secret-host") && otherTable.status === 500;
   })());
   ok("TypeORM returns [rows, count] for UPDATE and DELETE: rowsOf puts every shape right", rowsOf([[{ name: "x" }], 1]).length === 1 && rowsOf([[], 0]).length === 0 && rowsOf([{ a: 1 }, { a: 2 }]).length === 2 && rowsOf([]).length === 0 && rowsOf(undefined).length === 0 && rowsOf([{ a: 1 }, { a: 2 }])[1].a === 2);
 
@@ -307,7 +313,7 @@ async function main() {
   type V = { id: number; department: string; location: string; number: string; version?: string };
   const line = async (department: string, location: string, number: string): Promise<V> => { const r = await store.addEntry(db, HOD, { department, location, number }); if (r.status !== "ok") throw new Error(`could not add ${department}: ${JSON.stringify(r)}`); return r.entry as V; };
   const numberOf = async (id: number) => (await pool.query(`SELECT "number"::text AS n FROM public.pax_directory WHERE id = $1`, [id])).rows[0]?.n as string | undefined;
-  const modifiesOf = async (id: number) => count(`SELECT count(*) AS n FROM public.pax_directory_audit WHERE pax_id = ${id} AND action = 'modify'`);
+  const modifiesOf = async (id: number) => count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='pax' AND target_id = ${id} AND action = 'modify'`);
 
   const L1 = await line("Conc Dept One", "Gate 1", "43601");
   ok("a line saved or listed carries its VERSION, and it is the same whichever way it is read (the answer to the save, the list)", !!L1.version && L1.version === (await store.listEntries(db, "Conc Dept One")).find((e) => e.id === L1.id)?.version);
@@ -384,6 +390,14 @@ async function main() {
   const listNow = await store.listEntries(db, "");
   ok("the lines named in a clash carry their version too (the same one the list shows), so that 'Edit this line' from the question can be saved at once", clash.status === "conflict" && clash.conflicts.length > 0 && clash.conflicts.every((c) => c.existing.length > 0 && c.existing.every((l) => !!l.version && l.version === listNow.find((e) => e.id === l.id)?.version)));
 
+  // ---- STEP 68c: the PAX editor lives on the shared kit (src/lib/facility) ----
+  ok("the PAX editor no longer writes to its OLD tables: after everything above they hold nothing, and the shared tables hold the history", (await count(`SELECT count(*) AS n FROM public.pax_delegate`)) === 0 && (await count(`SELECT count(*) AS n FROM public.pax_directory_audit`)) === 0 && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='pax'`)) > 10);
+  await pool.query(`INSERT INTO public.facility_delegate (facility, ticket_no, name, granted_by_ticket, granted_by_name) VALUES ('pax', '412777', 'SQL GRANTED', '400001', 'HOD'), ('employee', '412778', 'ONLY EMPLOYEES', '400001', 'HOD')`);
+  ok("a row in the shared table is enough: an executive authorised there for the PAX editor IS a delegate at once; one authorised only for the employee manager is NOT", (await db.run((q) => store.authorityOf(q, "412777"))) === "delegate" && (await db.run((q) => store.authorityOf(q, "412778"))) === null);
+  await pool.query(`UPDATE public.facility_delegate SET revoked_at = now(), revoked_by_ticket = '400001', revoked_by_name = 'HOD' WHERE ticket_no = '412777'`);
+  ok("...and withdrawn there is withdrawn at once", (await db.run((q) => store.authorityOf(q, "412777"))) === null);
+  const paxSrc = readFileSync("src/lib/pax/admin/store.ts", "utf8");
+  ok("the store names no old table, keeps no lock words of its own, and takes its lock and its authority through the shared kit", !/pax_delegate|pax_directory_audit/.test(paxSrc) && !/const LOCK\b/.test(paxSrc) && /sharedBegin\(q, "pax", actor, needHod\)/.test(paxSrc) && /sharedAuthorityOf\(q, "pax", ticket\)/.test(paxSrc));
   await pool.end();
   console.log(`adminStore selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

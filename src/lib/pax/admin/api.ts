@@ -44,12 +44,12 @@ const text = (v: unknown, max = 200): string => String(v ?? "").slice(0, max);
 const acksOf = (v: unknown): Acknowledge[] => (Array.isArray(v) ? v.filter((x): x is Acknowledge => x === "second-number" || x === "different") : []);
 const idOf = (v: unknown): number | null => (typeof v === "number" && Number.isSafeInteger(v) && v > 0 ? v : null);
 
-/** The reply for an error the handler did not expect. A missing admin table (sql/13 not yet run) is named, so nobody has to read a server log to learn it. */
+/** The reply for an error the handler did not expect. A missing shared table (sql/17 not yet run) is named, so nobody has to read a server log to learn it. */
 export function errorReply(e: unknown): ApiReply {
   const err = e as { code?: string; message?: string; driverError?: { code?: string } };
   const code = err?.code ?? err?.driverError?.code;
-  if (code === "42P01" && /pax_delegate|pax_directory_audit/.test(String(err?.message ?? ""))) {
-    return reply(503, { error: "The PAX admin tables have not been created yet. Run src/lib/nl2sql/sql/13_pax_admin.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
+  if (code === "42P01" && /facility_delegate|facility_audit/.test(String(err?.message ?? ""))) {
+    return reply(503, { error: "The tables of the tools' authorisations and history have not been created yet. Run src/lib/nl2sql/sql/17_facility_kit.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
   }
   return reply(500, { error: "The PAX directory could not be changed just now. Please try again; if it keeps happening, tell the Telecom team." });
 }

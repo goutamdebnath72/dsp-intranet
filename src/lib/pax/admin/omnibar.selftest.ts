@@ -87,7 +87,7 @@ async function main() {
   const route = readFileSync("src/app/api/pax/admin/route.ts", "utf8");
   ok("the request route takes the person from the login (sessionActor), checks the origin, and never reads a ticket from the body", route.includes("sessionActor") && route.includes("isSameOrigin") && !/body\.ticket|b\.actor/.test(route));
   ok("...its code never touches the model's client either", !/withClient|withDefaultClient|nlq_reader/.test(code(route)) && !/withClient|withDefaultClient|nlq_reader/.test(code(readFileSync("src/lib/pax/admin/access.ts", "utf8"))));
-  ok("the tables of the editor are not in the model's schema: no nlq view or prompt mentions them", !/pax_delegate|pax_directory_audit/.test(readFileSync("src/lib/nl2sql/context.ts", "utf8")));
+  ok("the tables of the editor are not in the model's schema: no nlq view or prompt mentions them", !/pax_delegate|pax_directory_audit|facility_delegate|facility_audit/.test(readFileSync("src/lib/nl2sql/context.ts", "utf8")));
 
   // ---- THE NAME TRAVELS WITH THE ANSWER (step 67b): the editor's header has it on the first paint ----
   const NAMES: Record<string, string | null> = { "400001": "MOHD ANWAR ULLAH", "412345": "  RAKESH OJHA  " };
