@@ -367,6 +367,19 @@ async function main() {
     store.addEntry(db, RAKESH, { department: "Race Dept Two", location: "", number: "43661" }),
   ]);
   ok("two people add the SAME PAX number (for two different places) at the same moment: one is saved, the other is told that a number belongs to one place only", sameNumber.filter((r) => r.status === "ok").length === 1 && sameNumber.filter((r) => r.status === "conflict").length === 1 && (await count(`SELECT count(*) AS n FROM public.pax_directory WHERE "number"::text = '43661'`)) === 1, JSON.stringify(sameNumber.map((r) => r.status)));
+  // two people CHANGE two different lines to the SAME number at the same moment (a number belongs to one place only)
+  const Q1 = await line("Race Change One", "", "43671"), Q2 = await line("Race Change Two", "", "43672");
+  const sameTarget = await Promise.all([
+    store.modifyEntry(db, HOD, Q1.id, { department: "Race Change One", location: "", number: "43679" }, [], Q1.version),
+    store.modifyEntry(db, RAKESH, Q2.id, { department: "Race Change Two", location: "", number: "43679" }, [], Q2.version),
+  ]);
+  ok("two people change two DIFFERENT lines to the SAME number at the same moment: one is saved and the other is told that a number belongs to one place only; the number exists once", sameTarget.filter((r) => r.status === "ok").length === 1 && sameTarget.filter((r) => r.status === "conflict").length === 1 && (await count(`SELECT count(*) AS n FROM public.pax_directory WHERE "number"::text = '43679'`)) === 1, JSON.stringify(sameTarget.map((r) => r.status)));
+  const Q3 = await line("Race Mixed One", "", "43681");
+  const addVsChange = await Promise.all([
+    store.addEntry(db, HOD, { department: "Race Mixed Two", location: "", number: "43689" }),
+    store.modifyEntry(db, RAKESH, Q3.id, { department: "Race Mixed One", location: "", number: "43689" }, [], Q3.version),
+  ]);
+  ok("an ADD and a CHANGE to the same number at the same moment: one wins, the other is told; the number exists once", addVsChange.filter((r) => r.status === "ok").length === 1 && addVsChange.filter((r) => r.status === "conflict").length === 1 && (await count(`SELECT count(*) AS n FROM public.pax_directory WHERE "number"::text = '43689'`)) === 1, JSON.stringify(addVsChange.map((r) => r.status)));
   const clash = await store.addEntry(db, HOD, { department: "Somebody Else", location: "", number: "43661" });
   const listNow = await store.listEntries(db, "");
   ok("the lines named in a clash carry their version too (the same one the list shows), so that 'Edit this line' from the question can be saved at once", clash.status === "conflict" && clash.conflicts.length > 0 && clash.conflicts.every((c) => c.existing.length > 0 && c.existing.every((l) => !!l.version && l.version === listNow.find((e) => e.id === l.id)?.version)));
