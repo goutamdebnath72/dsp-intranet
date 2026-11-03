@@ -64,6 +64,10 @@ async function main() {
   await pool.query(m17);
   let again17 = true; try { await pool.query(m17); } catch { again17 = false; }
   ok("the migration sql/17 runs twice without error", again17);
+  const m18 = readFileSync("src/lib/nl2sql/sql/18_facility_nonexecutive.sql", "utf8");
+  await pool.query(m18);
+  let again18 = true; try { await pool.query(m18); } catch { again18 = false; }
+  ok("the migration sql/18 runs twice without error", again18);
 
   // the database as the code sees it: each operation in its own transaction on its own connection
   const db: import("./store").PaxDb = {
@@ -199,7 +203,7 @@ async function main() {
 
   // ---- delegation ----
   ok("before the HOD authorises him, Rakesh Ojha cannot add", (await store.addEntry(db, RAKESH, { department: "Canteen", location: "", number: "42600" })).status === "forbidden");
-  ok("only an executive can be authorised (ticket 4xxxxx): 123456 is refused", (await store.grantDelegate(db, HOD, { ticket: "123456", name: "T" })).status === "invalid" && (await store.grantDelegate(db, HOD, { ticket: "41234", name: "T" })).status === "invalid");
+  ok("a ticket that is not a ticket is refused (five digits); a non-executive's ticket is NOT refused but asks for the HOD's confirmation first (nothing written)", (await store.grantDelegate(db, HOD, { ticket: "41234", name: "T" })).status === "invalid" && (await store.grantDelegate(db, HOD, { ticket: "123456", name: "T" })).status === "needs-confirmation" && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='pax' AND ticket_no='123456'`)) === 0);
   ok("the HOD cannot authorise himself (he has it already)", (await store.grantDelegate(db, HOD, { ticket: "400001", name: "H" })).status === "invalid");
   ok("the HOD authorises Rakesh Ojha", (await store.grantDelegate(db, HOD, RAKESH)).status === "ok");
   ok("...twice is 'already'", (await store.grantDelegate(db, HOD, RAKESH)).status === "already");
@@ -245,7 +249,7 @@ async function main() {
   ok("...Telecom's own lines are split as the table shows them (Weigh Bridge | 60T)", weigh.includes("Weigh Bridge|60T|40173") && weigh.includes("Weigh Bridge|Tumla Gate|42043"), JSON.stringify(weigh));
 
   // ---- the requests (api.ts): who is asking comes from the login, never from the request ----
-  const { handlePaxAdmin, isSameOrigin, findExecutives, errorReply } = await import("./api");
+  const { handlePaxAdmin, isSameOrigin, findPeopleToAuthorise, errorReply } = await import("./api");
   const { rowsOf } = await import("./rows");
   const DIRECTORY = [
     { id: "u0", ticketNo: "400001", name: "HOD C&IT (invented)", designation: "General Manager (C&IT)", department: "C&IT" },
@@ -270,15 +274,16 @@ async function main() {
   ok("modify and delete need a real whole-number id (a text id, zero, a fraction are 400)", (await handlePaxAdmin({ op: "delete", id: "1" }, ctx(HOD))).status === 400 && (await handlePaxAdmin({ op: "delete", id: 0 }, ctx(HOD))).status === 400 && (await handlePaxAdmin({ op: "modify", id: 1.5, department: "X1", location: "", number: "42000" }, ctx(HOD))).status === 400 && (await handlePaxAdmin({ op: "delete" }, ctx(HOD))).status === 400);
   ok("add through the request: a clash comes back as data (200) with the line it clashes with", await (async () => { const x = await handlePaxAdmin({ op: "add", department: "Canteen", location: "", number: "40173" }, ctx(HOD)); const res = x.body.result as { status: string; conflicts: Array<{ kind: string }> }; return x.status === 200 && res.status === "conflict" && res.conflicts[0].kind === "same-number"; })());
   ok("only the two known answers are taken from the request ('second-number', 'different'); anything else is ignored", await (async () => { const x = await handlePaxAdmin({ op: "add", department: "CISF", location: "Admin Gate", number: "43456", acknowledge: ["yes", "force", 1, null] }, ctx(HOD)); return (x.body.result as { status: string }).status === "conflict"; })());
-  ok("find-executive: by ticket, and by name where EVERY typed word is a whole word (the sound-alike 'RAKESH OJHAA' is not offered; the non-executive RAKESH KUMAR never)", await (async () => {
-    const byName = (await findExecutives("rakesh ojha", ctx(HOD))).map((e) => e.ticket).sort().join();
-    const byTicket = (await findExecutives("498301", ctx(HOD))).map((e) => e.name).join();
-    const nonExec = (await findExecutives("123456", ctx(HOD))).length + (await findExecutives("rakesh kumar", ctx(HOD))).length;
-    return byName === "412345,450001" && byTicket === "ANIL DAS" && nonExec === 0 && (await findExecutives("", ctx(HOD))).length === 0 && (await findExecutives("a b c d e", ctx(HOD))).length === 0;
+  ok("find-executive: by ticket (a non-executive too, marked), and by name where EVERY typed word is a whole word (the sound-alike 'RAKESH OJHAA' is not offered; a non-executive is never offered by NAME)", await (async () => {
+    const byName = (await findPeopleToAuthorise("rakesh ojha", ctx(HOD))).map((e) => e.ticket).sort().join();
+    const byTicket = (await findPeopleToAuthorise("498301", ctx(HOD))).map((e) => e.name).join();
+    const nonExecByName = (await findPeopleToAuthorise("rakesh kumar", ctx(HOD))).length;
+    const nonExecByTicket = await findPeopleToAuthorise("123456", ctx(HOD));
+    return byName === "412345,450001" && byTicket === "ANIL DAS" && nonExecByName === 0 && nonExecByTicket.length === 1 && nonExecByTicket[0].nonExecutive === true && (await findPeopleToAuthorise("412345", ctx(HOD)))[0].nonExecutive === false && (await findPeopleToAuthorise("", ctx(HOD))).length === 0 && (await findPeopleToAuthorise("a b c d e", ctx(HOD))).length === 0;
   })());
   h = await handlePaxAdmin({ op: "grant", ticket: "498301", name: "HACKER NAME FROM THE BROWSER" }, ctx(HOD));
   ok("authorising: the name saved is the DIRECTORY's, never the one the browser sent", (h.body.result as { status: string }).status === "ok" && (await store.listDelegates(db)).find((d) => d.ticket === "498301")?.name === "ANIL DAS");
-  ok("authorising a ticket that is not an executive, or does not exist, is refused with the reason", ((await handlePaxAdmin({ op: "grant", ticket: "123456" }, ctx(HOD))).body.result as { status: string; reason: string }).status === "invalid" && ((await handlePaxAdmin({ op: "grant", ticket: "499999" }, ctx(HOD))).body.result as { reason: string }).reason.includes("No executive"));
+  ok("authorising a non-executive asks for the HOD's confirmation first (the question comes back), and a ticket that does not exist is refused with the reason", ((await handlePaxAdmin({ op: "grant", ticket: "123456" }, ctx(HOD))).body.result as { status: string; reason: string }).status === "needs-confirmation" && ((await handlePaxAdmin({ op: "grant", ticket: "499999" }, ctx(HOD))).body.result as { reason: string }).reason.includes("No employee"));
   ok("revoking through the request", ((await handlePaxAdmin({ op: "revoke", ticket: "498301" }, ctx(HOD))).body.result as { status: string }).status === "ok");
   ok("the history carries, for each kind of action, the line it is about and what to say under it (for the history TABLE)", (() => {
     const by = (f: (h: Awaited<ReturnType<typeof store.recentAudit>>[number]) => boolean) => hist.find(f);
@@ -307,6 +312,7 @@ async function main() {
     const otherTable = errorReply(Object.assign(new Error('relation "public.something_else" does not exist'), { code: "42P01" }));
     return missing.status === 503 && /17_facility_kit\.sql/.test(String(missing.body.error)) && missing.body.setupNeeded === true && viaDriver.status === 503 && other.status === 500 && !JSON.stringify(other.body).includes("secret-host") && otherTable.status === 500;
   })());
+  ok("a non-executive confirmed before sql/18 was run: a reply that NAMES the file to run (503, setupNeeded), not a bare failure", await (async () => { const r = errorReply(Object.assign(new Error('new row for relation "facility_delegate" violates check constraint "facility_delegate_ticket_no_check"'), { code: "23514" })); return r.status === 503 && /18_facility_nonexecutive\.sql/.test(String(r.body.error)) && r.body.setupNeeded === true && errorReply(Object.assign(new Error('violates check constraint "something_else"'), { code: "23514" })).status === 500; })());
   ok("TypeORM returns [rows, count] for UPDATE and DELETE: rowsOf puts every shape right", rowsOf([[{ name: "x" }], 1]).length === 1 && rowsOf([[], 0]).length === 0 && rowsOf([{ a: 1 }, { a: 2 }]).length === 2 && rowsOf([]).length === 0 && rowsOf(undefined).length === 0 && rowsOf([{ a: 1 }, { a: 2 }])[1].a === 2);
 
   // ---- TWO PEOPLE AT ONCE: the guard against a LOST UPDATE (step 67b, src/lib/concurrency/version.ts) ----
@@ -418,6 +424,17 @@ async function main() {
   const reasonLine = withdrawnLines.find((x) => x.action === "revoke" && /REASON PERSON/.test(x.summary));
   ok("the history of a withdrawal shows its REASON, as the employee manager's does: in the sentence and under the name", !!reasonLine && /\(deleted with the employee\)$/.test(reasonLine.summary) && /REASON PERSON \(412966\) · deleted with the employee/.test(reasonLine.detail), JSON.stringify(reasonLine));
   ok("...and a withdrawal made by hand (no reason) reads as before, with nothing added", await (async () => { await store.grantDelegate(db, HOD, { ticket: "412967", name: "PLAIN PERSON" }); await store.revokeDelegate(db, HOD, "412967"); const l = (await store.recentAudit(db, 3)).find((x) => /PLAIN PERSON/.test(x.summary) && x.action === "revoke"); return !!l && l.summary === "Withdrew the authority of PLAIN PERSON (412967)" && l.detail === "PLAIN PERSON (412967)"; })());
+  // ---- STEP 69c: authorising a NON-EXECUTIVE through the request (the HOD confirms) ----
+  { const n0 = await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='pax'`);
+    const ask = await handlePaxAdmin({ op: "grant", ticket: "123456" }, ctx(HOD));
+    ok("a request to authorise a non-executive WITHOUT the confirmation gets the question back (200, needs-confirmation) and writes nothing; an unknown ticket is 'invalid'", ask.status === 200 && (ask.body.result as { status: string }).status === "needs-confirmation" && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='pax'`)) === n0 && ((await handlePaxAdmin({ op: "grant", ticket: "499999" }, ctx(HOD))).body.result as { status: string; reason: string }).reason === "No employee with this ticket number was found.");
+    const yes = await handlePaxAdmin({ op: "grant", ticket: "123456", confirmNonExecutive: true }, ctx(HOD));
+    ok("...WITH the confirmation he is authorised (the name comes from the directory, never from the request) and the list marks him; his authority works at once", (yes.body.result as { status: string }).status === "ok" && ((await handlePaxAdmin({ op: "delegates" }, ctx(HOD))).body.delegates as Array<{ ticket: string; name: string; nonExecutive?: boolean }>).some((d) => d.ticket === "123456" && d.name === "RAKESH KUMAR" && d.nonExecutive === true) && (await db.run((q) => store.authorityOf(q, "123456"))) === "delegate");
+    const hs = (await store.recentAudit(db, 5)).find((x) => x.action === "grant" && /RAKESH KUMAR/.test(x.summary));
+    ok("...the history says so in words, in the sentence and under the name", !!hs && /\(non-executive, confirmed\)$/.test(hs.summary) && /non-executive, confirmed/.test(hs.detail), JSON.stringify(hs));
+    ok("a non-executive delegate is a delegate like the others: he may add, and he is refused the HOD's requests", (await handlePaxAdmin({ op: "add", department: "Nonexec Dept", location: "", number: "43855" }, ctx({ ticket: "123456", name: "RAKESH KUMAR" }))).status === 200 && (await handlePaxAdmin({ op: "grant", ticket: "412346", confirmNonExecutive: true }, ctx({ ticket: "123456", name: "RAKESH KUMAR" }))).status === 403);
+    ok("withdrawing him works like anybody's", ((await handlePaxAdmin({ op: "revoke", ticket: "123456" }, ctx(HOD))).body.result as { status: string }).status === "ok" && (await db.run((q) => store.authorityOf(q, "123456"))) === null);
+  }
   await pool.end();
   console.log(`adminStore selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

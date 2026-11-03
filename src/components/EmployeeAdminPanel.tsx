@@ -23,6 +23,7 @@ import type { AuditView, Authority, DelegateView, EmployeeConflict, EmployeeReco
 import { EMPTY_FORM, FIELD_LABELS, changesOf, formFromRecord, rawOf, reasonFor, rebaseForm, resolveDepartment, theirChanges, unlockedSections, type FormValues } from "./employeeFormModel";
 import { Avatar, Banner, DANGER, EmployeeAdminHeader, EmployeeForm, EmployeeHistory, EmployeeList, FIELD, PRIMARY, PanelShell, ReviewView, SECONDARY, StaleCard, TabBar, type Tab } from "./EmployeeAdminUi";
 import { TypedConfirm } from "./facility/TypedConfirm";
+import { NONEXEC_ROW, NonExecutiveAsk, NonExecutiveChip } from "./facility/NonExecutive";
 
 // what the tests and the rest of the app have always imported from this file
 export * from "./employeeFormModel";
@@ -210,13 +211,14 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   // ---- people and history ----
   const [delegates, setDelegates] = useState<DelegateView[] | null>(null);
   const [find, setFind] = useState("");
-  const [found, setFound] = useState<Array<{ ticket: string; name: string; designation: string; department: string }> | null>(null);
+  const [found, setFound] = useState<Array<{ ticket: string; name: string; designation: string; department: string; nonExecutive?: boolean }> | null>(null);
+  const [asking, setAsking] = useState<string | null>(null); // the ticket of a NON-EXECUTIVE the HOD is being asked to confirm
   const [history, setHistory] = useState<AuditView[] | null>(null);
   const loadDelegates = useCallback(async () => { const r = await call({ op: "delegates" }); if (alive.current) { if (r.ok) setDelegates((r.body.delegates as DelegateView[]) ?? []); else setMessage({ tone: "error", text: typeof r.body.error === "string" ? r.body.error : "That did not work." }); } }, [call]);
   const loadHistory = useCallback(async () => { const r = await call({ op: "audit" }); if (alive.current) { if (r.ok) setHistory((r.body.history as AuditView[]) ?? []); else setMessage({ tone: "error", text: typeof r.body.error === "string" ? r.body.error : "That did not work." }); } }, [call]);
   useEffect(() => { if (tab === "people" && isHod) void loadDelegates(); if (tab === "history") void loadHistory(); }, [tab, isHod, loadDelegates, loadHistory]);
-  const doFind = async () => { setBusy(true); const r = await call({ op: "find-executive", q: find }); if (!alive.current) return; setBusy(false); if (r.ok) setFound((r.body.executives as typeof found) ?? []); else fail(r); };
-  const grant = async (ticket: string) => { setBusy(true); const r = await call({ op: "grant", ticket }); if (!alive.current) return; setBusy(false); if (!r.ok) return fail(r); const res = r.body.result as { status: string; reason?: string }; if (res.status === "ok") { setMessage({ tone: "ok", text: "Authorised. From now on this executive can add and change employees (not the dates, and not delete)." }); setFound(null); setFind(""); void loadDelegates(); } else setMessage({ tone: "error", text: res.status === "already" ? "He is already authorised." : res.reason ?? "That did not work." }); };
+  const doFind = async () => { setAsking(null); setBusy(true); const r = await call({ op: "find-executive", q: find }); if (!alive.current) return; setBusy(false); if (r.ok) setFound((r.body.executives as typeof found) ?? []); else fail(r); };
+  const grant = async (ticket: string, confirmNonExecutive = false) => { setBusy(true); const r = await call({ op: "grant", ticket, confirmNonExecutive }); if (!alive.current) return; setBusy(false); if (!r.ok) return fail(r); const res = r.body.result as { status: string; reason?: string }; if (res.status === "ok") { setMessage({ tone: "ok", text: confirmNonExecutive ? "Authorised. From now on this employee (a non-executive) can add and change employees (not the dates, and not delete)." : "Authorised. From now on this executive can add and change employees (not the dates, and not delete)." }); setFound(null); setFind(""); setAsking(null); void loadDelegates(); } else { setAsking(null); setMessage({ tone: "error", text: res.status === "already" ? "He is already authorised." : res.reason ?? "That did not work." }); } };
   const revoke = async (ticket: string) => { setBusy(true); const r = await call({ op: "revoke", ticket }); if (!alive.current) return; setBusy(false); if (!r.ok) return fail(r); setMessage({ tone: "ok", text: "The authority is withdrawn." }); void loadDelegates(); };
 
   const onTab = (t: Tab) => { setTab(t); setMessage(null); };
@@ -285,8 +287,8 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
           <p className="text-sm font-bold text-neutral-900">Executives who may add and change employees</p>
           {delegates === null ? <p className="text-sm text-neutral-600">Loading…</p> : delegates.length === 0 ? <p className="text-sm text-neutral-600">Nobody else has been authorised: only you can change the employee records.</p> : (
             <ul className="space-y-1">{delegates.map((d) => (
-              <li key={d.ticket} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-                <span><span className="font-semibold">{d.name}</span> <span className="text-neutral-500">({d.ticket}) · authorised by {d.grantedByName} on {DateTime.fromISO(d.grantedAt).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium" })}</span></span>
+              <li key={d.ticket} data-emp-delegate={d.nonExecutive ? "non-executive" : "executive"} className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${d.nonExecutive ? NONEXEC_ROW : "border-slate-200 bg-white"}`}>
+                <span><span className="font-semibold">{d.name}</span>{d.nonExecutive && <NonExecutiveChip />} <span className="text-neutral-500">({d.ticket}) · authorised by {d.grantedByName} on {DateTime.fromISO(d.grantedAt).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium" })}</span></span>
                 <button type="button" className={SECONDARY} disabled={busy} onClick={() => void revoke(d.ticket)}>Withdraw</button>
               </li>))}</ul>
           )}
@@ -296,12 +298,13 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
               <input id="emp-find" className={FIELD} value={find} onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (find.trim()) void doFind(); } }} placeholder="For example Rakesh Ojha or 412345" autoComplete="off" />
               <button type="button" className={SECONDARY} disabled={busy || !find.trim()} onClick={() => void doFind()}>Find</button>
             </div>
-            <p className="text-xs text-neutral-500">Only an executive (a ticket that starts with 4) can be authorised. He can add and change employees; he cannot see or set the dates, delete anybody, or authorise others.</p>
-            {found && (found.length === 0 ? <p className="text-sm text-neutral-600">No executive matches.</p> : (
+            <p className="text-xs text-neutral-500">An executive (a ticket that starts with 4) is authorised at once; a non-executive, found by his ticket number, only after you confirm. He can add and change employees; he cannot see or set the dates, delete anybody, or authorise others.</p>
+            {found && (found.length === 0 ? (/^\d{6}$/.test(find.trim()) ? <p data-emp-no-ticket="true" className="text-sm font-semibold text-rose-700">No employee has this ticket number.</p> : <p className="text-sm text-neutral-600">No executive matches.</p>) : (
               <ul className="space-y-1">{found.map((f) => (
-                <li key={f.ticket} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-                  <span><span className="font-semibold">{f.name}</span> <span className="text-neutral-500">({f.ticket}) · {f.designation}{f.department ? `, ${f.department}` : ""}</span></span>
-                  <button type="button" className={PRIMARY} disabled={busy} onClick={() => void grant(f.ticket)}>Authorise</button>
+                <li key={f.ticket} className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${f.nonExecutive ? NONEXEC_ROW : "border-slate-200 bg-white"}`}>
+                  <span><span className="font-semibold">{f.name}</span>{f.nonExecutive && <NonExecutiveChip />} <span className="text-neutral-500">({f.ticket}) · {f.designation}{f.department ? `, ${f.department}` : ""}</span></span>
+                  <button type="button" className={PRIMARY} disabled={busy} onClick={() => (f.nonExecutive ? setAsking(f.ticket) : void grant(f.ticket))}>Authorise</button>
+                  {f.nonExecutive && asking === f.ticket && <NonExecutiveAsk name={f.name} ticket={f.ticket} busy={busy} onYes={() => void grant(f.ticket, true)} onNo={() => setAsking(null)} />}
                 </li>))}</ul>
             ))}
           </div>

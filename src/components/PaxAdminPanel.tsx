@@ -21,6 +21,7 @@ import type { Acknowledge, PaxAdminOpen, PaxAuditView, PaxConflict, PaxDelegateV
 import { describeLine } from "@/lib/pax/admin/conflicts";
 import { placeName } from "@/lib/pax/display";
 import { TypedConfirm } from "./facility/TypedConfirm";
+import { NonExecutiveAsk } from "./facility/NonExecutive";
 import { cleanInput, validateEntry, type FieldErrors } from "@/lib/pax/admin/validate";
 import { AuthoriseCard, ChangingBanner, ConfirmCard, CONFIRM_INPUT, ConflictView, DANGER, EntryFormView, EntryList, FIELD, HistoryList, IconField, Notice, PRIMARY, PaxAdminHeader, PaxShell, PaxTabs, PersonRow, SECONDARY, SearchBar, LineAboutToGo, StaleCard, rebaseEntry, theirEntryChanges, wordOfField, type FormValues } from "./PaxAdminUi";
 
@@ -97,7 +98,8 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   // people and history
   const [delegates, setDelegates] = useState<PaxDelegateView[] | null>(null);
   const [who, setWho] = useState("");
-  const [found, setFound] = useState<Array<{ ticket: string; name: string; designation: string; department: string }> | null>(null);
+  const [found, setFound] = useState<Array<{ ticket: string; name: string; designation: string; department: string; nonExecutive?: boolean }> | null>(null);
+  const [asking, setAsking] = useState<string | null>(null); // the ticket of a NON-EXECUTIVE the HOD is being asked to confirm
   const [revoking, setRevoking] = useState<PaxDelegateView | null>(null);
   const [history, setHistory] = useState<PaxAuditView[] | null>(null);
 
@@ -279,24 +281,26 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
 
   // ---- people ----
   async function searchPeople() {
+    setAsking(null);
     const r = await guard(() => call({ op: "find-executive", q: who }));
     if (!r || !alive.current) return;
     if (!r.ok) return fail(r);
     setFound((r.body.executives as typeof found) ?? []);
   }
-  async function grant(ticket: string) {
-    const r = await guard(() => call({ op: "grant", ticket }));
+  async function grant(ticket: string, confirmNonExecutive = false) {
+    const r = await guard(() => call({ op: "grant", ticket, confirmNonExecutive }));
     if (!r || !alive.current) return;
     if (!r.ok) return fail(r);
     const res = r.body.result as Json;
+    setAsking(null);
     if (res.status === "ok") {
-      setNotice({ tone: "ok", text: "Authorised. From now on this executive can add, change and delete PAX numbers." });
+      setNotice({ tone: "ok", text: confirmNonExecutive ? "Authorised. From now on this employee (a non-executive) can add, change and delete PAX numbers." : "Authorised. From now on this executive can add, change and delete PAX numbers." });
       setFound(null);
       setWho("");
       setHistory(null);
       void refreshDelegates();
-    } else if (res.status === "already") setNotice({ tone: "ok", text: "This executive is already authorised." });
-    else if (res.status === "invalid") setNotice({ tone: "error", text: String(res.reason ?? "This person cannot be authorised.") });
+    } else if (res.status === "already") setNotice({ tone: "ok", text: "This person is already authorised." });
+    else if (res.status === "invalid" || res.status === "needs-confirmation") setNotice({ tone: "error", text: String(res.reason ?? "This person cannot be authorised.") });
   }
   async function confirmRevoke() {
     if (!revoking) return;
@@ -405,7 +409,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
             ) : (
               <ul className="space-y-2">
                 {delegates.map((d) => (
-                  <PersonRow key={d.ticket} name={d.name} action={<button type="button" className={SECONDARY} disabled={busy} onClick={() => { setRevoking(d); setNotice(null); }} aria-label={`Withdraw the authority of ${d.name}`}>Withdraw</button>}>
+                  <PersonRow key={d.ticket} name={d.name} nonExecutive={d.nonExecutive} action={<button type="button" className={SECONDARY} disabled={busy} onClick={() => { setRevoking(d); setNotice(null); }} aria-label={`Withdraw the authority of ${d.name}`}>Withdraw</button>}>
                     ({d.ticket}) · authorised by {d.grantedByName} on {DateTime.fromISO(d.grantedAt).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium" })}
                   </PersonRow>
                 ))}
@@ -431,13 +435,13 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
               </div>
               <button type="button" className={SECONDARY} disabled={busy || !who.trim()} onClick={() => void searchPeople()}>Find</button>
             </div>
-            <p className="text-xs text-slate-500">Only an executive (a six-digit ticket number that starts with 4) can be authorised.</p>
+            <p className="text-xs text-slate-500">An executive (a six-digit ticket number that starts with 4) is authorised at once; a non-executive, found by his ticket number, only after you confirm.</p>
             {found && (found.length === 0 ? (
-              <p className="text-sm text-slate-600">No executive found with this name or ticket number. Type the full name as in the directory.</p>
+              /^\d{6}$/.test(who.trim()) ? <p data-pax-no-ticket="true" className="text-sm font-semibold text-rose-700">No employee has this ticket number.</p> : <p className="text-sm text-slate-600">No executive found with this name or ticket number. Type the full name as in the directory.</p>
             ) : (
               <ul className="space-y-2">
                 {found.map((p) => (
-                  <PersonRow key={p.ticket} name={p.name} action={<button type="button" className={PRIMARY} disabled={busy} onClick={() => void grant(p.ticket)} aria-label={`Authorise ${p.name}`}>Authorise</button>}>
+                  <PersonRow key={p.ticket} name={p.name} nonExecutive={p.nonExecutive} below={p.nonExecutive && asking === p.ticket ? <NonExecutiveAsk name={p.name} ticket={p.ticket} busy={busy} onYes={() => void grant(p.ticket, true)} onNo={() => setAsking(null)} /> : undefined} action={<button type="button" className={PRIMARY} disabled={busy} onClick={() => (p.nonExecutive ? setAsking(p.ticket) : void grant(p.ticket))} aria-label={`Authorise ${p.name}`}>Authorise</button>}>
                     ({p.ticket}) · {[p.designation, p.department].filter(Boolean).join(", ")}
                   </PersonRow>
                 ))}

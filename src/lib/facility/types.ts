@@ -19,14 +19,16 @@ export interface Actor { ticket: string; name: string }
 /** The last add or change of one record (who, when, what kind; never a value). */
 export interface LastChange { at: string; actorName: string; actorTicket: string; action: string }
 
-export interface DelegateView { ticket: string; name: string; grantedByName: string; grantedByTicket: string; grantedAt: string }
+export interface DelegateView { ticket: string; name: string; grantedByName: string; grantedByTicket: string; grantedAt: string; /** not an executive (his ticket does not start with 4): shown apart in the list */ nonExecutive: boolean }
 
 export type DelegateResult =
   | { status: "ok" }
   | { status: "forbidden" }
   | { status: "invalid"; reason: string }
   | { status: "already" }
-  | { status: "not-delegate" };
+  | { status: "not-delegate" }
+  /** A NON-EXECUTIVE is being authorised and the HOD has not confirmed it yet: nothing was written. */
+  | { status: "needs-confirmation"; reason: string };
 
 /** One line of the history, as stored (the tool turns it into a sentence). */
 export interface AuditRow {

@@ -10,6 +10,7 @@
 // The executive to authorise is looked up by the SERVER in the people directory (a typed name is never trusted): only an executive (ticket 4xxxxx) exists for this purpose.
 
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
+import { resolveGrantTarget } from "@/lib/facility/authorise";
 import { namedPeople, isExecutiveTicket, MAX_NAME_WORDS, subjectWords } from "../people";
 import { normalizePax } from "../matcher";
 import * as store from "./store";
@@ -48,17 +49,26 @@ const idOf = (v: unknown): number | null => (typeof v === "number" && Number.isS
 export function errorReply(e: unknown): ApiReply {
   const err = e as { code?: string; message?: string; driverError?: { code?: string } };
   const code = err?.code ?? err?.driverError?.code;
+  // a non-executive confirmed before sql/18 was run: the old rule of the table (ticket starts with 4) refuses him
+  if (code === "23514" && /facility_delegate_ticket_no_check/.test(String(err?.message ?? ""))) {
+    return reply(503, { error: "Giving a tool to a non-executive needs one more step in the database. Run src/lib/nl2sql/sql/18_facility_nonexecutive.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
+  }
   if (code === "42P01" && /facility_delegate|facility_audit/.test(String(err?.message ?? ""))) {
     return reply(503, { error: "The tables of the tools' authorisations and history have not been created yet. Run src/lib/nl2sql/sql/17_facility_kit.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
   }
   return reply(500, { error: "The PAX directory could not be changed just now. Please try again; if it keeps happening, tell the Telecom team." });
 }
 
-export async function findExecutives(q: string, ctx: Pick<ApiContext, "findByName" | "findByTicket">) {
+/**
+ * The people the HOD can pick to authorise: by NAME only executives (a name search must not offer 5,000 non-executives by accident); by an exact six-digit TICKET anybody, with `nonExecutive` saying so
+ * (the screen then asks the HOD to confirm).
+ */
+export async function findPeopleToAuthorise(q: string, ctx: Pick<ApiContext, "findByName" | "findByTicket">) {
   const typed = q.trim();
   if (!typed) return [];
   let found: EmployeeResult[];
-  if (/^\d{6}$/.test(typed)) found = (await ctx.findByTicket(typed).catch(() => [])).filter((p) => String(p.ticketNo).trim() === typed);
+  const exactTicket = /^\d{6}$/.test(typed);
+  if (exactTicket) found = (await ctx.findByTicket(typed).catch(() => [])).filter((p) => String(p.ticketNo).trim() === typed);
   else {
     const words = normalizePax(typed).split(" ").filter(Boolean);
     const w = subjectWords(words);
@@ -66,9 +76,9 @@ export async function findExecutives(q: string, ctx: Pick<ApiContext, "findByNam
     found = namedPeople(words, await ctx.findByName(w.join(" ")).catch(() => []));
   }
   return found
-    .filter((p) => isExecutiveTicket(p.ticketNo))
+    .filter((p) => exactTicket || isExecutiveTicket(p.ticketNo))
     .slice(0, 8)
-    .map((p) => ({ ticket: String(p.ticketNo).trim(), name: p.name, designation: p.designation ?? "", department: p.department ?? "" }));
+    .map((p) => ({ ticket: String(p.ticketNo).trim(), name: p.name, designation: p.designation ?? "", department: p.department ?? "", nonExecutive: !isExecutiveTicket(p.ticketNo) }));
 }
 
 export async function handlePaxAdmin(body: unknown, ctx: ApiContext): Promise<ApiReply> {
@@ -95,7 +105,7 @@ export async function handlePaxAdmin(body: unknown, ctx: ApiContext): Promise<Ap
     return reply(200, { history: history.map((h) => ({ ...h, actorDesignation: posts.get(h.actorTicket) ?? "" })) });
   }
   if (op === "delegates") return reply(200, { delegates: await store.listDelegates(ctx.db) });
-  if (op === "find-executive") return reply(200, { executives: await findExecutives(text(b.q, 80), ctx) });
+  if (op === "find-executive") return reply(200, { executives: await findPeopleToAuthorise(text(b.q, 80), ctx) });
 
   if (op === "add") return reply(200, { result: await store.addEntry(ctx.db, actor, { department: b.department, location: b.location, number: b.number }, acksOf(b.acknowledge)) });
   if (op === "modify" || op === "delete") {
@@ -108,10 +118,9 @@ export async function handlePaxAdmin(body: unknown, ctx: ApiContext): Promise<Ap
   }
 
   if (op === "grant") {
-    const ticket = text(b.ticket, 20).trim();
-    const person = (await ctx.findByTicket(ticket).catch(() => [])).find((p) => String(p.ticketNo).trim() === ticket);
-    if (!person || !isExecutiveTicket(person.ticketNo)) return reply(200, { result: { status: "invalid", reason: "No executive with this ticket number was found." } });
-    return reply(200, { result: await store.grantDelegate(ctx.db, actor, { ticket, name: person.name }) });
+    const t = await resolveGrantTarget(b, ctx.findByTicket);
+    if (!t.ok) return reply(200, { result: { status: "invalid", reason: t.reason } });
+    return reply(200, { result: await store.grantDelegate(ctx.db, actor, { ticket: t.ticket, name: t.name, confirmNonExecutive: t.confirmNonExecutive }) });
   }
   // revoke
   return reply(200, { result: await store.revokeDelegate(ctx.db, actor, text(b.ticket, 20).trim()) });

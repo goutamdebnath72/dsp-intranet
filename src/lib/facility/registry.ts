@@ -4,8 +4,9 @@
 // and the PAX editor already used, so moving them onto the kit changes nothing about how they lock.
 
 export const FACILITIES = {
-  employee: { label: "Employee manager", lock: "employee_roster" },
-  pax: { label: "PAX directory editor", lock: "pax_directory" },
+  // allowNonExecutive: the HOD may give this tool to a non-executive (after confirming). Owner, 2 Nov 2026: every tool except the Contact Access Log (not built yet; it will say false).
+  employee: { label: "Employee manager", lock: "employee_roster", allowNonExecutive: true },
+  pax: { label: "PAX directory editor", lock: "pax_directory", allowNonExecutive: true },
 } as const;
 
 export type FacilityKey = keyof typeof FACILITIES;

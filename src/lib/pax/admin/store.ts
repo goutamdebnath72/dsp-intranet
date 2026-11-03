@@ -177,7 +177,7 @@ export type { DelegateResult };
 
 /** The authorised executives, the authorising and the withdrawing are the kit's (src/lib/facility/authority.ts): the same code, the same rules and words, for every tool. */
 export const listDelegates = (db: PaxDb): Promise<PaxDelegateView[]> => sharedList(db, "pax");
-export const grantDelegate = (db: PaxDb, actor: Actor, target: { ticket: string; name: string }): Promise<DelegateResult> => sharedGrant(db, "pax", actor, target);
+export const grantDelegate = (db: PaxDb, actor: Actor, target: { ticket: string; name: string; confirmNonExecutive?: boolean }): Promise<DelegateResult> => sharedGrant(db, "pax", actor, target);
 export const revokeDelegate = (db: PaxDb, actor: Actor, ticketNo: string): Promise<DelegateResult> => sharedRevoke(db, "pax", actor, ticketNo);
 
 // ---- the history ----
@@ -199,7 +199,7 @@ export async function recentAudit(db: PaxDb, limit = 50): Promise<PaxAuditView[]
       action === "add" ? `Added ${line(after)}`
       : action === "modify" ? `Changed ${line(before)} to ${line(after)}`
       : action === "delete" ? `Deleted ${line(before)}`
-      : action === "grant" ? `Authorised ${after?.name ?? ""} (${x.targetTicket})`
+      : action === "grant" ? `Authorised ${after?.name ?? ""} (${x.targetTicket})${x.note ? ` (${x.note})` : ""}`
       : `Withdrew the authority of ${(before as { name?: string } | null)?.name ?? ""} (${x.targetTicket})${x.note ? ` (${x.note})` : ""}`;
     return {
       at: x.at, actorName: x.actorName, actorTicket: x.actorTicket, actorRole: x.actorRole, actorDesignation: "",

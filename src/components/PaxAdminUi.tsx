@@ -16,6 +16,7 @@ import type { Acknowledge, PaxAdminOpen, PaxAuditView, PaxConflict, PaxEntryView
 import { EMPTY_LOCATION } from "@/lib/pax/answer";
 import { describeLine } from "@/lib/pax/admin/conflicts";
 import { placeName } from "@/lib/pax/display";
+import { NONEXEC_ROW, NonExecutiveChip } from "./facility/NonExecutive";
 import { PAX_NUMBER_RULE, validateEntry, type FieldErrors } from "@/lib/pax/admin/validate";
 
 export interface FormValues { department: string; location: string; number: string }
@@ -525,11 +526,12 @@ export function LineAboutToGo({ entry, hideNumber = false }: { entry: PaxEntryVi
 }
 
 /** One person in the lists of authorised executives: an avatar, the name, a line under it, and a button. */
-export function PersonRow(props: { name: string; children: React.ReactNode; action: React.ReactNode }) {
+export function PersonRow(props: { name: string; children: React.ReactNode; action: React.ReactNode; nonExecutive?: boolean; below?: React.ReactNode }) {
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-      <span className="flex items-center gap-3"><Avatar name={props.name} /><span><span className="block font-semibold text-slate-900">{props.name}</span><span className="block text-xs text-slate-500">{props.children}</span></span></span>
+    <li data-pax-person={props.nonExecutive ? "non-executive" : "executive"} className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${props.nonExecutive ? NONEXEC_ROW : "border-slate-200 bg-white"}`}>
+      <span className="flex items-center gap-3"><Avatar name={props.name} /><span><span className="block font-semibold text-slate-900">{props.name}{props.nonExecutive && <NonExecutiveChip />}</span><span className="block text-xs text-slate-500">{props.children}</span></span></span>
       {props.action}
+      {props.below}
     </li>
   );
 }

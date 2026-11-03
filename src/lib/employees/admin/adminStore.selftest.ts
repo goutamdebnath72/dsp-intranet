@@ -62,6 +62,10 @@ async function main() {
   ok("the migration sql/15 runs twice without error", again);
   let again17 = true; try { await pool.query(m17); } catch { again17 = false; }
   ok("the migration sql/17 runs twice without error", again17);
+  const m18 = readFileSync(join(SQL_DIR, "18_facility_nonexecutive.sql"), "utf8");
+  await pool.query(m18);
+  let again18 = true; try { await pool.query(m18); } catch { again18 = false; }
+  ok("the migration sql/18 runs twice without error", again18);
 
   const db: import("./store").EmpDb = {
     run: async (fn) => {
@@ -88,7 +92,7 @@ async function main() {
   ok("a person who is not authorised cannot add (nothing is written, not even a history line)", (await store.addEmployee(db, NOBODY, { ticketNo: "412399", name: "X Y Z", gradeId: 9, departmentId: 1 })).status === "forbidden" && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee'`)) === 0 && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='412399'`)) === 0);
   ok("only the HOD authorises: a stranger and a would-be delegate are refused", (await store.grantDelegate(db, NOBODY, { ticket: "412345", name: "RAKESH OJHA" })).status === "forbidden");
   ok("the HOD authorises RAKESH OJHA: he is a delegate, and the history says who and when", (await store.grantDelegate(db, HOD, { ticket: "412345", name: "RAKESH OJHA" })).status === "ok" && (await db.run((x) => store.authorityOf(x, "412345"))) === "delegate" && (await store.listDelegates(db)).some((d) => d.ticket === "412345" && d.grantedByTicket === "400001"));
-  ok("a second authorisation of the same person: 'already'; a non-executive, the HOD himself, a missing name: refused in words", (await store.grantDelegate(db, HOD, { ticket: "412345", name: "RAKESH OJHA" })).status === "already" && (await store.grantDelegate(db, HOD, { ticket: "342461", name: "X" })).status === "invalid" && (await store.grantDelegate(db, HOD, { ticket: "400001", name: "HOD" })).status === "invalid" && (await store.grantDelegate(db, HOD, { ticket: "412346", name: " " })).status === "invalid");
+  ok("a second authorisation of the same person: 'already'; a non-executive asks for the confirmation first; a bad ticket, the HOD himself, a missing name: refused in words", (await store.grantDelegate(db, HOD, { ticket: "412345", name: "RAKESH OJHA" })).status === "already" && (await store.grantDelegate(db, HOD, { ticket: "342461", name: "X" })).status === "needs-confirmation" && (await store.grantDelegate(db, HOD, { ticket: "34246", name: "X" })).status === "invalid" && (await store.grantDelegate(db, HOD, { ticket: "400001", name: "HOD" })).status === "invalid" && (await store.grantDelegate(db, HOD, { ticket: "412346", name: " " })).status === "invalid");
   ok("a delegate cannot authorise another executive", (await store.grantDelegate(db, RAKESH, { ticket: "412346", name: "ANIL DAS" })).status === "forbidden");
 
   // ---- the lookups and the search ----
@@ -186,6 +190,7 @@ async function main() {
   ok("if the history line cannot be written, the change is NOT saved either (one transaction)", threw && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='412390'`)) === 0);
   const missingTables = errorReply(Object.assign(new Error('relation "public.facility_audit" does not exist'), { code: "42P01" }));
   ok("a missing shared table is named in the reply (503 and the file to run)", missingTables.status === 503 && /17_facility_kit\.sql/.test(JSON.stringify(missingTables.body)) && errorReply(new Error("secret-host password=x")).status === 500 && !JSON.stringify(errorReply(new Error("secret-host password=x")).body).includes("secret"));
+  ok("a non-executive confirmed before sql/18 was run: a reply that NAMES the file to run (503, setupNeeded), not a bare failure", await (async () => { const r = errorReply(Object.assign(new Error('new row for relation "facility_delegate" violates check constraint "facility_delegate_ticket_no_check"'), { code: "23514" })); return r.status === 503 && /18_facility_nonexecutive\.sql/.test(JSON.stringify(r.body)) && (r.body as { setupNeeded?: boolean }).setupNeeded === true && errorReply(Object.assign(new Error('violates check constraint "something_else"'), { code: "23514" })).status === 500; })());
 
   // ---- two people at the same moment ----
   const race = await Promise.all([addX(HOD, { ticketNo: "412391", name: "Race One", gradeId: 9, departmentId: 1 }), addX(HOD, { ticketNo: "412391", name: "Race Two", gradeId: 9, departmentId: 1 })]);
@@ -219,7 +224,7 @@ async function main() {
     const after = (await rows(`SELECT date_of_birth::text AS d FROM public.employee_roster WHERE id=$1`, [meena.id]))[0].d;
     return r.status === 200 && (r.body.result as { status: string }).status === "ok" && before === after && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND actor_ticket='412346' AND actor_role='delegate' AND action='modify'`)) === 1;
   })());
-  ok("the 'grant' request looks the executive up by ticket in the people directory (a typed name is never trusted): a non-executive and an unknown ticket are refused", (await handleEmployeeAdmin({ op: "grant", ticket: "342462" }, ctxFor(HOD))).body.result !== undefined && ((await handleEmployeeAdmin({ op: "grant", ticket: "342462" }, ctxFor(HOD))).body.result as { status: string }).status === "invalid" && ((await handleEmployeeAdmin({ op: "grant", ticket: "499999" }, ctxFor(HOD))).body.result as { status: string }).status === "invalid");
+  ok("the 'grant' request looks the person up by ticket in the people directory (a typed name is never trusted): a non-executive asks for the confirmation, an unknown ticket is refused", ((await handleEmployeeAdmin({ op: "grant", ticket: "342462" }, ctxFor(HOD))).body.result as { status: string }).status === "needs-confirmation" && ((await handleEmployeeAdmin({ op: "grant", ticket: "499999" }, ctxFor(HOD))).body.result as { status: string }).status === "invalid");
   const histApi = await handleEmployeeAdmin({ op: "audit" }, ctxFor(HOD));
   ok("the history through the handler carries each editor's post from the people directory", (histApi.body.history as Array<{ actorTicket: string; actorDesignation: string }>).some((h) => h.actorTicket === "400001" && h.actorDesignation === "Chief General Manager"));
   ok("fields the browser adds beyond the form are dropped (an 'id', a 'cohort', a 'dates_source' cannot be set from outside)", await (async () => {
@@ -476,6 +481,18 @@ async function main() {
       ok("deleting him withdraws his authority in the employee manager AND in the PAX editor, with a history line in EACH tool saying why", del.status === "ok" && (await db.run((x) => store.authorityOf(x, "412880"))) === null && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE ticket_no='412880' AND revoked_at IS NULL`)) === 0 && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE ticket_no='412880' AND revoked_at IS NOT NULL`)) === 2 && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='revoke' AND target_ticket='412880' AND note LIKE 'deleted%'`)) === 1 && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='pax' AND action='revoke' AND target_ticket='412880' AND note LIKE 'deleted%'`)) === 1);
       ok("...and a delegate of a tool who is NOT deleted keeps every authority he has (only the deleted person's go)", (await db.run((x) => store.authorityOf(x, "412777"))) === null && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE ticket_no='412778' AND revoked_at IS NULL`)) === 1);
     }
+  }
+  // ---- STEP 69c: authorising a NON-EXECUTIVE through the request (the HOD confirms) ----
+  { const target = (await rows(`SELECT ticket_no, name FROM public.employee_roster WHERE ticket_no = '342500'`))[0];
+    const n0 = await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='employee'`);
+    const ask = await handleEmployeeAdmin({ op: "grant", ticket: "342500" }, ctxFor(HOD));
+    ok("a request to authorise a non-executive WITHOUT the confirmation gets the question back and writes nothing", !!target && ask.status === 200 && (ask.body.result as { status: string }).status === "needs-confirmation" && (await count(`SELECT count(*) AS n FROM public.facility_delegate WHERE facility='employee'`)) === n0);
+    const yes = await handleEmployeeAdmin({ op: "grant", ticket: "342500", confirmNonExecutive: true }, ctxFor(HOD));
+    ok("...WITH the confirmation he is authorised (his name from the roster), the list marks him, and he can add employees at once", (yes.body.result as { status: string }).status === "ok" && ((await handleEmployeeAdmin({ op: "delegates" }, ctxFor(HOD))).body.delegates as Array<{ ticket: string; nonExecutive?: boolean }>).some((d) => d.ticket === "342500" && d.nonExecutive === true) && (await addX({ ticket: "342500", name: "PLAIN PERSON" }, { ticketNo: "342951", name: "Added By Nonexec", gradeId: 21, departmentId: 4 })).status === "ok");
+    const hs = (await store.recentAudit(db, 8)).find((x) => /Authorised PLAIN PERSON/.test(x.summary));
+    ok("...the history says so in words ('non-executive, confirmed')", !!hs && /\(non-executive, confirmed\)$/.test(hs.summary), JSON.stringify(hs));
+    ok("a non-executive delegate cannot delete, authorise or see dates, like any delegate (the HOD's requests give 403)", (await handleEmployeeAdmin({ op: "grant", ticket: "412346", confirmNonExecutive: true }, ctxFor({ ticket: "342500", name: "PLAIN PERSON" }))).status === 403 && (await handleEmployeeAdmin({ op: "revoke", ticket: "342500" }, ctxFor({ ticket: "342500", name: "PLAIN PERSON" }))).status === 403);
+    ok("withdrawing him works like anybody's", ((await handleEmployeeAdmin({ op: "revoke", ticket: "342500" }, ctxFor(HOD))).body.result as { status: string }).status === "ok" && (await db.run((x) => store.authorityOf(x, "342500"))) === null);
   }
   await pool.end();
   console.log(`employee admin store selftest: ${pass} passed, ${fail} failed`);

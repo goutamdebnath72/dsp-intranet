@@ -7,12 +7,14 @@
 import { isSuperAdmin } from "@/lib/superAdmin";
 import { toIsoInstant } from "@/lib/dates";
 import { writeAudit } from "./audit";
-import { lockSql, isFacilityKey, type FacilityKey } from "./registry";
+import { FACILITIES, lockSql, isFacilityKey, type FacilityKey } from "./registry";
 import type { Actor, Authority, DelegateResult, DelegateView, FacilityDb, QueryFn } from "./types";
 
 export class Forbidden extends Error {}
 
 const EXECUTIVE = /^4\d{5}$/;
+/** Any employee's ticket: six digits, not starting with 0. */
+const ANY_TICKET = /^[1-9]\d{5}$/;
 const str = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
 const isUnique = (e: unknown): boolean => (e as { code?: string })?.code === "23505";
 
@@ -42,24 +44,30 @@ export async function begin(q: QueryFn, facility: FacilityKey, actor: Actor, nee
 export async function listDelegates(db: FacilityDb, facility: FacilityKey): Promise<DelegateView[]> {
   must(facility);
   const r = await db.run((q) => q(`SELECT ticket_no, name, granted_by_name, granted_by_ticket, granted_at FROM public.facility_delegate WHERE facility = $1 AND revoked_at IS NULL ORDER BY name`, [facility]));
-  return r.map((x) => ({ ticket: str(x.ticket_no), name: str(x.name), grantedByName: str(x.granted_by_name), grantedByTicket: str(x.granted_by_ticket), grantedAt: toIsoInstant(x.granted_at) ?? "" }));
+  return r.map((x) => ({ ticket: str(x.ticket_no), name: str(x.name), grantedByName: str(x.granted_by_name), grantedByTicket: str(x.granted_by_ticket), grantedAt: toIsoInstant(x.granted_at) ?? "", nonExecutive: !EXECUTIVE.test(str(x.ticket_no)) }));
 }
 
-/** Only the HOD authorises, and only an executive. Authorising someone who already is authorised changes nothing ("already"). */
-export async function grantDelegate(db: FacilityDb, facility: FacilityKey, actor: Actor, target: { ticket: string; name: string }): Promise<DelegateResult> {
+/**
+ * Only the HOD authorises. An executive at once; a NON-executive (a ticket that does not start with 4) only when the HOD has confirmed it (`confirmNonExecutive`), and only for a tool that allows it.
+ * Authorising someone who already is authorised changes nothing ("already").
+ */
+export async function grantDelegate(db: FacilityDb, facility: FacilityKey, actor: Actor, target: { ticket: string; name: string; confirmNonExecutive?: boolean }): Promise<DelegateResult> {
   must(facility);
   const ticket = String(target.ticket ?? "").trim();
   const name = String(target.name ?? "").replace(/\s+/g, " ").trim();
-  if (!EXECUTIVE.test(ticket)) return { status: "invalid", reason: "Only an executive (a six-digit ticket number that starts with 4) can be authorised." };
-  if (!name) return { status: "invalid", reason: "The executive's name is missing." };
+  if (!ANY_TICKET.test(ticket)) return { status: "invalid", reason: "This is not a ticket number: six digits that do not start with 0." };
+  if (!name) return { status: "invalid", reason: "The employee's name is missing." };
   if (isSuperAdmin(ticket)) return { status: "invalid", reason: "The HOD of C&IT already has this authority." };
+  const nonExecutive = !EXECUTIVE.test(ticket);
+  if (nonExecutive && !FACILITIES[facility].allowNonExecutive) return { status: "invalid", reason: "This tool cannot be given to a non-executive." };
   try {
     return await db.run(async (q): Promise<DelegateResult> => {
       const role = await begin(q, facility, actor, true);
+      if (nonExecutive && target.confirmNonExecutive !== true) return { status: "needs-confirmation", reason: "This is a non-executive. Are you sure you want to authorise a non-executive?" };
       const active = await q(`SELECT 1 FROM public.facility_delegate WHERE facility = $1 AND ticket_no = $2 AND revoked_at IS NULL`, [facility, ticket]);
       if (active.length > 0) return { status: "already" };
       await q(`INSERT INTO public.facility_delegate (facility, ticket_no, name, granted_by_ticket, granted_by_name) VALUES ($1, $2, $3, $4, $5)`, [facility, ticket, name, actor.ticket, actor.name]);
-      await writeAudit(q, facility, actor, role, "grant", { targetTicket: ticket, targetName: name, after: { ticket, name } });
+      await writeAudit(q, facility, actor, role, "grant", { targetTicket: ticket, targetName: name, after: { ticket, name, ...(nonExecutive ? { nonExecutive: true } : {}) }, note: nonExecutive ? "non-executive, confirmed" : null });
       return { status: "ok" };
     });
   } catch (e) {

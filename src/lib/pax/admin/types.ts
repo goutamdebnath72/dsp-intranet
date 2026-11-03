@@ -44,7 +44,8 @@ export interface PaxDelegateView {
   name: string;
   grantedByName: string;
   grantedByTicket: string;
-  grantedAt: string;
+  grantedAt: string;  /** not an executive: shown apart (amber) */
+  nonExecutive?: boolean;
 }
 
 export interface PaxAuditView {

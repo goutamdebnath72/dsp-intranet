@@ -9,7 +9,8 @@
 //   the HOD of C&IT (SUPERADMIN_TICKETS) -> everything, the dates included
 
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
-import { findExecutives, isSameOrigin } from "@/lib/pax/admin/api";
+import { findPeopleToAuthorise, isSameOrigin } from "@/lib/pax/admin/api";
+import { resolveGrantTarget } from "@/lib/facility/authorise";
 import * as store from "./store";
 import type { Actor, EmpDb } from "./store";
 import type { AcknowledgeKind } from "./types";
@@ -41,6 +42,10 @@ const fieldsOf = (v: unknown): Record<string, unknown> => {
 export function errorReply(e: unknown): ApiReply {
   const err = e as { code?: string; message?: string; driverError?: { code?: string } };
   const code = err?.code ?? err?.driverError?.code;
+  // a non-executive confirmed before sql/18 was run: the old rule of the table (ticket starts with 4) refuses him
+  if (code === "23514" && /facility_delegate_ticket_no_check/.test(String(err?.message ?? ""))) {
+    return reply(503, { error: "Giving a tool to a non-executive needs one more step in the database. Run src/lib/nl2sql/sql/18_facility_nonexecutive.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
+  }
   if (code === "42P01" && /facility_delegate|facility_audit/.test(String(err?.message ?? ""))) {
     return reply(503, { error: "The tables of the tools' authorisations and history have not been created yet. Run src/lib/nl2sql/sql/17_facility_kit.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
   }
@@ -79,7 +84,7 @@ export async function handleEmployeeAdmin(body: unknown, ctx: ApiContext): Promi
     return reply(200, { history: history.map((h) => ({ ...h, actorDesignation: posts.get(h.actorTicket) ?? "" })) });
   }
   if (op === "delegates") return reply(200, { delegates: await store.listDelegates(ctx.db) });
-  if (op === "find-executive") return reply(200, { executives: await findExecutives(text(b.q, 80), ctx) });
+  if (op === "find-executive") return reply(200, { executives: await findPeopleToAuthorise(text(b.q, 80), ctx) });
 
   if (op === "add") return reply(200, { result: await store.addEmployee(ctx.db, actor, fieldsOf(b.fields), acksOf(b.acknowledge)) });
   if (op === "modify" || op === "delete") {
@@ -91,10 +96,9 @@ export async function handleEmployeeAdmin(body: unknown, ctx: ApiContext): Promi
     return reply(200, { result: await store.deleteEmployee(ctx.db, actor, id, { confirmTicket: text(b.confirmTicket, 20), removeLogin: b.removeLogin === true, version }) });
   }
   if (op === "grant") {
-    const ticket = text(b.ticket, 20).trim();
-    const person = (await ctx.findByTicket(ticket).catch(() => [])).find((p) => String(p.ticketNo).trim() === ticket);
-    if (!person || !/^4\d{5}$/.test(String(person.ticketNo).trim())) return reply(200, { result: { status: "invalid", reason: "No executive with this ticket number was found." } });
-    return reply(200, { result: await store.grantDelegate(ctx.db, actor, { ticket, name: person.name }) });
+    const t = await resolveGrantTarget(b, ctx.findByTicket);
+    if (!t.ok) return reply(200, { result: { status: "invalid", reason: t.reason } });
+    return reply(200, { result: await store.grantDelegate(ctx.db, actor, { ticket: t.ticket, name: t.name, confirmNonExecutive: t.confirmNonExecutive }) });
   }
   return reply(200, { result: await store.revokeDelegate(ctx.db, actor, text(b.ticket, 20).trim()) });
 }

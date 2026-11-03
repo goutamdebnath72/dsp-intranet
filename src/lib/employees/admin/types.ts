@@ -76,7 +76,7 @@ export type FieldErrors = Partial<Record<FieldKey | "form", string>>;
 export type AcknowledgeKind = "same-name";
 export interface EmployeeConflict { kind: AcknowledgeKind; text: string; with: { id: number; ticketNo: string; name: string; departmentName: string } }
 
-export interface DelegateView { ticket: string; name: string; grantedByName: string; grantedByTicket: string; grantedAt: string }
+export interface DelegateView { ticket: string; name: string; grantedByName: string; grantedByTicket: string; grantedAt: string; /** not an executive: shown apart (amber) */ nonExecutive?: boolean }
 
 export interface ChangeView { field: string; label: string; from: string; to: string }
 export interface AuditView {
