@@ -19,10 +19,13 @@ import { IST } from "@/lib/dates";
 import { useSessionName } from "@/hooks/useSessionName";
 import { normalizeMobile } from "@/lib/employees/admin/contact";
 import { cohortOfTicket, isTicket, validateEmployee } from "@/lib/employees/admin/validate";
-import type { AuditView, Authority, DelegateView, EmployeeConflict, EmployeeRecord, EmployeeAdminOpen, FieldErrors, LastChange, Lookups } from "@/lib/employees/admin/types";
+import type { AuditView, Authority, ChangeView, DelegateView, EmployeeConflict, EmployeeRecord, EmployeeAdminOpen, FieldErrors, LastChange, Lookups } from "@/lib/employees/admin/types";
 import { EMPTY_FORM, FIELD_LABELS, changesOf, formFromRecord, rawOf, reasonFor, rebaseForm, resolveDepartment, theirChanges, unlockedSections, type FormValues } from "./employeeFormModel";
 import { Avatar, Banner, DANGER, EmployeeAdminHeader, EmployeeForm, EmployeeHistory, EmployeeList, FIELD, PRIMARY, PanelShell, ReviewView, SECONDARY, StaleCard, TabBar, type Tab } from "./EmployeeAdminUi";
 import { TypedConfirm } from "./facility/TypedConfirm";
+import type { PhotoUiState } from "./facility/PhotoField";
+import { photoSrc, preparePhoto, type PhotoDeps } from "@/lib/employees/photo/client";
+import { browserPhotoDeps } from "@/lib/employees/photo/browserDeps";
 import { NONEXEC_ROW, NonExecutiveAsk, NonExecutiveChip } from "./facility/NonExecutive";
 
 // what the tests and the rest of the app have always imported from this file
@@ -44,7 +47,7 @@ function useFormBlock(initial: FormValues) {
   return { values, setValues, touched, setTouched, serverErrors, setServerErrors, review, setReview, conflicts, setConflicts, reset };
 }
 
-export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
+export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { open: EmployeeAdminOpen; photoDeps?: PhotoDeps }) {
   const role: Authority = open.role;
   const isHod = role === "hod";
   const alive = useRef(true);
@@ -123,7 +126,15 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
   // the sections open FROM TOP TO BOTTOM (employeeFormModel.ts): Posting when the Identity is complete, the dates when Posting is complete, Contact when the dates are complete
   const unlocked = unlockedSections(values, lk, liveErrors, { mode, datesVisible, loaded: !!lookups });
 
-  const changeList = mode === "modify" && original ? changesOf(original, values, lk, datesVisible) : [];
+  // the PHOTO (optional; step 70): one draft for an add and one for a modify; what is chosen is checked in the browser (one face, a square around it) and is sent only AFTER the employee is saved
+  type PhotoDraft = { ui: PhotoUiState; blob: Blob | null; remove: boolean; had: boolean };
+  const NO_PHOTO: PhotoDraft = { ui: { kind: "empty" }, blob: null, remove: false, had: false };
+  const [photoAdd, setPhotoAdd] = useState<PhotoDraft>(NO_PHOTO);
+  const [photoMod, setPhotoMod] = useState<PhotoDraft>(NO_PHOTO);
+  const photo = mode === "modify" ? photoMod : photoAdd;
+  // a photo chosen or removed IS a change of the record (the review lists it; the save button waits for it)
+  const photoChange: ChangeView | null = mode === "modify" ? (photo.blob ? { field: "photo", label: "Photo", from: photo.had ? "the saved photo" : "—", to: "a new photo (the face is found and the square is cut)" } : photo.remove ? { field: "photo", label: "Photo", from: "the saved photo", to: "removed" } : null) : null;
+  const changeList = mode === "modify" && original ? [...changesOf(original, values, lk, datesVisible), ...(photoChange ? [photoChange] : [])] : [];
   const valid = !!validation && validation.ok;
   const complete = valid && unlocked.contact;
   const submitDisabled = !lookups || !valid || !unlocked.contact || (mode === "modify" && changeList.length === 0) || (mode === "modify" && !!stale);
@@ -143,12 +154,20 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
     if (!r.ok) return fail(r);
     const res = r.body.result as { status: string; employee?: EmployeeRecord; errors?: FieldErrors; conflicts?: EmployeeConflict[]; current?: EmployeeRecord; last?: LastChange | null };
     if (res.status === "ok" && res.employee) {
-      setMessage({ tone: "ok", text: mode === "modify" ? `Saved: ${res.employee.name} (${res.employee.ticketNo}) has been changed.` : `Saved: ${res.employee.name} (${res.employee.ticketNo}) is on the roll.` });
+      const photoProblem = await syncPhoto(res.employee.id, mode);
+      const done = mode === "modify" ? `Saved: ${res.employee.name} (${res.employee.ticketNo}) has been changed.` : `Saved: ${res.employee.name} (${res.employee.ticketNo}) is on the roll.`;
+      setMessage(photoProblem ? { tone: "error", text: `${done} But the photo was not saved: ${photoProblem} Choose it again in Modify.` } : { tone: "ok", text: done });
       if (mode === "modify") { setOriginal(res.employee); modB.reset(formFromRecord(res.employee, lk)); } else addB.reset();
     } else if (res.status === "conflict") { B.setConflicts(res.conflicts ?? []); B.setReview(true); }
     else if (res.status === "invalid") { B.setServerErrors(res.errors ?? {}); B.setReview(false); setMessage({ tone: "error", text: "Please correct what is marked." }); }
     else if (res.status === "stale" && res.current) { setStale({ current: res.current, last: res.last ?? null }); B.setReview(false); B.setConflicts([]); }
-    else if (res.status === "unchanged") { setMessage({ tone: "ok", text: "Nothing was changed." }); B.setReview(false); }
+    else if (res.status === "unchanged") {
+      // no field changed: if a photo was chosen or removed, that is the change
+      const pending = mode === "modify" && !!(photoMod.blob || photoMod.remove);
+      const pp = pending && original ? await syncPhoto(original.id, mode) : null;
+      setMessage(pp ? { tone: "error", text: `The photo was not saved: ${pp}` } : { tone: "ok", text: pending ? "The photo was saved." : "Nothing was changed." });
+      B.setReview(false);
+    }
     else if (res.status === "missing") { setMessage({ tone: "error", text: "This employee is not on the roll any more." }); B.setReview(false); }
     else setMessage({ tone: "error", text: "You are not allowed to do that." });
   };
@@ -186,6 +205,50 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
     }, 300);
     return () => clearTimeout(timer);
   }, [query, tab, original, call]);
+  // ---- the PHOTO (optional; step 70): one draft for an add and one for a modify; what is chosen is checked in the browser (one face, a square around it) and is sent only AFTER the employee is saved ----
+  const setPhoto = (m: "add" | "modify", p: PhotoDraft) => (m === "modify" ? setPhotoMod(p) : setPhotoAdd(p));
+  const onPhotoPick = async (file: File) => {
+    const m = mode, cur = m === "modify" ? photoMod : photoAdd;
+    setPhoto(m, { ...cur, ui: { kind: "checking", fileName: file.name } });
+    const r = await preparePhoto(file, photoDeps);
+    if (!alive.current) return;
+    setPhoto(m, r.ok ? { ui: { kind: "ready", previewUrl: r.previewUrl }, blob: r.blob, remove: false, had: cur.had } : { ...cur, blob: null, ui: { kind: "error", message: r.reason } });
+  };
+  const onPhotoRemove = () => { const m = mode, cur = m === "modify" ? photoMod : photoAdd; setPhoto(m, { ui: { kind: "empty" }, blob: null, remove: cur.had, had: cur.had }); };
+  // the photo he already has (Modify): asked once when a person is opened
+  const originalId = original ? original.id : null;
+  useEffect(() => {
+    if (originalId === null) { setPhotoMod(NO_PHOTO); return; }
+    let live = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/employees/photo?id=${originalId}&meta=1`, { credentials: "same-origin" });
+        const b = r.ok ? ((await r.json()) as { version?: number | null }) : null;
+        if (live) setPhotoMod(b && b.version ? { ui: { kind: "saved", url: photoSrc(originalId, "thumb", b.version) }, blob: null, remove: false, had: true } : NO_PHOTO);
+      } catch { if (live) setPhotoMod(NO_PHOTO); }
+    })();
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [originalId]);
+  /** Sends the chosen photo (or the removal) for a person who is now saved; returns the reason in words if it did not work, else null. */
+  const syncPhoto = async (id: number, m: "add" | "modify"): Promise<string | null> => {
+    const d = m === "modify" ? photoMod : photoAdd;
+    if (!d.blob && !d.remove) return null;
+    const f = new FormData();
+    f.set("id", String(id));
+    if (d.blob) { f.set("op", "upload"); f.set("file", d.blob, "photo.jpg"); } else f.set("op", "remove");
+    try {
+      const r = await fetch("/api/employees/photo", { method: "POST", body: f, credentials: "same-origin" });
+      const b = (await r.json().catch(() => ({}))) as { result?: { status?: string; reason?: string; version?: number }; error?: string };
+      if (r.ok && b.result?.status === "ok") {
+        if (m === "add" || !d.blob) setPhoto(m, NO_PHOTO);
+        else setPhoto(m, { ui: { kind: "saved", url: photoSrc(id, "thumb", b.result.version ?? 1) }, blob: null, remove: false, had: true });
+        return null;
+      }
+      return b.result?.reason ?? b.error ?? "The photo could not be saved.";
+    } catch { return "The photo could not be sent: check the connection."; }
+  };
+
   const startChange = (e: EmployeeRecord) => { setOriginal(e); setStale(null); modB.reset(formFromRecord(e, lk)); setMessage(null); setTab("modify"); };
 
   // ---- delete ----
@@ -246,7 +309,7 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
         ) : (
           <>
             {tab === "modify" && original && <div className="flex items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-indigo-100"><Avatar name={original.name} /><p className="text-sm text-slate-600">Changing <span className="font-bold text-slate-900">{original.name}</span> <span className="font-mono text-xs">({original.ticketNo})</span></p></div>}
-            <EmployeeForm mode={mode} idPrefix={`emp-${mode}`} values={values} lookups={lk} errors={shownErrors} warnings={warnings} datesVisible={datesVisible} unlocked={unlocked} allErrors={liveErrors} complete={complete} original={mode === "modify" ? original : null} today={today} busy={busy}
+            <EmployeeForm mode={mode} photo={{ state: photo.ui, onPick: (f) => void onPhotoPick(f), onRemove: onPhotoRemove, disabled: busy }} idPrefix={`emp-${mode}`} values={values} lookups={lk} errors={shownErrors} warnings={warnings} datesVisible={datesVisible} unlocked={unlocked} allErrors={liveErrors} complete={complete} original={mode === "modify" ? original : null} today={today} busy={busy}
               submitLabel={mode === "modify" ? "Review the changes" : "Review and save"} submitDisabled={submitDisabled} submitHint={submitHint}
               onChange={onFormChange} onSubmit={() => B.setReview(true)} onCancel={mode === "modify" ? () => { setOriginal(null); setStale(null); modB.reset(); setResults(null); } : undefined} />
           </>
@@ -284,7 +347,7 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
 
       {tab === "people" && isHod && (
         <div className="space-y-3" data-emp-people="true">
-          <p className="text-sm font-bold text-neutral-900">Executives who may add and change employees</p>
+          <p className="text-sm font-bold text-neutral-900">Who may add and modify employees</p>
           {delegates === null ? <p className="text-sm text-neutral-600">Loading…</p> : delegates.length === 0 ? <p className="text-sm text-neutral-600">Nobody else has been authorised: only you can change the employee records.</p> : (
             <ul className="space-y-1">{delegates.map((d) => (
               <li key={d.ticket} data-emp-delegate={d.nonExecutive ? "non-executive" : "executive"} className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${d.nonExecutive ? NONEXEC_ROW : "border-slate-200 bg-white"}`}>
@@ -293,7 +356,7 @@ export function EmployeeAdminPanel({ open }: { open: EmployeeAdminOpen }) {
               </li>))}</ul>
           )}
           <div className="space-y-2 border-t border-slate-200 pt-3">
-            <label htmlFor="emp-find" className="block text-xs font-semibold text-neutral-700">Authorise an executive (name or ticket number)</label>
+            <label htmlFor="emp-find" className="block text-xs font-semibold text-neutral-700">Authorise (name or ticket number)</label>
             <div className="flex gap-2">
               <input id="emp-find" className={FIELD} value={find} onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (find.trim()) void doFind(); } }} placeholder="For example Rakesh Ojha or 412345" autoComplete="off" />
               <button type="button" className={SECONDARY} disabled={busy || !find.trim()} onClick={() => void doFind()}>Find</button>

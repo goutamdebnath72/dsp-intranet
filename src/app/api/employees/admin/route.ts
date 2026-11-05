@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorReply, handleEmployeeAdmin, isSameOrigin } from "@/lib/employees/admin/api";
 import { sessionActor, typeormEmpDb } from "@/lib/employees/admin/access";
+import { blobStorage } from "@/lib/employees/photo/storage";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
       db: typeormEmpDb(ds),
       findByName: (name) => searchEmployeesByName(ds, name),
       findByTicket: (ticket) => searchEmployeesById(ds, { kind: "ticket", value: ticket }),
+      photos: blobStorage(),
     });
     return NextResponse.json(out.body, { status: out.status, headers: { "Cache-Control": "no-store" } });
   } catch (e) {

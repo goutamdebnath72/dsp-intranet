@@ -8,9 +8,10 @@
 // SECURITY: like pax_directory, the tables here are closed to the public API roles; only the application's own connection (never the language model's read-only client) touches them.
 
 import { toIsoInstant } from "../../dates";
-import { sameVersion, versionOf } from "@/lib/concurrency/version";
+import { versionOf } from "@/lib/concurrency/version";
 import { Forbidden, authorityOf as sharedAuthorityOf, begin as sharedBegin, grantDelegate as sharedGrant, listDelegates as sharedList, revokeDelegate as sharedRevoke } from "@/lib/facility/authority";
 import { lastChangeOf as sharedLastChange, recentAuditRows, writeAudit } from "@/lib/facility/audit";
+import { guardRecord } from "@/lib/facility/guard";
 import type { DelegateResult } from "@/lib/facility/types";
 import { isSuperAdmin } from "@/lib/superAdmin";
 import { loadPaxRows, PORTAL_SOURCE, type QueryFn } from "../store";
@@ -73,6 +74,16 @@ const viewOfRow = (lines: PaxEntryView[], rows: PaxRow[]): PaxEntryView[] => lin
 const withVersions = (conflicts: PaxConflict[], rows: PaxRow[]): PaxConflict[] => conflicts.map((c) => ({ ...c, existing: viewOfRow(c.existing, rows) }));
 
 /** LOCK the line's row BEFORE it is read for a change or a delete: any writer that does not know the global lock (a SQL script) must wait until this transaction ends, and the version check then sees what it did. */
+/** Locks one PAX line and reads all the lines (the clash checks need them): the guard's `load`, null when the line is not there. */
+function loadLine(q: QueryFn, id: number) {
+  return async () => {
+    await lockEntry(q, id);
+    const rows = await loadPaxRows(q);
+    const mine = savedLines(rows).find((l) => l.id === id);
+    return mine ? { rows, mine, old: rows.find((r) => r.id === id) as PaxRow } : null;
+  };
+}
+
 async function lockEntry(q: QueryFn, id: number): Promise<void> {
   await q(`SELECT 1 FROM public.pax_directory WHERE id = $1 FOR UPDATE`, [id]);
 }
@@ -123,13 +134,10 @@ export async function modifyEntry(db: PaxDb, actor: Actor, id: number, raw: Part
   try {
     return await db.run(async (q): Promise<EntryResult> => {
       const role = await begin(q, actor);
-      await lockEntry(q, id);
-      const rows = await loadPaxRows(q);
-      const mine = savedLines(rows).find((l) => l.id === id);
-      if (!mine) return { status: "missing" };
-      const old = rows.find((r) => r.id === id) as PaxRow;
-      // THE GUARD AGAINST A LOST UPDATE: the save is for the line AS THE PERSON SAW IT. If it is not that any more, nothing is written, and he is told what it is now and who changed it.
-      if (!sameVersion(version, versionOfRow(old))) return { status: "stale", current: { id, department: mine.department, location: mine.location, number: mine.number, version: versionOfRow(old) }, last: await lastChangeOf(q, id) };
+      // THE GUARD AGAINST A LOST UPDATE (the kit's, src/lib/facility/guard.ts): the save is for the line AS THE PERSON SAW IT. If it is not that any more, nothing is written, and he is told what it is now and who changed it.
+      const g = await guardRecord(q, "pax", id, { sent: version, load: loadLine(q, id), version: (r) => versionOfRow(r.old), current: (r) => ({ id, department: r.mine.department, location: r.mine.location, number: r.mine.number, version: versionOfRow(r.old) }) });
+      if (g.status !== "fresh") return g;
+      const { rows, mine, old } = g.row;
       if (mine.department === v.value.department && mine.location === v.value.location && mine.number === v.value.number) return { status: "unchanged" };
       const conflicts = findConflicts(rows, v.value, { ignoreId: id, keepsNumber: mine.number === v.value.number });
       if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts: withVersions(conflicts, rows), acknowledgeable: acknowledgeable(conflicts) };
@@ -153,13 +161,10 @@ export async function deleteEntry(db: PaxDb, actor: Actor, id: number, opts: { c
   try {
     return await db.run(async (q): Promise<EntryResult> => {
       const role = await begin(q, actor);
-      await lockEntry(q, id);
-      const rows = await loadPaxRows(q);
-      const mine = savedLines(rows).find((l) => l.id === id);
-      if (!mine) return { status: "missing" };
-      const old = rows.find((r) => r.id === id) as PaxRow;
-      // a line is deleted AS THE PERSON SAW IT: if it has been changed since, nothing is deleted and he looks again
-      if (!sameVersion(opts.version, versionOfRow(old))) return { status: "stale", current: { id, department: mine.department, location: mine.location, number: mine.number, version: versionOfRow(old) }, last: await lastChangeOf(q, id) };
+      // a line is deleted AS THE PERSON SAW IT (the kit's guard): if it has been changed since, nothing is deleted and he looks again
+      const g = await guardRecord(q, "pax", id, { sent: opts.version, load: loadLine(q, id), version: (r) => versionOfRow(r.old), current: (r) => ({ id, department: r.mine.department, location: r.mine.location, number: r.mine.number, version: versionOfRow(r.old) }) });
+      if (g.status !== "fresh") return g;
+      const { mine, old } = g.row;
       if (String(opts.confirmNumber ?? "").trim() !== String(mine.number)) return { status: "invalid", errors: { number: "The PAX number typed does not match this line." } };
       await q(`DELETE FROM public.pax_directory WHERE id = $1`, [id]);
       await audit(q, actor, role, "delete", id, null, snapshot({ department: mine.department, location: mine.location, number: mine.number, label: old.label }), null);

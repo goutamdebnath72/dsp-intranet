@@ -20,9 +20,10 @@ import { IST, toIsoInstant } from "@/lib/dates";
 import { isSuperAdmin } from "@/lib/superAdmin";
 import type { QueryFn } from "@/lib/pax/store";
 import type { AcknowledgeKind, Authority, AuditView, ChangeView, DelegateView, DepartmentRef, EmployeeConflict, EmployeeRecord, FieldErrors, GradeRef, Lookups, LastChange } from "./types";
-import { sameVersion, versionOf } from "@/lib/concurrency/version";
+import { versionOf } from "@/lib/concurrency/version";
 import { Forbidden, authorityOf as sharedAuthorityOf, begin as sharedBegin, grantDelegate as sharedGrant, listDelegates as sharedList, revokeDelegate as sharedRevoke, revokeEverywhere } from "@/lib/facility/authority";
 import { lastChangeOf as sharedLastChange, recentAuditRows, writeAudit } from "@/lib/facility/audit";
+import { guardRecord } from "@/lib/facility/guard";
 import type { DelegateResult } from "@/lib/facility/types";
 import { NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, maskEmail, maskMobile } from "./contact";
 import { cleanText, seniorityRank, validateEmployee } from "./validate";
@@ -370,12 +371,11 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
     return await db.run(async (q): Promise<SaveResult> => {
       const role = await begin(q, actor);
       const cols = await colsFor(db, q);
-      await lockRow(q, cols, id);
-      const curRow = await getRow(q, cols, id);
-      if (!curRow) return { status: "missing" };
       const hod = role === "hod";
-      // THE GUARD AGAINST A LOST UPDATE: the save is for the record AS THE PERSON SAW IT. If it is not that any more, nothing is written (not even a part), and he is told what it is now and who changed it.
-      if (!sameVersion(version, versionOfRow(curRow, hod))) return { status: "stale", current: rowToRecord(curRow, hod), last: await lastChangeOf(q, id) };
+      // THE GUARD AGAINST A LOST UPDATE (the kit's, src/lib/facility/guard.ts): the save is for the record AS THE PERSON SAW IT. If it is not that any more, nothing is written (not even a part), and he is told what it is now and who changed it.
+      const g = await guardRecord(q, "employee", id, { sent: version, load: async () => { await lockRow(q, cols, id); return (await getRow(q, cols, id)) ?? null; }, version: (r) => versionOfRow(r, hod), current: (r) => rowToRecord(r, hod) });
+      if (g.status !== "fresh") return g;
+      const curRow = g.row;
       const cur = rowToRecord(curRow, true);
       const { lk, v } = await validateHealing(db, q, cols, raw, { today: DateTime.now().setZone(IST), canEditDates: hod, fixedTicket: cur.ticketNo, requirePno: cur.sailPno !== "" }, await lookupsFor(db, q, cols));
       if (!v.ok) return { status: "invalid", errors: v.errors };
@@ -483,11 +483,10 @@ export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: 
     return await db.run(async (q): Promise<DeleteResult> => {
       const role = await begin(q, actor, true);
       const cols = await colsFor(db, q);
-      await lockRow(q, cols, id);
-      const row = await getRow(q, cols, id);
-      if (!row) return { status: "missing" };
-      // a person is deleted AS THE HOD SAW HIM: if he has been changed since, nothing is deleted and the HOD looks again
-      if (!sameVersion(opts.version, versionOfRow(row, true))) return { status: "stale", current: rowToRecord(row, true), last: await lastChangeOf(q, id) };
+      // a person is deleted AS THE HOD SAW HIM (the kit's guard): if he has been changed since, nothing is deleted and the HOD looks again
+      const g = await guardRecord(q, "employee", id, { sent: opts.version, load: async () => { await lockRow(q, cols, id); return (await getRow(q, cols, id)) ?? null; }, version: (r) => versionOfRow(r, true), current: (r) => rowToRecord(r, true) });
+      if (g.status !== "fresh") return g;
+      const row = g.row;
       const cur = rowToRecord(row, true);
       if (String(opts.confirmTicket ?? "").trim() !== cur.ticketNo) return { status: "invalid", reason: "The ticket number typed does not match this employee." };
       if (isSuperAdmin(cur.ticketNo) || cur.ticketNo === actor.ticket) return { status: "protected" };
@@ -538,13 +537,15 @@ export function diffSnapshots(before: Partial<Snap> | null, after: Partial<Snap>
 export async function recentAudit(db: EmpDb, limit = 50, canSeeDates = false): Promise<AuditView[]> {
   const lines = await recentAuditRows(db, "employee", limit);
   return lines.map((x): AuditView => {
-    const action = x.action as AuditView["action"];
+    const isPhoto = x.action === "photo"; // a photo change or removal (step 70) reads as a change of the person, in words, with nothing to compare
+    const action = (isPhoto ? "modify" : x.action) as AuditView["action"];
     const targetName = x.targetName, targetTicket = x.targetTicket;
     const who = `${targetName} (${targetTicket})`;
     const after = x.after as (Partial<Snap> & { loginRemoved?: boolean }) | null;
-    const changes = action === "modify" ? diffSnapshots(x.before as Partial<Snap> | null, after, canSeeDates) : [];
+    const changes = action === "modify" && !isPhoto ? diffSnapshots(x.before as Partial<Snap> | null, after, canSeeDates) : [];
     const summary =
-      action === "add" ? `Added ${who}${after?.gradeTitle ? `, ${after.gradeTitle}` : ""}${after?.departmentName ? `, ${after.departmentName}` : ""}`
+      isPhoto ? `${x.note === "removed" ? "Removed" : "Changed"} the photo of ${who}`
+      : action === "add" ? `Added ${who}${after?.gradeTitle ? `, ${after.gradeTitle}` : ""}${after?.departmentName ? `, ${after.departmentName}` : ""}`
       : action === "modify" ? `Changed ${who}${x.note ? ` (${x.note})` : ""}`
       : action === "delete" ? `Deleted ${who}${after?.loginRemoved ? " and his login account" : ""}`
       : action === "grant" ? `Authorised ${who}${x.note ? ` (${x.note})` : ""}`

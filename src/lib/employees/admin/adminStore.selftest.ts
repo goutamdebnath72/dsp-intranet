@@ -66,6 +66,10 @@ async function main() {
   await pool.query(m18);
   let again18 = true; try { await pool.query(m18); } catch { again18 = false; }
   ok("the migration sql/18 runs twice without error", again18);
+  const m19 = readFileSync(join(SQL_DIR, "19_employee_photo.sql"), "utf8");
+  await pool.query(m19);
+  let again19 = true; try { await pool.query(m19); } catch { again19 = false; }
+  ok("the migration sql/19 (the photo table) runs twice without error", again19);
 
   const db: import("./store").EmpDb = {
     run: async (fn) => {
@@ -493,6 +497,48 @@ async function main() {
     ok("...the history says so in words ('non-executive, confirmed')", !!hs && /\(non-executive, confirmed\)$/.test(hs.summary), JSON.stringify(hs));
     ok("a non-executive delegate cannot delete, authorise or see dates, like any delegate (the HOD's requests give 403)", (await handleEmployeeAdmin({ op: "grant", ticket: "412346", confirmNonExecutive: true }, ctxFor({ ticket: "342500", name: "PLAIN PERSON" }))).status === 403 && (await handleEmployeeAdmin({ op: "revoke", ticket: "342500" }, ctxFor({ ticket: "342500", name: "PLAIN PERSON" }))).status === 403);
     ok("withdrawing him works like anybody's", ((await handleEmployeeAdmin({ op: "revoke", ticket: "342500" }, ctxFor(HOD))).body.result as { status: string }).status === "ok" && (await db.run((x) => store.authorityOf(x, "342500"))) === null);
+  }
+  // ---- STEP 70: the photo (requests, storage, history, deletion) ----
+  { const { handlePhotoPost, handlePhotoGet } = await import("../photo/api");
+    const { memoryStorage } = await import("../photo/storage");
+    const sharp = (await import("sharp")).default;
+    const storage = memoryStorage();
+    const pctx = (actor: { ticket: string; name: string } | null, st = storage) => ({ actor, db, storage: st });
+    const target = await addX(HOD, { ticketNo: "342700", name: "Photo Person", gradeId: 21, departmentId: 4 });
+    const pid = target.status === "ok" ? target.employee.id : 0;
+    const jpeg = await sharp({ create: { width: 700, height: 700, channels: 3, background: { r: 120, g: 90, b: 70 } } }).jpeg().toBuffer();
+    const form = (fields: Record<string, string>, file?: Buffer) => { const f = new FormData(); for (const [k, v] of Object.entries(fields)) f.set(k, v); if (file) f.set("file", new Blob([new Uint8Array(file)], { type: "image/jpeg" }), "p.jpg"); return f; };
+    const rowsOfPhoto = async () => rows(`SELECT * FROM public.employee_photo WHERE employee_id = ${pid}`);
+    const STRANGER = { ticket: "999999", name: "STRANGER" };
+    ok("(set-up) a person is added", target.status === "ok" && pid > 0);
+    ok("nobody logged in: 401; a stranger with no authority: 403; nothing is stored in either case", (await handlePhotoPost(form({ op: "upload", id: String(pid) }, jpeg), pctx(null))).status === 401 && (await handlePhotoPost(form({ op: "upload", id: String(pid) }, jpeg), pctx(STRANGER))).status === 403 && storage.urls().length === 0 && (await rowsOfPhoto()).length === 0);
+    ok("a bad request (no id, a wrong op, no form) is 400", (await handlePhotoPost(form({ op: "upload" }, jpeg), pctx(HOD))).status === 400 && (await handlePhotoPost(form({ op: "explode", id: String(pid) }), pctx(HOD))).status === 400 && (await handlePhotoPost(null, pctx(HOD))).status === 400);
+    const up = await handlePhotoPost(form({ op: "upload", id: String(pid) }, jpeg), pctx(HOD));
+    ok("the HOD uploads: ok, version 1; two pictures in the store (large and small); one row; the addresses are NOT in the reply", up.status === 200 && (up.body.result as { status: string; version: number }).status === "ok" && (up.body.result as { version: number }).version === 1 && storage.urls().length === 2 && (await rowsOfPhoto()).length === 1 && !JSON.stringify(up.body).includes("memory://"));
+    ok("...the history has a 'photo' line of the employee manager with who did it, whom it is about and 'changed' (never a picture)", (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE facility='employee' AND action='photo' AND target_id = ${pid} AND target_ticket='342700' AND note='changed' AND actor_ticket='400001' AND before IS NULL AND after IS NULL`)) === 1);
+    const meta = await handlePhotoGet(new URLSearchParams({ id: String(pid), meta: "1" }), pctx(STRANGER));
+    ok("ANYBODY logged in may ask for the version and see the picture (owner's decision), even with no authority; not logged in: 401", (meta.json as { version: number }).version === 1 && (await handlePhotoGet(new URLSearchParams({ id: String(pid), size: "thumb" }), pctx(STRANGER))).status === 200 && (await handlePhotoGet(new URLSearchParams({ id: String(pid), size: "thumb" }), pctx(null))).status === 401);
+    const thumb = await handlePhotoGet(new URLSearchParams({ id: String(pid), size: "thumb" }), pctx(STRANGER));
+    const master = await handlePhotoGet(new URLSearchParams({ id: String(pid), size: "master" }), pctx(STRANGER));
+    ok("the small picture is 160 x 160 and the large one 700 (not enlarged), both JPEG; the browser may keep them for good (immutable) and the version is the tag", thumb.bytes !== undefined && (await sharp(thumb.bytes!).metadata()).width === 160 && (await sharp(master.bytes!).metadata()).width === 700 && /immutable/.test(thumb.headers["Cache-Control"]) && thumb.headers["Content-Type"] === "image/jpeg" && thumb.headers.ETag === `"${pid}-1-thumb"`);
+    ok("asking again with the tag: 304 and no picture; a person with no photo: 404; no id: 400", (await handlePhotoGet(new URLSearchParams({ id: String(pid), size: "thumb" }), pctx(STRANGER), `"${pid}-1-thumb"`)).status === 304 && (await handlePhotoGet(new URLSearchParams({ id: "9999999" }), pctx(STRANGER))).status === 404 && (await handlePhotoGet(new URLSearchParams({}), pctx(STRANGER))).status === 400);
+    await store.grantDelegate(db, HOD, { ticket: "412345", name: "RAKESH OJHA" }).catch(() => undefined);
+    const again = await handlePhotoPost(form({ op: "upload", id: String(pid) }, jpeg), pctx({ ticket: "412345", name: "RAKESH OJHA" }));
+    ok("an authorised delegate may replace it: version 2, and the old pictures are deleted from the store (two files, not four)", (again.body.result as { status: string; version: number }).status === "ok" && (again.body.result as { version: number }).version === 2 && storage.urls().length === 2);
+    const before = storage.urls().length;
+    const notPic = await handlePhotoPost(form({ op: "upload", id: String(pid) }, Buffer.from("this is not a picture")), pctx(HOD));
+    const flat = await sharp({ create: { width: 800, height: 500, channels: 3, background: { r: 1, g: 1, b: 1 } } }).jpeg().toBuffer();
+    const notSquare = await handlePhotoPost(form({ op: "upload", id: String(pid) }, flat), pctx(HOD));
+    ok("a file that is not a picture, and one that is not square: refused with the reason; nothing stored, the photo still version 2", (notPic.body.result as { status: string }).status === "invalid" && (notSquare.body.result as { status: string; reason: string }).status === "invalid" && /square/.test((notSquare.body.result as { reason: string }).reason) && storage.urls().length === before && Number((await rowsOfPhoto())[0].version) === 2);
+    ok("a photo for somebody who is not on the roll: 'missing', and the pictures just stored are taken back", (await handlePhotoPost(form({ op: "upload", id: "99999999" }, jpeg), pctx(HOD))).body.result !== undefined && ((await handlePhotoPost(form({ op: "upload", id: "99999999" }, jpeg), pctx(HOD))).body.result as { status: string }).status === "missing" && storage.urls().length === before);
+    ok("a store that fails: 503 with the reason, and nothing saved", await (async () => { const broken = { ...memoryStorage(), put: async () => { throw new Error("blob down"); } }; const r = await handlePhotoPost(form({ op: "upload", id: String(pid) }, jpeg), pctx(HOD, broken)); return r.status === 503 && /photo store is not available/.test(String(r.body.error)) && Number((await rowsOfPhoto())[0].version) === 2; })());
+    const hist = await store.recentAudit(db, 30);
+    ok("the history of the employee manager SAYS it, in words: 'Changed the photo of PHOTO PERSON (342700)'", hist.some((x) => x.summary === "Changed the photo of PHOTO PERSON (342700)"));
+    ok("remove: ok, the pictures are deleted from the store, the row is gone, the history says 'Removed the photo'; removing again says 'none'; a stranger cannot remove", (await handlePhotoPost(form({ op: "remove", id: String(pid) }), pctx(STRANGER))).status === 403 && ((await handlePhotoPost(form({ op: "remove", id: String(pid) }), pctx(HOD))).body.result as { status: string }).status === "ok" && storage.urls().length === 0 && (await rowsOfPhoto()).length === 0 && ((await handlePhotoPost(form({ op: "remove", id: String(pid) }), pctx(HOD))).body.result as { status: string }).status === "none" && (await store.recentAudit(db, 30)).some((x) => x.summary === "Removed the photo of PHOTO PERSON (342700)"));
+    await handlePhotoPost(form({ op: "upload", id: String(pid) }, jpeg), pctx(HOD));
+    const cur = (await store.getEmployee(db, pid, true))!;
+    const del = await handleEmployeeAdmin({ op: "delete", id: pid, confirmTicket: "342700", removeLogin: true, version: cur.version }, { ...ctxFor(HOD), photos: storage });
+    ok("deleting the employee takes his photo with him: the row and both pictures in the store", (del.body.result as { status: string }).status === "ok" && (await rowsOfPhoto()).length === 0 && storage.urls().length === 0);
   }
   await pool.end();
   console.log(`employee admin store selftest: ${pass} passed, ${fail} failed`);

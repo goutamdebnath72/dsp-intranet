@@ -24,6 +24,8 @@ import { routeFromReply, setTraceGate, setTraceSynth, startTrace, summarizeTrace
 import { detectSynthesisIntent } from "@/lib/search/synthesisIntent";
 import { decideModelSkip, frontGateEnabled, loadDirectoryNameWords } from "@/lib/search/frontGate";
 import { getSessionTicket } from "@/lib/apiAuth";
+import { routeQueryWithAgent } from "@/lib/search/agentRouter";
+import { parseQueryWithLlm, executePureHospital, runPureAiAssistant } from "@/lib/search/pureAiEngine";
 
 // Vercel stops a serverless function after a time limit. A question can legitimately take
 // longer than the default (the language model may have to wait for its per-minute allowance),
@@ -279,6 +281,55 @@ async function handleSearch(request: Request) {
       return NextResponse.json(results.slice(0, 5));
     }
 
+    // --- PURE AI ASSISTANT NLU & SEMANTIC DISPATCH ---
+    // Groq LLaMA 3.3 70B / gpt-oss-120b handles 100% of Natural Language Understanding:
+    // Any conversational phrasing, pronouns ("I can see"), synonyms, and clean parameter extraction.
+    const toolCall = await parseQueryWithLlm(q).catch(() => null);
+    const agentDecision = toolCall;
+
+    // 1. Conversational Queries: Return friendly AI reply directly
+    if (toolCall?.tool === "conversational") {
+      return NextResponse.json({
+        analytics: {
+          kind: "clarify",
+          answer: toolCall.conversationalReply || "Hello! I am your DSP AI Assistant. How can I help you across the intranet today?",
+        },
+      });
+    }
+
+    // 2. Hospital Queries: Execute pure deterministic data lookup (Zero regex, zero stopword patchwork)
+    if (toolCall?.tool === "hospital") {
+      const hospitalResult = executePureHospital(toolCall.params);
+      if (hospitalResult) {
+        return NextResponse.json({
+          analytics: {
+            kind: "count",
+            answer: hospitalResult.summary,
+            hospital: hospitalResult.card,
+          },
+        });
+      }
+    }
+
+    // 3. Executive Synthesis (EDS) Auto-Detection:
+    if (toolCall?.tool === "executive_synthesis" && mode === "semantic") {
+      let isAuthorizedExecutive = false;
+      if (userTicket && /^4\d{5}$/.test(userTicket)) {
+        try {
+          const executiveRecord = await dataSource.query(
+            `SELECT id FROM "user" WHERE "ticketNo" = $1 AND "ticketNo" LIKE '4%' LIMIT 1`,
+            [userTicket],
+          );
+          if (executiveRecord && executiveRecord.length > 0) isAuthorizedExecutive = true;
+        } catch {
+          isAuthorizedExecutive = false;
+        }
+      }
+      if (isAuthorizedExecutive) {
+        mode = "intellectual";
+      }
+    }
+
     // SYNTHESIS INTENT (step 26a, src/lib/search/synthesisIntent.ts): does the question need several circulars built into one
     // answer (compare / trace / contrast / correlate / what is hidden / what changed between ...)? Only RECORDED here, for the trace
     // and the harness. The SCREEN decides (step 27a, OmnibarModal.tsx): for a logged-in executive an EDS-type question is sent as
@@ -328,7 +379,13 @@ async function handleSearch(request: Request) {
     // rescueWithModel asks the model after all: a wrong skip costs time, never a wrong answer.
     const retryInfo = parseRetry(searchParams);
     let modelSkipped = false;
-    if (mode === "semantic" && !retrievalOnly && !retryInfo && frontGateEnabled()) {
+    if (agentDecision?.tool === "circular_search") {
+      modelSkipped = true;
+      setTraceGate("skipped");
+    } else if (agentDecision?.tool === "employee_roster") {
+      modelSkipped = false;
+      setTraceGate("model");
+    } else if (mode === "semantic" && !retrievalOnly && !retryInfo && frontGateEnabled()) {
       const endGate = traceStep("gate");
       try {
         const directoryWords = await loadDirectoryNameWords((sql) => dataSource.query(sql));

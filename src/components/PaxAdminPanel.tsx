@@ -401,7 +401,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
       {tab === "people" && isHod && (
         <div className="space-y-4">
           <div className="space-y-2">
-            <p className="flex items-center gap-2 text-sm font-bold text-slate-800"><ShieldCheck className="h-4 w-4 text-teal-600" aria-hidden="true" />Executives who may change PAX numbers</p>
+            <p className="flex items-center gap-2 text-sm font-bold text-slate-800"><ShieldCheck className="h-4 w-4 text-teal-600" aria-hidden="true" />Who may change PAX numbers</p>
             {delegates === null ? (
               <p className="text-sm text-slate-600">Loading…</p>
             ) : delegates.length === 0 ? (
@@ -426,7 +426,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
             )}
           </div>
           <AuthoriseCard>
-            <p className="text-sm font-bold text-slate-800">Authorise an executive</p>
+            <p className="text-sm font-bold text-slate-800">Authorise</p>
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[12rem] flex-1">
                 <IconField id="pax-admin-who" label="Name or ticket number" icon={<Users className="h-[18px] w-[18px]" aria-hidden="true" />}>

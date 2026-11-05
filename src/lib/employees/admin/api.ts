@@ -11,6 +11,7 @@
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { findPeopleToAuthorise, isSameOrigin } from "@/lib/pax/admin/api";
 import { resolveGrantTarget } from "@/lib/facility/authorise";
+import { purgePhoto } from "@/lib/employees/photo/store";
 import * as store from "./store";
 import type { Actor, EmpDb } from "./store";
 import type { AcknowledgeKind } from "./types";
@@ -21,6 +22,8 @@ export interface ApiContext {
   db: EmpDb;
   findByName: (name: string) => Promise<EmployeeResult[]>;
   findByTicket: (ticket: string) => Promise<EmployeeResult[]>;
+  /** Where the photos are kept (the photo goes with the employee when he is deleted); absent in the tests that do not need it. */
+  photos?: import("@/lib/employees/photo/storage").PhotoStorage;
 }
 export interface ApiReply { status: number; body: Record<string, unknown> }
 const reply = (status: number, body: Record<string, unknown>): ApiReply => ({ status, body });
@@ -93,7 +96,11 @@ export async function handleEmployeeAdmin(body: unknown, ctx: ApiContext): Promi
     // the version the person SAW travels with every change and delete (src/lib/concurrency/version.ts): the store refuses a save whose version is not the record's now
     const version = text(b.version, 64);
     if (op === "modify") return reply(200, { result: await store.modifyEmployee(ctx.db, actor, id, fieldsOf(b.fields), acksOf(b.acknowledge), version) });
-    return reply(200, { result: await store.deleteEmployee(ctx.db, actor, id, { confirmTicket: text(b.confirmTicket, 20), removeLogin: b.removeLogin === true, version }) });
+    const result = await store.deleteEmployee(ctx.db, actor, id, { confirmTicket: text(b.confirmTicket, 20), removeLogin: b.removeLogin === true, version });
+    if (result.status === "ok") { // the photo goes with him (its row, and the pictures in the store); a failure here never undoes the deletion
+      try { const urls = await purgePhoto(ctx.db, id); if (ctx.photos && urls.length) await ctx.photos.del(urls); } catch (e) { console.error("employee photo purge:", e); }
+    }
+    return reply(200, { result });
   }
   if (op === "grant") {
     const t = await resolveGrantTarget(b, ctx.findByTicket);

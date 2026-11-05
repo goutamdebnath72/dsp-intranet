@@ -179,6 +179,21 @@ async function main() {
   await db.run(async (q) => { await auth.revokeEverywhere(q, HOD, "hod", "412702", "x"); throw new Error("stop"); }).catch(() => undefined);
   ok("...it is part of the caller's transaction: when that is rolled back the person keeps the authority and no history line is left", (await who("employee", "412702")) === "delegate" && (await count(`SELECT count(*) AS n FROM public.facility_audit WHERE action='revoke' AND target_ticket='412702'`)) === 0);
 
+  // ---- STEP 70: the shared guard (guardRecord) ----
+  { const guard = await import("./guard");
+    const { versionOf } = await import("@/lib/concurrency/version");
+    const rec = (n: number) => ({ id: n, v: `value ${n}` });
+    const ver = (r: { id: number; v: string }) => versionOf("test", [r.id, r.v], "k");
+    await db.run((q) => audit.writeAudit(q, "pax", RAKESH, "delegate", "modify", { targetId: 5150 }));
+    const run = (sent: string | undefined, row: { id: number; v: string } | null) => db.run((q) => guard.guardRecord(q, "pax", 5150, { sent, load: async () => row, version: ver, current: (r) => ({ shown: r.v }) }));
+    ok("guard: a record that is not there is 'missing' (the sent version does not matter)", (await run("anything", null)).status === "missing");
+    ok("guard: the version the person SAW gives 'fresh' with the row, to go on with", await (async () => { const r = await run(ver(rec(5150)), rec(5150)); return r.status === "fresh" && r.row.v === "value 5150"; })());
+    const stale = await run(ver({ id: 5150, v: "what he saw" }), rec(5150));
+    ok("guard: another version is 'stale': he gets the record as it is now and who changed it last (from the kit's history), and nothing else", stale.status === "stale" && JSON.stringify(stale.current) === '{"shown":"value 5150"}' && stale.last?.actorName === "RAKESH OJHA" && stale.last.action === "modify");
+    ok("guard: no version, an empty one or a made-up one is 'stale' too (never 'fresh')", (await run(undefined, rec(5150))).status === "stale" && (await run("", rec(5150))).status === "stale" && (await run("forged", rec(5150))).status === "stale");
+    ok("guard: a record nobody ever changed is stale with 'last' empty", await (async () => { const r = await db.run((q) => guard.guardRecord(q, "pax", 424242, { sent: "x", load: async () => rec(424242), version: ver, current: () => ({}) })); return r.status === "stale" && r.last === null; })());
+    ok("both stores take their guard from the kit (no copy of the version check is left in either)", !/sameVersion\(/.test(readFileSync(join(process.cwd(), "src/lib/employees/admin/store.ts"), "utf8")) && !/sameVersion\(/.test(readFileSync(join(process.cwd(), "src/lib/pax/admin/store.ts"), "utf8")) && (readFileSync(join(process.cwd(), "src/lib/employees/admin/store.ts"), "utf8").match(/guardRecord\(q, "employee"/g) ?? []).length === 2 && (readFileSync(join(process.cwd(), "src/lib/pax/admin/store.ts"), "utf8").match(/guardRecord\(q, "pax"/g) ?? []).length === 2);
+  }
   await pool.end();
   const b = new Pool({ connectionString: adminUrl, max: 1 });
   await b.query(`DROP DATABASE IF EXISTS ${DB} WITH (FORCE)`);

@@ -115,6 +115,10 @@ async function main() {
   ok("Tumpa Lahiri (listed under Stores and Pharmacy in the staff list) sits in Paediatrics OPD 33 on Monday", has(r, "paediatrics opd 33", "monday"), all(r));
   r = await ask("opd days of dr thara gopinath");
   ok("a contractual doctor is said to be contractual (spelling variant Tara / Thara)", has(r, "contractual", "mopd clinic 40"), all(r));
+  r = await ask("on which day of the week I can see dr karmakar in opd?");
+  ok("natural phrasing with pronoun 'I': finds Dr. Ajit Karmakar", has(r, "ajit karmakar", "monday and thursday"), all(r));
+  r = await ask("on which day of the week I can visit dr ajit karmakar?");
+  ok("natural phrasing with 'I can visit': finds Dr. Ajit Karmakar", has(r, "ajit karmakar", "monday and thursday"), all(r));
 
   // ---- a department
   r = await ask("who is in orthopaedics opd on tuesday");
@@ -312,6 +316,19 @@ async function main() {
   ok("...and his OPD days are said not to be recorded yet", has(r, "non-permanent doctor (d499962)", "not recorded yet"), all(r));
   r = await ask("is dr kumar contractual");
   ok("'kumar' is ambiguous here too", has(r, "more than one doctor"), all(r));
+
+  // Permanent doctors list queries
+  r = await ask("list the permanent doctors");
+  ok("the list of permanent doctors: all 49", r?.card.table?.rows.length === 49 && has(r, "49 permanent doctors"), all(r).slice(0, 200));
+  r = await ask("list the permanent doctors with their qualifications");
+  ok("permanent doctors with qualifications: answered with permanent doctors table", r?.card.table?.rows.length === 49 && r?.card.table?.columns.includes("Qualification"), all(r).slice(0, 200));
+  r = await ask("list the permanent doctors with their specializations");
+  ok("permanent doctors with specializations: answered with permanent doctors table", r?.card.table?.rows.length === 49 && r?.card.table?.columns.includes("Specialization"), all(r).slice(0, 200));
+  r = await ask("permanent doctors of surgery");
+  ok("permanent doctors of surgery: 1 doctor (Dr. Rohit Shyam)", r?.card.table?.rows.length === 1 && has(r, "1 permanent doctor", "in surgery", "rohit shyam"), all(r).slice(0, 200));
+  r = await ask("list permanent MD doctors");
+  ok("permanent MD doctors: 15 doctors", r?.card.title === "Permanent doctors with MD" && r?.card.table?.rows.length === 15, all(r).slice(0, 200));
+
   for (const q of ["how many contractual employees", "list contractual workers", "contractual employees in C&IT", "how many permanent employees are there"]) ok(`left alone (not about doctors): "${q}"`, (await ask(q)) === null, all(await ask(q)).slice(0, 100));
 
   // ======================================================================================================================================

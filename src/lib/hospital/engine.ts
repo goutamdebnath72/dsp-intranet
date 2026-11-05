@@ -168,7 +168,7 @@ function personTokens(p: Person): string[][] {
 }
 
 const STOP = new Set(
-  ("dr doctor doctors drs mr mrs ms shri prof professor sir madam which what whom who whose when where how why is are was were will would can could do does did the a an of in on at for to from by with and or not no yes please tell me show give list name names " +
+  ("dr doctor doctors drs mr mrs ms shri prof professor sir madam which what whom who whose when where how why is are was were will would can could do does did the a an of in on at for to from by with and or not no yes please tell i me my mine myself we us our ours ourselves you your yours yourself he him his himself she her hers herself they them their theirs themselves it its one can could may might shall should will would must see sees seen seeing visit visits visited visiting meet meets meeting consult consults consulting show give list name names " +
     "opd opds out patient patients outpatient outdoor clinic clinics unit units number department departments dept day days week weekday weekdays sit sits sitting seat seats seated available availability attend attends attending " +
     "schedule timing timings time times today tomorrow yesterday tonight now next this coming head hod incharge charge open opens closed close closes working running functioning consult consults consulting see sees visit his her their hospital main dsp " +
     "monday tuesday wednesday thursday friday saturday sunday mon tue tues wed thu thur thurs fri sat sun january february march april may june july august september october november december jan feb mar apr jun jul aug sep sept oct nov dec token holiday holidays contractual contract permanent regular temporary non part visiting employee employees " +
@@ -176,10 +176,10 @@ const STOP = new Set(
     "post graduate postgraduate postgraduates postgraduation graduate graduates graduated undergraduate undergraduates pg ug bachelor bachelors doctorate doctorates phd").split(" "),
 );
 
-const DOCTOR_POOL: Person[] = [...STAFF.people.filter((p) => p.role === "doctor"), ...unlistedAsPeople()];
+export const DOCTOR_POOL: Person[] = [...STAFF.people.filter((p) => p.role === "doctor"), ...unlistedAsPeople()];
 /** Doctors whose name fits the name words of the question. More than one = the question is ambiguous. */
 function findDoctors(words: string[], keep?: Set<string>): Person[] {
-  const base = words.filter((w) => (keep?.has(w) ?? false) || (!STOP.has(w) && !/^\d+$/.test(w)));
+  const base = words.filter((w) => (keep?.has(w) ?? false) || (!STOP.has(w) && !/^\d+$/.test(w) && w.length > 1));
   const search = (q: string[]): Person[] => {
     if (!q.length || !q.some((w) => w.length >= 3)) return [];
     const hits = DOCTOR_POOL.filter((p) => {
@@ -310,7 +310,7 @@ function entitiesOf(rawQ: string, now: DateTime): Entities {
   const narrowed = exact ? { list: found, miss: null as string | null } : narrowDoctors(found, depts, extraDepts, unitRefs.flatMap((r) => (r.unit && r.dept && r.dept.kind === "units" ? [r.unit] : [])));
   // "is the hospital open on monday?": here the hospital means the OPD (the Emergency Department is open all the time); only a question about being open or closed on a day, so that "executives of the main hospital" stays an employee question
   const hospitalMeansOpd = /\bhospital\b/.test(original) && /\b(open|opens|opened|closed?|closes|closing|running|functioning|working|holiday|available|off)\b/.test(original) && (dateRef !== null || weekdaysIn(q).length > 0);
-  return { n: original, hasOpd: hasOpd || hospitalMeansOpd, depts, unitRefs, weekdays: weekdaysIn(q), dateRef, doctors: narrowed.list, hintMiss: narrowed.miss, extraDepts, leftover: words.filter((w) => !STOP.has(w) && !/^\d+$/.test(w)) };
+  return { n: original, hasOpd: hasOpd || hospitalMeansOpd, depts, unitRefs, weekdays: weekdaysIn(q), dateRef, doctors: narrowed.list, hintMiss: narrowed.miss, extraDepts, leftover: words.filter((w) => (initials.has(w) || (!STOP.has(w) && !/^\d+$/.test(w) && w.length > 1))) };
 }
 
 // ---------------------------------------------------------------- answers
@@ -1000,11 +1000,15 @@ const QUALIFICATIONS: Qual[] = [
 export const qualificationsAsked = (nm: string): Qual[] => QUALIFICATIONS.filter((x) => x.ask.test(nm));
 const qualOf = (p: Person) => String(p.qualification ?? "").toUpperCase();
 
-function doctorsByQualificationAnswer(e: Entities, quals: Qual[]): HospitalResult {
+function doctorsByQualificationAnswer(e: Entities, quals: Qual[], opts?: { permanentOnly?: boolean; contractualOnly?: boolean }): HospitalResult {
   const inDepts = e.depts.length || e.extraDepts.length
     ? new Set([...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)), ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null))].map((r) => r.p.id))
     : null;
-  const pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
+  let pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
+  if (opts?.permanentOnly) pool = pool.filter((p) => p.employment !== "contractual" && p.status !== "not_on_list");
+  else if (opts?.contractualOnly) pool = pool.filter((p) => p.employment === "contractual");
+  const kindWord = opts?.permanentOnly ? "permanent " : opts?.contractualOnly ? "non-permanent " : "";
+  const KindTitle = opts?.permanentOnly ? "Permanent doctors" : opts?.contractualOnly ? "Non-permanent doctors" : "Doctors";
   const anyQual = quals.length === 0; // "the doctors with their degrees": no qualification named, every doctor whose qualification is recorded (step 56b)
   const label = anyQual ? "any qualification" : quals.map((x) => x.label).join(" or ");
   const where = inDepts ? ` in ${joinAnd([...e.depts.map((d) => d.name), ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map(deptLabel)])}` : "";
@@ -1012,14 +1016,14 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[]): HospitalResul
   const unknown = pool.filter((p) => !qualOf(p).trim());
   const names = hits.map(docName);
   // the plain-text answer (the payload's `answer`): complete in one piece
-  const gap = unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length} doctors${where}, so this list may be incomplete.` : "";
+  const gap = unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length} ${kindWord}doctors${where}, so this list may be incomplete.` : "";
   const text = anyQual
-    ? `${hits.length} of the ${pool.length} doctors${where} have a qualification on record, shown as printed.${unknown.length ? ` It is not recorded for ${unknown.length}, who are not shown.` : ""}`
+    ? `${hits.length} of the ${pool.length} ${kindWord}doctors${where} have a qualification on record, shown as printed.${unknown.length ? ` It is not recorded for ${unknown.length}, who are not shown.` : ""}`
     : (hits.length
-      ? `${hits.length} doctor${hits.length === 1 ? " is" : "s are"} recorded with ${label}${where}${hits.length <= 4 ? `: ${joinAnd(names)}` : ""}.`
-      : `No doctor${where} is recorded with ${label}.`) + gap;
+      ? `${hits.length} ${kindWord}doctor${hits.length === 1 ? " is" : "s are"} recorded with ${label}${where}${hits.length <= 4 ? `: ${joinAnd(names)}` : ""}.`
+      : `No ${kindWord}doctor${where} is recorded with ${label}.`) + gap;
   // the card (step 57b): the clean answer first, big; one short sentence; only the bullets that matter; the long list of names folded away
-  const headline = anyQual ? `${hits.length} doctors` : hits.length === 1 ? docName(hits[0]) : hits.length === 0 ? "None" : `${hits.length} doctors`;
+  const headline = anyQual ? `${hits.length} ${kindWord}doctors` : hits.length === 1 ? docName(hits[0]) : hits.length === 0 ? "None" : `${hits.length} ${kindWord}doctors`;
   const sentence = anyQual
     ? `With a qualification on record, as printed.${unknown.length ? ` Not recorded for ${unknown.length} of the ${pool.length}, who are not shown.` : ""}`
     : (hits.length === 1 ? `The only doctor recorded with ${label}${where}.` : hits.length === 0 ? `No doctor${where} is recorded with ${label}.` : `Recorded with ${label}${where}.`) + gap;
@@ -1030,8 +1034,8 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[]): HospitalResul
     if (dr.length) lines.push(`${joinAnd(dr.map((p) => `${docName(p)} (${p.qualification})`))} ${dr.length === 1 ? "holds" : "hold"} DrNB, the National Board's super-specialty degree: a different qualification, not counted as DNB.`);
   }
   if (hasListNumber(hits)) lines.push(NP_FOOTNOTE);
-  const details = unknown.length ? [{ summary: `The ${unknown.length} doctors whose qualification is not recorded${anyQual ? "" : ` (any of them may hold ${label})`}`, text: joinAnd(unknown.map(docName)) }] : [];
-  const card: HospitalAnswer = { title: anyQual ? `Doctors and their qualifications${where}` : `Doctors with ${label}${where}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines, details };
+  const details = unknown.length ? [{ summary: `The ${unknown.length} ${kindWord}doctors whose qualification is not recorded${anyQual ? "" : ` (any of them may hold ${label})`}`, text: joinAnd(unknown.map(docName)) }] : [];
+  const card: HospitalAnswer = { title: anyQual ? `${KindTitle} and their qualifications${where}` : `${KindTitle} with ${label}${where}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines, details };
   if (hits.length) {
     card.table = {
       columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"],
@@ -1084,29 +1088,33 @@ const LEVEL_TEXT: Record<LevelAsk, { title: string; label: string; short: string
 const levelWords = (l: Level | null): string => (l === "graduate" ? "a graduate degree" : l === "postgraduate" ? "a postgraduate degree" : l === "superspecialty" ? "a super-specialty degree" : l === "doctorate" ? "a doctorate" : l === "diploma" ? "a diploma below graduate level" : l === "certificate" ? "a certificate" : "a qualification the system does not know");
 
 /** The doctors (of the plant, or of the departments named) who hold a degree of the level asked. */
-function doctorsByLevelAnswer(e: Entities, ask: LevelAsk): HospitalResult {
+function doctorsByLevelAnswer(e: Entities, ask: LevelAsk, opts?: { permanentOnly?: boolean; contractualOnly?: boolean }): HospitalResult {
   const inDepts = e.depts.length || e.extraDepts.length
     ? new Set([...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)), ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null))].map((r) => r.p.id))
     : null;
-  const pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
+  let pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
+  if (opts?.permanentOnly) pool = pool.filter((p) => p.employment !== "contractual" && p.status !== "not_on_list");
+  else if (opts?.contractualOnly) pool = pool.filter((p) => p.employment === "contractual");
+  const kindWord = opts?.permanentOnly ? "permanent " : opts?.contractualOnly ? "non-permanent " : "";
+  const KindTitle = opts?.permanentOnly ? "Permanent doctors" : opts?.contractualOnly ? "Non-permanent doctors" : "Doctors";
   const deptNames = inDepts ? joinAnd([...e.depts.map((d) => d.name), ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map(deptLabel)]) : "";
   const of = inDepts ? ` of ${deptNames}` : "";
   const T = LEVEL_TEXT[ask];
   const hits = pool.filter((p) => meetsLevel(p, ask)).sort((a, b) => a.name.localeCompare(b.name));
   const left = pool.filter((p) => qualOf(p).trim() && !meetsLevel(p, ask));
   const unknown = pool.filter((p) => !qualOf(p).trim());
-  const gap = unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length} doctors${of}, so this list may be incomplete.` : "";
+  const gap = unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length} ${kindWord}doctors${of}, so this list may be incomplete.` : "";
   const text = (hits.length
-    ? `${hits.length} of the doctors${of} ${hits.length === 1 ? "holds" : "hold"} ${T.title}${hits.length <= 4 ? `: ${joinAnd(hits.map(docName))}` : ""}.`
-    : `No doctor${of} is recorded with ${T.title}.`) + gap;
-  const headline = hits.length === 1 ? docName(hits[0]) : hits.length === 0 ? "None" : `${hits.length} doctors`;
-  const sentence = (hits.length ? `${T.short}${inDepts ? `, among the doctors of ${deptNames}` : ""}.` : `No doctor${of} is recorded with ${T.title}.`) + gap;
+    ? `${hits.length} of the ${kindWord}doctors${of} ${hits.length === 1 ? "holds" : "hold"} ${T.title}${hits.length <= 4 ? `: ${joinAnd(hits.map(docName))}` : ""}.`
+    : `No ${kindWord}doctor${of} is recorded with ${T.title}.`) + gap;
+  const headline = hits.length === 1 ? docName(hits[0]) : hits.length === 0 ? "None" : `${hits.length} ${kindWord}doctors`;
+  const sentence = (hits.length ? `${T.short}${inDepts ? `, among the ${kindWord ? `${kindWord}doctors` : "doctors"} of ${deptNames}` : ""}.` : `No ${kindWord}doctor${of} is recorded with ${T.title}.`) + gap;
   const details = [
-    ...(left.length ? [{ summary: `The ${left.length} doctor${left.length === 1 ? "" : "s"} ${T.excluded}`, text: joinAnd(left.map((p) => `${docName(p)} (${p.qualification})`)) }] : []),
-    ...(unknown.length ? [{ summary: `The ${unknown.length} doctors whose qualification is not recorded`, text: joinAnd(unknown.map(docName)) }] : []),
+    ...(left.length ? [{ summary: `The ${left.length} ${kindWord}doctor${left.length === 1 ? "" : "s"} ${T.excluded}`, text: joinAnd(left.map((p) => `${docName(p)} (${p.qualification})`)) }] : []),
+    ...(unknown.length ? [{ summary: `The ${unknown.length} ${kindWord}doctors whose qualification is not recorded`, text: joinAnd(unknown.map(docName)) }] : []),
     { summary: T.explainSummary, text: T.explain },
   ];
-  const card: HospitalAnswer = { title: `Doctors with ${T.title}${inDepts ? ` (${deptNames})` : ""}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines: hasListNumber(hits) ? [NP_FOOTNOTE] : [], details };
+  const card: HospitalAnswer = { title: `${KindTitle} with ${T.title}${inDepts ? ` (${deptNames})` : ""}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines: hasListNumber(hits) ? [NP_FOOTNOTE] : [], details };
   if (hits.length) card.table = { columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"], rows: hits.map((p) => [docLabel(p), listTicket(p), p.qualification ?? "—", p.discipline ?? npOf(p)?.specialization ?? "—", p.department ? deptLabel(p.department) : "not recorded"]) };
   return done(text, card);
 }
@@ -1165,11 +1173,15 @@ function doctorQualificationAnswer(p: Person, quals: Qual[]): HospitalResult {
 }
 
 /** The doctors of the plant (or of the departments named) and their specialisations: only the doctors who have one (or whose subject is not stated). */
-function specialisationAnswer(e: Entities): HospitalResult {
+function specialisationAnswer(e: Entities, opts?: { permanentOnly?: boolean; contractualOnly?: boolean }): HospitalResult {
   const inDepts = e.depts.length || e.extraDepts.length
     ? new Set([...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)), ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null))].map((r) => r.p.id))
     : null;
-  const pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
+  let pool = DOCTOR_POOL.filter((p) => !isGone(p) && (!inDepts || inDepts.has(p.id)));
+  if (opts?.permanentOnly) pool = pool.filter((p) => p.employment !== "contractual" && p.status !== "not_on_list");
+  else if (opts?.contractualOnly) pool = pool.filter((p) => p.employment === "contractual");
+  const kindPrefix = opts?.permanentOnly ? "permanent " : opts?.contractualOnly ? "non-permanent " : "";
+  const KindPrefix = opts?.permanentOnly ? "Permanent " : opts?.contractualOnly ? "Non-permanent " : "";
   const where = inDepts ? ` in ${joinAnd([...e.depts.map((d) => d.name), ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map(deptLabel)])}` : "";
   const info = pool.map((p) => ({ p, ...specialisationOf(p) }));
   const listed = info.filter((x) => x.kind === "stated" || x.kind === "no_subject").sort((a, b) => Number(a.spec === null) - Number(b.spec === null) || (a.spec ?? "").localeCompare(b.spec ?? "") || a.p.name.localeCompare(b.p.name));
@@ -1181,19 +1193,19 @@ function specialisationAnswer(e: Entities): HospitalResult {
   for (const x of stated) bySpec.set(x.spec as string, (bySpec.get(x.spec as string) ?? 0) + 1);
   const groups = [...bySpec.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const text = stated.length
-    ? `${stated.length} of the ${pool.length} doctors${where} have a specialisation on record, in ${groups.length} specialisation${groups.length === 1 ? "" : "s"}.${unknown.length ? ` The qualification is not recorded for ${unknown.length}, so their specialisation is not known.` : ""}`
-    : `No doctor${where} has a specialisation on record.${unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length}.` : ""}`;
+    ? `${stated.length} of the ${pool.length} ${kindPrefix}doctors${where} have a specialisation on record, in ${groups.length} specialisation${groups.length === 1 ? "" : "s"}.${unknown.length ? ` The qualification is not recorded for ${unknown.length}, so their specialisation is not known.` : ""}`
+    : `No ${kindPrefix}doctor${where} has a specialisation on record.${unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length}.` : ""}`;
   // the card (step 57b): the number of specialisations first; one sentence; only the bullets that matter; the rule and the names folded away
   const sentence = stated.length
-    ? `${stated.length} of the ${pool.length} doctors${where} have one on record.${unknown.length ? ` The qualification is not recorded for ${unknown.length}, so their specialisation is not known.` : ""}`
+    ? `${stated.length} of the ${pool.length} ${kindPrefix}doctors${where} have one on record.${unknown.length ? ` The qualification is not recorded for ${unknown.length}, so their specialisation is not known.` : ""}`
     : text;
   const lines: string[] = [];
   if (groups.length) lines.push(`By specialisation: ${groups.map(([sp, n]) => `${sp} ${n}`).join(", ")}.`);
-  if (none.length) lines.push(`${none.length} doctor${none.length === 1 ? "" : "s"} with MBBS alone ${none.length === 1 ? "has" : "have"} no specialisation (not listed).`);
+  if (none.length) lines.push(`${none.length} ${kindPrefix}doctor${none.length === 1 ? "" : "s"} with MBBS alone ${none.length === 1 ? "has" : "have"} no specialisation (not listed).`);
   if (noSubject.length) lines.push(`${joinAnd(noSubject.map((x) => `${docName(x.p)} (${x.p.qualification})`))}: postgraduate, but the subject is not stated (not guessed).`);
   if (hasListNumber(listed.map((x) => x.p))) lines.push(NP_FOOTNOTE);
-  const details = [{ summary: "How is a specialisation decided?", text: SPEC_RULE }, ...(unknown.length ? [{ summary: `The ${unknown.length} doctors whose qualification is not recorded`, text: joinAnd(unknown.map((x) => docName(x.p))) }] : [])];
-  const card: HospitalAnswer = { title: `Specialisations of doctors${where}`, headline: { text: stated.length ? `${groups.length} specialisation${groups.length === 1 ? "" : "s"}` : "None", tone: stated.length ? "info" : "unknown" }, status: { tone: stated.length ? "info" : "unknown", text: sentence }, lines, details };
+  const details = [{ summary: "How is a specialisation decided?", text: SPEC_RULE }, ...(unknown.length ? [{ summary: `The ${unknown.length} ${kindPrefix}doctors whose qualification is not recorded`, text: joinAnd(unknown.map((x) => docName(x.p))) }] : [])];
+  const card: HospitalAnswer = { title: `Specialisations of ${kindPrefix}doctors${where}`, headline: { text: stated.length ? `${groups.length} specialisation${groups.length === 1 ? "" : "s"}` : "None", tone: stated.length ? "info" : "unknown" }, status: { tone: stated.length ? "info" : "unknown", text: sentence }, lines, details };
   if (listed.length) card.table = { columns: ["Doctor", "Ticket", "Specialisation", "Qualification (as printed)", "Department"], rows: listed.map((x) => [docLabel(x.p), listTicket(x.p), x.spec ?? "not stated", x.p.qualification ?? "—", x.p.department ? deptLabel(x.p.department) : "not recorded"]) };
   return done(text, card);
 }
@@ -1371,6 +1383,49 @@ async function newPatientAnswer(e: Entities, ctx: EngineCtx, d: Department): Pro
   return done(`Yes: ${text}`, card);
 }
 
+/** The confirmed permanent doctors (all, or of the departments named), from the staff list and current doctor list. */
+function permanentListAnswer(e: Entities): HospitalResult {
+  const allPerm = DOCTOR_POOL.filter((p) => !isGone(p) && p.employment !== "contractual" && p.status !== "not_on_list");
+  let list = allPerm.slice();
+  if (e.depts.length || e.extraDepts.length) {
+    const inDepts = new Set([
+      ...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)),
+      ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null)),
+    ].map((r) => r.p.id));
+    list = list.filter((p) => inDepts.has(p.id));
+  }
+  list.sort((a, b) => dept0(a).localeCompare(dept0(b)) || a.name.localeCompare(b.name));
+  const deptNames = [...e.depts.map((d) => d.name), ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map(deptLabel)];
+  const where = deptNames.length ? ` in ${joinAnd(deptNames)}` : "";
+  const totalSuffix = deptNames.length ? ` (${allPerm.length} in all)` : "";
+  const text = list.length
+    ? `The intranet doctor list has ${list.length} permanent doctor${list.length === 1 ? "" : "s"}${where}${totalSuffix}.`
+    : `No permanent doctor${where} is on the current doctor list (${allPerm.length} in all).`;
+  const notes = [
+    ...(list.some((p) => specialisationOf(p).kind === "none") ? ['"none (MBBS only)": a doctor with MBBS alone has no specialization; it comes only from a postgraduate qualification.'] : []),
+    "A permanent doctor has a plain ticket number; a non-permanent doctor's number starts with letters (D or DTN).",
+  ];
+  return done(text, {
+    title: "Permanent doctors",
+    status: { tone: list.length ? "info" : "unknown", text },
+    table: list.length ? {
+      columns: ["Doctor", "Department", "Specialization", "Qualification", "Ticket"],
+      rows: list.map((p) => {
+        const spec = specialisationOf(p);
+        const specLabel = spec.spec ?? (spec.kind === "none" ? "none (MBBS only)" : spec.kind === "no_subject" ? "not stated" : "not recorded yet");
+        return [
+          docLabel(p),
+          p.department ? deptLabel(p.department) : "not recorded",
+          specLabel,
+          p.qualification ?? "—",
+          listTicket(p),
+        ];
+      }),
+    } : undefined,
+    notes,
+  });
+}
+
 export async function answerHospital(q: string, ctx: EngineCtx): Promise<HospitalResult | null> {
   // the exact marker of a doctor ("(ticket 490138)") is not part of the question: its word "ticket" must not make it look like a directory question
   // "(new patient)" is added by the question "which unit do you belong to?": it is a state of the patient, not part of the words
@@ -1404,7 +1459,15 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
     const text = `I could not find a doctor named "${nameWords.join(" ")}" in the hospital lists I have. Check the spelling, or try the surname only.`;
     return done(text, { title: "Which doctor?", status: { tone: "unknown", text } });
   }
-  if (npWords && !e.doctors.length && /\b(doctor|doctors|dr|specialist|specialists|consultant|consultants)\b/.test(nm)) return nonPermanentListAnswer(e);
+
+  // qualifications, levels, specialisations
+  const quals = qualificationsAsked(nm);
+  const asksSpec = SPECIALISATION_WORD.test(nm.replace(/\bsuper[\s-]?special(?:i[sz]\w*|it(?:y|ies)|t(?:y|ies))\b/g, " ")); // "super speciality" is a LEVEL, not a specialisation
+  const asksQual = /\b(degrees?|qualifications?|qualified)\b/.test(nm);
+  const asksLevel = levelAsked(nm);
+
+  if (npWords && !e.doctors.length && !quals.length && !asksLevel && /\b(doctor|doctors|dr|specialist|specialists|consultant|consultants)\b/.test(nm)) return nonPermanentListAnswer(e);
+  if (permWords && !e.doctors.length && !quals.length && !asksLevel && /\b(doctor|doctors|dr|specialist|specialists|consultant|consultants)\b/.test(nm)) return permanentListAnswer(e);
 
   // head of unit / HOD
   if (/\b(hod|head of|unit head|department head|dept head|in ?charge)\b/.test(n.replace(/-/g, " ")) && (e.depts.length || e.unitRefs.length)) return headAnswer(e);
@@ -1415,26 +1478,23 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   // "list of ent doctors", "how many doctors in surgery": the doctors of a department, from the hospital's own lists (not the HR directory, which does not know their department)
   const DOCTOR_NOUN = /\b(doctors?|physicians?|surgeons?|specialists?|consultants?|radiologists?|pathologists?|anaesthetists?|anesthetists?)\b/;
   const FILTER_WORDS = /\b(mail|e ?mail|nic|webmail|mobile|phone|cug|address|grade|designation|senior|seniority|junior|executives?|non executives?|retire|retired|promoted)\b/;
-  // "the specialisation of doctors in dsp", "specialisation of dr rajeev kumar": from the postgraduate qualification only (step 57a)
-  const quals = qualificationsAsked(nm);
-  const asksSpec = SPECIALISATION_WORD.test(nm.replace(/\bsuper[\s-]?special(?:i[sz]\w*|it(?:y|ies)|t(?:y|ies))\b/g, " ")); // "super speciality" is a LEVEL, not a specialisation
-  const asksQual = /\b(degrees?|qualifications?|qualified)\b/.test(nm);
-  const noOtherAsk = !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length;
-  const asksLevel = levelAsked(nm);
+
+  const noOtherAsk = !FILTER_WORDS.test(nm) && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length;
+
   if ((asksSpec || asksQual || quals.length || asksLevel) && noOtherAsk && (e.doctors.length > 1 || (e.doctors.length === 1 && e.hintMiss))) return askDoctor(e, q);
   if (e.doctors.length === 1 && noOtherAsk && asksLevel && !asksSpec && !quals.length) return doctorLevelAnswer(e.doctors[0], asksLevel);
   if (e.doctors.length === 1 && noOtherAsk) {
     if (asksSpec) return doctorSpecialisationAnswer(e.doctors[0]);
     if (asksQual || quals.length) return doctorQualificationAnswer(e.doctors[0], quals);
   }
-  if (asksSpec && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return specialisationAnswer(e);
+  if (asksSpec && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return specialisationAnswer(e, { permanentOnly: permWords, contractualOnly: npWords });
   // "list the doctors having post graduate degree on medicine", "how many doctors are post graduate": by the LEVEL of the degree (step 58a)
-  if (asksLevel && !quals.length && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return doctorsByLevelAnswer(e, asksLevel);
+  if (asksLevel && !quals.length && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return doctorsByLevelAnswer(e, asksLevel, { permanentOnly: permWords, contractualOnly: npWords });
 
   // "list of DNB doctors", "how many MD doctors in medicine": by the qualification the staff list prints (step 56a)
   // "list the doctors with their degrees / qualifications": no qualification named (step 56b: it used to fall through to four unrelated circulars at 77 to 87 per cent)
   const anyQualAsked = !quals.length && /\b(degrees?|qualifications?|qualified)\b/.test(nm);
-  if ((quals.length || anyQualAsked) && !e.doctors.length && DOCTOR_NOUN.test(n) && !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length) return doctorsByQualificationAnswer(e, quals);
+  if ((quals.length || anyQualAsked) && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return doctorsByQualificationAnswer(e, quals, { permanentOnly: permWords, contractualOnly: npWords });
   if (!e.doctors.length && (e.depts.length || e.extraDepts.length) && DOCTOR_NOUN.test(n) && !FILTER_WORDS.test(nm) && !npWords && !permWords && !hasWhen && !closureWords && !timingWords && !e.hasOpd && !e.unitRefs.length) return departmentDoctorsAnswer(e);
 
   // a doctor

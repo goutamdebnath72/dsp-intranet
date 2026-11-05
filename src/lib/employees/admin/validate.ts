@@ -132,7 +132,7 @@ export function validateEmployee(raw: Record<string, unknown>, lookups: Lookups,
           ? "A direct recruit (a Management Trainee, ticket 49xxxx) joins at 23 or later."
           : "Nobody joins before the age of 18.";
       } else if (parseDay(dateOfJoining) > parseDay(dateOfBirth).plus({ years: MAX_JOINING_AGE_ADVERTISED, days: 0 }).endOf("day")) {
-        warnings.push(`He joined at more than ${MAX_JOINING_AGE_ADVERTISED} years of age (the age limit of an advertisement): right only with an age relaxation.`);
+        warnings.push(`He joined at more than ${MAX_JOINING_AGE_ADVERTISED} years of age, which exceeds the upper age limit prescribed by the Government. Joining is not permitted above this age without a valid age relaxation order.`);
       }
     }
   }

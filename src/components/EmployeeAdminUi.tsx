@@ -15,6 +15,7 @@ import { IST } from "@/lib/dates";
 import { MOBILE_HINT_EXECUTIVE, MOBILE_HINT_NONEXECUTIVE, NIC_DOMAIN, WEBMAIL_DOMAIN } from "@/lib/employees/admin/contact";
 import { cohortOfTicket, departmentFitsCohort, describeDates, gradeFitsCohort, isTicket } from "@/lib/employees/admin/validate";
 import type { AuditView, Authority, EmployeeConflict, EmployeeRecord, FieldErrors, GradeRef, Lookups } from "@/lib/employees/admin/types";
+import { PhotoField, photoUrlOf, type PhotoUiState } from "./facility/PhotoField";
 import { ORIGIN_TEXT, gradeLabel, initialsOf, resolveDepartment, type FormValues, type Unlocked } from "./employeeFormModel";
 
 export type Tab = "add" | "modify" | "delete" | "people" | "history";
@@ -159,7 +160,7 @@ const COHORT_CHIP = (ticketNo: string): string => {
 };
 
 /** How the person will look: an ID card that fills in as the form is filled. */
-export function EmployeePreviewCard({ values, gradeTitle, departmentName }: { values: FormValues; gradeTitle: string; departmentName: string }) {
+export function EmployeePreviewCard({ values, gradeTitle, departmentName, photoUrl = null }: { values: FormValues; gradeTitle: string; departmentName: string; photoUrl?: string | null }) {
   const name = values.name.trim().replace(/\s+/g, " ").toUpperCase();
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-5 text-white shadow-[0_28px_60px_-22px_rgba(99,102,241,0.75)]" data-emp-preview="true">
@@ -170,7 +171,12 @@ export function EmployeePreviewCard({ values, gradeTitle, departmentName }: { va
         <span className="whitespace-nowrap rounded-full bg-white/20 px-2.5 py-1 normal-case tracking-normal backdrop-blur">{COHORT_CHIP(values.ticketNo)}</span>
       </div>
       <div className="relative mt-5 flex items-center gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/95 text-xl font-extrabold text-indigo-700 shadow-lg ring-4 ring-white/30" aria-hidden="true">{initialsOf(name)}</div>
+        {photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-white/95 shadow-lg ring-4 ring-white/30" data-emp-photo="true"><img src={photoUrl} alt="" className="h-full w-full object-cover" /></div>
+        ) : (
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/95 text-xl font-extrabold text-indigo-700 shadow-lg ring-4 ring-white/30" aria-hidden="true">{initialsOf(name)}</div>
+        )}
         <div className="min-w-0">
           <p className={`truncate text-lg font-extrabold leading-tight ${name ? "" : "text-white/50"}`}>{name || "NAME"}</p>
           <p className={`truncate text-sm ${gradeTitle ? "text-white/95" : "text-white/50"}`}>{gradeTitle || "Designation"}</p>
@@ -288,6 +294,8 @@ function Field(props: { id: string; label: string; hint?: string; error?: string
 const ico = "h-[18px] w-[18px]";
 
 export interface EmployeeFormProps {
+  /** The photo of the employee (optional): its state and what to do when a file is chosen or the photo is removed. Without it the form has no photo field (and the ID card shows the initials). */
+  photo?: { state: PhotoUiState; onPick: (file: File) => void; onRemove: () => void; disabled?: boolean };
   mode: "add" | "modify";
   idPrefix: string;
   values: FormValues;
@@ -374,6 +382,7 @@ export function EmployeeForm(p: EmployeeFormProps) {
               <Field id={id("name")} label="Name" error={errors.name} hint="Kept in capitals." icon={<User className={ico} />} status={status("name")} className="sm:col-span-2">
                 <input id={id("name")} data-emp-field="name" className={cls("name")} value={v.name} onChange={setUpper("name")} maxLength={80} placeholder="Full name" autoComplete="off" aria-invalid={errors.name ? true : undefined} />
               </Field>
+              {p.photo && <PhotoField id={id("photo")} state={p.photo.state} onPick={p.photo.onPick} onRemove={p.photo.onRemove} disabled={p.photo.disabled} />}
             </div>
           </StepCard>
 
@@ -417,7 +426,7 @@ export function EmployeeForm(p: EmployeeFormProps) {
                   <input id={id("dateOfJoining")} data-emp-field="dateOfJoining" type="date" max={todayIso} className={`${DATE_BOX} ${errors.dateOfJoining ? INPUT_BAD : ""}`} style={emptyDateStyle(v.dateOfJoining)} value={v.dateOfJoining} onChange={set("dateOfJoining")} disabled={!datesOpen} aria-invalid={errors.dateOfJoining ? true : undefined} />
                 </Field>
               </div>
-              {p.warnings.map((w) => <p key={w} className="mt-2 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200" data-emp-warning="true"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{w}</p>)}
+              {p.warnings.map((w) => <p key={w} className="mt-2 flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900 ring-1 ring-rose-300" data-emp-warning="true"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{w}</p>)}
             </StepCard>
           ) : (
             <StepCard n={3} title="Service dates" state={steps[2].state} chip="HOD only" notYours>
@@ -451,7 +460,7 @@ export function EmployeeForm(p: EmployeeFormProps) {
           </StepCard>
         </div>
         <aside className="order-first space-y-3 xl:order-none xl:sticky xl:top-3 xl:self-start">
-          <EmployeePreviewCard values={v} gradeTitle={grade?.title ?? ""} departmentName={dept?.name ?? ""} />
+          <EmployeePreviewCard values={v} gradeTitle={grade?.title ?? ""} departmentName={dept?.name ?? ""} photoUrl={p.photo ? photoUrlOf(p.photo.state) : null} />
           <Guide cohort={cohort} />
         </aside>
       </div>
@@ -503,7 +512,7 @@ export function ReviewView(props: { mode: "add" | "modify"; title: string; chang
             ))}
           </dl>
         )}
-        {props.warnings.map((w) => <p key={w} className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200">{w}</p>)}
+        {props.warnings.map((w) => <p key={w} className="mt-2 flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900 ring-1 ring-rose-300"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{w}</p>)}
         {conflict && (
           <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-950 ring-1 ring-amber-300" data-emp-conflict="true">
             <p className="font-bold">This name is already in that department.</p>
