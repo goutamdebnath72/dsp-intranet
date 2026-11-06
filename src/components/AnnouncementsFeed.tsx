@@ -20,7 +20,6 @@ import toast from "react-hot-toast";
 import { Tooltip } from "./Tooltip";
 import { SCROLL_CONFIG } from "@/lib/SCROLL_CONFIG";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
-import { useRouter } from "next/navigation"; // ✅ Added router
 
 type Announcement = {
   id: number;
@@ -41,7 +40,6 @@ export function AnnouncementsFeed() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const { data: session } = useVerifiedSession();
-  const router = useRouter();
   const userTicketNo = (session?.user as any)?.ticketNo || "";
   const userId = (session?.user as any)?.id || "guest";
 
@@ -95,10 +93,11 @@ export function AnnouncementsFeed() {
     setIsConfirmOpen(true);
   };
 
-  // ✅ New navigation handler for edit
-  const handleEdit = (id: number, e: React.MouseEvent) => {
+  // Manage/edit announcement via Omnibar
+  const handleEdit = (_id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/admin?editId=${id}`);
+    window.dispatchEvent(new CustomEvent("open-omnibar"));
+    toast("Manage announcements from the Search bar (Ctrl+K).", { icon: "📢" });
   };
 
   useEffect(() => {

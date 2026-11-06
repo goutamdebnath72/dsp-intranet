@@ -56,23 +56,6 @@ export const CIRCULAR_NEW_THRESHOLD_HOURS = 24;
 // once the experiment is done.
 export const EDIT_DELETE_WINDOW_HOURS = 24 * 60; // 1440 hours = 60 days
 
-// ✅ Admin dashboard height knob: content height of the announcement rich-text
-// editor. This is the single value to tune so the Admin page fits without
-// scrolling. Accepts any CSS length — "14vh", "12vh", "160px", etc.
-export const ADMIN_EDITOR_MIN_HEIGHT = "23vh";
-
-// ✅ Admin dashboard: the whole page fills the viewport at 100% zoom with no
-// scrollbar — that's a structural flex layout, not a tunable number. What IS
-// tunable is how that vertical space is split between the title row and the
-// cards grid below it. These two act as MINIMUMS (a floor), not rigid sizes
-// — they must always sum to "100%" (percentages of the dashboard box's own
-// height, not the viewport), but a card's real content is always allowed to
-// grow past its floor rather than being compressed. If the combined content
-// ends up taller than the viewport (e.g. at higher browser zoom), the whole
-// PAGE scrolls — there is no per-card internal scrolling.
-export const ADMIN_TITLE_AREA_HEIGHT = "10%";
-export const ADMIN_CARDS_AREA_HEIGHT = "90%";
-
 // ✅ Circular upload modal: rough estimate (in seconds) of how long the
 // server-side OCR/chunk/embed pipeline typically takes once the file's
 // bytes have fully reached the server (observed: ~113s for a 6-page dual-

@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, LogIn, LogOut, Shield, Undo2 } from "lucide-react";
+import { Search, LogIn, LogOut, Undo2 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -125,16 +125,6 @@ const OldHeader: React.FC = () => {
                       </Link>
                     )}
 
-                    {session.user.role === "admin" && pathname !== "/admin" && (
-                      <Link
-                        href="/admin"
-                        className="flex items-center gap-3 p-2 rounded-md font-medium bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
-                        onClick={() => setIsDropdownOpen(false)}
-                      >
-                        <Shield size={18} />
-                        <span>Admin Dashboard</span>
-                      </Link>
-                    )}
                     <button
                       onClick={() => signOut()}
                       className="w-full flex items-center gap-3 p-2 rounded-md text-neutral-600 font-medium hover:bg-neutral-100 transition-colors"

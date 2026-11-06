@@ -26,6 +26,7 @@ import {
   Users,
 } from "lucide-react";
 import { HOLIDAY_REVIEW_YEAR_MIN, HOLIDAY_REVIEW_YEAR_MAX } from "@/lib/constants";
+import { DateTime } from "luxon";
 import type {
   HolidayAdminOpen,
   HolidayAuditView,
@@ -101,7 +102,7 @@ export function HolidayAdminPanel({ open }: { open: HolidayAdminOpen }) {
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "error"; text: string } | null>(null);
 
   // Year state
-  const currentYear = new Date().getFullYear();
+  const currentYear = DateTime.now().year;
   const [years, setYears] = useState<number[]>(ALL_REVIEW_YEARS);
   const [selectedYear, setSelectedYear] = useState<number>(open.prefill?.year ?? currentYear);
   const [yearView, setYearView] = useState<HolidayYearView | null>(null);

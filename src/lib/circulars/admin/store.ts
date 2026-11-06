@@ -10,6 +10,7 @@ import type { DataSource } from "typeorm";
 import { getDb } from "@/lib/db";
 import { begin, authorityOf, grantDelegate, revokeDelegate, listDelegates } from "@/lib/facility/authority";
 import { writeAudit, recentAuditRows } from "@/lib/facility/audit";
+import { toIsoInstant } from "@/lib/dates";
 import type { Actor, FacilityDb, QueryFn } from "@/lib/facility/types";
 import type { RecentCircularView } from "./types";
 
@@ -72,8 +73,8 @@ export async function listRecentCirculars(
       return {
         id: Number(r.id),
         headline: String(r.headline ?? "").trim(),
-        publishedAt: r.publishedAt ? new Date(r.publishedAt).toISOString() : null,
-        uploadedAt: r.uploadedAt ? new Date(r.uploadedAt).toISOString() : null,
+        publishedAt: toIsoInstant(r.publishedAt),
+        uploadedAt: toIsoInstant(r.uploadedAt),
         authorTicketNo: String(r.authorTicketNo ?? "").trim(),
         authorName: r.author_name ? String(r.author_name).trim() : null,
         pageCount: Number(r.page_count ?? 0) || fileUrls.length,

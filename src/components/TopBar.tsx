@@ -14,7 +14,6 @@ import {
   Search,
   LogIn,
   LogOut,
-  Shield,
   Undo2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -177,9 +176,12 @@ export function TopBar() {
   // Authorized if it's a valid 6-digit ticket starting with 4
   const isExecutiveUser = /^4\d{5}$/.test(userTicket.trim());
 
-  // Admin dashboard can remain tied to the admin role or specific conditions
-  const userRole = (session?.user as any)?.role || "";
-  const showAdminDashboard = userRole.toLowerCase() === "admin";
+  // Listen for programmatic Omnibar open requests across components
+  useEffect(() => {
+    const handleOpenOmnibar = () => setIsOmnibarOpen(true);
+    window.addEventListener("open-omnibar", handleOpenOmnibar);
+    return () => window.removeEventListener("open-omnibar", handleOpenOmnibar);
+  }, []);
 
   // Single, clean keyboard listener with capture mode for robust global interception
   useEffect(() => {
@@ -287,16 +289,6 @@ export function TopBar() {
                         >
                           <Undo2 size={18} />
                           <span className="text-sm">Home</span>
-                        </Link>
-                      )}
-                      {showAdminDashboard && pathname !== "/admin" && (
-                        <Link
-                          href="/admin"
-                          className="flex items-center gap-3 p-2 rounded-md font-medium bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
-                          onClick={() => setIsDropdownOpen(false)}
-                        >
-                          <Shield size={18} />
-                          <span className="text-sm">Admin Dashboard</span>
                         </Link>
                       )}
                       <button

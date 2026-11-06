@@ -14,7 +14,7 @@ import { begin, authorityOf, grantDelegate, revokeDelegate, listDelegates } from
 import { writeAudit, recentAuditRows, lastChangeOf } from "@/lib/facility/audit";
 import { guardRecord, type Guarded } from "@/lib/facility/guard";
 import { versionOf } from "@/lib/concurrency/version";
-import { toIsoInstant, IST } from "@/lib/dates";
+import { toIsoInstant, toDateTime, nowIso, IST } from "@/lib/dates";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 import { sanitizeAnnouncementHtml, htmlToPlainText } from "@/lib/announcements/contentProcessing";
 import { embedAnnouncement } from "@/lib/announcements/embedAnnouncement";
@@ -104,7 +104,7 @@ export async function listRecentAnnouncements(
     const now = DateTime.now();
 
     return rows.map((r: any) => {
-      const createdAt = r.createdAt ? DateTime.fromJSDate(new Date(r.createdAt as string | number | Date)) : now;
+      const createdAt = r.createdAt ? toDateTime(r.createdAt) : now;
       const hoursDiff = now.diff(createdAt, "hours").hours;
       const isAuthor = String(r.authorTicketNo ?? "").trim() === actor.ticket;
       const withinWindow = hoursDiff <= EDIT_DELETE_WINDOW_HOURS;
@@ -116,8 +116,8 @@ export async function listRecentAnnouncements(
         title: String(r.title ?? "").trim(),
         content: String(r.content ?? ""),
         contentText: r.contentText ? String(r.contentText).trim() : null,
-        date: r.date ? new Date(r.date as string | number | Date).toISOString() : new Date().toISOString(),
-        createdAt: r.createdAt ? new Date(r.createdAt as string | number | Date).toISOString() : new Date().toISOString(),
+        date: toIsoInstant(r.date) ?? nowIso(),
+        createdAt: toIsoInstant(r.createdAt) ?? nowIso(),
         authorTicketNo: String(r.authorTicketNo ?? "").trim(),
         authorName: r.author_name ? String(r.author_name).trim() : null,
         canEdit,
@@ -212,15 +212,15 @@ export async function modifyAnnouncement(
       version: (r) => announcementVersion(r),
       current: (r) => {
         const now = DateTime.now();
-        const createdAt = r.createdAt ? DateTime.fromJSDate(new Date(r.createdAt as string | number | Date)) : now;
+        const createdAt = r.createdAt ? toDateTime(r.createdAt) : now;
         const hoursDiff = now.diff(createdAt, "hours").hours;
         return {
           id: Number(r.id),
           title: String(r.title ?? "").trim(),
           content: String(r.content ?? ""),
           contentText: r.contentText ? String(r.contentText).trim() : null,
-          date: r.date ? new Date(r.date as string | number | Date).toISOString() : new Date().toISOString(),
-          createdAt: r.createdAt ? new Date(r.createdAt as string | number | Date).toISOString() : new Date().toISOString(),
+          date: toIsoInstant(r.date) ?? nowIso(),
+          createdAt: toIsoInstant(r.createdAt) ?? nowIso(),
           authorTicketNo: String(r.authorTicketNo ?? "").trim(),
           authorName: r.author_name ? String(r.author_name).trim() : null,
           canEdit: isHod || (String(r.authorTicketNo).trim() === actor.ticket && hoursDiff <= EDIT_DELETE_WINDOW_HOURS),
@@ -235,7 +235,7 @@ export async function modifyAnnouncement(
 
     const old = guarded.row;
     const isAuthor = String(old.authorTicketNo).trim() === actor.ticket;
-    const createdAt = old.createdAt ? DateTime.fromJSDate(new Date(old.createdAt as string | number | Date)) : DateTime.now();
+    const createdAt = old.createdAt ? toDateTime(old.createdAt) : DateTime.now();
     const hoursDiff = DateTime.now().diff(createdAt, "hours").hours;
 
     if (!isHod && (!isAuthor || hoursDiff > EDIT_DELETE_WINDOW_HOURS)) {
@@ -302,15 +302,15 @@ export async function deleteAnnouncement(
       version: (r) => announcementVersion(r),
       current: (r) => {
         const now = DateTime.now();
-        const createdAt = r.createdAt ? DateTime.fromJSDate(new Date(r.createdAt as string | number | Date)) : now;
+        const createdAt = r.createdAt ? toDateTime(r.createdAt) : now;
         const hoursDiff = now.diff(createdAt, "hours").hours;
         return {
           id: Number(r.id),
           title: String(r.title ?? "").trim(),
           content: String(r.content ?? ""),
           contentText: r.contentText ? String(r.contentText).trim() : null,
-          date: r.date ? new Date(r.date as string | number | Date).toISOString() : new Date().toISOString(),
-          createdAt: r.createdAt ? new Date(r.createdAt as string | number | Date).toISOString() : new Date().toISOString(),
+          date: toIsoInstant(r.date) ?? nowIso(),
+          createdAt: toIsoInstant(r.createdAt) ?? nowIso(),
           authorTicketNo: String(r.authorTicketNo ?? "").trim(),
           authorName: r.author_name ? String(r.author_name).trim() : null,
           canEdit: isHod || (String(r.authorTicketNo).trim() === actor.ticket && hoursDiff <= EDIT_DELETE_WINDOW_HOURS),
@@ -325,7 +325,7 @@ export async function deleteAnnouncement(
 
     const old = guarded.row;
     const isAuthor = String(old.authorTicketNo).trim() === actor.ticket;
-    const createdAt = old.createdAt ? DateTime.fromJSDate(new Date(old.createdAt as string | number | Date)) : DateTime.now();
+    const createdAt = old.createdAt ? toDateTime(old.createdAt) : DateTime.now();
     const hoursDiff = DateTime.now().diff(createdAt, "hours").hours;
 
     if (!isHod && (!isAuthor || hoursDiff > EDIT_DELETE_WINDOW_HOURS)) {

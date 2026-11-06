@@ -103,12 +103,12 @@ const walk = (dir: string) => {
 };
 walk(join(process.cwd(), "src"));
 ok("GUARD: no file of the program handles dates with the built-in Date (no new Date(, Date.parse, toLocaleDateString, getFullYear, Date.UTC); Luxon does", offenders.nativeDate.length === 0, JSON.stringify(offenders.nativeDate));
-ok("GUARD: no other date library is imported by the program (react-day-picker, a calendar WIDGET, is the only date package used, and only in three components, always with Luxon on the program's side of it)", offenders.otherLibrary.length === 0, JSON.stringify(offenders.otherLibrary));
+ok("GUARD: no other date library is imported by the program (react-day-picker, a calendar WIDGET, is the only date package used, and only in two components, always with Luxon on the program's side of it)", offenders.otherLibrary.length === 0, JSON.stringify(offenders.otherLibrary));
 const pickerUsers: string[] = [];
 const walk2 = (dir: string) => { for (const name of readdirSync(dir)) { const full = join(dir, name); if (statSync(full).isDirectory()) { if (!SKIP_DIRS.has(name)) walk2(full); continue; } if (/\.(ts|tsx)$/.test(name) && !/\.selftest\./.test(name) && /from ["']react-day-picker["']/.test(readFileSync(full, "utf8"))) pickerUsers.push(full.replace(process.cwd() + "/", "")); } };
 walk2(join(process.cwd(), "src"));
-ok("the calendar widget is used in exactly the three components that were reviewed (each converts Luxon to a Date only at the widget's edge)", JSON.stringify(pickerUsers.sort()) === JSON.stringify(["src/components/CircularUploadModal.tsx", "src/components/EventCalendar.tsx", "src/components/YearCalendarModal.tsx"]), JSON.stringify(pickerUsers));
-for (const f of ["src/components/EventCalendar.tsx", "src/components/YearCalendarModal.tsx", "src/components/CircularUploadModal.tsx"]) {
+ok("the calendar widget is used in exactly the two components that were reviewed (each converts Luxon to a Date only at the widget's edge)", JSON.stringify(pickerUsers.sort()) === JSON.stringify(["src/components/EventCalendar.tsx", "src/components/YearCalendarModal.tsx"]), JSON.stringify(pickerUsers));
+for (const f of ["src/components/EventCalendar.tsx", "src/components/YearCalendarModal.tsx"]) {
   const t = readFileSync(f, "utf8");
   ok(`${f}: Luxon is imported, and the widget's Date is made by .toJSDate() and read back by DateTime.fromJSDate (the boundary)`, /from "luxon"/.test(t) && /toJSDate\(\)/.test(t));
 }

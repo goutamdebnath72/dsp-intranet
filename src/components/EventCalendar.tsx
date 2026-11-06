@@ -1,11 +1,16 @@
 // src/components/EventCalendar.tsx
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { DayPicker, Day, DayProps } from "react-day-picker";
 import type { CaptionLabelProps as BaseCaptionLabelProps } from "react-day-picker";
 import { DateTime } from "luxon";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  CalendarDays,
+} from "lucide-react";
 import { YearCalendarModal } from "./YearCalendarModal";
 import { Tooltip } from "./Tooltip";
 import type { FetchedHoliday } from "./PeopleAndEvents";
@@ -51,6 +56,23 @@ const holidayColorMap: { [key: string]: { dot: string; text: string } } = {
   RH: { dot: "holiday-dot-restricted", text: "text-purple-600" }, // Was "Restricted"
 };
 
+const FULL_MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const CURRENT_CALENDAR_YEAR = DateTime.now().year;
+
 export function EventCalendar({
   holidays: initialHolidays,
   isLoading: initialLoading,
@@ -58,6 +80,51 @@ export function EventCalendar({
   // 1. Keep track of the currently viewed month
   const [currentMonth, setCurrentMonth] = useState<DateTime>(DateTime.local());
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
+  const [isMonthOpen, setIsMonthOpen] = useState(false);
+  const [isYearOpen, setIsYearOpen] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const yearListRef = useRef<HTMLDivElement>(null);
+  const selectedYearButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Compute year options: next 4 years down to 1950
+  const maxYear = Math.max(CURRENT_CALENDAR_YEAR, currentMonth.year) + 4;
+  const yearOptions = useMemo(() => {
+    return Array.from({ length: maxYear - 1950 + 1 }, (_, i) => maxYear - i);
+  }, [maxYear]);
+
+  // Close dropdowns on outside click or Escape key
+  useEffect(() => {
+    if (!isMonthOpen && !isYearOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
+        setIsMonthOpen(false);
+        setIsYearOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsMonthOpen(false);
+        setIsYearOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMonthOpen, isYearOpen]);
+
+  // Center selected year in year list scroll container without moving page scroll
+  useEffect(() => {
+    if (isYearOpen && yearListRef.current && selectedYearButtonRef.current) {
+      const container = yearListRef.current;
+      const target = selectedYearButtonRef.current;
+      const offsetTop = target.offsetTop - container.offsetTop;
+      container.scrollTop =
+        offsetTop - container.clientHeight / 2 + target.clientHeight / 2;
+    }
+  }, [isYearOpen]);
 
   // 2. Create a local cache to hold all fetched holidays across multiple years
   const [allHolidays, setAllHolidays] =
@@ -138,15 +205,129 @@ export function EventCalendar({
     displayMonth,
   }) => {
     // Convert picker's JS Date back to Luxon for formatting
-    const monthLabel = DateTime.fromJSDate(displayMonth).toFormat("LLLL yyyy");
+    const displayLuxon = DateTime.fromJSDate(displayMonth);
+    const monthName = displayLuxon.toFormat("MMMM");
+    const yearNumber = displayLuxon.year;
+
     return (
-      <div className="flex items-center justify-center gap-2 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <span className="text-lg font-bold text-neutral-800 font-heading">
-          {monthLabel}
-        </span>
+      <div
+        ref={headerRef}
+        className="flex items-center justify-center gap-1 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none z-20"
+      >
+        {/* Month Selector: looks completely flat like original text; only cursor turns to pointer (hand) on hover */}
+        <div className="relative inline-flex items-center">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMonthOpen((prev) => !prev);
+              setIsYearOpen(false);
+            }}
+            className="text-lg font-bold text-neutral-800 font-heading cursor-pointer bg-transparent border-none p-0 focus:outline-none"
+            aria-label="Select month"
+            aria-expanded={isMonthOpen}
+          >
+            {monthName}
+          </button>
+
+          {isMonthOpen && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 w-36 bg-white rounded-lg shadow-xl border border-neutral-200 py-1 z-30 max-h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
+              role="listbox"
+              aria-label="Select month"
+            >
+              {FULL_MONTH_NAMES.map((name, idx) => {
+                const monthNum = idx + 1;
+                const isSelected = displayLuxon.month === monthNum;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentMonth((prev) => prev.set({ month: monthNum }));
+                      setIsMonthOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-xs sm:text-sm transition-colors flex items-center justify-between cursor-pointer ${
+                      isSelected
+                        ? "bg-primary-50 text-primary-700 font-semibold"
+                        : "text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900"
+                    }`}
+                  >
+                    <span>{name}</span>
+                    {isSelected && (
+                      <Check size={14} className="text-primary-600 flex-shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Year Selector: looks completely flat like original text; only cursor turns to pointer (hand) on hover */}
+        <div className="relative inline-flex items-center">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsYearOpen((prev) => !prev);
+              setIsMonthOpen(false);
+            }}
+            className="text-lg font-bold text-neutral-800 font-heading cursor-pointer bg-transparent border-none p-0 focus:outline-none"
+            aria-label="Select year"
+            aria-expanded={isYearOpen}
+          >
+            {yearNumber}
+          </button>
+
+          {isYearOpen && (
+            <div
+              ref={yearListRef}
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 w-28 bg-white rounded-lg shadow-xl border border-neutral-200 py-1 z-30 max-h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
+              role="listbox"
+              aria-label="Select year"
+            >
+              {yearOptions.map((yr) => {
+                const isSelected = displayLuxon.year === yr;
+                return (
+                  <button
+                    key={yr}
+                    ref={isSelected ? selectedYearButtonRef : undefined}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentMonth((prev) => prev.set({ year: yr }));
+                      setIsYearOpen(false);
+                    }}
+                    className={`w-full text-center px-3 py-1.5 text-xs sm:text-sm transition-colors cursor-pointer ${
+                      isSelected
+                        ? "bg-primary-50 text-primary-700 font-bold"
+                        : "text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900"
+                    }`}
+                  >
+                    {yr}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Full Year Modal Button */}
         <button
-          onClick={() => setIsYearModalOpen(true)}
-          className="p-1 rounded-md text-neutral-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsMonthOpen(false);
+            setIsYearOpen(false);
+            setIsYearModalOpen(true);
+          }}
+          className="p-1 rounded-md text-neutral-400 hover:text-primary-600 hover:bg-primary-50 transition-colors cursor-pointer"
           title="View Year Calendar"
           aria-label="View Year Calendar"
         >
@@ -251,7 +432,11 @@ export function EventCalendar({
           // Convert Luxon state to JS Date at the boundary
           month={currentMonth.toJSDate()}
           // Convert picker's JS Date back to Luxon state at the boundary
-          onMonthChange={(month) => setCurrentMonth(DateTime.fromJSDate(month))}
+          onMonthChange={(month) => {
+            setIsMonthOpen(false);
+            setIsYearOpen(false);
+            setCurrentMonth(DateTime.fromJSDate(month));
+          }}
           modifiers={modifiers}
           classNames={classNames}
           components={components}

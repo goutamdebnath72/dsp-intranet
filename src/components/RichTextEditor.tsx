@@ -6,12 +6,13 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
 import { TextStyle, Color } from "@tiptap/extension-text-style";
-import { ADMIN_EDITOR_MIN_HEIGHT } from "@/lib/constants";
 import {
   Bold as BoldIcon,
   Italic as ItalicIcon,
   Underline as UnderlineIcon,
 } from "lucide-react";
+
+const DEFAULT_EDITOR_MIN_HEIGHT = "160px";
 
 type Props = {
   /** Current HTML value (controlled). */
@@ -19,6 +20,7 @@ type Props = {
   /** Fires with sanitized-on-save HTML whenever the doc changes. */
   onChange: (html: string) => void;
   placeholder?: string;
+  minHeight?: string;
 };
 
 // A small, fixed palette of readable text colors for the toolbar swatches.
@@ -141,6 +143,7 @@ export default function RichTextEditor({
   value,
   onChange,
   placeholder,
+  minHeight = DEFAULT_EDITOR_MIN_HEIGHT,
 }: Props) {
   const editor = useEditor({
     // SSR-safe: Tiptap renders immediately on the client only.
@@ -156,7 +159,7 @@ export default function RichTextEditor({
       attributes: {
         class:
           "prose prose-sm max-w-none px-3 py-2 focus:outline-none text-slate-800",
-        style: `min-height:${ADMIN_EDITOR_MIN_HEIGHT}`,
+        style: `min-height:${minHeight}`,
         "data-placeholder": placeholder || "",
       },
     },
@@ -186,7 +189,7 @@ export default function RichTextEditor({
       <div className="rounded-md border border-slate-500 shadow-md">
         <div
           className="animate-pulse bg-slate-50"
-          style={{ height: `calc(${ADMIN_EDITOR_MIN_HEIGHT} + 41px)` }}
+          style={{ height: `calc(${minHeight} + 41px)` }}
         />
       </div>
     );
