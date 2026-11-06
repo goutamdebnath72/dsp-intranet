@@ -3,7 +3,18 @@
 // (the OPD and card registration hours by the clock). Plain text only (React escapes it); the badge and the verdict are never colour alone: their words carry the meaning.
 
 import React from "react";
-import { Ambulance, CalendarCheck, HelpCircle } from "lucide-react";
+import {
+  Ambulance,
+  Award,
+  Building2,
+  CalendarCheck,
+  GraduationCap,
+  Hash,
+  HelpCircle,
+  Stethoscope,
+  User,
+  Users,
+} from "lucide-react";
 import type { HospitalAnswer, HospitalTable } from "@/lib/hospital/types";
 
 const TONE: Record<"open" | "closed" | "unknown" | "info", string> = {
@@ -32,32 +43,253 @@ const BADGE: Record<"open" | "closed" | "unknown", string> = {
 /** A short cell ("OPD 12", "Unit III", "not recorded", a ticket) is never broken over two lines; a long one (the days, a name with a note) wraps as it needs to. The first column (Unit / OPD / Room) is given a little more room. */
 const keepOnOneLine = (cell: string, columnIndex: number): boolean => cell.length <= (columnIndex === 0 ? 24 : 16);
 
-function TableView({ table }: { table: HospitalTable }) {
+function doctorInitials(name: string): string {
+  const clean = name.replace(/^dr\.?\s*/i, "").trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "DR";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** Check if a qualification string represents a Postgraduate degree or diploma (MD, MS, DNB, MCh, MRCOG, DGO, etc.) */
+function isPostgraduate(qual: string): boolean {
+  if (!qual) return false;
+  const q = qual.toUpperCase();
+  if (/^MBBS$/i.test(q.trim())) return false;
   return (
-    <div className="omni-noscale overflow-x-auto rounded-lg border border-neutral-200 bg-white">
-      <table className="min-w-full text-left text-xs sm:text-sm">
-        <thead className="bg-neutral-50 text-neutral-600">
+    /\b(MD|MS|MCH|DM|DNB|DRNB|MRCOG|FRCS|MRCP|DGO|DCH|DMRD|DA|DLO|DPM)\b/i.test(q) ||
+    /^(MD|MS|MCH|DM|DNB|DRNB)/i.test(q) ||
+    q.includes("MS(") ||
+    q.includes("MD(") ||
+    q.includes("MCH") ||
+    q.includes("DNB(") ||
+    q.includes("MRCOG") ||
+    q.includes("D.")
+  );
+}
+
+function columnWidthClass(column: string, totalColumns: number): string {
+  const c = column.toLowerCase();
+  if (totalColumns === 5) {
+    if (c.includes("doctor")) return "w-[27%]";
+    if (c.includes("department")) return "w-[17%]";
+    if (c.includes("specialization")) return "w-[24%]";
+    if (c.includes("qualification")) return "w-[20%]";
+    if (c.includes("ticket") || c.includes("list number")) return "w-[12%]";
+  }
+  if (totalColumns === 4) {
+    if (c.includes("doctor")) return "w-[34%]";
+    if (c.includes("opd") || c.includes("unit")) return "w-[18%]";
+    if (c.includes("ticket")) return "w-[18%]";
+    if (c.includes("days")) return "w-[30%]";
+  }
+  if (totalColumns === 3) {
+    if (c.includes("doctor")) return "w-[48%]";
+    return "w-[26%]";
+  }
+  return "";
+}
+
+function ColumnHeaderIcon({ column }: { column: string }) {
+  const c = column.toLowerCase();
+  if (c.includes("doctor")) return <User className="h-3.5 w-3.5 text-blue-600 shrink-0" />;
+  if (c.includes("department")) return <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
+  if (c.includes("specialization")) return <Stethoscope className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
+  if (c.includes("qualification")) return <GraduationCap className="h-3.5 w-3.5 text-purple-600 shrink-0" />;
+  if (c.includes("ticket") || c.includes("list number")) return <Hash className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
+  return null;
+}
+
+function renderCell(cell: string, column: string, columnIndex: number) {
+  if (!cell) return null;
+  const col = (column || "").toLowerCase();
+  const low = cell.toLowerCase().trim();
+
+  // 1. Missing data placeholders (soft, low-noise styling)
+  if (low === "not recorded" || low === "not recorded yet" || low === "none" || low === "not stated") {
+    return <span className="text-xs sm:text-sm font-normal italic text-slate-400">{cell}</span>;
+  }
+  if (low === "none (mbbs only)") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium border border-slate-200">
+        MBBS only
+      </span>
+    );
+  }
+
+  // 2. Doctor Name (or starts with Dr.)
+  if (col.includes("doctor") || (columnIndex === 0 && /^dr\.?\s/i.test(cell))) {
+    const isDoc = /^dr\.?\s/i.test(cell);
+    return (
+      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+        <span className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-indigo-600 to-sky-600 text-white font-extrabold text-xs shadow-xs">
+          {isDoc ? doctorInitials(cell) : cell.slice(0, 2).toUpperCase()}
+        </span>
+        <span className="font-bold text-slate-900 text-xs sm:text-sm truncate sm:text-wrap" title={cell}>
+          {cell}
+        </span>
+      </div>
+    );
+  }
+
+  // 3. Ticket / List number
+  if (col.includes("ticket") || col.includes("list number") || /^[A-Z]?\d{5,7}$/i.test(cell.trim())) {
+    return (
+      <span className="inline-flex items-center gap-0.5 font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs tabular-nums">
+        <Hash className="h-3 w-3 text-slate-400" />
+        {cell}
+      </span>
+    );
+  }
+
+  // 4. Qualification: Special symbol & distinct colored chip for Postgraduates (Purple + Cap) vs MBBS (Emerald + Stethoscope)
+  if (col.includes("qualification")) {
+    if (cell === "—" || cell === "-") {
+      return <span className="text-slate-300 font-bold text-sm">—</span>;
+    }
+    const isPg = isPostgraduate(cell);
+    if (isPg) {
+      // POSTGRADUATE: Prestigious Purple Chip with GraduationCap!
+      return (
+        <span
+          className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-900 text-xs font-bold border border-purple-200/90 shadow-2xs tracking-wide max-w-full"
+          title="Postgraduate Qualification"
+        >
+          <GraduationCap className="h-3.5 w-3.5 text-purple-700 shrink-0" aria-hidden="true" />
+          <span className="truncate">{cell}</span>
+        </span>
+      );
+    }
+    // GRADUATE (MBBS): Crisp Emerald Chip with Stethoscope!
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200/90 shadow-2xs tracking-wide max-w-full"
+        title="Graduate Medical Qualification"
+      >
+        <Stethoscope className="h-3.5 w-3.5 text-emerald-600 shrink-0" aria-hidden="true" />
+        <span className="truncate">{cell}</span>
+      </span>
+    );
+  }
+
+  // 5. Specialization
+  if (col.includes("specialization")) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-900 text-xs font-semibold border border-indigo-200 max-w-full">
+        <Stethoscope className="h-3 w-3 text-indigo-500 shrink-0" />
+        <span className="truncate" title={cell}>{cell}</span>
+      </span>
+    );
+  }
+
+  // 6. Department
+  if (col.includes("department")) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-200 max-w-full">
+        <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
+        <span className="truncate" title={cell}>{cell}</span>
+      </span>
+    );
+  }
+
+  // 7. Unit / Room / Days / Fallback
+  if (col.includes("room")) {
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 text-xs font-semibold border border-amber-200">
+        {cell}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={
+        columnIndex === 0
+          ? "font-bold text-slate-900 text-xs sm:text-sm"
+          : "text-slate-800 text-xs sm:text-sm font-medium"
+      }
+    >
+      {cell}
+    </span>
+  );
+}
+
+function TableView({ table }: { table: HospitalTable }) {
+  const isLargeTable = table.rows.length > 8;
+  return (
+    <div
+      className={`omni-noscale overflow-x-auto ${
+        isLargeTable ? "max-h-[500px] overflow-y-auto " : ""
+      }rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5`}
+    ><table className="w-full table-fixed text-left text-xs sm:text-sm border-collapse">
+        <thead className="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 text-xs font-extrabold uppercase tracking-wider text-slate-700 shadow-2xs">
           <tr>
             {table.columns.map((c, i) => (
-              <th key={i} scope="col" className="whitespace-nowrap px-3 py-2 font-semibold">
-                {c}
+              <th
+                key={i}
+                scope="col"
+                className={`whitespace-nowrap px-3 py-3 sm:px-3.5 font-extrabold text-slate-700 tracking-wider text-xs ${columnWidthClass(c, table.columns.length)}`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <ColumnHeaderIcon column={c} />
+                  <span>{c}</span>
+                </div>
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-slate-100">
           {table.rows.map((row, ri) => (
-            <tr key={ri} className="border-t border-neutral-100 align-top">
+            <tr
+              key={ri}
+              className="group transition-colors odd:bg-white even:bg-slate-50/50 hover:bg-blue-50/60 align-middle"
+            >
               {row.map((cell, ci) => (
-                <td key={ci} className={`px-3 py-2 ${keepOnOneLine(cell, ci) ? "whitespace-nowrap " : ""}${ci === 0 ? "font-medium text-neutral-800" : "text-neutral-700"}`}>
-                  {cell}
+                <td
+                  key={ci}
+                  className={`px-3 py-2.5 sm:px-3.5 ${
+                    keepOnOneLine(cell, ci) ? "whitespace-nowrap " : ""
+                  }`}
+                >
+                  {renderCell(cell, table.columns[ci], ci)}
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
       </table>
+      {table.rows.length > 5 ? (
+        <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-xs">
+          <span className="flex items-center gap-1.5">
+            <Users className="h-4 w-4 text-blue-600" />
+            <span>
+              Showing <strong className="text-slate-900 font-bold">{table.rows.length}</strong>{" "}
+              {table.rows.length === 1 ? "entry" : "entries"}
+            </span>
+          </span>
+          {isLargeTable ? (
+            <span className="text-slate-400 text-xs font-medium">Scroll to view all records</span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function formatStatusSentence(text: string) {
+  const parts = text.split(/(\b\d+\b)/);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    /^\d+$/.test(part) ? (
+      <span
+        key={i}
+        className="inline-flex items-center justify-center rounded-xl bg-white px-3 py-1 text-base font-extrabold text-blue-700 border-2 border-blue-400/30 shadow-xs mx-1.5 tabular-nums tracking-wide ring-2 ring-blue-500/10"
+      >
+        {part}
+      </span>
+    ) : (
+      part
+    ),
   );
 }
 
@@ -84,9 +316,26 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
           {withoutVerdict(answer.status.text, answer.headline)}
         </p>
       ) : answer.status ? (
-        <p className={`rounded-md border px-2.5 py-1.5 text-sm font-semibold ${TONE[answer.status.tone]}`} data-tone={answer.status.tone}>
-          {answer.headline ? withoutVerdict(answer.status.text, answer.headline) : answer.status.text}
-        </p>
+        answer.status.tone === "info" ? (
+          <div
+            className="flex items-center gap-3 rounded-2xl border border-blue-200/80 bg-slate-100 bg-gradient-to-r from-blue-50/90 via-indigo-50/50 to-slate-100 p-3.5 shadow-xs"
+            data-tone="info"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-sm">
+              <Stethoscope className="h-5 w-5" />
+            </div>
+            <p className="text-sm sm:text-base font-semibold text-slate-800 flex-1">
+              {formatStatusSentence(answer.headline ? withoutVerdict(answer.status.text, answer.headline) : answer.status.text)}
+            </p>
+          </div>
+        ) : (
+          <p
+            className={`rounded-md border px-2.5 py-1.5 text-sm font-semibold ${TONE[answer.status.tone]}`}
+            data-tone={answer.status.tone}
+          >
+            {formatStatusSentence(answer.headline ? withoutVerdict(answer.status.text, answer.headline) : answer.status.text)}
+          </p>
+        )
       ) : null}
       {answer.highlight && (
         <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-2 text-sm font-semibold text-emerald-900" data-highlight="true">

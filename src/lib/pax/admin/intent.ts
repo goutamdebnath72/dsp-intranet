@@ -25,7 +25,7 @@ const MODIFY = new Set(["edit", "editing", "modify", "modifying", "modification"
 const DELETE = new Set(["delete", "deleting", "deletion", "remove", "removing", "removal", "erase", "drop", "discard"]);
 const DELEGATE = new Set(["delegate", "delegating", "delegation", "authorise", "authorize", "authorisation", "authorization", "authorised", "authorized", "grant", "granting", "permit", "permission", "privilege", "empower", "entrust"]);
 const REVOKE = new Set(["revoke", "revoking", "revocation", "withdraw", "withdrawing", "withdrawal", "rescind"]);
-const MANAGE = new Set(["manage", "managing", "maintain", "administer", "admin", "administration", "maintenance"]);
+const MANAGE = new Set(["manage", "managing", "management", "maintain", "administer", "admin", "administration", "maintenance"]);
 
 /** The words that make a sentence about access: "remove access", "take back the permission", "give access". */
 const ACCESS = /\b(?:access|permission|permissions|privilege|privileges|rights?|authority|authorit(?:y|ies)|delegation|delegate|delegates|authori[sz]ation)\b/;
@@ -35,9 +35,13 @@ export function detectPaxAdminIntent(typed: string): PaxAdminIntent | null {
   if (!norm || !CUE.test(norm)) return null;
   const words = norm.replace(POLITE, "").split(" ").filter(Boolean);
   if (words.length === 0) return null;
-  // the action leads the sentence ("add pax ...", "I want to delete a pax ...") or follows the word pax as a noun ("pax addition"); a word of a NAME further in ("pax number of change room") is not an action
+  // the action leads the sentence ("add pax ...", "I want to delete a pax ...") or follows the word pax as a noun ("pax addition")
   const first = words[0];
-  const has = (set: Set<string>) => set.has(first) || (CUE.test(first) && set.has(words[1] ?? ""));
+  const prePreposition = norm.split(/\b(?:for|of|to|in|at)\b/)[0].replace(POLITE, "").split(" ").filter(Boolean);
+  const has = (set: Set<string>) =>
+    set.has(first) ||
+    (CUE.test(first) && set.has(words[1] ?? "")) ||
+    prePreposition.some((w) => set.has(w));
 
   // "who can edit pax", "who has pax access": a question about the privilege
   const askAboutPrivilege = /^(?:who|which)\b.*\b(?:can|may|is allowed|has)\b.*\b(?:edit|add|change|modify|delete|manage|update|access|permission|rights?|privilege)\b/.test(norm) && /\b(?:pax|extension|intercom)\b/.test(norm);

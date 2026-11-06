@@ -92,7 +92,7 @@ const nw = h(
     }}
   />,
 );
-const cellClass = (text: string) => (new RegExp(`<td class="([^"]*)">${text}</td>`).exec(nw) ?? [])[1] ?? "";
+const cellClass = (text: string) => (new RegExp(`<td class="([^"]*)">(?:<[^>]+>)*${text}(?:<[^>]+>)*</td>`).exec(nw) ?? [])[1] ?? "";
 ok("'OPD 12' stays on one line (first column, short)", /whitespace-nowrap/.test(cellClass("OPD 12")));
 ok("'not recorded' and a ticket stay on one line", /whitespace-nowrap/.test(cellClass("not recorded")) && /whitespace-nowrap/.test(cellClass("Monday")));
 ok("a long cell still wraps: the days, a name with a note, a long ticket text, a first cell longer than 24 characters", !/whitespace-nowrap/.test(cellClass("Monday, Tuesday, Thursday and Friday")) && !/whitespace-nowrap/.test(cellClass("DTN00757 \\(non-permanent\\)")) && !/whitespace-nowrap/.test(cellClass("Not in the OPD schedule today")) && !/whitespace-nowrap/.test(cellClass("Dr. Rupak Kumar Goswami")));

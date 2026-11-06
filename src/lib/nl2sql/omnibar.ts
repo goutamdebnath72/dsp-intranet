@@ -99,6 +99,14 @@ export interface OmnibarDeps {
   dates?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** A request to CHANGE the PAX directory (step 64a): "add new pax number", "delete pax 42046", "delegate pax to ...". The editor opens for the HOD C&IT and for an executive he authorised; for anybody else a plain message says why not. The person is the login's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
   paxAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
+  /** A request to manage HOLIDAYS: "manage holidays", "holiday admin", "seed holiday", "clear holiday". */
+  holidayAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
+  /** A request to manage CIRCULARS: "circular management", "post circular", "upload circular", "new circular". */
+  circularAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
+  /** A request to manage ANNOUNCEMENTS: "announcement management", "post announcement", "publish announcement", "announcement admin". */
+  announcementAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
+  /** A request to view/manage CONTACT ACCESS LOG: "access log management", "contact access log admin", "access log". */
+  accessLogAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** The previous rule-based employee engine (safety net). */
   legacy: (q: string) => Promise<AnalyticsPayload | null>;
   /** Different people who must confirm an answer before it is served without the model. */
@@ -340,6 +348,22 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
     const paxAdmin = deps.paxAdmin ? await deps.paxAdmin(q, userKey).catch(() => null) : null;
     if (paxAdmin) return { ...paxAdmin, source: "holiday", attempt };
 
+    // 0--b. a request to manage HOLIDAYS: "manage holidays", "holiday admin", "seed holiday 2026", "clear holiday 2026"
+    const holidayAdmin = deps.holidayAdmin ? await deps.holidayAdmin(q, userKey).catch(() => null) : null;
+    if (holidayAdmin) return { ...holidayAdmin, source: "holiday", attempt };
+
+    // 0--c. a request to manage CIRCULARS: "circular management", "post circular", "upload circular", "new circular"
+    const circularAdmin = deps.circularAdmin ? await deps.circularAdmin(q, userKey).catch(() => null) : null;
+    if (circularAdmin) return { ...circularAdmin, source: "holiday", attempt };
+
+    // 0--d. a request to manage ANNOUNCEMENTS: "announcement management", "post announcement", "publish announcement", "announcement admin"
+    const announcementAdmin = deps.announcementAdmin ? await deps.announcementAdmin(q, userKey).catch(() => null) : null;
+    if (announcementAdmin) return { ...announcementAdmin, source: "holiday", attempt };
+
+    // 0--e. a request to view/manage CONTACT ACCESS LOG: "access log management", "contact access log admin", "access log"
+    const accessLogAdmin = deps.accessLogAdmin ? await deps.accessLogAdmin(q, userKey).catch(() => null) : null;
+    if (accessLogAdmin) return { ...accessLogAdmin, source: "holiday", attempt };
+
     // 0-. a question about the PAX directory (step 63a): "pax number of fire service", "who has 42046", "pax numbers outside plant", "pax not working": answered from Telecom's list, no model call.
     //     It comes BEFORE the hospital route because the word "pax" is explicit ("pax number of hospital opd" is a PAX question, not an OPD one); it takes nothing without a clear PAX signal (src/lib/pax/matcher.ts).
     //     Tagged "holiday" for the feedback record, like the hospital's: the feedback table's list of sources has no PAX entry.
@@ -509,6 +533,30 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
       const { authorityForTicket, nameOfTicket } = await import("@/lib/pax/admin/access");
       const { getDb } = await import("@/lib/db");
       return answerPaxAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
+    },
+    holidayAdmin: async (qq, ticket) => {
+      const { answerHolidayAdmin } = await import("@/lib/holidays/admin/omnibar");
+      const { authorityForTicket, nameOfTicket } = await import("@/lib/holidays/admin/access");
+      const { getDb } = await import("@/lib/db");
+      return answerHolidayAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
+    },
+    circularAdmin: async (qq, ticket) => {
+      const { answerCircularAdmin } = await import("@/lib/circulars/admin/omnibar");
+      const { authorityForTicket, nameOfTicket } = await import("@/lib/circulars/admin/access");
+      const { getDb } = await import("@/lib/db");
+      return answerCircularAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
+    },
+    announcementAdmin: async (qq, ticket) => {
+      const { answerAnnouncementAdmin } = await import("@/lib/announcements/admin/omnibar");
+      const { authorityForTicket, nameOfTicket } = await import("@/lib/announcements/admin/access");
+      const { getDb } = await import("@/lib/db");
+      return answerAnnouncementAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
+    },
+    accessLogAdmin: async (qq, ticket) => {
+      const { answerAccessLogAdmin } = await import("@/lib/accessLog/admin/omnibar");
+      const { authorityForTicket, nameOfTicket } = await import("@/lib/accessLog/admin/access");
+      const { getDb } = await import("@/lib/db");
+      return answerAccessLogAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
     },
     pax: async (qq) => {
       // the PAX directory (a department's number) or an executive's CUG number, decided by the subject (step 63b, src/lib/pax/route.ts: it reads with the application's OWN connection, never the model's)

@@ -66,7 +66,7 @@ export function PaxAdminHeader({ authority, name }: { authority: PaxAdminOpen["r
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-pax-header="true">
       <span className={`flex h-10 w-10 items-center justify-center rounded-full text-white shadow-lg shadow-teal-500/30 ${GRAD}`}><Phone className="h-5 w-5" aria-hidden="true" /></span>
       <p className="text-base font-bold text-slate-900 [word-spacing:0.14em]" data-pax-title="true">PAX directory editor</p>
-      {name ? <p className="text-sm font-semibold text-slate-600" data-pax-actor="true">{name}</p> : null}
+      {name ? <p className="inline-flex items-center text-sm font-semibold text-slate-600 translate-y-px" data-pax-actor="true">{name}</p> : null}
       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold text-white shadow-sm ${hod ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-gradient-to-r from-sky-500 to-teal-500"}`} data-role={authority}>
         <Sparkles className="h-3 w-3" aria-hidden="true" />
         {hod ? "HOD of C&IT" : "Authorised executive"}

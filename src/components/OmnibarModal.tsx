@@ -44,6 +44,10 @@ import { ClarifyChoices } from "@/components/ClarifyChoices";
 import { HospitalAnswerCard } from "@/components/HospitalAnswerCard";
 import { PaxAdminPanel } from "@/components/PaxAdminPanel";
 import { EmployeeAdminPanel } from "@/components/EmployeeAdminPanel";
+import { HolidayAdminPanel } from "@/components/HolidayAdminPanel";
+import { CircularAdminPanel } from "@/components/CircularAdminPanel";
+import { AnnouncementAdminPanel } from "@/components/AnnouncementAdminPanel";
+import { AccessLogAdminPanel } from "@/components/AccessLogAdminPanel";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
@@ -788,6 +792,14 @@ export function OmnibarModal({
                               <PaxAdminPanel open={analytics.paxAdmin} />
                             ) : analytics.employeeAdmin ? (
                               <EmployeeAdminPanel open={analytics.employeeAdmin} />
+                            ) : analytics.holidayAdmin ? (
+                              <HolidayAdminPanel open={analytics.holidayAdmin} />
+                            ) : analytics.circularAdmin ? (
+                              <CircularAdminPanel open={analytics.circularAdmin} />
+                            ) : analytics.announcementAdmin ? (
+                              <AnnouncementAdminPanel open={analytics.announcementAdmin} />
+                            ) : analytics.accessLogAdmin ? (
+                              <AccessLogAdminPanel open={analytics.accessLogAdmin} />
                             ) : analytics.hospital ? (
                               <HospitalAnswerCard answer={analytics.hospital} />
                             ) : analytics.holidayCompare ? (

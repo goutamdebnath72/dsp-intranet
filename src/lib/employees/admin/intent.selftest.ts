@@ -12,7 +12,7 @@ for (const [q, want] of [
   ["edit employee record", "modify"], ["edit employee dob", "modify"], ["update employee goutam debnath", "modify"], ["modify employee 498880", "modify"], ["change dob of goutam debnath", "modify"], ["correct the date of joining of 498880", "modify"], ["employee modification", "modify"], ["update employee details", "modify"], ["change employee designation", "modify"],
   ["delete employee 498880", "delete"], ["remove employee Anil Das", "delete"], ["employee deletion", "delete"], ["delete an employee record", "delete"],
   ["delegate employee editing to Rakesh Ojha", "delegate"], ["give employee access to Rakesh Ojha", "delegate"], ["authorise Rakesh Ojha for employee records", "delegate"], ["revoke employee access", "delegate"], ["withdraw employee permission", "delegate"], ["who can edit employee records", "delegate"], ["remove employee access of Rakesh Ojha", "delegate"],
-  ["manage employees", "manage"], ["employee admin", "manage"], ["employee management", "manage"],
+  ["manage employees", "manage"], ["employee admin", "manage"], ["employees admin", "manage"], ["employee roster admin", "manage"], ["employee data admin", "manage"], ["employee management", "manage"], ["employee roster management", "manage"], ["employee data management", "manage"],
 ] as const) ok(`CHANGE: "${q}" -> ${want}`, op(q) === want, String(op(q)));
 
 for (const q of [

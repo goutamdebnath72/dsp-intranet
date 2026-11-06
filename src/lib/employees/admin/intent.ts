@@ -35,8 +35,12 @@ export function detectEmployeeAdminIntent(typed: string): EmployeeAdminIntent | 
   const words = norm.replace(POLITE, "").split(" ").filter(Boolean);
   if (words.length === 0) return null;
   const first = words[0];
-  // "employee addition", "employee deletion": the noun after the word employee
-  const has = (set: Set<string>) => set.has(first) || (/^(?:employee|employees|personnel)$/.test(first) && set.has(words[1] ?? ""));
+  const prePreposition = norm.split(/\b(?:for|of|to|in|at)\b/)[0].replace(POLITE, "").split(" ").filter(Boolean);
+  // "employee addition", "employee deletion", "employee roster management": the noun after or within employee phrase
+  const has = (set: Set<string>) =>
+    set.has(first) ||
+    (/^(?:employee|employees|personnel)$/.test(first) && set.has(words[1] ?? "")) ||
+    prePreposition.some((w) => set.has(w));
 
   const askAboutPrivilege = /^(?:who|which)\b.*\b(?:can|may|is allowed|has)\b.*\b(?:edit|add|change|modify|delete|manage|update|access|permission|rights?|privilege)\b/.test(norm) && /\b(?:employee|employees|personnel)\b/.test(norm);
 

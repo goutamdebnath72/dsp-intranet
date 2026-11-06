@@ -110,6 +110,14 @@ export interface AnalyticsPayload {
   employeeAdmin?: import("@/lib/employees/admin/types").EmployeeAdminOpen;
   /** The PAX directory editor was asked for by someone who may use it (step 64a): drawn as a panel by PaxAdminPanel. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   paxAdmin?: import("@/lib/pax/admin/types").PaxAdminOpen;
+  /** The Holiday Manager was asked for by someone who may use it: drawn as a panel by HolidayAdminPanel. */
+  holidayAdmin?: import("@/lib/holidays/admin/types").HolidayAdminOpen;
+  /** The Circular Manager was asked for by someone who may use it: drawn as a panel by CircularAdminPanel. */
+  circularAdmin?: import("@/lib/circulars/admin/types").CircularAdminOpen;
+  /** The Announcement Manager was asked for by someone who may use it: drawn as a panel by AnnouncementAdminPanel. */
+  announcementAdmin?: import("@/lib/announcements/admin/types").AnnouncementAdminOpen;
+  /** The Contact Access Log was asked for by someone who may use it: drawn as a panel by AccessLogAdminPanel. */
+  accessLogAdmin?: import("@/lib/accessLog/admin/types").AccessLogAdminOpen;
   /** The ONE clean answer, shown first, big and bold (step 61a): a Yes or No (holiday verdicts), the date asked for, the department asked for. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   headline?: import("@/lib/ui/answerHeadline").AnswerHeadline;
   typeBreakdown?: { type: string; label: string; count: number }[];

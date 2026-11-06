@@ -123,7 +123,7 @@ export function EmployeeAdminHeader({ authority, name }: { authority: Authority;
         <ShieldCheck className="h-5 w-5" aria-hidden="true" />
       </span>
       <p className="text-base font-bold text-slate-900" data-emp-title="true">Employee manager</p>
-      {name ? <p className="text-sm font-semibold text-slate-600" data-emp-actor="true">{name}</p> : null}
+      {name ? <p className="inline-flex items-center text-sm font-semibold text-slate-600 translate-y-px" data-emp-actor="true">{name}</p> : null}
       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold text-white shadow-sm ${hod ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-gradient-to-r from-sky-500 to-indigo-500"}`} data-role={authority}>
         <Sparkles className="h-3 w-3" aria-hidden="true" />
         {hod ? "HOD of C&IT" : "Authorised executive"}

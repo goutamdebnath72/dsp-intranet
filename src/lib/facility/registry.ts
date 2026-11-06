@@ -7,6 +7,10 @@ export const FACILITIES = {
   // allowNonExecutive: the HOD may give this tool to a non-executive (after confirming). Owner, 2 Nov 2026: every tool except the Contact Access Log (not built yet; it will say false).
   employee: { label: "Employee manager", lock: "employee_roster", allowNonExecutive: true },
   pax: { label: "PAX directory editor", lock: "pax_directory", allowNonExecutive: true },
+  holiday: { label: "Holiday manager", lock: "holiday_year", allowNonExecutive: true },
+  circular: { label: "Circular manager", lock: "circulars", allowNonExecutive: true },
+  announcement: { label: "Announcement manager", lock: "announcements", allowNonExecutive: true },
+  access_log: { label: "Contact access log", lock: "access_log", allowNonExecutive: false },
 } as const;
 
 export type FacilityKey = keyof typeof FACILITIES;

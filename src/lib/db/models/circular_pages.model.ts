@@ -14,10 +14,10 @@ export class CircularPage {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ name: "page_number" })
+  @Column({ type: "integer", name: "page_number" })
   pageNumber!: number;
 
-  @Column({ name: "file_url" })
+  @Column({ type: "varchar", name: "file_url" })
   fileUrl!: string;
 
   // The arrow function defers evaluation; Relation<> prevents TS metadata emission

@@ -175,7 +175,7 @@ export async function routeQueryWithAgent(
     };
   }
 
-  const primaryModel = process.env.AGENT_ROUTER_MODEL || process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  const primaryModel = process.env.AGENT_ROUTER_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-120b";
   const apiKey = process.env.GROQ_API_KEY;
 
   if (opts.mockLlm) {

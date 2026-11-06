@@ -1,5 +1,42 @@
 // src/lib/constants.ts
 
+/**
+ * ============================================================================
+ * HOD OF C&IT (HEAD OF DEPARTMENT, COMPUTER & INFORMATION TECHNOLOGY)
+ * ============================================================================
+ * The HOD of C&IT holds the highest and sole initial administrative privilege
+ * across all management facilities (Employee Manager, PAX Directory Editor,
+ * Holiday Manager, Circular Manager, Announcement Manager, and Contact Access Log).
+ *
+ * Currently held by:
+ *   Name: Mohd Anwar Ullah
+ *   Ticket No: 498301
+ *   SAIL P.No: D000896
+ *
+ * When the HOD of C&IT changes in the future, updating this single definition here
+ * seamlessly transfers highest authority across the entire DSP Intranet.
+ */
+export const HOD_CIT = {
+  post: "HOD of C&IT",
+  name: "Mohd Anwar Ullah",
+  ticketNo: "498301",
+  sailPNo: "D000896",
+  designation: "GM",
+  designationTitle: "General Manager",
+  departmentCode: "98500",
+  department: "C&IT",
+} as const;
+
+/**
+ * Convenient direct access to the HOD of C&IT ticket number.
+ * Single source of truth across privilege checks.
+ */
+export const HOD_CIT_TICKET = HOD_CIT.ticketNo;
+export const HOD_CIT_NAME = HOD_CIT.name;
+export const HOD_CIT_PNO = HOD_CIT.sailPNo;
+export const HOD_CIT_DESIGNATION = HOD_CIT.designation;
+export const HOD_CIT_DEPARTMENT_CODE = HOD_CIT.departmentCode;
+
 // ✅ Site content width (home + admin page wrappers) is tuned via a CSS
 // variable, NOT a constant in this file — Tailwind classes are scanned
 // statically at build time, so a JS constant can't feed into a `w-[...]`

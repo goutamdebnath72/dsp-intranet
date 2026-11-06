@@ -67,6 +67,15 @@ const nextConfig = {
       config.optimization.minimize = false;
     }
 
+    // 4. ✅ Suppress noisy face-api critical dependency warnings
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      {
+        module: /@vladmandic\/face-api/,
+        message: /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
+      },
+    ];
+
     return config;
   },
 
