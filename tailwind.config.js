@@ -4,6 +4,10 @@ module.exports = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    // helpers outside components that draw markup with Tailwind classes (the sticky toast's close button, the search highlighter): without these
+    // folders their classes are never generated and the markup is drawn unstyled
+    "./src/lib/ui/**/*.{ts,tsx}",
+    "./src/lib/utils/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {

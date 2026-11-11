@@ -199,7 +199,23 @@ const PEOPLE = [
   "Contrast who has the health check-up in December 2024 with January 2025",
   "compare roy and ray by grade",
 ];
-for (const q of PEOPLE) { const r = is(q); ok(`people question is blocked: ${brief(q)}`, !r.synthesis && r.blockedBy !== null); }
+for (const q of PEOPLE) { const r = is(q); ok(`people question is never EDS: ${brief(q)}`, !r.synthesis); }
+for (const q of PEOPLE.slice(0, 4)) { const r = is(q); ok(`people question is blocked outright: ${brief(q)}`, r.blockedBy !== null); }
+
+// ---- the everyday words of POLICY questions must not block (they kept strong EDS questions out; found with the test list of the EDS panel, 10 Nov 2026)
+const POLICY_WORDS: Array<[string, string]> = [
+  ["through whom", "Under the revised Zero Tolerance Safety Rules, what consequence follows each violation at each stage, and through whom is it issued?"],
+  ["those who", "Compare how face-recognition attendance was introduced for executives in 2023 and for contractor workers in 2024: start dates, who is covered, technology used and what happens to those who do not register."],
+  ["by grade", "Compare all the motivational award schemes of DSP by beneficiary grade, award amount, periodicity, executing authority and the occasion on which each is awarded."],
+  ["Junior Officers", "Compare the PF contribution granted to Junior Officers of the 2008 batch with that of the 2010 batch, and explain the refund procedure."],
+];
+for (const [what, q] of POLICY_WORDS) { const r = is(q); ok(`policy wording "${what}" does not block: ${brief(q)}`, r.blockedBy === null && r.synthesis); }
+// a stage-by-stage question is EDS-type; one ordinary 'each' is not enough on its own
+ok("a stage-by-stage question with a second part is EDS: what follows each violation at each stage, and through whom", is("what consequence follows each violation at each stage, and through whom is it issued?").synthesis);
+ok("'for each grade' alone is only borderline (a lookup of one table), never EDS", !is("What is the dearness allowance for each grade?").synthesis);
+ok("a directory question that says 'each' stays out", !is("Who is the head of C&IT at each plant?").synthesis);
+ok("'who is the HOD' stays blocked", is("Compare who is the HOD of C&IT in 2023 and 2024").blockedBy !== null);
+ok("'who has to submit' (a role of the policy) does not block", is("Compare who has to submit the declaration in 2024 and 2025").blockedBy === null);
 ok("a bare 'compare roy and ray' is at most borderline, never EDS", !is("compare roy and ray").synthesis);
 
 // ---- the three levels, and explanations

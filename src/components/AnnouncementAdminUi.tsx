@@ -5,6 +5,7 @@
 // Holiday Manager, and Circular Manager: glass cards, live validation, underline tabs,
 // consistent header inline layout, and NonExecutive delegation cards.
 
+import { sanitizeAnnouncementHtml } from "@/lib/announcements/contentProcessing";
 import React from "react";
 import { DateTime } from "luxon";
 import {
@@ -215,7 +216,7 @@ export function AnnouncementCard({
         {item.content ? (
           <div
             className="prose prose-sm max-w-none text-xs text-slate-600 line-clamp-3"
-            dangerouslySetInnerHTML={{ __html: item.content }}
+            dangerouslySetInnerHTML={{ __html: sanitizeAnnouncementHtml(item.content) }} /* sanitised again on render, as in AnnouncementModal: a row saved before the sanitiser existed, or inserted by SQL, must never inject markup */
           />
         ) : item.contentText ? (
           <p className="text-xs text-slate-600 line-clamp-3">{item.contentText}</p>

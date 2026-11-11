@@ -4,7 +4,7 @@
 // moment its circular is saved, with nobody running anything) and by scripts/import-health-checkups.ts (dry runs, reports, a re-import by hand).
 // They cannot disagree, because they are the same code.
 //
-// Everything outside the logic (the OCR engines, the database) is passed in, so it is tested without a network or a browser.
+// Everything outside the logic (the Gemini readers, the database) is passed in, so it is tested without a network.
 //
 // THE RULES (the same whoever calls):
 //   * A schedule is STORED only if nothing looked wrong: no problems at all (a row without a date, a group of an odd size, dates out of order, a month
@@ -12,7 +12,8 @@
 //   * Storing REPLACES the circular's rows (delete + insert), so reading the same circular again gives the same result, never doubled rows.
 //   * Running out of time is not a failure of the circular: the caller saves the circular and the schedule is read later by the tool.
 
-import { extractSchedule, ScheduleTimeBudgetError, type ExtractedSchedule, type ScheduleDeps } from "./extractSchedule";
+import { ScheduleTimeBudgetError, type ExtractedSchedule } from "./extractSchedule";
+import { extractScheduleGemini, geminiRosterReaders, type RosterReaders } from "./geminiSchedule";
 import { fixCodesByDepartment, verifyAgainstHr, type DeptPair, type HrEmployee, type VerifiedRow } from "./importSchedule";
 
 /** Runs one SQL statement and returns its rows. (An EntityManager, a pg client or a test double can all be adapted to this.) */
@@ -20,51 +21,6 @@ export type Sql = (text: string, params?: unknown[]) => Promise<any[]>;
 
 /** Runs `fn` in one database transaction (BEGIN ... COMMIT; ROLLBACK if it throws). */
 export type InTransaction = <T>(fn: (sql: Sql) => Promise<T>) => Promise<T>;
-
-// ----------------------------------------------------------------------------------------------------------------------------------- the OCR
-
-export interface ScheduleOcr {
-  deps: ScheduleDeps;
-  close(): Promise<void>;
-}
-
-/**
- * The four English OCR engines the reading uses: a whole page, one line of digits (the printed date), a column of digits, and one number cell.
- * Each is its own engine on purpose: an engine learns from the pages it reads, and these are the settings the accuracy was measured with.
- * `workerOptions` is for tests only (a local language-data folder).
- */
-export async function createScheduleOcr(workerOptions?: Record<string, unknown>): Promise<ScheduleOcr> {
-  const mod: any = await import("tesseract.js");
-  const Tesseract: any = mod.default ?? mod;
-  const made: any[] = [];
-  const make = async (params: Record<string, string>) => {
-    const w = workerOptions ? await Tesseract.createWorker("eng", 1, workerOptions) : await Tesseract.createWorker("eng");
-    made.push(w);
-    await w.setParameters(params);
-    return w;
-  };
-  const close = async () => {
-    await Promise.all(made.map((w) => Promise.resolve(w.terminate()).catch(() => undefined)));
-  };
-  try {
-    const page = await make({ tessedit_pageseg_mode: "3" });
-    const date = await make({ tessedit_char_whitelist: "0123456789-./ ", tessedit_pageseg_mode: "7" });
-    const digits = await make({ tessedit_char_whitelist: "0123456789", tessedit_pageseg_mode: "6" });
-    const cell = await make({ tessedit_char_whitelist: "0123456789", tessedit_pageseg_mode: "7" });
-    return {
-      deps: {
-        ocrPageTsv: async (png) => ((await page.recognize(png, {}, { text: false, tsv: true })).data.tsv as string) || "",
-        ocrDateText: async (png) => ((await date.recognize(png)).data.text as string) || "",
-        ocrDigitsTsv: async (png) => ((await digits.recognize(png, {}, { text: false, tsv: true })).data.tsv as string) || "",
-        ocrDigitCell: async (png) => ((await cell.recognize(png)).data.text as string) || "",
-      },
-      close,
-    };
-  } catch (e) {
-    await close();
-    throw e;
-  }
-}
 
 // -------------------------------------------------------------------------------------------------------------------------------------- HR
 
@@ -169,24 +125,22 @@ export interface ScheduleStage {
  * (ready / needs-review / timeout / failed) and saves the circular regardless.
  *   pages       every page image of the circular, in order (so page numbers are the circular's real page numbers; pages that are not rosters are skipped)
  *   deadlineAt  Date.now() value after which the reading stops with status "timeout"
- *   ocr         the engines; created (and closed) here when not given
+ *   readers     the two Gemini readers (a primary and a checker); created from the environment when not given
  */
 export async function runScheduleStage(args: {
   pages: Buffer[];
   sql: Sql;
   deadlineAt: number;
-  ocr?: ScheduleOcr;
+  readers?: RosterReaders;
   hr?: HrContext;
-  workerOptions?: Record<string, unknown>;
   /** for tests: replaces the real page reading */
-  extract?: typeof extractSchedule;
+  extract?: (pages: Buffer[], deps: { readers: RosterReaders; shouldStop?: () => boolean }) => Promise<ExtractedSchedule>;
 }): Promise<ScheduleStage> {
   const t0 = Date.now();
   const seconds = () => Math.round((Date.now() - t0) / 100) / 10;
-  let own: ScheduleOcr | null = null;
   try {
-    const ocr = args.ocr ?? (own = await createScheduleOcr(args.workerOptions));
-    const extracted = await (args.extract ?? extractSchedule)(args.pages, { ...ocr.deps, shouldStop: () => Date.now() > args.deadlineAt });
+    const readers = args.readers ?? geminiRosterReaders();
+    const extracted = await (args.extract ?? extractScheduleGemini)(args.pages, { readers, shouldStop: () => Date.now() > args.deadlineAt });
     const ctx = args.hr ?? (await loadHrContext(args.sql));
     const prepared = await prepareSchedule(extracted, ctx, args.sql);
     const verdict = scheduleVerdict(prepared);
@@ -194,8 +148,6 @@ export async function runScheduleStage(args: {
   } catch (e) {
     if (e instanceof ScheduleTimeBudgetError) return { status: "timeout", prepared: null, problems: [e.message], seconds: seconds() };
     return { status: "failed", prepared: null, problems: [], seconds: seconds(), error: String((e as Error)?.message ?? e).split("\n")[0] };
-  } finally {
-    if (own) await own.close();
   }
 }
 

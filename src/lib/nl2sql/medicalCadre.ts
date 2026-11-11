@@ -35,18 +35,51 @@ export const DOCTOR_DOC = `DOCTORS AND NON-MEDICAL EXECUTIVES -- the hospital's 
   Example -- "how many doctors are there in each designation": SELECT designation, count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND is_doctor GROUP BY designation, rank_order ORDER BY rank_order
 `;
 
+function isPersonExecutive(p: unknown): boolean {
+  if (!p || typeof p !== "object") return false;
+  const obj = p as Record<string, unknown>;
+  if (typeof obj.isExecutive === "boolean") return obj.isExecutive;
+  if (obj.cohort === "executive") return true;
+  if (obj.cohort === "nonexecutive") return false;
+  if (obj.designationTrack === "nonexec") return false;
+  if (obj.designationTrack === "managerial" || obj.designationTrack === "medical") return true;
+  return false;
+}
+
 /**
- * The first line of a list of people: "63 people found." and, when the WHOLE list is loaded, every person's track is known and both cadres are in it,
- * "63 people found: 40 doctors and 23 non-medical." A partly loaded list (more than the page holds) never gets a split: it would count only what is on screen.
+ * The first line of a list of people:
+ * - When both cohorts are present (e.g. C&IT with 18 execs and 7 non-execs):
+ *   "25 people found: 18 executives and 7 non-executives."
+ * - When only executives are present and doctors/non-medical are mixed (main hospital):
+ *   "63 people found: 40 doctors and 23 non-medical."
+ * - When a single cohort is present with no sub-cadre: "16 people found."
+ * A partly loaded list (more than the page holds) never gets a split: it would count only what is on screen.
  */
 export function peopleHeadline(total: number, truncated: boolean, people: ReadonlyArray<unknown> | null | undefined): string {
   const base = `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found`;
   if (truncated || !people || people.length === 0 || people.length !== total) return base + ".";
   const tracks = people.map((p) => (p as { designationTrack?: unknown } | null)?.designationTrack);
   if (tracks.some((t) => typeof t !== "string" || !t)) return base + ".";
-  // a doctor: the medical track or flagged in the roster (a managerial designation, but a doctor): the person carries isDoctor
+
+  const execs = people.filter(isPersonExecutive).length;
+  const nonExecs = people.length - execs;
   const doctors = people.filter((p) => (p as { isDoctor?: unknown } | null)?.isDoctor === true).length;
-  const others = tracks.length - doctors;
-  if (!doctors || !others) return base + ".";
-  return `${base}: ${doctors} ${doctors === 1 ? "doctor" : "doctors"} and ${others} non-medical.`;
+
+  // Split 1: Both executives and non-executives present across the department or plant
+  if (execs > 0 && nonExecs > 0) {
+    if (doctors > 0) {
+      const nonMedicalExec = execs - doctors;
+      const docPart = nonMedicalExec > 0 ? ` (${doctors} ${doctors === 1 ? "doctor" : "doctors"} and ${nonMedicalExec} non-medical)` : ` (${doctors} ${doctors === 1 ? "doctor" : "doctors"})`;
+      return `${base}: ${execs} ${execs === 1 ? "executive" : "executives"}${docPart} and ${nonExecs} non-executive${nonExecs === 1 ? "" : "s"}.`;
+    }
+    return `${base}: ${execs} ${execs === 1 ? "executive" : "executives"} and ${nonExecs} non-executive${nonExecs === 1 ? "" : "s"}.`;
+  }
+
+  // Split 2: Only executives present, with doctors and non-medical executives
+  if (execs > 0 && doctors > 0 && execs - doctors > 0) {
+    const others = execs - doctors;
+    return `${base}: ${doctors} ${doctors === 1 ? "doctor" : "doctors"} and ${others} non-medical.`;
+  }
+
+  return base + ".";
 }

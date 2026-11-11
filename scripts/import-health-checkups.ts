@@ -18,14 +18,15 @@
 //
 //   --pages-dir <folder>   test aid: read the pages from <folder>/<circular id>/*.png instead of downloading them
 //   --fresh                read the pages again even if a saved reading exists (health-cache/)
-// Test aid: OCR_LANG_PATH (a local folder with eng.traineddata).
+// The pages are read by Gemini (a primary and a checker model: OCR_PRIMARY_MODEL / OCR_CHECK_MODEL).
 
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { Client } from "pg";
-import { extractSchedule, EXTRACT_VERSION, type ExtractedSchedule } from "../src/lib/ingestion/schedule/extractSchedule";
+import { EXTRACT_VERSION, type ExtractedSchedule } from "../src/lib/ingestion/schedule/extractSchedule";
+import { extractScheduleGemini, geminiRosterReaders } from "../src/lib/ingestion/schedule/geminiSchedule";
 import { withConnection } from "../src/lib/ingestion/schedule/dbRetry";
-import { createScheduleOcr, loadHrContext, logIngest, prepareSchedule, stageDetail, storeSchedule, type PreparedSchedule, type Sql } from "../src/lib/ingestion/schedule/ingest";
+import { loadHrContext, logIngest, prepareSchedule, stageDetail, storeSchedule, type PreparedSchedule, type Sql } from "../src/lib/ingestion/schedule/ingest";
 import { circularLabel } from "../src/lib/search/circularLabels";
 import { extractorFingerprint } from "../src/lib/ingestion/schedule/fingerprint";
 
@@ -97,9 +98,7 @@ async function main() {
     }
 
     // ---- the OCR engines (the same four the upload uses: see src/lib/ingestion/schedule/ingest.ts)
-    const wopts = process.env.OCR_LANG_PATH ? { langPath: process.env.OCR_LANG_PATH, gzip: false, cacheMethod: "none" } : undefined;
-    const ocr = await createScheduleOcr(wopts);
-    const deps = ocr.deps;
+    const readers = geminiRosterReaders();
 
     // ---- the HR directory (EVERYONE, not only non-executives) and which department code belongs to which department name
     const sql: Sql = async (text, params) => (await q(text, params)).rows;
@@ -131,8 +130,8 @@ async function main() {
       }
       if (!res) {
         const pages = await loadPages(c);
-        res = await extractSchedule(pages, deps);
-        writeFileSync(cachePath, JSON.stringify({ key, res }));
+        res = await extractScheduleGemini(pages, { readers, trace: (m) => console.log("      " + m) });
+        if (res.rows.length > 0) writeFileSync(cachePath, JSON.stringify({ key, res })); // a reading that found no rows (Gemini unreachable, no credit) is never kept
       }
 
       // ---- check every row (department code against the printed department, people against HR): the same code the upload runs
@@ -197,7 +196,6 @@ async function main() {
     const file = join("health-reports", `health-${apply ? "apply" : "dry"}-${stamp}.md`);
     writeFileSync(file, report.join("\n"));
     console.log(`\n${blocked ? `${blocked} circular(s) need attention. ` : ""}Report: ${file}`);
-    await ocr.close();
     if (blocked) process.exitCode = 1;
   } finally {
     // nothing to close: every database step opened and closed its own connection

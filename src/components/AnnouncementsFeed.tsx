@@ -3,7 +3,6 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import AnnouncementModal from "./AnnouncementModal";
-import { ConfirmModal } from "./ConfirmModal";
 import {
   MessageSquareText,
   Loader2,
@@ -37,8 +36,6 @@ const fetcher = (url: string) =>
   fetch(url, { cache: "no-store" }).then((res) => res.json());
 
 export function AnnouncementsFeed() {
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
   const { data: session } = useVerifiedSession();
   const userTicketNo = (session?.user as any)?.ticketNo || "";
   const userId = (session?.user as any)?.id || "guest";
@@ -73,24 +70,6 @@ export function AnnouncementsFeed() {
     const createdAt = DateTime.fromISO(item.createdAt);
     const hoursOld = DateTime.now().diff(createdAt, "hours").hours;
     return hoursOld < EDIT_DELETE_WINDOW_HOURS;
-  };
-
-  const handleDelete = async (id: number) => {
-    try {
-      await fetch(`/api/announcements/${id}`, { method: "DELETE" });
-      mutateSelf();
-      toast.success("Announcement deleted successfully."); // ✅ Optional: Add a nice success feedback
-    } catch (err) {
-      console.error("Delete failed", err);
-      toast.error("Failed to delete announcement.");
-    }
-  };
-
-  // ✅ ADDING THIS HANDLER:
-  const confirmDelete = (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDeleteId(id);
-    setIsConfirmOpen(true);
   };
 
   // Manage/edit announcement via Omnibar
@@ -256,7 +235,8 @@ export function AnnouncementsFeed() {
                         <Pencil size={16} />
                       </button>
                       <button
-                        onClick={(e) => confirmDelete(item.id, e)}
+                        onClick={(e) => handleEdit(item.id, e)}
+                        title="Delete in the Announcement Manager (Search bar, Ctrl+K)"
                         className="text-neutral-400 hover:text-red-600 p-1"
                       >
                         <Trash2 size={16} />
@@ -303,14 +283,6 @@ export function AnnouncementsFeed() {
           onClose={() => setSelectedAnnouncement(null)}
         />
       )}
-      {/* ✅ ADDING THIS COMPONENT: */}
-      <ConfirmModal
-        isOpen={isConfirmOpen}
-        onClose={() => setIsConfirmOpen(false)}
-        onConfirm={() => deleteId && handleDelete(deleteId)}
-        title="Delete Announcement"
-        message="Are you sure you want to delete this? This action cannot be undone."
-      />
     </div>
   );
 }

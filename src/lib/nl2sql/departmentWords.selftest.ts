@@ -6,7 +6,7 @@ import real from "./__fixtures__/departments.real.json";
 import { refractoryAsk } from "./__fixtures__/askExamples";
 import { queryFor } from "./departmentAsk";
 import { checkNamedRows, namedRows } from "./namedRows";
-import { PLANT_GARAGE_ROWS, REFRACTORY_ROWS, TOWNSHIP_GARAGE_CLOSED, finishDepartmentNote, resolveDepartmentWords } from "./departmentWords";
+import { CENTRAL_STORES_NOTE, CENTRAL_STORES_ROWS, PLANT_GARAGE_ROWS, REFRACTORY_ROWS, TOWNSHIP_GARAGE_CLOSED, finishDepartmentNote, resolveDepartmentWords } from "./departmentWords";
 import type { DepartmentRow } from "./context";
 
 let pass = 0, fail = 0;
@@ -56,13 +56,24 @@ for (const q of ["how many executives are there in coke oven refractory", "execu
 ok("refractories (the material, plural) is not the department word", resolveDepartmentWords("executives who buy refractories") === null);
 ok("a question about documents is never touched: 'what is the circular about refractory bricks'", resolveDepartmentWords("what is the circular about refractory bricks") === null);
 
+// ---- Central Stores (CSD) = all three rows, sub-department of Marketing
+w = resolveDepartmentWords("how many executives are there in csd");
+ok("csd about people: becomes all three Central Stores rows by name and code", w?.question === `how many executives are there in ${CENTRAL_STORES_ROWS}` && !w?.closed, w?.question);
+ok("...note indicates sub-department of Marketing with codes", w?.note === CENTRAL_STORES_NOTE, w?.note);
+w = resolveDepartmentWords("how many employees work in central stores");
+ok("central stores: becomes all three rows with note", w?.question === `how many employees work in ${CENTRAL_STORES_ROWS}` && w?.note === CENTRAL_STORES_NOTE);
+ok("bare words: 'csd', 'central stores', 'central stores department'", resolveDepartmentWords("csd")?.question === CENTRAL_STORES_ROWS && resolveDepartmentWords("central stores")?.question === CENTRAL_STORES_ROWS && resolveDepartmentWords("central stores department")?.question === CENTRAL_STORES_ROWS);
+ok("question names EXACTLY the three real Central Stores rows: 90, 151, 256", ids(namedRows(resolveDepartmentWords("executives in csd")?.question ?? "", all)) === "90,151,256", ids(namedRows(resolveDepartmentWords("executives in csd")?.question ?? "", all)));
+ok("already specific section is left alone: 'executives in central stores (office)'", resolveDepartmentWords("executives in central stores (office)") === null && resolveDepartmentWords("staff in central stores (tech)") === null);
+ok("documents question is never touched: 'circular on central stores materials'", resolveDepartmentWords("circular on central stores materials") === null);
+
 // ---- the note's number
 const base = resolveDepartmentWords("executives in refractory")!.note!;
 ok("the number of Coke Oven Refractory people is filled in: 5, 1, none", /counted in both\.$/.test(finishDepartmentNote(base, 5)) && finishDepartmentNote(base, 5).includes("its 5 people are counted in both") && finishDepartmentNote(base, 1).includes("its 1 person is counted in both") && finishDepartmentNote(base, null).includes("its people are counted in both") && finishDepartmentNote(base, 0).includes("its people are counted in both"));
 ok("...and no placeholder is ever left in the note", !finishDepartmentNote(base, 5).includes("{{") && !finishDepartmentNote(base, null).includes("{{"));
 
 // ---- NEVER a loop: what the words become is not resolved again
-for (const q of ["how many executives are there in garage", "garage", "refractory", "executives in refractory, list them", "executives in plant garage and township garage"]) {
+for (const q of ["how many executives are there in garage", "garage", "refractory", "executives in refractory, list them", "executives in plant garage and township garage", "csd", "how many executives in csd", "central stores"]) {
   const r = resolveDepartmentWords(q);
   ok(`no loop: "${q}"`, !r?.question || resolveDepartmentWords(r.question) === null, r?.question);
 }

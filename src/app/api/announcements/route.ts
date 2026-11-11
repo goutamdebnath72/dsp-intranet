@@ -6,11 +6,6 @@ import { getAuthOptions } from "@/lib/auth";
 import { Announcement, AnnouncementReadStatus } from "@/lib/db/models";
 import { DateTime } from "luxon";
 import { ANNOUNCEMENT_NEW_THRESHOLD_DAYS } from "@/lib/constants"; // ✅ Single source of truth
-import {
-  sanitizeAnnouncementHtml,
-  htmlToPlainText,
-} from "@/lib/announcements/contentProcessing";
-import { embedAnnouncement } from "@/lib/announcements/embedAnnouncement";
 
 // 🚨 MAXIMUM CACHE DESTRUCTION:
 export const dynamic = "force-dynamic";
@@ -91,62 +86,12 @@ export async function GET(request: Request) {
 }
 
 /**
- * POST: Create a new plant announcement (Admin Restricted Access Pipeline)
+ * POST: moved to the Announcement Manager (src/lib/announcements/admin). The old handler only tested the database role
+ * "admin": no facility authority, no lock, no audit row. Publishing now happens only there.
  */
-export async function POST(request: Request) {
-  const authOptions = await getAuthOptions();
-  const session = await getServerSession(authOptions);
-
-  if ((session?.user as any)?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-  }
-
-  try {
-    const dataSource = await getDb();
-    const { title, content, date } = await request.json();
-
-    if (!title || !date) {
-      return NextResponse.json(
-        { error: "Title and date are required" },
-        { status: 400 },
-      );
-    }
-
-    // ✅ Extract ticketNo from session for author tracking
-    const authorTicketNo = (session?.user as any)?.ticketNo;
-
-    const announcementRepo = dataSource.getRepository(Announcement);
-
-    // Sanitize the rich-text HTML and derive the plain-text projection used
-    // for embedding + literal search. The AI never sees markup.
-    const safeContent = sanitizeAnnouncementHtml(content);
-    const contentText = htmlToPlainText(safeContent);
-
-    const newAnnouncement = announcementRepo.create({
-      title,
-      content: safeContent || undefined,
-      contentText: contentText || null,
-      date: DateTime.fromISO(date),
-      createdAt: DateTime.now(),
-      authorTicketNo, // ✅ Now saving the author ID
-    });
-
-    const savedAnnouncement = await announcementRepo.save(newAnnouncement);
-
-    // Index for semantic search. Non-blocking on failure: the announcement is
-    // already saved; a Gemini hiccup just leaves it unsearchable until re-saved.
-    await embedAnnouncement(
-      savedAnnouncement.id,
-      savedAnnouncement.title,
-      contentText,
-    );
-
-    return NextResponse.json(savedAnnouncement, { status: 201 });
-  } catch (error) {
-    console.error("❌ Failed to create announcement:", error);
-    return NextResponse.json(
-      { error: "Failed to create announcement" },
-      { status: 500 },
-    );
-  }
+export async function POST(_request: Request) {
+  return NextResponse.json(
+    { error: "Announcements are now published, edited and deleted in the Announcement Manager (Search bar, Ctrl+K). This route no longer writes." },
+    { status: 410 },
+  );
 }

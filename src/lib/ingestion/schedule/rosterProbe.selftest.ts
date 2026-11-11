@@ -1,7 +1,6 @@
 // src/lib/ingestion/schedule/rosterProbe.selftest.ts
-// Run:  npx tsx src/lib/ingestion/schedule/rosterProbe.selftest.ts      (pictures are drawn in memory; the OCR is a stand-in)
-import { analyzeRosterStructure, createRosterProbe, headerLooksLikeRoster, ROSTER_DISCOVERY_PAGES } from "./rosterProbe";
-import type { Word } from "./rosterRows";
+// Run:  npx tsx src/lib/ingestion/schedule/rosterProbe.selftest.ts      (pictures are drawn in memory; the page text, which Gemini reads in the real upload, is a stand-in)
+import { analyzeRosterStructure, createRosterProbe, headerLooksLikeRosterText, ROSTER_DISCOVERY_PAGES } from "./rosterProbe";
 
 let pass = 0;
 let fail = 0;
@@ -50,19 +49,14 @@ async function letterPage(): Promise<Buffer> {
   return toPng(px);
 }
 
-// ------------------------------------------------------------------ the OCR stand-in (tesseract TSV)
-let n = 0;
-const tsvWord = (text: string, left: number, top: number, width = 70) => `5\t1\t1\t1\t1\t${++n}\t${left}\t${top}\t${width}\t24\t90\t${text}`;
-const headerTsv = (words: string[]) => ["1\t1\t0\t0\t0\t0\t0\t0\t1200\t1600\t-1\t", ...words.map((w, i) => tsvWord(w, 120 + i * 150, TOP + 20))].join("\n");
-const ROSTER_HEADINGS = headerTsv(["SL", "T.No", "Name", "Deptt.Code", "Department", "Date"]);
+// ------------------------------------------------------------------ the page-text stand-in (what Gemini reads off the page)
+const ROSTER_HEADINGS = "HEALTH CHECK UP OF NON-EXECUTIVE EMPLOYEES FOR THE MONTH OF JANUARY 2025\n| SL.NO | T.NO | NAME | DEPTT. CODE | DEPARTMENT | DATE |\n| 1 | 228757 | SOMEBODY | 44000 | C&IT | 02.01.2025 |";
+const OTHER_TABLE = "ITEMS ISSUED\n| Item | Qty | Price | Total |\n| Pen | 4 | 10 | 40 |";
 let ocrCalls = 0;
-const ocr = (tsv: string) => async () => {
+const ocr = (text: string) => async () => {
   ocrCalls++;
-  return tsv;
+  return text;
 };
-
-const w = (text: string, left: number, top: number): Word => ({ text, left, top, width: 80, height: 24, conf: 90 });
-const FRAME = { top: 250, rules: RULES };
 
 (async () => {
   // ================================================================== the pictures
@@ -76,15 +70,14 @@ const FRAME = { top: 250, rules: RULES };
   const sp = await analyzeRosterStructure(plain);
   check("an ordinary ruled table (a rule on every row in EVERY column, the last included) does not: its last column is not merged", sp.rosterLike === false && /not cut into merged cells/.test(sp.why), sp.why);
 
-  // ================================================================== the headings (the 12 Oct finding: one circular's heading row is 115 px below the frame top, another's 220)
-  const headingRow = (y: number) => [w("SL.NO", 120, y), w("T.NO", 220, y), w("NAME", 450, y), w("DEPTT.CODE", 820, y), w("DEPARTMENT", 920, y), w("DATE", 1070, y)];
-  check("a heading row 115 px below the top of the frame (circular 23) reads like a roster's", headerLooksLikeRoster(headingRow(250 + 115), FRAME));
-  check("a heading row 220 px below it (circular 37, which has a taller title block) does too", headerLooksLikeRoster(headingRow(250 + 220), FRAME));
-  check("the OCR's own spellings count: 'T.No', 'Deptt.Code', 'Ticket No'", headerLooksLikeRoster([w("SL", 120, 330), w("T.No", 220, 330), w("Name", 450, 330), w("Date", 1070, 330)], FRAME) && headerLooksLikeRoster([w("Ticket", 220, 330), w("No", 300, 330), w("Name", 450, 330), w("Department", 920, 330)], FRAME));
-  check("no ticket column: 'Name', 'Department', 'Date' alone is NOT a roster (a stray 'name' or 'date' in another table cannot pass)", !headerLooksLikeRoster([w("Name", 450, 330), w("Department", 920, 330), w("Date", 1070, 330), w("Code", 820, 330)], FRAME));
-  check("a ticket column and only one other heading is not enough", !headerLooksLikeRoster([w("T.No", 220, 330), w("Name", 450, 330)], FRAME));
-  check("headings far below the top of the table (400+ px) or outside the table are ignored", !headerLooksLikeRoster(headingRow(250 + 600), FRAME) && !headerLooksLikeRoster(headingRow(250 + 100).map((x) => ({ ...x, left: x.left + 3000 })), FRAME));
-  check("an empty OCR is not a roster", !headerLooksLikeRoster([], FRAME));
+  // ================================================================== the headings (read from Gemini's text of the page)
+  check("a roster's heading row (T.NO, NAME, DEPTT. CODE, DEPARTMENT, DATE) reads like a roster's", headerLooksLikeRosterText(ROSTER_HEADINGS));
+  check("the spellings count: 'T.No', 'Ticket No', 'Deptt.Code'", headerLooksLikeRosterText("SL T.No Name Date") && headerLooksLikeRosterText("Sl Ticket No Name Deptt.Code") && headerLooksLikeRosterText("| T. No | Name | Department |"));
+  check("no ticket column: 'Name', 'Department', 'Date' alone is NOT a roster (a stray 'name' or 'date' in another table cannot pass)", !headerLooksLikeRosterText("| Name | Department | Date | Remarks |"));
+  check("a ticket column and only one other heading is not enough", !headerLooksLikeRosterText("| T.No | Name |"));
+  check("an ordinary table's headings are not a roster's", !headerLooksLikeRosterText(OTHER_TABLE));
+  check("an empty reading is not a roster", !headerLooksLikeRosterText(""));
+  check("headings far down the page text (past the first lines) are ignored", !headerLooksLikeRosterText("x ".repeat(1500) + "T.NO NAME DEPARTMENT DATE"));
 
   // ================================================================== the probe, page by page
   {
@@ -108,7 +101,7 @@ const FRAME = { top: 250, rules: RULES };
     ocrCalls = 0;
     const probe = createRosterProbe();
     const out: boolean[] = [];
-    for (let i = 0; i < 4; i++) out.push((await probe.classify(roster, i + 1, ocr(headerTsv(["Item", "Qty", "Price", "Total"])))).roster);
+    for (let i = 0; i < 4; i++) out.push((await probe.classify(roster, i + 1, ocr(OTHER_TABLE))).roster);
     check("a table with merged date cells whose headings are NOT a roster's: ordinary pages, not a roster circular", out.every((v) => !v) && probe.isRoster === false);
     check("...the headings were read only twice (two pages tried), never again", ocrCalls === 2, `calls ${ocrCalls}`);
   }
@@ -122,7 +115,7 @@ const FRAME = { top: 250, rules: RULES };
   {
     ocrCalls = 0;
     const probe = createRosterProbe();
-    const tsvs = ["1\t1\t0\t0\t0\t0\t0\t0\t1200\t1600\t-1\t", ROSTER_HEADINGS];
+    const tsvs = ["a continuation page with only rows", ROSTER_HEADINGS];
     let call = 0;
     const first = (await probe.classify(roster, 3, async () => tsvs[call++])).roster;
     const second = (await probe.classify(roster, 4, async () => tsvs[call++])).roster;

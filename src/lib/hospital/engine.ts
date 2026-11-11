@@ -315,7 +315,7 @@ function entitiesOf(rawQ: string, now: DateTime): Entities {
 
 // ---------------------------------------------------------------- answers
 /** The OPD hours and the card registration (token) hours by the clock, as short points (shown in red under an answer about the OPD). */
-const timingNotes = () => [`OPD hours: ${ranges(SCHEDULE.timings.opd)}`, `Card registration (token) hours: ${ranges(SCHEDULE.timings.token)}`, ...(SCHEDULE.timings.afternoonNote ? [SCHEDULE.timings.afternoonNote] : [])];
+export const timingNotes = () => [`OPD hours: ${ranges(SCHEDULE.timings.opd)}`, `Card registration (token) hours: ${ranges(SCHEDULE.timings.token)}`, ...(SCHEDULE.timings.afternoonNote ? [SCHEDULE.timings.afternoonNote] : [])];
 /** The small green / red / amber badge beside the title of an answer about a date. */
 const badgeOf = (tone: "open" | "closed" | "unknown" | "info" | undefined): HospitalAnswer["badge"] =>
   tone === "open" ? { tone: "open", text: "Open" } : tone === "closed" ? { tone: "closed", text: "Closed" } : tone === "unknown" ? { tone: "unknown", text: "Not known" } : undefined;
@@ -999,6 +999,13 @@ const QUALIFICATIONS: Qual[] = [
 /** The qualifications a question names (already lower-cased by plain()). */
 export const qualificationsAsked = (nm: string): Qual[] => QUALIFICATIONS.filter((x) => x.ask.test(nm));
 const qualOf = (p: Person) => String(p.qualification ?? "").toUpperCase();
+/** Does a doctor's PRINTED qualification contain the degree that was named? Whole word: "MD" does not match "MDS", "MS" not "MSc"; "DNB"/"DrNB" are separate degrees as printed. Used by the pure-AI hospital path so it agrees with this engine. */
+export const holdsQualification = (p: Person, named: string): boolean => {
+  const key = String(named ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!key) return false;
+  const q = QUALIFICATIONS.find((x) => x.key.toLowerCase() === key || x.ask.test(key));
+  return q ? q.has.test(qualOf(p)) : new RegExp(`(?<![A-Z])${key.toUpperCase()}(?![A-Z])`).test(qualOf(p));
+};
 
 function doctorsByQualificationAnswer(e: Entities, quals: Qual[], opts?: { permanentOnly?: boolean; contractualOnly?: boolean }): HospitalResult {
   const inDepts = e.depts.length || e.extraDepts.length

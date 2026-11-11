@@ -22,5 +22,8 @@ const SUPERADMIN_TICKETS: ReadonlySet<string> = new Set(
 export function isSuperAdmin(ticketNo?: string | null): boolean {
   const t = (ticketNo || "").trim();
   if (!t) return false;
-  return t === HOD_CIT_TICKET || SUPERADMIN_TICKETS.has(t);
+  // The environment OVERRIDES: when SUPERADMIN_TICKETS is set, only those tickets are HOD; the built-in HOD_CIT_TICKET is
+  // the default for when it is not set. (It used to be accepted ALWAYS, so when the HOD changed and the variable was
+  // updated, the previous HOD stayed HOD of all six tools until the code itself was edited.)
+  return SUPERADMIN_TICKETS.has(t);
 }

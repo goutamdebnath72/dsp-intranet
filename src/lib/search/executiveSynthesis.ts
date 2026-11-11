@@ -1,8 +1,16 @@
 // src/lib/search/executiveSynthesis.ts
+import { describeIssuers } from "./issuerFinding";
+import { fixDiscretionIssuers, stripUnsupportedForce } from "./wordingGuard";
+import { checkAbsences, describeDifferences, dropContradictedClaims, type AbsenceFix, type ConfirmedAbsence } from "./absenceCheck";
+import { DateTime } from "luxon";
+import { definedAbbreviations, usedDefinitions } from "./abbreviations";
 import { Agent } from "undici";
+import { createHash } from "node:crypto";
 import { SearchResultRow } from "./titleSearch";
 import { buildSourceNames, sanitizeSourceRefs } from "./sourceRefs";
-import { traceModelCall } from "./frontPathTrace";
+import { GeminiError, geminiGenerate, synthesisModels, type ThinkingLevel } from "../ai/geminiChat";
+import { scoreBriefing, pickBest, isMagnitudeNotShare, smallNumbersIn, subjectQualifiers, stemsOf, STORE_MIN_SCORE, type BriefingScore } from "./edsQuality";
+import type { EdsRow, EdsStore } from "./edsStore";
 
 const ollamaDispatcher = new Agent({
   headersTimeout: 10 * 60 * 1000,
@@ -43,6 +51,8 @@ export interface SynthesisChart {
   entityLabels?: [string, string]; // bar (series names) / scatter (axis names)
   unit?: string; // e.g. "₹", "days", "%"
   items: SynthesisChartItem[];
+  /** circular ids the figures of this chart come from (shown as chips under its title) */
+  sources?: number[];
 }
 
 export interface SynthesisFinding {
@@ -51,14 +61,20 @@ export interface SynthesisFinding {
 }
 
 export interface SynthesisTable {
-  columns: string[]; // 2 or 3 columns
+  columns: string[]; // 2 to 4 columns (the parameter + up to 3 entities / periods)
   rows: string[][];
+  /** circular ids the table comes from (shown as chips under it) */
+  sources?: number[];
+  /** a short caption saying what the table holds (shown above it; needed when there are two tables) */
+  title?: string;
 }
 
 export interface SynthesisCitation {
   id: number;
   headline: string;
   publishedAt: string | null;
+  /** how the archive names it to the reader: "Circular 046 (2022)" (the chip on a finding shows this) */
+  label?: string;
 }
 
 export interface SynthesisResult {
@@ -66,8 +82,12 @@ export interface SynthesisResult {
   headline?: string; // short striking title for the briefing
   keyFindings: SynthesisFinding[];
   table?: SynthesisTable | null;
+  /** a SECOND table, only when the inquiry has a second, separate structured part (e.g. an amounts schedule AND a wage table) */
+  extraTable?: SynthesisTable | null;
   charts: SynthesisChart[];
   citations: SynthesisCitation[];
+  /** abbreviations the circulars define themselves ("financial assistance (FA)") and the reply uses: { FA: "Financial Assistance" } */
+  abbreviations?: Record<string, string>;
   error?: string;
 }
 
@@ -94,6 +114,7 @@ interface RawDataset {
   subtitle?: string;
   entityLabels?: [string, string];
   unit?: string;
+  sources?: number[];
   items?: Array<{
     label?: string;
     value?: number | string;
@@ -106,12 +127,14 @@ interface RawPayload {
   headline?: string;
   overview?: string;
   keyFindings?: RawFinding[];
-  table?: { columns?: string[]; rows?: string[][] } | null;
+  table?: { columns?: string[]; rows?: string[][]; sources?: number[]; title?: string } | null;
+  table2?: { columns?: string[]; rows?: string[][]; sources?: number[]; title?: string } | null;
   datasets?: RawDataset[];
 }
 
 function emptyResult(msg: string): SynthesisResult {
   return {
+    error: msg,
     overview: msg,
     keyFindings: [],
     table: null,
@@ -120,16 +143,20 @@ function emptyResult(msg: string): SynthesisResult {
   };
 }
 
-// Per-circular context budget for the synthesis prompt. The route now supplies
-// the FULL circular text, which can be long; we keep the most information-dense
-// portion within budget. When over budget, numeric lines (rate tables, ₹
-// amounts, dates, codes) are prioritised over plain prose so figures the
-// executive asked about are never truncated away.
-const SYNTH_CONTEXT_BUDGET = 3500;
+// Per-circular context budget for the synthesis prompt. The route supplies
+// the FULL circular text including multi-page annexures and tables. With Gemini Pro
+// (2M token window), we allow up to 60,000 characters per circular so full
+// 10+ page circulars (e.g. Circular 3 higher education bond schedules) are intact.
+const SYNTH_CONTEXT_BUDGET = 60000;
+// ...but ALL the circulars together are capped as well (up to 5 sources). Real circulars average ~7.7k
+// characters so this rarely bites; it stops a worst case (5 x 60k = ~100k tokens, more for Hindi/Bengali)
+// from blowing the 52 s deadline and the cost. The share per source is total / number of sources, never
+// above SYNTH_CONTEXT_BUDGET; the numeric-priority condenser below trims a source that exceeds its share.
+const SYNTH_TOTAL_BUDGET = 150000;
 
-function condenseForSynthesis(text: string): string {
+function condenseForSynthesis(text: string, budget: number = SYNTH_CONTEXT_BUDGET): string {
   const t = (text || "").trim();
-  if (t.length <= SYNTH_CONTEXT_BUDGET) return t;
+  if (t.length <= budget) return t;
 
   const lines = t.split(/\n+/).map((l) => l.trim()).filter(Boolean);
   const numeric: string[] = [];
@@ -155,10 +182,10 @@ function condenseForSynthesis(text: string): string {
   const ordered = [...prose.slice(0, 6), ...numeric, ...prose.slice(6)];
   let out = "";
   for (const l of ordered) {
-    if (out.length + l.length + 1 > SYNTH_CONTEXT_BUDGET) break;
+    if (out.length + l.length + 1 > budget) break;
     out += (out ? "\n" : "") + l;
   }
-  return out || t.slice(0, SYNTH_CONTEXT_BUDGET);
+  return out || t.slice(0, budget);
 }
 
 // ----------------------------------------------------------------------------
@@ -246,33 +273,7 @@ function filterSourcesForRelevance(
   return clean.length > 0 ? clean : records;
 }
 
-export async function executeExecutiveSynthesis(
-  q: string,
-  records: SearchResultRow[],
-  // circular id -> "Circular 007 (2026)" (the number the circulars modal shows, plus the year). Used to name a circular to the reader.
-  labels?: Map<number, string>,
-): Promise<SynthesisResult> {
-  const relevanceFiltered = filterSourcesForRelevance(q, records);
-  const sources = relevanceFiltered.slice(0, 5);
-
-  const citations: SynthesisCitation[] = sources.map((r) => ({
-    id: r.id,
-    headline: r.headline,
-    publishedAt: r.publishedAt ?? null,
-  }));
-
-  const validIds = new Set(sources.map((r) => r.id));
-
-  const contextData = sources
-    .map(
-      (r) =>
-        `[Circular id=${r.id}${labels?.get(r.id) ? ` | cite as: ${labels.get(r.id)}` : ""}] Title: ${r.headline} (Date: ${
-          r.publishedAt || "N/A"
-        })\nContent:\n${condenseForSynthesis(r.chunkText || "")}`,
-    )
-    .join("\n\n---\n\n");
-
-  const systemPrompt = `You are the Senior Executive Intelligence Architect for Durgapur Steel Plant (DSP).
+const SYSTEM_PROMPT = `You are the Senior Executive Intelligence Architect for Durgapur Steel Plant (DSP).
 Produce a TERSE, high-signal executive briefing that answers the inquiry directly from the circular records. Every sentence must earn its place — no filler, no restating the question, no generic corporate prose.
 
 Return a STRICT JSON object (data only — you do NOT choose any chart type; you tag each dataset with an INTENT and we render the right chart):
@@ -283,15 +284,19 @@ Return a STRICT JSON object (data only — you do NOT choose any chart type; you
     { "text": "one tight, specific finding (a figure, rule, cutoff, or contrast)", "sources": [<circular id>] }
   ],
   "table": {
+    "title": "Short caption: what this table holds",
     "columns": ["Parameter", "Entity/Period A", "Entity/Period B"],
-    "rows": [["...","...","..."]]
+    "rows": [["...","...","..."]],
+    "sources": [<circular id the table was read from>]
   },
+  "table2": null,   // OPTIONAL second table, same shape (see TWO TABLES below); null when not needed
   "datasets": [
     {
       "intent": "breakdown | comparison | trend | timeline | correlation | kpi",
       "title": "Short chart title",
-      "subtitle": "brief context (optional)",
-      "unit": "\u20b9 | days | % | count (optional)",
+      "subtitle": "Clear 1-sentence description explaining what the chart numbers represent",
+      "unit": "Exact unit of measure (e.g. 'Multiples of the base rate', '₹', 'Days', '%', 'Months')",
+      "sources": [<circular id the numbers of this chart were read from>],
       "entityLabels": ["A","B"],
       "items": [
         { "label":"...", "value": <number>, "secondaryValue": <number optional>, "detail":"..." }
@@ -300,13 +305,79 @@ Return a STRICT JSON object (data only — you do NOT choose any chart type; you
   ]
 }
 
-DATASET INTENT RULES — choose the intent that matches the DATA you actually have. Emit a dataset ONLY when the records contain the real numbers to fill it; omit it otherwise. Multiple datasets are encouraged when several distinct visuals genuinely help.
-- "breakdown": parts of ONE whole — allowance/budget shares (Basic, HRA, VDA...). Same unit. value = each part. -> pie
+KEY FINDINGS DISCIPLINE (PRIORITIZED FOR CONSISTENCY):
+- The same inquiry must always get the same structure: at least ONE key finding for each part of the inquiry (so 3 or more when it has 3 parts), then the conditions or exceptions; never more than 6.
+- Answer the parts of the inquiry IN THE ORDER the inquiry names them: one finding per part (an eligibility or criteria part may take two), stating the rule, figure, date or limit that answers it.
+- After the parts, give the conditions or exceptions that limit those headline rules (a footnote, a site-specific limit, an exceptional clause), briefly.
+- Do NOT spend findings on special cases the inquiry did not ask about (a rarer category of people, a penalty clause, a form to fill) unless the inquiry asks about them.
+
+TABLE PRESENTATION DISCIPLINE:
+- EVERY CASE, WITH ITS CONDITION: before you write a table, find the circular's OWN table or list for the item asked and COUNT its cases (rows such as "Type of Sponsorship", grade, category, with / without something). Your table has exactly one column or row for EACH of those cases, in the circular's order, each labelled with the circular's own condition in full; fewer cases than the circular gives is a wrong answer. Never merge cases under a shorter label that hides the condition (for example "With financial assistance" when the circular splits it by study leave), and never state a rule in the overview or in a finding without the condition it holds under. If the question names only one side of the split, still show every other case the circular gives for the same item, so that nothing reads as the whole rule when it is only a part.
+- DEFINITIONS OF TERMS: when a figure is given in a term the circular itself defines (salary = Basic + DA + NPA, premium = fee + service charge + tax), one finding states that definition once, as the circular words it.
+- NO FIGURES OF YOUR OWN: quote a rule as the circular writes it ("course duration plus two years"). A figure you work out yourself (2-year course + 2 years = 4 years) may only stand beside the circular's own wording, never instead of it, and never in the table.
+- NAMES AS THE CIRCULAR SPELLS THEM: a scheme, level, allowance or place is written the way the circulars write it, never the way the question misspells it. Never invent a name, and never put the question's wrong spelling in brackets. If a name in the question matches no name in the circulars exactly, use the ONE closest name and say so in a plain sentence of the overview ("Taken to mean the Pragya level"); if two names are equally close, give both.
+- NO SHORT FORMS OF YOUR OWN: write words in full ("Financial Assistance"), unless the circular itself uses the short form and defines it, or it is a standard abbreviation (HRA, GST).
+- ROW AND COLUMN LABELS ARE PLAIN: a row label never carries a bracket that applies to one column only; such a difference goes into that column's cell, and the label uses the form common to all the columns.
+- WHAT DIFFERS: for a question that compares editions, years or versions, the answer shows what DIFFERS: every item added, removed, renamed, moved or re-valued between them, with its date or figure in each. What stayed equal is said once, in one sentence. A table has a column for each edition or year the question names (the label column plus up to three).
+- THE NEWEST WORD WINS: when one circular corrects, amends, extends or replaces another (corrigendum, amendment, revised, extended, "may be read as"), state the CURRENT figure or date, say in the same sentence what it replaced, and cite BOTH circulars. Never give the figure of the circular that was corrected.
+- WHO IS COVERED: state who a circular covers in its own words ("Executives and Non-Executives"), never narrower and never wider, even when the question names only one group.
+- NO FIGURE FROM "AS BEFORE": "as in the previous year" or "continued" gives no figure for the earlier period. Never state or tabulate one.
+- UNIVERSAL WORDS: write "all", "every", "unchanged", "increased across" only after checking every row of your own table; if one row differs, name the exception.
+- ALTERNATIVES STAY ALTERNATIVES: when the circular gives "A or B" conditions (5 years in Level 11 or 10 years in Level 10), write them as alternatives, never merged into a range (5-10 years).
+- NOT STATED MEANS NOT IN THE CIRCULAR: before writing "Not stated" (or "Not stated in circular", "Not applicable") in ANY cell, do this for that cell: search that edition's whole text for the item's name, in every list, footnote and note. If it appears anywhere, the cell says what the circular says about it there, in its own words and with its date ("Restricted holiday, 2nd February", "Treated as an additional festival holiday for Category B, 23rd October"). "Not stated" is allowed only when the name appears nowhere in that edition. The other rules that give "Not stated in circular" as the filler for an absent value apply only after this search.
+- SAME MEANS SAME: where a value is identical in every edition or year, say it is unchanged. Never write that it "shifts", "varies" or "changes" unless a value in your table differs. A weekday that moves is not a date that moves.
+- TRIGGERS AND SUBSTITUTES: when each edition states why or when a rule applies, and what takes the place of something (for example which day is given instead), say it as THAT edition states it. If the editions state different triggers or different substitutes, name each one with its edition; never merge them into one general trigger.
+- NOTHING TO ANSWER: when the circulars hold none of what was asked, say so in the overview and give only the directly related facts. No table of unrelated rows.
+- ASKED, BUT NOT IN THE CIRCULARS: when the question names a year, edition, period, scheme or place for which none of the circulars provided has a figure, say so in ONE plain sentence in the overview ("The circulars provided hold only the scheme issued on 11 December 2023; none for 2025 is among them"). Never present one year's figures as if they covered another, and never invent the missing ones.
+- COMPLETE TABLE: when the circular gives a rule per period, tier, grade or category, the table has EVERY such row for EVERY entity compared, in the circular's own order (earliest period first). A row the circular does not give for one entity gets \"Not applicable\" or \"Not stated in circular\" for that entity.
+- THE ITEMS ASKED ABOUT STAY IN THE TABLE: when the circular's own table pairs each of several items (violations, rules, duties, schemes, categories) with a stage, level, grade or consequence, and the question asks about EACH item (\"each violation\", \"every rule\"), the table names the items: one row per item, in the circular's order and its own words, with its stage, its consequence and who issues or approves it; or one row per stage with every item of that stage listed in the first cell. A table of stages alone, without the items the question asked about, is an incomplete answer.
+- WHO ISSUES, APPROVES OR SANCTIONS: when the question asks through whom, by whom or by which authority something is issued, approved, sanctioned or done, the table has a column of its own for it (never folded into the consequence cell). Where the circular names nobody for a row, that cell says \"Not stated in circular\". The key findings say it too, including the rows for which no authority is named.
+- A NAME IS NOT A REQUEST TO COMPARE: the word \"revised\", \"amended\" or \"new\" inside the NAME of a rule or circular (\"the revised Zero Tolerance Safety Rules\") does not ask how it differs from the earlier edition. Such a question gets the current rule only; the earlier edition, if the same document holds it, is at most one sentence in the overview, never a column of the table. WHAT DIFFERS applies only when the question asks what changed, differs or compares.
+- DISCRETION IS NOT ISSUING: an authority the circular names only as holding a discretion (\"Discretion of Head of Safety\") does not issue or sanction anything by that. Keep the words \"Discretion of Head of Safety\" in the consequence cell, and the issuer cell says \"Not stated in circular\" unless the circular says that authority issues, approves or sanctions it.
+- SAY ONLY WHAT THE CIRCULAR SAYS: do not add words of speed, force or consequence the circular does not use (\"immediately\", \"automatically\", \"directly\", \"bypasses\", \"regardless\"). A row that has no stage is described as it is printed (\"no stage is stated; Standing Order Rule 29(X) applies\"), never as skipping, bypassing or overriding the stages.
+- NO SENTENCE TWICE IN A ROW: when the circular prints one sentence under several headings of the same row (a clause that is at once the item, the stage and the consequence), write it once, in the column where it belongs, give the row a short name as its label (for example \"Violation by a contract worker\", \"Entering the plant intoxicated\") and put \"-\" in the other cells of that row. A row never shows the same words in two cells.
+- FOOTNOTES ARE CONDITIONS: a footnote mark (*, #) on ONE row of a rule table in the circular limits THAT row (e.g. \"only at site X\", \"only in exceptional cases\"): put that condition, in a few words, in square brackets at the end of that cell. A mark on a column or table HEADING, or a special case the inquiry did not ask about, applies to the whole table or to another case: do NOT repeat it in every cell; leave it out unless the inquiry asks about that case. Never put the same condition in more than one cell.
+- CELL FORM: every value cell reads \"<value> (<approver>) [<condition>]\". The value is short and uniform: a multiplier as \"4x <base>\" (never \"Four times of the <base>\"), a date as the circular writes it, an amount with its unit. The approver goes in round brackets ONLY when the circular names who approves or sanctions THAT item (e.g. \"Head of Department\"); a date, a system name or a duration has no approver: write no brackets at all, and NEVER write the generic words \"Competent Authority\" in brackets. No label such as \"Auth:\". The condition, if any, comes last in square brackets. Example: \"10 days (Head of Department) [only for new joiners]\".
+- When an inquiry names several things to detail, EACH of them appears in the table cells and in at least one key finding.
+- 2 to 4 columns: the parameter first, then ONE column per entity, group or period compared (at most 3). A schedule of amounts by month or period (premium, fee, charge, tax, total) is read across: components as rows, the months or periods as columns. Keep the table to the rows that matter.
+- Column 1: the parameter, period, grade or milestone (e.g. \"Parameter\", \"Period\").
+- Column 2 & 3: the entities, groups or locations being compared, named as the inquiry names them.
+- Standardize phrasing across cells, in the same form for the same kind of value (\"Not applicable / Not stated in circular\" for a missing one).
+
+DATASET INTENT & PRESENTATION RULES:
+Choose the intent that matches the DATA you actually have. Emit a dataset ONLY when the records contain the real numbers to fill it; omit it otherwise. Emit AT MOST TWO datasets, and only when each shows something the table does not. Never emit two datasets that show the same numbers. For ONE measure compared across two entities and periods emit ONE dataset (intent \"comparison\").
+- "breakdown": parts of ONE whole that add up to a total — allowance/budget shares (Basic, HRA, VDA...), percentages that sum to 100. Same unit. value = each part. -> pie. NEVER use \"breakdown\" for multipliers, rates, ratios, durations or limits (4x, 2x, 6 months): those are not parts of a whole, they are a \"comparison\".
 - "comparison": the SAME measure across two entities/periods (Executives vs Contract Workers; 2023 vs 2024). Provide entityLabels; value = A, secondaryValue = B for each label. -> grouped columns
 - "trend": ONE numeric measure moving over ordered time points (wage 2022->2025; premium year on year). label = period, value = number. Needs >=3 points. -> line
 - "timeline": ordered MILESTONES / phased rollouts / validity cutoffs where the point is the sequence, not a magnitude. label = date/phase, detail = what happened. -> timeline rail
 - "correlation": two numeric axes to show relationship (e.g. course duration vs bond amount). value = x, secondaryValue = y, entityLabels = [xAxisName, yAxisName]. -> scatter
-- "kpi": standalone headline numbers — quotas, pass numbers, daily counts (200 workers/day, Gate Pass #13, 2 awards/month). value = number, detail = unit/context. -> metric cards
+- "kpi": standalone headline numbers — quotas, pass numbers, daily counts (200 workers/day, pass number 13, 2 awards/month). value = number, detail = unit/context. -> metric cards
+- "unit": REQUIRED for every dataset. Explicitly specify the exact unit of measure (e.g. "Multiples of the base rate", "₹ per day", "Days", "%", "Months"). Every chart must be self-explanatory to an executive without guessing.
+- "subtitle": REQUIRED. Write a clear, concise sentence explaining what the chart numbers represent. If the chart covers an initial phase or specific metric (e.g. "Multiples of the base rate for the first 4 months; later months use a different basis, see the table"), explicitly state that so the scope is unambiguous.
+- "entityLabels": REQUIRED for comparison charts (e.g. ["Executives", "Contract Workers"]).
+
+EVOLUTION / TRACE / HISTORY / TRANSITION QUESTIONS (the inquiry says "trace", "evolution", "history", "transition", "phased", "over time", "from X to Y"):
+- COMPLETE CHRONOLOGY: the story starts at the EARLIEST dated step in the records, not at the step the inquiry names. Include EVERY dated milestone that bears on the inquiry, earliest first: trial or pilot starts, the notice that replaced an earlier one, effective ("w.e.f.") dates, the end or validity date of the old arrangement, and the start of the new one. A trial that preceded the formal start MUST appear.
+- Emit ONE dataset with intent "timeline" for it: label = the date as the circular writes it, detail = what began, changed or ended on that date and for whom, items in strict chronological order. A department-by-department schedule is NOT the evolution: give it as a table row or, only if the inquiry asks for the schedule, as a second dataset.
+- A phased or department-by-department schedule is summarised, never dropped: the timeline carries the FIRST and the LAST date of the schedule (with what each covers, e.g. the first and the last department or area named), and a key finding gives that span in words. Do NOT state how many steps or departments there are unless the circular itself states the number.
+- The overview and the first key finding name the earliest and the latest milestone.
+
+SCOPE, MEANING AND COMPLETENESS (apply to every inquiry):
+- CONTEXT COLUMNS: when the inquiry names ONE area, grade, group or period (e.g. \"for the Works area\") and the circular's own table lists OTHER areas, grades, groups or periods beside it, show them too: the named one FIRST, then the others in the circular's own order (at most 3 value columns), so the reader sees the figure in context and the answer is complete. The key findings still answer for the named one.
+- STRUCTURE / BREAKDOWN / CALCULATION asked: when the inquiry asks for the "structure", "breakdown", "calculation" or "components" of an amount, give EVERY component with its rule as the circular states it (a percentage of what, a fixed fee) AND the total, as table rows.
+- WHAT A SCHEDULE OF AMOUNTS MEANS: when the circular lists amounts by month, period of joining, inclusion or application, say exactly that (the amount payable for someone joining in that month). Do NOT call it an increase, decrease, reduction, rise or trend of the same item unless the circular says that item itself changes. Use the circular's own words for the situation (e.g. \"mid-term inclusion\").
+- ELIGIBILITY / CRITERIA asked: give it as TWO findings. (1) WHO QUALIFIES: every condition the circular states, in one sentence separated by semicolons: who is covered (scope), what must be held or shown (valid pass, documents), minimum thresholds (attendance, service), conduct, and the limit per person or per period (e.g. once in a financial year). (2) WHAT IS GIVEN AND HOW: the award or benefit and its amount, how often, how many per department or unit (and any larger allowance for big units), and who selects or approves. Never drop a condition to save space.
+- SITUATION TAG: a record header may carry \"situation: X\" (taken from the circular's own subject line, e.g. \"Mid-term inclusion\"). Say X, in those words, when you describe that circular's amounts or rules, in the finding and in the caption of the table or chart that comes from it.
+- A column or chart label that spans a period ("March to August") is one RANGE, not one point in time: never draw it as a point on a line.
+
+- TWO TABLES: when the inquiry has TWO separate structured parts that cannot share columns (e.g. a schedule of amounts by month AND a wage table by component), give each its own table: "table" for the first part the inquiry names and "table2" for the second, each with a short "title". Otherwise "table2" is null. Never split one comparison across two tables.
+- AMOUNTS CARRY THEIR UNIT: every amount cell is written with its unit (\u20b9 3,350.00), or the column heading names it ("Amount (\u20b9)"). A bare number is not enough.
+- LIMITED SPACE FOR FINDINGS: when the inquiry has several parts and the findings are few, an eligibility or criteria part goes into ONE finding that lists ALL its criteria compactly, separated by semicolons (scope; threshold; limit per person; limit per department; who approves). Never drop a criterion to save space.
+- DO NOT STATE WHAT THE CIRCULAR DOES NOT: write "monthly", "per worker", "per year", "one-time" only if the circular says it for THAT amount. A schedule by month of joining is "payable for a worker joining in that month", not a monthly amount.
+
+HOMOGENEOUS AXIS SCALE REQUIREMENT:
+- NEVER combine different underlying financial or measurement baselines on the same numeric axis (for instance, DO NOT plot multiples of one base amount alongside multiples of a different base amount on the same chart, because their baselines differ).
+- If the rules change their basis from one period or tier to the next, DO NOT generate a hybrid chart. Rely on the comparison table to convey the full structured rule, or chart ONLY the part where the unit is strictly identical (e.g. "Multiples of the base rate (first 4 months)").
 
 HARD ACCURACY RULES:
 - Transcribe figures, \u20b9 amounts, dates, circular numbers VERBATIM from the records. NEVER invent or interpolate a number.
@@ -316,6 +387,7 @@ HARD ACCURACY RULES:
 - MAGNITUDE SANITY: If a figure's magnitude is implausible for the cadence the query implies (e.g. a "daily" wage in the tens of thousands), do NOT assert that cadence. Report the figure as a total without inventing a time unit; flag it "as printed" if it looks like an OCR artifact. Do not swing to the opposite error of quoting a small component as the whole.
 - RECONCILE TOTALS: If the circular lists components (Basic, VDA, HRA, ...) AND a stated total, and the components sum to a different number, report the components and the ARITHMETIC SUM; flag the stated total as "as printed" rather than asserting it. Never present a total that contradicts its own components without noting the mismatch.
 - COLUMN FIDELITY: Only report an area / entity / period column (Works, Town, Projects, Executives, a year, ...) whose NAME appears VERBATIM in the records. Never rename one column to another (e.g. do not relabel "Town" as "Projects") and never introduce a column the text does not name. If you cannot tell which area a number belongs to, omit that number rather than guessing its column.
+- DATE LABEL FIDELITY: a date goes under the label the circular itself gives it. A start of enrolment, trial or phase 1 is a \"start\" or \"phase 1\" date; it is NOT a \"mandatory\", \"full implementation\" or \"effective\" date unless the circular says it becomes mandatory / effective on that date. Where the circular gives no such date for one side, write \"Not stated in circular\" for that side.
 - NO DERIVED COLUMNS OR VALUES: Every number you output must be READ from the text. Never compute one column from another (e.g. copying Works and zeroing one allowance to fabricate a second area), never subtract/add across columns to fill a cell, never synthesize a second entity by modifying the first. A derived number is a fabricated number — forbidden.
 - FIGURES MUST EXIST IN THE TEXT: Only build a table row, a chart item, or a numeric finding from a number that literally appears in the provided circular text. If the records contain only narrative prose and NOT the actual figures the inquiry asks for (e.g. the rate table was not captured), do NOT manufacture numbers, a components table, or a chart. Instead: give a short overview of what the prose DOES say, and state plainly in one finding that the specific figures are not present in the retrieved text. An honest "the rate table is not in the retrieved circular text" is REQUIRED over an invented table.
 - If a comparison value is genuinely absent, put "Not stated in circular" in the TABLE cell — do NOT copy a number across periods, and do NOT fabricate a dataset item for it.
@@ -325,6 +397,134 @@ HARD ACCURACY RULES:
 - 2 or 3 table columns only. Keep the table to the rows that matter.
 - Output strictly parseable JSON. No prose outside the JSON.`;
 
+/** A short signature of the prompt: part of the key of a stored briefing, so a changed prompt can never serve a briefing made with the old one. */
+const PROMPT_SIG = createHash("sha256").update(SYSTEM_PROMPT).digest("hex").slice(0, 10);
+
+// ----------------------------------------------------------------------------
+// ONE BRIEFING PER QUESTION: stored, scored, consistent.
+//
+// A question's briefing is made ONCE and then read back:
+//   1. this server's memory (valid while the archive of circulars is unchanged),
+//   2. the permanent store (edsStore.ts, table eds_briefing): any server, any day, until the archive or the engine changes,
+//   3. otherwise it is MADE: several candidates are written at once, each is scored by plain code (edsQuality.ts), the best one is kept, and, if it is
+//      good enough, written to the store. Two servers making the same question together both end up showing the row that was stored first.
+// A question typed with other capitals, spaces or punctuation is the same question. A question worded differently is a different question.
+// If the model cannot be reached (no credit, outage) a briefing stored for an older archive is shown rather than nothing.
+// ----------------------------------------------------------------------------
+/** Change this when the scoring or the chart/table rules change: every stored briefing made under the old rules is then made afresh. */
+const EDS_ENGINE_VERSION = "74.9";
+const ENGINE_SIG = `${EDS_ENGINE_VERSION}.${PROMPT_SIG}`;
+const MEMORY_MAX = 100;
+const MEMORY_TTL_NO_STORE_MS = 30 * 60 * 1000; // without the store a server cannot know the archive changed, so its memory is short
+const SEED_BASE = 7;
+
+const memory = new Map<string, { at: number; fingerprint: string; result: SynthesisResult }>();
+const inflight = new Map<string, Promise<SynthesisResult>>();
+
+export function clearExecutiveSynthesisCache(): void {
+  memory.clear();
+  inflight.clear();
+}
+
+/** The identity of a question: capitals, spaces and punctuation do not matter; the engine signature does. */
+export function edsKeyFor(q: string): string {
+  const norm = (q || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  return createHash("sha256").update(`${ENGINE_SIG}|${norm}`).digest("hex");
+}
+
+export interface SynthesisOptions {
+  /** the permanent store (the route passes the database one); none = this server's memory only */
+  store?: EdsStore | null;
+  /** how many candidates to write and score (default env EDS_CANDIDATES, else 2; 1 to 3) */
+  candidates?: number;
+  /** test hook: the model's raw JSON for candidate number i */
+  generate?: (userPrompt: string, system: string, i: number) => Promise<string>;
+}
+
+function remember(key: string, fingerprint: string, result: SynthesisResult): void {
+  if (memory.size >= MEMORY_MAX) memory.delete(memory.keys().next().value as string);
+  memory.set(key, { at: Date.now(), fingerprint, result });
+}
+
+export async function executeExecutiveSynthesis(
+  q: string,
+  records: SearchResultRow[],
+  // circular id -> "Circular 007 (2026)" (the number the circulars modal shows, plus the year). Used to name a circular to the reader.
+  labels?: Map<number, string>,
+  opts: SynthesisOptions = {},
+): Promise<SynthesisResult> {
+  const key = edsKeyFor(q);
+  const store = opts.store ?? null;
+
+  // the state of the archive: what a stored briefing must have been made from to be shown
+  let fingerprint = "";
+  let storeUsable = false;
+  if (store) {
+    try {
+      fingerprint = await store.fingerprint();
+      storeUsable = true;
+    } catch (e: any) {
+      console.warn("[EDS] archive fingerprint failed, using memory only:", e?.message || e);
+    }
+  }
+
+  const mem = memory.get(key);
+  if (mem && mem.fingerprint === fingerprint && (storeUsable || Date.now() - mem.at < MEMORY_TTL_NO_STORE_MS)) return mem.result;
+
+  let stale: EdsRow | null = null;
+  if (storeUsable) {
+    try {
+      const row = await store!.get(key);
+      if (row) {
+        if (row.fingerprint === fingerprint) {
+          remember(key, fingerprint, row.result);
+          return row.result;
+        }
+        stale = row; // made from an older archive: only used if the model cannot be reached
+      }
+    } catch (e: any) {
+      console.warn("[EDS] store read failed:", e?.message || e);
+    }
+  }
+
+  // one making at a time per question on this server
+  const running = inflight.get(key);
+  if (running) return running;
+  const job = makeBriefing(q, records, labels, opts, { key, fingerprint, storeUsable, stale }).finally(() => inflight.delete(key));
+  inflight.set(key, job);
+  return job;
+}
+
+async function makeBriefing(
+  q: string,
+  records: SearchResultRow[],
+  labels: Map<number, string> | undefined,
+  opts: SynthesisOptions,
+  ctx: { key: string; fingerprint: string; storeUsable: boolean; stale: EdsRow | null },
+): Promise<SynthesisResult> {
+  const sources = filterSourcesForRelevance(q, records).slice(0, 5);
+  const store = opts.store ?? null;
+
+  const citations: SynthesisCitation[] = sources.map((r) => ({
+    id: r.id,
+    headline: r.headline,
+    publishedAt: r.publishedAt ?? null,
+    label: labels?.get(r.id),
+  }));
+  const validIds = new Set(sources.map((r) => r.id));
+
+  const qualifiersBySource: Record<number, string[]> = Object.fromEntries(sources.map((r) => [r.id, subjectQualifiers(r.chunkText || "")]));
+  const amendments = amendmentsAmong(sources);
+  const perSourceBudget = Math.min(SYNTH_CONTEXT_BUDGET, Math.floor(SYNTH_TOTAL_BUDGET / Math.max(1, sources.length)));
+  const contextData = sources
+    .map(
+      (r) =>
+        `[Circular id=${r.id}${labels?.get(r.id) ? ` | cite as: ${labels.get(r.id)}` : ""}${qualifiersBySource[r.id]?.length ? ` | situation: ${qualifiersBySource[r.id].join("; ")}` : ""}] Title: ${r.headline} (Date: ${
+          r.publishedAt || "N/A"
+        })\nContent:\n${condenseForSynthesis(r.chunkText || "", perSourceBudget)}`,
+    )
+    .join("\n\n---\n\n");
+
   const userPrompt = `Inquiry: "${q}"
 
 Official Circular Records:
@@ -332,13 +532,13 @@ ${contextData}
 
 JSON Output:`;
 
-  try {
-    const useLocalOllama =
-      process.env.AI_ENVIRONMENT === "local" &&
-      process.env.NODE_ENV === "development";
+  const sourceText = sources.map((r) => r.chunkText || "").join("\n");
+  const wanted = Math.round(Number(opts.candidates ?? process.env.EDS_CANDIDATES ?? 2));
+  const n = Math.min(3, Math.max(1, Number.isFinite(wanted) ? wanted : 2));
 
-    let rawPayload = "";
-
+  const callModel = async (i: number): Promise<string> => {
+    if (opts.generate) return opts.generate(userPrompt, SYSTEM_PROMPT, i);
+    const useLocalOllama = process.env.AI_ENVIRONMENT === "local" && process.env.NODE_ENV === "development";
     if (useLocalOllama) {
       const ollamaRes = await fetch("http://localhost:11434/api/chat", {
         method: "POST",
@@ -347,79 +547,142 @@ JSON Output:`;
         body: JSON.stringify({
           model: "llama3.1:latest",
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: SYSTEM_PROMPT },
             { role: "user", content: userPrompt },
           ],
           format: "json",
           stream: false,
-          options: { temperature: 0.1, num_predict: 1500 },
+          options: { temperature: 0.1, num_predict: 1500, seed: SEED_BASE + i },
         }),
       } as any);
-
-      if (!ollamaRes.ok) {
-        const errText = await ollamaRes.text();
-        return emptyResult(`Local Ollama error: ${errText}`);
-      }
-      const ollamaData = await ollamaRes.json();
-      rawPayload = ollamaData.message?.content || "";
-    } else {
-      if (!process.env.GROQ_API_KEY) {
-        return emptyResult(
-          "Executive synthesis unavailable: Missing GROQ_API_KEY configuration.",
-        );
-      }
-
-      const groqRes = await fetch(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "openai/gpt-oss-120b",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            response_format: { type: "json_object" },
-            temperature: 0.1,
-            max_tokens: 3000,
-          }),
-        },
-      );
-
-      if (!groqRes.ok) {
-        const errorPayload = await groqRes.text();
-        return emptyResult(
-          `Executive synthesis error (${groqRes.status}): ${errorPayload}`,
-        );
-      }
-      const groqData = await groqRes.json();
-      // front-path trace (passive): the synthesis call's tokens (it sends up to ten circulars, the most expensive call)
-      if (groqData.usage) {
-        traceModelCall({
-          model: "openai/gpt-oss-120b",
-          prompt: Number(groqData.usage.prompt_tokens ?? 0),
-          completion: Number(groqData.usage.completion_tokens ?? 0),
-          total: Number(groqData.usage.total_tokens ?? 0),
-          cached: Number(groqData.usage.prompt_tokens_details?.cached_tokens ?? 0),
-          ms: 0,
-        });
-      }
-      rawPayload = (groqData.choices?.[0]?.message?.content || "").trim();
+      if (!ollamaRes.ok) throw new Error(`Local Ollama error: ${await ollamaRes.text()}`);
+      return (await ollamaRes.json()).message?.content || "";
     }
+    // One hardened call (src/lib/ai/geminiChat.ts): per-attempt timeout and a total deadline under the route's maxDuration (60 s), thinking at
+    // "low" with its tokens added to the budget, a cut-off answer is an error, the key travels in a header, a bad key / billing stop is not retried.
+    const thinkingEnv = (process.env.GEMINI_SYNTHESIS_THINKING || "").trim().toLowerCase();
+    const thinking: ThinkingLevel = thinkingEnv === "minimal" || thinkingEnv === "medium" || thinkingEnv === "high" ? thinkingEnv : "low";
+    const reply = await geminiGenerate(userPrompt, {
+      system: SYSTEM_PROMPT,
+      json: true,
+      models: synthesisModels(),
+      maxOutputTokens: 6000,
+      temperature: 0.0,
+      seed: SEED_BASE + i * 12, // a fixed, different seed per candidate: repeatable, yet not the same draw twice
+      thinking,
+      attemptTimeoutMs: 40_000,
+      totalTimeoutMs: 52_000,
+      label: n > 1 ? `EDS#${i + 1}` : "EDS",
+    });
+    return reply.text;
+  };
 
-    const sourceText = sources.map((r) => r.chunkText || "").join("\n");
-    return buildResult(rawPayload, citations, validIds, sourceText, labels);
-  } catch (synthErr: any) {
-    return emptyResult(
-      `Executive synthesis network error: ${
-        synthErr?.message || String(synthErr)
-      }`,
-    );
+  const settled = await Promise.allSettled(Array.from({ length: n }, (_, i) => callModel(i)));
+  const cands: Array<{ result: SynthesisResult; score: BriefingScore }> = [];
+  let firstError: unknown = null;
+  for (const s of settled) {
+    if (s.status === "rejected") {
+      firstError ??= s.reason;
+      continue;
+    }
+    const stats: BuildStats = { droppedFigures: 0 };
+    const result = buildResult(s.value, citations, validIds, sourceText, labels, stats);
+    if (result.error) continue; // unreadable output
+    // a "Not stated" cell for an item the column's circular names is a wrong answer: replace it by the circular's own words (absenceCheck.ts, plain code)
+    const absence = sources.map((r) => ({ id: r.id, headline: r.headline || "", text: r.chunkText || "" }));
+    const allFixes: AbsenceFix[] = [];
+    const allConfirmed: ConfirmedAbsence[] = [];
+    let differences: { text: string; sources: number[] } | null = null;
+    for (const key of ["table", "extraTable"] as const) {
+      const t = result[key];
+      if (!t) continue;
+      const fixed = checkAbsences(t, absence);
+      allFixes.push(...fixed.fixes);
+      allConfirmed.push(...fixed.confirmed);
+      differences ??= describeDifferences(fixed.table, fixed.fixes, fixed.confirmed);
+      if (fixed.fixes.length) {
+        result[key] = fixed.table;
+        console.log(`[EDS] absence check: ${fixed.fixes.length} "not stated" cell(s) of the ${key === "table" ? "table" : "second table"} corrected (${fixed.fixes.map((f) => `${f.row} / ${f.column}`).join("; ")})`);
+      }
+    }
+    // the sentences of the reply must not contradict the corrected table: a sentence that says the item is absent for that period is removed, not rewritten
+    if (allFixes.length) {
+      const gone: string[] = [];
+      result.keyFindings = result.keyFindings.flatMap((f) => {
+        const d = dropContradictedClaims(f.text, allFixes);
+        gone.push(...d.removed);
+        return d.text.trim() ? [{ ...f, text: d.text }] : [];
+      });
+      const o = dropContradictedClaims(result.overview, allFixes);
+      gone.push(...o.removed);
+      if (o.removed.length) result.overview = o.text.trim() || "The table below sets out the comparison, in the words of the circulars.";
+      if (gone.length) console.log(`[EDS] absence check: ${gone.length} sentence(s) that contradicted the corrected table removed (${gone.map((g) => g.slice(0, 60)).join(" | ")})`);
+    }
+    // wordingGuard.ts: an authority named only as the holder of a DISCRETION ("Discretion of Head of Safety") is not the one who issues; and speed / force words the circulars never use are taken out
+    for (const key of ["table", "extraTable"] as const) {
+      const t = result[key];
+      if (!t) continue;
+      const d = fixDiscretionIssuers(t, sourceText);
+      if (d.fixes.length) {
+        result[key] = d.table;
+        console.log(`[EDS] wording guard: ${d.fixes.length} authority named only as a discretion holder moved out of the issuer column (${d.fixes.map((f) => f.authority).join("; ")})`);
+      }
+    }
+    {
+      const gone: string[] = [];
+      result.keyFindings = result.keyFindings.map((f) => { const r = stripUnsupportedForce(f.text, sourceText); gone.push(...r.removed); return r.removed.length ? { ...f, text: r.text } : f; });
+      const o = stripUnsupportedForce(result.overview, sourceText);
+      gone.push(...o.removed);
+      if (o.removed.length) result.overview = o.text;
+      if (gone.length) console.log(`[EDS] wording guard: force word(s) the circulars never use removed (${[...new Set(gone)].join(", ")})`);
+    }
+    // what differs between the editions, said exactly from the checked cells (absenceCheck.ts: describeDifferences); one more finding, only when there is room.
+    // Added AFTER the contradiction filter above: its own sentences name items, years and "only", which that filter would take for a claim of absence.
+    if (differences && result.keyFindings.length < 6) {
+      result.keyFindings.push({ text: differences.text, sources: differences.sources });
+      console.log("[EDS] absence check: a \"differences between the years\" finding was added from the checked table");
+    }
+    // "through whom": the table's own issuer column, said once in the findings when the question asks and the findings have not said it (issuerFinding.ts)
+    if (result.keyFindings.length < 6) {
+      const issuers = describeIssuers(result.table, q, result.keyFindings.map((f) => f.text));
+      if (issuers) {
+        result.keyFindings.push(issuers);
+        console.log("[EDS] a \"who issues it\" finding was added from the table's own column");
+      }
+    }
+    cands.push({ result, score: scoreBriefing(result, { query: q, sourceText, droppedFigures: stats.droppedFigures, labels: [...(labels?.values() ?? [])], qualifiersBySource, amendments }) });
   }
+
+  const best = pickBest(cands);
+  if (!best || best.score.total === 0) {
+    // Nothing usable. A briefing stored for an older archive is better than none.
+    if (ctx.stale) return ctx.stale.result;
+    if (firstError instanceof GeminiError) return emptyResult(`Executive synthesis unavailable: ${firstError.message}`);
+    if (firstError) {
+      console.error("[EDS] synthesis failed:", (firstError as any)?.message || firstError);
+      return emptyResult("Executive synthesis could not be completed. Please try again.");
+    }
+    return best?.result ?? emptyResult("Executive synthesis could not be completed. Please try again.");
+  }
+  if (cands.length > 1) {
+    console.log(`[EDS] ${cands.length} candidates scored ${cands.map((c) => c.score.total).join(" / ")}; kept ${best.score.total}${best.score.notes.length ? ` (${best.score.notes.join("; ")})` : ""}`);
+  }
+
+  // Keep it only if it is good enough: a poor briefing is shown, but the next ask tries again instead of repeating it for ever.
+  if (best.score.total >= STORE_MIN_SCORE) {
+    let standing = best.result;
+    if (store && ctx.storeUsable) {
+      try {
+        const row = await store.put({ key: ctx.key, fingerprint: ctx.fingerprint, result: best.result, score: best.score.total, query: q, engine: ENGINE_SIG });
+        standing = row.result; // the row that stands: ours, or the one another server stored first
+      } catch (e: any) {
+        console.warn("[EDS] store write failed:", e?.message || e);
+      }
+    }
+    remember(ctx.key, ctx.fingerprint, standing);
+    return standing;
+  }
+  return best.result;
 }
 
 /* ------------------------------------------------------------------ *
@@ -458,11 +721,86 @@ function chartTypeFor(intent: RawIntent | undefined): ChartType | null {
   }
 }
 
-function buildChart(ds: RawDataset): SynthesisChart | null {
-  const type = chartTypeFor(ds.intent);
-  if (!type) return null;
+/**
+ * The chart type is a rule of the DATA, not a choice of the model: the same numbers must be drawn the same way at every ask (before, one run called
+ * "4x and 2x" a breakdown and drew a pie, the next called it a comparison and drew columns).
+ *  - a pie only for parts of ONE whole: the intent says breakdown, the unit is not a multiple / rate / ratio / duration, one series, 2 or more parts;
+ *  - two series (a second value on the items) are columns, whatever the intent said;
+ *  - a pie that fails those tests is columns (one series).
+ */
+/** A label that spans a period ("MAR-25 TO AUG-25", "Jan - Mar", "2022 \u2013 2024") is a range, not one moment. */
+export function isRangeLabel(label: string | undefined): boolean {
+  return /\b(?:to|through|thru|till|until)\b|\s[\u2013\u2014-]\s|\d\s*[\u2013\u2014]\s*\d/i.test(label || "");
+}
 
+/**
+ * Which of the circulars handed over CORRECT, AMEND or EXTEND another one of them ("the amount mentioned as Rs.15,000/- may be read as Rs.14,999/-",
+ * "the last date is extended to ..."): such a circular refers to the earlier one by its subject words. Returns, for each, the ids it amends.
+ */
+export function amendmentsAmong(sources: Array<{ id: number; headline?: string | null; chunkText?: string | null }>): Array<{ id: number; amends: number[] }> {
+  const out: Array<{ id: number; amends: number[] }> = [];
+  for (const a of sources) {
+    const head = `${a.headline || ""} ${(a.chunkText || "").slice(0, 1500)}`;
+    if (!/\b(corrigendum|addendum|may (?:please )?be read as|in supersession|amendment|amended|extension of|is extended|are extended|extended up ?to|revised)\b/i.test(head)) continue;
+    const aStems = stemsOf(head);
+    const amends = sources
+      .filter((b) => b.id !== a.id)
+      .filter((b) => {
+        const bs = stemsOf(b.headline || "");
+        const shared = [...bs].filter((st) => aStems.has(st)).length;
+        const own = stemsOf(a.headline || "");
+        const union = new Set([...own, ...bs]).size || 1;
+        const sameNotice = [...bs].filter((st) => own.has(st)).length / union >= 0.6; // the same notice in another language is not an amendment of itself
+        return shared >= 2 && !sameNotice;
+      })
+      .map((b) => b.id);
+    if (amends.length) out.push({ id: a.id, amends });
+  }
+  return out;
+}
+
+/** Words that say the numbers are ceilings, maxima or per-level amounts: separate figures side by side, never the parts of one total. */
+const NOT_A_WHOLE = /\b(maxim\w*|minim\w*|highest|lowest|top|up ?to|ceiling|cap|limit\w*|per level|each level|at most|at least)\b/i;
+
+export function decideChartType(intent: RawIntent | undefined, unit: string | undefined, items: Array<{ secondaryValue?: number; label?: string }>, describedAs?: string): ChartType | null {
+  const asked = chartTypeFor(intent);
+  if (!asked) return null;
+  // a line joins single moments in time: when one of its points is a RANGE ("Mar to Aug") the line would show a slope that does not exist: columns
+  if (asked === "line" && items.some((i) => isRangeLabel(i.label))) return "bar";
+  const twoSeries = items.some((i) => typeof i.secondaryValue === "number");
+  if (asked === "pie") {
+    if (twoSeries || isMagnitudeNotShare(unit) || NOT_A_WHOLE.test(describedAs || "")) return "bar";
+    return "pie";
+  }
+  if ((asked === "kpi" || asked === "line") && twoSeries && items.length >= 2) return asked === "line" ? "line" : "bar";
+  return asked;
+}
+
+function buildChart(ds: RawDataset, validIds?: Set<number>): SynthesisChart | null {
+  const asked = chartTypeFor(ds.intent);
+  if (!asked) return null;
+  // the type follows the data (decideChartType): a pie of multipliers is columns
+  const type = decideChartType(
+    ds.intent,
+    ds.unit,
+    (Array.isArray(ds.items) ? ds.items : []).map((i) => ({ secondaryValue: coerceNumber(i?.secondaryValue) ?? undefined, label: (i?.label || "").toString() })),
+    `${ds.title || ""} ${ds.subtitle || ""}`,
+  ) as ChartType;
+
+  // Scale coherence guard: ONE axis has ONE unit. A unit that offers two alternatives ("X or Y": two different bases on the same axis), or items that are
+  // marked as measured against two different bases ("(base: A)" and "(base: B)"), cannot be drawn honestly: no chart (the table carries the facts).
+  if (ds.unit && /\bor\b/i.test(ds.unit)) {
+    return null;
+  }
   const rawItems = Array.isArray(ds.items) ? ds.items : [];
+  const bases = new Set(
+    rawItems
+      .map((it) => /\(\s*base\s*:\s*([^)]+)\)/i.exec(it?.label || "")?.[1]?.trim().toLowerCase())
+      .filter((b): b is string => !!b),
+  );
+  if (bases.size > 1) {
+    return null;
+  }
   const items: SynthesisChartItem[] = [];
 
   for (const it of rawItems) {
@@ -525,7 +863,9 @@ function buildChart(ds: RawDataset): SynthesisChart | null {
   if (
     type === "bar" &&
     items.length === 1 &&
-    typeof items[0].secondaryValue === "number"
+    typeof items[0].secondaryValue === "number" &&
+    !isMagnitudeNotShare(ds.unit) &&
+    !NOT_A_WHOLE.test(`${ds.title || ""} ${ds.subtitle || ""}`)
   ) {
     const [aLabel, bLabel] =
       Array.isArray(ds.entityLabels) && ds.entityLabels.length === 2
@@ -541,10 +881,12 @@ function buildChart(ds: RawDataset): SynthesisChart | null {
   const chart: SynthesisChart = {
     type: finalType,
     title: (ds.title || "").toString().trim() || "Overview",
-    items: finalItems,
+    items: finalType === "timeline" ? chronologicalOrder(finalItems).map((it, i) => ({ ...it, value: i + 1 })) : finalItems,
   };
   if (ds.subtitle) chart.subtitle = ds.subtitle.toString().trim();
   if (ds.unit) chart.unit = ds.unit.toString().trim();
+  const chartSources = (Array.isArray(ds.sources) ? ds.sources : []).map(Number).filter((n) => Number.isFinite(n) && (!validIds || validIds.has(n)));
+  if (chartSources.length) chart.sources = [...new Set(chartSources)];
   if (
     (finalType === "bar" || finalType === "scatter") &&
     Array.isArray(ds.entityLabels) &&
@@ -565,7 +907,7 @@ function buildChart(ds: RawDataset): SynthesisChart | null {
  *      body cells) — a wall of "Not stated" is noise, the overview already
  *      states the gap.
  */
-function buildTable(
+export function buildTable(
   raw: { columns?: string[]; rows?: string[][] } | null | undefined,
 ): SynthesisTable | null {
   if (
@@ -621,7 +963,11 @@ function buildTable(
   // by copying a real column and zeroing one component. Detect a value column
   // that equals an earlier value column on every row except where one side is
   // zero/empty — that is not independent data, it is manufactured.
+  // A DATE is not a quantity: "24th January [Friday]" and "24th January [Saturday]" both read as 24 when only the digits are kept, so the real columns of a holiday list
+  // (the same date every year, a different weekday) were taken for copies of each other and dropped. A cell with a month, a weekday or an ordinal date is never compared as a number.
+  const DATE_WORDS = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b\d{1,2}(?:st|nd|rd|th)\b/i;
   const numAt = (v: string): number | null => {
+    if (DATE_WORDS.test(v)) return null;
     const c = v.replace(/[^0-9.\-]/g, "");
     if (c === "" || c === "-" || c === ".") return null;
     const n = Number(c);
@@ -730,13 +1076,101 @@ function isNonFinding(text: string): boolean {
   return false;
 }
 
-function buildResult(
+/**
+ * ONE written form for a value cell of the comparison table, whatever words the model chose: "<rate> (<authority>) [<condition>]".
+ *   "Four times of the base rate (Auth: Head of Dept)"  ->  "4x base rate (Head of Dept)"
+ *   "Twice of the base rate"                            ->  "2x base rate"
+ * The screen draws the rate in bold, the authority as a chip and the condition as a note, and reads exactly this form.
+ */
+const NUMBER_WORDS: Record<string, string> = { once: "1", twice: "2", thrice: "3", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10" };
+export function canonicalCell(cell: string): string {
+  let c = (cell || "").replace(/\s+/g, " ").replace(/\s*\[\s*\]/g, "").trim(); // an empty condition "[]" is nothing
+  if (!c) return c;
+  // "Four times of the X" / "4 times the X" / "Twice of the X" -> "4x X" / "2x X"
+  c = c.replace(/\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten)\s+times\s+(?:of\s+)?(?:the\s+)?/gi, (_m, n: string) => `${NUMBER_WORDS[n.toLowerCase()] ?? n}x `);
+  c = c.replace(/\b(once|twice|thrice)\s+(?:of\s+)?(?:the\s+)?/gi, (_m, n: string) => `${NUMBER_WORDS[n.toLowerCase()]}x `);
+  c = c.replace(/(\d)\s*[x\u00d7]\s+/g, "$1x "); // "4 x X", "4× X" -> "4x X"
+  // "(Auth: Head of P&A)" / "(Authority: ...)" / "(Approver: ...)" -> "(Head of P&A)"
+  c = c.replace(/\(\s*(?:auth(?:ority)?|approv(?:er|al)|sanction(?:ing)?\s+authority|competent\s+authority)\s*[:\-]\s*/gi, "(");
+  // the generic "(Competent Authority)" says nothing about WHO: it is not a name, so it is not shown
+  c = c.replace(/\s*\(\s*(?:the\s+)?(?:concerned\s+|respective\s+)?(?:competent\s+)?authority\s*\)/gi, "").trim();
+  // a condition in square brackets goes last: "<rate> [cond] (auth)" -> "<rate> (auth) [cond]"
+  const m = c.match(/^(.*?)\s*(\[[^\]]+\])\s*(\([^()]+\))\s*$/);
+  if (m) c = `${m[1]} ${m[3]} ${m[2]}`.replace(/\s+/g, " ").trim();
+  return c;
+}
+
+/**
+ * The first date a timeline label names ("31.10.2023", "28.12.2023 to 30.12.2023", "5th December, 2024", "Dec 2024", "2024-12-05"), as a sortable number; null when it names none.
+ */
+export function firstDateIn(label: string): number | null {
+  const t = (label || "").trim();
+  const ms = (y: number, m: number, d: number): number | null => {
+    const dt = DateTime.utc(y, m, d);
+    return dt.isValid ? dt.toMillis() : null;
+  };
+  const num = /\b(\d{1,2})[./-](\d{1,2})[./-](\d{4})\b/.exec(t);
+  if (num) return ms(Number(num[3]), Number(num[2]), Number(num[1]));
+  const iso = /\b(\d{4})-(\d{2})-(\d{2})\b/.exec(t);
+  if (iso) return ms(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+  const named = new RegExp(`\\b(?:(\\d{1,2})(?:st|nd|rd|th)?[\\s,.-]*)?(${MONTH_NAMES})\\b[\\s,.'-]*(\\d{4})\\b`, "i").exec(t);
+  if (named) return ms(Number(named[3]), MONTH_NUMBER[named[2].slice(0, 3).toLowerCase()], named[1] ? Number(named[1]) : 1);
+  return null;
+}
+
+/** A timeline is in the order of time: when EVERY point names a date, they are sorted by it (the model sometimes lists a deadline after the start it precedes). Otherwise the order given stands. */
+export function chronologicalOrder<T extends { label: string }>(items: T[]): T[] {
+  const dates = items.map((i) => firstDateIn(i.label));
+  if (items.length < 2 || dates.some((d) => d === null)) return items;
+  return items.map((it, i) => ({ it, i, d: dates[i] as number })).sort((a, b) => a.d - b.d || a.i - b.i).map((x) => x.it);
+}
+
+/* ---- dates: a date is grounded by WHAT date it is, not by how it is written ----
+ * The circular writes "31st December'2023"; the briefing writes "31.12.2023". Compared as numbers ("31.12", "2023") the second looked invented and the
+ * finding holding it was thrown away. Both are read to day-month-year here, and a numeric date in the briefing that the circulars write in ANY form
+ * is not checked digit by digit. A date the circulars do not contain is still checked like any figure (and fails). */
+const MONTH_NUMBER: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+const NUMERIC_DATE = /\b(\d{1,2})[./-](\d{1,2})[./-](\d{4})\b/g;
+const MONTH_NAMES = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+
+export function datesWritten(text: string): Set<string> {
+  const set = new Set<string>();
+  const t = text || "";
+  const add = (d: number, m: number, y: number) => {
+    if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1990 && y <= 2100) set.add(`${y}-${m}-${d}`);
+  };
+  for (const m of t.matchAll(NUMERIC_DATE)) add(Number(m[1]), Number(m[2]), Number(m[3]));
+  // "31st December'2023", "31 Dec 2023", "31 December, 2023"
+  for (const m of t.matchAll(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s*(?:of\\s+)?(${MONTH_NAMES})\\.?[\\s,'\u2019-]*((?:19|20)\\d{2})\\b`, "gi"))) {
+    add(Number(m[1]), MONTH_NUMBER[m[2].slice(0, 3).toLowerCase()], Number(m[3]));
+  }
+  // "December 31, 2023"
+  for (const m of t.matchAll(new RegExp(`\\b(${MONTH_NAMES})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s*['\u2019]?((?:19|20)\\d{2})\\b`, "gi"))) {
+    add(Number(m[2]), MONTH_NUMBER[m[1].slice(0, 3).toLowerCase()], Number(m[3]));
+  }
+  return set;
+}
+
+/** The text with every numeric date that the circulars contain (in any written form) taken out, so only the rest is checked as figures. */
+export function withoutKnownDates(text: string, sourceDates: Set<string>): string {
+  return (text || "").replace(NUMERIC_DATE, (whole, d: string, m: string, y: string) => (sourceDates.has(`${Number(y)}-${Number(m)}-${Number(d)}`) ? " " : whole));
+}
+
+/** What the grounding step had to throw away from one candidate (each is a figure the model made up); the quality score reads it. */
+export interface BuildStats {
+  droppedFigures: number;
+}
+
+/** Exported for the grounding selftest (executiveGrounding.selftest.ts). */
+export function buildResult(
   rawJson: string,
   citations: SynthesisCitation[],
   validIds: Set<number>,
   sourceText: string,
   labels?: Map<number, string>,
+  stats?: BuildStats,
 ): SynthesisResult {
+  let droppedFigures = 0;
   if (!rawJson) return emptyResult("No synthesis could be derived.");
 
   let parsed: RawPayload;
@@ -767,14 +1201,23 @@ function buildResult(
   // numbers) are exempt from stripping to avoid false positives — the concern
   // is invented rupee amounts and rates, not "3 stages" or "24 January".
   const groundedNumbers = extractGroundedNumbers(sourceText);
+  // A small whole number (3..31: a multiplier, a month, a count) must be WRITTEN in the circulars too, as digits or as a word ("Four times", "Twice",
+  // "sixth"): before, every integer up to 31 was waved through, so a made-up "9x" or "14 months" could be shown. 0, 1 and 2 stay free ("Standard
+  // HRR" is 1x; "two sides"); 31 or less and a decimal is checked like any figure.
+  const writtenSmall = smallNumbersIn(sourceText);
   const numberIsGrounded = (n: number): boolean => {
-    if (Number.isInteger(n) && Math.abs(n) <= 31) return true; // dates/small counts
+    if (Number.isInteger(n) && n >= 0 && n <= 2) return true;
+    if (Number.isInteger(n) && n <= 31) return writtenSmall.has(n) || groundedNumbers.has(normalizeNum(n));
     return groundedNumbers.has(normalizeNum(n));
   };
   // A string cell/finding is "figure-safe" if every substantial number in it is
   // grounded. Text with no numbers is always safe.
+  // The archive's own name for a circular ("Circular 007 (2026)") has numbers in it that are the archive's, not claims: they are not checked.
+  const labelTexts = [...(labels?.values() ?? [])].filter(Boolean).sort((a, b) => b.length - a.length);
+  const withoutLabels = (text: string): string => labelTexts.reduce((acc, l) => acc.split(l).join(" "), text);
+  const sourceDates = datesWritten(sourceText);
   const figuresSafe = (text: string): boolean => {
-    const nums = extractNumbersFromText(text);
+    const nums = extractNumbersFromText(withoutKnownDates(withoutLabels(text), sourceDates));
     for (const n of nums) {
       if (!numberIsGrounded(n)) return false;
     }
@@ -793,19 +1236,52 @@ function buildResult(
     })
     // Drop empty findings, pure "not stated" non-findings, AND findings that
     // assert an ungrounded figure (a hallucinated amount).
-    .filter(
-      (f) =>
-        f.text.length > 0 && !isNonFinding(f.text) && figuresSafe(f.text),
-    );
+    .filter((f) => {
+      if (f.text.length === 0 || isNonFinding(f.text)) return false;
+      if (!figuresSafe(f.text)) {
+        droppedFigures++;
+        return false;
+      }
+      return true;
+    })
+    // never more than 6 findings, and the model's own order (the prompt fixes it: periods, money, authorities, caveats)
+    .slice(0, 6);
 
-  let table: SynthesisTable | null = buildTable(parsed.table);
-  if (table) table = groundTable(table, numberIsGrounded);
+  const makeTable = (raw: RawPayload["table"]): SynthesisTable | null => {
+    let t: SynthesisTable | null = buildTable(raw);
+    if (!t) return null;
+    t = { columns: t.columns, rows: t.rows.map((r) => r.map((cell, ci) => (ci === 0 ? cell : canonicalCell(cell)))) };
+    const before = t.rows.length;
+    const grounded = groundTable(t, numberIsGrounded, (cell) => withoutKnownDates(cell, sourceDates));
+    droppedFigures += before - (grounded?.rows.length ?? 0);
+    if (!grounded) return null;
+    const srcs = (Array.isArray(raw?.sources) ? raw!.sources! : []).map(Number).filter((n) => Number.isFinite(n) && validIds.has(n));
+    const out: SynthesisTable = { ...grounded };
+    if (srcs.length) out.sources = [...new Set(srcs)];
+    const title = (raw?.title || "").toString().trim();
+    if (title) out.title = title.slice(0, 120);
+    return out;
+  };
+  const table: SynthesisTable | null = makeTable(parsed.table);
+  // a second table is kept only when there IS a first one, and it is not a copy of it
+  let extraTable: SynthesisTable | null = parsed.table2 ? makeTable(parsed.table2) : null;
+  if (extraTable && (!table || JSON.stringify(extraTable.rows) === JSON.stringify(table.rows))) extraTable = null;
 
-  const charts: SynthesisChart[] = (parsed.datasets || [])
-    .map(buildChart)
-    .filter((c): c is SynthesisChart => c !== null)
-    .map((c) => groundChart(c, numberIsGrounded))
+  const builtCharts = (parsed.datasets || [])
+    .map((d) => buildChart(d, validIds))
     .filter((c): c is SynthesisChart => c !== null);
+  const charts: SynthesisChart[] = [];
+  const seenCharts = new Set<string>();
+  for (const c of builtCharts) {
+    const g = groundChart(c, numberIsGrounded);
+    droppedFigures += c.items.length - (g?.items.length ?? 0);
+    if (!g) continue;
+    // two charts of the same numbers are one chart (a run that drew a pie AND columns of the same figures showed both); at most two charts
+    const sig = g.items.map((i) => `${i.value}/${i.secondaryValue ?? ""}`).join("|");
+    if (seenCharts.has(sig)) continue;
+    seenCharts.add(sig);
+    if (charts.length < 2) charts.push(g);
+  }
 
   // ---- CITATION RELEVANCE FILTER ---------------------------------------
   // `citations` (the parameter above) was built from ALL of the top-5
@@ -832,16 +1308,36 @@ function buildResult(
   // citation list. That's a deliberate consequence of this narrow fix, not
   // a bug -- extending source-tracking to tables/charts is a separate,
   // larger change.
-  const citedIds = new Set(keyFindings.flatMap((f) => f.sources));
-  const filteredCitations = citations.filter((c) => citedIds.has(c.id));
+  // a circular a table or a chart was read from is cited too (before, only findings counted: an answer that was all table and chart had no sources)
+  const citedIds = new Set<number>([...keyFindings.flatMap((f) => f.sources), ...(table?.sources ?? []), ...(extraTable?.sources ?? []), ...charts.flatMap((c) => c.sources ?? [])]);
+  const filteredCitations = citations.filter((c) => citedIds.has(c.id)).map((c) => ({ ...c, label: c.label ?? labels?.get(c.id) }));
+
+  // The overview is the first thing read, so it is held to the same rule as the findings: a sentence that asserts a figure
+  // found in no circular is dropped (before, only findings, the table and the charts were checked). If nothing safe is
+  // left, the first verified finding stands in for it rather than an invented sentence.
+  if (overview && !figuresSafe(overview)) droppedFigures++;
+  if (stats) stats.droppedFigures = droppedFigures;
+  const safeOverview =
+    !overview || figuresSafe(overview)
+      ? overview
+      : overview
+          .split(/(?<=[.!?])\s+(?=[A-Z*])/)
+          .filter((sentence) => figuresSafe(sentence))
+          .join(" ")
+          .trim();
+
+  const shown = [safeOverview, ...keyFindings.map((f) => f.text), ...[table, extraTable].flatMap((t) => (t ? [t.title || "", ...t.columns, ...t.rows.flat()] : []))].join(" \n ");
+  const defined = usedDefinitions(definedAbbreviations(sourceText), shown);
 
   return {
-    overview: overview || "No synthesis could be derived.",
+    overview: safeOverview || keyFindings[0]?.text || "No synthesis could be derived.",
     headline: parsed.headline?.toString().trim() || undefined,
     keyFindings,
     table,
+    ...(extraTable ? { extraTable } : {}),
     charts,
     citations: filteredCitations,
+    ...(Object.keys(defined).length ? { abbreviations: defined } : {}),
   };
 }
 
@@ -883,10 +1379,11 @@ function extractNumbersFromText(text: string): number[] {
 function groundTable(
   table: SynthesisTable,
   ok: (n: number) => boolean,
+  clean: (cell: string) => string = (c) => c,
 ): SynthesisTable | null {
   const rows = table.rows.filter((r) =>
     r.slice(1).every((cell) => {
-      const nums = extractNumbersFromText(cell);
+      const nums = extractNumbersFromText(clean(cell));
       return nums.every(ok);
     }),
   );

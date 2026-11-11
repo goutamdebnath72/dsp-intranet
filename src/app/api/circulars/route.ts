@@ -6,18 +6,21 @@ import { getDb } from "@/lib/db";
 import { Circular } from "@/lib/db/models/circular.model";
 import { DateTime } from "luxon";
 import { generateEmbedding } from "@/lib/ai/embedding.service";
-import { createOcrWorkerPool, destroyOcrWorkerPool, ocrPageDualPass } from "@/lib/ingestion/ocr";
+import { createGeminiOcr, geminiOcrReaders, readingSummary, type OcrResult } from "@/lib/ingestion/geminiOcr";
 import { buildPageUnits, planChunks } from "@/lib/ingestion/chunking";
 import { detectHolidayListCircular } from "@/lib/holidays/circularDetection";
+import { authorityForTicket, sessionActor } from "@/lib/circulars/admin/access";
+import { isSameOrigin } from "@/lib/circulars/admin/api";
+import { begin, Forbidden } from "@/lib/facility/authority";
+import { writeAudit } from "@/lib/facility/audit";
+import { IST } from "@/lib/dates";
 import { createRosterProbe } from "@/lib/ingestion/schedule/rosterProbe";
-import { createSecondReading, readingLine, uploadSecondReader } from "@/lib/ingestion/uploadSecondReading";
 import { checkRowsFor, savePageChecks } from "@/lib/search/pageChecks";
 import { combineChecks, twinChecksFor } from "@/lib/ingestion/crossCheck";
 import { slotChecksFor } from "@/lib/ingestion/currency";
 import { applyScheduleStage, logIngest, runScheduleStage, stageDetail, type IngestKind, type IngestStatus, type ScheduleStage, type Sql } from "@/lib/ingestion/schedule/ingest";
 
-// This route does two full Tesseract OCR passes PER PAGE (English, then
-// Hindi+English+Bengali) plus an embedding call per ~200-word chunk, so a
+// This route reads every page with Gemini (two models per page, a primary and a checker) plus an embedding call per ~200-word chunk, so a
 // multi-page circular can easily take well past Vercel's default function
 // duration. CONFIRMED: 300 seconds is a hard platform ceiling on the Hobby
 // plan -- Vercel's own dashboard rejects any value above it outright
@@ -36,11 +39,16 @@ export const maxDuration = 300;
 // ever costing the upload: the reading stops (status "timeout") once the request has run SCHEDULE_STOP_AFTER_MS; the roster pages are read the normal
 // way afterwards only if there is clearly time for it. The circular itself is saved whatever happens to the schedule.
 const SCHEDULE_STOP_AFTER_MS = 235_000;
-const MAX_UPLOAD_MS = 270_000;
-const FALLBACK_MS_PER_PAGE = 20_000;
-const FALLBACK_RESERVE_MS = 40_000;
-// The second reading (Gemini, per page, next to Tesseract) must be back by this time; the rest of the request is for assembling, embedding and the commit.
-const SECOND_READING_STOP_AFTER_MS = 200_000;
+// The Gemini page readings (a primary and a checker model per page) must be back by this time; the rest of the request is for assembling, embedding and the commit.
+const OCR_STOP_AFTER_MS = 200_000;
+
+/** A page that neither Gemini reader could read: the circular is not stored (a circular with an unread page would silently lose its content). */
+class OcrUnavailableError extends Error {
+  constructor(public readonly pages: Array<{ page: number; reason: string }>) {
+    super(`Gemini could not read page(s) ${pages.map((p) => p.page).join(", ")}: ${pages[0]?.reason ?? ""}`);
+    this.name = "OcrUnavailableError";
+  }
+}
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const tempPdfPath = `/tmp/circular_${Date.now()}.pdf`;
@@ -104,7 +112,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
    section further down and headlineEmbeddingSearch.ts on the read side) --
    but it is never OCR'd, never chunked, and its actual body content never
    becomes searchable, because its real facts are seeded separately and far
-   more reliably via /api/holidays/upload-and-seed.
+   more reliably from a human-curated JSON file.
 ============================================================ */
 export async function POST(req: Request) {
   const dataSource = await getDb();
@@ -136,6 +144,19 @@ export async function POST(req: Request) {
   };
 
   try {
+    // WHO MAY UPLOAD, decided before any file is read or any OCR is paid for: a logged-in HOD of C&IT or an active
+    // delegate of the Circular manager (authority read from the database, never from the cookie). The author is the
+    // SESSION's ticket: the old form field `authorTicketNo` let anyone sign a circular as any ticket, and this route
+    // had no login check at all.
+    if (!isSameOrigin(req.headers.get("origin"), req.headers.get("host"))) {
+      return NextResponse.json({ error: "Cross-site requests are not allowed." }, { status: 403 });
+    }
+    const actor = await sessionActor(dataSource);
+    if (!actor) return NextResponse.json({ error: "Please sign in to upload circulars." }, { status: 401 });
+    if (!(await authorityForTicket(dataSource, actor.ticket))) {
+      return NextResponse.json({ error: "Only the HOD of C&IT, or an authorised delegate, can upload circulars." }, { status: 403 });
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const rawHeadline = formData.get("headline") as string;
@@ -143,9 +164,7 @@ export async function POST(req: Request) {
     // string (e.g. "2024-08-20"). This drives the year tab.
     const rawPublishedAt = formData.get("publishedAt")?.toString() || "";
 
-    // Safely cast to string or undefined to satisfy TypeORM
-    const authorTicketNo =
-      formData.get("authorTicketNo")?.toString() || undefined;
+    const authorTicketNo: string = actor.ticket;
 
     if (!rawHeadline || !file) {
       console.warn("POST /api/circulars missing headline or file");
@@ -153,6 +172,15 @@ export async function POST(req: Request) {
         { error: "Missing headline or file" },
         { status: 400 },
       );
+    }
+
+    // The limits the screen shows are enforced HERE too (a direct request skips the screen): 15 MB, PDF / PNG / JPEG.
+    const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json({ error: "The file is larger than 15 MB." }, { status: 413 });
+    }
+    if (!["application/pdf", "image/png", "image/jpeg"].includes(file.type)) {
+      return NextResponse.json({ error: "Unsupported file type. Upload a PDF, PNG or JPG." }, { status: 400 });
     }
 
     // Auto-cleaner: strips leading numbers/dots (e.g., "108. ")
@@ -164,7 +192,7 @@ export async function POST(req: Request) {
     // circular) is uploaded through this same form purely so the original
     // document is visible and downloadable in the Circulars Archive -- its
     // actual holiday facts are seeded separately and far more reliably
-    // through /api/holidays/upload-and-seed from a human-curated JSON file.
+    // from a human-curated JSON file.
     // OCR-ing, chunking and embedding it here would create a second,
     // unstructured, error-prone copy of facts that already live correctly
     // in holidaymaster/holidayyear/holiday_policy_chunks -- exactly the
@@ -201,6 +229,11 @@ export async function POST(req: Request) {
       );
     }
 
+    // A circular cannot be issued in the future, nor before 2000 (the old date picker blocked both; the server did not).
+    if (publishedAt.year < 2000 || publishedAt.toISODate()! > DateTime.now().setZone(IST).toISODate()!) {
+      return NextResponse.json({ error: "The circular date cannot be in the future or before the year 2000." }, { status: 400 });
+    }
+
     // Server-stamped upload time — tamper-proof, never from the client.
     const uploadedAt = DateTime.now();
 
@@ -209,6 +242,14 @@ export async function POST(req: Request) {
     );
 
     const fileBytes = Buffer.from(await file.arrayBuffer());
+    // The declared type is only a claim: the first bytes must really be a PDF, a PNG or a JPEG.
+    const magicOk =
+      (file.type === "application/pdf" && fileBytes.subarray(0, 5).toString("latin1") === "%PDF-") ||
+      (file.type === "image/png" && fileBytes.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))) ||
+      (file.type === "image/jpeg" && fileBytes.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])));
+    if (!magicOk) {
+      return NextResponse.json({ error: "The file content does not match its type." }, { status: 400 });
+    }
     const fileUrls: string[] = [];
     let ocrAccumulatedText = "";
     // Per-page OCR text (index 0 = page 1). Used to chunk PER PAGE so each
@@ -218,14 +259,16 @@ export async function POST(req: Request) {
     const perPageText: string[] = [];
 
     // ROSTER CIRCULARS (a health check-up schedule): decided from the PAGES, not from the headline (see rosterProbe.ts). The pages that hold the
-    // roster table skip the slow generic OCR (their text would be a second, unstructured copy of data that is stored properly as rows) and the
-    // schedule is read, checked against HR and stored (see ingest.ts). Ordinary circulars never get here: every page is read exactly as before.
+    // roster table are not stored as text (their text would be a second, unstructured copy of data that is stored properly as rows): the schedule is read by
+    // Gemini, checked against HR and stored (see ingest.ts). Ordinary circulars never get here: every page is read exactly as before.
     const rosterProbe = createRosterProbe();
 
-    // SECOND READING (step 39a): a second reader (Gemini) reads each page image next to Tesseract; after the last page the two readings are reconciled and the
-    // better text is what gets chunked, embedded and stored (src/lib/ingestion/uploadSecondReading.ts). Off for a holiday-list circular (no OCR at all), without
-    // GEMINI_API_KEY, and with UPLOAD_SECOND_READING=false. A failure of this step never fails the upload: the page keeps the Tesseract text, as before.
-    const secondReading = createSecondReading({ reader: skipOcrAndEmbedding ? null : uploadSecondReader(), deadlineAt: startedAt + SECOND_READING_STOP_AFTER_MS });
+    // THE READING: every page image is read by Gemini (a primary model and, at the same time, a checker model); the primary reading is the page's text, and the numbers the
+    // checker does not confirm are recorded as unconfirmed (src/lib/ingestion/geminiOcr.ts). Off for a holiday-list circular (no OCR at all).
+    if (!skipOcrAndEmbedding && !process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ error: "Circulars are read by Gemini, and GEMINI_API_KEY is not set on the server. Nothing was saved." }, { status: 503 });
+    }
+    const gemOcr = skipOcrAndEmbedding ? null : createGeminiOcr({ readers: geminiOcrReaders(), deadlineAt: startedAt + OCR_STOP_AFTER_MS, concurrency: 4 });
     const rosterPageNumbers: number[] = [];
     const pagePngs: Buffer[] = []; // kept only while the circular could still turn out to be a roster
     let scheduleStage: ScheduleStage | null = null;
@@ -246,22 +289,7 @@ export async function POST(req: Request) {
       uploadedBlobUrls.push(url);
       fileUrls.push(url);
 
-      if (!skipOcrAndEmbedding) {
-        try {
-          secondReading.start(1, fileBytes); // the second reader looks at the same image while Tesseract works
-          console.log("DEBUG: Running dual-pass OCR (PSM 3) on image...");
-          const ocrWorkers = await createOcrWorkerPool();
-          try {
-            const text = await ocrPageDualPass(fileBytes, "image", ocrWorkers);
-            ocrAccumulatedText += text + " ";
-            perPageText[0] = text; // single-image circular == page 1
-          } finally {
-            await destroyOcrWorkerPool(ocrWorkers);
-          }
-        } catch (err) {
-          console.error("OCR failed on image:", err);
-        }
-      }
+      gemOcr?.start(1, fileBytes); // single-image circular == page 1
     } else if (file.type === "application/pdf") {
       /* PDF via pdf-to-img (pure JS/WASM, built on pdfjs-dist — no
          GraphicsMagick/ImageMagick binary required). scale = 300/72
@@ -279,13 +307,6 @@ export async function POST(req: Request) {
       const parsed: any = await parseFn(fileBytes);
       const numPages = parsed.numpages || doc.length || 1;
 
-      // Created ONCE for the whole document, not per page -- see
-      // createOcrWorkerPool's comment for why this matters for duration.
-      // Not created at all for a detected holiday-list circular -- nothing
-      // below will use it, and spinning up Tesseract workers is real,
-      // avoidable cost for a document whose text is never embedded.
-      const ocrWorkers = skipOcrAndEmbedding ? null : await createOcrWorkerPool();
-
       try {
         for (let page = 1; page <= numPages; page++) {
           const pngBuffer = await doc.getPage(page);
@@ -297,15 +318,13 @@ export async function POST(req: Request) {
           uploadedBlobUrls.push(url);
           fileUrls.push(url);
 
-          // Is this page the roster table of a health check-up schedule? (An image check of the first pages, then one small OCR of the table's
-          // headings: see rosterProbe.ts. A failure of the check just means "an ordinary page".)
-          let isRosterPage = false;
-          if (ocrWorkers) {
+          if (gemOcr) {
+            gemOcr.start(page, pngBuffer); // both Gemini readers begin on the page at once, while the next page is rendered
+            // Is this page the roster table of a health check-up schedule? (An image check of the first pages, then, for a page that looks like one, the heading
+            // row of Gemini's reading of it: see rosterProbe.ts. A failure of the check just means "an ordinary page".)
+            let isRosterPage = false;
             try {
-              const verdict = await rosterProbe.classify(pngBuffer, page, async (png) => {
-                const r = await ocrWorkers.eng.recognize(png, {}, { text: false, tsv: true });
-                return (r?.data?.tsv as string) || "";
-              });
+              const verdict = await rosterProbe.classify(pngBuffer, page, () => gemOcr.textOf(page));
               isRosterPage = verdict.roster;
             } catch (err) {
               console.warn(`UPLOAD: the roster check failed on page ${page} (treated as an ordinary page):`, (err as any)?.message || err);
@@ -314,27 +333,8 @@ export async function POST(req: Request) {
             else pagePngs[page - 1] = pngBuffer;
             if (isRosterPage) rosterPageNumbers.push(page);
           }
-
-          if (ocrWorkers && !isRosterPage) secondReading.start(page, pngBuffer); // second reader and Tesseract work on the page at the same time
-          if (ocrWorkers && !isRosterPage) {
-            try {
-              console.log(
-                `DEBUG: Running dual-pass OCR (PSM 3) on PDF page ${page}...`,
-              );
-              const text = await ocrPageDualPass(
-                pngBuffer,
-                `page ${page}`,
-                ocrWorkers,
-              );
-              ocrAccumulatedText += text + " \n";
-              perPageText[page - 1] = text; // page is 1-based; store 0-based
-            } catch (err) {
-              console.error(`OCR failed on page ${page}:`, err);
-            }
-          }
         }
       } finally {
-        if (ocrWorkers) await destroyOcrWorkerPool(ocrWorkers);
         await doc.destroy();
       }
 
@@ -347,28 +347,7 @@ export async function POST(req: Request) {
             (scheduleStage.problems.length ? `, problems: ${scheduleStage.problems.slice(0, 3).join(" | ")}` : "") +
             (scheduleStage.error ? `, error: ${scheduleStage.error}` : ""),
         );
-        if (scheduleStage.status !== "ready") {
-          // The schedule could not be stored now. Keep the circular fully searchable: read its roster pages the normal way, if clearly there is time.
-          const timeLeft = startedAt + MAX_UPLOAD_MS - Date.now();
-          if (timeLeft > rosterPageNumbers.length * FALLBACK_MS_PER_PAGE + FALLBACK_RESERVE_MS) {
-            const fallbackWorkers = await createOcrWorkerPool();
-            try {
-              for (const pn of rosterPageNumbers) {
-                try {
-                  const text = await ocrPageDualPass(pagePngs[pn - 1], `page ${pn}`, fallbackWorkers);
-                  ocrAccumulatedText += text + " \n";
-                  perPageText[pn - 1] = text;
-                } catch (err) {
-                  console.error(`OCR failed on roster page ${pn}:`, err);
-                }
-              }
-            } finally {
-              await destroyOcrWorkerPool(fallbackWorkers);
-            }
-          } else {
-            console.warn("UPLOAD: no time left to read the roster pages the normal way; the schedule can be read afterwards with scripts/import-health-checkups.ts");
-          }
-        }
+        // A schedule that could not be stored now keeps the circular fully searchable: its roster pages stay in the text (their Gemini reading is already there).
       }
     } else {
       console.warn("Unsupported file type:", file.type);
@@ -378,10 +357,23 @@ export async function POST(req: Request) {
       );
     }
 
-    // The pages the second reader read take its text where it is the better one; the assembled text is rebuilt from the pages (it feeds the circular's own vector).
-    const secondSummary = await secondReading.finish(perPageText);
-    if (secondSummary.changedPages > 0) ocrAccumulatedText = perPageText.filter((t) => t && t.trim()).join(" \n") + " \n";
-    if (secondSummary.enabled) console.log(`UPLOAD: second reading: ${readingLine(secondSummary.log) || "no page was read"}`);
+    // The page texts: Gemini's primary reading of each page (the checker's where the primary failed). A page that neither could read stops the upload.
+    // The pages of a roster that was stored as rows are left out of the text.
+    const storedAsRows = new Set<number>(scheduleStage?.status === "ready" ? rosterPageNumbers : []);
+    let ocrResult: OcrResult | null = null;
+    if (gemOcr) {
+      ocrResult = await gemOcr.finish();
+      const failed = ocrResult.failedPages.filter((f) => !storedAsRows.has(f.page));
+      if (failed.length) throw new OcrUnavailableError(failed);
+      for (const [pg, text] of ocrResult.texts) if (!storedAsRows.has(pg)) perPageText[pg - 1] = text;
+      ocrAccumulatedText = perPageText.filter((t) => t && t.trim()).join(" \n") + " \n";
+    }
+    const secondSummary = {
+      enabled: !!ocrResult,
+      checks: (ocrResult?.checks ?? []).filter((c) => !storedAsRows.has(c.page)),
+      log: ocrResult?.log ?? null,
+    };
+    if (ocrResult) console.log(`UPLOAD: reading: ${readingSummary(ocrResult.log) || "no page was read"}`);
 
     /* ============================
        TEXT extraction -- skipped entirely for a detected holiday-list
@@ -421,17 +413,20 @@ export async function POST(req: Request) {
     ============================ */
     let embedding: number[] | null = null;
     if (skipOcrAndEmbedding) {
-      embedding = await generateEmbedding(headline);
+      // Everything STORED is embedded as a DOCUMENT (RETRIEVAL_DOCUMENT); only questions are embedded as queries. The upload
+      // used the default (query) type, so a circular uploaded after the Gemini re-read of the archive sat in a different
+      // vector distribution from the other 57 and its scores could not be compared with theirs.
+      embedding = await generateEmbedding(headline, "search_document");
     } else if (scheduleStage?.status === "ready" && !(extractedText && extractedText.length > 20)) {
       // A schedule circular with no letter pages: its rows are stored, but it still needs one semantic signal to be findable, so, like a holiday
       // list, it gets a headline-only embedding (headlineEmbeddingSearch.ts reads it for circulars with no chunks).
-      embedding = await generateEmbedding(headline);
+      embedding = await generateEmbedding(headline, "search_document");
     } else if (extractedText && extractedText.length > 20) {
       const safeEmbeddingText =
         extractedText.length > 8192
           ? extractedText.slice(0, 8192)
           : extractedText;
-      embedding = await generateEmbedding(safeEmbeddingText);
+      embedding = await generateEmbedding(safeEmbeddingText, "search_document");
     }
 
     /* ============================
@@ -453,7 +448,7 @@ export async function POST(req: Request) {
     if (!skipOcrAndEmbedding) {
       // Same chunking as the archive re-read tool: see src/lib/ingestion/chunking.ts
       for (const c of planChunks(buildPageUnits(perPageText, extractedText))) {
-        const rawVector = await generateEmbedding(c.text); // fatal on throw
+        const rawVector = await generateEmbedding(c.text, "search_document"); // fatal on throw
         preparedChunks.push({
           index: c.index,
           page: c.page,
@@ -532,6 +527,18 @@ export async function POST(req: Request) {
             );
           }
 
+          // THE AUDIT ROW, in the same transaction as the circular: both commit or neither does. begin() takes the
+          // Circular manager's lock and decides the authority AGAIN now: someone withdrawn while the (long) OCR was
+          // running cannot commit. (The screen used to send a separate "record-audit" request afterwards: it read a
+          // response field that does not exist, so no upload was ever audited.)
+          const q = async (sql: string, params?: unknown[]) => manager.query(sql, params as never[]);
+          const role = await begin(q, "circular", actor);
+          await writeAudit(q, "circular", actor, role, "add", {
+            targetId: saved.id,
+            after: { id: saved.id, headline, serialNumber: nextSerial, year, pages: fileUrls.length, chunks: preparedChunks.length },
+            note: "Circular uploaded",
+          });
+
           return saved;
         });
         break; // committed
@@ -564,13 +571,13 @@ export async function POST(req: Request) {
     // circular's holidays for human review. That facility has been removed:
     // holiday-list circulars are now caught upfront (see skipOcrAndEmbedding
     // above) and never OCR'd/embedded in the first place, and the real
-    // holiday data is seeded directly from a human-curated JSON file via
-    // /api/holidays/upload-and-seed -- a review-and-approve staging step for
-    // an LLM's guess at the same data added risk without adding value once
-    // that direct path existed. If this project ever needs to reconstruct a
-    // circular's holiday data automatically again, start from
-    // holidays/circularDetection.ts and holidays/extraction.ts, both still
-    // present but unused.
+    // holiday data is seeded directly from a human-curated JSON file -- a
+    // review-and-approve staging step for an LLM's guess at the same data
+    // added risk without adding value once that direct path existed. The
+    // staging routes and the extraction module were removed (they stay in
+    // git history). If this project ever needs to reconstruct a circular's
+    // holiday data automatically again, start from
+    // holidays/circularDetection.ts.
 
     // ---- What the backend decided about this circular: store its schedule if it is a roster circular, and write the decision to the log.
     // The circular is already committed: nothing in this block can make the upload fail.
@@ -615,12 +622,15 @@ export async function POST(req: Request) {
 
     await cleanupTempFiles();
 
+    // Saved but unreadable: no text became chunks, so search can never find it. Say so instead of a plain success.
+    const unreadable = !skipOcrAndEmbedding && preparedChunks.length === 0 && rosterPageNumbers.length === 0;
     return NextResponse.json({
       message: "Circular uploaded successfully",
+      ...(unreadable ? { warning: "No text could be read from this document, so search will not find it. Check the file, or upload a clearer copy." } : {}),
       circular,
       ingest,
       secondReading: secondSummary.log,
-      readingLine: readingLine(secondSummary.log),
+      readingLine: readingSummary(secondSummary.log),
     });
   } catch (err: any) {
     console.error(
@@ -630,10 +640,17 @@ export async function POST(req: Request) {
     // The DB transaction (if any) has already rolled back; remove blob bytes.
     await cleanupBlobs();
     await cleanupTempFiles();
-    return NextResponse.json(
-      { error: err?.message || "Upload failed" },
-      { status: 500 },
-    );
+    if (err instanceof Forbidden) {
+      return NextResponse.json({ error: "Your authority to upload circulars was withdrawn. Nothing was saved." }, { status: 403 });
+    }
+    if (err instanceof OcrUnavailableError) {
+      const why = err.pages[0]?.reason ?? "";
+      const credits = /\b402\b|credits? (are )?depleted|billing/i.test(why);
+      const limit = /429|quota|limit/i.test(why);
+      return NextResponse.json({ error: `The circular could not be read by Gemini (page ${err.pages.map((p) => p.page).join(", ")})${credits ? ": the Gemini credits are used up, so the administrator must add credit" : limit ? ": the Gemini usage limit was reached" : ""}. Nothing was saved.${credits ? "" : " Please try again in a few minutes."}` }, { status: 503 });
+    }
+    // The real cause is in the log above; the browser gets a plain sentence (no internals).
+    return NextResponse.json({ error: "Upload failed. Nothing was saved. Please try again." }, { status: 500 });
   }
 }
 

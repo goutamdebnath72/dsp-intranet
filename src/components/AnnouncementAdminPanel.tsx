@@ -38,6 +38,8 @@ import type {
   AnnouncementItemView,
 } from "@/lib/announcements/admin/types";
 import RichTextEditor from "@/components/RichTextEditor";
+import { stickySuccess } from "@/lib/ui/stickyToast";
+import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 import { NonExecutiveAsk } from "./facility/NonExecutive";
 import {
   AnnouncementAdminHeader,
@@ -191,6 +193,7 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
 
       setBusy(false);
       if (res.ok) {
+        stickySuccess("✅ Announcement updated successfully!"); // stays until its cross is clicked
         setNotice({ tone: "ok", text: "Announcement updated successfully!" });
         setEditingId(null);
         setEditingVersion(null);
@@ -218,6 +221,7 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
 
       setBusy(false);
       if (res.ok) {
+        stickySuccess(`✅ Announcement published! You can modify or delete this for the next ${Math.round(EDIT_DELETE_WINDOW_HOURS / 24)} days.`); // stays until its cross is clicked
         setNotice({ tone: "ok", text: "Announcement published successfully and indexed for AI search!" });
         setTitle("");
         setContent("");

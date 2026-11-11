@@ -1,7 +1,7 @@
 // src/lib/ingestion/currency.ts
 //
 // THE INDIAN RUPEE SIGN (₹, U+20B9) IN THE TEXT OF A CIRCULAR (step 42b). It is printed before amounts all through the circulars, and OCR cannot read it:
-// the English model of Tesseract has no rupee glyph at all, and on 342 degraded renders (19 Oct 2026, 19 font faces) it wrote the sign as 2, 7, 3, %, ¥, €, ®,
+// an OCR engine's English model can have no rupee glyph at all: on 342 degraded renders (19 Oct 2026, 19 font faces) one engine wrote the sign as 2, 7, 3, %, ¥, €, ®,
 // =, ~, *, X, t, F or Z, or dropped it. When the sign touches the amount, a digit-like guess FUSES into the number: `₹15,000` became `215,000` and `715,000`,
 // `₹112.50` became `2112.50`. That is a wrong amount that looks right; it caused the invented "275,000" of the gift-card circular.
 //

@@ -45,8 +45,8 @@ export async function recentAuditRows(db: FacilityDb, facility: FacilityKey, lim
   }));
 }
 
-/** Who last added or changed this record, and when (never a value): what a refused, out-of-date save tells the person. */
+/** Who last added or changed this record, and when (never a value): what a refused, out-of-date save tells the person. Every action that changes a record counts (add, modify, delete, seed, clear, confirm ...); only authorising people and merely viewing do not. */
 export async function lastChangeOf(q: QueryFn, facility: FacilityKey, targetId: number): Promise<LastChange | null> {
-  const r = (await q(`SELECT at, actor_name, actor_ticket, action FROM public.facility_audit WHERE facility = $1 AND target_id = $2 AND action IN ('add', 'modify') ORDER BY id DESC LIMIT 1`, [facility, targetId]))[0];
+  const r = (await q(`SELECT at, actor_name, actor_ticket, action FROM public.facility_audit WHERE facility = $1 AND target_id = $2 AND action NOT IN ('grant', 'revoke', 'view') ORDER BY id DESC LIMIT 1`, [facility, targetId]))[0];
   return r ? { at: toIsoInstant(r.at) ?? "", actorName: str(r.actor_name), actorTicket: str(r.actor_ticket), action: str(r.action) } : null;
 }

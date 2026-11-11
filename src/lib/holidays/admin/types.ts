@@ -4,7 +4,7 @@
 
 import type { DelegateView, AuditRow, LastChange } from "@/lib/facility/types";
 
-export type HolidayAdminOp = "seed" | "clear" | "staging" | "delegate" | "history";
+export type HolidayAdminOp = "seed" | "clear" | "delegate" | "history";
 
 /** What the omnibar hands the panel when an authorised person asks to manage holidays. */
 export interface HolidayAdminOpen {
@@ -29,31 +29,6 @@ export interface HolidayYearView {
   /** Version hash for lost-update protection (HMAC) */
   version: string;
   lastChange: LastChange | null;
-}
-
-export interface StagedHolidayEntry {
-  name: string;
-  date: string;
-  type: "CH" | "FH" | "RH";
-  categories: string | null;
-  note: string | null;
-  isNewMaster: boolean;
-  newAlias: string | null;
-}
-
-export interface PendingExtractionView {
-  id: number;
-  circularId: number;
-  year: number;
-  status: string;
-  createdAt: string;
-  holidayCount: number;
-  newCount: number;
-  noteCount: number;
-  nearMissCount: number;
-  holidays: StagedHolidayEntry[];
-  rhQuota: Array<{ category: string; quota: number }>;
-  warnings: string[];
 }
 
 export type HolidayDelegateView = DelegateView;

@@ -19,7 +19,7 @@ export type FetchedHoliday = {
   // guaranteed unique per row, unlike date+title, which legitimately
   // collides for the same real holiday's separate FH and RH database rows
   // sharing an identical date and name (a confirmed, intentional data
-  // pattern, not an error -- see holidays/extraction.ts's own comments).
+  // pattern, not an error).
   date: string; // ISO date string from server
   title: string;
   type: string;

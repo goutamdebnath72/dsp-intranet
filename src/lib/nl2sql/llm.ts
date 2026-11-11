@@ -7,6 +7,7 @@
 
 import type { LlmFn } from "./types";
 import { traceModelCall, traceWait } from "../search/frontPathTrace";
+import { chatModels, geminiGenerate, preferGroq } from "../ai/geminiChat";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -110,4 +111,36 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
       throw new Error(`Groq API failed (${res.status}) using model "${model}": ${text.slice(0, 300)}`);
     }
   };
+}
+
+/**
+ * Gemini adapter with the same LlmFn shape as groqLlm. The model answers JSON only (the NL2SQL
+ * pipeline parses JSON). Thinking is "low": SQL writing needs a little reasoning, not a lot, and
+ * a large thinking budget makes every employee question slow and dearer.
+ *   GEMINI_CHAT_MODEL  main model (default gemini-3.8-flash); falls back to gemini-flash-latest.
+ */
+export function geminiLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onUsage?: (u: TokenUsage) => void } = {}): LlmFn {
+  return async (prompt: string) => {
+    const r = await geminiGenerate(prompt, {
+      json: true,
+      models: chatModels(),
+      maxOutputTokens: opts.maxTokens ?? 4096,
+      thinking: "low",
+      totalTimeoutMs: Math.min((opts.maxWaitSeconds ?? 45) * 1000, 55_000),
+      label: "nl2sql",
+      onUsage: opts.onUsage,
+    });
+    return r.text;
+  };
+}
+
+/**
+ * The model function the app uses. Which provider:
+ *   LLM_PROVIDER=gemini | groq   explicit choice;
+ *   otherwise Gemini whenever GEMINI_API_KEY exists (Groq's free tier proved unusable and its
+ *   paid tier is closed), and Groq only when it is the only key present.
+ */
+export function chatLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onUsage?: (u: TokenUsage) => void } = {}): LlmFn {
+  const useGroq = preferGroq();
+  return useGroq ? groqLlm(opts) : geminiLlm(opts);
 }

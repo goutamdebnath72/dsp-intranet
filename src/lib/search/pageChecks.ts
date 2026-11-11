@@ -1,7 +1,7 @@
 /**
  * What a second reader said about the numbers of a circular's pages, for the answer card (the gate in circularAnswer.ts).
  *
- * The check script (scripts/check-readings.ts --save) stores, per page, the numbers both readings had ("confirmed") and the numbers only the
+ * The cross-check script (scripts/crosscheck-report.ts --apply) stores, per page, the numbers both readings had ("confirmed") and the numbers only the
  * pipeline had ("unconfirmed"), together with a FINGERPRINT of the page text it checked. A check is used only while the stored page text still
  * has that fingerprint: if the circular is re-read later, its check is stale and is ignored, so a check can never vouch for text it did not see.
  */

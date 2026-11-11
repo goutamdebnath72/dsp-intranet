@@ -1,5 +1,5 @@
 {
-  "_about": "What the hardest scanned pages REALLY say, read by eye from the page images (17 Oct 2026). Used by scripts/ocr-pilot.ts to score each reader. numbers: every one must be read exactly (commas ignored). phrases: must appear (case, spaces and punctuation ignored). together: all the parts must stand on ONE line (a label with its value: this is what a table reader must get right). forbidden: wrong readings seen before; each one found counts as a mistake.",
+  "_about": "What the hardest scanned pages REALLY say, read by eye from the page images (17 Oct 2026). Used by src/lib/ingestion/currency.selftest.ts (the old scripts/ocr-pilot.ts scored each reader with it). numbers: every one must be read exactly (commas ignored). phrases: must appear (case, spaces and punctuation ignored). together: all the parts must stand on ONE line (a label with its value: this is what a table reader must get right). forbidden: wrong readings seen before; each one found counts as a mistake.",
   "pages": [
     {
       "id": "wage-notice",

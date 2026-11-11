@@ -252,3 +252,15 @@ button.modal-close:hover svg,
 .announcement-content u {
   text-decoration: underline;
 }
+
+/* ===== The width of the page, for the omnibar box =====
+   --omni-page-width is the width of the page behind the omnibar box: the full width below the md breakpoint (768px), --content-width from md up (the same rule as
+   `w-full md:w-[var(--content-width)]` on every page wrapper). The box is never wider than this, and a wide answer (a table of 4+ columns) makes it exactly this wide. */
+:root {
+  --omni-page-width: 100vw;
+}
+@media (min-width: 768px) {
+  :root {
+    --omni-page-width: var(--content-width);
+  }
+}

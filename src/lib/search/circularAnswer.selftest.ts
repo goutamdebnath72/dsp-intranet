@@ -534,6 +534,26 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
     ok("documentSentenceFor: the best of several sentences is chosen", /entitlement of Casual leave/.test(many) && !/^Casual Leave & Medical/.test(many), many);
     const cutRows = verifyAnswer({ ...GOOD, note: "Entitlement is calculated proportionately to the worker's engagement period.", rows: Array.from({ length: 13 }, () => WAGE_ROWS[0]) }, [P_WAGE]);
     ok("the SYSTEM's own note about cut rows is not filtered by the rule", cutRows.ok && cutRows.value.note === "The document lists more than are shown here.", cutRows.ok ? cutRows.value.note : cutRows.reason);
+
+    // Circular 22 contractor holidays & compensation for working on them:
+    const circ22Text = `I. CLOSED/PUBLIC HOLIDAYS: SL. NO: 1 | HOLIDAY: Republic Day | DATE: 26th January | DAY: Sunday SL. NO: 2 | HOLIDAY: May Day | DATE: 1st May | DAY: Thursday SL. NO: 3 | HOLIDAY: Independence Day | DATE: 15th August | DAY: Friday SL. NO: 4 | HOLIDAY: Mahatma Gandhi's Birthday | DATE: 2nd October | DAY: Thursday If a contractor worker is required to work on the above-mentioned Public Holidays, a compensatory off within two months / within the contract period or one day's wage in lieu thereof will be granted. The contractor workers whose weekly off-day coincides with the any of the above mentioned Public Holidays, they can avail a compensatory off only within two months or within the contract period whichever is earlier.`;
+    const circ22Doc = mk(1, 22, "Circular - Holidays and leaves for contractor workers in DSP -2025", "2024-12-27", circ22Text, 2);
+    const holidayAns: ModelAnswer = {
+      answerable: true,
+      title: "Closed/Public Holidays for Contractor Workers for 2025",
+      rows: [
+        row("Republic Day", "DATE", "26th January", 1, "SL. NO: 1 | HOLIDAY: Republic Day | DATE: 26th January | DAY: Sunday"),
+        row("May Day", "DATE", "1st May", 1, "SL. NO: 2 | HOLIDAY: May Day | DATE: 1st May | DAY: Thursday"),
+        row("Independence Day", "DATE", "15th August", 1, "SL. NO: 3 | HOLIDAY: Independence Day | DATE: 15th August | DAY: Friday"),
+        row("Mahatma Gandhi's Birthday", "DATE", "2nd October", 1, "SL. NO: 4 | HOLIDAY: Mahatma Gandhi's Birthday | DATE: 2nd October | DAY: Thursday"),
+      ],
+      note: "If required to work on these holidays, compensatory off within two months or one day's wage in lieu thereof is granted.",
+    };
+    const holidayRes = verifyAnswer(holidayAns, [circ22Doc]);
+    ok("contractor holidays: compensation note is verified and kept as document's own sentence", holidayRes.ok && /compensatory off within two months \/ within the contract period or one day's wage/.test(holidayRes.value.note), holidayRes.ok ? holidayRes.value.note : holidayRes.reason);
+
+    const holidayInventedNum = verifyAnswer({ ...holidayAns, note: "Workers receive Rs 9999 bonus if working on holidays." }, [circ22Doc]);
+    ok("contractor holidays: invented bonus number in note is dropped", holidayInventedNum.ok && holidayInventedNum.value.note === "", holidayInventedNum.ok ? holidayInventedNum.value.note : holidayInventedNum.reason);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

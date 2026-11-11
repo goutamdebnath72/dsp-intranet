@@ -59,4 +59,5 @@ export const DEPARTMENT_GROUPS: DepartmentGroup[] = [
   { name: "HR", aliases: ["hr", "human resources", "human resource"], prefixes: ["hr"] },
   { name: "ED (WORKS)", aliases: ["ed works", "ed (works)", "executive director works"], prefixes: ["ed works"] },
   { name: "TOWN ADMINISTRATION (TA BUILDING)", aliases: ["town administration", "town admin", "ta building", "ta bldg"], prefixes: ["township maintenance", "s e township maintenance", "estate and township branch"], stems: ["town serv"] },
+  { name: "CENTRAL STORES (CSD, sub-department of Marketing)", aliases: ["csd", "c s d", "c.s.d", "c.s.d.", "central stores", "central store", "central stores dept", "central stores deptt", "central stores department"], prefixes: ["central stores"] },
 ];

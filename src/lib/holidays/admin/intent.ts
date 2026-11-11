@@ -39,8 +39,6 @@ export function detectHolidayAdminIntent(typed: string): HolidayAdminIntent | nu
 
   if (/\b(?:clear|unseed|erase|remove\s+year|delete\s+year)\b/i.test(norm)) {
     op = "clear";
-  } else if (/\b(?:staging|extraction|review)\b/i.test(norm)) {
-    op = "staging";
   } else if (/\b(?:delegate|authorise|authorize|grant|revoke|withdraw|permission|privilege|access)\b/i.test(norm)) {
     op = "delegate";
   } else if (/\b(?:history|audit|log)\b/i.test(norm)) {

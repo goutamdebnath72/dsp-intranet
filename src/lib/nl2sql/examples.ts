@@ -87,6 +87,37 @@ WHERE cohort = 'executive'
     source: "seed",
   },
   {
+    question: "how many employees are currently posted in the C&IT department, and who is the Head of Department",
+    sql: `SELECT ${PEOPLE}
+FROM nlq.employees
+WHERE department_id IN (SELECT id FROM nlq.departments WHERE code IN (98500, 98530, 98540))
+ORDER BY global_seniority_rank`,
+    understood_as: "All employees posted in C&IT (all its sections) ordered by seniority rank; the senior-most executive at the top is the Head of Department.",
+    source: "seed",
+  },
+  {
+    question: "who is the Head of Department of C&IT",
+    sql: `SELECT ${PEOPLE}
+FROM nlq.employees
+WHERE cohort = 'executive'
+  AND department_id IN (SELECT id FROM nlq.departments WHERE code IN (98500, 98530, 98540))
+ORDER BY global_seniority_rank
+LIMIT 1`,
+    understood_as: "The Head of Department (senior-most executive) of C&IT.",
+    source: "seed",
+  },
+  {
+    question: "who is in charge of blast furnace",
+    sql: `SELECT ${PEOPLE}
+FROM nlq.employees
+WHERE cohort = 'executive'
+  AND department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%blast furnace%')
+ORDER BY global_seniority_rank
+LIMIT 1`,
+    understood_as: "The executive in charge (senior-most executive) of Blast Furnace.",
+    source: "seed",
+  },
+  {
     question: "designation wise count of employees in plant garage",
     sql: `SELECT designation, count(*) AS count
 FROM nlq.employees

@@ -281,7 +281,7 @@ export function HistoryList({ history }: { history: CircularAuditView[] }) {
           >
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-900 capitalize">
-                {row.action === "add" ? "Uploaded Circular" : row.action === "grant" ? "Granted Delegate" : "Withdrew Delegate"}
+                {({ add: "Uploaded Circular", modify: "Edited Circular", delete: "Deleted Circular", grant: "Granted Delegate", revoke: "Withdrew Delegate" } as Record<string, string>)[row.action] ?? row.action}
               </span>
               <span className="text-[11px] text-slate-500">{time}</span>
             </div>

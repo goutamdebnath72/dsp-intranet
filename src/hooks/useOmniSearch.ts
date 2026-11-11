@@ -1,7 +1,8 @@
 // src/hooks/useOmniSearch.ts
 import type { HolidayDetail } from "@/lib/holidays/format";
 import type { HolidayCompareView } from "@/lib/holidays/compareView";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { isIdQuery } from "@/lib/search/idQuery";
 import useSWR, { mutate as globalMutate } from "swr";
 import type { SynthesisResult } from "@/lib/search/executiveSynthesis";
 import type { Nl2SqlExtras } from "@/lib/nl2sql/clientTypes";
@@ -126,22 +127,26 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   // true when the ENTER KEY (not the old button) sent the question to Executive Deep Synthesis (step 27a)
   const [autoRouted, setAutoRouted] = useState(false);
 
+  const clearSearch = useCallback(() => {
+    setSubmittedQuery("");
+    setMode(null);
+    setRetry(null);
+    setAttempt(1);
+    setAutoRouted(false);
+    globalMutate(
+      (key) => typeof key === "string" && key.startsWith("/api/ai-search"),
+      undefined,
+      { revalidate: false },
+    );
+  }, []);
+
   // Wipe all state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setQuery("");
-      setSubmittedQuery("");
-      setMode(null);
-      setRetry(null);
-      setAttempt(1);
-      setAutoRouted(false);
-      globalMutate(
-        (key) => typeof key === "string" && key.startsWith("/api/ai-search"),
-        undefined,
-        { revalidate: false },
-      );
+      clearSearch();
     }
-  }, [isOpen]);
+  }, [isOpen, clearSearch]);
 
   // ONLY executed when a mode button is explicitly clicked
   const triggerSearch = (selectedMode: SearchMode, opts?: { auto?: boolean; query?: string }) => {
@@ -185,18 +190,30 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     },
   );
 
+  const trimmedQ = (query || "").trim();
+  const trimmedSubmitted = (submittedQuery || "").trim();
+  const isId = isIdQuery(trimmedQ);
+  // Stale guard: if the user changed the query or typed an ID (e.g. CUG, ticket, mobile),
+  // results from a previous query must NOT linger as residue.
+  const isStale = isId || (trimmedSubmitted.length > 0 && trimmedQ !== trimmedSubmitted);
+
   // Normalize response whether it's the new synthesis object or the legacy flat array
-  const rawResults: OmniSearchResult[] = Array.isArray(data)
+  const rawResults: OmniSearchResult[] = !shouldFetch || isStale || !submittedQuery || mode === null
+    ? []
+    : Array.isArray(data)
     ? data
     : data?.results || [];
   // a document that shares nothing with the question must not wear a confident percentage (step 61a; ledger item 57): marked once per answer, from the question that was searched
-  const results: OmniSearchResult[] = useMemo(() => markWeakMatches(submittedQuery, rawResults), [submittedQuery, data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const results: OmniSearchResult[] = useMemo(
+    () => (rawResults.length > 0 ? markWeakMatches(submittedQuery, rawResults) : []),
+    [submittedQuery, rawResults],
+  );
 
   const synthesis: SynthesisResult | null =
-    !Array.isArray(data) && data?.synthesis ? data.synthesis : null;
+    !isStale && !Array.isArray(data) && data?.synthesis ? data.synthesis : null;
 
   const analytics: AnalyticsAnswer | null =
-    !Array.isArray(data) && (data as OmniSearchResponse)?.analytics
+    !isStale && !Array.isArray(data) && (data as OmniSearchResponse)?.analytics
       ? (data as OmniSearchResponse).analytics!
       : null;
 
@@ -226,6 +243,9 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     attempt,
     requestRetry,
     setQuery,
+    clearSearch,
+    /** true while the text in the box is no longer the text that was searched (the old answer is hidden meanwhile) */
+    isStale,
     // A synthesis that arrives on the plain Enter path (the engine chose it, step 26a) is shown as one: the screen follows the answer.
     mode: synthesis ? ("intellectual" as SearchMode) : mode,
     triggerSearch,

@@ -231,7 +231,7 @@ RULES
    "quote": text copied CHARACTER FOR CHARACTER from that passage, at most 300 characters, ONE table row or ONE sentence, that contains the label, the column label and the value together.
 4. TABLES: where a table was rebuilt as "Column: value | Column: value", use those labels and take the value from the column the question asks about. NEVER take a total or any other column just because it is the number you can read. If the column labels are missing or unclear, return {"answerable": false}.
 5. "title": a short heading for the answer (at most 80 characters), with the date or year it applies from if the document says so. Use words like daily, monthly or yearly in the title or note ONLY if a column label or the quote itself says so.
-6. "note": optional, one short sentence for a condition or exception the passages state. Leave it out if there is none.
+6. "note": when the question asks both for specific facts/dates/figures AND an explanatory rule, condition, compensation, or eligibility, put the specific facts in "rows" and state the explanatory rule/compensation/condition in "note" as one clear sentence using the document's own words. Otherwise, optional short sentence for a condition or exception the passages state; leave it empty "" if there is none.
 7. If the passages give different values for different years or versions, give a row for each and say in the note which is the latest.
 
 Return JSON only, in this form:
@@ -677,8 +677,31 @@ export function documentSentenceFor(note: string, passages: Passage[]): string {
   if (want.length < NOTE_MIN_WORDS) return "";
   let best = "", bestScore = 0;
   for (const p of passages) {
-    for (const raw of p.text.split(/(?<=[.!?])\s+(?=[A-Z0-9"\u201c(])|\n+/)) {
-      const sentence = raw.replace(/\s+/g, " ").trim();
+    // Separate table rows, section heads, and glued text:
+    // - Before section headers like "I. CLOSED", "II. FESTIVAL"
+    // - Before "SL. NO:" table rows
+    // - Where a table cell ends and a prose sentence starts without punctuation: " | DAY: Thursday If a contractor worker is required..."
+    const prepped = p.text
+      .replace(/(\b[A-Za-z0-9)]+)\s+(?=[IVXLCDM]+\.\s+[A-Z])/g, "$1.\n")
+      .replace(/(\b[A-Za-z0-9)]+)\s+(?=SL\.\s*NO[\s.:])/gi, "$1.\n")
+      .replace(/([|][^|:\n]+:\s*[^|:\n\s]+)\s+([A-Z][a-z]+(?:\s+[a-z]+){2,})/g, "$1.\n$2");
+
+    for (const raw of prepped.split(/(?<=[.!?])\s+(?=[A-Z0-9"\u201c(])|\n+/)) {
+      let sentence = raw.replace(/\s+/g, " ").trim();
+      if (!sentence) continue;
+      // If a segment still holds a table pipe, check if trailing prose follows the last pipe cell
+      if (/ \| /.test(sentence)) {
+        const lastPipe = sentence.lastIndexOf("|");
+        const after = sentence.slice(lastPipe + 1).trim();
+        const col = after.indexOf(":");
+        if (col >= 0) {
+          const valAndRest = after.slice(col + 1).trim();
+          const m = valAndRest.match(/^[^\s]+\s+([A-Z][a-z]+.*)$/);
+          if (m && m[1].length >= 25) {
+            sentence = m[1].trim();
+          }
+        }
+      }
       if (sentence.length < 25 || sentence.length > 420 || / \| /.test(sentence)) continue;
       const have = new Set(contentWords(sentence).map(stemWord));
       const score = want.filter((w) => have.has(w)).length / want.length;
@@ -819,8 +842,29 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
     return TIME_GROUPS.some((g) => g.some((w) => words.has(w)) && !g.some((w) => supportWords.has(w)));
   };
   const title = !a.title || saysTooMuch(a.title) ? cut(docs[0]?.title ?? "", MAX_TITLE_CHARS) : a.title;
-  // the model's note becomes the document's own sentence or nothing; what the SYSTEM says about the answer (rows cut) is not the model's and is kept
-  const modelNote = a.note && !saysTooMuch(a.note) ? documentSentenceFor(a.note, docs) : "";
+  // The model's note becomes the document's own verified sentence or nothing; what the SYSTEM says about the answer (rows cut) is kept.
+  // Numbers in the note must come from the rows/title/date or the matched document sentence.
+  // Time/recency words in the note must be supported by the rows or the document sentence itself.
+  let modelNote = "";
+  if (a.note) {
+    const docSentence = documentSentenceFor(a.note, docs);
+    if (docSentence) {
+      const noteAllowed = new Set(allowed);
+      numbersIn(docSentence, true).forEach((x) => noteAllowed.add(x));
+      const noteNums = numbersIn(a.note, false);
+      const hasInventedNumber = noteNums.some((x) => !noteAllowed.has(x));
+
+      const docSentenceWords = wordSet(docSentence);
+      const noteWords = wordSet(a.note);
+      const hasUnsupportedTimeWord = TIME_GROUPS.some(
+        (g) => g.some((w) => noteWords.has(w)) && !g.some((w) => supportWords.has(w) || docSentenceWords.has(w))
+      );
+
+      if (!hasInventedNumber && !hasUnsupportedTimeWord) {
+        modelNote = docSentence;
+      }
+    }
+  }
   const note = modelNote || (answer.rows.length > MAX_ROWS ? "The document lists more than are shown here." : "");
 
   return {

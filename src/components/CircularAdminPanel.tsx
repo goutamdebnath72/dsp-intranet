@@ -39,6 +39,7 @@ import type {
 } from "@/lib/circulars/admin/types";
 import { NonExecutiveAsk } from "./facility/NonExecutive";
 import { CircularViewerLightbox } from "./CircularViewerLightbox";
+import { stickySuccess } from "@/lib/ui/stickyToast";
 import {
   CircularAdminHeader,
   CircularRow,
@@ -240,7 +241,6 @@ export function CircularAdminPanel({ open }: { open: CircularAdminOpen }) {
     const formData = new FormData();
     formData.append("headline", headline.trim());
     formData.append("publishedAt", issueDate);
-    formData.append("authorTicketNo", open.ticket);
     formData.append("file", file);
 
     try {
@@ -261,27 +261,23 @@ export function CircularAdminPanel({ open }: { open: CircularAdminOpen }) {
       const note = typeof data?.readingLine === "string" ? data.readingLine : "";
       setReadingNote(note);
 
-      if (data?.fileUrl) {
-        setUploadedCircularUrl(data.fileUrl);
-      }
-      if (data?.id) {
-        setUploadedCircularId(data.id);
-      }
+      // The upload response is { message, circular: {id, fileUrls, ...}, warning?, readingLine, ... }. (The audit row is
+      // written by the server in the same transaction as the circular: there is nothing to record from here.)
+      const created = data?.circular;
+      if (created?.id) setUploadedCircularId(Number(created.id));
+      const firstFile = Array.isArray(created?.fileUrls) ? created.fileUrls[0] : null;
+      if (typeof firstFile === "string" && firstFile) setUploadedCircularUrl(firstFile);
+      const warning = typeof data?.warning === "string" ? data.warning : "";
 
-      // Record audit row in facility_audit
-      if (data?.id) {
-        void call({
-          op: "record-audit",
-          circularId: data.id,
-          headline: headline.trim(),
-          note: note ? `Uploaded: ${note}` : "Uploaded official circular",
-        });
-      }
+      // The upload is finished at the back end (read, checked, chunked, embedded and saved): a toast at the top of the screen stays until its cross is clicked,
+      // so it is seen even when the modal is closed meanwhile.
+      stickySuccess(warning ? "✅ Circular uploaded. Please read the note in the panel." : "✅ Circular upload is successful!");
 
-      setNotice({
-        tone: "ok",
-        text: `Official circular posted successfully! ${note ? `(${note})` : ""}`,
-      });
+      setNotice(
+        warning
+          ? { tone: "warn", text: `Circular posted, but: ${warning}` }
+          : { tone: "ok", text: `Official circular posted successfully! ${note ? `(${note})` : ""}` },
+      );
 
       // Reset form fields
       setHeadline("");
@@ -453,7 +449,7 @@ export function CircularAdminPanel({ open }: { open: CircularAdminOpen }) {
               <div className="flex items-center justify-between text-xs font-bold text-blue-950">
                 <span className="flex items-center gap-1.5">
                   <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                  {uploadProgress < 15 ? "Uploading file to server…" : "Dual-pass OCR, text extraction & embedding in progress…"}
+                  {uploadProgress < 15 ? "Uploading file to server…" : "Dual-pass OCR, text extraction, embedding & vectoring in progress…"}
                 </span>
                 <span>{uploadProgress}%</span>
               </div>

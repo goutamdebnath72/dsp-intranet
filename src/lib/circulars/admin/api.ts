@@ -35,7 +35,6 @@ export function isSameOrigin(origin: string | null | undefined, host: string | n
 const OPS = new Set([
   "me",
   "recent",
-  "record-audit",
   "delegates",
   "find-executive",
   "grant",
@@ -105,19 +104,10 @@ export async function handleCircularAdmin(body: unknown, ctx: ApiContext): Promi
 
   // 1. List Recent Circulars (default last 5)
   if (op === "recent") {
-    const limit = num(b.limit) ?? 5;
+    // a whole number from 1 to 50 (an unchecked value allowed a huge or negative LIMIT)
+    const limit = Math.min(50, Math.max(1, Math.trunc(num(b.limit) ?? 5)));
     const circulars = await store.listRecentCirculars(ctx.db, limit);
     return reply(200, { circulars });
-  }
-
-  // 2. Record Circular Upload Audit
-  if (op === "record-audit") {
-    const circularId = num(b.circularId);
-    const headline = text(b.headline, 500);
-    const note = text(b.note, 200) || "circular uploaded";
-    if (!circularId) return reply(400, { error: "Missing circularId." });
-    await store.recordCircularAudit(ctx.db, actor, circularId, headline, note);
-    return reply(200, { status: "ok" });
   }
 
   // 3. Delegation (HOD-only)

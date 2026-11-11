@@ -29,6 +29,7 @@ import { dateAsked, emptyDateNote } from "./healthDates";
 import { healthHeadline } from "./healthHeadline";
 import { answerDegreeQuestion } from "@/lib/qualifications/degreeAnswer";
 import { isDoctorPerson, isPhdHolder, titleFor, withTitlesInRows } from "@/lib/employees/honorific";
+import { formatDepartmentDisplay } from "@/lib/employees/sailDepartments";
 import { disciplineOfTicket } from "@/lib/hospital/discipline";
 import { presentPeople, withCohortInHint } from "./seniorityDisplay";
 import { withoutBlindScope } from "@/lib/employees/unresolvedScope";
@@ -195,7 +196,7 @@ function rowToEmployee(r: any): EmployeeResult {
     title: titleFor(r.ticket_no, r.designation_track, r.doctor_override),
     phd: isPhdHolder(r.ticket_no, r.designation_track, r.doctor_override) || undefined,
     discipline: isDoctorPerson(r.designation_track, r.doctor_override) ? disciplineOfTicket(r.ticket_no) ?? undefined : undefined,
-    department: r.dept_name || null,
+    department: formatDepartmentDisplay(r.dept_name),
     mobileMasked: maskMobile(r.contactNo || null),
     emailMasked: maskEmail(r.email || null),
     hasMobile: !!r.contactNo,
@@ -287,6 +288,29 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
     const v = Number(rows[0][columns[0]]);
     if (Number.isFinite(v)) {
       return { kind: "count", count: v, answer: res.understoodAs, nl2sql: extras, ...tag };
+    }
+  }
+
+  // a single row with executive/non-executive count breakdown
+  if (rows.length === 1) {
+    const execCol = columns.find((c) => /^executives?$/i.test(c) || (/executives?/i.test(c) && !/non/i.test(c)));
+    const nonExecCol = columns.find((c) => /non[\s_-]?exec/i.test(c));
+    if (execCol && nonExecCol) {
+      const exec = Number(rows[0][execCol] ?? 0);
+      const nonExec = Number(rows[0][nonExecCol] ?? 0);
+      const totalCol = columns.find((c) => /^(total|count)$/i.test(c));
+      const sum = totalCol ? Number(rows[0][totalCol] ?? (exec + nonExec)) : (exec + nonExec);
+      if (Number.isFinite(sum) && sum >= 0) {
+        extras.table = table;
+        return {
+          kind: "count",
+          count: sum,
+          answer: `${sum.toLocaleString()} ${sum === 1 ? "person" : "people"} found: ${exec.toLocaleString()} ${exec === 1 ? "executive" : "executives"} and ${nonExec.toLocaleString()} non-executive${nonExec === 1 ? "" : "s"}.`,
+          interpretation: res.understoodAs,
+          nl2sql: extras,
+          ...tag,
+        };
+      }
     }
   }
 
@@ -496,13 +520,13 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
 
 /** Entry point used by the search route: wires the real model, database and existing engines. */
 export async function answerOmnibar(q: string, userKey: string | null, retry: RetryInfo | null = null, opts: { skipModel?: boolean } = {}): Promise<OmnibarPayload | null> {
-  const { groqLlm } = await import("./llm");
+  const { chatLlm } = await import("./llm");
   const { withDefaultClient } = await import("./db");
   return runOmnibar(q, userKey, {
     enabled: process.env.NL2SQL_OMNIBAR_ENABLED !== "false",
     verifiedMin: verifiedMinConfirms(),
     skipModel: opts.skipModel,
-    llm: groqLlm(),
+    llm: chatLlm(),
     withClient: withDefaultClient,
     employeeAdmin: async (qq, ticket) => {
       // the employee manager (step 66a, src/lib/employees/admin/omnibar.ts): the sentence is read first (pure), the database is asked only for a sentence that IS such a request

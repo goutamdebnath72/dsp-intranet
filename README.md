@@ -2,7 +2,7 @@
 
 The intranet of SAIL Durgapur Steel Plant: home page, circulars archive, holiday calendar, employee directory, and the **omnibar**, a natural-language search bar that answers questions about employees, holidays, circulars and health check-up schedules.
 
-Built with Next.js 14 (App Router), TypeORM on Postgres (Supabase), Vercel Blob for the circulars' page images, Tesseract OCR, and Groq / Gemini for the language model and embeddings.
+Built with Next.js 14 (App Router), TypeORM on Postgres (Supabase), Vercel Blob for the circulars' page images, Gemini vision OCR (two models read every page), and Groq / Gemini for the language model and embeddings.
 
 ## Run it locally
 
@@ -49,7 +49,15 @@ NL2SQL_TEST_ADMIN_URL=postgres://postgres:<pw>@127.0.0.1:5432/postgres npx tsx s
 | Script | Use |
 |---|---|
 | `import-health-checkups.ts` | list the health check-up circulars and what was stored; read one by hand (`--ids N`, then `--apply`) |
-| `reread-circulars.ts` | re-read stored circulars with the current OCR (a dry run first) |
+| `reingest-circulars-gemini.ts` | ingest or re-read circulars with Gemini vision OCR |
+| `gemini-read-archive.ts` | read the archive's page images with the two Gemini readers and save the readings in `reread-cache/gemini` |
+| `ocr-consensus.ts` | consensus correction of the stored circular text from those two readings |
+| `crosscheck-report.ts` | English / Hindi / Bengali cross-check of the archive (report only; `--apply` stores the checks) |
+| `eds-store.ts` | list or clear the stored Executive Deep Synthesis briefings |
+| `test-eds-query.ts` | run one question through the Executive Deep Synthesis engine and print the briefing |
+| `eds-gold.ts`, `eds-panel.ts`, `eds-variance.ts` | judge the engine: answer keys, a panel of questions, repeat-run variance |
+| `eds-circular-text.ts` | print the stored text of a circular, to check a briefing against its source |
+| `render-eds-pdf.mts` | draw a saved reply as the same PDF the Download button makes, without a browser |
 | `bulk-upload.mjs` | upload many circulars from a folder using `circulars_manifest.csv` |
 | `wipe-circulars.mjs` | `npm run wipe:circulars`: delete circulars |
 | `audit-blob.mjs` | find page images in Blob storage that no circular uses |

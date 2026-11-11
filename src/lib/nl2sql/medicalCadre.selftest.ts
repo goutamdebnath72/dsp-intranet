@@ -39,6 +39,11 @@ eq("the live case after the change: 39 medical-track + 6 flagged = 45 doctors, 1
 eq("only flagged doctors and non-medical people: still a split", peopleHeadline(8, false, [...flagged(2), ...some(6, "managerial")]), "8 people found: 2 doctors and 6 non-medical.");
 eq("a list of flagged doctors only: no split", peopleHeadline(3, false, flagged(3)), "3 people found.");
 
+// ---- executive and non-executive breakdown across departments (e.g. C&IT)
+eq("executive and non-executive split: e.g. C&IT with 18 executives and 7 non-executives", peopleHeadline(25, false, [...some(18, "managerial"), ...some(7, "nonexec")]), "25 people found: 18 executives and 7 non-executives.");
+eq("executive and non-executive split with 1 person each", peopleHeadline(2, false, [...some(1, "managerial"), ...some(1, "nonexec")]), "2 people found: 1 executive and 1 non-executive.");
+eq("hospital with doctors, non-medical executives and non-executives", peopleHeadline(12, false, [...some(6, "medical"), ...some(4, "managerial"), ...some(2, "nonexec")]), "12 people found: 10 executives (6 doctors and 4 non-medical) and 2 non-executives.");
+
 // ---- which questions are about doctors
 for (const q of ["how many doctors are there in M&HS", "list non-medical executives in main hospital", "list the non medical executives in M&HS", "executives who are not doctors", "how many physicians are there", "show the medical staff of the hospital", "list all doctor in the plant", "nonmedical executives in main hospital"]) ok(`a doctor question: ${q}`, isDoctorQuestion(q));
 for (const q of ["how many executives are there in main hospital, list them?", "list the medical officers", "how many executives work in each section of C&IT", "who is more senior, Mohd Anwar Ullah or Rana Saha", "how many GMs are there", "which designation has the most executives", "list the employees whose name has kumar as a word"]) ok(`an ordinary question is not: ${q}`, !isDoctorQuestion(q));

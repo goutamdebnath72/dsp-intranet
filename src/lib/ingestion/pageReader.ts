@@ -1,9 +1,8 @@
 // src/lib/ingestion/pageReader.ts
 //
-// THE SECOND READER. Tesseract reads a page one way; Gemini (a vision model) reads it another way and fails differently (Tesseract mixes up
-// look-alike digits and loses columns; a vision model reads layout, Hindi, Bengali and symbols well but can invent a digit or stop early).
-// Two readers that fail DIFFERENTLY are worth far more than one better reader: where they agree, a value is very probably right; where they
-// disagree, it is flagged (readingCheck.ts). This file is only the connection to Gemini, kept behind one small interface.
+// THE GEMINI PAGE READER. A vision model reads layout, Hindi, Bengali and symbols well but can invent a digit or stop early, so every page is read by TWO models
+// (a primary and a checker, geminiOcr.ts): where they agree, a value is very probably right; where they disagree, it is flagged (readingCheck.ts).
+// This file is only the connection to Gemini, kept behind one small interface.
 //
 //   PAGE_READER=gemini   (needs GEMINI_API_KEY; GEMINI_VISION_MODEL names the model, default below: model names are retired from time to time)
 //   PAGE_READER unset or "none": no second reader
@@ -87,6 +86,10 @@ export function parseQuotaError(body: string): QuotaInfo {
 export interface GeminiOptions {
   apiKey?: string;
   model?: string;
+  /** The instructions sent with the image (default: the page-text prompt). */
+  prompt?: string;
+  /** Ask for a JSON reply (a structured reading such as a roster); a cut-off reply is then an error, not a reading with a marker. */
+  json?: boolean;
   /** Attempts per read, the first included (default 3: the first and two retries). */
   maxAttempts?: number;
   fetchImpl?: FetchLike;
@@ -116,8 +119,8 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
     async read(png: Buffer, hooks?: ReadHooks): Promise<string> {
       if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
       const body = JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: PAGE_READER_PROMPT }, { inline_data: { mime_type: sniffImageMime(png), data: png.toString("base64") } }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 8192 },
+        contents: [{ role: "user", parts: [{ text: opts.prompt ?? PAGE_READER_PROMPT }, { inline_data: { mime_type: sniffImageMime(png), data: png.toString("base64") } }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: opts.json ? 16384 : 8192, ...(opts.json ? { responseMimeType: "application/json" } : {}) },
       });
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
       let lastErr = "";
@@ -136,6 +139,10 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
             if (!text) throw new Error(`Gemini returned no text (${data?.candidates?.[0]?.finishReason ?? data?.promptFeedback?.blockReason ?? "no reason given"})`);
             // a reply that did not end normally (cut off at the length limit, stopped by a safety rule) or in which the model looped is marked
             const finish = data?.candidates?.[0]?.finishReason;
+            if (opts.json) {
+              if (finish && finish !== "STOP") throw new Error(`Gemini's reply was cut off (${finish})`);
+              return text;
+            }
             let out = cutAtLoop(text);
             if (finish && finish !== "STOP" && !out.endsWith(STOPPED_MARKER)) out += "\n" + STOPPED_MARKER;
             return out;

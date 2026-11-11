@@ -55,6 +55,7 @@ const EXPECT: [string, number][] = [
   ["HR", 11],
   ["ED (WORKS)", 4],
   ["TOWN ADMINISTRATION (TA BUILDING)", 6],
+  ["CENTRAL STORES (CSD, sub-department of Marketing)", 3],
 ];
 for (const [name, n] of EXPECT) {
   const g = DEPARTMENT_GROUPS.find((x) => x.name === name)!;
@@ -86,6 +87,7 @@ eq("f&a: every F&A- row and FINANCE & A/C BRANCH", rowsOf("executives in f&a"), 
 eq("hr: the 11 HR rows", rowsOf("executives in hr"), ids(/^HR( |$)/));
 eq("ed works: the 4 ED (WORKS) rows, and ed alone is not a department (it is Executive Director)", [rowsOf("executives in ed works"), rowsOf("how many ED are there")], [ids(/^ED( |$)/), []]);
 eq("town administration, ta building, town admin: all 6 sections (TOWNSHIP MAINTENANCE, S E TOWNSHIP MAINTENANCE, ESTATE & TOWNSHIP BRANCH, TOWN SERV- B&R/PHM, TOWN SERV-ELECT MAINT., TOWN SERVICES (TECH))", [rowsOf("executives in town administration"), rowsOf("executives in ta building"), rowsOf("executives in town admin")], Array(3).fill(ids(/^(TOWNSHIP MAINTENANCE|S E TOWNSHIP|ESTATE & TOWNSHIP|TOWN SERV)/)));
+eq("csd, central stores, central stores department: the 3 Central Stores rows (90, 151, 256)", ["csd", "central stores", "central stores department"].map((a) => rowsOf(`executives in ${a}`)), Array(3).fill(ids(/^CENTRAL STORES/)));
 ok("...but not ESTATE-ACCOUNTS, and the words A-Zone / B-Zone are NOT mapped (the data has no zone rows: a count for one zone would silently be all of Town Administration)", !rowsOf("executives in ta building").some((i) => /^ESTATE-ACCOUNTS/.test(all.find((d) => d.id === i)!.name)) && rowsOf("executives in a-zone maintenance").length === 0 && rowsOf("executives in b zone maintenance").length === 0);
 ok("ta building also reaches it through the old short form", selectRelevantDepartments("executives in ta building", all).some((d) => d.code === 650));
 

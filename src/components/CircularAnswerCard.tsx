@@ -134,10 +134,10 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
       )}
 
       {a.note ? (
-        <p className="mx-4 mt-3 flex items-start gap-2 text-[13px] leading-relaxed text-neutral-600">
-          <Info size={14} className="mt-0.5 flex-shrink-0 text-blue-500" aria-hidden />
-          <span>{a.note}</span>
-        </p>
+        <div className="mx-4 mt-3 flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-[13px] leading-relaxed text-neutral-700">
+          <Info size={16} className="mt-0.5 flex-shrink-0 text-blue-600" aria-hidden />
+          <span className="flex-1 font-medium">{a.note}</span>
+        </div>
       ) : null}
 
       {a.rows.some((r) => r.linked === false) ? (

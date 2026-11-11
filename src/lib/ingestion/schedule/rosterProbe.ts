@@ -7,7 +7,7 @@
 //   1. STRUCTURE (image only, about a second a page): a ruled table whose last column is cut into MERGED cells, far fewer than the rows beside them
 //      (a roster prints each date once for a whole group of rows; an ordinary table has a rule on every row in every column). Pages of letters and
 //      ordinary tables fail here, so an ordinary circular costs nothing but this look at its first few pages.
-//   2. HEADINGS (one English OCR of ONE page, once per document): the top of the table must read like a roster's heading row: the TICKET column
+//   2. HEADINGS (Gemini's reading of ONE page, once per document): the top of the table must read like a roster's heading row: the TICKET column
 //      (T.No) and at least two of Name, Deptt, Department, Date, Code. A ruled table with date cells that is NOT a roster stops here and is read
 //      the normal way. (If the first roster-like page has no headings, being a continuation page, the next one is tried before giving up.)
 //
@@ -20,8 +20,6 @@
 import { clusterLines, findHorizontalLines, loadGray } from "./lines";
 import { estimateTilt, deskewPng } from "./deskew";
 import { findDateCells, findFrame, type Frame } from "./dateCells";
-import { maskRules } from "./extractSchedule";
-import { wordsFromTsv, type Word } from "./rosterRows";
 
 /** How many of a document's first pages are looked at to find a roster table. */
 export const ROSTER_DISCOVERY_PAGES = 6;
@@ -65,38 +63,18 @@ export async function analyzeRosterStructure(png: Buffer): Promise<RosterStructu
 
 const OTHER_HEADINGS = ["name", "deptt", "department", "date", "code"];
 
-/** How far below the top of the table frame the heading row is looked for (300 dpi pixels): the frame can start with a title block, which varies
- *  from one circular to the next (the heading row was found about 115 px down in one and about 220 px down in another). */
-const HEADER_SEARCH_PX = 420;
+/** How much of the page's text (Gemini's reading) is searched for the heading row: the heading row sits right below the title. */
+const HEADER_TEXT_CHARS = 1800;
 
 /**
- * Do the words at the top of the table read like a roster's heading row: the TICKET column (T.No) and at least two of Name, Deptt, Department,
- * Date, Code? The ticket column is required so that a stray "name" or "date" in a table of something else cannot pass.
+ * Do the first lines of the page's text read like a roster's heading row: the TICKET column (T.No) and at least two of Name, Deptt, Department, Date, Code?
+ * The ticket column is required so that a stray "name" or "date" in a table of something else cannot pass. The text is Gemini's reading of the page.
  */
-export function headerLooksLikeRoster(words: Word[], frame: Pick<Frame, "top" | "rules">): boolean {
-  const left = frame.rules[0] - 5;
-  const right = frame.rules[frame.rules.length - 1] + 5;
-  const hay = words
-    .filter((w) => {
-      const cy = w.top + w.height / 2;
-      const cx = w.left + w.width / 2;
-      return cy >= frame.top - 10 && cy <= frame.top + HEADER_SEARCH_PX && cx >= left && cx <= right;
-    })
-    .map((w) => w.text.toLowerCase().replace(/[^a-z]/g, ""))
-    .join(" ");
-  const ticketColumn = /\btno\b|ticketno|\bticket\b/.test(hay);
-  return ticketColumn && OTHER_HEADINGS.filter((k) => hay.includes(k)).length >= 2;
-}
-
-/** Reads the heading row of the page's table (one English OCR of the page) and says whether it reads like a roster's. */
-export async function confirmRosterHeader(png: Buffer, ocrTsv: (png: Buffer) => Promise<string>): Promise<boolean> {
-  const tilt = estimateTilt(await loadGray(png));
-  const { png: straight } = await deskewPng(png, tilt.k);
-  const g = await loadGray(straight);
-  const frame = findFrame(g);
-  if (!frame) return false;
-  const masked = await maskRules(straight, g, frame);
-  return headerLooksLikeRoster(wordsFromTsv(await ocrTsv(masked)), frame);
+export function headerLooksLikeRosterText(text: string): boolean {
+  const hay = String(text ?? "").slice(0, HEADER_TEXT_CHARS).toLowerCase();
+  const letters = hay.replace(/[^a-z]+/g, " ");
+  const ticketColumn = /\bt\s?no\b|ticket\s?no|\bticket\b/.test(letters) || /t\.\s?no/.test(hay);
+  return ticketColumn && OTHER_HEADINGS.filter((k) => letters.includes(k)).length >= 2;
 }
 
 export interface RosterVerdict {
@@ -105,8 +83,8 @@ export interface RosterVerdict {
 }
 
 export interface RosterProbe {
-  /** Page by page, in order. `ocrTsv` is an English whole-page OCR returning tesseract TSV (used once, to read the heading row). */
-  classify(png: Buffer, pageNo: number, ocrTsv: (png: Buffer) => Promise<string>): Promise<RosterVerdict>;
+  /** Page by page, in order. `readText` returns Gemini's reading of the page (called only for a page that LOOKS like a roster, to read its heading row). */
+  classify(png: Buffer, pageNo: number, readText: () => Promise<string>): Promise<RosterVerdict>;
   /** null = undecided, true = a roster circular, false = an ordinary one */
   readonly isRoster: boolean | null;
 }
@@ -119,7 +97,7 @@ export function createRosterProbe(opts: { discoveryPages?: number } = {}): Roste
     get isRoster() {
       return confirmed;
     },
-    async classify(png, pageNo, ocrTsv) {
+    async classify(png, pageNo, readText) {
       if (confirmed === false) return { roster: false, why: "this circular is not a roster" };
       if (confirmed === null && pageNo > discoveryPages) {
         confirmed = false; // no roster table in the first pages: an ordinary circular, and no more looking
@@ -129,7 +107,7 @@ export function createRosterProbe(opts: { discoveryPages?: number } = {}): Roste
       if (!s.rosterLike) return { roster: false, why: s.why };
       if (confirmed === null) {
         headerTries++;
-        if (await confirmRosterHeader(png, ocrTsv)) confirmed = true;
+        if (headerLooksLikeRosterText(await readText())) confirmed = true;
         else {
           if (headerTries >= 2) confirmed = false; // two roster-like pages and neither has roster headings: not a roster
           return { roster: false, why: "a table with a date column, but its headings do not read like a roster's" };

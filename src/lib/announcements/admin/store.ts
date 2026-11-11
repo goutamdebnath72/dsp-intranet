@@ -80,6 +80,8 @@ export async function listRecentAnnouncements(
   actor: Actor,
   limit = 5,
 ): Promise<AnnouncementItemView[]> {
+  // a whole number from 1 to 50 (an unchecked client value allowed 1e9 rows of full HTML, or a negative LIMIT = a 500)
+  limit = Number.isFinite(limit) ? Math.min(50, Math.max(1, Math.trunc(limit))) : 5;
   return db.run(async (q) => {
     const authority = await authorityOf(q, "announcement", actor.ticket);
     const isHod = authority === "hod";
@@ -142,7 +144,15 @@ export async function publishAnnouncement(
 
   const safeContent = sanitizeAnnouncementHtml(input.content);
   const contentText = htmlToPlainText(safeContent);
-  const dateIso = input.date || DateTime.now().setZone(IST).toUTC().toISO();
+  // The date must be a real ISO date/time (it went straight to the database before: a bad string was a 500).
+  let dateIso: string | null;
+  if (input.date) {
+    const parsedDate = DateTime.fromISO(input.date);
+    if (!parsedDate.isValid) return { status: "invalid", reason: "The announcement date is not a valid date." };
+    dateIso = parsedDate.toUTC().toISO();
+  } else {
+    dateIso = DateTime.now().setZone(IST).toUTC().toISO();
+  }
 
   const id = await db.run(async (q) => {
     const role = await begin(q, "announcement", actor);
@@ -199,12 +209,13 @@ export async function modifyAnnouncement(
       sent: input.sentVersion,
       load: async (): Promise<AnnouncementDbRow | null> => {
         const rows = await q(
-          `SELECT a.*, COALESCE(er.name, u.name) as author_name
+          `SELECT a.id, a.title, a.content, a."contentText", a.date, a."createdAt", a."authorTicketNo",
+                  COALESCE(er.name, u.name) AS author_name
              FROM public.announcement a
              LEFT JOIN public.employee_roster er ON er.ticket_no = a."authorTicketNo"
              LEFT JOIN public."user" u ON u."ticketNo" = a."authorTicketNo"
             WHERE a.id = $1
-            FOR UPDATE`,
+            FOR UPDATE OF a`, // OF a: Postgres refuses to lock the nullable side of the LEFT JOINs (it failed every modify and delete)
           [input.id],
         );
         return (rows[0] as unknown as AnnouncementDbRow) || null;
@@ -289,12 +300,13 @@ export async function deleteAnnouncement(
       sent: input.sentVersion,
       load: async (): Promise<AnnouncementDbRow | null> => {
         const rows = await q(
-          `SELECT a.*, COALESCE(er.name, u.name) as author_name
+          `SELECT a.id, a.title, a.content, a."contentText", a.date, a."createdAt", a."authorTicketNo",
+                  COALESCE(er.name, u.name) AS author_name
              FROM public.announcement a
              LEFT JOIN public.employee_roster er ON er.ticket_no = a."authorTicketNo"
              LEFT JOIN public."user" u ON u."ticketNo" = a."authorTicketNo"
             WHERE a.id = $1
-            FOR UPDATE`,
+            FOR UPDATE OF a`, // OF a: Postgres refuses to lock the nullable side of the LEFT JOINs (it failed every modify and delete)
           [input.id],
         );
         return (rows[0] as unknown as AnnouncementDbRow) || null;
@@ -335,7 +347,7 @@ export async function deleteAnnouncement(
       };
     }
 
-    await q(`DELETE FROM public.announcement_read_status WHERE "announcementId" = $1`, [input.id]);
+    await q(`DELETE FROM public.announcementreadstatus WHERE "announcementId" = $1`, [input.id]);
     await q(`DELETE FROM public.announcement WHERE id = $1`, [input.id]);
 
     await writeAudit(q, "announcement", actor, role, "delete", {

@@ -17,6 +17,8 @@
 //    and the directory name search). A person already shown in the first list must not be
 //    printed again in the second.
 
+import { detectSynthesisIntent } from "./synthesisIntent";
+
 // The page also has a "title" mode, so this is a plain string. Only "intellectual" matters here.
 export type SearchModeLike = string | null;
 
@@ -27,12 +29,28 @@ export interface HintInput {
   mode: SearchModeLike;
   circularShown: boolean;
   answerCardShown: boolean;
+  /** The state of the session. The EDS sign-in advice is given only to a visitor who is DEFINITELY signed out ("unauthenticated"), never while the session is still being checked ("loading").
+   *  When it is not passed, it is derived from `authenticated`. */
+  authStatus?: "authenticated" | "unauthenticated" | "loading";
+  /** The kill switch of the automatic EDS route (autoEdsEnabled). When EDS is switched off nobody is told to sign in for it. Default: on. */
+  edsEnabled?: boolean;
 }
 
 export interface LoginHint {
-  kind: "synthesis" | "plain";
+  /** "eds-signin": the question is an Executive Deep Synthesis question and the visitor is signed out. */
+  kind: "synthesis" | "plain" | "eds-signin";
   text: string;
+  /** "signin": the bar offers a button that opens the sign-in window. */
+  action?: "signin";
 }
+
+/**
+ * The advice given to a SIGNED-OUT visitor whose question belongs to Executive Deep Synthesis. Which questions those are is decided by ONE detector, the same that routes a signed-in
+ * executive's question (synthesisIntent.ts: level "synthesis", never the weaker "borderline"), so the advice and the route can never disagree.
+ */
+export const EDS_SIGNIN_TEXT =
+  "This looks like an Executive Deep Synthesis (EDS) question: the answer has to be built from several circulars into one written summary, with sources. " +
+  "EDS is available to executives. If you are an executive, sign in with your credentials and ask this question again.";
 
 const ANALYTICAL_RE = new RegExp(
   "\\b(" +
@@ -115,6 +133,12 @@ export function decideLoginHint(i: HintInput): LoginHint | null {
   // run there is nothing to advise.
   if (i.mode === "intellectual") return null;
 
+  // A signed-out visitor who fired an EDS-category question: say so, and say what to do (sign in as an executive, ask again). Only for a visitor who is definitely signed out.
+  const status = i.authStatus ?? (i.authenticated ? "authenticated" : "unauthenticated");
+  if (status === "unauthenticated" && i.edsEnabled !== false && detectSynthesisIntent(i.query || "").synthesis) {
+    return { kind: "eds-signin", text: EDS_SIGNIN_TEXT, action: "signin" };
+  }
+
   if (i.circularShown && !i.answerCardShown && looksAnalytical(i.query)) {
     if (!i.authenticated) {
       return {
@@ -137,6 +161,21 @@ export function decideLoginHint(i: HintInput): LoginHint | null {
 type WithTicket = { ticketNo?: string | null };
 
 /** Drop from `others` anyone whose ticket number is already present in `shown`. Rows with no ticket are kept. */
+/**
+ * After the "sign in" advice: the visitor signs in as an executive WHILE the EDS question is still on the screen. The question must then run by itself
+ * through EDS (what the Enter key would have done for an executive), not stay as the plain circular answer the signed-out visit got.
+ * True only for a visit that went from not-an-executive to executive, with the window open, the answer on screen being the plain search (not EDS already)
+ * of a question that cleanly falls in the EDS group (same detector as the advice), and the box still holding that question (not edited since).
+ */
+export function resumeAsEds(i: { wasExecutive: boolean; isExecutive: boolean; isOpen: boolean; mode: SearchModeLike; query: string; submittedQuery: string; edsEnabled?: boolean }): boolean {
+  if (i.wasExecutive || !i.isExecutive || !i.isOpen) return false;
+  if (i.edsEnabled === false) return false;
+  if (i.mode !== "semantic") return false;
+  const sent = (i.submittedQuery || "").trim();
+  if (sent.length < 3 || (i.query || "").trim() !== sent) return false;
+  return detectSynthesisIntent(sent).synthesis;
+}
+
 export function excludeShownPeople<T extends WithTicket>(
   shown: WithTicket[] | null | undefined,
   others: T[],

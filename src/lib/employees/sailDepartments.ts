@@ -62,6 +62,22 @@ export function normDept(s: string): string {
     .trim();
 }
 
+/**
+ * The department name as shown to people. Central Stores (CSD) is an administrative sub-department of Marketing, so it
+ * is shown with that: "CENTRAL STORES DEPTT. (Marketing)"; a name that already ends in a bracket gets it inside the same
+ * bracket: "CENTRAL STORES (OFFICE, Marketing)" (never "(OFFICE) (Marketing)"). Null / blank gives null. It is the ONE
+ * place this rule lives; every screen that shows a department name from the roster goes through it.
+ */
+export function formatDepartmentDisplay(dept: string | null | undefined): string | null {
+  if (!dept) return null;
+  const trimmed = dept.trim();
+  if (!trimmed) return null;
+  if (/^central stores/i.test(trimmed) && !/marketing/i.test(trimmed)) {
+    return /\)\s*$/.test(trimmed) ? trimmed.replace(/\)\s*$/, ", Marketing)") : `${trimmed} (Marketing)`;
+  }
+  return trimmed;
+}
+
 export interface DeptGroup {
   name: string;
   ids: number[]; // sail_department.id members -- what queries actually filter on
@@ -100,6 +116,28 @@ const CONFIRMED_GROUPS: { name: string; codes: number[]; aliases: string[]; unle
     name: "Plant Garage (Operation / M.H.E.O.D.)",
     codes: [85110],
     aliases: ["operation garage", "mheod", "m h e o d", "m.h.e.o.d", "m.h.e.o.d."],
+  },
+  {
+    // Central Stores Department (CSD) is an administrative sub-department of Marketing (Marketing Division).
+    // Codes: 95000 (CENTRAL STORES DEPTT.), 95030 (CENTRAL STORES (OFFICE)), 95070 (CENTRAL STORES (TECH)).
+    name: "Central Stores (CSD)",
+    codes: [95000, 95030, 95070],
+    aliases: [
+      "csd",
+      "c s d",
+      "c.s.d",
+      "c.s.d.",
+      "central stores",
+      "central store",
+      "central stores dept",
+      "central stores deptt",
+      "central stores department",
+    ],
+  },
+  {
+    name: "Marketing",
+    codes: [40700, 40730],
+    aliases: ["marketing", "marketing division", "agm marketing", "a.g.m. marketing"],
   },
 ];
 

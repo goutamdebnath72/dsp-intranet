@@ -6,100 +6,51 @@
 // block if any of the below ever changes, so it never goes stale)
 // ============================================================
 //
+// (Updated 7 Nov 2026: Groq is no longer the default anywhere. The one place that talks to Gemini for text is
+//  src/lib/ai/geminiChat.ts: timeout, thinking budget, finishReason check, key in a header, safe errors.)
+//
 // 1. Executive Deep Synthesis (search feature's answer-synthesis step)
-//    File: src/lib/search/executiveSynthesis.ts (its OWN independent fetch
-//    call -- does NOT go through generateChatResponse below)
-//    - Provider: Groq
-//    - Model: openai/gpt-oss-120b
-//    - Endpoint: https://api.groq.com/openai/v1/chat/completions
-//    - response_format: { type: "json_object" }
-//    - temperature: 0.1
-//    - max_tokens: 3000    
-//    - Env var: GROQ_API_KEY
-//
-// 2. generateChatResponse (this file, below) -- used by the holiday
-//    circular extraction pipeline (src/lib/holidays/extraction.ts)
-//    - Provider: Groq, same endpoint as above
-//    - Model: openai/gpt-oss-120b by default -- matches #1 above exactly,
-//      since that was the proven-working reference this was fixed against
-//      (see the "used to be hardcoded to llama-3.1-8b-instant" note below)
-//    - Overridable via GROQ_MODEL env var if this default is ever retired
-//      by Groq too -- check https://console.groq.com/docs/models
-//    - temperature: 0.1 (fixed, matches #1)
-//    - max_tokens / response_format: caller-supplied via the optional
-//      `options` parameter (jsonMode, maxTokens) -- no fixed default
-//      values baked in beyond the ones passed at each call site
-//    - Local-dev fallback: Ollama, model "llama3.1" (note: no ":latest"
-//      suffix here, unlike #1 -- pre-existing, not something this note
-//      is asserting is correct or intentionally different)
-//    - Env var: GROQ_API_KEY (same variable as #1)
-//
-// 3. generateEmbedding (this file, below) -- used across the circular
-//    search pipeline (chunk embeddings, whole-document embeddings) and
-//    the holiday-name matching cache
+//    File: src/lib/search/executiveSynthesis.ts -> geminiGenerate()
 //    - Provider: Google Gemini
-//    - Model: text-embedding-004
+//    - Model: GEMINI_SYNTHESIS_MODEL (default gemini-3.1-pro-preview), then gemini-pro-latest, gemini-3.8-flash
+//    - JSON mode, temperature 0.1, thinking "low" (GEMINI_SYNTHESIS_THINKING to change), 52 s total deadline
 //    - Env var: GEMINI_API_KEY
-//    - Local-dev fallback: Ollama, model "all-minilm", used when
-//      AI_ENVIRONMENT is not "cloud" and no GEMINI_API_KEY is set
+//
+// 2. generateChatResponse (this file, below) and the NL2SQL model (src/lib/nl2sql/llm.ts: chatLlm) -- used by the
+//    employee/department question engine, the intent classifier and the holiday extraction code
+//    - Provider: Gemini when GEMINI_API_KEY exists (LLM_PROVIDER=gemini|groq forces a choice); Groq only when it is
+//      the only key present or LLM_PROVIDER=groq
+//    - Model: GEMINI_CHAT_MODEL (default gemini-3.8-flash), then gemini-flash-latest; thinking "low"
+//    - Groq path (unchanged): openai/gpt-oss-120b (GROQ_MODEL), GROQ_API_KEY
+//    - Local-dev fallback: Ollama, model "llama3.1", when AI_ENVIRONMENT is not "cloud"
+//
+// 3. Embeddings: src/lib/ai/geminiEmbedding.ts (NOT this file)
+//    - Provider: Google Gemini, model gemini-embedding-001, 768 dimensions (outputDimensionality)
+//    - Stored text (circular chunks, circulars, announcements, holiday policy chunks) = RETRIEVAL_DOCUMENT;
+//      only questions = RETRIEVAL_QUERY. (text-embedding-004, named here before, no longer exists for this key.)
+//    - Env var: GEMINI_API_KEY
 
-export async function generateEmbedding(text: string): Promise<number[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
+import { chatModels, geminiGenerate, preferGroq } from "@/lib/ai/geminiChat";
 
-  if (process.env.AI_ENVIRONMENT === "cloud" || apiKey) {
-    if (!apiKey) {
-      throw new Error(
-        "GEMINI_API_KEY is not defined in environment variables.",
-      );
-    }
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "models/text-embedding-004",
-        content: {
-          parts: [{ text }],
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(
-        `Gemini Embedding API failed (${res.status}): ${errText}`,
-      );
-    }
-
-    const data = await res.json();
-    return data.embedding.values;
-  } else {
-    // Local fallback route to Ollama instance
-    const res = await fetch("http://localhost:11434/api/embeddings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "all-minilm", prompt: text }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Local Embedding failed (${res.status}): ${errText}`);
-    }
-
-    const data = await res.json();
-    return data.embedding;
-  }
-}
+/** Kept so an old import still works: the one real implementation is in src/lib/ai/geminiEmbedding.ts (gemini-embedding-001, 768 dimensions). */
+export { generateEmbedding } from "@/lib/ai/geminiEmbedding";
 
 export async function generateChatResponse(
   prompt: string,
   options?: { maxTokens?: number; jsonMode?: boolean },
 ): Promise<string> {
-  if (process.env.AI_ENVIRONMENT === "cloud") {
+  if (process.env.AI_ENVIRONMENT === "cloud" && !preferGroq()) {
+    // Gemini is the default provider (Groq's free tier proved unusable and its paid tier is
+    // closed): same JSON-mode contract, hardened adapter (timeout, thinking budget, finishReason).
+    const r = await geminiGenerate(prompt, {
+      json: !!options?.jsonMode,
+      models: chatModels(),
+      maxOutputTokens: options?.maxTokens ?? 3000,
+      thinking: "low",
+      label: "chat",
+    });
+    return r.text;
+  } else if (process.env.AI_ENVIRONMENT === "cloud") {
     // Route to Groq Cloud API. Model + call shape (temperature, JSON mode)
     // match src/lib/search/executiveSynthesis.ts's already-proven-working
     // Groq call exactly -- that file was the source of truth here, not a

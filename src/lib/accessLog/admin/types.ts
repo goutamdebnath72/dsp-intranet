@@ -24,7 +24,8 @@ export interface AccessLogAdminOpen {
 }
 
 export interface AccessLogRowView {
-  id: number;
+  /** the log line's own id: a uuid string in the database (it was read as a number, which is NaN) */
+  id: string;
   accessedAt: string;
   viewerTicketNo: string;
   viewerName: string | null;

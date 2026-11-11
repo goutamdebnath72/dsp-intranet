@@ -31,6 +31,11 @@ export const REFRACTORY_ROWS = "REFRACTORY (code 86000), REFRACTORY (OFFICE) (co
 /** The six rows of the Plant Garage, by name and code, as the real department list spells them (checked against it by the tests). */
 export const PLANT_GARAGE_ROWS =
   "PLANT GARAGE (code 85000), PLANT GARAGE (TECH) (code 85070), PLANT GARAGE (M.H.E.O.D.) (code 85110), PLANT GARAGE (M.H.E.M.D.) (code 85200), PLANT GARAGE (OFFICE - MAINT) (code 85330) and PLANT GARAGE (OFFICE - OPRN) (code 85430)";
+/** Central Stores Department (CSD) rows: an administrative sub-department of Marketing (Marketing Division). */
+export const CENTRAL_STORES_ROWS =
+  "CENTRAL STORES DEPTT. (code 95000), CENTRAL STORES (OFFICE) (code 95030) and CENTRAL STORES (TECH) (code 95070)";
+export const CENTRAL_STORES_NOTE =
+  "“Central Stores Department” (CSD) is an administrative sub-department of Marketing (Marketing Division). Codes: 95000, 95030 and 95070.";
 const GARAGE_NOTE = `“Garage” means the Plant Garage (all its six sections). ${TOWNSHIP_GARAGE_CLOSED}`;
 const PLANT_GARAGE_NOTE = "“Plant Garage” means all its six sections: 85000, 85070, 85110, 85200, 85330 and 85430.";
 const REFRACTORY_NOTE =
@@ -42,6 +47,9 @@ const PLANT_GARAGE_NAMED = /\bplant\s+garage\b|\bm\.?\s*h\.?\s*e\.?\s*[mo]\.?\s*
 const PLANT_GARAGE_FAMILY = /\bplant\s+garage\b(?!\s*\()/i;
 const A_SECTION_NAMED = /\bm\.?\s*h\.?\s*e\.?\s*[mo]\.?\s*d\b|\b(tech|technical|office|maint|maintenance|oprn|operation|operations)\b/i;
 const REFRACTORY_NAMED = /\bcoke\s+oven\s+refractory\b|\brefractory\s*\(?\s*office\b/i;
+
+const CENTRAL_STORES = /\b(central\s+stores(\s+deptt?|\s+department)?|csd|c\.?\s*s\.?\s*d\.?)\b/i;
+const CENTRAL_STORES_SECTION = /\bcentral\s+stores\s*(\(?\s*(office|tech|technical)\b|\(tech\)|\(office\))/i;
 
 /** Fills in the number of Coke Oven Refractory people (null when it could not be counted). */
 export function finishDepartmentNote(note: string, cokeOvenPeople: number | null): string {
@@ -76,6 +84,11 @@ export function resolveDepartmentWords(question: string): DepartmentWordResult |
     q = q.replace(/\brefractory\b/i, REFRACTORY_ROWS);
     notes.push(REFRACTORY_NOTE);
     cokeOven = true;
+  }
+  // Central Stores Department (CSD) = all three rows, with administrative sub-department note
+  if (CENTRAL_STORES.test(q) && !CENTRAL_STORES_SECTION.test(q)) {
+    q = q.replace(CENTRAL_STORES, CENTRAL_STORES_ROWS);
+    notes.push(CENTRAL_STORES_NOTE);
   }
   if (q === original && !notes.length) return null;
   return { ...(q !== original ? { question: q } : {}), ...(notes.length ? { note: notes.join(" ") } : {}), ...(cokeOven ? { cokeOven: true } : {}) };

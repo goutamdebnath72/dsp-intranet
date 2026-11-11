@@ -27,6 +27,7 @@ import { guardRecord } from "@/lib/facility/guard";
 import type { DelegateResult } from "@/lib/facility/types";
 import { NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, maskEmail, maskMobile } from "./contact";
 import { cleanText, seniorityRank, validateEmployee } from "./validate";
+import { formatDepartmentDisplay } from "@/lib/employees/sailDepartments";
 
 export interface EmpDb {
   run<T>(fn: (q: QueryFn) => Promise<T>): Promise<T>;
@@ -67,14 +68,16 @@ export async function loadLookups(q: QueryFn, cols?: Cols): Promise<Lookups> {
   const d = await q(`SELECT id, code, name, ${c.deptScope ? "cohort_scope" : "'shared'"} AS scope FROM public.sail_department ORDER BY name, id`);
   return {
     grades: g.map((x): GradeRef => ({ id: Number(x.id), code: Number(x.code), title: String(x.title), track: String(x.track), rankOrder: Number(x.rank_order) })),
-    departments: d.map((x): DepartmentRef => ({ id: Number(x.id), code: Number(x.code), name: String(x.name), scope: (["executive", "nonexecutive"].includes(String(x.scope)) ? String(x.scope) : "shared") as DepartmentRef["scope"] })),
+    departments: d.map((x): DepartmentRef => ({ id: Number(x.id), code: Number(x.code), name: formatDepartmentDisplay(String(x.name)) ?? String(x.name), scope: (["executive", "nonexecutive"].includes(String(x.scope)) ? String(x.scope) : "shared") as DepartmentRef["scope"] })),
   };
 }
 
 // ---- reading a person ----
 const opt = (c: Cols, col: string, cast = "") => (c.has.has(col) ? `er.${col}${cast}` : "NULL");
 const SELECT = (c: Cols) => `SELECT er.id, er.ticket_no, ${opt(c, "sail_pno")} AS sail_pno, er.name, er.cohort, er.designation_grade_id AS grade_id, dg.title AS grade_title,
-       er.sail_department_id AS department_id, sd.name AS department_name, er.within_grade_position AS position, ${opt(c, "address")} AS address, ${opt(c, "email_nic")} AS email_nic,
+       er.sail_department_id AS department_id,
+       sd.name AS department_name,
+       er.within_grade_position AS position, ${opt(c, "address")} AS address, ${opt(c, "email_nic")} AS email_nic,
        ${opt(c, "webmail_saildsp")} AS webmail, ${opt(c, "doctor_override")} AS doctor, ${opt(c, "date_of_birth", "::text")} AS dob, ${opt(c, "date_of_joining", "::text")} AS doj,
        ${opt(c, "user_id")} AS user_id, ${c.user.has("contactNo") ? 'u."contactNo"' : "NULL"} AS contact_no, ${c.user.has("email") ? "u.email" : "NULL"} AS user_email
   FROM public.employee_roster er JOIN public.designation_grade dg ON dg.id = er.designation_grade_id LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id
@@ -96,7 +99,7 @@ export function versionOfRow(r: Record<string, unknown>, canSeeDates: boolean): 
 export function rowToRecord(r: Record<string, unknown>, canSeeDates: boolean): EmployeeRecord {
   return {
     id: Number(r.id), ticketNo: str(r.ticket_no).trim(), sailPno: str(r.sail_pno), name: str(r.name), cohort: r.cohort === "executive" ? "executive" : "nonexecutive",
-    gradeId: Number(r.grade_id), gradeTitle: str(r.grade_title), departmentId: r.department_id === null || r.department_id === undefined ? null : Number(r.department_id), departmentName: str(r.department_name),
+    gradeId: Number(r.grade_id), gradeTitle: str(r.grade_title), departmentId: r.department_id === null || r.department_id === undefined ? null : Number(r.department_id), departmentName: formatDepartmentDisplay(str(r.department_name)) ?? str(r.department_name),
     position: Number(r.position), address: str(r.address), emailNic: maskEmail(str(r.email_nic)), webmail: maskEmail(str(r.webmail)), mobileMasked: maskMobile(str(r.contact_no)), emailMasked: maskEmail(str(r.user_email)), doctor: typeof r.doctor === "boolean" ? r.doctor : null,
     dateOfBirth: canSeeDates ? str(r.dob).slice(0, 10) : "", dateOfJoining: canSeeDates ? str(r.doj).slice(0, 10) : "", datesVisible: canSeeDates, hasLogin: r.user_id !== null && r.user_id !== undefined, version: versionOfRow(r, canSeeDates),
   };
@@ -246,11 +249,13 @@ export type SaveResult =
 async function sameNameElsewhere(q: QueryFn, name: string, departmentId: number | null, exceptId: number | null): Promise<EmployeeConflict[]> {
   if (departmentId === null) return [];
   const r = await q(
-    `SELECT er.id, er.ticket_no, er.name, sd.name AS department_name FROM public.employee_roster er LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id
+    `SELECT er.id, er.ticket_no, er.name,
+            sd.name AS department_name
+       FROM public.employee_roster er LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id
       WHERE upper(er.name) = $1 AND er.sail_department_id = $2 AND ($3::int IS NULL OR er.id <> $3) LIMIT 5`,
     [name, departmentId, exceptId],
   );
-  return r.map((x) => ({ kind: "same-name" as const, text: `${str(x.name)} (${str(x.ticket_no).trim()}) is already in ${str(x.department_name)}.`, with: { id: Number(x.id), ticketNo: str(x.ticket_no).trim(), name: str(x.name), departmentName: str(x.department_name) } }));
+  return r.map((x) => ({ kind: "same-name" as const, text: `${str(x.name)} (${str(x.ticket_no).trim()}) is already in ${formatDepartmentDisplay(str(x.department_name)) ?? str(x.department_name)}.`, with: { id: Number(x.id), ticketNo: str(x.ticket_no).trim(), name: str(x.name), departmentName: str(x.department_name) } }));
 }
 
 const nullable = (s: string) => (s === "" ? null : s);

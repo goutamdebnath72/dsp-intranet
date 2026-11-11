@@ -40,8 +40,7 @@ async function runTests() {
   ok("seed holiday 2026 -> op: seed, year: 2026", detectHolidayAdminIntent("seed holiday 2026")?.op === "seed" && detectHolidayAdminIntent("seed holiday 2026")?.prefill?.year === 2026);
   ok("clear holiday 2026 -> op: clear, year: 2026", detectHolidayAdminIntent("clear holiday 2026")?.op === "clear" && detectHolidayAdminIntent("clear holiday 2026")?.prefill?.year === 2026);
   ok("unseed holiday 2027 -> op: clear, year: 2027", detectHolidayAdminIntent("unseed holiday 2027")?.op === "clear" && detectHolidayAdminIntent("unseed holiday 2027")?.prefill?.year === 2027);
-  ok("review holiday extraction -> op: staging", detectHolidayAdminIntent("review holiday extraction")?.op === "staging");
-  ok("holiday staging -> op: staging", detectHolidayAdminIntent("holiday staging")?.op === "staging");
+  ok("review holiday extraction -> no separate staging flow any more: opens the seed screen", detectHolidayAdminIntent("review holiday extraction")?.op === "seed");
   ok("delegate holiday to rakesh -> op: delegate", detectHolidayAdminIntent("delegate holiday to rakesh")?.op === "delegate");
   ok("authorise holiday access -> op: delegate", detectHolidayAdminIntent("authorise holiday access")?.op === "delegate");
   ok("revoke holiday permission -> op: delegate", detectHolidayAdminIntent("revoke holiday permission")?.op === "delegate");

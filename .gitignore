@@ -61,3 +61,13 @@ circular-battery-report.txt
 
 # acceptance-harness output: holds answers from the live directory, never commit
 eval/results/
+
+# source circular PDFs (130 MB), Gemini OCR caches and test output: local only, never commit
+/2026 to 2022/
+reread-gemini-cache/
+ocr-test-results/
+DSP_Circulars_Query_Test_Set.pdf
+
+# handoff notes may quote keys and passwords: never commit
+HANDOFF*.md
+.render/

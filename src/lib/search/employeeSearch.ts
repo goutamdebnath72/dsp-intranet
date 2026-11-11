@@ -2,6 +2,7 @@
 import { DataSource } from "typeorm";
 import { isDoctorPerson, isPhdHolder, stripDoctorTitle, titleFor } from "@/lib/employees/honorific";
 import { disciplineOfTicket } from "@/lib/hospital/discipline";
+import { formatDepartmentDisplay } from "@/lib/employees/sailDepartments";
 
 export interface EmployeeResult {
   id: string;
@@ -83,7 +84,7 @@ function rowToResult(r: any, matchKind: EmployeeResult["matchKind"], score: numb
     ticketNo: ticket,
     sailPNo: r.sailPNo || null,
     designation: r.designation || null,
-    department: r.dept_name || null,
+    department: formatDepartmentDisplay(r.dept_name),
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
     title: titleFor(ticket, r.designation_track, r.doctor_override),
     phd: isPhdHolder(ticket, r.designation_track, r.doctor_override) || undefined,

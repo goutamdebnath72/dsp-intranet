@@ -8,8 +8,8 @@
 
 import type { DataSource } from "typeorm";
 import { getDb } from "@/lib/db";
-import { begin, authorityOf, grantDelegate, revokeDelegate, listDelegates } from "@/lib/facility/authority";
-import { writeAudit, recentAuditRows } from "@/lib/facility/audit";
+import { grantDelegate, revokeDelegate, listDelegates } from "@/lib/facility/authority";
+import { recentAuditRows } from "@/lib/facility/audit";
 import { toIsoInstant } from "@/lib/dates";
 import type { Actor, FacilityDb, QueryFn } from "@/lib/facility/types";
 import type { RecentCircularView } from "./types";
@@ -82,27 +82,6 @@ export async function listRecentCirculars(
         fileUrl: fileUrls.length > 0 ? fileUrls[0] : null,
         serialNumber: r.serialNumber ? Number(r.serialNumber) : null,
       };
-    });
-  });
-}
-
-// -----------------------------------------------------------------------------
-// Audit Logging
-// -----------------------------------------------------------------------------
-
-export async function recordCircularAudit(
-  db: CircularDb,
-  actor: Actor,
-  circularId: number,
-  headline: string,
-  note = "circular uploaded",
-): Promise<void> {
-  await db.run(async (q) => {
-    const role = await begin(q, "circular", actor);
-    await writeAudit(q, "circular", actor, role, "add", {
-      targetId: circularId,
-      note,
-      after: { id: circularId, headline },
     });
   });
 }

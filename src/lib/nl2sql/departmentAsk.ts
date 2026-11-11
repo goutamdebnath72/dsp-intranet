@@ -39,8 +39,13 @@ export interface DepartmentAsk {
 const PEOPLE = /\b(executives?|non[- ]?executives?|employees?|people|persons?|staff|officers?|managers?|workers?|engineers?|doctors?|personnel|working|work|posted|employed|serving)\b/i;
 export const HAS_CODE = /\(\s*code\s+\d{3,5}\s*\)/i;
 
-/** The question about people, or just a word or two ("garage", "garage staff"). */
-export const isAboutPeopleOrBare = (q: string): boolean => PEOPLE.test(q) || q.trim().split(/\s+/).filter(Boolean).length <= 2;
+/** The question about people, or just a word or two ("garage", "garage staff", "central stores department"). */
+export const isAboutPeopleOrBare = (q: string): boolean => {
+  const words = q.trim().split(/\s+/).filter(Boolean).length;
+  // "central stores department" (3 words) is a bare department name; a LONG question that merely contains the word
+  // ("circular on central stores department tender") is about documents and must not be turned into a people list.
+  return PEOPLE.test(q) || words <= 2 || (words <= 4 && /\b(departments?|deptt?|sections?)\b/i.test(q));
+};
 
 const joinPhrases = (p: string[]): string => (p.length <= 1 ? (p[0] ?? "") : `${p.slice(0, -1).join(", ")} and ${p[p.length - 1]}`);
 

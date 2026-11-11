@@ -8,9 +8,8 @@ import { Entity, PrimaryGeneratedColumn, Column, Index, CreateDateColumn } from 
  * note. Distinct from holidaymaster/holidayyear (structured calendar data)
  * and from circular_chunks (excerpts of a specific document): this
  * content's lifecycle is tied to the calendar YEAR, not to whether a
- * source circular still exists. See src/lib/holidays/extraction.ts's
- * header comment and src/lib/holidays/policyChunks.ts for the reasoning
- * and the generation pipeline.
+ * source circular still exists. See src/lib/holidays/policyChunks.ts for
+ * the reasoning and the generation pipeline.
  */
 @Entity({ name: "holiday_policy_chunks" })
 @Index(["year"])

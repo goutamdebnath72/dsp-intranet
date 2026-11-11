@@ -361,6 +361,8 @@ export function HistoryList({ history }: { history: AccessLogAuditView[] }) {
             ? "Granted Access Log Authority"
             : row.action === "revoke"
             ? "Withdrew Access Log Authority"
+            : row.action === "view"
+            ? "Viewed the Access Log"
             : row.action;
 
         return (

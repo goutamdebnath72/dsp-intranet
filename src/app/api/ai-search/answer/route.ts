@@ -10,7 +10,7 @@
 import { toIsoInstant } from "@/lib/dates";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { groqLlm } from "@/lib/nl2sql/llm";
+import { chatLlm } from "@/lib/nl2sql/llm";
 import { answerFromPassages, buildPassages, type DocInput, type PassageType } from "@/lib/search/circularAnswer";
 import { loadPageChecks } from "@/lib/search/pageChecks";
 import { logAnswer } from "@/lib/search/answerLog";
@@ -90,7 +90,7 @@ async function handle(request: Request, info: { q: string }) {
     endLoad();
     const passages = buildPassages(q, docs);
     const endModel = traceStep("model");
-    const result = await answerFromPassages(q, passages, groqLlm({ maxTokens: 2500 }));
+    const result = await answerFromPassages(q, passages, chatLlm({ maxTokens: 2500 }));
     endModel();
     logAnswer(q, passages, result); // only when ANSWER_LOG_FILE is set: the attempt, the model's reply and the passages, for scripts/answer-replay.ts
     return NextResponse.json(result.ok ? { answer: result.value } : { answer: null, reason: result.reason });

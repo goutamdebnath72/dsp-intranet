@@ -4,8 +4,8 @@
 
 import type { DataSource } from "typeorm";
 import type { Actor, AuditRow, DelegateResult, DelegateView, FacilityDb } from "@/lib/facility/types";
-import { listDelegates, grantDelegate, revokeDelegate } from "@/lib/facility/authority";
-import { recentAuditRows } from "@/lib/facility/audit";
+import { begin, listDelegates, grantDelegate, revokeDelegate } from "@/lib/facility/authority";
+import { recentAuditRows, writeAudit } from "@/lib/facility/audit";
 import type {
   AccessLogFilterInput,
   AccessLogQueryResult,
@@ -15,6 +15,9 @@ import type {
 import { toIsoInstant } from "@/lib/dates";
 
 export type AccessLogDb = FacilityDb;
+
+/** A typed % or _ is a letter to look for, not a wildcard (backslash is Postgres' default LIKE escape). */
+const likeEscape = (v: string) => v.replace(/[\\%_]/g, (c) => "\\" + c);
 
 export async function queryAccessLogs(
   ds: DataSource,
@@ -35,8 +38,9 @@ export async function queryAccessLogs(
     .map((s) => s.trim().toLowerCase())
     .filter((s) => s && s !== "all");
 
-  const page = Math.max(1, filters.page || 1);
-  const pageSize = Math.min(200, Math.max(1, filters.pageSize || 50));
+  // whole numbers only (a fraction made the LIMIT/OFFSET cast fail with a 500; a huge page is capped)
+  const page = Math.min(100000, Math.max(1, Math.trunc(Number(filters.page) || 1)));
+  const pageSize = Math.min(200, Math.max(1, Math.trunc(Number(filters.pageSize) || 50)));
   const offset = (page - 1) * pageSize;
 
   const sortKey = (filters.sort || "accessedAt").trim();
@@ -55,16 +59,18 @@ export async function queryAccessLogs(
   const where: string[] = [];
   const params: unknown[] = [];
 
+  // A day means the INDIA day (the old route did the same): the database clock is UTC, so "to 7 Oct" must end at the end of
+  // 7 Oct IST, not at 05:30 IST on the 8th.
   if (from) {
     params.push(from);
-    where.push(`l."accessedAt" >= $${params.length}::date`);
+    where.push(`l."accessedAt" >= ($${params.length}::date)::timestamp AT TIME ZONE 'Asia/Kolkata'`);
   }
   if (to) {
     params.push(to);
-    where.push(`l."accessedAt" < ($${params.length}::date + INTERVAL '1 day')`);
+    where.push(`l."accessedAt" < ($${params.length}::date + 1)::timestamp AT TIME ZONE 'Asia/Kolkata'`);
   }
   if (viewer) {
-    params.push(`%${viewer}%`);
+    params.push(`%${likeEscape(viewer)}%`);
     where.push(`(
       COALESCE(erv.name, uv.name) ILIKE $${params.length}
       OR l."viewerTicketNo" ILIKE $${params.length}
@@ -73,7 +79,7 @@ export async function queryAccessLogs(
     )`);
   }
   if (viewed) {
-    params.push(`%${viewed}%`);
+    params.push(`%${likeEscape(viewed)}%`);
     where.push(`(
       COALESCE(erd.name, ud.name, uw.name) ILIKE $${params.length}
       OR l."viewedTicketNo" ILIKE $${params.length}
@@ -107,7 +113,13 @@ export async function queryAccessLogs(
     LEFT JOIN public.departments dd ON dd.id   = ud."departmentId"
     LEFT JOIN public."user" uw ON uw."ticketNo" = l."viewedTicketNo"
     LEFT JOIN public.departments dw ON dw.id   = uw."departmentId"
-    LEFT JOIN public.employee_roster erd ON (erd.ticket_no = l."viewedTicketNo" OR (ud."ticketNo" IS NOT NULL AND erd.ticket_no = ud."ticketNo"))
+    LEFT JOIN LATERAL (
+      SELECT er.name, er.designation_grade_id, er.sail_department_id
+        FROM public.employee_roster er
+       WHERE er.ticket_no = COALESCE(NULLIF(l."viewedTicketNo", ''), ud."ticketNo")
+       ORDER BY er.id
+       LIMIT 1
+    ) erd ON TRUE
     LEFT JOIN public.designation_grade dgd ON dgd.id = erd.designation_grade_id
     LEFT JOIN public.sail_department sdd ON sdd.id = erd.sail_department_id`;
 
@@ -186,7 +198,7 @@ export async function queryAccessLogs(
   );
 
   const formattedRows: AccessLogRowView[] = (rows ?? []).map((r: any) => ({
-    id: Number(r.id),
+    id: String(r.id),
     accessedAt: toIsoInstant(r.accessedAt) ?? String(r.accessedAt),
     viewerTicketNo: String(r.viewerTicketNo || "").trim(),
     viewerName: r.viewerName ? String(r.viewerName).trim() : null,
@@ -240,4 +252,31 @@ export async function revokeAccessLogDelegate(
 
 export async function accessLogRecentAudit(db: AccessLogDb): Promise<AuditRow[]> {
   return recentAuditRows(db, "access_log", 50);
+}
+
+/**
+ * The log of who saw private contact data is itself private: LOOKING at it is recorded (action "view": who, when, with
+ * which filters and how many lines were returned; never the lines themselves). One row per distinct look: the same person
+ * with the same filters within two minutes (paging back and forth, a refresh) does not write another row, so the history
+ * stays readable. The authority is decided again here under the tool's lock.
+ */
+export async function recordAccessLogView(
+  db: AccessLogDb,
+  actor: Actor,
+  summary: { filters: Record<string, unknown>; total: number },
+): Promise<void> {
+  const note = `Viewed the contact access log (${summary.total} line${summary.total === 1 ? "" : "s"} matched)`;
+  const after = { filters: summary.filters };
+  await db.run(async (q) => {
+    const role = await begin(q, "access_log", actor);
+    const recent = await q(
+      `SELECT 1 FROM public.facility_audit
+        WHERE facility = 'access_log' AND action = 'view' AND actor_ticket = $1
+          AND at > now() - interval '2 minutes' AND after = $2::jsonb
+        LIMIT 1`,
+      [actor.ticket, JSON.stringify(after)],
+    );
+    if (recent.length) return;
+    await writeAudit(q, "access_log", actor, role, "view", { after, note });
+  });
 }

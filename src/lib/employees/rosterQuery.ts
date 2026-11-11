@@ -23,6 +23,7 @@
 //     no ticketNo fallback. This is the one rule the project calls
 //     "no-compromise."
 
+import { formatDepartmentDisplay } from "@/lib/employees/sailDepartments";
 import { getDb } from "@/lib/db";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { isDoctorPerson, isPhdHolder, titleFor } from "@/lib/employees/honorific";
@@ -126,7 +127,7 @@ function rowToEmployee(r: any): EmployeeResult {
     ticketNo: ticket,
     sailPNo: r.sail_pno || null,
     designation: r.designation_title || null,
-    department: r.dept_name || null,
+    department: formatDepartmentDisplay(r.dept_name),
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
     title: titleFor(ticket, r.designation_track, r.doctor_override),
     phd: isPhdHolder(ticket, r.designation_track, r.doctor_override) || undefined,

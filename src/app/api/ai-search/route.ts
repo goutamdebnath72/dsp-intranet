@@ -8,6 +8,7 @@ import {
   executeExecutiveSynthesis,
   type SynthesisResult,
 } from "@/lib/search/executiveSynthesis";
+import { edsStoreFor } from "@/lib/search/edsStore";
 import { fetchCircularLabels } from "@/lib/search/circularLabels";
 import { SearchUnavailableError } from "@/lib/search/searchResilience";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
@@ -24,8 +25,8 @@ import { routeFromReply, setTraceGate, setTraceSynth, startTrace, summarizeTrace
 import { detectSynthesisIntent } from "@/lib/search/synthesisIntent";
 import { decideModelSkip, frontGateEnabled, loadDirectoryNameWords } from "@/lib/search/frontGate";
 import { getSessionTicket } from "@/lib/apiAuth";
-import { routeQueryWithAgent } from "@/lib/search/agentRouter";
-import { parseQueryWithLlm, executePureHospital, runPureAiAssistant } from "@/lib/search/pureAiEngine";
+import { parseQueryWithLlm } from "@/lib/search/pureAiEngine";
+import { answerHospitalQuestion } from "@/lib/search/hospitalDispatch";
 
 // Vercel stops a serverless function after a time limit. A question can legitimately take
 // longer than the default (the language model may have to wait for its per-minute allowance),
@@ -64,8 +65,9 @@ function emptyBriefing(message: string): SynthesisResult {
 // How much text of each source circular to hand the synthesis model. The UI
 // snippet stays short (pickReadableExcerpt); the synthesis needs the FULL
 // circular so figures living in a different chunk than the one that matched the
-// query (e.g. an OCR rate table) are actually in context.
-const SYNTH_CHARS_PER_CIRCULAR = 6000;
+// query (e.g. an OCR rate table, multi-page bond schedules or annexures) are
+// fully in context. Powered by Gemini Pro with 2M token context window.
+const SYNTH_CHARS_PER_CIRCULAR = 60000;
 
 // Fetch the complete chunk text of the given circulars (all chunks, in order)
 // and return a map id -> concatenated text. This is what feeds the synthesis,
@@ -281,13 +283,18 @@ async function handleSearch(request: Request) {
       return NextResponse.json(results.slice(0, 5));
     }
 
-    // --- PURE AI ASSISTANT NLU & SEMANTIC DISPATCH ---
-    // Groq LLaMA 3.3 70B / gpt-oss-120b handles 100% of Natural Language Understanding:
-    // Any conversational phrasing, pronouns ("I can see"), synonyms, and clean parameter extraction.
-    const toolCall = await parseQueryWithLlm(q).catch(() => null);
+    // --- LANGUAGE-MODEL ROUTER (Gemini; src/lib/search/pureAiEngine.ts) ---
+    // Understands any phrasing ("where do I go", pronouns, Indian English) and names the tool. It runs only for the
+    // plain semantic search: not for an explicit Deep button, not for a retry request, not for the retrieval-only test
+    // hook, and never for a question holding a ticket / P.No / phone number (those are never sent out just to be
+    // routed). If the model is unavailable, slow or answers something invalid it returns null and the ORIGINAL
+    // pipeline below answers: a wrong guess must never replace a right answer.
+    const retrievalOnly = process.env.NODE_ENV !== "production" && searchParams.get("retrievalOnly") === "1";
+    const retryInfo = parseRetry(searchParams);
+    const toolCall = mode === "semantic" && !retrievalOnly && !retryInfo ? await parseQueryWithLlm(q).catch(() => null) : null;
     const agentDecision = toolCall;
 
-    // 1. Conversational Queries: Return friendly AI reply directly
+    // 1. Conversational (greeting / what can you do)
     if (toolCall?.tool === "conversational") {
       return NextResponse.json({
         analytics: {
@@ -297,18 +304,10 @@ async function handleSearch(request: Request) {
       });
     }
 
-    // 2. Hospital Queries: Execute pure deterministic data lookup (Zero regex, zero stopword patchwork)
+    // 2. Hospital: the original engine first, the pure executor for phrasings it does not know
     if (toolCall?.tool === "hospital") {
-      const hospitalResult = executePureHospital(toolCall.params);
-      if (hospitalResult) {
-        return NextResponse.json({
-          analytics: {
-            kind: "count",
-            answer: hospitalResult.summary,
-            hospital: hospitalResult.card,
-          },
-        });
-      }
+      const hospital = await answerHospitalQuestion(q, toolCall.params);
+      if (hospital) return NextResponse.json({ analytics: hospital });
     }
 
     // 3. Executive Synthesis (EDS) Auto-Detection:
@@ -372,16 +371,24 @@ async function handleSearch(request: Request) {
     // Test hook (never active in production builds): ?retrievalOnly=1 skips every
     // employee/holiday answer path -- and with it every model call -- so the circular
     // search can be measured on its own, for free and repeatably (scripts/circular-battery.mjs).
-    const retrievalOnly = process.env.NODE_ENV !== "production" && searchParams.get("retrievalOnly") === "1";
     // FRONT-PATH GATE (step 24a; OFF unless FRONT_PATH_SKIP_MODEL=true; src/lib/search/frontGate.ts). A question that mentions
     // no one in the directory, no department, no ticket and no people-data word cannot be an employee question, so the slow,
     // token-hungry model call is skipped and circular search answers first. If circular search then finds nothing, or fails,
     // rescueWithModel asks the model after all: a wrong skip costs time, never a wrong answer.
-    const retryInfo = parseRetry(searchParams);
     let modelSkipped = false;
     if (agentDecision?.tool === "circular_search") {
-      modelSkipped = true;
-      setTraceGate("skipped");
+      // The router's word alone does not skip the employee model (a misread would hide an employee answer): the
+      // deterministic gate must agree that nothing in the question names a person, a department, a ticket or a
+      // people-data word. rescueWithModel still asks the model if circular search then finds nothing.
+      let skip = false;
+      try {
+        const directoryWords = await loadDirectoryNameWords((sql) => dataSource.query(sql));
+        skip = decideModelSkip({ q, isNameShaped, deptMentioned, directoryWords }).skip;
+      } catch {
+        skip = false;
+      }
+      modelSkipped = skip;
+      setTraceGate(skip ? "skipped" : "model");
     } else if (agentDecision?.tool === "employee_roster") {
       modelSkipped = false;
       setTraceGate("model");
@@ -698,7 +705,7 @@ async function handleSearch(request: Request) {
         topPrimarySources.filter((r) => r.type === "circular").map((r) => r.id),
       );
       const endSynthesis = traceStep("synthesis");
-      synthesis = await executeExecutiveSynthesis(q, synthesisSources, labels);
+      synthesis = await executeExecutiveSynthesis(q, synthesisSources, labels, { store: edsStoreFor(dataSource) });
       endSynthesis();
     } else {
       synthesis = emptyBriefing(

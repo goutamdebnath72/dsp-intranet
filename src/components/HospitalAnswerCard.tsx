@@ -32,7 +32,9 @@ const HEADLINE: Record<"yes" | "no" | "info" | "unknown", string> = {
 };
 /** Under a Yes or No headline the sentence does not repeat the word. */
 const withoutVerdict = (text: string, headline?: { text: string; tone: string }): string =>
-  headline && (headline.tone === "yes" || headline.tone === "no") ? text.replace(new RegExp(`^${headline.text}\\b[:,.]\\s*`, "i"), "") || text : text;
+  headline && (headline.tone === "yes" || headline.tone === "no")
+    ? text.replace(new RegExp(`^${headline.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[:,.]\\s*`, "i"), "") || text // the headline text is escaped: it is data, not a pattern
+    : text;
 
 const BADGE: Record<"open" | "closed" | "unknown", string> = {
   open: "bg-green-600 text-white",
@@ -41,7 +43,7 @@ const BADGE: Record<"open" | "closed" | "unknown", string> = {
 };
 
 /** A short cell ("OPD 12", "Unit III", "not recorded", a ticket) is never broken over two lines; a long one (the days, a name with a note) wraps as it needs to. The first column (Unit / OPD / Room) is given a little more room. */
-const keepOnOneLine = (cell: string, columnIndex: number): boolean => cell.length <= (columnIndex === 0 ? 24 : 16);
+const keepOnOneLine = (cell: string | null | undefined, columnIndex: number): boolean => String(cell ?? "").length <= (columnIndex === 0 ? 24 : 16);
 
 function doctorInitials(name: string): string {
   const clean = name.replace(/^dr\.?\s*/i, "").trim();
@@ -79,24 +81,29 @@ function columnWidthClass(column: string, totalColumns: number): string {
   }
   if (totalColumns === 4) {
     if (c.includes("doctor")) return "w-[34%]";
-    if (c.includes("opd") || c.includes("unit")) return "w-[18%]";
+    if (c.includes("opd") || c.includes("unit") || c.includes("room")) return "w-[18%]";
     if (c.includes("ticket")) return "w-[18%]";
     if (c.includes("days")) return "w-[30%]";
   }
   if (totalColumns === 3) {
-    if (c.includes("doctor")) return "w-[48%]";
+    if (c.includes("doctor")) return "w-[44%]";
+    if (c.includes("room") || c.includes("opd") || c.includes("unit")) return "w-[22%]";
+    if (c.includes("days") || c.includes("timing") || c.includes("time")) return "w-[34%]";
     return "w-[26%]";
+  }
+  if (totalColumns === 2) {
+    return "w-1/2";
   }
   return "";
 }
 
 function ColumnHeaderIcon({ column }: { column: string }) {
   const c = column.toLowerCase();
-  if (c.includes("doctor")) return <User className="h-3.5 w-3.5 text-blue-600 shrink-0" />;
-  if (c.includes("department")) return <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
-  if (c.includes("specialization")) return <Stethoscope className="h-3.5 w-3.5 text-indigo-500 shrink-0" />;
-  if (c.includes("qualification")) return <GraduationCap className="h-3.5 w-3.5 text-purple-600 shrink-0" />;
-  if (c.includes("ticket") || c.includes("list number")) return <Hash className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
+  if (c.includes("doctor")) return <User className="h-4 w-4 text-blue-600 shrink-0" />;
+  if (c.includes("department")) return <Building2 className="h-4 w-4 text-slate-400 shrink-0" />;
+  if (c.includes("specialization")) return <Stethoscope className="h-4 w-4 text-indigo-500 shrink-0" />;
+  if (c.includes("qualification")) return <GraduationCap className="h-4 w-4 text-purple-600 shrink-0" />;
+  if (c.includes("ticket") || c.includes("list number")) return <Hash className="h-4 w-4 text-slate-400 shrink-0" />;
   return null;
 }
 
@@ -111,8 +118,8 @@ function renderCell(cell: string, column: string, columnIndex: number) {
   }
   if (low === "none (mbbs only)") {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium border border-slate-200">
-        MBBS only
+      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs sm:text-sm font-semibold border border-slate-200 leading-none">
+        <span className="translate-y-px">MBBS only</span>
       </span>
     );
   }
@@ -121,11 +128,11 @@ function renderCell(cell: string, column: string, columnIndex: number) {
   if (col.includes("doctor") || (columnIndex === 0 && /^dr\.?\s/i.test(cell))) {
     const isDoc = /^dr\.?\s/i.test(cell);
     return (
-      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-        <span className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-indigo-600 to-sky-600 text-white font-extrabold text-xs shadow-xs">
-          {isDoc ? doctorInitials(cell) : cell.slice(0, 2).toUpperCase()}
+      <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+        <span className="inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-indigo-600 to-sky-600 text-white font-bold text-xs sm:text-sm shadow-xs leading-none select-none">
+          <span className="translate-y-px">{isDoc ? doctorInitials(cell) : cell.slice(0, 2).toUpperCase()}</span>
         </span>
-        <span className="font-bold text-slate-900 text-xs sm:text-sm truncate sm:text-wrap" title={cell}>
+        <span className="font-bold text-slate-900 text-sm sm:text-base truncate sm:text-wrap leading-snug" title={cell}>
           {cell}
         </span>
       </div>
@@ -135,9 +142,9 @@ function renderCell(cell: string, column: string, columnIndex: number) {
   // 3. Ticket / List number
   if (col.includes("ticket") || col.includes("list number") || /^[A-Z]?\d{5,7}$/i.test(cell.trim())) {
     return (
-      <span className="inline-flex items-center gap-0.5 font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs tabular-nums">
-        <Hash className="h-3 w-3 text-slate-400" />
-        {cell}
+      <span className="inline-flex items-center justify-center gap-1 font-mono text-xs sm:text-sm font-bold px-3 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs tabular-nums leading-none">
+        <Hash className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+        <span className="translate-y-px">{cell}</span>
       </span>
     );
   }
@@ -145,29 +152,29 @@ function renderCell(cell: string, column: string, columnIndex: number) {
   // 4. Qualification: Special symbol & distinct colored chip for Postgraduates (Purple + Cap) vs MBBS (Emerald + Stethoscope)
   if (col.includes("qualification")) {
     if (cell === "—" || cell === "-") {
-      return <span className="text-slate-300 font-bold text-sm">—</span>;
+      return <span className="text-slate-300 font-bold text-base leading-none">—</span>;
     }
     const isPg = isPostgraduate(cell);
     if (isPg) {
       // POSTGRADUATE: Prestigious Purple Chip with GraduationCap!
       return (
         <span
-          className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-900 text-xs font-bold border border-purple-200/90 shadow-2xs tracking-wide max-w-full"
+          className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-purple-900 text-xs sm:text-sm font-bold border border-purple-200/90 shadow-2xs tracking-wide max-w-full leading-none"
           title="Postgraduate Qualification"
         >
-          <GraduationCap className="h-3.5 w-3.5 text-purple-700 shrink-0" aria-hidden="true" />
-          <span className="truncate">{cell}</span>
+          <GraduationCap className="h-4 w-4 text-purple-700 shrink-0" aria-hidden="true" />
+          <span className="truncate translate-y-px">{cell}</span>
         </span>
       );
     }
     // GRADUATE (MBBS): Crisp Emerald Chip with Stethoscope!
     return (
       <span
-        className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200/90 shadow-2xs tracking-wide max-w-full"
+        className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs sm:text-sm font-bold border border-emerald-200/90 shadow-2xs tracking-wide max-w-full leading-none"
         title="Graduate Medical Qualification"
       >
-        <Stethoscope className="h-3.5 w-3.5 text-emerald-600 shrink-0" aria-hidden="true" />
-        <span className="truncate">{cell}</span>
+        <Stethoscope className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
+        <span className="truncate translate-y-px">{cell}</span>
       </span>
     );
   }
@@ -175,9 +182,9 @@ function renderCell(cell: string, column: string, columnIndex: number) {
   // 5. Specialization
   if (col.includes("specialization")) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-900 text-xs font-semibold border border-indigo-200 max-w-full">
-        <Stethoscope className="h-3 w-3 text-indigo-500 shrink-0" />
-        <span className="truncate" title={cell}>{cell}</span>
+      <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-900 text-xs sm:text-sm font-semibold border border-indigo-200 max-w-full leading-none">
+        <Stethoscope className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+        <span className="truncate translate-y-px" title={cell}>{cell}</span>
       </span>
     );
   }
@@ -185,18 +192,18 @@ function renderCell(cell: string, column: string, columnIndex: number) {
   // 6. Department
   if (col.includes("department")) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-200 max-w-full">
-        <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
-        <span className="truncate" title={cell}>{cell}</span>
+      <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 text-xs sm:text-sm font-semibold border border-slate-200 max-w-full leading-none">
+        <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+        <span className="truncate translate-y-px" title={cell}>{cell}</span>
       </span>
     );
   }
 
   // 7. Unit / Room / Days / Fallback
-  if (col.includes("room")) {
+  if (col.includes("room") || col.includes("opd") || col.includes("unit")) {
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 text-xs font-semibold border border-amber-200">
-        {cell}
+      <span className="inline-flex items-center justify-center px-3.5 py-1.5 rounded-xl bg-amber-50 text-amber-900 text-xs sm:text-sm font-bold border border-amber-200 shadow-2xs leading-none">
+        <span className="translate-y-px">{cell}</span>
       </span>
     );
   }
@@ -205,8 +212,8 @@ function renderCell(cell: string, column: string, columnIndex: number) {
     <span
       className={
         columnIndex === 0
-          ? "font-bold text-slate-900 text-xs sm:text-sm"
-          : "text-slate-800 text-xs sm:text-sm font-medium"
+          ? "font-bold text-slate-900 text-sm sm:text-base leading-normal"
+          : "text-slate-800 text-sm sm:text-base font-medium leading-normal"
       }
     >
       {cell}
@@ -221,14 +228,15 @@ function TableView({ table }: { table: HospitalTable }) {
       className={`omni-noscale overflow-x-auto ${
         isLargeTable ? "max-h-[500px] overflow-y-auto " : ""
       }rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5`}
-    ><table className="w-full table-fixed text-left text-xs sm:text-sm border-collapse">
-        <thead className="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 text-xs font-extrabold uppercase tracking-wider text-slate-700 shadow-2xs">
+    >
+      <table className="w-full table-fixed text-left text-sm sm:text-base border-collapse">
+        <thead className="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-700 shadow-2xs">
           <tr>
             {table.columns.map((c, i) => (
               <th
                 key={i}
                 scope="col"
-                className={`whitespace-nowrap px-3 py-3 sm:px-3.5 font-extrabold text-slate-700 tracking-wider text-xs ${columnWidthClass(c, table.columns.length)}`}
+                className={`whitespace-nowrap px-4 py-3 sm:px-4.5 sm:py-3.5 font-extrabold text-slate-700 tracking-wider text-xs sm:text-sm ${columnWidthClass(c, table.columns.length)}`}
               >
                 <div className="flex items-center gap-1.5">
                   <ColumnHeaderIcon column={c} />
@@ -247,7 +255,7 @@ function TableView({ table }: { table: HospitalTable }) {
               {row.map((cell, ci) => (
                 <td
                   key={ci}
-                  className={`px-3 py-2.5 sm:px-3.5 ${
+                  className={`px-4 py-3 sm:px-4.5 sm:py-3.5 align-middle ${
                     keepOnOneLine(cell, ci) ? "whitespace-nowrap " : ""
                   }`}
                 >
@@ -259,7 +267,7 @@ function TableView({ table }: { table: HospitalTable }) {
         </tbody>
       </table>
       {table.rows.length > 5 ? (
-        <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-xs">
+        <div className="sticky bottom-0 z-20 flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-600 shadow-xs">
           <span className="flex items-center gap-1.5">
             <Users className="h-4 w-4 text-blue-600" />
             <span>
@@ -353,7 +361,7 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
         ) : null,
       )}
       {answer.lines && answer.lines.length > 0 && (
-        <ul className="list-disc space-y-0.5 pl-5 text-sm text-neutral-700" data-points="true">
+        <ul className="list-disc space-y-1.5 pl-5 text-sm sm:text-base text-neutral-800 leading-relaxed" data-points="true">
           {answer.lines.map((line, i) => (
             <li key={i}>{line}</li>
           ))}

@@ -116,9 +116,6 @@ A Smart Semantic question asks ONE thing that ONE circular answers. People-data 
 * `--source SS` runs the 5 Smart Semantic questions of the old query document, with their expected circulars.
 * `--source EDS --eds --cookie "..."` runs the 4 old EDS tests as an executive (route only until the verified truth set adds facts).
 
-## The OCR pilot (step 30b)
+## The OCR pilot (step 30b) - historical
 
-`scripts/ocr-pilot.ts` reads the 11 hardest pages with every reader and scores each against `eval/ocr-pilot-truth.json` (what the pages really say, read by eye): key numbers read exactly, key phrases, a label with its value on one line, known wrong readings, grid-line garbage. Readers: tesseract-before (the old way), pipeline-now (ruled tables cell by cell), Gemini (if `GEMINI_API_KEY` is in `.env.local`). It also shows how many key numbers two readers both read, only one read, or neither. It changes nothing in the database.
-
-    npx tsx --tsconfig tsconfig.json scripts/ocr-pilot.ts --files "$HOME/Desktop/Desktop/2026 to 2022"
-
+`eval/ocr-pilot-truth.json` is what the 11 hardest pages really say, read by eye. The pilot script that scored each reader against it was removed with the previous OCR engine; the file stays as the hand-made truth that the unit tests (`currency.selftest.ts`, `readingCheck.selftest.ts`) use. Pages are now read by two Gemini models (`src/lib/ingestion/geminiOcr.ts`) and checked by `scripts/ocr-consensus.ts`.

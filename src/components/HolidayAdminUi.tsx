@@ -29,7 +29,6 @@ import type {
   HolidayAuditView,
   HolidayDelegateView,
   HolidayYearView,
-  PendingExtractionView,
 } from "@/lib/holidays/admin/types";
 import { NONEXEC_ROW, NonExecutiveChip } from "./facility/NonExecutive";
 

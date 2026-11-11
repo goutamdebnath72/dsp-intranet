@@ -1,7 +1,7 @@
 // src/lib/ai/geminiEmbedding.ts
 //
 // Talking to Google's embedding model. NO database, NO TypeORM entities here, on purpose: a standalone script (such as
-// scripts/reread-circulars.ts, run with tsx) can import this without loading the entity classes, whose decorators need TypeScript's
+// scripts/test-eds-query.ts or scripts/reingest-circulars-gemini.ts, run with tsx) can import this without loading the entity classes, whose decorators need TypeScript's
 // emitDecoratorMetadata and so cannot run under tsx. embedding.service.ts re-exports everything below, so existing imports are unchanged.
 
 /**

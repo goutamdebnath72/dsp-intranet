@@ -43,9 +43,6 @@ const OPS = new Set([
   "year-view",
   "seed",
   "clear",
-  "staging-list",
-  "staging-confirm",
-  "staging-reject",
   "delegates",
   "find-executive",
   "grant",
@@ -148,26 +145,6 @@ export async function handleHolidayAdmin(body: unknown, ctx: ApiContext): Promis
     const sentVersion = typeof b.version === "string" ? b.version : undefined;
 
     const result = await store.clearYear(ctx.db, actor, { year, sentVersion });
-    return reply(200, { result });
-  }
-
-  // 5. Staging List, Confirm & Reject
-  if (op === "staging-list") {
-    const pending = await store.listPendingStaging(ctx.db);
-    return reply(200, { pending });
-  }
-
-  if (op === "staging-confirm") {
-    const id = num(b.id);
-    if (!id) return reply(400, { error: "Missing staging extraction id." });
-    const result = await store.confirmStaging(ctx.db, actor, id);
-    return reply(200, { result });
-  }
-
-  if (op === "staging-reject") {
-    const id = num(b.id);
-    if (!id) return reply(400, { error: "Missing staging extraction id." });
-    const result = await store.rejectStaging(ctx.db, actor, id);
     return reply(200, { result });
   }
 

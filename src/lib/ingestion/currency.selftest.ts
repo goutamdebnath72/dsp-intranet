@@ -1,6 +1,6 @@
 /**
  * Self-test of the rupee-sign checks (step 42b). Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/currency.selftest.ts
- * The readings tested are the REAL ones Tesseract's English model wrote for a printed rupee sign (342 degraded renders in 19 font faces, 19 Oct 2026), and the
+ * The readings tested are the REAL ones an OCR engine's English model wrote for a printed rupee sign (342 degraded renders in 19 font faces, 19 Oct 2026), and the
  * 11 hard pages of the pilot are the false-positive check.
  */
 import { readFileSync } from "node:fs";
@@ -85,7 +85,7 @@ ok("a written mark is not reported (Rs. 15,000)", junk("Rs. 15,000/- and INR 15,
 {
   const pilot: { id: string; pipeline: string; gemini: string }[] = JSON.parse(readFileSync(join(__dirname, "__fixtures__", "pilot-readings.json"), "utf8"));
   const flagged = pilot.flatMap((p) => [...attachedDigitSuspects(p.pipeline).map((s) => `${p.id}:pipeline:${s.value}`), ...attachedDigitSuspects(p.gemini).map((s) => `${p.id}:gemini:${s.value}`)]);
-  ok(`REAL: on the ${pilot.length} hard pages of the pilot, in both readings, the ONLY amount flagged is the real misread of the gift-card Hindi page's Tesseract reading (215,000 where the circular says Rs 15,000): no false alarm anywhere else, and Gemini's reading of that page is not flagged`, flagged.join(" | ") === "gift-card-hindi:pipeline:215000", flagged.join(" | "));
+  ok(`REAL: on the ${pilot.length} hard pages of the pilot, in both readings, the ONLY amount flagged is the real misread of the gift-card Hindi page's old reading (215,000 where the circular says Rs 15,000): no false alarm anywhere else, and Gemini's reading of that page is not flagged`, flagged.join(" | ") === "gift-card-hindi:pipeline:215000", flagged.join(" | "));
   const truth = (JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "eval", "ocr-pilot-truth.json"), "utf8")).pages as { id: string; numbers: string[] }[]).find((x) => x.id === "gift-card-hindi");
   ok("...and the hand-made truth of that page says the amount is 15,000", !!truth && truth.numbers.includes("15,000") && !truth.numbers.includes("215,000"));
   const twin = pilot.filter((p) => /gpais/.test(p.id)).length;

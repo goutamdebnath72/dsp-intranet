@@ -1,6 +1,7 @@
 // src/components/OmnibarModal.tsx
 "use client";
 
+import { isIdQuery } from "@/lib/search/idQuery";
 import { formatCircularTitle } from "@/lib/circularTitle";
 import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
+import { needsWideModal } from "@/lib/search/edsLayout";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
 import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
@@ -29,6 +31,7 @@ import { OmniLoginHint } from "@/components/OmniLoginHint";
 import { WEAK_NOTE } from "@/lib/search/weakMatch";
 import { looksLikeNameSearch } from "@/lib/search/nameSearchGate";
 import { AnswerHeadline } from "@/components/AnswerHeadline";
+import { FormattedAnswerText } from "@/components/FormattedAnswerText";
 import { afterVerdict } from "@/lib/ui/answerHeadline";
 import { FormerNameNotice } from "@/components/FormerNameNotice";
 import { formerNameNotice } from "@/lib/search/formerNames";
@@ -53,6 +56,7 @@ import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
 import { decideLoginHint, excludeShownPeople } from "@/lib/search/loginHints";
 import { autoEdsEnabled, detectSynthesisIntent } from "@/lib/search/synthesisIntent";
+import { resumeAsEds } from "@/lib/search/loginHints";
 import { Tooltip } from "@/components/Tooltip";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
@@ -71,6 +75,14 @@ const BASE_MODAL_WIDTH_REM = 52; // the floor: never narrower than this
 const BASE_MODAL_WIDTH_VW = 60; // the width on a laptop or a desktop: a share of the screen (the page itself is 80vw), so it holds at any zoom
 const MODAL_MAX_PX = 1600; // never wider than this, even on a very large monitor
 const EXECUTIVE_SCALE = 1.08;
+// The box while an answer shows a table of 4+ columns (src/lib/search/edsLayout.ts) is exactly as wide as the PAGE behind it: --omni-page-width (globals.css) is the page's own width
+// (--content-width from the md breakpoint up, the full width below), so the two cannot differ at any screen size or zoom, and NO box ever crosses it.
+const PAGE_WIDTH_VAR = "var(--omni-page-width)";
+// While the box is at its widest (a table of 4+ columns), every text in it is this much smaller than its normal size (owner, 10 Nov 2026: "a very small amount"): 3%, so a 15 px text is
+// drawn at 14.5 px. The factor multiplies the text scale (--omni-k) of the card, which every text size and line height of the modal already follows (omniScale.css), so nothing can
+// escape it and the proportions stay as they were. It goes the moment the box narrows again. This is the only place the amount is written: change it here.
+const WIDE_TEXT_FACTOR = 0.97;
+const MD_BREAKPOINT_PX = 768; // where the page changes from full width to --content-width (Tailwind md)
 
 function PersonRow({
   emp,
@@ -188,6 +200,8 @@ export function OmnibarModal({
     attempt,
     requestRetry,
     setQuery,
+    clearSearch,
+    isStale,
     mode,
     triggerSearch,
     results,
@@ -199,29 +213,6 @@ export function OmnibarModal({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Step 59a: a question that uses a FORMER name of a department ("CHRD", "Training Department") is answered with the CURRENT name first: shown above the results, whatever the kind of answer.
   const nameNotice = useMemo(() => formerNameNotice(submittedQuery || ""), [submittedQuery]);
-  // Step 56b: the modal is wider than it was (step 54i) but its text was not: the text grows with the width, so that it keeps the proportion it had at the old 52rem (omniScale.css).
-  // The doctors' unit tables opt out (omni-noscale): they keep their size and the room the extra width gave them.
-  const modalRef = useRef<HTMLDivElement>(null);
-  const [omniK, setOmniK] = useState(1);
-  useEffect(() => {
-    const el = modalRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    const measure = () => setOmniK(omniScaleFor(el.offsetWidth, BASE_MODAL_WIDTH_REM * rootPx));
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [isOpen]);
-  const { status: authStatus } = useVerifiedSession();
-  // Answer first (step 29a, off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true): once the search has found documents, the answer they
-  // prove is written above them, with the source and the exact words. Nothing appears if the text does not prove an answer.
-  const circularAnswer = useCircularAnswer({ enabled: answerFirstEnabled(), query: submittedQuery, results: isLoading ? [] : results, mode });
-  // The documents the answer already cites are not listed a second time below it: the answer's source line is their one link.
-  const answeredKeys = new Set((circularAnswer.answer?.sources ?? []).map((s) => `${s.type}-${s.id}`));
-  const { openModal } = useModal();
-  // A reveal the user clicked while logged out; retried after they log in.
-  const pendingRevealRef = useRef<{ empId: string; field: "mobile" | "email" } | null>(null);
 
   const [loadingStep, setLoadingStep] = useState(0);
   const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
@@ -240,6 +231,75 @@ export function OmnibarModal({
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(
     null,
   );
+
+  // Step 56b: the modal is wider than it was (step 54i) but its text was not: the text grows with the width, so that it keeps the proportion it had at the old 52rem (omniScale.css).
+  // The doctors' unit tables opt out (omni-noscale): they keep their size and the room the extra width gave them.
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // The text scale (--omni-k) is a pure function of the SCREEN and the mode: it is the scale of the width the box is going to have, not of the width it has at this moment.
+  // It used to be re-measured from the box (ResizeObserver, offsetWidth) as well. While the box unfolds (every opening, and above all when it comes back after the circular's
+  // PDF viewer is closed: the whole answer is drawn again, the unfolding stalls) the box is narrow, the measurement came out as 1, the text was drawn small and then jumped to its
+  // real size when the unfolding ended. Nothing the box does while it animates may change the text size, so nothing is measured from it any more
+  // (src/components/OmnibarModal.layout.selftest.ts keeps the measuring out).
+  const getExpectedK = useCallback(() => {
+    if (typeof window === "undefined") return 1;
+    const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const executive = mode === "intellectual";
+    const rem = executive ? BASE_MODAL_WIDTH_REM * EXECUTIVE_SCALE : BASE_MODAL_WIDTH_REM;
+    const vw = executive ? BASE_MODAL_WIDTH_VW * EXECUTIVE_SCALE : BASE_MODAL_WIDTH_VW;
+    const view = window.innerWidth;
+    // the box sits in a row with 1rem of room on each side, inside the page without its scrollbar
+    const room = (document.documentElement.clientWidth || view) - 2 * rootPx;
+    // the page behind the box: --content-width (a share of the screen, "80vw") from the md breakpoint up, the full width below; the box is never wider than it
+    const contentVw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--content-width")) || 80;
+    const pagePx = view >= MD_BREAKPOINT_PX ? (contentVw * view) / 100 : view;
+    const targetPx = Math.min(Math.max(rem * rootPx, (vw * view) / 100), MODAL_MAX_PX, 0.92 * view, room, pagePx);
+    return omniScaleFor(targetPx, BASE_MODAL_WIDTH_REM * rootPx);
+  }, [mode]);
+
+  const [omniK, setOmniK] = useState(() => (typeof window !== "undefined" ? getExpectedK() : 1));
+
+  // Frame 0 of every opening, a mode change, and a resized window (zoom included) all take the same pure value.
+  useEffect(() => {
+    const apply = () => {
+      const expected = getExpectedK();
+      setOmniK((prev) => (Math.abs(prev - expected) >= 0.01 ? expected : prev));
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, [getExpectedK, isOpen, selectedCircularId, selectedAnnouncement]);
+  const { status: authStatus } = useVerifiedSession();
+  // Answer first (step 29a, off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true): once the search has found documents, the answer they
+  // prove is written above them, with the source and the exact words. Nothing appears if the text does not prove an answer.
+  const circularAnswer = useCircularAnswer({ enabled: answerFirstEnabled(), query: submittedQuery, results: isLoading ? [] : results, mode });
+  // The documents the answer already cites are not listed a second time below it: the answer's source line is their one link.
+  const answeredKeys = new Set((circularAnswer.answer?.sources ?? []).map((s) => `${s.type}-${s.id}`));
+  const { openModal } = useModal();
+  // The "sign in" advice for an EDS-category question (step 83): when the visitor signs in as an executive while that question is on screen, it runs by itself through EDS.
+  // (Signing in changes the search address, so the plain search restarts by itself; this sends it to EDS instead, so nobody has to close the window and ask again.)
+  const wasExecutiveRef = useRef(isExecutive);
+  useEffect(() => {
+    const was = wasExecutiveRef.current;
+    wasExecutiveRef.current = isExecutive;
+    if (
+      resumeAsEds({
+        wasExecutive: was,
+        isExecutive,
+        isOpen,
+        mode,
+        query,
+        submittedQuery,
+        edsEnabled: autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }),
+      })
+    ) {
+      triggerSearch("intellectual", { auto: true, query: submittedQuery });
+    }
+    // only a change of isExecutive is the trigger; the other values are read as they are at that moment
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExecutive]);
+  // A reveal the user clicked while logged out; retried after they log in.
+  const pendingRevealRef = useRef<{ empId: string; field: "mobile" | "email" } | null>(null);
 
   // Client-side site directory matches (the "site" result type). Sites are a
   // static list, so this needs no server round-trip. Shown pinned above the
@@ -332,6 +392,8 @@ export function OmnibarModal({
             mode,
             circularShown: results.length > 0,
             answerCardShown: !!analytics,
+            authStatus: authStatus as "authenticated" | "unauthenticated" | "loading",
+            edsEnabled: autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }),
           }),
     [isLoading, submittedQuery, authStatus, isExecutive, mode, analytics, results],
   );
@@ -341,16 +403,6 @@ export function OmnibarModal({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // ID-shape detector (mirror of the server's detectShape for the live path).
-  const isIdQuery = useCallback((raw: string) => {
-    const q = (raw || "").trim();
-    return (
-      /^\d{4}$/.test(q) ||
-      /^\d{6}$/.test(q) ||
-      /^\d{10}$/.test(q) ||
-      /^[A-Za-z]\d{4,}$/.test(q)
-    );
-  }, []);
-
   // Live: run ID lookups as the user types (debounced). Names wait for Enter.
   useEffect(() => {
     const q = (query || "").trim();
@@ -380,7 +432,7 @@ export function OmnibarModal({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, mode, isIdQuery]);
+  }, [query, mode]);
 
   // When the query is cleared or becomes an id/name, keep employee list sane.
   useEffect(() => {
@@ -388,27 +440,35 @@ export function OmnibarModal({
     if (q.length < 2) {
       setEmployeeResults([]);
       setRevealed({});
+    } else if (!isIdQuery(q) && !looksLikeNameSearch(q)) {
+      setEmployeeResults([]);
     }
   }, [query]);
+
+  // ONE employee lookup at a time wins: every request takes a number, and only the NEWEST one may write its answer. (A slow
+  // answer for an old query used to arrive after the box was cleared or edited and put the old people back; the Enter-ID
+  // lookup also had no .catch.)
+  const employeeReq = useRef(0);
+  const fetchEmployees = useCallback(async (kind: "name" | "id", q: string) => {
+    const mine = ++employeeReq.current;
+    setEmployeeLoading(true);
+    try {
+      const r = await fetch(`/api/employees/search?mode=${kind}&q=${encodeURIComponent(q)}`, { cache: "no-store" });
+      const d = r.ok ? await r.json() : { results: [] };
+      if (mine === employeeReq.current) setEmployeeResults(Array.isArray(d.results) ? d.results : []);
+    } catch {
+      if (mine === employeeReq.current) setEmployeeResults([]);
+    } finally {
+      if (mine === employeeReq.current) setEmployeeLoading(false);
+    }
+  }, []);
 
   // Enter -> fuzzy + phonetic NAME search.
   const runEmployeeNameSearch = useCallback(async () => {
     const q = (query || "").trim();
     if (q.length < 2) return;
-    setEmployeeLoading(true);
-    try {
-      const r = await fetch(
-        `/api/employees/search?mode=name&q=${encodeURIComponent(q)}`,
-        { cache: "no-store" },
-      );
-      const d = r.ok ? await r.json() : { results: [] };
-      setEmployeeResults(Array.isArray(d.results) ? d.results : []);
-    } catch {
-      setEmployeeResults([]);
-    } finally {
-      setEmployeeLoading(false);
-    }
-  }, [query]);
+    await fetchEmployees("name", q);
+  }, [query, fetchEmployees]);
 
   // Reveal a masked contact field: unmask inline + server writes the audit row.
   const doReveal = useCallback(
@@ -495,11 +555,12 @@ export function OmnibarModal({
     }
   }, [authStatus, doReveal]);
 
-  const currentMaxWidthRem =
-    mode === "intellectual"
-      ? (BASE_MODAL_WIDTH_REM * EXECUTIVE_SCALE).toFixed(2)
-      : BASE_MODAL_WIDTH_REM.toFixed(2);
-  const currentWidthVw = mode === "intellectual" ? (BASE_MODAL_WIDTH_VW * EXECUTIVE_SCALE).toFixed(2) : String(BASE_MODAL_WIDTH_VW);
+  // A comparison table of 4+ columns on the screen widens the box; it is a pure function of the answer being shown, so it narrows again the moment that answer goes
+  // (a new query, an edit of the text, a narrower answer). The text scale (omniK) deliberately stays that of the normal width: the extra room is for the table, not bigger text.
+  const wideModal = mode === "intellectual" && needsWideModal(synthesis);
+  // the normal box: its own width, but never wider than the page. The wide box: the page's width, nothing more, nothing less (100% = the room the row gives it, for a narrow screen).
+  const normalMaxWidth = `min(max(${(mode === "intellectual" ? BASE_MODAL_WIDTH_REM * EXECUTIVE_SCALE : BASE_MODAL_WIDTH_REM).toFixed(2)}rem, ${mode === "intellectual" ? (BASE_MODAL_WIDTH_VW * EXECUTIVE_SCALE).toFixed(2) : String(BASE_MODAL_WIDTH_VW)}vw), ${MODAL_MAX_PX}px, 92vw, ${PAGE_WIDTH_VAR}, 100%)`;
+  const currentMaxWidth = wideModal ? `min(${PAGE_WIDTH_VAR}, 100%)` : normalMaxWidth;
 
   const handleCloseAll = () => {
     setSelectedCircularId(null);
@@ -535,9 +596,13 @@ export function OmnibarModal({
     const prevPaddingRight = html.style.paddingRight;
     html.style.overflow = "hidden";
     if (scrollBarWidth > 0) html.style.paddingRight = `${scrollBarWidth}px`;
+    // The page stays centred in (screen - scrollbar) because of that padding, but the box's own row (fixed, inset 0) spans the whole screen once the scrollbar is gone: the box
+    // sat half a scrollbar (about 7 px) to the right of the page behind it. The row takes the same room on its right (--scrollbar-comp, used below), so both share one centre.
+    html.style.setProperty("--scrollbar-comp", `${scrollBarWidth}px`);
     return () => {
       html.style.overflow = prevOverflow;
       html.style.paddingRight = prevPaddingRight;
+      html.style.removeProperty("--scrollbar-comp");
     };
   }, [isOpen]);
 
@@ -610,13 +675,25 @@ export function OmnibarModal({
     <>
       <AnimatePresence>
         {isOpen && !selectedCircularId && !selectedAnnouncement && (
-          <div className="fixed inset-0 z-[100] flex items-start justify-center pt-12 sm:pt-14 px-4">
+          <div className="fixed inset-0 z-[100] flex items-start justify-center pt-12 sm:pt-14 px-4" style={{ paddingRight: "calc(1rem + var(--scrollbar-comp, 0px))" }}>
+            {/* The dimming covers the whole screen, but the BLUR only covers the page behind the box (same width and centre as the page: --omni-page-width, and the room the
+                scrollbar's lock padding leaves). The box is exactly as wide as the page, so a blur over the whole screen smeared the page's dark edge (the banner) a few pixels
+                outward, just outside the box's edge: two thin dark lines down both sides (read from a real screenshot: 139 fading to 190 over 4 px). With the blur kept inside the
+                page's own footprint nothing is smeared outside it. */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={handleCloseAll}
-              className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              className="fixed inset-0 bg-neutral-900/40"
+            />
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleCloseAll}
+              className="fixed inset-y-0 left-0 mx-auto backdrop-blur-sm"
+              style={{ right: "var(--scrollbar-comp, 0px)", width: PAGE_WIDTH_VAR, maxWidth: "100%" }}
             />
 
             {/* Step 62a: NO `layout` prop on this box. With a classic (always visible) scrollbar the page width changes by the scrollbar's width when the scroll lock above is set and
@@ -629,7 +706,7 @@ export function OmnibarModal({
                 opacity: 1,
                 scale: 1,
                 y: 0,
-                maxWidth: `min(max(${currentMaxWidthRem}rem, ${currentWidthVw}vw), ${MODAL_MAX_PX}px, 92vw)`,
+                maxWidth: currentMaxWidth,
               }}
               exit={{ opacity: 0, scale: 0.95, y: -20 }}
               transition={{
@@ -637,7 +714,7 @@ export function OmnibarModal({
                 duration: 0.25,
               }}
               ref={modalRef}
-              style={{ "--omni-k": omniK } as React.CSSProperties}
+              style={{ "--omni-k": wideModal ? Number((omniK * WIDE_TEXT_FACTOR).toFixed(4)) : omniK } as React.CSSProperties}
               className="omni-scale relative w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-neutral-200 flex flex-col max-h-[calc(100vh-5.5rem)]"
             >
               {/* Multiline Search Input Header */}
@@ -647,7 +724,15 @@ export function OmnibarModal({
                   ref={textareaRef}
                   rows={3}
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setQuery(val);
+                    if (val.trim() === "" || isIdQuery(val.trim())) {
+                      employeeReq.current++; // an answer still on its way for the old text must not land
+                      setEmployeeResults([]);
+                      clearSearch();
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Escape") {
                       e.preventDefault();
@@ -655,6 +740,16 @@ export function OmnibarModal({
                     }
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
+                      const qTrim = (query || "").trim();
+                      if (qTrim.length < 2) return;
+
+                      // ID Query: ticket, mobile, CUG, SAIL PNO (already handled live).
+                      // Keep employee results and NEVER send an ID to circular search!
+                      if (isIdQuery(qTrim)) {
+                        if (employeeResults.length === 0) void fetchEmployees("id", qTrim);
+                        return;
+                      }
+
                       // Smart Enter: fire ALL deterministic channels at once —
                       // employee name search + employee/department analytics +
                       // circular/announcement Smart Semantic. IDs & sites are
@@ -674,6 +769,8 @@ export function OmnibarModal({
                         // the people name search is for what can be a NAME (one to four words, not a question): a sentence only burned 1 to 7 s of database time (step 61a)
                         if (query.trim().length >= 2 && looksLikeNameSearch(query)) {
                           runEmployeeNameSearch();
+                        } else {
+                          setEmployeeResults([]);
                         }
                         triggerSearch("semantic");
                       }
@@ -708,7 +805,7 @@ export function OmnibarModal({
               {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
 
               {nameNotice && <FormerNameNotice notice={nameNotice} />}
-              {loginHint && <OmniLoginHint hint={loginHint} />}
+              {loginHint && <OmniLoginHint hint={loginHint} onSignIn={openModal} />}
 
               <div className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">
                 {isLoading && mode === "intellectual" ? (
@@ -815,7 +912,7 @@ export function OmnibarModal({
                                 }`}
                               >
                                 {analytics.kind === "error" && "Bad query: "}
-                                {analytics.headline ? afterVerdict(analytics.answer) : analytics.answer}
+                                <FormattedAnswerText text={analytics.headline ? afterVerdict(analytics.answer) : analytics.answer} />
                               </p>
                             )}
                             {analytics.kind === "clarify" && analytics.ask && (
@@ -1242,6 +1339,7 @@ export function OmnibarModal({
 
                     {!isLoading &&
                       mode !== null &&
+                      !isStale &&
                       query.trim().length >= 3 &&
                       !analytics &&
                       results.length === 0 &&
@@ -1289,12 +1387,13 @@ export function OmnibarModal({
                       </div>
                     )}
 
-                    {!isLoading && results.length > 0 && (
+                    {!isLoading && results.length > 0 && !isIdQuery((query || "").trim()) && (
                       <div className="flex flex-col gap-4 p-1">
                         {mode === "intellectual" && synthesis && (
                           <ExecutiveBriefing
                             data={synthesis}
                             onOpenCircular={setSelectedCircularId}
+                            question={submittedQuery}
                           />
                         )}
 
@@ -1321,7 +1420,7 @@ export function OmnibarModal({
                             <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
                               Primary Sources
                             </h4>
-                          ) : employeeResults.length > 0 ? (
+                          ) : employeeResults.length > 0 && looksLikeNameSearch(submittedQuery) ? (
                             <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
                               Mentioned in circulars
                             </h4>
@@ -1377,8 +1476,8 @@ export function OmnibarModal({
                                         <span
                                           className={`font-semibold truncate transition-colors ${
                                             result.isPerfectMatch
-                                              ? "text-amber-900 group-hover:text-amber-700"
-                                              : "text-neutral-900 group-hover:text-primary-700"
+                                              ? "text-amber-900 group-hover:text-primary-600 group-hover:underline"
+                                              : "text-neutral-900 group-hover:text-primary-600 group-hover:underline"
                                           }`}
                                         >
                                           {formatCircularTitle(result.headline)}
@@ -1462,8 +1561,8 @@ export function OmnibarModal({
                                         <span
                                           className={`font-semibold truncate transition-colors ${
                                             result.isPerfectMatch
-                                              ? "text-amber-900 group-hover:text-amber-700"
-                                              : "text-neutral-900 group-hover:text-primary-700"
+                                              ? "text-amber-900 group-hover:text-primary-600 group-hover:underline"
+                                              : "text-neutral-900 group-hover:text-primary-600 group-hover:underline"
                                           }`}
                                         >
                                           {formatCircularTitle(result.headline)}

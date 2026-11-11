@@ -16,13 +16,9 @@ import { writeAudit, recentAuditRows, lastChangeOf } from "@/lib/facility/audit"
 import { guardRecord } from "@/lib/facility/guard";
 import { versionOf } from "@/lib/concurrency/version";
 import { toIsoInstant } from "@/lib/dates";
-import { syncHolidayPolicyChunks, type PolicyNoteInput, type ReclassificationInput } from "@/lib/holidays/policyChunks";
+import { buildPolicyChunkRows, writePolicyChunkRows, type PolicyChunkRow, type PolicyNoteInput, type ReclassificationInput } from "@/lib/holidays/policyChunks";
 import type { Actor, Authority, FacilityDb, QueryFn } from "@/lib/facility/types";
-import type {
-  HolidayYearView,
-  PendingExtractionView,
-  StagedHolidayEntry,
-} from "./types";
+import type { HolidayYearView } from "./types";
 
 export type HolidayDb = FacilityDb;
 
@@ -56,16 +52,16 @@ export async function defaultDb(): Promise<HolidayDb> {
 export async function getYearView(db: HolidayDb, year: number): Promise<HolidayYearView | null> {
   return db.run(async (q) => {
     const rows = await q(
-      `SELECT hy.id, hy."holidayType", hy.date, hm.name
+      `SELECT hy.id, hy."holidayType", to_char(hy.date, 'YYYY-MM-DD') AS d, hm.name, hy.categories, hy.note
          FROM public.holidayyear hy
          JOIN public.holidaymaster hm ON hy."holidayMasterId" = hm.id
         WHERE hy.year = $1
-        ORDER BY hy.date ASC, hm.name ASC`,
+        ORDER BY hy.date ASC, hm.name ASC, hy.id ASC`,
       [year],
     );
 
     const quotas = await q(
-      `SELECT category, quota FROM public.holiday_rh_quota WHERE year = $1`,
+      `SELECT category, quota FROM public.holiday_rh_quota WHERE year = $1 ORDER BY category, quota`,
       [year],
     );
 
@@ -87,9 +83,12 @@ export async function getYearView(db: HolidayDb, year: number): Promise<HolidayY
       else if (type === "RH") rhCount++;
     }
 
+    // EVERYTHING a seed or a clear would overwrite is in the version: date, name, type, categories, note, and the RH quota
+    // values (it covered only date/name/type and the number of quota rows, so an edit of a note or a quota went unnoticed).
     const fingerprint = rows
-      .map((r) => `${r.date}:${r.name}:${r.holidayType}`)
+      .map((r) => `${r.d}:${r.name}:${r.holidayType}:${r.categories ?? ""}:${r.note ?? ""}`)
       .join("|");
+    const quotaPrint = quotas.map((x) => `${x.category}=${x.quota}`).join("|");
 
     const version = versionOf("holiday_year", [
       year,
@@ -97,6 +96,7 @@ export async function getYearView(db: HolidayDb, year: number): Promise<HolidayY
       quotas.length,
       policyChunkCount,
       fingerprint,
+      quotaPrint,
     ]);
 
     const last = await lastChangeOf(q, "holiday", year);
@@ -135,8 +135,11 @@ export async function listAvailableYears(db: HolidayDb): Promise<number[]> {
 // -----------------------------------------------------------------------------
 
 function extractPureJsonText(raw: string): string {
+  // Strip only what is never meant to be there: the BOM, zero-width characters and control characters (tab, CR and LF are
+  // kept). The first version removed EVERY non-ASCII character, silently changing Hindi/Bengali holiday names and
+  // turning an en dash or curly quote in a policy note into a missing character.
   let clean = raw.replace(/^\uFEFF/, "").trim();
-  clean = clean.replace(/[^\x20-\x7E\n\r[\]{}:,"'A-Za-z0-9_.\- ]+/g, "");
+  clean = clean.replace(/[\u200B-\u200D\u2060\uFEFF\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
 
   const arrayStart = clean.indexOf("[");
   const arrayEnd = clean.lastIndexOf("]");
@@ -249,6 +252,9 @@ export async function seedYear(
   const inferredYear = parsed.year ?? parsed.holidays[0].date.year;
   const targetYear = input.expectedYear ?? inferredYear;
 
+  if (!Number.isInteger(targetYear) || targetYear < 2000 || targetYear > 2100) {
+    return { status: "invalid", reason: `Invalid year: ${targetYear}` };
+  }
   if (parsed.year && input.expectedYear && parsed.year !== input.expectedYear) {
     return {
       status: "invalid",
@@ -256,30 +262,60 @@ export async function seedYear(
     };
   }
 
+  // Every entry must be for the year being seeded and have a valid type: a file without a "year" field, with 2025 dates,
+  // uploaded while 2026 is selected, used to be stored as 2026; and a lower-case type ("ch") failed in the database as a 500.
+  for (const h of parsed.holidays) {
+    h.type = String(h.type).toUpperCase() as "CH" | "FH" | "RH";
+    if (!["CH", "FH", "RH"].includes(h.type)) {
+      return { status: "invalid", reason: `"${h.title}" has an unknown type "${h.type}". Use CH, FH or RH.` };
+    }
+    if (h.date.year !== targetYear) {
+      return { status: "invalid", reason: `"${h.title}" is dated ${h.date.toISODate()}, which is not in ${targetYear}. Check the file or the selected year.` };
+    }
+  }
+  for (const rq of parsed.rhQuota) {
+    if (!Number.isInteger(rq.quota) || rq.quota < 0) {
+      return { status: "invalid", reason: `The RH quota for "${rq.category}" must be a whole number, 0 or more.` };
+    }
+  }
+
+  // The policy-note embeddings are made BEFORE the lock and the transaction: the network is never waited for while the
+  // tool's global write lock is held, and if any embedding fails nothing at all has been touched (the first version
+  // swallowed the failure and left the year's policy chunks deleted or half rewritten, with status "ok").
+  const reclassifications: ReclassificationInput[] = parsed.holidays
+    .filter((h) => h.note)
+    .map((h) => ({ holidayName: h.title, date: h.date.toISODate()!, note: h.note! }));
+  let chunkRows: PolicyChunkRow[];
+  try {
+    chunkRows = await buildPolicyChunkRows(targetYear, parsed.policyNotes, reclassifications);
+  } catch (embErr: any) {
+    console.warn("[holiday/store] policy embedding failed, nothing saved:", embErr?.message || embErr);
+    return { status: "invalid", reason: "The holiday notes could not be indexed for search just now (the AI service did not answer). Nothing was saved: please try again in a moment." };
+  }
+
   try {
     return await db.run(async (q) => {
       const role = await begin(q, "holiday", actor);
 
-      // Race-condition check if client provided sentVersion
-      if (input.sentVersion) {
-        const guarded = await guardRecord(q, "holiday", targetYear, {
-          sent: input.sentVersion,
-          load: async () => {
-            const yv = await getYearView({ run: (fn) => fn(q) }, targetYear);
-            return yv ? { id: targetYear, ...yv } : null;
-          },
-          version: (row) => row.version,
-          current: (row) => row,
-        });
-
-        if (guarded.status === "stale") {
-          return { status: "stale", current: guarded.current, last: guarded.last };
-        }
+      // The guard is NOT optional: a request without a version (or with a forged one) is treated as stale, exactly as in
+      // the other tools. (It used to run only `if (input.sentVersion)`, so a direct request skipped it.)
+      const guarded = await guardRecord(q, "holiday", targetYear, {
+        sent: input.sentVersion,
+        load: async () => {
+          const yv = await getYearView({ run: (fn) => fn(q) }, targetYear);
+          return yv ? { id: targetYear, ...yv } : null;
+        },
+        version: (row) => row.version,
+        current: (row) => row,
+      });
+      if (guarded.status === "stale") {
+        return { status: "stale", current: guarded.current, last: guarded.last };
       }
 
       // 1. Ensure master records exist for each holiday name
       const masterIds = new Map<string, number>();
       for (const h of parsed.holidays) {
+        if (masterIds.has(h.title)) continue;
         const existing = await q(
           `SELECT id FROM public.holidaymaster WHERE name = $1 LIMIT 1`,
           [h.title],
@@ -304,46 +340,24 @@ export async function seedYear(
         await q(
           `INSERT INTO public.holidayyear ("date", "year", "holidayType", "holidayMasterId", categories, note)
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            h.date.toISODate(),
-            targetYear,
-            h.type,
-            masterId,
-            h.categories,
-            h.note,
-          ],
+          [h.date.toISODate(), targetYear, h.type, masterId, h.categories, h.note],
         );
       }
 
-      // 4. Update RH quota
-      await q(`DELETE FROM public.holiday_rh_quota WHERE year = $1`, [targetYear]);
-      for (const rq of parsed.rhQuota) {
-        await q(
-          `INSERT INTO public.holiday_rh_quota (year, category, quota) VALUES ($1, $2, $3)`,
-          [targetYear, rq.category, rq.quota],
-        );
+      // 4. RH quota: replaced only when the file states one (a file without rhQuota keeps the year's existing quota, as the
+      //    original upload did; the rewrite had started wiping it).
+      if (parsed.rhQuota.length > 0) {
+        await q(`DELETE FROM public.holiday_rh_quota WHERE year = $1`, [targetYear]);
+        for (const rq of parsed.rhQuota) {
+          await q(
+            `INSERT INTO public.holiday_rh_quota (year, category, quota) VALUES ($1, $2, $3)`,
+            [targetYear, rq.category, rq.quota],
+          );
+        }
       }
 
-      // 5. Build policy notes and reclassifications for vector embeddings
-      const reclassifications: ReclassificationInput[] = parsed.holidays
-        .filter((h) => h.note)
-        .map((h) => ({
-          holidayName: h.title,
-          date: h.date.toISODate()!,
-          note: h.note!,
-        }));
-
-      let chunksWritten = 0;
-      try {
-        const syncRes = await syncHolidayPolicyChunks(
-          targetYear,
-          parsed.policyNotes,
-          reclassifications,
-        );
-        chunksWritten = syncRes.chunksWritten;
-      } catch (embErr) {
-        console.warn(`[holiday/store] Policy embedding sync warning:`, embErr);
-      }
+      // 5. Policy chunks for search: replaced inside this same transaction (embeddings were made above).
+      const chunksWritten = await writePolicyChunkRows(q, targetYear, chunkRows);
 
       // 6. Record Audit
       await writeAudit(q, "holiday", actor, role, "seed", {
@@ -395,20 +409,18 @@ export async function clearYear(
     return await db.run(async (q) => {
       const role = await begin(q, "holiday", actor);
 
-      if (sentVersion) {
-        const guarded = await guardRecord(q, "holiday", year, {
-          sent: sentVersion,
-          load: async () => {
-            const yv = await getYearView({ run: (fn) => fn(q) }, year);
-            return yv ? { id: year, ...yv } : null;
-          },
-          version: (row) => row.version,
-          current: (row) => row,
-        });
-
-        if (guarded.status === "stale") {
-          return { status: "stale", current: guarded.current, last: guarded.last };
-        }
+      // not optional (see seedYear): no version, or a forged one, is stale
+      const guarded = await guardRecord(q, "holiday", year, {
+        sent: sentVersion,
+        load: async () => {
+          const yv = await getYearView({ run: (fn) => fn(q) }, year);
+          return yv ? { id: year, ...yv } : null;
+        },
+        version: (row) => row.version,
+        current: (row) => row,
+      });
+      if (guarded.status === "stale") {
+        return { status: "stale", current: guarded.current, last: guarded.last };
       }
 
       const existingRows = await q(
@@ -428,156 +440,6 @@ export async function clearYear(
       });
 
       return { status: "ok", year, holidaysRemoved };
-    });
-  } catch (err: any) {
-    if (err.name === "Forbidden") return { status: "forbidden" };
-    throw err;
-  }
-}
-
-// -----------------------------------------------------------------------------
-// Staging Extractions (Review, Confirm & Reject)
-// -----------------------------------------------------------------------------
-
-export async function listPendingStaging(db: HolidayDb): Promise<PendingExtractionView[]> {
-  return db.run(async (q) => {
-    const rows = await q(
-      `SELECT id, circular_id, year, status, payload, created_at
-         FROM public.holiday_extraction_staging
-        WHERE status = 'pending'
-        ORDER BY created_at DESC`,
-    );
-
-    return rows.map((r): PendingExtractionView => {
-      const payload = (r.payload as any) || {};
-      const holidays: StagedHolidayEntry[] = (payload.holidays || []).map((h: any) => ({
-        name: String(h.name || h.title || ""),
-        date: String(h.date || ""),
-        type: h.type,
-        categories: h.categories ? String(h.categories) : null,
-        note: h.note ? String(h.note) : null,
-        isNewMaster: Boolean(h.isNewMaster),
-        newAlias: h.newAlias ? String(h.newAlias) : null,
-      }));
-
-      const newCount = holidays.filter((h) => h.isNewMaster).length;
-      const noteCount = holidays.filter((h) => h.note).length;
-      const nearMissCount = holidays.filter((h) => h.newAlias).length;
-
-      return {
-        id: Number(r.id),
-        circularId: Number(r.circular_id),
-        year: Number(r.year),
-        status: String(r.status),
-        createdAt: toIsoInstant(r.created_at) ?? "",
-        holidayCount: holidays.length,
-        newCount,
-        noteCount,
-        nearMissCount,
-        holidays,
-        rhQuota: Array.isArray(payload.rhQuota) ? payload.rhQuota : [],
-        warnings: Array.isArray(payload.warnings) ? payload.warnings : [],
-      };
-    });
-  });
-}
-
-export async function confirmStaging(
-  db: HolidayDb,
-  actor: Actor,
-  id: number,
-): Promise<{ status: "ok"; year: number; holidayCount: number } | { status: "not-found" } | { status: "forbidden" }> {
-  try {
-    return await db.run(async (q) => {
-      const role = await begin(q, "holiday", actor);
-
-      const rows = await q(
-        `SELECT id, circular_id, year, payload FROM public.holiday_extraction_staging WHERE id = $1 AND status = 'pending'`,
-        [id],
-      );
-      if (rows.length === 0) return { status: "not-found" };
-
-      const r = rows[0];
-      const year = Number(r.year);
-      const payload = (r.payload as any) || {};
-      const holidays = payload.holidays || [];
-      const rhQuota = payload.rhQuota || [];
-
-      // Seed holidays from payload
-      for (const h of holidays) {
-        let masterId = h.matchedMasterId;
-        if (!masterId) {
-          const m = await q(`SELECT id FROM public.holidaymaster WHERE name = $1 LIMIT 1`, [h.name]);
-          if (m.length > 0) masterId = Number(m[0].id);
-          else {
-            const ins = await q(`INSERT INTO public.holidaymaster (name, type, aliases) VALUES ($1, $2, $3) RETURNING id`, [h.name, h.type, []]);
-            masterId = Number(ins[0].id);
-          }
-        }
-
-        await q(
-          `INSERT INTO public.holidayyear ("date", "year", "holidayType", "holidayMasterId", categories, note)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [h.date, year, h.type, masterId, h.categories || null, h.note || null],
-        );
-      }
-
-      for (const rq of rhQuota) {
-        await q(
-          `INSERT INTO public.holiday_rh_quota (year, category, quota) VALUES ($1, $2, $3)`,
-          [year, rq.category, rq.quota],
-        );
-      }
-
-      await q(
-        `UPDATE public.holiday_extraction_staging
-            SET status = 'confirmed', reviewed_by = $2, reviewed_at = now()
-          WHERE id = $1`,
-        [id, actor.ticket],
-      );
-
-      await writeAudit(q, "holiday", actor, role, "confirm", {
-        targetId: year,
-        after: { stagingId: id, year, holidayCount: holidays.length },
-        note: `Confirmed extraction staging #${id} (${holidays.length} holidays for ${year})`,
-      });
-
-      return { status: "ok", year, holidayCount: holidays.length };
-    });
-  } catch (err: any) {
-    if (err.name === "Forbidden") return { status: "forbidden" };
-    throw err;
-  }
-}
-
-export async function rejectStaging(
-  db: HolidayDb,
-  actor: Actor,
-  id: number,
-): Promise<{ status: "ok" } | { status: "not-found" } | { status: "forbidden" }> {
-  try {
-    return await db.run(async (q) => {
-      const role = await begin(q, "holiday", actor);
-
-      const rows = await q(
-        `SELECT id, year FROM public.holiday_extraction_staging WHERE id = $1 AND status = 'pending'`,
-        [id],
-      );
-      if (rows.length === 0) return { status: "not-found" };
-
-      await q(
-        `UPDATE public.holiday_extraction_staging
-            SET status = 'rejected', reviewed_by = $2, reviewed_at = now()
-          WHERE id = $1`,
-        [id, actor.ticket],
-      );
-
-      await writeAudit(q, "holiday", actor, role, "reject", {
-        targetId: Number(rows[0].year),
-        note: `Rejected extraction staging #${id}`,
-      });
-
-      return { status: "ok" };
     });
   } catch (err: any) {
     if (err.name === "Forbidden") return { status: "forbidden" };

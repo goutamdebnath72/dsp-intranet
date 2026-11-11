@@ -7,7 +7,6 @@
 // Features:
 //   - Seed Year from verified JSON / TXT file (or direct paste)
 //   - Clear Year protected by TypedConfirm (lost-update guarded)
-//   - Pending Circular Extraction Staging review (1-click Confirm / Reject)
 //   - Authorise / Revoke delegates with NonExecutive confirmation (HOD-only)
 //   - Complete History audit trail from public.facility_audit
 
@@ -147,18 +146,11 @@ export function HolidayAdminPanel({ open }: { open: HolidayAdminOpen }) {
       setYearView(res.body.yearView);
       setStale(false);
     } else {
-      setYearView({
-        year,
-        totalHolidays: 0,
-        chCount: 0,
-        fhCount: 0,
-        rhCount: 0,
-        rhQuotaCount: 0,
-        policyChunkCount: 0,
-        version: "",
-        lastChange: null,
-      });
+      // The year's current state could not be read. Do NOT invent an empty one with no version: the screen would then let
+      // a seed or a clear go out blind. Show the problem and keep both buttons off until a real read succeeds.
+      setYearView(null);
       setStale(false);
+      setNotice({ tone: "error", text: res.body?.error || `Could not read the current state of ${year}. Please select the year again.` });
     }
   }, []);
 
@@ -468,7 +460,7 @@ export function HolidayAdminPanel({ open }: { open: HolidayAdminOpen }) {
           <div className="flex justify-end pt-1">
             <button
               type="button"
-              disabled={busy || !rawText.trim()}
+              disabled={busy || !rawText.trim() || !yearView?.version}
               onClick={submitSeed}
               className={PRIMARY}
             >

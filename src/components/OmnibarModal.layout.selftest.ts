@@ -26,5 +26,14 @@ ok("the box is still inside AnimatePresence", /<AnimatePresence>\s*\{isOpen && !
 // the reason is written next to the place, so nobody puts `layout` back by habit
 ok("the reason for having no `layout` is written in the file", src.includes("Step 62a: NO `layout` prop on this box"));
 
+// The text scale must never be measured from the box while it animates: measured mid-unfold (box narrow) it came out as 1, the text was small and jumped to its real size when the
+// unfolding ended (worst after closing the circular's PDF viewer, when the whole answer is drawn again). It is a pure function of the screen and the mode.
+const code = src.split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n");
+ok("the omnibar does not measure its own box (no ResizeObserver)", !/ResizeObserver/.test(code));
+ok("the text scale is never taken from an element's offsetWidth", !/offsetWidth/.test(code));
+ok("the text scale is computed from the screen before the first frame (getExpectedK in the state initialiser)", /useState\(\(\) => \(typeof window !== "undefined" \? getExpectedK\(\) : 1\)\)/.test(code));
+ok("the text scale follows a resized window", /addEventListener\("resize", apply\)/.test(code));
+ok("the reason is written in the file", src.includes("Nothing the box does while it animates may change the text size"));
+
 console.log(`OmnibarModal layout selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

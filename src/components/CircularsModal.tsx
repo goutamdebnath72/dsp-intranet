@@ -19,6 +19,7 @@ import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 import { ConfirmModal } from "./ConfirmModal";
 import { Tooltip } from "./Tooltip";
 import toast from "react-hot-toast";
+import { stickySuccess } from "@/lib/ui/stickyToast";
 
 type Circular = {
   id: number;
@@ -147,12 +148,15 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
       const response = await fetch(`/api/circulars/${id}`, {
         method: "DELETE",
       });
-      if (!response.ok) throw new Error("Failed to delete");
+      if (!response.ok) {
+        const why = (await response.json().catch(() => null))?.error;
+        throw new Error(typeof why === "string" ? why : "Failed to delete");
+      }
 
-      toast.success("Circular and associated files deleted.");
+      stickySuccess("✅ Circular and associated files deleted."); // stays until its cross is clicked
       mutateCirculars(); // Refresh just this year's list
-    } catch (err) {
-      toast.error("Failed to delete.");
+    } catch (err: any) {
+      toast.error(err?.message && err.message !== "Failed to delete" ? err.message : "Failed to delete.");
     }
   };
 
@@ -164,6 +168,9 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
 
   // ✅ Ownership and 24h Window Check
   const canModify = (circular: Circular) => {
+    // The HOD of C&IT may change any circular; anyone else only his or her own, within the window. (This only decides
+    // whether the button is shown: the server decides again from the database.)
+    if ((session?.user as any)?.isSuperAdmin) return true;
     const userTicketNo = (session?.user as any)?.ticketNo || "";
     if (userTicketNo !== circular.authorTicketNo) return false;
     // Window is measured from UPLOAD time, not the circular's (possibly

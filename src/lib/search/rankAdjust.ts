@@ -39,7 +39,11 @@ export interface RankOptions {
 const AMENDING_RE = /\b(corrigendum|corrigenda|addendum|amendment|amended|revised|revision|modification)\b/i;
 const AMENDING_NOISE = new Set(["circular", "notice", "corrigendum", "corrigenda", "addendum", "amendment", "amended", "revised", "revision", "modification", "order", "amount"]);
 const INDIC = /[\p{Script=Devanagari}\p{Script=Bengali}]/u;
-const CONTRACT_RE = /\bcontract(?:or|ors|s)?\b/i;
+const CONTRACT_RE = /\bcontract(?:or|ors|s|ual)?\b/i;
+// What a QUESTION says when it is about contractor workers: the headline word, but also the short forms people
+// type ("CW", "labour", "workers"). Used for the question only; headlines are tested with CONTRACT_RE.
+const CONTRACT_QUERY_RE = /\b(contract(?:or|ors|s|ual)?|cws?|labou?rs?|workers?)\b/i;
+const EMPLOYEE_EXPLICIT_RE = /\b(employee|employees|executive|executives|officer|officers|regular|permanent|staff|non-executive|non-executives)\b/i;
 
 /** Every year a text states, including ranges: "2024-25" -> 2024, 2025; "01.01.2025" -> 2025. */
 export function yearsIn(text: string): number[] {
@@ -86,11 +90,31 @@ export function applyRankAdjustments<T extends RankItem>(q: string, items: T[], 
   if (!q || INDIC.test(q) || q.includes('"')) return items;
 
   const qYears = yearsIn(q);
-  const qContract = CONTRACT_RE.test(q);
+  const qContract = CONTRACT_QUERY_RE.test(q);
+  const qExplicitEmployee = EMPLOYEE_EXPLICIT_RE.test(q);
   const holidayTopic = isHolidayTopic(q);
 
-  // 2b. regular-employee holiday documents never answer a contractor-worker question
-  let list = items.filter((it) => !(qContract && isHolidayDoc(it)));
+  // 2. AUDIENCE / POPULATION:
+  // In DSP / SAIL, company employees (executives, non-executives, officers, staff) and contractor workers
+  // are distinct populations with separate circulars and holiday lists. This is a RANKING matter, not a
+  // filter: a headline that says "Contractor Workers" can still be the one right answer (GPAIS premium,
+  // wage rates, biometric attendance exist ONLY as contractor circulars), so it is demoted, never hidden,
+  // except in the one case below. (An earlier version hid every such headline; real queries such as
+  // "revised GPAIS premium amount" or "daily rate of wages" then lost their only correct circular.)
+  const isDoc = (it: RankItem) => it.type === "circular" || it.type === "announcement";
+  const isContractorDoc = (it: RankItem) => isDoc(it) && CONTRACT_RE.test(it.headline || "");
+  // 2a. A question about contractor workers: regular-employee holiday documents do not answer it
+  //     (a contractor holiday circular is itself a holiday document and must stay).
+  let list = items.filter((it) => !(qContract && isHolidayDoc(it) && !isContractorDoc(it)));
+  // 2b. A question that explicitly names employees/executives/officers: contractor circulars are dropped,
+  //     but only if something else remains (otherwise the user would see an empty page for a real topic).
+  //     "Something else" must be a real alternative: a regular document scoring at least as high. A contractor
+  //     circular that is clearly the best match ("nodal officers GPAIS premium": "officers" is just a noun there)
+  //     is kept, demoted below.
+  if (!qContract && qExplicitEmployee) {
+    const bestRegular = Math.max(-1, ...list.filter((it) => !isContractorDoc(it)).map((it) => it.matchPercentage));
+    if (bestRegular >= 0) list = list.filter((it) => !isContractorDoc(it) || it.matchPercentage > bestRegular);
+  }
 
   // 1b. no year asked: collapse yearly copies of the same holiday policy to the newest one
   list = collapseYearlyPolicyCopies(q, list);
@@ -101,7 +125,7 @@ export function applyRankAdjustments<T extends RankItem>(q: string, items: T[], 
     const hy = yearsIn(h);
 
     // 3. holiday-topic: holiday notes / lists are the answer (floor applied BEFORE the year rule)
-    if (holidayTopic && !qContract && isHolidayDoc(it)) pct = Math.max(pct, 86);
+    if (holidayTopic && !qContract && isHolidayDoc(it) && !isContractorDoc(it)) pct = Math.max(pct, 86);
 
     // 1. year
     if (qYears.length) {
@@ -110,8 +134,10 @@ export function applyRankAdjustments<T extends RankItem>(q: string, items: T[], 
       pct += Math.max(0, Math.min(6, Math.max(...hy) - 2020));
     }
 
-    // 2a. contractor-worker circulars do not answer a question that never mentions contractors
-    if (!qContract && (it.type === "circular" || it.type === "announcement") && !it.fromHeadlineEmbedding && CONTRACT_RE.test(h)) pct -= 12;
+    // 2c. demotion: a contractor circular ranks below the equivalent regular-employee one when the question
+    //     is not about contractors (more strongly when it explicitly names employees). Headline-embedded
+    //     holiday lists are included: they are exactly where the two audiences get mixed up.
+    if (!qContract && isContractorDoc(it)) pct -= qExplicitEmployee ? 30 : 12;
 
     return { ...it, matchPercentage: Math.max(40, Math.min(99, Math.round(pct))) };
   });

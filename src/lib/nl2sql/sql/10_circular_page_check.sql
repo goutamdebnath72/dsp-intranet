@@ -2,7 +2,7 @@
 -- What a SECOND READER (Gemini) said about the numbers of each page of a circular: which numbers both readings had ("confirmed") and which only the
 -- pipeline's reading had ("unconfirmed"). The answer card refuses a number that is unconfirmed (src/lib/search/circularAnswer.ts, the confirmation gate).
 -- "text_hash" is the fingerprint of the page's stored text at the time of the check: a check is used only while the stored text still has it, so a
--- re-read circular's old check is ignored. Written only by:  npx tsx --env-file=.env.local scripts/check-readings.ts --ids ... --save
+-- re-read circular's old check is ignored. Written only by:  npx tsx --env-file=.env.local scripts/crosscheck-report.ts --ids ... --apply
 --
 -- Run ONE SECTION AT A TIME in the Supabase SQL editor (it shows only the last statement's result when several run together).
 

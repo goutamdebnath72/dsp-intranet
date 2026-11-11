@@ -9,7 +9,8 @@ import { join } from "node:path";
 import { Client } from "pg";
 import type { ExtractedSchedule, ScheduleRow } from "./extractSchedule";
 import { ScheduleTimeBudgetError } from "./extractSchedule";
-import { applyScheduleStage, loadHrContext, logIngest, prepareSchedule, runScheduleStage, scheduleVerdict, stageDetail, storeSchedule, type InTransaction, type ScheduleOcr, type Sql } from "./ingest";
+import { applyScheduleStage, loadHrContext, logIngest, prepareSchedule, runScheduleStage, scheduleVerdict, stageDetail, storeSchedule, type InTransaction, type Sql } from "./ingest";
+import type { RosterReaders } from "./geminiSchedule";
 
 const admin = process.env.NL2SQL_TEST_ADMIN_URL;
 if (!admin) {
@@ -38,7 +39,7 @@ const schedule = (rows: ScheduleRow[], over: Partial<ExtractedSchedule> = {}): E
   groups: [{ date: "2025-01-15", rows: rows.length }],
   ...over,
 });
-const fakeOcr: ScheduleOcr = { deps: {} as ScheduleOcr["deps"], close: async () => undefined };
+const fakeReaders = { primary: { name: "fake", read: async () => "{}" }, checker: null, dateFast: { name: "fake", read: async () => "NONE" }, dateStrong: null } as RosterReaders; // the page reading is replaced by `extract` in every call below
 
 (async () => {
   const a = new Client({ connectionString: admin });
@@ -117,23 +118,18 @@ const fakeOcr: ScheduleOcr = { deps: {} as ScheduleOcr["deps"], close: async () 
 
   // ================================================================== the stage (the upload's step), every outcome
   const future = Date.now() + 60_000;
-  const stageOk = await runScheduleStage({ pages: [], sql, deadlineAt: future, ocr: fakeOcr, hr: ctx, extract: async () => schedule(good) });
+  const stageOk = await runScheduleStage({ pages: [], sql, deadlineAt: future, readers: fakeReaders, hr: ctx, extract: async () => schedule(good) });
   check("a good reading: status ready, with the prepared rows (nothing is stored yet)", stageOk.status === "ready" && stageOk.prepared?.rows.length === 4 && (await sql(`SELECT count(*)::int AS n FROM public.health_checkup_schedule WHERE circular_id = 8`))[0].n === 0);
-  const stageWarn = await runScheduleStage({ pages: [], sql, deadlineAt: future, ocr: fakeOcr, hr: ctx, extract: async () => schedule(good, { warnings: ["dates out of order"] }) });
+  const stageWarn = await runScheduleStage({ pages: [], sql, deadlineAt: future, readers: fakeReaders, hr: ctx, extract: async () => schedule(good, { warnings: ["dates out of order"] }) });
   check("a reading with a problem: status needs-review, the problems are listed, the rows are prepared but the stage says not to store", stageWarn.status === "needs-review" && stageWarn.problems.join() === "dates out of order" && stageWarn.prepared !== null);
-  const stageLate = await runScheduleStage({ pages: [], sql, deadlineAt: future, ocr: fakeOcr, hr: ctx, extract: async () => { throw new ScheduleTimeBudgetError(); } });
+  const stageLate = await runScheduleStage({ pages: [], sql, deadlineAt: future, readers: fakeReaders, hr: ctx, extract: async () => { throw new ScheduleTimeBudgetError(); } });
   check("running out of time: status timeout, and it does not throw", stageLate.status === "timeout" && stageLate.prepared === null);
-  const stageBoom = await runScheduleStage({ pages: [], sql, deadlineAt: future, ocr: fakeOcr, hr: ctx, extract: async () => { throw new Error("tesseract crashed\n   at somewhere"); } });
-  check("any other failure: status failed with the first line of the error, and it does not throw", stageBoom.status === "failed" && stageBoom.error === "tesseract crashed");
+  const stageBoom = await runScheduleStage({ pages: [], sql, deadlineAt: future, readers: fakeReaders, hr: ctx, extract: async () => { throw new Error("the reader crashed\n   at somewhere"); } });
+  check("any other failure: status failed with the first line of the error, and it does not throw", stageBoom.status === "failed" && stageBoom.error === "the reader crashed");
   const sawStop: boolean[] = [];
-  await runScheduleStage({ pages: [], sql, deadlineAt: Date.now() - 1, ocr: fakeOcr, hr: ctx, extract: async (_p, d) => { sawStop.push(!!d.shouldStop?.()); return schedule(good); } });
-  await runScheduleStage({ pages: [], sql, deadlineAt: future, ocr: fakeOcr, hr: ctx, extract: async (_p, d) => { sawStop.push(!!d.shouldStop?.()); return schedule(good); } });
+  await runScheduleStage({ pages: [], sql, deadlineAt: Date.now() - 1, readers: fakeReaders, hr: ctx, extract: async (_p, d) => { sawStop.push(!!d.shouldStop?.()); return schedule(good); } });
+  await runScheduleStage({ pages: [], sql, deadlineAt: future, readers: fakeReaders, hr: ctx, extract: async (_p, d) => { sawStop.push(!!d.shouldStop?.()); return schedule(good); } });
   check("the reading is told to stop once the deadline has passed (and not before)", JSON.stringify(sawStop) === "[true,false]");
-  let closed = 0;
-  const countingOcr: ScheduleOcr = { deps: {} as ScheduleOcr["deps"], close: async () => { closed++; } };
-  await runScheduleStage({ pages: [], sql, deadlineAt: future, ocr: countingOcr, hr: ctx, extract: async () => schedule(good) });
-  check("OCR engines handed in by the caller are NOT closed by the stage (the caller owns them)", closed === 0);
-
   // ================================================================== apply (in a transaction), and what a failure leaves
   const applied = await applyScheduleStage(inTx, 8, stageOk);
   check("a ready stage is stored in its own transaction: 4 rows for circular 8", applied.stored === 4 && (await sql(`SELECT count(*)::int AS n FROM public.health_checkup_schedule WHERE circular_id = 8`))[0].n === 4);
@@ -170,7 +166,7 @@ const fakeOcr: ScheduleOcr = { deps: {} as ScheduleOcr["deps"], close: async () 
   // ================================================================== the log
   const detail = stageDetail(stageOk, [3, 4, 5]);
   check("the log detail is small and useful: roster pages, seconds, month, rows, days, counts, problems; and never the rows themselves", JSON.stringify(detail).length < 600 && detail.month === "2025-01" && detail.rows === 4 && detail.days === 1 && detail.verified === 4 && JSON.stringify(detail.rosterPages) === "[3,4,5]" && !("prepared" in detail));
-  check("a stage that failed is logged with its error", stageDetail(stageBoom, []).error === "tesseract crashed");
+  check("a stage that failed is logged with its error", stageDetail(stageBoom, []).error === "the reader crashed");
   check("a log entry is written", (await logIngest(sql, 7, "health-schedule", "applied", detail)) === true && (await sql(`SELECT count(*)::int AS n FROM public.circular_ingest_log WHERE circular_id = 7`))[0].n === 1);
   const logRow = (await sql(`SELECT kind, status, detail FROM public.circular_ingest_log WHERE circular_id = 7`))[0];
   check("...with its kind, its status and its detail as JSON", logRow.kind === "health-schedule" && logRow.status === "applied" && logRow.detail.rows === 4);
@@ -189,7 +185,7 @@ const fakeOcr: ScheduleOcr = { deps: {} as ScheduleOcr["deps"], close: async () 
   check("deleting a circular deletes its schedule rows AND its log: a re-upload starts clean", (await sql(`SELECT count(*)::int AS n FROM public.health_checkup_schedule WHERE circular_id = 7`))[0].n === 0 && (await sql(`SELECT count(*)::int AS n FROM public.circular_ingest_log WHERE circular_id = 7`))[0].n === 0);
   check("...and another circular's rows and log are untouched", (await sql(`SELECT count(*)::int AS n FROM public.health_checkup_schedule WHERE circular_id = 8`))[0].n === 4 && (await sql(`SELECT count(*)::int AS n FROM public.circular_ingest_log WHERE circular_id = 8`))[0].n === 1);
   await pg.query(`INSERT INTO public.circulars (id, headline, "serialNumber", "publishedAt") VALUES (9,'CIRCULAR-HEALTH CHECK UP JAN-2025',3,'2024-12-28')`);
-  const reStage = await runScheduleStage({ pages: [], sql, deadlineAt: future, ocr: fakeOcr, hr: ctx, extract: async () => schedule(good) });
+  const reStage = await runScheduleStage({ pages: [], sql, deadlineAt: future, readers: fakeReaders, hr: ctx, extract: async () => schedule(good) });
   await applyScheduleStage(inTx, 9, reStage);
   const again = await sql(`SELECT circular, circular_id, count(*)::int AS n FROM nlq.health_checkups WHERE circular_id = 9 GROUP BY 1,2`);
   check("the same circular uploaded again (a new id, the same serial and year) is ready at once with the same label: 'Circular 003 (2024)', 4 rows", again.length === 1 && again[0].circular === "Circular 003 (2024)" && again[0].n === 4, JSON.stringify(again));

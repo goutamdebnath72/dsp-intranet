@@ -1,17 +1,17 @@
 // src/lib/ingestion/schedule/schedule.selftest.ts
-// Run:  npx tsx src/lib/ingestion/schedule/schedule.selftest.ts      (no OCR engine, no network, no database)
+// Run:  npx tsx src/lib/ingestion/schedule/schedule.selftest.ts      (no Gemini, no network, no database)
 //
 // The roster reading is tested on pages DRAWN here (a table with ruled lines, merged date cells, a group split by a page break, a stray mark,
-// a typo in a date) with a scripted stand-in for the OCR. Nothing real (no employee) is in the repository.
+// a typo in a date) with scripted stand-ins for the Gemini readers. Nothing real (no employee) is in the repository.
 import { clusterLines, findHorizontalLines, findVerticalLines, loadGray, type Gray } from "./lines";
 import { deskewPng, estimateTilt } from "./deskew";
 import { findDateCells, findFrame } from "./dateCells";
-import { overlayColumn, splitAtRules, wordsFromTsv, rowsFromWords, type Word } from "./rosterRows";
+import { cropCellText } from "./rosterGeometry";
+import { alignRows, extractScheduleGemini, parseRosterReply, type RosterReaders } from "./geminiSchedule";
 import { judgeDate, parsePrintedDate, parseScheduleMonth, repairPrintedDate } from "./dates";
-import { cleanTicket, cropCellText, extractSchedule, isEmployeeRow, maskRules, type ScheduleRow } from "./extractSchedule";
+import { cleanTicket, isEmployeeRow, type ScheduleRow } from "./extractSchedule";
 import { fixCodesByDepartment, nameClose, nameFit, verifyAgainstHr, type HrEmployee } from "./importSchedule";
 import { isConnectionError, withConnection } from "./dbRetry";
-import { cleanCode, voteDigits } from "./digits";
 import { extractorFingerprint } from "./fingerprint";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -56,33 +56,18 @@ async function drawPage(spec: PageSpec): Promise<Buffer> {
   const px = blank();
   const bottom = 300 + spec.rows * 40;
   for (const x of RULES) rect(px, x - 1, spec.top, x + 2, bottom);
+  for (let r = 0; r <= spec.rows; r++) rect(px, 905, 300 + r * 40 - 1, 1045, 300 + r * 40 + 2); // the ruled line under every row, in the DEPARTMENT column
   for (const y of spec.dateRules) rect(px, 1050, y - 1, 1150, y + 2);
   for (const cy of spec.inks) ink(px, 1100, cy);
   return toPng(px);
 }
 
-let seqNo = 0;
-/** a name made of letters only (a real name has no digits: the reader strips them): 1 -> ALPHA, 2 -> BRAVO ... */
-const WORDS = ["ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF", "HOTEL", "INDIA", "JULIET", "KILO", "LIMA", "MIKE", "NOVEMBER", "OSCAR", "PAPA", "QUEBEC", "ROMEO", "SIERRA", "TANGO", "UNIFORM", "VICTOR", "WHISKEY", "XRAY", "YANKEE"];
+/** a name made of letters only: 1 -> ALPHA, 2 -> BRAVO ... */
+const WORDS = ["ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF", "HOTEL", "INDIA", "JULIET", "KILO", "LIMA", "MIKE", "NOVEMBER", "OSCAR", "PAPA", "QUEBEC", "ROMEO", "SIERRA", "TANGO", "UNIFORM", "VICTOR", "WHISKEY", "XRAY", "YANKEE", "ZULU"];
 const letters = (n: number) => WORDS[(n - 1) % WORDS.length];
-const tsvWord = (text: string, left: number, top: number, width: number) => `5\t1\t1\t1\t1\t${++seqNo}\t${left}\t${top}\t${width}\t24\t90\t${text}`;
-/** the OCR's TSV for rows firstSerial .. firstSerial+n-1, laid out where the drawn rows are */
-function tsvFor(firstSerial: number, n: number, title?: string, withCode = true): string {
-  const out = ["1\t1\t0\t0\t0\t0\t0\t0\t1200\t1600\t-1\t"];
-  if (title) title.split(" ").forEach((w, i) => out.push(tsvWord(w, 120 + i * 60, 120, 50)));
-  for (let i = 0; i < n; i++) {
-    const s = firstSerial + i;
-    const top = 300 + i * 40 + 8;
-    out.push(tsvWord(String(s), 130, top, 40));
-    out.push(tsvWord(String(100000 + s), 260, top, 80));
-    out.push(tsvWord("PERSON", 500, top, 90));
-    out.push(tsvWord(letters(s), 600, top, 120));
-    if (withCode) out.push(tsvWord(String(30000 + s), 840, top, 50));
-    out.push(tsvWord("SMS", 920, top, 40));
-    out.push(tsvWord("(OPRN)", 965, top, 70));
-  }
-  return out.join("\n");
-}
+/** the readers' JSON for rows firstSerial .. firstSerial+n-1 */
+const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: any, serial: number) => void) =>
+  JSON.stringify({ title: title ?? "", month: null, rows: Array.from({ length: n }, (_, i) => { const s = firstSerial + i; const r: any = { serial: s, ticket: String(100000 + s), name: `PERSON ${letters(s)}`, deptCode: String(30000 + s), department: "SMS (OPRN)" }; mutate?.(r, s); return r; }) });
 
 (async () => {
   // ================================================================== dates
@@ -107,48 +92,6 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
 
   // ================================================================== tickets and words
   check("a ticket: 6 digits; a rule read as a 7th character is dropped ('[333787', '1318839'); anything else is refused", cleanTicket("241391") === "241391" && cleanTicket("[333787") === "333787" && cleanTicket("1318839") === "318839" && cleanTicket("62|329551") === null && cleanTicket("24139") === null && cleanTicket("") === null);
-  const glued: Word[] = [{ text: "343275|NIRANJAN", left: 300, top: 100, width: 200, height: 24, conf: 90 }, { text: "ABC", left: 450, top: 100, width: 40, height: 24, conf: 90 }]; // the first crosses the rule at x = 400
-  const cut = splitAtRules(glued, RULES);
-  check("a word that crosses a column rule is cut at the '|' the OCR read there", cut.length === 3 && cut[0].text === "343275" && cut[1].text === "NIRANJAN" && cut[2].text === "ABC", JSON.stringify(cut.map((w) => w.text)));
-  const noPipe: Word[] = [{ text: "1234567890", left: 310, top: 100, width: 200, height: 24, conf: 90 }]; // crosses the rule at x = 400
-  const cut2 = splitAtRules(noPipe, RULES);
-  check("...and, with no '|', at the character nearest the rule", cut2.length === 2 && cut2[0].text.length >= 4 && cut2[0].text + cut2[1].text === "1234567890", JSON.stringify(cut2.map((w) => w.text)));
-  const rowsA = rowsFromWords(wordsFromTsv(tsvFor(1, 3)), RULES, 260, 700);
-  check("three rows come out with serial | ticket | name | code | department in their own columns", rowsA.length === 3 && rowsA[0].cells.join("|") === "1|100001|PERSON ALPHA|30001|SMS (OPRN)|", rowsA[0]?.cells.join("|"));
-
-  // ================================================================== a column read on its own
-  const ovRows = () => rowsFromWords(wordsFromTsv(tsvFor(1, 3)), RULES, 260, 700);
-  const stripWords = [{ text: "30001", cy: 320 }, { text: "30002", cy: 360 }, { text: "30003", cy: 400 }];
-  const dropped = ovRows();
-  dropped.forEach((r) => (r.cells[3] = "")); // the page-wide OCR dropped the code column
-  const nFilled = overlayColumn(dropped, 3, stripWords, (t) => /^\d{3,5}$/.test(t));
-  check("a column the page-wide OCR dropped is filled from the digit strip, each number on its own row", nFilled === 3 && dropped.map((r) => r.cells[3]).join(",") === "30001,30002,30003", dropped.map((r) => r.cells[3]).join(","));
-  const shifted = ovRows();
-  overlayColumn(shifted, 3, [{ text: "30001", cy: 320 + 14 }, { text: "30002", cy: 360 - 12 }], (t) => /^\d{3,5}$/.test(t));
-  check("a number goes to the row whose height it shares, even a few pixels off", shifted[0].cells[3] === "30001" && shifted[1].cells[3] === "30002");
-  const far = ovRows();
-  far[1].cells[3] = "";
-  overlayColumn(far, 3, [{ text: "30002", cy: 2000 }], (t) => /^\d{3,5}$/.test(t));
-  check("a number far from every row is ignored (never attached to the nearest row)", far[1].cells[3] === "");
-  const wrongShape = ovRows();
-  overlayColumn(wrongShape, 1, [{ text: "12", cy: 320 }], (t) => /^\d{6}$/.test(t));
-  check("a reading with the wrong shape (2 digits for a ticket) is not used: the page-wide reading stays", wrongShape[0].cells[1] === "100001");
-  const fill = ovRows();
-  fill[0].cells[0] = "77"; fill[1].cells[0] = "";
-  overlayColumn(fill, 0, [{ text: "5", cy: 320 }, { text: "2", cy: 360 }], (t) => /^\d{1,4}$/.test(t), true);
-  check("onlyFill: a valid page-wide serial is kept, a missing one is filled", fill[0].cells[0] === "77" && fill[1].cells[0] === "2");
-  const split = ovRows();
-  overlayColumn(split, 1, [{ text: "1000", cy: 320 }, { text: "01", cy: 322 }], (t) => /^\d{6}$/.test(t));
-  check("a number the strip read in two pieces on one row is joined", split[0].cells[1] === "100001");
-
-  // ================================================================== punctuation that belongs to a department name
-  const deptWords: Word[] = [["30001", 840], ["CO", 920], ["&", 950], ["CC", 975], ["(BATTERY)", 1005], ["|", 1090], ["WHEEL", 1100]].map(([t, x]) => ({ text: String(t), left: Number(x), top: 308, width: 24, height: 24, conf: 90 }));
-  const rowD = rowsFromWords(deptWords, RULES, 260, 700)[0];
-  check("'&' is kept in a department name (CO & CC (BATTERY)) while a rule mark ('|') is dropped", rowD.cells[4] === "CO & CC (BATTERY)", JSON.stringify(rowD.cells));
-  const dash: Word[] = [["30001", 840], ["WHEEL", 920], ["(OPRN", 960], ["-", 990], ["ZONE", 1000], ["II)", 1030]].map(([t, x]) => ({ text: String(t), left: Number(x), top: 308, width: 24, height: 24, conf: 90 }));
-  check("a hyphen between words is kept (OPRN - ZONE II)", rowsFromWords(dash, RULES, 260, 700)[0].cells[4] === "WHEEL (OPRN - ZONE II)");
-  const edgeDash: Word[] = [["-", 905], ["SMS", 920], ["-", 1000]].map(([t, x]) => ({ text: String(t), left: Number(x), top: 308, width: 24, height: 24, conf: 90 }));
-  check("...but a hyphen left at the start or end of a cell (a rule's remains) is trimmed", rowsFromWords(edgeDash, RULES, 260, 700)[0].cells[4] === "SMS");
 
   // ================================================================== lines, tilt, frame
   const px0 = blank();
@@ -169,9 +112,7 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   const straight = await loadGray((await deskewPng(tiltedPng, tilt.k)).png);
   check("...after straightening the rules are found again", findFrame(straight)?.rules.length === 7);
 
-  // ================================================================== masking and cropping
-  const masked = await loadGray(await maskRules(await toPng(px0), g0, fr0));
-  check("the table's rules are painted out for reading words", masked.data[400 * W + 400] === 255 && masked.data[400 * W + 800] === 255 && g0.data[400 * W + 400] === 0 /* untouched original */);
+  // ================================================================== the date cells and cropping
   const dc0 = findDateCells(g0, fr0)!;
   check("the DATE box and its two cells (cut by one rule)", Math.round(dc0.band.xL) === 1050 && dc0.cells.length === 2 && Math.abs(dc0.cells[0].y1 - 500.5) < 3, JSON.stringify(dc0.cells));
 
@@ -186,100 +127,76 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   check("the printed date is cut out on its own: the dust and the stray stroke do not stretch the crop; its centre is where the digits are", !!cropped && Math.abs(cropped.cy - 400) < 4 && (cmeta?.width ?? 9999) < 400, JSON.stringify({ cy: cropped?.cy, w: cmeta?.width }));
   check("a blank cell gives nothing (the date is printed on the other side of a page break)", (await cropCellText({ data: blank(), width: W, height: H }, { xL: 1050, xR: 1150 }, { y0: 290, y1: 710, openTop: false, openBottom: false })) === null);
 
-  // ================================================================== the whole roster, two pages
+  // ================================================================== the whole roster, two pages (read by two scripted Gemini readers; the geometry decides the dates' rows)
   // page 1: rows 1-12.  groups of 5: rows 1-5 | 6-10 | 11-15, the last cut by the page break (rows 11-12 here, 13-15 on page 2)
   // page 2: rows 13-25. group C continues (13-15, open top; its date is printed HERE), D = 16-20, E = 21-25 with a stray rule at y=700 cutting its cell
-  const page1 = await drawPage({ top: 260, rows: 12, dateRules: [260 + 40 /*placeholder removed below*/], inks: [] });
-  void page1;
   const p1 = await drawPage({ top: 300, rows: 12, dateRules: [300, 500, 700], inks: [400, 600] });
   const p2 = await drawPage({ top: 300, rows: 13, dateRules: [420, 620, 700], inks: [360, 520, 760] });
-  const asked: string[] = [];
-  const dateQueue = ["01-01-25", "02-01-25", "11/012/25", "13-01-25", "14-01-25"];
-  const deps = {
-    ocrPageTsv: async (png: Buffer) => { void png; asked.push("page"); return asked.filter((a) => a === "page").length === 1 ? tsvFor(1, 12, "HEALTH CHECK UP SCHEDULE FOR THE MONTH OF JANUARY 2025") : tsvFor(13, 13); },
-    ocrDateText: async () => dateQueue.shift() ?? "",
+  const scripted = (opts: { dates?: string[]; checkerRows?: (page: number) => string; primaryRows?: (page: number) => string; strong?: string[] } = {}): RosterReaders => {
+    let pc = 0, cc = 0;
+    const dates = [...(opts.dates ?? ["01-01-25", "02-01-25", "11/012/25", "13-01-25", "14-01-25"])];
+    const strong = [...(opts.strong ?? [])];
+    const defaultRows = (page: number) => (page === 1 ? rowsJson(1, 12, "HEALTH CHECK UP SCHEDULE FOR THE MONTH OF JANUARY 2025") : rowsJson(13, 13));
+    return {
+      primary: { name: "primary", read: async () => (opts.primaryRows ?? defaultRows)(++pc) },
+      checker: { name: "checker", read: async () => (opts.checkerRows ?? opts.primaryRows ?? defaultRows)(++cc) },
+      dateFast: { name: "fast", read: async () => dates.shift() ?? "NONE" },
+      dateStrong: { name: "strong", read: async () => strong.shift() ?? "NONE" },
+    };
   };
-  const res = await extractSchedule([p1, p2], deps);
+  const res = await extractScheduleGemini([p1, p2], { readers: scripted() });
   check("25 employees are read, in order, with their tickets and names", res.rows.length === 25 && res.rows.every((r, i) => r.serial === i + 1 && r.ticket === String(100001 + i) && r.name === `PERSON ${letters(i + 1)}`), JSON.stringify(res.rows.slice(0, 2)));
   check("the schedule month is read from the title: January 2025", JSON.stringify(res.scheduleMonth) === '{"month":1,"year":2025}');
   const dates = res.rows.map((r) => r.checkupDate);
   const want = [...Array(5).fill("2025-01-01"), ...Array(5).fill("2025-01-02"), ...Array(5).fill("2025-01-11"), ...Array(5).fill("2025-01-13"), ...Array(5).fill("2025-01-14")];
-  check("EVERY row gets the date of the merged cell it sits in (5 + 5 + 5 + 5 + 5)", JSON.stringify(dates) === JSON.stringify(want), JSON.stringify(dates));
-  check("the group cut by the page break: rows 11-12 (page 1) and 13-15 (page 2) get ONE date; the date was printed on page 2, so rows 11-12 say so", res.rows[10].checkupDate === "2025-01-11" && res.rows[11].checkupDate === "2025-01-11" && res.rows[10].dateFromOtherPage === true && res.rows[12].dateFromOtherPage === false);
+  check("EVERY row gets the date of the merged cell it sits in (5 + 5 + 5 + 5 + 5): the ruled lines decide, not the readers", JSON.stringify(dates) === JSON.stringify(want), JSON.stringify(dates));
+  check("the group cut by the page break: rows 11-12 (page 1) and 13-15 (page 2) get ONE date; the date was printed on page 2, so rows 11-12 say so", res.rows[10].checkupDate === "2025-01-11" && res.rows[11].checkupDate === "2025-01-11" && res.rows[10].dateFromOtherPage === true && res.rows[12].dateFromOtherPage === false, JSON.stringify([res.rows[10], res.rows[12]]));
   check("the typo date '11/012/25' is read as 11 Jan 2025 and the correction is recorded on its rows", res.rows[12].dateNote !== null && /only reading that fits/.test(String(res.rows[12].dateNote)) && res.rows[10].dateNote === res.rows[12].dateNote);
   check("the stray rule inside the last merged cell does not split it: rows 21-25 all have 2025-01-14", res.rows.slice(20).every((r) => r.checkupDate === "2025-01-14"));
   check("five groups of five, and nothing to warn about", res.groups.length === 5 && res.groups.every((g) => g.rows === 5) && res.warnings.length === 0, JSON.stringify([res.groups, res.warnings]));
 
-  // -- the page-wide OCR drops the department-code column; the digit strips bring it back
-  asked.length = 0;
-  const q3 = ["01-01-25", "02-01-25", "11/012/25", "13-01-25", "14-01-25"];
-  let stripCalls = 0;
-  const stripFor = (cols: Array<{ first: number; n: number }>) => (png: Buffer) => {
-    void png;
-    const page = Math.floor(stripCalls / 3);
-    const col = [0, 1, 3][stripCalls % 3];
-    stripCalls++;
-    const { first, n } = cols[page];
-    const lines = ["1\t1\t0\t0\t0\t0\t0\t0\t90\t1200\t-1\t"];
-    for (let i = 0; i < n; i++) {
-      const sno = first + i;
-      const text = col === 0 ? String(sno) : col === 1 ? String(100000 + sno) : String(30000 + sno);
-      lines.push(`5\t1\t1\t1\t1\t${i + 1}\t5\t${4 + 40 * i}\t60\t24\t90\t${text}`);
-    }
-    return Promise.resolve(lines.join("\n"));
-  };
-  const viaStrips = await extractSchedule([p1, p2], {
-    ocrPageTsv: async () => (asked.push("page"), asked.length === 1 ? tsvFor(1, 12, "HEALTH CHECK UP SCHEDULE FOR THE MONTH OF JANUARY 2025", false) : tsvFor(13, 13, undefined, false)),
-    ocrDateText: async () => q3.shift() ?? "",
-    ocrDigitsTsv: stripFor([{ first: 1, n: 12 }, { first: 13, n: 13 }]),
-  });
-  check("with the code column dropped by the page-wide OCR, every row still gets its department code (from the digit strips)", viaStrips.rows.length === 25 && viaStrips.rows.every((r, i) => r.departmentCode === String(30001 + i)), JSON.stringify(viaStrips.rows.slice(0, 2).map((r) => r.departmentCode)));
-  check("...and the dates and groups are unaffected", viaStrips.groups.length === 5 && viaStrips.warnings.length === 0);
+  // -- the checker reads a different ticket and a different department code: kept as alternatives for the HR check, no warning
+  const alt = await extractScheduleGemini([p1, p2], { readers: scripted({ checkerRows: (page) => (page === 1 ? rowsJson(1, 12, "HEALTH CHECK UP SCHEDULE FOR THE MONTH OF JANUARY 2025", (r, s) => { if (s === 3) { r.ticket = "100093"; r.deptCode = "30043"; } }) : rowsJson(13, 13)) }) });
+  check("a ticket and a code the checker read differently are kept as alternatives (ticketAlt, codeAlt) and the primary's reading stays", alt.rows[2].ticket === "100003" && alt.rows[2].ticketAlt?.join() === "100093" && alt.rows[2].departmentCode === "30003" && alt.rows[2].codeAlt?.join() === "30043" && alt.warnings.length === 0, JSON.stringify(alt.rows[2]));
 
-  // -- the three readings vote: the cell on its own wins ties, a reading the other two contradict loses, and the loser is kept as an alternative
-  asked.length = 0;
-  const q4 = ["01-01-25", "02-01-25", "11/012/25", "13-01-25", "14-01-25"];
-  stripCalls = 0;
-  const wrongStrip = (first: number, n: number, col: number, i0: number) => {
-    // the strip reads row 3 of page 1's code column wrongly (30003 as 30043)
-    return col === 3 && first === 1 && i0 === 2 ? "30043" : null;
-  };
-  void wrongStrip;
-  const cellQueue: string[] = [];
-  for (const [first, n] of [[1, 12], [13, 13]] as Array<[number, number]>) {
-    for (let i = 0; i < n; i++) cellQueue.push(first === 1 && i === 4 ? "100095" : String(100000 + first + i)); // tickets: row 5 of page 1 misread by the cell reader (100005 -> 100095)
-    for (let i = 0; i < n; i++) cellQueue.push(String(30000 + first + i)); // codes: all right
-  }
-  const stripFor2 = (png: Buffer) => {
-    const page = Math.floor(stripCalls / 3);
-    const col = [0, 1, 3][stripCalls % 3];
-    stripCalls++;
-    const [first, n] = [[1, 12], [13, 13]][page];
-    const lines = ["1\t1\t0\t0\t0\t0\t0\t0\t90\t1200\t-1\t"];
-    for (let i = 0; i < n; i++) {
-      const sno = first + i;
-      let text = col === 0 ? String(sno) : col === 1 ? String(100000 + sno) : String(30000 + sno);
-      if (col === 3 && page === 0 && i === 2) text = "30043"; // the strip misreads the code of row 3
-      lines.push(`5\t1\t1\t1\t1\t${i + 1}\t5\t${4 + 40 * i}\t60\t24\t90\t${text}`);
-    }
-    void png;
-    return Promise.resolve(lines.join("\n"));
-  };
-  const voted = await extractSchedule([p1, p2], {
-    ocrPageTsv: async () => (asked.push("page"), asked.length === 1 ? tsvFor(1, 12, "HEALTH CHECK UP SCHEDULE FOR THE MONTH OF JANUARY 2025", false) : tsvFor(13, 13, undefined, false)),
-    ocrDateText: async () => q4.shift() ?? "",
-    ocrDigitsTsv: stripFor2,
-    ocrDigitCell: async () => cellQueue.shift() ?? "",
-  });
-  check("the cell reading wins a tie: row 3's code is 30003 although the strip read 30043; the strip's reading is kept as an alternative", voted.rows[2].departmentCode === "30003" && (voted.rows[2].codeAlt ?? []).includes("30043"), JSON.stringify([voted.rows[2].departmentCode, voted.rows[2].codeAlt]));
-  check("the cell reader's own mistake loses: row 5's ticket stays 100005 (the strip and the page agree), and 100095 is kept as an alternative", voted.rows[4].ticket === "100005" && (voted.rows[4].ticketAlt ?? []).includes("100095"), JSON.stringify([voted.rows[4].ticket, voted.rows[4].ticketAlt]));
-  check("every other row is read right (25 tickets, 25 codes) and the dates and groups are unaffected", voted.rows.every((r, i) => (i === 4 ? true : r.ticket === String(100001 + i)) && r.departmentCode === String(30001 + i)) && voted.groups.length === 5 && voted.warnings.length === 0);
+  // -- the readers find a different number of rows: a warning (the schedule is not stored)
+  const cnt = await extractScheduleGemini([p1, p2], { readers: scripted({ checkerRows: (page) => (page === 1 ? rowsJson(1, 11, "T") : rowsJson(13, 13)) }) });
+  check("a different number of rows between the two readers is a warning", cnt.warnings.some((w) => /different number of rows/.test(w)), JSON.stringify(cnt.warnings));
+  // -- the table has more ruled rows than the readers found
+  const fewer = await extractScheduleGemini([p1, p2], { readers: scripted({ primaryRows: (page) => (page === 1 ? rowsJson(1, 9, "HEALTH CHECK UP SCHEDULE FOR THE MONTH OF JANUARY 2025") : rowsJson(13, 13)) }) });
+  check("rows the readers did not find (the table has 12 ruled rows, they found 9) are a warning", fewer.warnings.some((w) => /ruled rows/.test(w)), JSON.stringify(fewer.warnings));
+  // -- one reader only
+  const lone = await extractScheduleGemini([p1, p2], { readers: { ...scripted(), checker: null } });
+  check("with no second reader a roster is not stored on one reading (a warning)", lone.warnings.some((w) => /second reader could not read/.test(w)), JSON.stringify(lone.warnings));
+  // -- the reply is not a roster reading
+  const junk = await extractScheduleGemini([p1, p2], { readers: scripted({ primaryRows: () => "I cannot read this" }) });
+  check("a reply that is not a roster reading is a warning and no rows", junk.rows.length === 0 && junk.warnings.some((w) => /could not be read/.test(w)));
 
   // -- a date that does not fit the schedule is never stored as if it were fine
-  const q2 = ["01-01-25", "02-02-25", "02-02-25" /* the second try of the same cell */, "11/012/25", "13-01-25", "14-01-25"];
-  asked.length = 0;
-  const bad = await extractSchedule([p1, p2], { ...deps, ocrDateText: async () => q2.shift() ?? "" });
+  const bad = await extractScheduleGemini([p1, p2], { readers: scripted({ dates: ["01-01-25", "02-02-25", "11/012/25", "13-01-25", "14-01-25"], strong: ["02-02-25"] }) });
   check("a date of another month (02-02-25 in a January schedule) leaves its rows WITHOUT a date, and the run says so", bad.rows.slice(5, 10).every((r) => r.checkupDate === null) && bad.warnings.some((w) => /no check-up date/.test(w)), JSON.stringify(bad.warnings));
+  // -- the cheap date reader fails the month check, the strong one is right
+  const fixed = await extractScheduleGemini([p1, p2], { readers: scripted({ dates: ["01-01-25", "02-02-25", "11/012/25", "13-01-25", "14-01-25"], strong: ["02-01-25"] }) });
+  check("when the cheap reader's date is not a date of the month, the stronger reader is asked and its date is used", fixed.rows.slice(5, 10).every((r) => r.checkupDate === "2025-01-02") && fixed.warnings.length === 0, JSON.stringify(fixed.warnings));
+  // -- a faint rule the image analysis missed: the double-height interval is split, so the rows and the intervals agree again
+  {
+    // page like page 3 of a real roster: a title interval and a heading interval above the data; the first three rows have no ruled line between them
+    const edges = [220, 308, 358, 485, 527, 569, 611, 653];
+    const cells = [{ y0: 220, y1: 308, openTop: false, date: null, printed: null }, { y0: 308, y1: 358, openTop: false, date: null, printed: null }, { y0: 358, y1: 653, openTop: false, date: "2025-01-01", printed: "01-01-25" }];
+    const al = alignRows(edges, cells, 7);
+    check("the heading intervals above the first date are not data rows", al.dataTop === 358 && al.centers[0] > 358 && al.centers[0] < 400);
+    check("rows with no ruled line between them are placed by dividing the tall interval (3 rows in 127 px)", al.divided === 2 && [379.17, 421.5, 463.83].every((v, i) => Math.abs(al.centers[i] - v) < 0.5), JSON.stringify(al.centers));
+    check("the centres are in order, one per row", al.centers.length === 7 && al.centers.every((c, i) => i === 0 || c > al.centers[i - 1]));
+  }
+  {
+    const edges = [100, 140, 180, 220, 260];
+    const al = alignRows(edges, [{ y0: 100, y1: 260, openTop: true, date: null, printed: null }], 4);
+    check("a continuation page (its first cell is open at the top, no date printed there) keeps every interval", al.dataTop === 100 && al.divided === 0 && al.surplus === 0 && al.centers[0] === 120);
+    const sliver = alignRows(edges, [{ y0: 100, y1: 140, openTop: true, date: null, printed: null }, { y0: 140, y1: 260, openTop: false, date: "2025-01-02", printed: "02-01-25" }], 4);
+    check("a cell open at the top (carried over the page break) is never taken for a heading", sliver.dataTop === 100 && sliver.centers[0] === 120);
+  }
+  // -- the reply of the model, as the parser sees it
+  check("the model's JSON reply is parsed (with or without a code fence); a reply that is not a roster is refused", parseRosterReply("```json\n" + rowsJson(1, 2, "T") + "\n```")?.rows.length === 2 && parseRosterReply("not json") === null && parseRosterReply('{"title":"x"}') === null);
 
   // ================================================================== HR verification
   const hr: HrEmployee[] = [
@@ -329,15 +246,6 @@ function tsvFor(firstSerial: number, n: number, title?: string, withCode = true)
   const spaced = verifyAgainstHr([mk("242956", "BISHNUPADA MONDAL", "14000", 1)], [["bisnupada", "mandal"]], [{ ticket: "242956", name: "BISHNU PADA MONDAL", codes: ["bisnu", "pada", "mandal"], departmentCode: "14000" }])[0];
   check("a name cut differently from HR's is verified on its ticket", spaced.status === "verified");
   check("every row keeps what was read from the page (ticket as printed, name as printed)", v.every((r, i) => r.ticket === rowsH[i].ticket && r.name === rowsH[i].name));
-
-  // ================================================================== numbers read three ways, and voted
-  check("a department code: 3-5 digits; a ruled line read as a 6th digit in front is dropped; anything else is refused", cleanCode("10001") === "10001" && cleanCode("3301") === "3301" && cleanCode("115") === "115" && cleanCode("110001") === "10001" && cleanCode("12") === null && cleanCode("123456") === "23456" && cleanCode("") === null && cleanCode("ab") === null);
-  const v1 = voteDigits(["242591", "242501", "242591"]);
-  check("two of three readings agree: that is the answer, and the odd one out is kept as an alternative (the 12 Oct audit: 242591 read as 242501)", v1.value === "242591" && v1.alts.join() === "242501", JSON.stringify(v1));
-  const v2 = voteDigits(["10001", "40001", null]);
-  check("two readings that disagree: the one listed FIRST (the cell on its own, the most accurate) wins and the other is an alternative", v2.value === "10001" && v2.alts.join() === "40001", JSON.stringify(v2));
-  check("three different readings: the first; one reading: that one; none: nothing", voteDigits(["1", "2", "3"]).value === "1" && voteDigits([null, "77", null]).value === "77" && voteDigits([null, undefined, null]).value === null && voteDigits([null, undefined]).alts.length === 0);
-  check("a reading that appears twice beats a better-ranked reading that appears once", voteDigits(["A1", "B2", "B2"]).value === "B2");
 
   // ================================================================== the department code against the department NAME on the same row
   const pairs = [{ code: "10001", name: "CO & CC (MECH)" }, { code: "12000", name: "CO & CC (BATTERY)" }, { code: "3301", name: "M&HS(1)" }, { code: "103", name: "LAW" }, { code: "103", name: "P.R.O." }, { code: "85110", name: "PLANT GARAGE (M.H.E.O.D.)" }];

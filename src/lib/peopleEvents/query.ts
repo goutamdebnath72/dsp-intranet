@@ -7,6 +7,7 @@
 
 import { DateTime } from "luxon";
 import type { QueryFn } from "@/lib/pax/store";
+import { formatDepartmentDisplay } from "@/lib/employees/sailDepartments";
 import { isoDay, jubileeDate, JUBILEE_YEARS, retirementDate, RETIREMENT_AGE, todayIST } from "./rules";
 
 export interface PersonEvent {
@@ -67,7 +68,7 @@ export async function fetchPeopleEvents(query: QueryFn, now: DateTime = DateTime
     id: Number(r.id),
     name: String(r.name ?? "").trim(),
     designation: String(r.designation ?? "").trim(),
-    department: String(r.department ?? "").trim(),
+    department: formatDepartmentDisplay(String(r.department ?? "").trim()) ?? "",
     imageUrl: safeImageUrl(r.image),
     on,
   });

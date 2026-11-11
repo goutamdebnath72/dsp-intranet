@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
 import { answerQuestion } from "@/lib/nl2sql/pipeline";
-import { groqLlm } from "@/lib/nl2sql/llm";
+import { chatLlm } from "@/lib/nl2sql/llm";
 import { withDefaultClient } from "@/lib/nl2sql/db";
 import { recordVerdict } from "@/lib/nl2sql/log";
 
@@ -47,6 +47,6 @@ export async function POST(req: Request) {
   }
 
   const question = typeof body?.question === "string" ? body.question : "";
-  const result = await answerQuestion(question, userId, { llm: groqLlm(), withClient: withDefaultClient });
+  const result = await answerQuestion(question, userId, { llm: chatLlm(), withClient: withDefaultClient });
   return NextResponse.json(result);
 }

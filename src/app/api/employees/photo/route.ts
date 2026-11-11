@@ -17,7 +17,10 @@ const ctxOf = async () => { const ds = await getDb(); return { actor: await sess
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (Number(request.headers.get("content-length") ?? 0) > 6 * 1024 * 1024) return NextResponse.json({ error: "Too large." }, { status: 413 });
+  // A missing or unreadable Content-Length is refused (it used to count as 0, so a chunked body was read in full before any size check).
+  const declaredBytes = Number(request.headers.get("content-length") ?? NaN);
+  if (!Number.isFinite(declaredBytes)) return NextResponse.json({ error: "Length required." }, { status: 411 });
+  if (declaredBytes > 6 * 1024 * 1024) return NextResponse.json({ error: "Too large." }, { status: 413 });
   try {
     let form: FormData | null = null;
     try { form = await request.formData(); } catch { form = null; }

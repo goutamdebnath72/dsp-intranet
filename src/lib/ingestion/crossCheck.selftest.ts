@@ -13,9 +13,6 @@ import {
   siblingsOf, summarize, titleFamily, twinChecks, twinChecksFor, witnessPage,
   type CircularFindings, type StoredCheck,
 } from "./crossCheck";
-import { indicMisreads } from "./indicMisreads";
-import { mergeOcrPasses } from "./ocrMerge";
-import { textOfWords, type TsvWord } from "./ruledTable";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -202,11 +199,8 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("the siblings of each circular of the family (and none for a circular alone)", sib.get(84)?.join() === "85,86" && sib.get(86)?.join() === "84,85" && !sib.has(90), JSON.stringify([...sib]));
   ok("a witness page number is internal: it decodes to its circular and page, and a circular's own pages are not witnesses", JSON.stringify(decodeWitness(witnessPage(84, 3))) === '{"circular":84,"page":3}' && !isWitness(3) && decodeWitness(2) === null);
 
-  // the Bengali circular as the upload now stores it: the REAL page (engine output), the English pass cleaned by the rule, merged
-  const fxb = JSON.parse(readFileSync(join(__dirname, "__fixtures__", "indic-misreads.json"), "utf8")).bengali as { eng: number[][]; tri: number[][]; triText: string };
-  const wd = (rows: (number | string)[][]): TsvWord[] => rows.map((r, i) => ({ lineNo: i, block: r[0] as number, par: r[1] as number, line: r[2] as number, left: r[3] as number, top: r[4] as number, width: r[5] as number, height: r[6] as number, conf: r[7] as number, text: String(r[8]) }));
-  const engW = wd(fxb.eng), cut = new Set(indicMisreads(engW, wd(fxb.tri), fxb.triText));
-  const BEN = mergeOcrPasses(textOfWords(engW.filter((w) => !cut.has(w))), "", fxb.triText).text;
+  // the Bengali circular as the upload stores it: the page text read by Gemini (the stored text of the Merit Award notice, Bengali version)
+  const BEN = readFileSync(join(__dirname, "__fixtures__", "merit-bengali-page.txt"), "utf8");
   const EN = "STEEL AUTHORITY OF INDIA LIMITED DURGAPUR STEEL PLANT No: HR-CLC/MERIT_AWD/Amnd/2026/131 Date: 15.08.2026 NOTICE Subject: Extension of the last date for submission of applications for the Merit Scholarship Award 2026. The last date for submission of the application for the Merit Scholarship Scheme 2026 (Higher Education Scholarship Scheme) has been extended up to 31 August 2026. All concerned contract workers are requested to submit the duly filled application with the necessary documents within the stipulated date. For details contact the Shramik Kalyan Cell, Room No. 206, Ispat Bhawan, or the registered office of DSPCWWS, Old Plant Personnel Building, Opposite Canteen CN-9, Durgapur Steel Plant. Issued with the approval of the competent authority.";
   const HI = HI_WORDS + "मेरिट स्कॉलरशिप योजना की आवेदन जमा करने की अंतिम तिथि बढ़ा दी गई है सभी संबंधित संविदा कर्मचारियों से अनुरोध है। HR-CLC/MERIT_AWD/Amnd/2026/131 15.08.2026 31 अगस्त 2026 कक्ष संख्या 206";
   ok("the three pages have the scripts intended", scriptOf(EN) === "latin" && scriptOf(HI) === "devanagari" && scriptOf(BEN) === "bengali", [scriptOf(EN), scriptOf(HI), scriptOf(BEN)].join());

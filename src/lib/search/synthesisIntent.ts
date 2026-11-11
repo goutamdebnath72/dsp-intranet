@@ -30,7 +30,7 @@
 // Mediclaim extension circular"), below 3 = an ordinary question. Supporting shape alone can never reach 5: a question must also
 // have a verb, a version relation or an aggregate, or several supporting features at once.
 //
-// GUARD: a question about PEOPLE DATA (who / senior / designation / ticket / mobile ...) is never EDS, even if it says "compare":
+// GUARD: a question about PEOPLE DATA (who is the head / senior / designation / ticket / mobile ...) is never EDS, even if it says "compare":
 // "compare the seniority of X and Y" belongs to the employee directory. (The old tests say "employees" and "executives" only as
 // the groups a policy applies to, so those words do not block.)
 //
@@ -81,11 +81,17 @@ const AGGREGATE = new RegExp(
   `\\b(?:list|enumerate|name|all|every)\\b[^?.]{0,60}\\b(?:events|circulars|notices|schemes|trials|tournaments|programmes|programs|orders|matches|competitions|announcements)\\b[^?.]{0,80}\\b(?:in|during|for|of)\\s+(?:${MONTHS})(?:\\s+(?:19|20)\\d{2})?\\b`,
   "i",
 );
-const TWO_QUESTIONS = /\band (?:which|what|when|who|how)\b/i;
+const TWO_QUESTIONS = /\band (?:which|what|when|who|how|(?:through|by|to|from|for|under) (?:whom|which|what))\b/i;
+// A STAGE-BY-STAGE or CATEGORY-BY-CATEGORY breakdown ("what follows each violation at each stage", "for every level", "grade-wise"): the answer is a table of several rows, not one passage.
+const BREAKDOWN =
+  /\b(?:at|for|in|under|across|per) (?:each|every) (?:of the )?(?:stage|step|level|tier|phase|category|grade|class|type|violation|offen[cs]e|scheme|case|rung)s?\b|\b(?:stage|step|level|category|grade|phase)[- ]?wise\b|\beach (?:violation|offen[cs]e|stage|step|level|tier)\b/i;
 
-// People-data operations: the employee directory answers these, never a synthesis of circulars.
+// People-data operations: the employee directory answers these, never a synthesis of circulars. The guard looks for the DIRECTORY sense of a word, not the bare word:
+// "who" / "whom" / "grade" / "junior" are everyday words of policy questions ("those who do not register", "through whom is it issued", "by grade", "Junior Officers of the 2008
+// batch"), and blocking on them kept strong EDS questions (a compare, a stage-by-stage ladder) out of EDS. What stays blocking: whose <person field>, "who is the head / manager /
+// in-charge ...", "who has / have / got ..." (a roster; not "who has to submit"), senior / junior used for a person (not "Senior Officers", "Junior Officers"), seniority, designation, ticket, mobile / phone, e-mail, surname, headcount.
 const PEOPLE_OPS =
-  /\b(who|whom|whose (?:ticket|name|mobile|phone|e-?mail|designation|grade|department)|seniors?|seniority|juniors?|designations?|grades?|tickets?|mobile|phones?|e-?mails?|surnames?|headcount|how many (?:people|employees|executives|staff|officers|managers))\b/i;
+  /\b(whose (?:ticket|name|mobile|phone|e-?mail|designation|grade|department)|who (?:is|was|are|were) (?:the |our |my )?(?:head|hod|in[- ]?charge|boss|senior|junior|manager|gm|dgm|agm|chief|director|reporting)|who (?:has|have|had|got|gets|attended|received|joined|retired)\b(?!\s+to\b)|seniors?(?!\s+(?:officers?|executives?|citizens?|management|level|grade|scale))|seniority|juniors?(?!\s+(?:officers?|executives?|engineers?|managers?|staff|grade|scale|level|management))|designations?|tickets?|mobile|phones?|e-?mails?|surnames?|headcount|how many (?:people|employees|executives|staff|officers|managers))\b/i;
 const ID_LIKE = /\b\d{5,10}\b|\b[A-Za-z]\d{4,}\b/;
 
 const wordsOf = (q: string) => q.trim().split(/\s+/).filter(Boolean).length;
@@ -111,6 +117,7 @@ export function detectSynthesisIntent(question: string): SynthesisIntent {
   // the main signals (any ONE of these is the heart of an EDS question)
   if (ANALYTIC_VERB.test(q)) add(3, "an analytic task verb (trace / compare / contrast / synthesize / cross-reference / briefing ...)");
   if (VERSION_RELATION.test(q)) add(3, "a relation between versions or documents (change between / original / first announced / earlier circular ...)");
+  if (BREAKDOWN.test(q)) add(3, "a stage-by-stage or category-by-category breakdown (at each stage / for each level / grade-wise ...)");
   if (AGGREGATE.test(q)) add(5, "an aggregate across a period (list the ... events ... in <month year>)");
   if (DISCOVERY_STRONG.test(q)) add(5, "discovery language (correlate / hidden / overlooked / inconsistencies / implications / insights ...)");
   const mediumCues = DISCOVERY_MEDIUM.filter((re) => re.test(q)).length;
@@ -124,6 +131,8 @@ export function detectSynthesisIntent(question: string): SynthesisIntent {
   if (TWO_QUESTIONS.test(q)) add(2, "two questions joined by 'and which / and what'");
   const named = namedThings(q);
   if (named >= 3) add(1, `${named} named things`);
+  // a request for many attributes at once ("by grade, amount, periodicity, authority and occasion"): four or more items in one sentence is a table, not a passage
+  if ((q.match(/,/g) ?? []).length >= 3) add(2, "a list of four or more items asked for at once");
   const words = wordsOf(q);
   if (words >= 38) add(2, `${words} words`);
   else if (words >= 28) add(1, `${words} words`);

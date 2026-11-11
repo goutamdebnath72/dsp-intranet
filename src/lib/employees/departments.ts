@@ -29,7 +29,7 @@ export const DEPARTMENTS: DeptGroup[] = [
   { name: "CEM", codes: [10127, 10128, 10129, 10130, 10131, 10132, 10133, 10134, 10135, 10136], aliases: [] },
   { name: "CENTRAL CRANE MAINT", codes: [10137], aliases: [] },
   { name: "CENTRAL ELECTRICAL POOL", codes: [10138], aliases: [] },
-  { name: "CENTRAL STORES", codes: [10139, 10140, 10141], aliases: ["csd"] },
+  { name: "CENTRAL STORES", codes: [10139, 10140, 10141], aliases: ["csd", "central stores", "central store", "central stores dept", "central stores deptt", "central stores department"] },
   { name: "CENTRALISED COMPRESSED AIR STATION", codes: [10142], aliases: [] },
   { name: "CHRD INDUSTRIAL 2", codes: [10143], aliases: ["training institute"] },
   { name: "CO & CC", codes: [10144, 10145, 10146, 10147, 10148, 10149, 10150], aliases: ["cocc"] },

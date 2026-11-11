@@ -86,7 +86,6 @@ const nextConfig = {
       "pg-hstore",
       "sequelize",
       "oracledb",
-      "tesseract.js",
       "typeorm",
       // pdf-to-img -> pdfjs-dist's Node canvas factory needs the native
       // @napi-rs/canvas binary at runtime.

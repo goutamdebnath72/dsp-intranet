@@ -3,6 +3,7 @@
 // HTTP dispatch for the Contact Access Log facility endpoint (Modular Facility Kit).
 
 import type { DataSource } from "typeorm";
+import { DateTime } from "luxon";
 import { authorityOf } from "@/lib/facility/authority";
 import { resolveGrantTarget } from "@/lib/facility/authorise";
 import type { Actor } from "@/lib/facility/types";
@@ -114,7 +115,22 @@ export async function handleAccessLogAdmin(body: unknown, ctx: ApiContext): Prom
       dir: b.dir === "asc" ? "asc" : "desc",
     };
 
+    // A date must be a real calendar date: a bad string used to reach the database cast and come back as a 500.
+    for (const [label, v] of [["from", filters.from], ["to", filters.to]] as const) {
+      if (v && !(/^\d{4}-\d{2}-\d{2}$/.test(v) && DateTime.fromISO(v).isValid)) {
+        return reply(400, { error: `The "${label}" date is not a valid date (use YYYY-MM-DD).` });
+      }
+    }
+
     const queryResult = await store.queryAccessLogs(ctx.ds, filters);
+
+    // Looking at this log is itself recorded (who, when, with which filters, how many lines; never the lines). If the
+    // record cannot be written the lines are NOT shown: a view that leaves no trace is exactly what this must prevent.
+    // Only the filters count as "a distinct look": paging and sorting do not write another row.
+    await store.recordAccessLogView(ctx.db, actor, {
+      filters: { from: filters.from ?? null, to: filters.to ?? null, viewer: filters.viewer ?? null, viewed: filters.viewed ?? null, field: filters.field ?? null, action: filters.action ?? null },
+      total: queryResult.total,
+    });
     return reply(200, queryResult as unknown as Record<string, unknown>);
   }
 
