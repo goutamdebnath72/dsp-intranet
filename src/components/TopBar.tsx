@@ -214,6 +214,8 @@ export function TopBar() {
       }
       // Close modal on Escape
       if (e.key === "Escape" || e.code === "Escape") {
+        // an open dropdown of the calculators takes this Escape for itself (it closes the list, not the search window)
+        if (e.target instanceof Element && e.target.closest('[data-select-open="true"]')) return;
         setIsOmnibarOpen(false);
       }
     };

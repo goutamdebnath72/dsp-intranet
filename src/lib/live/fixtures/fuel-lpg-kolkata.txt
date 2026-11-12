@@ -1,0 +1,2 @@
+(slice of the public GoodReturns LPG page of Kolkata, 12 Nov 2026, flattened by htmlToText)
+LPG Price in Kolkata Today| Type| Price| Price Change| Domestic (14.2 Kg)| ₹968.00| 0.00| Commercial (19 Kg)| ₹2,971.00| +17.00| Domestic (5 Kg)| ₹358.50| 0.00| Commercial (47.5 Kg)| ₹7,424.00| +43.50| Last 10 Months LPG Rate in Kolkata| Date| Domestic (14.2 Kg)| Commercial (19 Kg)| October 2026| ₹968.00| (0.00)| ₹2,954.00| (+70.00)| September 2026| ₹968.00| (0.00)| ₹2,884.00| (+11.50)| August 2026| ₹968.00| (0.00)| 

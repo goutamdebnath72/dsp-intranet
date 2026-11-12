@@ -18,6 +18,10 @@ import {
 import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
 import { OMNIBAR_PREFILL_EVENT } from "@/lib/help/sampleQuestions";
+import { ToolPanel } from "@/components/tools/ToolPanel";
+import { detectTool, type FormKind } from "@/lib/tools/detect";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { needsWideModal } from "@/lib/search/edsLayout";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
@@ -212,6 +216,14 @@ export function OmnibarModal({
     error,
   } = useOmniSearch(isOpen, ticketNo);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // The calculator form (or the menu of them) opened with Enter. Sums, conversions and date questions need no state: they answer as you type (src/components/tools/ToolPanel.tsx).
+  const [toolForm, setToolForm] = useState<FormKind | "menu" | null>(null);
+  // whether this computer can reach the intranet (a red message at the top of the window when it cannot; a search is not sent then)
+  const net = useOnlineStatus(isOpen);
+  useEffect(() => { if (error) net.recheck(); }, [error]); // eslint-disable-line react-hooks/exhaustive-deps -- a failed search asks at once whether the connection is the reason
+  useEffect(() => {
+    if (!isOpen) setToolForm(null);
+  }, [isOpen]);
   // Step 59a: a question that uses a FORMER name of a department ("CHRD", "Training Department") is answered with the CURRENT name first: shown above the results, whatever the kind of answer.
   const nameNotice = useMemo(() => formerNameNotice(submittedQuery || ""), [submittedQuery]);
 
@@ -747,6 +759,7 @@ export function OmnibarModal({
                   onChange={(e) => {
                     const val = e.target.value;
                     setQuery(val);
+                    if (toolForm) setToolForm(null); // editing the text closes a calculator that Enter had opened
                     if (val.trim() === "" || isIdQuery(val.trim())) {
                       employeeReq.current++; // an answer still on its way for the old text must not land
                       setEmployeeResults([]);
@@ -762,6 +775,18 @@ export function OmnibarModal({
                       e.preventDefault();
                       const qTrim = (query || "").trim();
                       if (qTrim.length < 2) return;
+
+                      // A calculator: a sum, a conversion or a date question already shows its answer (as you type); a request for a calculator form opens it now. Either way the line
+                      // is NEVER sent to the search: a figure of someone's loan, pay or savings is not logged anywhere.
+                      const tool = detectTool(qTrim);
+                      if (tool) {
+                        if (tool.kind === "form") setToolForm(tool.form);
+                        else if (tool.kind === "menu") setToolForm("menu");
+                        return;
+                      }
+
+                      // Not online: nothing can be searched, and the red message at the top says why (the calculators above already worked, they need no network).
+                      if (!net.online) { net.recheck(); return; }
 
                       // ID Query: ticket, mobile, CUG, SAIL PNO (already handled live).
                       // Keep employee results and NEVER send an ID to circular search!
@@ -824,6 +849,8 @@ export function OmnibarModal({
 
               {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
 
+              <OfflineBanner online={net.online} browserOnline={net.browserOnline} />
+
               {nameNotice && <FormerNameNotice notice={nameNotice} />}
               {loginHint && <OmniLoginHint hint={loginHint} onSignIn={openModal} />}
 
@@ -865,6 +892,9 @@ export function OmnibarModal({
                   </div>
                 ) : (
                   <>
+                    {/* Calculators, converters and date answers: as you type, or a form after Enter. Runs in the browser; nothing typed here is stored or sent. */}
+                    <ToolPanel query={query} form={toolForm} onForm={setToolForm} />
+
                     {error && (
                       <div className="p-4 text-center text-red-600 text-sm font-medium">
                         Failed to perform search. Please try again.

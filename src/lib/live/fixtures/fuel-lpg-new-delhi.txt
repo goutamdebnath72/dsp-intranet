@@ -1,0 +1,2 @@
+(slice of the public GoodReturns LPG page of New Delhi, 12 Nov 2026, flattened by htmlToText)
+LPG Price in New Delhi Today| Type| Price| Price Change| Domestic (14.2 Kg)| ₹942.00| 0.00| Commercial (19 Kg)| ₹2,820.00| +10.00| Domestic (5 Kg)| ₹349.50| 0.00| Commercial (47.5 Kg)| ₹7,045.50| +24.50| Last 10 Months LPG Rate in New Delhi| Date| Domestic (14.2 Kg)| Commercial (19 Kg)| October 2026| ₹942.00| (0.00)| ₹2,810.00| (+62.50)| September 2026| ₹942.00| (0.00)| ₹2,747.50| (+9.50)| August 2026| ₹942.00| (0.00

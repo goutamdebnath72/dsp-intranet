@@ -1,0 +1,2 @@
+(slice of the public GoodReturns LPG page of Mumbai, 12 Nov 2026, flattened by htmlToText)
+LPG Price in Mumbai Today| Type| Price| Price Change| Domestic (14.2 Kg)| ₹941.50| 0.00| Commercial (19 Kg)| ₹2,775.00| +10.50| Domestic (5 Kg)| ₹349.50| 0.00| Commercial (47.5 Kg)| ₹6,934.00| +27.50| Last 10 Months LPG Rate in Mumbai| Date| Domestic (14.2 Kg)| Commercial (19 Kg)| October 2026| ₹941.50| (0.00)| ₹2,764.50| (+63.50)| September 2026| ₹941.50| (0.00)| ₹2,701.00| (+9.50)| August 2026| ₹941.50| (0.00)| ₹2,

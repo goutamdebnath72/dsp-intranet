@@ -1,0 +1,2 @@
+(slice of the public GoodReturns LPG page of Chennai, 12 Nov 2026, flattened by htmlToText)
+LPG Price in Chennai Today| Type| Price| Price Change| Domestic (14.2 Kg)| ₹957.50| 0.00| Commercial (19 Kg)| ₹2,994.50| +11.50| Domestic (5 Kg)| ₹355.00| 0.00| Commercial (47.5 Kg)| ₹7,482.00| +28.50| Last 10 Months LPG Rate in Chennai| Date| Domestic (14.2 Kg)| Commercial (19 Kg)| October 2026| ₹957.50| (0.00)| ₹2,983.00| (+66.50)| September 2026| ₹957.50| (0.00)| ₹2,916.50| (+10.50)| August 2026| ₹957.50| (0.00)| 

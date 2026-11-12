@@ -7,6 +7,7 @@ import { SAMPLE_SECTIONS, RECIPE, WEAK_VS_GOOD, allSamples, filterSections, spli
 import { detectSynthesisIntent } from "../search/synthesisIntent";
 import { isIdQuery } from "../search/idQuery";
 import { searchSites } from "../search/siteSearch";
+import { detectTool, isLive } from "../tools/detect";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -33,10 +34,11 @@ ok("every Deep Synthesis sample says what its parts are (the note)", eds.questio
 // "appears as you type" is said only of what really does, and everything else is said to need Enter
 const live = all.filter((x) => (SAMPLE_SECTIONS.flatMap((s) => s.questions).find((y) => y.q === x.q)?.instant));
 ok("some questions are marked as appearing as you type (numbers, sites)", live.length >= 5, String(live.length));
-const liveBad = live.filter((x) => !/\[[^\]]+\]/.test(x.q) && !isIdQuery(x.q) && searchSites(x.q, 6).length === 0);
-ok("every instant sample really is one: an identifier the directory answers live, or a site or department the site list finds", liveBad.length === 0, JSON.stringify(liveBad.map((x) => x.q)));
+const liveBad = live.filter((x) => !/\[[^\]]+\]/.test(x.q) && !isIdQuery(x.q) && searchSites(x.q, 6).length === 0 && !isLive(detectTool(x.q)));
+ok("every instant sample really is one: an identifier the directory answers live, a site or department the site list finds, or a sum, conversion or date question the calculator answers", liveBad.length === 0, JSON.stringify(liveBad.map((x) => x.q)));
 const needEnter = SAMPLE_SECTIONS.flatMap((s) => [...s.questions.filter((x) => !x.instant).map((x) => x.q), ...(s.ladders ?? []).flatMap((l) => [l.title, l.content, l.deep])]);
-ok("no sample that needs Enter is an identifier (those appear on their own)", needEnter.every((q) => !isIdQuery(q)), JSON.stringify(needEnter.filter((q) => isIdQuery(q))));
+ok("every sample marked 'press Enter' that is a calculator request opens a form or the menu, and none of them is a live tool answer", SAMPLE_SECTIONS.find((s) => s.id === "tools")!.questions.filter((x) => !x.instant).every((x) => { const h = detectTool(x.q); return !!h && (h.kind === "form" || h.kind === "menu"); }));
+ok("no sample that needs Enter is an identifier (those appear on their own)", needEnter.every((q) => !isIdQuery(q) && !isLive(detectTool(q))), JSON.stringify(needEnter.filter((q) => isIdQuery(q))));
 ok("every area says how to run it, and says Enter or 'as you type'", SAMPLE_SECTIONS.every((s) => s.howToRun.length > 15 && /Enter|AS YOU TYPE/.test(s.howToRun)));
 
 // people: a template, never a real name; blanks are bracketed

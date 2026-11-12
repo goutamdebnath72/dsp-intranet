@@ -31,6 +31,7 @@ import {
   Check,
   ArrowRight,
   Zap,
+  Calculator,
 } from "lucide-react";
 import {
   SAMPLE_SECTIONS,
@@ -60,6 +61,7 @@ type Props = {
 export type GuideTab = "samples" | "how";
 
 const SECTION_ICONS: Record<SectionIcon, React.ReactNode> = {
+  calculator: <Calculator size={17} />,
   lightbulb: <Lightbulb size={17} />,
   users: <Users size={17} />,
   chart: <BarChart3 size={17} />,
@@ -475,8 +477,10 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                 <Pill>Enter</Pill> — one search box answers about{" "}
                 <strong>people</strong>, <strong>doctors and OPD</strong>,{" "}
                 <strong>holidays</strong>, <strong>telephone extensions</strong>,{" "}
-                <strong>circulars</strong>, <strong>announcements</strong> and{" "}
-                <strong>intranet sites</strong>. Not sure how to word a question?
+                <strong>circulars</strong>, <strong>announcements</strong>,{" "}
+                <strong>intranet sites</strong>, and a <strong>calculator</strong>{" "}
+                with unit and currency converters, date calculations and loan, PF,
+                gratuity forms. Not sure how to word a question?
                 Open the <strong>Sample questions</strong> tab and press{" "}
                 <strong>Try it</strong>.
               </p>
@@ -514,6 +518,15 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   </li>
                   <li>
                     an internal <strong>telephone extension</strong>;
+                  </li>
+                  <li>
+                    a <strong>sum</strong> (<Pill>12*45+7</Pill>), a{" "}
+                    <strong>conversion</strong> (<Pill>5 km in miles</Pill>,{" "}
+                    <Pill>100 usd to inr</Pill>) or a <strong>date question</strong>{" "}
+                    — these answer <strong>as you type</strong>, in your browser,
+                    and nothing you type is saved; for <strong>EMI, PF
+                    maturity, gratuity</strong> and leave encashment type{" "}
+                    <Pill>calculators</Pill> and press Enter;
                   </li>
                   <li>
                     a circular or announcement by its <strong>title</strong>, or
