@@ -104,6 +104,9 @@ async function main() {
       });
     }
 
+    if (result.abbreviations) console.log(`\nShort forms settled by the circulars: ${Object.entries(result.abbreviations).map(([a, m]) => `${a} = ${m}`).join("; ")}`);
+    console.log(`\nSecond reading: ${result.verification?.checked ? `done, ${result.verification.changes.length} change(s)` : "NOT done (shown unchecked, not stored)"}`);
+    for (const c of result.verification?.changes ?? []) console.log(`  - ${c}`);
     console.log("\n====================================================\n");
 
   } finally {

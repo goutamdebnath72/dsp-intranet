@@ -81,6 +81,10 @@ const AGGREGATE = new RegExp(
   `\\b(?:list|enumerate|name|all|every)\\b[^?.]{0,60}\\b(?:events|circulars|notices|schemes|trials|tournaments|programmes|programs|orders|matches|competitions|announcements)\\b[^?.]{0,80}\\b(?:in|during|for|of)\\s+(?:${MONTHS})(?:\\s+(?:19|20)\\d{2})?\\b`,
   "i",
 );
+// TWO TOPICS asked of the circulars in one breath ("what do the circulars say about X and about Y"): the answer is built from the circulars of both topics (a Gaurav Diwas circular and a Flag Day circular, 11 Nov 2026, scored 2 and took the plain path)
+const TWO_TOPICS = /\b(?:say|says|state|states|mention|mentions|provide|provides|cover|covers|contain|contains|announce|announces)\b[^?.:]{0,50}\b(?:about|on|regarding|for)\b[^?.:]{0,140}\band (?:also )?(?:about|on|regarding|for|the)\b/i;
+// THREE OR MORE ASKS listed after a colon ("dates, how employees take part, and the ways to pay"): a briefing with a part for each, not one passage
+const ASKS_AFTER_COLON = /:[^?.]*,[^?.]*(?:,|\band\b)[^?.]+/;
 const TWO_QUESTIONS = /\band (?:which|what|when|who|how|(?:through|by|to|from|for|under) (?:whom|which|what))\b/i;
 // A STAGE-BY-STAGE or CATEGORY-BY-CATEGORY breakdown ("what follows each violation at each stage", "for every level", "grade-wise"): the answer is a table of several rows, not one passage.
 const BREAKDOWN =
@@ -129,6 +133,8 @@ export function detectSynthesisIntent(question: string): SynthesisIntent {
   if (analyticVerbs.size >= 2) add(1, "a second analytic verb");
   if (distinctYears(q) >= 2) add(2, "two or more different years named (a span, or a before and after)");
   if (TWO_QUESTIONS.test(q)) add(2, "two questions joined by 'and which / and what'");
+  if (TWO_TOPICS.test(q)) add(3, "two topics put to the circulars in one question (say about X and about Y)");
+  if (ASKS_AFTER_COLON.test(q)) add(2, "three or more asks listed after a colon");
   const named = namedThings(q);
   if (named >= 3) add(1, `${named} named things`);
   // a request for many attributes at once ("by grade, amount, periodicity, authority and occasion"): four or more items in one sentence is a table, not a passage

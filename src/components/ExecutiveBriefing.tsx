@@ -188,6 +188,8 @@ export const DSP_ABBREVIATIONS: Record<string, string> = {
 
 
 export { expansionFromPhrase };
+import { KNOWN_SENSES } from "@/lib/search/abbreviationSenses";
+import { isIdentifierLabel, isLongDigitRun } from "@/lib/ui/identifiers";
 
 /**
  * One abbreviation, two meanings, chosen by what else the reply speaks of. "APO" is Assistant Personnel Officer in an ordinary circular, and the SAP
@@ -217,6 +219,9 @@ export function extractRelevantAbbreviations(data: SynthesisResult): Array<[stri
   ];
   const corpus = corpusParts.join(" ");
 
+  // The circulars' own sense comes first: a short form the circular defines ("financial assistance (FA)") or uses in a way the second reading
+  // (edsVerify.ts) could settle ("as per TA rules": the travelling allowance, not the Township Administration) beats the list below.
+  const own: Record<string, string> = data.abbreviations || {};
   const found: Array<[string, string]> = [];
   for (const [abbr, expansion] of Object.entries(DSP_ABBREVIATIONS)) {
     const escaped = abbr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -224,13 +229,14 @@ export function extractRelevantAbbreviations(data: SynthesisResult): Array<[stri
     const regex = new RegExp(`(?:^|[\\s(,./:;])(${escaped})s?(?:[\\s),./:;]|$)`); // "IITs" is the abbreviation IIT
     if (regex.test(corpus)) {
       const alt = ABBREVIATION_SENSE_BY_CONTEXT[abbr];
-      found.push([abbr, alt && alt.when.test(corpus) ? alt.expansion : expansion]);
+      // a short form with more than one confirmed sense that nothing has settled (no ruling from the second reading, no context rule) shows BOTH senses,
+      // never the list's one alone: "TA" in "as per TA rules" is the travelling allowance, and showing "Township Administration" there was wrong (11 Nov 2026)
+      const unsettled = !own[abbr] && !alt && (KNOWN_SENSES[abbr]?.length ?? 0) > 1;
+      found.push([abbr, own[abbr] || (alt && alt.when.test(corpus) ? alt.expansion : unsettled ? KNOWN_SENSES[abbr].join(" or ") : expansion)]);
     }
   }
-
-  // Abbreviations the circulars define themselves ("financial assistance (FA)") and the reply uses: the circular's own words, for those the list does not know
-  for (const [abbr, expansion] of Object.entries(data.abbreviations || {})) {
-    if (!DSP_ABBREVIATIONS[abbr] && !found.some(([a]) => a === abbr)) found.push([abbr, expansion]);
+  for (const [abbr, expansion] of Object.entries(own)) {
+    if (!found.some(([a]) => a === abbr)) found.push([abbr, expansion]);
   }
 
   // Also check for dynamic patterns in corpus: "Full Phrase (ABBR)"
@@ -269,6 +275,13 @@ export function bracketIsAmount(text: string): boolean {
 export function splitValueBracket(trimmed: string): { rate: string; bracket: string; condition: string } | null {
   const m = trimmed.match(/^(.+?)\s+\(([^()]+)\)\s*(?:\[([^\]]+)\])?$/);
   if (!m) return null;
+  // a bracket that only finishes the phrase before it is part of the sentence, not a note or an approver: "... Projects & TS (Elec.)" (an abbreviation ending in a full stop, after "&", "and", "of"...)
+  if (/^[^\s()]+\.$/.test(m[2].trim()) || /(?:&|\b(?:and|or|of|to|in|for|on|at))$/i.test(m[1].trim())) return null;
+  // a bare title followed by its function ("Director (Personnel)", "Chief General Manager (HR)") is ONE designation: the bracket is part of the name, not a footnote
+  if (m[1].trim().split(/\s+/).length <= 4 && /\b(?:director|manager|officer|executive|head|chairman|secretary|incharge|in-charge|chief)$/i.test(m[1].trim()) && m[2].trim().split(/\s+/).length <= 3 && !/\d/.test(m[2]) && !m[3]) return null;
+  // a lead of nine or more words is a sentence of the circular ("Submit entry forms at ... by 15th January, 2026 (6:00 PM)"), not a value with a footnote: it stays one plain line, not a bold lead with a detached note;
+  // an approver in the bracket still splits (the long rate before "(Head of P&A)" is a rate)
+  if (m[1].trim().split(/\s+/).length >= 9 && !looksLikeAuthority(m[2]) && !m[3]) return null;
   if (bracketIsAmount(m[2])) {
     // the money stays in the value; only a trailing [condition] is split off
     return m[3] ? { rate: `${m[1].trim()} (${m[2].trim()})`, bracket: "", condition: m[3].trim() } : null;
@@ -276,7 +289,7 @@ export function splitValueBracket(trimmed: string): { rate: string; bracket: str
   return { rate: m[1].trim(), bracket: m[2].trim(), condition: (m[3] || "").trim() };
 }
 
-export function renderEnterpriseTableCell(cell: string, colIndex: number, _colName: string) {
+export function renderEnterpriseTableCell(cell: string, colIndex: number, colName: string) {
   const trimmed = (cell || "").replace(/\s*\[\s*\]/g, "").trim(); // an empty condition "[]" is nothing
 
   // 1. First column (Parameter / Period / Milestone)
@@ -335,6 +348,15 @@ export function renderEnterpriseTableCell(cell: string, colIndex: number, _colNa
         )}
       </div>
     );
+  }
+
+  // 3a. AN IDENTIFIER IS NOT AN AMOUNT (src/lib/ui/identifiers.ts): a cell that is only digits under an identifier heading (Account Number, IFSC, Policy No.), or a run of nine digits or more, is shown as
+  // the circular prints it, digits unbroken: never grouped with commas and never turned into a number (a long account number would lose its last digits as one).
+  {
+    const idDigits = /^\d+(?:[,\s]\d{2,4}){0,6}$/.test(trimmed) ? trimmed.replace(/[,\s]/g, "") : "";
+    if (idDigits && (isLongDigitRun(idDigits) || (isIdentifierLabel(colName) && /^\d+$/.test(idDigits) && idDigits.length >= 5))) {
+      return <span className="text-xs sm:text-sm font-semibold tabular-nums tracking-wide text-slate-800 leading-relaxed">{idDigits}</span>;
+    }
   }
 
   // 3b. A bare amount ("13478.00", "₹ 3350.00"): the same Indian digit grouping the findings use ("13,478.00"), the decimals as the circular prints them
@@ -837,7 +859,8 @@ function SourceRow({
  * everything inline (no block <p>) so the citation chip sits on the same line. */
 /** Rupee amounts in running text get the same Indian digit grouping as the charts and tables ("₹ 2400/-" -> "₹ 2,400/-"); "/-" and decimals stay as written. */
 export function groupRupees(text: string): string {
-  return (text || "").replace(/(₹|Rs\.?)(\s*)(\d{4,})(\.\d+)?/g, (_m, sym: string, sp: string, int: string, dec?: string) => `${sym}${sp}${Number(int).toLocaleString("en-IN")}${dec ?? ""}`);
+  // (an amount of more than fifteen digits is not an amount: it is an identifier and keeps its digits)
+  return (text || "").replace(/(₹|Rs\.?)(\s*)(\d{4,})(\.\d+)?/g, (_m, sym: string, sp: string, int: string, dec?: string) => (int.length > 15 ? _m : `${sym}${sp}${Number(int).toLocaleString("en-IN")}${dec ?? ""}`));
 }
 
 function renderInlineMarkdown(input: unknown): React.ReactNode[] {

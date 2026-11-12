@@ -7,6 +7,8 @@ As written, only P03, P04, P06, P13 and B03 reach EDS; the rest are answered by 
 The same list lives in `scripts/eds-panel-queries.ts`; `npx tsx --env-file=.env.local scripts/eds-panel.ts [P01 P05 ...]` runs them through the engine
 (one at a time, no store; each question costs two model calls of about 25-30k tokens, so the Gemini credit must be topped up first).
 
+Since 11 Nov 2026 every briefing gets a SECOND READING (`src/lib/search/edsVerify.ts`): a verifier model reads the circulars and the briefing, and plain code applies only what it can check (STATUS.md row 89). `scripts/test-eds-query.ts` prints what it changed.
+
 "Checked" means: I read the answer against the circular text. "Not run" means the call timed out or the credit ran out before it finished.
 
 | Id | Kind of question | Question | Status on 9 Nov (before the fixes of the same day) |

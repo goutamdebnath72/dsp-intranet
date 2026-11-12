@@ -19,7 +19,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { LogoModal } from "./LogoModal";
 import { OmnibarModal } from "./OmnibarModal";
-import HelpManualModal from "./HelpManualModal";
+import HelpManualModal, { type GuideTab } from "./HelpManualModal";
+import { OMNIBAR_PREFILL_EVENT, OPEN_GUIDE_EVENT } from "@/lib/help/sampleQuestions";
 import { HolidayNotificationToast } from "./HolidayNotificationToast";
 import { getFriendlyFirstName, getInitials } from "@/lib/utils/nameHelper";
 
@@ -169,6 +170,7 @@ export function TopBar() {
 
   const [isOmnibarOpen, setIsOmnibarOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [guideTab, setGuideTab] = useState<GuideTab>("samples");
 
   // Compute executive validation using exact 6-digit rule starting with 4 + user role check
   const userTicket = (session?.user as any)?.ticketNo || "";
@@ -182,6 +184,24 @@ export function TopBar() {
     window.addEventListener("open-omnibar", handleOpenOmnibar);
     return () => window.removeEventListener("open-omnibar", handleOpenOmnibar);
   }, []);
+
+  // The guide can be opened from anywhere on the page (a hint in the search bar, a link), on the tab asked for
+  useEffect(() => {
+    const handleOpenGuide = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: GuideTab }>).detail?.tab;
+      setGuideTab(tab === "how" ? "how" : "samples");
+      setIsHelpOpen(true);
+    };
+    window.addEventListener(OPEN_GUIDE_EVENT, handleOpenGuide);
+    return () => window.removeEventListener(OPEN_GUIDE_EVENT, handleOpenGuide);
+  }, []);
+
+  // "Try it" in the guide: close the guide, open the search bar and type the sample question in it. The reader edits any [blank] and presses Enter: nothing is sent by itself.
+  const tryQuestion = (question: string) => {
+    setIsHelpOpen(false);
+    setIsOmnibarOpen(true);
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent(OMNIBAR_PREFILL_EVENT, { detail: { query: question } })), 120);
+  };
 
   // Single, clean keyboard listener with capture mode for robust global interception
   useEffect(() => {
@@ -237,7 +257,7 @@ export function TopBar() {
           <button
             className="p-1 hover:bg-gray-700 rounded-full"
             aria-label="Help"
-            onClick={() => setIsHelpOpen(true)}
+            onClick={() => { setGuideTab("samples"); setIsHelpOpen(true); }}
           >
             <HelpCircle size={22} />
           </button>
@@ -322,7 +342,7 @@ export function TopBar() {
         isExecutive={isExecutiveUser}
         ticketNo={userTicket.trim() || undefined}
       />
-      <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} initialTab={guideTab} isExecutive={isExecutiveUser} onTry={tryQuestion} />
       <HolidayNotificationToast />
     </>
   );

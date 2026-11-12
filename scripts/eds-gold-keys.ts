@@ -73,7 +73,7 @@ export const GOLD: GoldQuestion[] = [
     must: [f("2024 Prabodh Rs 1600", /\b1600\b/), f("2024 Prabodh 800", /\b800\b/), f("2024 Praveen 1800", /\b1800\b/), f("2024 Praveen 1200", /\b1200\b/), f("2024 Pragya 2400", /\b2400\b/), f("2024 Praveen 600", /\b600\b/),
       f("2026 Praveen 4500", /\b4500\b/), f("2026 Praveen 3000", /\b3000\b/), f("2026 Praveen 1500", /\b1500\b/), f("2026 Pragya 6000", /\b6000\b/), f("Parangat 10000", /\b10000\b/), f("Parangat 7000", /\b7000\b/), f("Parangat 4000", /\b4000\b/),
       f("25 candidates per course", /\b25 candidates|25 per course|25 candidates for each/), f("100 candidates in total", /\b100\b/), f("2024 start 2 January 2024", /2 january,? 2024|02 january,? 2024/), f("2026 nomination by 15 January 2026", /15 january,? 2026/), f("2026 language-based eligibility (Telugu/Mizo...)", /telugu|mizo/), f("Praveen Odia/Bangla...", /odia|bangla/), f("Pragya Punjabi/Urdu...", /punjabi|urdu/), f("2026 class: one hour thirty minutes", /one hour thirty|1\.5 hour|90 minutes|1 hour 30/), f("5 months", /5 months|five months/)],
-    mustNot: [{ why: "says incentives increased for all courses (Parangat did not change)", re: /(increase[ds]?|higher|raised)[^\n.]{0,60}all (four |the )?courses/ }, { why: "says Parangat increased", re: /parangat[^\n]{0,100}(increase|higher|raised)/ }],
+    mustNot: [{ why: "says incentives increased for all courses (Parangat did not change)", re: /(increase[ds]?|higher|raised)[^\n.]{0,60}all (four |the )?courses(?![^\n.]{0,40}\b(except|other than|but not|save)\b)/ }, { why: "says Parangat increased", re: /parangat[^\n.;]{0,100}(increase|higher|raised)/ }],
   },
   {
     id: "G09", topic: "Joint Industrial Adviser vs ICVL MD & CEO (circulars 60, 53)",

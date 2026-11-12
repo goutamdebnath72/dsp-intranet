@@ -19,6 +19,8 @@ export interface AbsenceFix {
   column: string;
   sourceId: number;
   quote: string;
+  /** the sentence of the circular that also speaks of the item, when there is one beside the list entry ("... will be treated as additional Festival Holiday ...") */
+  also?: string;
   /** the kind of list that names the item ("restricted holiday"), when the circular's headings say */
   section?: string | null;
 }
@@ -63,7 +65,8 @@ export function sourcesOfColumn(heading: string, sources: AbsenceSource[]): Abse
 /** The first and last character of every numbered table entry of a flattened text ("SL. No.: 28 | HOLIDAYS: ... | Day: Thursday"). */
 function entriesOf(flat: string): Array<{ from: number; to: number }> {
   const marks: Array<{ at: number; end: number }> = [];
-  for (const m of flat.matchAll(/\bsl\.?\s*(?:no\.?)?\s*:?\s*\d+\.?\s*\|/gi)) marks.push({ at: m.index!, end: m.index! + m[0].length });
+  // a numbered entry is "SL. NO.: 28 |" or, where the scan lost the table's headings, "Column 1: 30. |"
+  for (const m of flat.matchAll(/\b(?:sl\.?\s*(?:no\.?)?\s*:?|column\s*1\s*:)\s*\d+\.?\s*\|/gi)) marks.push({ at: m.index!, end: m.index! + m[0].length });
   return marks.map((m, i) => ({ from: m.end, to: i + 1 < marks.length ? marks[i + 1].at : flat.length }));
 }
 
@@ -76,7 +79,7 @@ const clip = (piece: string, max: number): string => {
 
 /** A table entry as the text of the circular stores it ("HOLIDAYS: Rath Yatra | DATE: 27th June | Day: Friday") is read as "Rath Yatra · 27th June · Friday": the values, in the circular's own words and order, without the column names. */
 export function readable(entry: string): string {
-  const parts = entry.split("|").map((p) => p.trim().replace(/^[A-Za-z][A-Za-z .&/]{0,24}:\s*/, "").trim()).filter(Boolean);
+  const parts = entry.split("|").map((p) => p.trim().replace(/^[A-Za-z][A-Za-z0-9 .&/]{0,24}:\s*/, "").trim()).filter(Boolean);
   return parts.length > 1 ? parts.join(" · ") : entry.trim();
 }
 
@@ -103,12 +106,17 @@ function sectionBefore(flat: string, at: number): string | null {
   return kind;
 }
 
-/** The circular's own words where the item is named: the table ENTRY that names it (one row), else the sentence around it; a place that carries a figure is preferred. */
-function quoteFor(text: string, word: string): { text: string; section: string | null } | null {
-  const flat = text.replace(/\s+/g, " ");
+/**
+ * The circular's own words where the item is named: the table ENTRY that names it (one row; one with a figure preferred), AND the sentence that speaks of it outside any list,
+ * when there is one (the 2025 list names Bhatridwitiya as a restricted holiday, and a sentence says it "will be treated as additional Festival Holiday": the entry alone would
+ * mislead). With no entry, the sentence stands alone.
+ */
+function quoteFor(text: string, word: string, labelWords: string[] = []): { text: string; section: string | null; also?: string } | null {
+  // a signature or a logo the scan put between two entries is not the circular's text
+  const flat = text.replace(/\[(?:handwritten|logo)[^\]]*\]/gi, " ").replace(/\s+/g, " ");
   const re = new RegExp(`(?<![\\p{L}])${escapeRe(word)}`, "giu");
   const entries = entriesOf(flat);
-  let tableQuote: { text: string; section: string | null } | null = null;
+  let tableQuote: { text: string; section: string | null; score: number } | null = null;
   let proseQuote: string | null = null;
   let proseWithFigure: string | null = null;
   for (const m of flat.matchAll(re)) {
@@ -122,23 +130,29 @@ function quoteFor(text: string, word: string): { text: string; section: string |
     });
     if (entry) {
       const q = readable(clip(flat.slice(entry.from, entry.to), 170));
-      const hit = { text: q, section: sectionBefore(flat, at) };
-      if (/\d/.test(q)) return hit;
-      tableQuote ??= hit;
+      // among the entries that hold the word ("Christmas Eve", "Christmas Day"; "Durgapuja - Maha Navami", "... Maha Ashtami") the one that holds MOST of the row's own words is the row's
+      const own = new Set(words(readable(clip(flat.slice(entry.from, entry.to), 170)).split(" · ")[0] ?? ""));
+      const score = labelWords.filter((w) => own.has(w)).length;
+      const hit = { text: q, section: sectionBefore(flat, at), score };
+      if (!tableQuote || score > tableQuote.score || (score === tableQuote.score && /\d/.test(q) && !/\d/.test(tableQuote.text))) tableQuote = hit;
       continue;
     }
-    const start = Math.max(0, at - 40);
-    const end = Math.min(flat.length, at + word.length + 110);
+    // the sentence around the word: from the sentence's start (a full stop up to 150 characters before) to its end (a full stop up to 240 characters after), else a window
+    const dotBefore = flat.lastIndexOf(". ", at);
+    const start = dotBefore >= 0 && at - dotBefore <= 150 ? dotBefore + 2 : Math.max(0, at - 40);
+    const dotAfter = flat.indexOf(". ", at);
+    const end = dotAfter >= 0 && dotAfter - at <= 240 ? dotAfter + 1 : Math.min(flat.length, at + word.length + 110);
     let piece = flat.slice(start, end);
-    if (start > 0) piece = piece.slice(piece.indexOf(" ") + 1);
-    if (end < flat.length) piece = piece.slice(0, piece.lastIndexOf(" "));
+    if (start > 0 && start !== dotBefore + 2) piece = piece.slice(piece.indexOf(" ") + 1);
+    if (end < flat.length && end !== dotAfter + 1) piece = piece.slice(0, piece.lastIndexOf(" "));
     piece = piece.trim();
     if (!piece) continue;
     if (/\d/.test(piece.slice(Math.max(0, piece.toLowerCase().indexOf(word))))) proseWithFigure ??= piece;
     proseQuote ??= piece;
   }
   const prose = proseWithFigure ?? proseQuote;
-  return tableQuote ?? (prose ? { text: prose, section: null } : null);
+  if (tableQuote) { const t = { text: tableQuote.text, section: tableQuote.section }; return prose ? { ...t, also: prose } : t; }
+  return prose ? { text: prose, section: null } : null;
 }
 
 /**
@@ -164,10 +178,10 @@ export function checkAbsences(table: SynthesisTable, sources: AbsenceSource[]): 
           const hit = keys.filter((k) => present.has(k));
           const longest = [...keys].sort((a, b) => b.length - a.length)[0];
           if (!present.has(longest) || hit.length * 2 < keys.length) continue;
-          const q = quoteFor(src.text, longest);
+          const q = quoteFor(src.text, longest, words(label).filter((w) => w.length >= 3));
           if (!q) continue;
-          fixes.push({ row: label, column: table.columns[ci], sourceId: src.id, quote: q.text, section: q.section });
-          return `Listed in the circular${q.section ? ` as a ${q.section}` : ""}: "${q.text}"`;
+          fixes.push({ row: label, column: table.columns[ci], sourceId: src.id, quote: q.text, section: q.section, ...(q.also ? { also: q.also } : {}) });
+          return `Listed in the circular${q.section ? ` as a ${q.section}` : ""}: "${q.text}"${q.also ? `; the circular adds: "${q.also}"` : ""}`;
         }
       }
       confirmed.push({ row: label, column: table.columns[ci], sourceIds: colSources[ci].map((x) => x.id) });

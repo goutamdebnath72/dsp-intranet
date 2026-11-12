@@ -8,7 +8,10 @@ import { DateTime } from "luxon";
 import { executeExecutiveSynthesis } from "../src/lib/search/executiveSynthesis";
 import { generateEmbedding } from "../src/lib/ai/geminiEmbedding";
 import type { SearchResultRow } from "../src/lib/search/titleSearch";
-import { GOLD } from "./eds-gold-keys";
+import { GOLD as GOLD_BASE } from "./eds-gold-keys";
+// GOLD_KEYS=./scripts/eds-fresh-keys.ts : score another set of questions and keys (same shape) instead of the nine gold ones
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const GOLD: typeof GOLD_BASE = process.env.GOLD_KEYS ? require(require("node:path").resolve(process.env.GOLD_KEYS)).GOLD : GOLD_BASE;
 
 async function retrieve(c: Client, q: string) {
   const v = `[${(await generateEmbedding(q, "search_query")).join(",")}]`;

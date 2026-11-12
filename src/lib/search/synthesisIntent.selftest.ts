@@ -222,6 +222,9 @@ ok("a bare 'compare roy and ray' is at most borderline, never EDS", !is("compare
 ok("one analytic verb alone is borderline (a written summary may help)", is("Summarise the SAIL Mediclaim extension circular").level === "borderline");
 ok("a question with no cue scores 0", is("What is the gift card amount?").score === 0);
 ok("supporting shape alone never reaches 5", is("what are the rules for casual leave and which holidays fall in 2024 and 2025 for contract workers in the plant").level !== "synthesis");
+ok("two topics asked in one breath, with three asks after a colon, is EDS (11 Nov 2026: it scored 2 and ran as a plain search)", is("What do the circulars say about SAIL Gaurav Diwas 2026 and about contributions on Armed Forces Flag Day: dates, how employees take part, and the ways to pay?").synthesis);
+ok("a plain 'what does the circular say about X' stays ordinary", is("What does the circular say about the Mediclaim extension?").level === "none" && is("What does the circular say about the retention of quarters: how long, what rent?").synthesis === false);
+ok("a colon with two asks only is not enough", is("Tell me about the holiday list: dates and days.").synthesis === false);
 ok("an empty question is none", is("   ").level === "none" && is("").score === 0);
 ok("the reasons are listed for an EDS question", is(OLD_TESTS[0]).reasons.length >= 4 && is(OLD_TESTS[0]).reasons.every((r) => /^\+\d /.test(r)));
 ok("the reasons name the people-data word that blocked", detectSynthesisIntent(PEOPLE[0]).blockedBy?.includes("seniority") === true);

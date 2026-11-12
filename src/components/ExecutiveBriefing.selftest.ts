@@ -58,6 +58,19 @@ function eq(name: string, got: unknown, want: unknown) {
   eq("format HRR multiplier", formatValue(2, "x HRR"), "2× HRR");
 }
 
+
+// 3-id. an identifier is not an amount: digits unbroken, never grouped, never turned into a number
+{
+  const txt = (c: string, col: number, name: string) => ReactDOMServer.renderToStaticMarkup(renderEnterpriseTableCell(c, col, name)).replace(/<[^>]+>/g, "");
+  ok("an account number alone in a cell is shown unbroken", txt("34420400623", 1, "Account Number") === "34420400623", txt("34420400623", 1, "Account Number"));
+  ok("a long account number (16 digits) keeps every digit", txt("3083000100179875", 1, "Details") === "3083000100179875");
+  ok("an 18-digit number keeps every digit too (a JavaScript number would lose the last ones)", txt("123456789012345678", 1, "Reference") === "123456789012345678");
+  ok("an account number the model wrote with commas comes out unbroken", txt("34,42,04,00,623", 1, "Account Number") === "34420400623" && txt("3,083,000,100,179,875", 1, "Account No.") === "3083000100179875");
+  ok("a shorter number under an identifier heading is unbroken as well", txt("12345678", 1, "Account Number") === "12345678");
+  ok("a wage under a money heading is still grouped", txt("13478.00", 1, "VDA") === "13,478.00" && txt("20995", 1, "Total") === "20,995");
+  ok("a year is still a year", txt("2024", 1, "Year") === "2024");
+}
+
 // 3. renderEnterpriseTableCell tests
 {
   // Col 0: Period / Milestone indicator
@@ -176,6 +189,10 @@ function eq(name: string, got: unknown, want: unknown) {
   ok("a second penalty row is drawn the same way as the first", pen2.includes("Officers: Rs.500/-") && !pen2.includes("bg-amber-50") && pen2.includes("For all subsequent violations"));
   const clause = ReactDOMServer.renderToStaticMarkup(renderEnterpriseTableCell("CDA rule in accordance of with Section no: 5(Xii)", 2, "Revised consequence"));
   ok("a clause reference glued to its word is not split into a value and a note", clause.includes("5(Xii)") && splitValueBracket("Section no: 5(Xii)") === null, clause);
+  ok("a bracket that only finishes the phrase (an abbreviation after '&') is part of the sentence, not a note", splitValueBracket("One (01) day per 20 days of actual work in Works, Projects & TS (Elec.)") === null && splitValueBracket("Four days (Casual) leave") === null);
+  ok("a note after a finished value is still split", splitValueBracket("4x Standard HRR (Mandatory)")?.bracket === "Mandatory");
+  ok("a sentence-long cell with a time in brackets stays one plain line (no bold lead, no detached note)", splitValueBracket("Submit entry forms at Sports Office or email pp.roy@sail.in by 15th January, 2026 (6:00 PM)") === null && splitValueBracket("24th January, 2026 (from 2:00 PM onwards)")?.bracket === "from 2:00 PM onwards");
+  ok("a title with its function in brackets is one designation, not a value with a footnote", splitValueBracket("Director (Personnel)") === null && splitValueBracket("Chief General Manager (HR)") === null && splitValueBracket("4x Standard HRR (Mandatory)")?.bracket === "Mandatory");
   ok("a rate with an approver is still split", splitValueBracket("4x Standard HRR (Head of P&A) [Mumbai: first 4 months]")?.bracket === "Head of P&A" && splitValueBracket("4x Standard HRR (Head of P&A) [Mumbai: first 4 months]")?.condition === "Mumbai: first 4 months");
 }
 
@@ -239,6 +256,10 @@ function eq(name: string, got: unknown, want: unknown) {
   eq("APO in an ordinary circular is Assistant Personnel Officer", new Map(extractRelevantAbbreviations({ overview: "forward to the APO of the department", keyFindings: [], charts: [] } as any)).get("APO"), "Assistant Personnel Officer");
   eq("APO in an SAP / ERP reply is the SAP module", new Map(extractRelevantAbbreviations({ overview: "the SAP ERP project used the APO module", keyFindings: [], charts: [] } as any)).get("APO"), "Advanced Planner & Optimizer (SAP module)");
   eq("APO next to a named SAP project is the SAP module", new Map(extractRelevantAbbreviations({ overview: "Project PRAGATI linked stockyards through SD and APO.", keyFindings: [], charts: [] } as any)).get("APO"), "Advanced Planner & Optimizer (SAP module)");
+  eq("the circulars' own sense of a short form beats the list (TA settled by the second reading as the travelling allowance)", new Map(extractRelevantAbbreviations({ overview: "as per TA eligibility", keyFindings: [], charts: [], abbreviations: { TA: "Travelling Allowance" } } as any)).get("TA"), "Travelling Allowance");
+  eq("a short form with two confirmed senses that nothing has settled shows both, never the list's one alone", new Map(extractRelevantAbbreviations({ overview: "contact the TA office", keyFindings: [], charts: [] } as any)).get("TA"), "Township Administration or Travelling Allowance");
+  eq("a short form with one meaning keeps the list's meaning", new Map(extractRelevantAbbreviations({ overview: "the CGM approves", keyFindings: [], charts: [] } as any)).get("CGM"), "Chief General Manager");
+  eq("a short form settled by the circulars is listed once", extractRelevantAbbreviations({ overview: "as per TA rules", keyFindings: [], charts: [], abbreviations: { TA: "Travelling Allowance" } } as any).filter(([a]) => a === "TA").length, 1);
   eq("APO is listed once", extractRelevantAbbreviations({ overview: "SAP APO and the APO", keyFindings: [], charts: [] } as any).filter(([a]) => a === "APO").length, 1);
 }
 

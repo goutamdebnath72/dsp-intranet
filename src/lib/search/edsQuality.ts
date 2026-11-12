@@ -38,6 +38,8 @@ export interface ScoreContext {
   labels?: string[];
   /** per circular id: the qualifiers its SUBJECT LINE puts in brackets ("Mid-term inclusion"): the circular's own name for the situation */
   qualifiersBySource?: Record<number, string[]>;
+  /** the second reading (edsVerify.ts): sentences it had to remove as unsupported, and reports the code could not check and left alone */
+  verification?: { removed: number; ignored: number };
   /** circulars that correct / amend / extend ANOTHER circular among the sources: `id` amends the circulars in `amends` */
   amendments?: Array<{ id: number; amends: number[] }>;
 }
@@ -153,7 +155,14 @@ export function scoreBriefing(r: SynthesisResult, ctx: ScoreContext): BriefingSc
   const support = claimStems.size ? inSrc / claimStems.size : 0;
   const wording = 12 * clamp(support / 0.8, 0, 1);
   if (support < 0.8) notes.push(`only ${Math.round(support * 100)}% of the wording is found in the circulars`);
-  const grounding = figures + small + wording;
+  let grounding = figures + small + wording;
+  // the second reading: a sentence that had to go was a sentence the writer got wrong; a report left unchecked may still be wrong in the shown briefing
+  if (ctx.verification) {
+    const { removed, ignored } = ctx.verification;
+    if (removed) notes.push(`${removed} unsupported sentence(s) removed by the second reading`);
+    if (ignored) notes.push(`${ignored} report(s) of the second reading could not be checked`);
+    grounding = clamp(grounding - 2 * removed - 1 * ignored, 0, 30);
+  }
 
   // ---- coverage (25) ----
   const want = stemsOf(ctx.query);
@@ -209,7 +218,8 @@ export function scoreBriefing(r: SynthesisResult, ctx: ScoreContext): BriefingSc
   if (years.length >= 2 && r.table) {
     const grid = [r.table, r.extraTable].flatMap((tb) => (tb ? [tb.title ?? "", ...tb.columns, ...tb.rows.map((row) => row[0] ?? "")] : [])).join(" ");
     const said = [r.overview, ...(r.keyFindings ?? []).map((f) => f.text)].join(" ").split(/(?<=[.!?])\s+/);
-    const absent = years.filter((y) => !grid.includes(y) && !said.some((sent) => sent.includes(y) && /\b(none|no|not|only|absent|without)\b/i.test(sent)));
+    // "Room No. 18" is not a "no": the abbreviation No. (followed by a full stop) does not count
+    const absent = years.filter((y) => !grid.includes(y) && !said.some((sent) => sent.includes(y) && /\b(?:none|not|only|absent|without)\b|\bno\b(?!\.)/i.test(sent)));
     if (absent.length) {
       structure = Math.max(0, structure - 5);
       notes.push(`year(s) asked but missing from the tables: ${absent.join(", ")}`);

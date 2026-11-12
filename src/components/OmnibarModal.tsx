@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
+import { OMNIBAR_PREFILL_EVENT } from "@/lib/help/sampleQuestions";
 import { needsWideModal } from "@/lib/search/edsLayout";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
@@ -78,10 +79,10 @@ const EXECUTIVE_SCALE = 1.08;
 // The box while an answer shows a table of 4+ columns (src/lib/search/edsLayout.ts) is exactly as wide as the PAGE behind it: --omni-page-width (globals.css) is the page's own width
 // (--content-width from the md breakpoint up, the full width below), so the two cannot differ at any screen size or zoom, and NO box ever crosses it.
 const PAGE_WIDTH_VAR = "var(--omni-page-width)";
-// While the box is at its widest (a table of 4+ columns), every text in it is this much smaller than its normal size (owner, 10 Nov 2026: "a very small amount"): 3%, so a 15 px text is
-// drawn at 14.5 px. The factor multiplies the text scale (--omni-k) of the card, which every text size and line height of the modal already follows (omniScale.css), so nothing can
-// escape it and the proportions stay as they were. It goes the moment the box narrows again. This is the only place the amount is written: change it here.
-const WIDE_TEXT_FACTOR = 0.97;
+// Every text in the box is this much smaller than the size the screen gives it (owner, 10 Nov 2026, for the widest box, a table of 4+ columns: "a very small amount"; the same lowering
+// for the normal width on 11 Nov 2026): 3%, so a 15 px text is drawn at 14.5 px. The factor multiplies the text scale (--omni-k) of the card, which every text size and line height of
+// the modal already follows (omniScale.css), so nothing can escape it and the proportions stay as they were. This is the only place the amount is written: change it here.
+const MODAL_TEXT_FACTOR = 0.97;
 const MD_BREAKPOINT_PX = 768; // where the page changes from full width to --content-width (Tailwind md)
 
 function PersonRow({
@@ -606,6 +607,25 @@ export function OmnibarModal({
     };
   }, [isOpen]);
 
+  // A sample question of the user guide ("Try it") is typed into the box; it is NOT sent: the reader edits any [blank] and presses Enter
+  useEffect(() => {
+    const onPrefill = (e: Event) => {
+      const text = (e as CustomEvent<{ query?: string }>).detail?.query;
+      if (typeof text !== "string" || !text.trim()) return;
+      setQuery(text);
+      window.setTimeout(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        const open = text.indexOf("[");
+        if (open >= 0 && text.indexOf("]", open) > open) el.setSelectionRange(open, text.indexOf("]", open) + 1); // the first blank is selected, ready to be typed over
+        else el.setSelectionRange(text.length, text.length);
+      }, 160);
+    };
+    window.addEventListener(OMNIBAR_PREFILL_EVENT, onPrefill);
+    return () => window.removeEventListener(OMNIBAR_PREFILL_EVENT, onPrefill);
+  }, [setQuery]);
+
   useEffect(() => {
     if (isOpen && !selectedCircularId) {
       const timer = setTimeout(() => textareaRef.current?.focus(), 80);
@@ -714,7 +734,7 @@ export function OmnibarModal({
                 duration: 0.25,
               }}
               ref={modalRef}
-              style={{ "--omni-k": wideModal ? Number((omniK * WIDE_TEXT_FACTOR).toFixed(4)) : omniK } as React.CSSProperties}
+              style={{ "--omni-k": Number((omniK * MODAL_TEXT_FACTOR).toFixed(4)) } as React.CSSProperties}
               className="omni-scale relative w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-neutral-200 flex flex-col max-h-[calc(100vh-5.5rem)]"
             >
               {/* Multiline Search Input Header */}

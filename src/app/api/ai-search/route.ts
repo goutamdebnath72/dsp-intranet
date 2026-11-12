@@ -29,9 +29,10 @@ import { parseQueryWithLlm } from "@/lib/search/pureAiEngine";
 import { answerHospitalQuestion } from "@/lib/search/hospitalDispatch";
 
 // Vercel stops a serverless function after a time limit. A question can legitimately take
-// longer than the default (the language model may have to wait for its per-minute allowance),
-// so allow up to 60 seconds, as the nl2sql route does.
-export const maxDuration = 60;
+// longer than the default (the language model may have to wait for its per-minute allowance), and an Executive Deep Synthesis
+// makes two model calls and then a second reading of the best one (edsVerify.ts): with three circulars that is 30 s of writing
+// and up to 30 s of checking. 120 s here; the engine's own deadline (EDS_DEADLINE_MS) stays under it.
+export const maxDuration = 120;
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 

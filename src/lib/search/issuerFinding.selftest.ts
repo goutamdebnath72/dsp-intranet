@@ -40,7 +40,7 @@ ok("no table: nothing", describeIssuers(null, Q, two) === null && describeIssuer
   ok("several issuers: each one, with its count; more than three rows are counted, not listed", !!r && /"Head of P&A" for 1 of the 5 rows \("a"\)/.test(r.text) && /"CGM" for 4 of the 5 rows;?\./.test(r.text.replace(/\.$/, ".")) && !/names no one/.test(r.text), r?.text); }
 
 const eng = readFileSync("src/lib/search/executiveSynthesis.ts", "utf8");
-ok("the engine adds it after the checked table, only with room, and the version changed so the stored briefing is made afresh", /describeIssuers\(result\.table, q, result\.keyFindings\.map/.test(eng) && /result\.keyFindings\.length < 6/.test(eng) && /EDS_ENGINE_VERSION = "74\.9"/.test(eng));
+ok("the engine adds it after the checked table, only with room, and the version changed so the stored briefing is made afresh", /describeIssuers\(best\.result\.table, q, best\.result\.keyFindings\.map/.test(eng) && /best\.result\.keyFindings\.length < 6/.test(eng) && /EDS_ENGINE_VERSION = "77\.7"/.test(eng));
 
 console.log(`issuerFinding selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
