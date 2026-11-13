@@ -12,7 +12,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, ChevronDown, Search, X, Zap } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Search, X, Zap } from "lucide-react";
 import { ToolNotice } from "./toolAtoms";
 
 export type Tone = "sky" | "amber" | "emerald" | "violet" | "rose";
@@ -31,6 +31,8 @@ export interface ToneStyle {
   /** the dark result panel */
   dark: string;
   border: string;
+  /** the glow under the arrow tile of a dropdown */
+  glow: string;
 }
 
 export const TONES: Record<Tone, ToneStyle> = {
@@ -44,6 +46,7 @@ export const TONES: Record<Tone, ToneStyle> = {
     ring: "focus:border-sky-400 focus:ring-sky-100",
     dark: "bg-gradient-to-br from-slate-900 via-indigo-950 to-sky-900",
     border: "border-sky-200",
+    glow: "shadow-sky-500/40",
   },
   amber: {
     grad: "bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500",
@@ -55,6 +58,7 @@ export const TONES: Record<Tone, ToneStyle> = {
     ring: "focus:border-orange-400 focus:ring-orange-100",
     dark: "bg-gradient-to-br from-slate-900 via-rose-950 to-orange-900",
     border: "border-amber-200",
+    glow: "shadow-orange-500/40",
   },
   emerald: {
     grad: "bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500",
@@ -66,6 +70,7 @@ export const TONES: Record<Tone, ToneStyle> = {
     ring: "focus:border-emerald-400 focus:ring-emerald-100",
     dark: "bg-gradient-to-br from-slate-900 via-teal-950 to-emerald-900",
     border: "border-emerald-200",
+    glow: "shadow-emerald-500/40",
   },
   violet: {
     grad: "bg-gradient-to-br from-violet-500 via-indigo-500 to-sky-500",
@@ -77,6 +82,7 @@ export const TONES: Record<Tone, ToneStyle> = {
     ring: "focus:border-violet-400 focus:ring-violet-100",
     dark: "bg-gradient-to-br from-slate-900 via-violet-950 to-indigo-900",
     border: "border-violet-200",
+    glow: "shadow-violet-500/40",
   },
   rose: {
     grad: "bg-gradient-to-br from-rose-500 via-pink-500 to-fuchsia-500",
@@ -88,6 +94,7 @@ export const TONES: Record<Tone, ToneStyle> = {
     ring: "focus:border-rose-400 focus:ring-rose-100",
     dark: "bg-gradient-to-br from-slate-900 via-rose-950 to-fuchsia-900",
     border: "border-rose-200",
+    glow: "shadow-rose-500/40",
   },
 };
 
@@ -104,14 +111,17 @@ export interface ToolShellProps {
   icon: React.ReactNode;
   tone?: Tone;
   instant?: boolean;
+  /** the cross: closes the card (the calculators list, which leaves the search window as it is) */
   onClose?: () => void;
+  /** the back arrow: a page opened from a list goes back to it. A cross would say "close", and this does not close anything */
+  onBack?: () => void;
   /** the card downloads the public rate table (said in the notice) */
   rates?: boolean | string;
   children: React.ReactNode;
 }
 
 /** The frame of a calculator card. */
-export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClose, rates, children }: ToolShellProps) {
+export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClose, onBack, rates, children }: ToolShellProps) {
   const t = TONES[tone];
   const calm = useReducedMotion();
   return (
@@ -138,6 +148,12 @@ export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClos
             <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" /></span>
             <Zap size={11} aria-hidden="true" /> Instant
           </span>
+        )}
+        {onBack && (
+          <button type="button" onClick={onBack} aria-label="Back to the calculators list" title="Back to the calculators list" className="group flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 pl-2.5 pr-3.5 text-xs font-bold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-900">
+            <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-0.5" />
+            Back
+          </button>
         )}
         {onClose && (
           <button type="button" onClick={onClose} aria-label="Close this calculator" className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-500 shadow-sm transition hover:rotate-90 hover:border-slate-300 hover:text-slate-800">
@@ -348,9 +364,16 @@ export function ToolSelect({ value, options, onChange, ariaLabel, id, tone = "sk
   };
 
   const v = VARIANT[variant];
+  // THE ARROW: a rounded-square tile (never a circle, so it cannot be taken for the tick of a chosen option), a gradient with a glow under it on the light fields and a glass tile on the dark
+  // panel; it turns over when the list opens and lifts a little under the pointer.
   const chevron = (
-    <motion.span animate={{ rotate: open ? 180 : 0 }} transition={calm ? { duration: 0 } : SPRING} className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white shadow-sm ${t.grad}`} aria-hidden="true">
-      <ChevronDown size={14} strokeWidth={3} />
+    <motion.span
+      animate={{ rotate: open ? 180 : 0 }}
+      transition={calm ? { duration: 0 } : SPRING}
+      className={`ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-xl transition-[box-shadow,transform] group-hover:-translate-y-px ${dark ? "bg-white/15 text-white shadow-inner ring-1 ring-white/30 backdrop-blur group-hover:bg-white/25" : `${t.grad} text-white shadow-lg ${t.glow} ring-2 ring-white/80 group-hover:shadow-xl`}`}
+      aria-hidden="true"
+    >
+      <ChevronDown size={16} strokeWidth={3.25} />
     </motion.span>
   );
 
@@ -414,10 +437,12 @@ export function ToolSelect({ value, options, onChange, ariaLabel, id, tone = "sk
                       onMouseDown={(e) => e.preventDefault()}
                       onMouseEnter={() => setActive(i)}
                       onClick={() => choose(o)}
-                      className={`flex cursor-pointer items-start gap-2 rounded-xl px-3 py-2 text-sm leading-snug transition-colors ${i === active ? `${t.soft} text-slate-900` : "text-slate-700"} ${selected ? "font-semibold" : ""}`}
+                      className={`relative flex cursor-pointer items-start gap-2 rounded-xl py-2 pl-4 pr-3 text-sm leading-snug transition-colors ${selected ? `${t.soft} font-semibold ${t.text}` : i === active ? "bg-slate-100 text-slate-900" : "text-slate-700"}`}
                     >
+                      {/* THE CHOSEN OPTION: an accent bar down its left edge and a bold tick in the tone's colour, no tile or circle: nothing like the arrow tile of the button above */}
+                      {selected && <span aria-hidden="true" className={`absolute bottom-1.5 left-1 top-1.5 w-1 rounded-full ${t.grad}`} />}
                       <span className="min-w-0 flex-1 break-words">{o.label}{o.hint && <span className="block text-xs font-normal text-slate-500">{o.hint}</span>}</span>
-                      {selected && <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white ${t.grad}`}><Check size={12} strokeWidth={3} /></span>}
+                      {selected && <Check size={18} strokeWidth={3.5} className="mt-px shrink-0 drop-shadow-sm" aria-hidden="true" />}
                     </li>
                   );
                 })}

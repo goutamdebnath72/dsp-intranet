@@ -2,7 +2,7 @@
 //
 // PETROL (E20), DIESEL AND LPG IN THE FOUR METROS, in one table: a column for each city, a row for each fuel and cylinder, the day's change beside each price, the cheapest city of each row in green
 // and the dearest in red. Ujjwala beneficiaries get a subsidy on the 14.2 kg cylinder: the amount is an editable figure (it is the government's to change), shown as one more row.
-// Numbers come from /api/live/fuel (src/lib/live/fuel.ts), with the source and the time. Nothing typed is sent anywhere.
+// Numbers come from /api/live/fuel (src/lib/live/fuel.ts), with the source and the time. Under the table, the Kolkata price over the last year, in three tabs (FuelTrendCard.tsx). Nothing typed is sent anywhere.
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import { useLive } from "@/hooks/useLive";
 import type { CityFuel, Price } from "@/lib/live/fuel";
 import { LiveGate, SourceLine } from "./LivePieces";
+import { FuelTrendCard } from "./FuelTrendCard";
 
 const DEFAULT_SUBSIDY = 300;
 
@@ -119,6 +120,7 @@ export function FuelCard() {
         <>
           <FuelBody cities={env.data} />
           <SourceLine env={env} reload={reload} loading={state === "loading"} />
+          <FuelTrendCard />
         </>
       )}
     </LiveGate>

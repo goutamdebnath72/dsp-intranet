@@ -1,5 +1,6 @@
 "use client";
 
+import { lockPageScroll } from "@/lib/ui/scrollLock";
 import React, { useRef, useEffect, useMemo } from "react";
 import { X } from "lucide-react";
 import { DateTime } from "luxon";
@@ -52,16 +53,8 @@ export default function AnnouncementModal({
   // to the page behind. The page scroller in this app is <html>
   // (globals.css sets `html { overflow-y: auto }`), so lock the documentElement.
   useEffect(() => {
-    const html = document.documentElement;
-    const scrollBarWidth = window.innerWidth - html.clientWidth;
-    const prevOverflow = html.style.overflow;
-    const prevPaddingRight = html.style.paddingRight;
-    html.style.overflow = "hidden";
-    if (scrollBarWidth > 0) html.style.paddingRight = `${scrollBarWidth}px`;
-    return () => {
-      html.style.overflow = prevOverflow;
-      html.style.paddingRight = prevPaddingRight;
-    };
+    const lock = lockPageScroll(); // one shared lock (src/lib/ui/scrollLock.ts)
+    return () => lock.release();
   }, []);
 
   return (

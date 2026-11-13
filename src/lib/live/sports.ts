@@ -6,7 +6,7 @@
 //   OTHER          everything else.
 // A story can be both. These are HEADLINES with links to the publisher's page; no free, steady live-score feed exists, and a card does not pretend to be one.
 import type { DateTime } from "luxon";
-import { mergeFeeds, parseRss, type FeedItem } from "./rss";
+import { mergeFeeds, newestFirst, parseRss, type FeedItem } from "./rss";
 import type { FeedSource } from "./news";
 
 export const SPORTS_SOURCES: FeedSource[] = [
@@ -47,5 +47,6 @@ export function buildSports(texts: Array<string | null>, now: DateTime, limit = 
     if (items.length) { feeds.push(items); used.push(s.name); } else failed.push(s.name);
   });
   if (!feeds.length) throw new Error("None of the sports feeds answered.");
-  return { items: mergeFeeds(feeds, limit, now, 48).map((i) => ({ ...i, groups: classify(i) })), used, failed };
+  // the stories are CHOSEN a paper at a time (so that no one paper fills the list) and SHOWN by time, the latest at the top: every tab (India, World events, All sports) is a filter of this one list, so each is in time order too
+  return { items: newestFirst(mergeFeeds(feeds, limit, now, 48), (i) => i.publishedAt).map((i) => ({ ...i, groups: classify(i) })), used, failed };
 }

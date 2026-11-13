@@ -21,7 +21,7 @@ ok("the omnibar file has no `layout` prop on any motion element", bare.length ==
 // the box is still drawn with its fade and slide, inside AnimatePresence
 ok("the box still fades and slides in (initial opacity 0, scale .95, y -20)", src.includes("initial={{ opacity: 0, scale: 0.95, y: -20 }}"));
 ok("the box still leaves with an exit animation", src.includes("exit={{ opacity: 0, scale: 0.95, y: -20 }}"));
-ok("the box is still inside AnimatePresence", /<AnimatePresence>\s*\{isOpen && !selectedCircularId && !selectedAnnouncement && \(/.test(src));
+ok("the box is still inside AnimatePresence", /<AnimatePresence( key=\{openings\})?>\s*\{isOpen && !selectedCircularId && !selectedAnnouncement && \(/.test(src));
 
 // the reason is written next to the place, so nobody puts `layout` back by habit
 ok("the reason for having no `layout` is written in the file", src.includes("Step 62a: NO `layout` prop on this box"));
@@ -34,6 +34,9 @@ ok("the text scale is never taken from an element's offsetWidth", !/offsetWidth/
 ok("the text scale is computed from the screen before the first frame (getExpectedK in the state initialiser)", /useState\(\(\) => \(typeof window !== "undefined" \? getExpectedK\(\) : 1\)\)/.test(code));
 ok("the text scale follows a resized window", /addEventListener\("resize", apply\)/.test(code));
 ok("the reason is written in the file", src.includes("Nothing the box does while it animates may change the text size"));
+
+ok("every opening has its own AnimatePresence, so a closing animation never meets the next opening", /<AnimatePresence key=\{openings\}>/.test(src) && /if \(isOpen !== wasOpen\) \{\s*setWasOpen\(isOpen\);\s*if \(isOpen\) setOpenings\(\(n\) => n \+ 1\);/.test(src));
+ok("a window that is only fading out catches no clicks", /exit=\{\{ pointerEvents: "none", transition: \{ duration: 0 \} \}\}/.test(src) && !/pointerEvents: isOpen/.test(src));
 
 console.log(`OmnibarModal layout selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

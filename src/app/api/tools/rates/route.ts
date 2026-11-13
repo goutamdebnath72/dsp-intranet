@@ -7,7 +7,7 @@
 // Either may fail: the other is used; both failing gives a plain 503 and the card says "rates unavailable right now".
 import { NextResponse } from "next/server";
 import { DateTime } from "luxon";
-import { validRates, type Rates } from "@/lib/tools/currency";
+import { validRates, type Rates } from "@/tools/converter/currency";
 
 export const runtime = "nodejs";
 export const revalidate = 3600; // an hour: the ECB publishes once a day

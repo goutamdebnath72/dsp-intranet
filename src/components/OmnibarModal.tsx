@@ -5,6 +5,7 @@ import { isIdQuery } from "@/lib/search/idQuery";
 import { formatCircularTitle } from "@/lib/circularTitle";
 import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { lockPageScroll } from "@/lib/ui/scrollLock";
 import {
   Search,
   Loader2,
@@ -244,6 +245,23 @@ export function OmnibarModal({
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(
     null,
   );
+  // How many times the window has been opened (counted in the render in which it opens, so the first frame of an opening already has its own animation state).
+  const [openings, setOpenings] = useState(0);
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setOpenings((n) => n + 1);
+  }
+  // Closing the search window by ANY route (X, a click outside, Escape, Ctrl+K, a click on the search bar's toggle) leaves nothing of it behind: a document viewer or an announcement that was
+  // open over it stays open no more, and the next opening starts clean. (A viewer left set with the window closed would make the next opening draw nothing at all: the box is not shown while one is set.)
+  useEffect(() => {
+    if (isOpen) return;
+    setSelectedCircularId(null);
+    setSelectedAnnouncement(null);
+    setSourceViewer(null);
+    setAnswerQuote(null);
+    setBannerDismissed(false);
+  }, [isOpen]);
 
   // Step 56b: the modal is wider than it was (step 54i) but its text was not: the text grows with the width, so that it keeps the proportion it had at the old 52rem (omniScale.css).
   // The doctors' unit tables opt out (omni-noscale): they keep their size and the room the extra width gave them.
@@ -604,17 +622,14 @@ export function OmnibarModal({
   useEffect(() => {
     if (!isOpen) return;
     const html = document.documentElement;
-    const scrollBarWidth = window.innerWidth - html.clientWidth;
-    const prevOverflow = html.style.overflow;
-    const prevPaddingRight = html.style.paddingRight;
-    html.style.overflow = "hidden";
-    if (scrollBarWidth > 0) html.style.paddingRight = `${scrollBarWidth}px`;
+    // one shared lock (src/lib/ui/scrollLock.ts): the last window to let go restores the page, in whatever order the windows close
+    const lock = lockPageScroll();
+    const scrollBarWidth = lock.scrollBarWidth;
     // The page stays centred in (screen - scrollbar) because of that padding, but the box's own row (fixed, inset 0) spans the whole screen once the scrollbar is gone: the box
     // sat half a scrollbar (about 7 px) to the right of the page behind it. The row takes the same room on its right (--scrollbar-comp, used below), so both share one centre.
     html.style.setProperty("--scrollbar-comp", `${scrollBarWidth}px`);
     return () => {
-      html.style.overflow = prevOverflow;
-      html.style.paddingRight = prevPaddingRight;
+      lock.release();
       html.style.removeProperty("--scrollbar-comp");
     };
   }, [isOpen]);
@@ -705,9 +720,11 @@ export function OmnibarModal({
 
   return (
     <>
-      <AnimatePresence>
+      {/* Every opening gets its own AnimatePresence (key={openings}): a closing animation that is still running, or that ever stuck, can never meet the next opening's box. And a window that is
+          only fading out catches no clicks (its exit sets pointerEvents none: AnimatePresence keeps the element as it was drawn, so a condition on isOpen would never reach it): a layer left over its fade can never swallow the click on the search bar behind it. */}
+      <AnimatePresence key={openings}>
         {isOpen && !selectedCircularId && !selectedAnnouncement && (
-          <div className="fixed inset-0 z-[100] flex items-start justify-center pt-12 sm:pt-14 px-4" style={{ paddingRight: "calc(1rem + var(--scrollbar-comp, 0px))" }}>
+          <motion.div exit={{ pointerEvents: "none", transition: { duration: 0 } }} className="fixed inset-0 z-[100] flex items-start justify-center pt-12 sm:pt-14 px-4" style={{ paddingRight: "calc(1rem + var(--scrollbar-comp, 0px))" }}>
             {/* The dimming covers the whole screen, but the BLUR only covers the page behind the box (same width and centre as the page: --omni-page-width, and the room the
                 scrollbar's lock padding leaves). The box is exactly as wide as the page, so a blur over the whole screen smeared the page's dark edge (the banner) a few pixels
                 outward, just outside the box's edge: two thin dark lines down both sides (read from a real screenshot: 139 fading to 190 over 4 px). With the blur kept inside the
@@ -1772,7 +1789,7 @@ export function OmnibarModal({
                 </p>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 

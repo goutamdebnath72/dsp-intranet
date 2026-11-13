@@ -2,6 +2,7 @@
 
 "use client";
 
+import { lockPageScroll } from "@/lib/ui/scrollLock";
 import { useState, useEffect } from "react";
 import OldHeader from "@/components/OldHeader";
 import HeroBanner from "@/components/HeroBanner";
@@ -50,25 +51,10 @@ export default function HomePageClient({
   );
 
   useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-
-    if (viewingCircularId !== null) {
-      const scrollBarWidth = window.innerWidth - html.clientWidth;
-      body.style.paddingRight = `${scrollBarWidth}px`;
-      html.style.overflow = "hidden";
-      body.style.overflow = "hidden";
-    } else {
-      body.style.paddingRight = "";
-      html.style.overflow = "";
-      body.style.overflow = "";
-    }
-
-    return () => {
-      body.style.paddingRight = "";
-      html.style.overflow = "";
-      body.style.overflow = "";
-    };
+    // one shared lock (src/lib/ui/scrollLock.ts); this used to blank <html>'s overflow on every change, which also unlocked any window opened over the page
+    if (viewingCircularId === null) return;
+    const lock = lockPageScroll();
+    return () => lock.release();
   }, [viewingCircularId]);
 
   const openCircularsModal = () => {

@@ -101,3 +101,29 @@ export function CopyButton({ text, dark }: { text: string; dark?: boolean }) {
     </button>
   );
 }
+
+export function RowsTable({ head, rows, firstN = 6, label }: { head: string[]; rows: string[][]; firstN?: number; label: string }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, firstN);
+  return (
+    <div className="mt-3">
+      {shown.length > 0 && <div className={`overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm ${all ? "max-h-72" : ""}`}>
+        <table className="w-full text-left text-[13px]">
+          <thead className="sticky top-0 bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600">
+            <tr>{head.map((h) => <th key={h} className="px-2.5 py-1.5 font-semibold">{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {shown.map((r, i) => (
+              <tr key={i} className="border-t border-slate-100">{r.map((c, j) => <td key={j} className={`px-2.5 py-1 ${j === 0 ? "font-medium text-slate-800" : "text-slate-700"}`}>{c}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>}
+      {rows.length > firstN && (
+        <button type="button" onClick={() => setAll((v) => !v)} className="mt-1.5 text-xs font-semibold text-sky-700 hover:underline">
+          {all ? "Show fewer rows" : `${label} (${rows.length} rows)`}
+        </button>
+      )}
+    </div>
+  );
+}

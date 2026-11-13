@@ -8,6 +8,8 @@ module.exports = {
     // folders their classes are never generated and the markup is drawn unstyled
     "./src/lib/ui/**/*.{ts,tsx}",
     "./src/lib/utils/**/*.{ts,tsx}",
+    // the topics of the search bar's tools (calculators, converters, readers, guides): each folder draws its own cards, so without this folder none of their classes would be generated
+    "./src/tools/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {

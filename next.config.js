@@ -107,6 +107,8 @@ const nextConfig = {
       "pdf-to-img",
       // sharp is native: it must stay an external require(), never bundled (see outputFileTracingIncludes below)
       "sharp",
+      // pdf-parse loads its PDF engine (pdf.js) by a computed path; kept as a plain require() from its own folder so that path resolves (the live fuel-trend route reads PPAC's price table with it)
+      "pdf-parse",
     ],
     // serverComponentsExternalPackages alone does NOT get every file these
     // two packages need at runtime into the traced serverless bundle —
@@ -127,6 +129,8 @@ const nextConfig = {
         "./node_modules/sharp/**/*",
         "./node_modules/@img/**/*",
       ],
+      // the live fuel-trend route reads PPAC's daily price table (a PDF) with pdf-parse, whose engine is found by a computed path that the build-time tracer cannot follow: included by hand
+      "/api/live/fuel-trend": ["./node_modules/pdf-parse/**/*"],
       // pg has been in serverComponentsExternalPackages since long before
       // tonight's changes, and the homepage/every DB-backed route worked
       // fine in every test tonight -- but confirmed directly by inspecting

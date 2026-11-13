@@ -1,19 +1,17 @@
 // src/components/HelpManualModal.tsx
 "use client";
 
+import { lockPageScroll } from "@/lib/ui/scrollLock";
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   Search,
   Sparkles,
-  Globe,
-  Quote,
   Languages,
   BellDot,
   UserRound,
   Megaphone,
-  Clock,
   Keyboard,
   ShieldCheck,
   Lightbulb,
@@ -42,6 +40,8 @@ import {
   type SampleSection,
   type SectionIcon,
 } from "@/lib/help/sampleQuestions";
+import { QuickReferenceTab } from "@/components/help/QuickReferenceTab";
+import { SearchBarIntro } from "@/components/help/SearchBarIntro";
 import {
   ANNOUNCEMENT_NEW_THRESHOLD_DAYS,
   CIRCULAR_NEW_THRESHOLD_HOURS,
@@ -58,7 +58,7 @@ type Props = {
   onTry?: (question: string) => void;
 };
 
-export type GuideTab = "samples" | "how";
+export type GuideTab = "samples" | "types" | "how";
 
 const SECTION_ICONS: Record<SectionIcon, React.ReactNode> = {
   calculator: <Calculator size={17} />,
@@ -261,6 +261,7 @@ function SamplesTab({ isExecutive, onTry }: { isExecutive: boolean; onTry?: (q: 
     });
   return (
     <div className="space-y-4">
+      <SearchBarIntro />
       <div className="overflow-hidden rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 p-[2px] shadow-md">
         <div className="rounded-[10px] bg-white px-4 py-3.5">
           <p className="flex items-center gap-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-orange-600">
@@ -270,7 +271,7 @@ function SamplesTab({ isExecutive, onTry }: { isExecutive: boolean; onTry?: (q: 
             Everything on this page is a <span className="rounded bg-orange-100 px-1.5 text-orange-700">sample</span> — it shows the kind of question our search engine can handle.
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
-            Read how each one is worded, press <strong>Try it</strong> to put it in the search bar, then ask your own question in the same shape.
+            Read how each one is worded, press <strong>Try it</strong> to put it in the search bar (change any <span className="rounded bg-amber-100 px-1 text-amber-800">[blank]</span>), then ask your own question in the same shape.
           </p>
           <p className="mt-2.5 flex flex-wrap items-center gap-2 text-[12.5px] text-slate-700">
             <span className="font-semibold">Every question is marked:</span>
@@ -302,12 +303,6 @@ function SamplesTab({ isExecutive, onTry }: { isExecutive: boolean; onTry?: (q: 
             </li>
           ))}
         </ul>
-        <p className="mt-3 flex items-start gap-1.5 text-[12.5px] text-slate-600">
-          <CornerDownLeft size={14} className="mt-0.5 shrink-0" />
-          <span>
-            <strong>Try it</strong> types the question in the search bar. Change any <span className="rounded bg-amber-100 px-1 text-amber-800">[blank]</span>. A question marked <strong>Press Enter</strong> waits for the <Pill>Enter</Pill> key; one marked <strong>Appears as you type</strong> shows its result by itself.
-          </span>
-        </p>
       </div>
 
       <div className="relative">
@@ -385,16 +380,8 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
   // Background scroll-lock (the page scroller is <html>, per globals.css).
   useEffect(() => {
     if (!isOpen) return;
-    const html = document.documentElement;
-    const scrollBarWidth = window.innerWidth - html.clientWidth;
-    const prevOverflow = html.style.overflow;
-    const prevPad = html.style.paddingRight;
-    html.style.overflow = "hidden";
-    if (scrollBarWidth > 0) html.style.paddingRight = `${scrollBarWidth}px`;
-    return () => {
-      html.style.overflow = prevOverflow;
-      html.style.paddingRight = prevPad;
-    };
+    const lock = lockPageScroll(); // one shared lock (src/lib/ui/scrollLock.ts)
+    return () => lock.release();
   }, [isOpen]);
 
   // Close on Escape.
@@ -433,7 +420,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     DSP Intranet — User Guide
                   </h2>
                   <p className="mt-0.5 text-sm text-sky-100">
-                    Sample questions that show what our search can handle, and what the markers mean
+                    Sample questions, the words that open each tool, and what the markers mean
                   </p>
                 </div>
                 <button
@@ -447,6 +434,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
               <div role="tablist" className="mt-4 flex gap-1">
                 {([
                   ["samples", "Sample questions"],
+                  ["types", "What to type"],
                   ["how", "How it works"],
                 ] as const).map(([id, label]) => (
                   <button
@@ -468,172 +456,38 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
             <div className="max-h-[70vh] space-y-6 overflow-y-auto overscroll-contain p-6">
               {tab === "samples" ? (
                 <SamplesTab isExecutive={isExecutive} onTry={onTry} />
+              ) : tab === "types" ? (
+                <QuickReferenceTab onTry={onTry} />
               ) : (
               <>
-              {/* Intro */}
-              <p className="rounded-lg bg-sky-50 p-3 text-sm text-slate-700">
-                Press <Pill>Ctrl</Pill> + <Pill>K</Pill> (or click the search
-                bar) to open search from anywhere. Just type and press{" "}
-                <Pill>Enter</Pill> — one search box answers about{" "}
-                <strong>people</strong>, <strong>doctors and OPD</strong>,{" "}
-                <strong>holidays</strong>, <strong>telephone extensions</strong>,{" "}
-                <strong>circulars</strong>, <strong>announcements</strong>,{" "}
-                <strong>intranet sites</strong>, and a <strong>calculator</strong>{" "}
-                with unit and currency converters, date calculations and loan, PF,
-                gratuity forms. Not sure how to word a question?
-                Open the <strong>Sample questions</strong> tab and press{" "}
-                <strong>Try it</strong>.
-              </p>
-
-              {/* How search works */}
+              {/* How search works: what the Samples tab does not say. The areas are in the introduction and the sample questions; the two ways to run a question are explained once, above the samples. */}
               <Section
                 icon={<Search size={17} />}
                 title="How search works — just press Enter"
               >
                 <p>
-                  There are no search-mode buttons to choose. Numbers and site
-                  names resolve <strong>instantly as you type</strong>; for
-                  anything else, type your query and press <Pill>Enter</Pill>.
+                  There are no search-mode buttons to choose. One{" "}
+                  <Pill>Enter</Pill> works out what you are asking (a person, a
+                  doctor, a holiday, a circular, a calculation&hellip;) and uses
+                  the right source. The areas it covers, and a question to try
+                  for each, are on the <strong>Sample questions</strong> tab; the
+                  words that open each tool are on <strong>What to type</strong>.
                 </p>
-                <p>
-                  A single <Pill>Enter</Pill> works out what you are asking and
-                  uses the right source:
-                </p>
-                <ul className="list-disc space-y-1 pl-5">
-                  <li>
-                    a <strong>person</strong> (by name — similar-sounding), or a
-                    person in a <strong>named department</strong>;
-                  </li>
-                  <li>
-                    a count or a comparison of <strong>employees</strong> (how
-                    many, who heads a department, who is senior);
-                  </li>
-                  <li>
-                    a <strong>doctor</strong>, a department&rsquo;s{" "}
-                    <strong>OPD</strong> or the token timings;
-                  </li>
-                  <li>
-                    a <strong>holiday</strong> (a festival, a month, a year, or two
-                    years compared);
-                  </li>
-                  <li>
-                    an internal <strong>telephone extension</strong>;
-                  </li>
-                  <li>
-                    a <strong>sum</strong> (<Pill>12*45+7</Pill>), a{" "}
-                    <strong>conversion</strong> (<Pill>5 km in miles</Pill>,{" "}
-                    <Pill>100 usd to inr</Pill>) or a <strong>date question</strong>{" "}
-                    — these answer <strong>as you type</strong>, in your browser,
-                    and nothing you type is saved; for <strong>EMI, PF
-                    maturity, gratuity</strong> and leave encashment type{" "}
-                    <Pill>calculators</Pill> and press Enter;
-                  </li>
-                  <li>
-                    a circular or announcement by its <strong>title</strong>, or
-                    by what it <strong>says</strong> (found by meaning).
-                  </li>
-                </ul>
                 <p>
                   The best answer leads. If a name is also{" "}
                   <em>mentioned in circulars</em>, you get the person first and
                   those circulars below.
                 </p>
-                <p>
-                  <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
-                    <Sparkles size={14} /> Executive Deep Synthesis
-                  </span>{" "}
-                  has no button: press Enter as usual. When an <strong>executive</strong>{" "}
-                  is signed in (tickets starting with <Pill>4</Pill>) and the question
-                  needs several circulars built into one answer (compare, what
-                  changed, trace, list every, what is hidden), the search reads across
-                  the circulars and writes a combined, sourced summary with figures,
-                  tables and charts. It takes longer than a normal search. Ask in
-                  English. Everyone else gets the normal search. At present it reads
-                  the circulars.
-                </p>
               </Section>
 
-              {/* Quoted match */}
-              <Section
-                icon={<Quote size={17} />}
-                title="Exact-phrase search"
-              >
-                <p>
-                  Wrap words in double quotes to force an exact match:{" "}
-                  <Pill>&quot;retention of company accommodation&quot;</Pill>{" "}
-                  finds that phrase verbatim. Without quotes, search
-                  matches by meaning. Matched words are{" "}
-                  <mark className="rounded-sm bg-yellow-200 px-1">
-                    highlighted
-                  </mark>{" "}
-                  in the result excerpt, and inside an announcement when you open
-                  it.
-                </p>
-              </Section>
-
-              {/* Sites */}
-              <Section
-                icon={<Globe size={17} />}
-                title="Finding intranet sites"
-              >
-                <p>
-                  Type any site or department name — exact, short form, or part
-                  of it (e.g. <Pill>ERP</Pill>, <Pill>e-Str</Pill>,{" "}
-                  <Pill>attendance</Pill>). Matching sites appear at the top
-                  under <strong>Intranet Sites</strong>, each with an{" "}
-                  <strong>Open</strong> button that launches the site in a new
-                  tab. Sites not yet linked still appear, marked{" "}
-                  <em>“Link not available yet.”</em>
-                </p>
-                <p>
-                  Typing just a <strong>department name</strong> brings up its
-                  site link automatically — no key needed.
-                </p>
-              </Section>
-
-              {/* People / employee directory */}
+              {/* Contact details: what the people section of the samples does not say */}
               <Section
                 icon={<UserRound size={17} />}
-                title="Finding people (employee directory)"
+                title="Contact details: reveal and copy"
               >
                 <p>
-                  The whole DSP employee list is searchable. There are two ways:
-                </p>
-                <ul className="list-disc space-y-1 pl-5">
-                  <li>
-                    <strong>By number — instant, as you type:</strong> a 6-digit{" "}
-                    <strong>ticket number</strong>, a 10-digit{" "}
-                    <strong>CUG mobile number</strong>, or a{" "}
-                    <strong>SAIL personal number</strong> (e.g.{" "}
-                    <Pill>D111086</Pill>, any case) shows the person immediately —
-                    no key to press. You can also type just the{" "}
-                    <strong>last 4 digits</strong> of an executive’s CUG mobile
-                    (e.g. <Pill>2584</Pill>): the <Pill>943479</Pill> prefix is
-                    added for you and the executive appears at once.
-                  </li>
-                  <li>
-                    <strong>By name — press{" "}
-                    <Pill>Enter</Pill>:</strong> type a full name, first, middle
-                    or last name and press Enter. The search is{" "}
-                    <strong>similar-sounding</strong>: “Goutam” also finds
-                    “Gautam”, “Anoop Sirkar” finds “Anup Sarkar”. Honorifics
-                    (Mr, Mohd, Dr, Shri…) are ignored, and multi-word names match
-                    in order (“Anil Kumar” finds “Anil Kumar Salian”).
-                  </li>
-                  <li>
-                    <strong>
-                      By part of a name + department — press <Pill>Enter</Pill>:
-                    </strong>{" "}
-                    when you recall only part of a name, add the department in{" "}
-                    <strong>any order</strong> — <Pill>soumit c&amp;it</Pill> or{" "}
-                    <Pill>c&amp;it soumit</Pill> both list the matching people in
-                    that department (masked, as above). The department’s site
-                    link still shows too.
-                  </li>
-                </ul>
-                <p>
-                  Results show name, ticket, personal number, designation and
-                  department. Mobile and email are{" "}
+                  A person&rsquo;s row shows name, ticket, personal number,
+                  designation and department. Mobile and email are{" "}
                   <strong>masked</strong> (e.g. <Pill>943479xxxx</Pill>); click{" "}
                   <strong>reveal</strong> to see the full value. Each row also has
                   a <strong>Copy</strong> button that copies the person’s record
@@ -756,23 +610,6 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                 </ul>
               </Section>
 
-              {/* Timings summary */}
-              <Section icon={<Clock size={17} />} title="At a glance">
-                <ul className="list-disc space-y-1 pl-5">
-                  <li>
-                    Circular “new” window (signed out):{" "}
-                    <strong>{CIRCULAR_NEW_THRESHOLD_HOURS} hours</strong>
-                  </li>
-                  <li>
-                    Announcement “new” window (signed out):{" "}
-                    <strong>{ANNOUNCEMENT_NEW_THRESHOLD_DAYS} days</strong>
-                  </li>
-                  <li>
-                    Signed-in markers always clear the moment you open the item.
-                  </li>
-                </ul>
-              </Section>
-
               {/* Shortcuts */}
               <Section icon={<Keyboard size={17} />} title="Keyboard shortcuts">
                 <ul className="list-disc space-y-1 pl-5">
@@ -780,9 +617,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     <Pill>Ctrl</Pill> + <Pill>K</Pill> — open search
                   </li>
                   <li>
-                    <Pill>Enter</Pill> — search everything: people, departments,
-                    circulars &amp; announcements (numbers &amp; sites need no
-                    key)
+                    <Pill>Enter</Pill> — run what you typed
                   </li>
                   <li>
                     <Pill>Shift</Pill> + <Pill>Enter</Pill> — new line in the

@@ -15,6 +15,7 @@ export async function GET() {
     ttlMs: 5 * 60 * 1000,
     source: SPORTS_SOURCES.map((s) => s.name).join(", "),
     sourceUrl: "https://www.espncricinfo.com/",
+    sourceLinks: [{ name: "ESPNcricinfo", url: "https://www.espncricinfo.com/" }, { name: "The Hindu Sport", url: "https://www.thehindu.com/sport/" }, { name: "BBC Sport", url: "https://www.bbc.com/sport" }],
     load: async () => {
       const texts = await Promise.all(SPORTS_SOURCES.map((s) => getText(s.url, { timeoutMs: 7000 }).catch(() => null)));
       return buildSports(texts, DateTime.now());

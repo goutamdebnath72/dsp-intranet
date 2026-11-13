@@ -189,7 +189,7 @@ export function TopBar() {
   useEffect(() => {
     const handleOpenGuide = (e: Event) => {
       const tab = (e as CustomEvent<{ tab?: GuideTab }>).detail?.tab;
-      setGuideTab(tab === "how" ? "how" : "samples");
+      setGuideTab(tab === "how" || tab === "types" ? tab : "samples");
       setIsHelpOpen(true);
     };
     window.addEventListener(OPEN_GUIDE_EVENT, handleOpenGuide);

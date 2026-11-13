@@ -32,6 +32,24 @@ export async function getText(url: string, opts: GetOptions = {}): Promise<strin
   }
 }
 
+/** A public file (a PDF) as bytes, with a time limit and a ceiling on its size (a download that is larger than the ceiling is refused, not read). */
+export async function getBuffer(url: string, opts: GetOptions & { maxBytes?: number } = {}): Promise<Buffer> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 15000);
+  try {
+    const r = await fetch(url, { cache: "no-store", signal: ctl.signal, headers: { "User-Agent": BROWSER_UA, Accept: "application/pdf,*/*", ...(opts.headers ?? {}) }, redirect: "follow" });
+    if (!r.ok) throw new UpstreamError(`${new URL(url).host} answered ${r.status}`, r.status);
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > (opts.maxBytes ?? 12 * 1024 * 1024)) throw new UpstreamError(`${new URL(url).host} sent a file that is larger than expected`);
+    return buf;
+  } catch (e) {
+    if (e instanceof UpstreamError) throw e;
+    throw new UpstreamError(`${new URL(url).host} could not be reached`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function getJson<T>(url: string, opts: GetOptions = {}): Promise<T> {
   const text = await getText(url, { ...opts, headers: { Accept: "application/json, text/plain, */*", ...(opts.headers ?? {}) } });
   try {

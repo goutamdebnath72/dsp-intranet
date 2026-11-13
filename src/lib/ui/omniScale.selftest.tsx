@@ -33,14 +33,14 @@ while (queue.length) {
   seen.add(f);
   const src = readFileSync(f, "utf8");
   const dir = f.slice(0, f.lastIndexOf("/"));
-  for (const m of src.matchAll(/from\s+["'](@\/components\/|\.\/)((?:[A-Za-z0-9_]+\/)*[A-Za-z0-9_]+)["']/g)) {
+  for (const m of src.matchAll(/from\s+["'](@\/components\/|@\/tools\/|\.\/)((?:[A-Za-z0-9_]+\/)*[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)?)["']/g)) {
     if (/CircularViewerLightbox/.test(m[2])) continue; // its own full-screen layer, not inside the modal card
-    const base = m[1] === "./" ? dir : "src/components"; // a "./" import is relative to the file that has it (the tools folder has its own)
+    const base = m[1] === "./" ? dir : m[1] === "@/tools/" ? "src/tools" : "src/components"; // a "./" import is relative to the file that has it; the topics of the tools live in src/tools
     for (const ext of [".tsx", ".ts"]) { const p = `${base}/${m[2]}${ext}`; if (existsSync(p)) { queue.push(p); break; } }
   }
 }
 const all = [...seen].map((f) => readFileSync(f, "utf8")).join("\n");
-ok("the crawl reached the tools of the search bar (calculators, converters)", [...seen].some((f) => f.endsWith("tools/ToolPanel.tsx")) && [...seen].some((f) => f.endsWith("tools/toolKit.tsx")) && [...seen].some((f) => f.endsWith("tools/ConverterCard.tsx")) && [...seen].some((f) => f.endsWith("tools/live/GoldCard.tsx")) && [...seen].some((f) => f.endsWith("tools/live/StoryList.tsx")) && [...seen].some((f) => f.endsWith("components/OfflineBanner.tsx")), [...seen].join(","));
+ok("the crawl reached the tools of the search bar (calculators, converters)", [...seen].some((f) => f.endsWith("tools/ToolPanel.tsx")) && [...seen].some((f) => f.endsWith("tools/toolKit.tsx")) && [...seen].some((f) => f.endsWith("converter/ConverterCard.tsx")) && [...seen].some((f) => f.endsWith("tools/live/GoldCard.tsx")) && [...seen].some((f) => f.endsWith("tools/live/StoryList.tsx")) && [...seen].some((f) => f.endsWith("components/OfflineBanner.tsx")), [...seen].join(","));
 ok("the crawl reached the cards of the modal", seen.size >= 10 && [...seen].some((f) => f.endsWith("HospitalAnswerCard.tsx")) && [...seen].some((f) => f.endsWith("CircularAnswerCard.tsx")), [...seen].join(","));
 const uniq = (re: RegExp) => [...new Set([...all.matchAll(re)].map((m) => m[0]))];
 const rule = (selector: string) => css.includes(selector);

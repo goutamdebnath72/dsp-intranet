@@ -1,6 +1,7 @@
 // src/components/CircularsModal.tsx
 "use client";
 
+import { lockPageScroll } from "@/lib/ui/scrollLock";
 import { formatCircularTitle } from "@/lib/circularTitle";
 import { useState, useMemo, useRef, useEffect } from "react";
 import useSWR, { preload } from "swr";
@@ -117,16 +118,8 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
   // documentElement, not <body>.
   useEffect(() => {
     if (!isOpen) return;
-    const html = document.documentElement;
-    const scrollBarWidth = window.innerWidth - html.clientWidth;
-    const prevOverflow = html.style.overflow;
-    const prevPaddingRight = html.style.paddingRight;
-    html.style.overflow = "hidden";
-    if (scrollBarWidth > 0) html.style.paddingRight = `${scrollBarWidth}px`;
-    return () => {
-      html.style.overflow = prevOverflow;
-      html.style.paddingRight = prevPaddingRight;
-    };
+    const lock = lockPageScroll(); // one shared lock (src/lib/ui/scrollLock.ts)
+    return () => lock.release();
   }, [isOpen]);
 
   const recentYears = useMemo(

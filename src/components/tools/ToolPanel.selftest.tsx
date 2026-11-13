@@ -1,14 +1,18 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/tools/ToolPanel.selftest.tsx
 // The tools panel of the search bar: what it shows for a typed line, the notice on every card, and that nothing typed can leave the browser.
 import React from "react";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ToolPanel } from "./ToolPanel";
-import { EmiForm, PfForm, GratuityForm, EncashmentForm, DatesForm } from "./ToolForms";
-import { ConverterCard, DEFAULT_START, panelWeight } from "./ConverterCard";
-import { CalculatorCard, labelScale, displayScale, KEY_RATIO } from "./CalculatorCard";
+import { EmiForm } from "@/tools/emi/EmiForm";
+import { PfForm } from "@/tools/pf/PfForm";
+import { GratuityForm } from "@/tools/gratuity/GratuityForm";
+import { EncashmentForm } from "@/tools/encashment/EncashmentForm";
+import { DatesForm } from "@/tools/dates/DatesForm";
+import { ConverterCard, DEFAULT_START, panelWeight } from "@/tools/converter/ConverterCard";
+import { CalculatorCard, labelScale, displayScale, KEY_RATIO } from "@/tools/calculator/CalculatorCard";
 import { ToolSelect, fitSize, nextIndex, filterOptions, placeList, naturalListHeight } from "./toolKit";
-import { CONV_KINDS, KIND_NAMES } from "@/lib/tools/converterModel";
+import { CONV_KINDS, KIND_NAMES } from "@/tools/converter/converterModel";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -38,7 +42,7 @@ ok("a calculator typed but not sent says Enter opens it", /Press[\s\S]*Enter[\s\
 ok("every card carries the privacy and approximation notice", [sum, conv, date, panel("100 usd to inr"), panel("", "menu"), panel("", "emi"), panel("", "pf"), panel("", "gratuity"), panel("", "encashment"), panel("", "dates"), panel("", "converter"), panel("", "calc"), tyre, evp, panel("bhp to ps")].every((x) => /Nothing you type here is saved anywhere/.test(x) && /approximations: please double-check/.test(x)));
 ok("the currency and converter cards say that the rate table is downloaded", /only the public exchange-rate table is downloaded/.test(panel("100 usd to inr")) && /only the public exchange-rate table is downloaded/.test(panel("", "converter")) && !/exchange-rate table/.test(sum));
 ok("a tyre size typed in the bar is read part by part, as you type", /How to read a tyre size/.test(tyre) && /Instant/.test(tyre) && /Tyre width/.test(tyre) && /Rim diameter/.test(tyre) && /Aspect ratio/.test(tyre) && /205 mm × 55% = 112\.75 mm/.test(tyre) && !/NOT the height/.test(tyre) && !/Tyre height/.test(tyre) && /615 kg/.test(tyre) && /240 km\/h/.test(tyre) && /112\.75 mm/.test(tyre) && /631\.9 mm/.test(tyre));
-ok("'tyre size' alone offers the reader on Enter; a tyre purchase sentence is an ordinary search", /Press[\s\S]*Enter[\s\S]*open the tyre size reader/i.test(panel("tyre size")) && panel("tyre purchase order for dumpers") === "" && !/How to read a tyre size/.test(panel("205/55")));
+ok("'tyre size' alone offers the reader on Enter; a tyre purchase sentence is an ordinary search", /Press[\s\S]*Enter[\s\S]*open the tyre and rim size reader/i.test(panel("tyre size")) && panel("tyre purchase order for dumpers") === "" && !/How to read a tyre size/.test(panel("205/55")));
 ok("the EV form lists the chargers, the times, and what the words mean", /Electric car charging time/.test(evp) && ["AC", "DC"].every((k) => evp.includes(`>${k}</span>`)) && /4 h 48 min/.test(evp) && /Battery size \(kWh\)/.test(evp) && /What the battery words mean/.test(evp) && /What the charger words mean/.test(evp) && /CCS2/.test(evp) && /Type 2/.test(evp));
 ok("'ev charging' offers the form on Enter; 'ev policy circular' is an ordinary search", /Press[\s\S]*Enter[\s\S]*open the electric car charging time/i.test(panel("ev charging time")) && panel("ev policy circular") === "" && panel("electric vehicle purchase") === "");
 const basic = h(<CalculatorCard />), scientific = h(<CalculatorCard start="sci" />);
@@ -49,8 +53,20 @@ ok("the display and the keys use text sized from the key height, not a fixed siz
 ok("the SCIENTIFIC calculator has ten columns and every key of the Mac's: brackets, memory, powers, roots, logs, trig, hyperbolic, 2nd, EE, Rand, π, e, Rad", /aria-label="Scientific calculator"/.test(scientific) && /repeat\(10, var\(--calc-bw\)\)/.test(scientific) && ["Open bracket", "Close bracket", "Memory clear", "Add to memory", "Take from memory", "Memory recall", "Second functions", "Square", "Cube", "x to the power y", "e to the power x", "10 to the power x", "Reciprocal", "Square root", "Cube root", "y-th root of x", "Natural logarithm", "Logarithm to the base 10", "Factorial", "Sine", "Cosine", "Tangent", "Euler&#x27;s number", "Enter an exponent", "Random number", "Hyperbolic sine", "Hyperbolic cosine", "Hyperbolic tangent", "Pi", "Switch to radians"].every((l) => scientific.includes(`aria-label="${l}"`)));
 ok("the calculator is a mode switch of two tabs, a history button, and the privacy notice of every card", /role="tablist"/.test(basic) && /Basic<\/span>/.test(basic) && /Scientific<\/span>/.test(basic) && /History/.test(basic) && /Nothing you type here is saved anywhere/.test(panel("", "calc")));
 ok("the word 'calculator' offers the full calculator on Enter, and a typed sum offers to open it", /Press[\s\S]*Enter[\s\S]*open the calculator\./i.test(panel("calculator")) && /Open the full calculator/.test(panel("12*45+7")));
-ok("the menu lists the nine tools and shows what to type", ["Calculator", "Loan EMI", "PF maturity", "Gratuity", "Leave encashment", "Dates", "Converters", "Tyre size reader", "Electric car charging"].every((t) => panel("", "menu").includes(t)) && /12\*45\+7/.test(panel("", "menu")));
-ok("each form opens with its title and a way back to the menu", [["emi", "Loan EMI calculator"], ["pf", "Probable PF maturity calculator"], ["gratuity", "Gratuity calculator"], ["encashment", "Leave encashment calculator"], ["dates", "Date calculators"], ["converter", "Unit and currency converter"], ["tyre", "Tyre size reader"], ["ev", "Electric car charging time"], ["calc", "Calculator"]].every(([f, t]) => { const x = panel("", f as never); return x.includes(t) && /aria-label="Close this calculator"/.test(x); }));
+ok("the menu lists the eleven tools and shows what to type", ["Calculator", "Loan EMI", "PF maturity", "Gratuity", "Leave encashment", "Dates", "Converters", "Tyre and rim size reader", "Electric car charging", "Vehicle number (VIN) reader", "Bharat (BH) series number plate"].every((t) => panel("", "menu").includes(t)) && /12\*45\+7/.test(panel("", "menu")));
+const bhp = panel("26 BH 1234 AA"), bhg = panel("", "bh");
+ok("a BH mark typed in the bar is read part by part, as you type, and the guide sits under it", /How to read a BH-series number/.test(bhp) && /Instant/.test(bhp) && /Year of registration/.test(bhp) && /Bharat series/.test(bhp) && /generated at random/.test(bhp) && /Understanding the Bharat \(BH\) series/.test(bhp));
+ok("the BH guide has its sections: what it is, how the mark is built, who can have it (with the check), a new vehicle, an existing one, the papers, the tax (with the estimate), moving and selling, the doubts, and what to confirm", ["What it is, in a minute", "Why it exists", "How the mark is built", "Who can have it", "Getting it for a new vehicle", "Converting a vehicle you already have", "Papers to keep ready", "The road tax, and how it is worked out", "Moving, selling, and leaving the job", "Common doubts", "Where this comes from, and what to confirm"].every((t) => bhg.includes(t)));
+ok("the BH guide opens with the Back arrow, carries the privacy and approximation notices on the tax estimate, and shows the example tax", /aria-label="Back to the calculators list"/.test(bhg) && /Nothing you type here is saved anywhere/.test(bhg) && /approximations: please double-check/.test(bhg) && /10,667/.test(bhg) && /Tax for two years/.test(bhg) && /Where do you work/.test(bhg));
+ok("'bh series' typed but not sent says Enter opens the guide; a BH circular sentence is an ordinary search", /Press[\s\S]*Enter[\s\S]*open the bharat \(bh\) series number plate guide/i.test(panel("bh series")) && panel("bh series circular for the plant") === "");
+ok("each form opens with its title and a Back arrow to the calculators list (not a cross: nothing is closed)", [["emi", "Loan EMI calculator"], ["pf", "Probable PF maturity calculator"], ["gratuity", "Gratuity calculator"], ["encashment", "Leave encashment calculator"], ["dates", "Date calculators"], ["converter", "Unit and currency converter"], ["tyre", "Tyre and rim size reader"], ["ev", "Electric car charging time"], ["calc", "Calculator"], ["vin", "Vehicle identification number (VIN) reader"], ["bh", "Bharat (BH) series number plate guide"]].every(([f, t]) => { const x = panel("", f as never); return x.includes(t) && /aria-label="Back to the calculators list"/.test(x) && />Back<\/button>/.test(x) && !/aria-label="Close this calculator"/.test(x); }));
+{
+  const kit = readFileSync("src/components/tools/toolKit.tsx", "utf8").replace(/\/\/.*$/gm, "");
+  const arrow = /const chevron = \(([\s\S]*?)\n  \);/.exec(kit)?.[1] ?? "";
+  const row = /selected && <Check([^>]*)\/>/.exec(kit)?.[0] ?? "";
+  ok("the dropdown's arrow is a rounded-square tile with a glow, never a circle; the chosen option's tick is a bold bare tick with an accent bar, never a circle: the two cannot be taken for each other", /rounded-xl/.test(arrow) && !/rounded-full/.test(arrow) && /\$\{t\.glow\}/.test(arrow) && /ChevronDown/.test(arrow) && /<Check size=\{18\}/.test(row) && !/rounded-full[^`]*<Check|<span[^>]*rounded-full[^>]*><Check/.test(kit) && /selected && <span aria-hidden="true" className=\{`absolute bottom-1\.5 left-1 top-1\.5 w-1 rounded-full/.test(kit));
+}
+ok("the calculators list itself keeps its cross (it leaves the search window as it is) and has no Back arrow", (() => { const x = panel("", "menu" as never); return /aria-label="Close this calculator"/.test(x) && !/Back to the calculators list/.test(x); })());
 
 ok("the EMI form starts with the three loan kinds, the rate of a bank loan, and asks for the amount", (() => { const x = h(<EmiForm />); return /Bank loan/.test(x) && /value="8.5"/.test(x) && /Enter the loan amount/.test(x); })());
 ok("the PF form starts with the usual shares and rate and says the rate is as of a date", (() => { const x = h(<PfForm />); return /value="12"/.test(x) && /value="3.67"/.test(x) && /value="8.25"/.test(x) && /as of November 2026/.test(x) && /Enter your age and monthly pay/.test(x); })());
@@ -70,11 +86,13 @@ ok("a long number gets a smaller size so that it is seen whole, and the panel of
 // nothing typed can leave the browser
 const src = (f: string) => readFileSync(f, "utf8").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 const panelSrc = src("src/components/tools/ToolPanel.tsx");
-const formsSrc = src("src/components/tools/ToolForms.tsx");
-const cardSrc = src("src/components/tools/ConverterCard.tsx") + src("src/components/tools/TyreCard.tsx") + src("src/components/tools/EvForm.tsx");
+// every file of every topic (src/tools/**), so that a topic added later is checked without anyone remembering to add it here
+const walk = (d: string): string[] => readdirSync(d).flatMap((n) => (statSync(`${d}/${n}`).isDirectory() ? walk(`${d}/${n}`) : /\.tsx?$/.test(n) && !/selftest/.test(n) ? [`${d}/${n}`] : []));
+const topicFiles = walk("src/tools");
+const topicSrc = topicFiles.map(src).join("\n");
 const atomsSrc = src("src/components/tools/toolAtoms.tsx");
-ok("the only network call of the tools is the public rate table, with no body and no query", (panelSrc.match(/fetch\(/g) || []).length === 1 && /fetch\("\/api\/tools\/rates", \{ cache: "no-store" \}\)/.test(panelSrc) && !/fetch\(/.test(formsSrc) && !/fetch\(/.test(cardSrc) && !/fetch\(/.test(atomsSrc));
-ok("the tools write nothing to storage, cookies or the log", ![panelSrc, formsSrc, cardSrc, atomsSrc].some((x) => /localStorage|sessionStorage|document\.cookie|indexedDB|console\.(log|info|warn|error)|navigator\.sendBeacon|XMLHttpRequest/.test(x)));
+ok("the only network call of the tools is the public rate table, with no body and no query", !/fetch\(/.test(panelSrc) && (topicSrc.match(/fetch\(/g) || []).length === 1 && /fetch\("\/api\/tools\/rates", \{ cache: "no-store" \}\)/.test(topicSrc) && topicFiles.length > 40 && !/fetch\(/.test(atomsSrc));
+ok("the tools write nothing to storage, cookies or the log", ![panelSrc, topicSrc, atomsSrc].some((x) => /localStorage|sessionStorage|document\.cookie|indexedDB|console\.(log|info|warn|error)|navigator\.sendBeacon|XMLHttpRequest/.test(x)));
 const omni = src("src/components/OmnibarModal.tsx");
 ok("in the search bar a tool line returns before any search, name lookup or log", (() => { const i = omni.indexOf("const tool = detectTool(qTrim)"); const j = omni.indexOf("triggerSearch(\"semantic\")"); const k = omni.indexOf("runEmployeeNameSearch();"); const l = omni.indexOf("if (isIdQuery(qTrim))"); return i > 0 && i < j && i < k && i < l && /if \(tool\) \{[\s\S]*?return;\s*\}/.test(omni.slice(i - 20, i + 400)); })());
 ok("the panel is drawn in the search bar and the form closes when the text is edited", /<ToolPanel query=\{query\} form=\{toolForm\} onForm=\{setToolForm\} \/>/.test(omni) && /if \(toolForm\) setToolForm\(null\)/.test(omni));

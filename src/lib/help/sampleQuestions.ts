@@ -9,6 +9,10 @@
 //
 // A "[bracket]" in a question is a blank to fill in: the guide shows it highlighted, and "Try it" puts the text in the search box for the reader to edit before pressing Enter.
 
+import { TOPICS } from "@/tools/registry";
+import { MENU_SAMPLES } from "@/tools/menu";
+import type { TopicLogic } from "@/tools/types";
+
 export type SectionIcon = "calculator" | "lightbulb" | "users" | "chart" | "stethoscope" | "phone" | "calendar" | "title" | "content" | "layers" | "sparkles" | "megaphone";
 
 export interface SampleQuestion {
@@ -49,7 +53,7 @@ export interface SampleSection {
 
 /** The window event that asks the search bar to open with a question typed in (the reader still presses Enter). */
 export const OMNIBAR_PREFILL_EVENT = "omnibar-prefill";
-/** The window event that opens the user guide (detail: { tab: "samples" | "how" }). */
+/** The window event that opens the user guide (detail: { tab: "samples" | "types" | "how" }). */
 export const OPEN_GUIDE_EVENT = "open-user-guide";
 
 /** A pair that shows what makes a question good: the same need, asked thinly and asked well. */
@@ -80,7 +84,7 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
       "A number needs no Enter: a 6-digit ticket, a 10-digit CUG mobile, a SAIL personal number, or the last 4 digits of an executive's CUG mobile.",
       "A name is matched by sound: a different spelling still finds the person. Honorifics (Mr, Dr, Shri) are ignored.",
       "Only part of the name? Add the department, in either order.",
-      "Mobile numbers and emails are masked; sign in and press reveal to see them (every reveal is recorded).",
+      "Mobile numbers and emails are masked; press reveal to see them (see Contact details under How it works for who can reveal and copy).",
     ],
     questions: [
       { q: "[first name] [last name]", note: "similar-sounding: \"Goutam\" also finds \"Gautam\"" },
@@ -205,7 +209,7 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
     tips: [
       "Type the few words a title would hold: the subject, the year, the word circular.",
       "To find which circular carried a rule, ask \"which circular ...\".",
-      "Put words in double quotes to match that exact phrase.",
+      "Put words in double quotes to match that exact phrase. The matched words are highlighted in the result, and inside an announcement when you open it.",
     ],
     patterns: ["circular on [subject] [year]", "which circular announced [scheme or rule]"],
     questions: [
@@ -317,60 +321,8 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
       "Dates are written day first: 15/08/1985 is 15 August. Say \"days between ... and ...\", \"90 days from today\", \"age ...\", \"retirement date born ...\".",
       "Money results are approximations: please double-check them. The forms start with usual rates; change them to the figures of your own case.",
     ],
-    questions: [
-      { q: "calculator", note: "the full calculator, basic and scientific, like the Mac's: keys with the mouse or the keyboard, memory, brackets, powers, roots, trig, history" },
-      { q: "scientific calculator", note: "opens the same calculator (switch between Basic and Scientific at the top of it)" },
-      { q: "12*45+7", note: "a sum", instant: true },
-      { q: "sq rt of 4^3", note: "square root of 4 to the power 3 (= 8); 'square root of 64' and '√64' also work", instant: true },
-      { q: "cube root of 27", note: "cube root (= 3); 'cb rt of 27' and '∛27' also work; '5th root of 32' for any other root", instant: true },
-      { q: "2*pi*8", note: "circumference of a circle of radius 8; pi and e are known ('2pi' also works, and 'value of pi' shows its digits)", instant: true },
-      { q: "value of e", note: "Euler's number to 20 digits; 'value of pi' likewise", instant: true },
-      { q: "golden ratio", note: "the golden ratio φ to 20 digits; it can also be used in a sum, e.g. '100 * golden ratio'", instant: true },
-      { q: "12 squared", note: "a square (= 144); 'cube of 3' or '3 cubed' for a cube", instant: true },
-      { q: "15% of 2400", note: "a percentage", instant: true },
-      { q: "200 + 10%", note: "a pocket-calculator percentage: 220", instant: true },
-      { q: "5 lakh * 12", note: "Indian number words", instant: true },
-      { q: "5 km in miles", note: "length", instant: true },
-      { q: "1 bhp in kw", note: "power", instant: true },
-      { q: "100 bhp", note: "engine power is always shown in all three: PS (German Pferdestärke, metric horsepower), bhp and kW; 'engine power' or '1 kw in ps' work too", instant: true },
-      { q: "205/55 R16 91V", note: "how to read a tyre size: width, aspect ratio (55 is a percentage of the width, giving the sidewall height), rim, load index (kg) and speed symbol, each explained", instant: true },
-      { q: "tyre size", note: "opens the tyre reader with sample sizes to try and the load-index and speed tables" },
-      { q: "ev charging time", note: "battery size, AC and DC chargers, time from 10% to 90%, and what the battery and charger words mean" },
-      { q: "bhp to ps", note: "no number means one unit; the card is laid out like Google's, so you can retype either box or change either unit", instant: true },
-      { q: "100 kw to bhp", note: "power, the other way", instant: true },
-      { q: "180 degrees to radians", note: "angle", instant: true },
-      { q: "98.6 f to c", note: "temperature", instant: true },
-      { q: "1 kWh in calories", note: "energy", instant: true },
-      { q: "1 kgf/cm2 to bar", note: "pressure", instant: true },
-      { q: "1 acre in sq ft", note: "area", instant: true },
-      { q: "72 km/h to m/s", note: "speed", instant: true },
-      { q: "100 usd to inr", note: "currency", instant: true },
-      { q: "gold rate today", note: "IBJA rates for 24 carat, 22 carat and silver, with the change and the trend of the last months; 'silver price' or '22k gold' also work", instant: true },
-      { q: "petrol diesel lpg price", note: "petrol (E20), diesel and every LPG cylinder in Delhi, Mumbai, Chennai and Kolkata, subsidised and unsubsidised, in one table", instant: true },
-      { q: "sensex nifty", note: "Sensex, Nifty and the biggest movers of a watch list with SAIL (market data, not advice); 'sail share price' and 'trending stocks' also work", instant: true },
-      { q: "top news headlines", note: "today's headlines from the publishers' own feeds; each opens in a new tab", instant: true },
-      { q: "hindi news", note: "the same, in Hindi; 'bengali news' for Bengali", instant: true },
-      { q: "cricket news india", note: "sports headlines: those with India in them, and the big world events (World Cups, the Olympics, the Asian and Commonwealth Games)", instant: true },
-      { q: "1 pound in rupees", note: "currency by words", instant: true },
-      { q: "euro rate today", note: "one euro in rupees", instant: true },
-      { q: "days between 1 jan 2026 and 15 mar 2026", note: "days, weeks, months and working days", instant: true },
-      { q: "90 days from today", note: "the date after 90 days", instant: true },
-      { q: "age 15/08/1985", note: "age in years, months and days", instant: true },
-      { q: "retirement date born 15/08/1975", note: "the end of the month of the 60th birthday", instant: true },
-      { q: "what day is 26 jan 2027", note: "the weekday and week number", instant: true },
-      { q: "days until 25 dec 2026", instant: true },
-      { q: "working days between 1 jan 2026 and 31 jan 2026", note: "Monday to Friday; holidays are not taken out", instant: true },
-      { q: "today's date", instant: true },
-      { q: "emi calculator", note: "opens the loan form: bank, PF or co-operative society loan" },
-      { q: "pf loan emi", note: "the same form, started with a PF loan" },
-      { q: "co-operative society loan emi", note: "flat or reducing balance" },
-      { q: "pf maturity calculator", note: "your probable provident fund at retirement" },
-      { q: "gratuity calculator", note: "from last pay and years of service" },
-      { q: "leave encashment calculator", note: "EL / HPL encashment" },
-      { q: "date calculator", note: "between dates, add or subtract, age, retirement date" },
-      { q: "unit converter", note: "opens a converter with every unit and currency" },
-      { q: "calculators", note: "the menu of all of them" },
-    ],
+    // the questions are written by the topics themselves (src/tools/<topic>/topic.ts), in the order of the registry; the list of calculators is last
+    questions: [...(TOPICS as readonly TopicLogic[]).flatMap((t) => [...(t.samples ?? [])]), ...MENU_SAMPLES],
   },
   {
     id: "announcements",
@@ -379,7 +331,7 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
     howToRun: "A site or department name appears AS YOU TYPE: no Enter. A question about an announcement: type it, then press Enter.",
     covers: "Announcements and happenings, and the links to the intranet's sites and departments' pages.",
     tips: [
-      "A site or department name, in full, in short form or in part, shows its link under Intranet Sites with an Open button.",
+      "A site or department name, in full, in short form or in part, shows its link under Intranet Sites with an Open button that launches the site in a new tab. A site not yet linked still appears, marked \"Link not available yet\". Typing just a department name brings up its site link.",
       "Announcements are searched by title and by content like circulars.",
     ],
     questions: [

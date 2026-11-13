@@ -1,25 +1,34 @@
 // src/app/api/live/news/route.ts
 //
-// THE TOP HEADLINES in English, Hindi or Bengali, from the publishers' own free feeds (src/lib/live/news.ts). The only thing read from the caller is the language, and only from a fixed list
-// (en, hi, bn); anything else is English. Feeds that do not answer are left out and named.
+// THE TOP HEADLINES: business (The Economic Times, Mint, BusinessLine, WSJ) or general news in English, Hindi or Bengali, from the publishers' own free feeds (src/lib/live/news.ts). The only thing read
+// from the caller is the tab, and only from a fixed list (biz, en, hi, bn); anything else is English. Feeds that do not answer are left out and named.
 import { DateTime } from "luxon";
 import { getText } from "@/lib/live/http";
 import { liveRoute } from "@/lib/live/envelope";
-import { NEWS_SOURCES, buildNews, isLang, type NewsLang } from "@/lib/live/news";
+import { memo } from "@/lib/live/memo";
+import { SOURCES_OF, buildNews, isTab, type NewsTab } from "@/lib/live/news";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 25;
 
+/** how long one answer is kept: a minute, and for the Bengali tab (eleven feeds, eight of them searches of Google News) two, so that the other sites are asked politely */
+const TTL_MS: Partial<Record<NewsTab, number>> = { bn: 2 * 60 * 1000 };
+
 export async function GET(req: Request) {
   const asked = new URL(req.url).searchParams.get("lang");
-  const lang: NewsLang = isLang(asked) ? asked : "en";
+  const lang: NewsTab = isTab(asked) ? asked : "en";
+  const sources = SOURCES_OF(lang);
+  const ttlMs = TTL_MS[lang] ?? 60 * 1000; // the card refreshes itself at a minute, and the host shares one answer among everyone who has it open
   return liveRoute({
     key: `news-${lang}`,
-    ttlMs: 5 * 60 * 1000,
-    source: NEWS_SOURCES[lang].map((s) => s.name).join(", "),
-    sourceUrl: `${new URL(NEWS_SOURCES[lang][0].url).origin}/`,
+    ttlMs,
+    source: [...new Set(sources.map((s) => s.name))].join(", "),
+    sourceUrl: sources[0].home ?? `${new URL(sources[0].url).origin}/`,
+    // every paper that is read is named and linked (each to its own site), not only the first
+    sourceLinks: [...new Map(sources.map((s) => [s.name, { name: s.name, url: s.home ?? `${new URL(s.url).origin}/` }])).values()],
     load: async () => {
-      const texts = await Promise.all(NEWS_SOURCES[lang].map((s) => getText(s.url, { timeoutMs: 7000 }).catch(() => null)));
+      // each feed is kept on its own, so that one that fails for a moment gives its last good answer and the others are not held up
+      const texts = await Promise.all(sources.map(async (s) => { try { return (await memo(`news-src:${s.url}`, ttlMs, () => getText(s.url, { timeoutMs: 7000 }))).value; } catch { return null; } }));
       return buildNews(lang, texts, DateTime.now());
     },
   });

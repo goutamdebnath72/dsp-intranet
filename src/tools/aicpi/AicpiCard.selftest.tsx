@@ -1,0 +1,46 @@
+// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/aicpi/AicpiCard.selftest.tsx
+// The AICPI and SAIL dearness allowance card and the words that open it: drawn from the Labour Bureau's pages as they were on 13 Nov 2026; it says plainly what its figures rest on and that SAIL's own circular is the authority.
+import { readFileSync } from "node:fs";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { DateTime } from "luxon";
+import { detectTool } from "../../lib/tools/detect";
+import { buildAicpi } from "../../lib/live/aicpi";
+import { AicpiBody, AICPI_REFRESH_MS, dayText, indexPoints, monthText, nextDue } from "./AicpiCard";
+import { aicpiTopic } from "./topic";
+
+let pass = 0, fail = 0;
+const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
+const fx = (n: string) => readFileSync(`src/lib/live/fixtures/${n}`, "utf8");
+const NOW = DateTime.fromISO("2026-11-13T22:30:00", { zone: "Asia/Kolkata" });
+const data = buildAicpi(fx("labourbureau-cpiiw-page.html"), fx("labourbureau-home-cpiiw.html"), NOW);
+const draw = (basic = "", today = NOW) => renderToStaticMarkup(<AicpiBody data={data} today={today} basic={basic} />);
+const html = draw();
+const text = html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ");
+
+ok("the card says what AICPI-IW is, who publishes it and that the DA of SAIL's employees follows it and is revised every three months; the latest is Sep 2026: 155.5, up 1.1 points on Aug 2026, 5.6% above Sep 2025", /All-India Consumer Price Index for Industrial Workers \(base 2016 = 100\)/.test(text) && /Labour Bureau/.test(text) && /dearness allowance \(DA\) of SAIL's employees follows it and is revised every three months/.test(text) && /Sep 2026: 155\.5/.test(text) && /up 1\.1 points on Aug 2026/.test(text) && /5\.6% above Sep 2025/.test(text), text.slice(0, 700));
+ok("the next index and its day: Oct 2026 is due on 30 November 2026 (the last day of the next month)", /The index of Oct 2026 is due on 30 November 2026/.test(text) && nextDue("2026-09").day === "30 November 2026" && nextDue("2026-12").month === "Jan 2027" && nextDue("2026-12").day === "28 February 2027");
+ok("the graph is of the year: Sep 2025 to Sep 2026, 13 monthly figures, with the first month's figure (147.3) in the Start box and the latest (155.5)", /AICPI-IW, Sep 2025 to Sep 2026/.test(text) && /13 monthly figures, from the same month a year back/.test(text) && /Start · 1 year ago 147\.3 on Sep 2025/.test(text) && /Latest index 155\.5 on Sep 2026/.test(text) && indexPoints(data.points).length === 13);
+ok("the quarter in force: 59.1% from 1 October 2026 (June to August 2026, 59.06%) with the DPE order that announced it", /From 1 October 2026 59\.1% of basic pay, from Jun 2026 to Aug 2026 \(59\.06%\)\. DPE OM No\. W-02\/0037\/2025-DPE\(WC\)\/FTS-14505 dated 27 October 2026\./.test(text), text.slice(text.indexOf("Dearness allowance, quarter by quarter"), text.indexOf("Dearness allowance, quarter by quarter") + 700));
+ok("the next quarter is an expectation: 61.5% from 1 January 2027 if October and November stand at 155.5 (Sep 2026 to Nov 2026, 1 of 3 months published, 61.48%), and a projection, not an announcement", /Expected from 1 January 2027 61\.5% from Sep 2026 to Nov 2026: 1 of 3 months published, the rest taken at 155\.5 \(61\.48%\)\. A projection, not an announcement\./.test(text));
+ok("one point of the index adds 1.04% of DA, and two points about 2.1%", /One point of the index 1\.04% of DA for each point the three-month average rises \(2\.88 ÷ 277\.33 × 100\): a rise of 2 points in the average adds about 2\.1%/.test(text));
+ok("the table of quarters: 1 Jan 2026 53.4%, 1 Apr 54.1%, 1 Jul 55.7%, 1 Oct 59.1%, and 1 Jan 2027 61.5% marked expected; the orders that were read are ticked (53.4% and 59.1%), the others are 'not in the list'", /1 January 2026 Sep 2025 to Nov 2025 147\.73 425\.47 53\.4% 53\.4% ✓/.test(text) && /1 April 2026 Dec 2025 to Feb 2026 148\.43 427\.49 54\.1% not in the list/.test(text) && /1 July 2026 Mar 2026 to May 2026 149\.93 431\.81 55\.7% not in the list/.test(text) && /1 October 2026 Jun 2026 to Aug 2026 153\.17 441\.12 59\.1% 59\.1% ✓/.test(text) && /1 January 2027 expected Sep 2026 to Nov 2026 155\.50 447\.84 61\.5%/.test(text), text.slice(text.indexOf("From Months averaged"), text.indexOf("From Months averaged") + 900));
+ok("the formula is written out with its constants and says that the figure is rounded to the nearest tenth, not cut (59.06% is 59.1%)", /DA % = \( \( average of three months × 2\.88 \) − 277\.33 \) ÷ 277\.33 × 100, to one decimal place/.test(text) && /Rounded to the nearest tenth: 59\.06% is 59\.1%/.test(text));
+ok("it names the three months of each quarter, the order of 3 August 2017 as the source of the link point, and says that the factor 2.88 is not printed in the orders and is the one that gives the rates they announce", /from 1 January uses September, October and November; from 1 April, December to February; from 1 July, March to May; from 1 October, June to August/.test(text) && /the DPE order of 3 August 2017/.test(text) && /the orders do not print it, and it is the one that gives the rates they announce/.test(text));
+ok("it says the formula gives the two rates of the orders that were read: 53.4% for 1 January 2026 and 59.1% for 1 October 2026", /gives 53\.4% for 1 January 2026 and 59\.1% for 1 October 2026, the two rates the Department of Public Enterprises' orders give/.test(text));
+ok("the work for the quarter in force is laid out line by line: average 153.17, × 2.88 = 441.12, − 277.33 = 163.79, ÷ 277.33 × 100 = 59.06%, DA 59.1%", /Average of the three figures, Jun 2026 to Aug 2026 153\.17/.test(text) && /× 2\.88 441\.12/.test(text) && /− 277\.33 163\.79/.test(text) && /÷ 277\.33 × 100 59\.06%/.test(text) && /Dearness allowance \(one decimal\) 59\.1%/.test(text));
+const calc = draw("56100").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+ok("the calculator: a basic pay of 56,100 gives DA ₹33,155 at 59.1% and ₹34,502 at the expected 61.5%, each with the pay added", /From 1 October 2026, 59\.1% ₹33,155 ₹89,255 with pay/.test(calc) && /From 1 January 2027, 61\.5% \(expected\) ₹34,502 ₹90,602 with pay/.test(calc), calc.slice(calc.indexOf("Dearness allowance on the basic pay"), calc.indexOf("Dearness allowance on the basic pay") + 500));
+ok("an empty or silly basic pay shows the instruction, not figures; 'the pay slip is the authority' and 'nothing is sent' are said", /Type a basic pay in rupees/.test(text) && /your pay slip is the authority on how it is rounded/.test(text) && /Nothing you type here is sent anywhere/.test(text) && !/with pay/.test(draw("abc")) && !/with pay/.test(draw("99999999999")));
+ok("it says what the figures rest on: DPE's orders for the 2017 pay scales; SAIL's executives under those guidelines; the 22 October 2021 agreement reported to give the non-executives the same; SAIL's own circular is the authority; no extra factor was found or invented; the announced list is hand-kept", /What this rests on/.test(text) && /the Department of Public Enterprises' orders for the 2017 pay scales \(the IDA pattern, 100% neutralisation, adjusted once in three months\)/.test(text) && /wage agreement of 22 October 2021 for its non-executives is reported to give them the same DA on the same link point/.test(text) && /SAIL's own circular is the authority/.test(text) && /no extra factor of SAIL's own is included, and none was found/.test(text) && /listed by hand from the orders \(last compared on 13 Nov 2026\)/.test(text));
+ok("nothing of the Central Government's DA is on the card (it is not SAIL's)", !/Central Government/.test(text) && !/261\.42/.test(text) && !/63%/.test(text));
+ok("the card asks the server every six hours (the index changes once a month)", AICPI_REFRESH_MS === 6 * 60 * 60 * 1000 && monthText("2026-09") === "Sep 2026" && dayText("2026-10-01") === "1 October 2026");
+// the words
+const live = (q: string) => { const d = detectTool(q); return d && d.kind === "live" ? d.topic : null; };
+const opens = ["aicpi da", "sail da", "da formula", "dearness allowance", "cpi-iw", "da calculator", "aicpi", "aicpi graph", "dearness allowance calculation", "da hike", "what should be da now", "ida", "sail ida", "cpi", "aicpi cpi-iw index", "sail dearness allowance", "executive da", "da quarterly"];
+ok("'aicpi da' and its like open the card", opens.every((q) => live(q) === "aicpi"), JSON.stringify(opens.filter((q) => live(q) !== "aicpi")));
+ok("a line with words that are not the card's does not open it (da vinci, a tyre), and the other live cards keep their words (SAIL's share price is still the markets card)", live("da vinci") === null && live("weather") === "weather" && live("flights") === "flights" && live("trains") === "railway" && live("gold rate today") === "gold" && live("petrol price") === "fuel" && live("sail share price") === "markets" && live("205/55 R16 91V") !== "aicpi", String(live("sail share price")));
+ok("the sample questions are the card's own words", aicpiTopic.samples.every((s) => live(s.q) === "aicpi") && aicpiTopic.samples.some((s) => s.q === "aicpi da"));
+
+console.log(`AicpiCard: ${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);
