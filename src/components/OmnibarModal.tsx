@@ -21,8 +21,6 @@ import { useOmniSearch } from "@/hooks/useOmniSearch";
 import { OMNIBAR_PREFILL_EVENT } from "@/lib/help/sampleQuestions";
 import { ToolPanel } from "@/components/tools/ToolPanel";
 import { detectTool, type FormKind } from "@/lib/tools/detect";
-import { OfflineBanner } from "@/components/OfflineBanner";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { needsWideModal } from "@/lib/search/edsLayout";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
@@ -219,9 +217,6 @@ export function OmnibarModal({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // The calculator form (or the menu of them) opened with Enter. Sums, conversions and date questions need no state: they answer as you type (src/components/tools/ToolPanel.tsx).
   const [toolForm, setToolForm] = useState<FormKind | "menu" | null>(null);
-  // whether this computer can reach the intranet (a red message at the top of the window when it cannot; a search is not sent then)
-  const net = useOnlineStatus(isOpen);
-  useEffect(() => { if (error) net.recheck(); }, [error]); // eslint-disable-line react-hooks/exhaustive-deps -- a failed search asks at once whether the connection is the reason
   useEffect(() => {
     if (!isOpen) setToolForm(null);
   }, [isOpen]);
@@ -802,9 +797,6 @@ export function OmnibarModal({
                         return;
                       }
 
-                      // Not online: nothing can be searched, and the red message at the top says why (the calculators above already worked, they need no network).
-                      if (!net.online) { net.recheck(); return; }
-
                       // ID Query: ticket, mobile, CUG, SAIL PNO (already handled live).
                       // Keep employee results and NEVER send an ID to circular search!
                       if (isIdQuery(qTrim)) {
@@ -865,8 +857,6 @@ export function OmnibarModal({
               </div>
 
               {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
-
-              <OfflineBanner online={net.online} browserOnline={net.browserOnline} />
 
               {nameNotice && <FormerNameNotice notice={nameNotice} />}
               {loginHint && <OmniLoginHint hint={loginHint} onSignIn={openModal} />}

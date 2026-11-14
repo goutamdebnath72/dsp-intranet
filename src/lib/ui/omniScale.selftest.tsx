@@ -40,7 +40,7 @@ while (queue.length) {
   }
 }
 const all = [...seen].map((f) => readFileSync(f, "utf8")).join("\n");
-ok("the crawl reached the tools of the search bar (calculators, converters)", [...seen].some((f) => f.endsWith("tools/ToolPanel.tsx")) && [...seen].some((f) => f.endsWith("tools/toolKit.tsx")) && [...seen].some((f) => f.endsWith("converter/ConverterCard.tsx")) && [...seen].some((f) => f.endsWith("tools/live/GoldCard.tsx")) && [...seen].some((f) => f.endsWith("tools/live/StoryList.tsx")) && [...seen].some((f) => f.endsWith("components/OfflineBanner.tsx")), [...seen].join(","));
+ok("the crawl reached the tools of the search bar (calculators, converters)", [...seen].some((f) => f.endsWith("tools/ToolPanel.tsx")) && [...seen].some((f) => f.endsWith("tools/toolKit.tsx")) && [...seen].some((f) => f.endsWith("converter/ConverterCard.tsx")) && [...seen].some((f) => f.endsWith("tools/live/GoldCard.tsx")) && [...seen].some((f) => f.endsWith("tools/live/StoryList.tsx")), [...seen].join(","));
 ok("the crawl reached the cards of the modal", seen.size >= 10 && [...seen].some((f) => f.endsWith("HospitalAnswerCard.tsx")) && [...seen].some((f) => f.endsWith("CircularAnswerCard.tsx")), [...seen].join(","));
 const uniq = (re: RegExp) => [...new Set([...all.matchAll(re)].map((m) => m[0]))];
 const rule = (selector: string) => css.includes(selector);
