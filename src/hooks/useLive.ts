@@ -30,6 +30,8 @@ export interface UseLive<T> {
 async function getEnvelope<T>(path: string): Promise<LiveEnvelope<T>> {
   const r = await fetch(path, { cache: "no-store" });
   const j: unknown = await r.json().catch(() => null);
+  // a page that is not JSON at all (the server restarting or recompiling, a gateway error) is not "the source did not answer"
+  if (j === null) throw new Error("The server did not give a proper answer just now (it may be restarting). Try again in a moment.");
   if (!validEnvelope(j)) throw new Error((j as { error?: string } | null)?.error ?? "The source did not answer.");
   return j as LiveEnvelope<T>;
 }

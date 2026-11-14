@@ -13,6 +13,7 @@ import { Info } from "lucide-react";
 import { DateTime } from "luxon";
 import { useLive } from "@/hooks/useLive";
 import { LiveGate, SourceLine, TrendChart, type TrendPoint } from "@/components/tools/live/LivePieces";
+import { CpiPanel, Pills } from "./CpiCharts";
 import { announcedFor, IDA_ANNOUNCED_CHECKED, idaAmount, idaForQuarter, idaProjected, LINK_POINT, LINKING_FACTOR, PERCENT_PER_POINT, quarterOf, quartersOf, ZONE, type Aicpi, type IdaWork, type IndexPoint } from "@/lib/live/aicpi";
 
 export const AICPI_REFRESH_MS = 6 * 60 * 60 * 1000;
@@ -155,18 +156,28 @@ export function AicpiBody({ data, today = DateTime.now().setZone(ZONE), basic = 
   );
 }
 
-export function AicpiCard() {
+type View = "da" | "cpi";
+const VIEWS: Array<{ id: View; text: string }> = [
+  { id: "da", text: "Dearness allowance" },
+  { id: "cpi", text: "CPI and inflation" },
+];
+
+export function AicpiCard({ initialView = "da" }: { initialView?: View }) {
+  const [view, setView] = useState<View>(initialView);
   const { state, env, error, reload } = useLive<Aicpi>("/api/live/aicpi", true, { refreshMs: AICPI_REFRESH_MS });
   return (
     <div>
-      <LiveGate state={state} error={error} reload={reload} what="the consumer price index">
-        {env && (
-          <>
-            <AicpiBody data={env.data} />
-            <SourceLine env={env} reload={reload} loading={state === "loading"} />
-          </>
-        )}
-      </LiveGate>
+      <div className="mb-3"><Pills id="aicpi-view" label="What to show" tabs={VIEWS} value={view} onChange={setView} /></div>
+      {view === "cpi" ? <CpiPanel /> : (
+        <LiveGate state={state} error={error} reload={reload} what="the consumer price index">
+          {env && (
+            <>
+              <AicpiBody data={env.data} />
+              <SourceLine env={env} reload={reload} loading={state === "loading"} />
+            </>
+          )}
+        </LiveGate>
+      )}
     </div>
   );
 }

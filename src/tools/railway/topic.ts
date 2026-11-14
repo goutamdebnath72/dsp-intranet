@@ -9,10 +9,11 @@ export const railwayTopic = defineTopic({
   id: "railway",
   live: {
     keys: ["train", "trains", "railway", "railways", "dgr", "memu", "irctc"],
-    extra: ["durgapur", "station", "stn", "timetable", "timetables", "time", "times", "timing", "timings", "schedule", "schedules", "express", "mail", "local", "passenger", "arrival", "arrivals", "departure", "departures", "up", "down", "today", "list", "all", "info", "information", "and", "to", "from", "at", "of", "rail", "indian", "eastern", "stopping", "stops", "running", "days", "daily", "weekly", "durgapur's", "available", "details"],
+    extra: ["fare", "fares", "price", "prices", "cost", "durgapur", "station", "stn", "timetable", "timetables", "time", "times", "timing", "timings", "schedule", "schedules", "express", "mail", "local", "passenger", "arrival", "arrivals", "departure", "departures", "up", "down", "today", "list", "all", "info", "information", "and", "to", "from", "at", "of", "rail", "indian", "eastern", "stopping", "stops", "running", "days", "daily", "weekly", "durgapur's", "available", "details"],
   },
   samples: [
     { q: "durgapur railway station trains", note: "every mail and express train that stops at Durgapur (DGR), in two directions (towards Howrah and away from it), each with its arrival, its departure and the days it runs (Daily, or the weekdays), the specials marked; below them the local MEMU trains in both directions. From RailRadar's timetable, kept for twelve hours. It is the timetable, not live running status", instant: true },
     { q: "trains", note: "the same card: 'dgr trains', 'durgapur railway station', 'train timetable' and 'memu' open it too", instant: true },
+    { q: "train fare", note: "the same card, with the fare finder: press ₹ Find a fare to a station, choose where you are going from Durgapur, and see every train that goes there with its fare for each class ('trains fares', 'dgr train price' open it too)", instant: true },
   ],
 });

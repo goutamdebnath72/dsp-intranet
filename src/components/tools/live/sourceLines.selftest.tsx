@@ -38,7 +38,9 @@ const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => { const 
 const files = walk("src").filter((p) => /\.(ts|tsx)$/.test(p) && !/selftest/.test(p));
 const read = (p: string) => readFileSync(p, "utf8");
 const users = files.filter((p) => p.endsWith(".tsx") && /\buseLive[<(]/.test(read(p)) && !/hooks|LivePieces/.test(p));
-ok("every card that asks a live route (useLive) ends with a SourceLine: " + users.map((p) => p.split("/").pop()).join(", "), users.length >= 10 && users.every((p) => /<SourceLine\b/.test(read(p))), users.filter((p) => !/<SourceLine\b/.test(read(p))).join());
+// the fare panels use FareSource, the same source line in the fewest words ("Source: RailRadar"); either one satisfies the rule
+const hasSource = (p: string) => /<SourceLine\b/.test(read(p)) || /<FareSource\b/.test(read(p));
+ok("every card that asks a live route (useLive) ends with a source line (SourceLine, or the fare panels' short FareSource): " + users.map((p) => p.split("/").pop()).join(", "), users.length >= 10 && users.every(hasSource), users.filter((p) => !hasSource(p)).join());
 const converter = read("src/tools/converter/ConverterCard.tsx");
 ok("the currency converter shows its RatesSource", /<RatesSource\b/.test(converter) && /kind === "currency" && rates && info/.test(converter));
 const routes = files.filter((p) => /app\/api\/live\/[^/]+\/route\.ts$/.test(p) && /liveRoute/.test(read(p)));

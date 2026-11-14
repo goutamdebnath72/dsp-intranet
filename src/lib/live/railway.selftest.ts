@@ -45,7 +45,7 @@ ok("a train with an impossible time, no days, or an arrival day of zero is not r
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => { const p = join(dir, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
 const sources = walk("src").filter((p) => /\.(ts|tsx|json|html|md)$/.test(p) && !p.endsWith("railway.selftest.ts"));
 ok("the plant's RailRadar key is nowhere in the source (it lives in the environment only), and is never read under a name a browser can see", sources.every((p) => !/rg_[0-9a-f]{32}/.test(readFileSync(p, "utf8"))) && sources.every((p) => !/NEXT_PUBLIC_RAILRADAR/.test(readFileSync(p, "utf8"))));
-ok("the key is read only by the route, in the server's environment", sources.filter((p) => /process\.env\.RAILRADAR_API_KEY/.test(readFileSync(p, "utf8"))).join() === join("src", "app", "api", "live", "railway", "route.ts"));
+ok("the key is read in one file only (the shared loader), in the server's environment", sources.filter((p) => /process\.env\.RAILRADAR_API_KEY/.test(readFileSync(p, "utf8"))).join() === join("src", "lib", "live", "railwayLoad.ts"));
 
 console.log(`railway: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

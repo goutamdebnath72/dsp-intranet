@@ -1,6 +1,6 @@
 // src/tools/aicpi/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the live-data card (AICPI and dearness allowance). What the search line needs to know is in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the live-data card (AICPI, SAIL DA and inflation). What the search line needs to know is in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";
@@ -10,5 +10,5 @@ import { type TopicUi } from "@/tools/uiTypes";
 
 export const aicpiUi: TopicUi = {
   id: "aicpi",
-  live: { title: "AICPI and SAIL dearness allowance", subtitle: "The index, and the quarterly DA of SAIL employees from it", tone: "amber", icon: <TrendingUp size={20} />, card: () => <AicpiCard /> },
+  live: { title: "AICPI, SAIL DA and inflation", subtitle: "Price indices, the quarterly DA of SAIL employees, and India's inflation", tone: "amber", icon: <TrendingUp size={20} />, card: (lang) => <AicpiCard key={lang ?? "da"} initialView={lang === "cpi" ? "cpi" : "da"} /> },
 };

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/aicpi/AicpiCard.selftest.tsx
-// The AICPI and SAIL dearness allowance card and the words that open it: drawn from the Labour Bureau's pages as they were on 13 Nov 2026; it says plainly what its figures rest on and that SAIL's own circular is the authority.
+// The AICPI, SAIL DA and inflation card and the words that open it: drawn from the Labour Bureau's pages as they were on 13 Nov 2026; it says plainly what its figures rest on and that SAIL's own circular is the authority.
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -42,5 +42,7 @@ ok("'aicpi da' and its like open the card", opens.every((q) => live(q) === "aicp
 ok("a line with words that are not the card's does not open it (da vinci, a tyre), and the other live cards keep their words (SAIL's share price is still the markets card)", live("da vinci") === null && live("weather") === "weather" && live("flights") === "flights" && live("trains") === "railway" && live("gold rate today") === "gold" && live("petrol price") === "fuel" && live("sail share price") === "markets" && live("205/55 R16 91V") !== "aicpi", String(live("sail share price")));
 ok("the sample questions are the card's own words", aicpiTopic.samples.every((s) => live(s.q) === "aicpi") && aicpiTopic.samples.some((s) => s.q === "aicpi da"));
 
+ok("a line that asks for inflation or the CPI opens the CPI tab; the DA words (aicpi, cpi-iw, da, sail da) keep the dearness allowance tab", (() => { const lang = (q: string) => { const d = detectTool(q) as any; return d && d.kind === "live" && d.topic === "aicpi" ? d.lang ?? "da" : null; }; return lang("inflation") === "cpi" && lang("india inflation") === "cpi" && lang("cpi") === "cpi" && lang("inflation 10 years") === "cpi" && lang("cpi urban") === "cpi" && lang("aicpi") === "da" && lang("cpi-iw") === "da" && lang("aicpi da") === "da" && lang("sail da") === "da" && lang("da formula") === "da" && lang("dearness allowance") === "da"; })());
+ok("the window's headline covers all three features (AICPI, SAIL DA, inflation), not only the DA", (() => { const ui = readFileSync("src/tools/aicpi/ui.tsx", "utf8"); return /title: "AICPI, SAIL DA and inflation"/.test(ui) && !/title: "AICPI and SAIL dearness allowance"/.test(ui) && /subtitle: "Price indices, the quarterly DA of SAIL employees, and India's inflation"/.test(ui); })());
 console.log(`AicpiCard: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
