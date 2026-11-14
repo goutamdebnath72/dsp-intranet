@@ -310,9 +310,9 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
   },
   {
     id: "tools",
-    title: "Calculators and converters",
+    title: "Calculators, converters and live cards",
     icon: "calculator",
-    covers: "A calculator, unit and currency conversion, date calculations, and forms for loan EMI, probable PF maturity, gratuity and leave encashment. All of it runs in your browser: nothing you type is saved anywhere.",
+    covers: "Type calculators and press Enter for the menu of ready tools (calculator, converters, dates, loan EMI, PF maturity, gratuity, leave encashment, tyre and rim sizes, VIN reader, BH series, electric car charging); then the live cards: gold, fuel, markets, news, weather, flights, trains and fares, AICPI, SAIL DA and inflation. The calculators run in your browser: nothing you type is saved anywhere.",
     howToRun: "Sums, conversions and date questions appear AS YOU TYPE: no Enter. A calculator form (EMI, PF, gratuity...): type its name, then press Enter to open the form.",
     tips: [
       "Type a sum straight in: + - * / ^, brackets, % (200 + 10%), \"15% of 2400\", lakh and crore (5 lakh * 12).",

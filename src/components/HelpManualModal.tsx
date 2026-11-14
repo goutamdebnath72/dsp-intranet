@@ -420,7 +420,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     DSP Intranet — User Guide
                   </h2>
                   <p className="mt-0.5 text-sm text-sky-100">
-                    Sample questions, the words that open each tool, and what the markers mean
+                    What the search bar can do, questions to try, the words that open each tool, and what the markers mean
                   </p>
                 </div>
                 <button
@@ -478,6 +478,34 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   <em>mentioned in circulars</em>, you get the person first and
                   those circulars below.
                 </p>
+              </Section>
+
+              {/* Live cards: what the samples and the words page do not say */}
+              <Section icon={<BarChart3 size={17} />} title="Live cards: source, time and tabs">
+                <p>
+                  Prices, markets, news, weather, flights, trains, fares, the
+                  dearness allowance and inflation appear as <strong>cards</strong>.
+                  Every card names its <strong>source</strong> (with a link) and
+                  the <strong>time it was fetched</strong>; a source can be late or
+                  briefly unavailable, and the card says so instead of guessing.
+                </p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    <strong>Tabs inside a card</strong> (News: Business, English,
+                    Hindi, Bengali; AICPI: Dearness allowance and CPI and
+                    inflation; CPI: Combined, Urban, Rural, and the State; Inflation: 1, 3, 5 and 10 years) change the view without a new search.
+                  </li>
+                  <li>
+                    <strong>Charts:</strong> hover (or touch) a column for its
+                    exact value. A one-year chart starts on today&rsquo;s
+                    date a year back.
+                  </li>
+                  <li>
+                    <strong>Saved figures:</strong> train fares and the
+                    consumer price index are kept in the intranet&rsquo;s own
+                    database and show the date they were received.
+                  </li>
+                </ul>
               </Section>
 
               {/* Contact details: what the people section of the samples does not say */}

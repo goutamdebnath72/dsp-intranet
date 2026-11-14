@@ -4,8 +4,8 @@
 "use client";
 
 import React from "react";
-import { CircleAlert, Search, Sparkles } from "lucide-react";
-import { AREAS, INTRO_LEAD, INTRO_TITLE, LIMITS, START } from "@/lib/help/searchBarIntro";
+import { Calculator, CircleAlert, Search, Sparkles } from "lucide-react";
+import { AREAS, CALCULATORS_LINE, INTRO_LEAD, INTRO_TITLE, LIMITS, START } from "@/lib/help/searchBarIntro";
 
 export function SearchBarIntro() {
   return (
@@ -18,6 +18,15 @@ export function SearchBarIntro() {
             <li key={s} className="flex items-start gap-1.5"><span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold text-white">{i + 1}</span><span>{s}</span></li>
           ))}
         </ol>
+        <p data-calculators-line className="mt-3 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50/70 px-3 py-2 text-[13px] leading-snug text-slate-700">
+          <Calculator size={15} className="mt-0.5 shrink-0 text-sky-700" aria-hidden="true" />
+          <span>
+            {CALCULATORS_LINE.before}{" "}
+            <code className="rounded bg-white px-1.5 py-0.5 font-bold text-sky-800">{CALCULATORS_LINE.command}</code>{" "}
+            {CALCULATORS_LINE.after}{" "}
+            <strong className="text-slate-900">{CALCULATORS_LINE.tools.join("; ")}</strong>.
+          </span>
+        </p>
         <p className="mb-1.5 mt-3.5 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-slate-500"><Sparkles size={13} aria-hidden="true" /> What you can ask</p>
         <ul className="grid gap-1.5 sm:grid-cols-2">
           {AREAS.map((a) => (
