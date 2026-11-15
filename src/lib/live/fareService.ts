@@ -1,14 +1,12 @@
 // src/lib/live/fareService.ts
 //
-// WHAT THE CARD IS TOLD ABOUT A TRAIN'S FARES: the saved ones, refreshed from RailRadar only while the plant's paid month lasts, and always with the TIME THEY WERE RECEIVED.
-//   * A saved row younger than three days is shown as it is, with no request.
-//   * An older one (or none) is fetched afresh while the paid service is open (until FARES_LIVE_UNTIL), saved, and shown; if the fetch fails, the saved row is shown with the note that the source did not answer.
-//   * AFTER THE PAID MONTH (from the day after FARES_LIVE_UNTIL) RailRadar's fare service is NEVER asked again: on the free plan every request, refused or not, is taken from the 100 a month the timetable needs.
-//     The saved rows are shown as they are, marked "frozen": no longer refreshed. A train with no saved row then has no fares, and says why.
-// Two people pressing the same train at once share one request. The asking, the saving and the clock are handed in, so that this is tested without the network or a database.
+// WHAT THE CARD IS TOLD ABOUT A TRAIN'S FARES: THE SAVED ONES, FROM THE DATABASE ONLY, always with the TIME THEY WERE RECEIVED. The app NEVER asks RailRadar's fare service: the plant pays for it for one month only,
+// the fares were collected into the database (scripts/harvest-fares.ts, scripts/harvest-legs.ts), and after the month the database is all there is. A train with no saved row has no fares and the card says so.
+//   * Before the end of the paid month the saved row is shown as it is; the collection scripts may refresh it, the app never does.
+//   * From the day after FARES_LIVE_UNTIL the rows are marked "frozen": no longer refreshed.
 import { DateTime } from "luxon";
 import { UpstreamError } from "./http";
-import { FARE_KEPT_S, type FareSet, type LegFare } from "./fare";
+import type { FareSet, LegFare } from "./fare";
 import type { LegRow } from "./fareLegStore";
 import type { FareStore } from "./fareStore";
 import { STATION } from "./railway";
@@ -28,41 +26,17 @@ export const fareServiceOpen = (now: DateTime, until: string = FARES_LIVE_UNTIL)
 
 export interface FareDeps {
   store: FareStore;
-  /** where the train ends and a day it is at Durgapur, read from the kept timetable (only asked when the fare service has to be asked) */
-  target: () => Promise<{ to: string; date: string; local?: boolean }>;
-  /** asks RailRadar for the fares of the train: every class from the fare service, or, for a local train, its schedule (for the distance of the table's hint) */
-  ask: (number: string, to: string, date: string, local: boolean) => Promise<FareSet>;
   now?: () => DateTime;
   until?: string;
 }
 
-const inflight = new Map<string, Promise<{ data: FareAnswer; stale: boolean }>>();
-
+/** the saved fares of one train: read from the database, nothing else (no request to RailRadar, ever) */
 export async function fareAnswer(number: string, deps: FareDeps): Promise<{ data: FareAnswer; stale: boolean }> {
   const now = (deps.now ?? DateTime.now)();
   const open = fareServiceOpen(now, deps.until);
-  const row = await deps.store.get(number).catch(() => null);
-  const age = row ? now.toMillis() - DateTime.fromISO(row.receivedAt).toMillis() : Infinity;
-  if (row && (!open || age < FARE_KEPT_S * 1000)) return { data: { ...row.set, receivedAt: row.receivedAt, frozen: !open }, stale: !open };
-  if (!open) throw new UpstreamError("The fares of this train were not collected before the paid fare service ended, and it is not asked any more. Check IRCTC for the fare.");
-  const mine = inflight.get(number);
-  if (mine) return mine;
-  const job = (async () => {
-    try {
-      const t = await deps.target();
-      const set = await deps.ask(number, t.to, t.date, t.local === true);
-      const at = (deps.now ?? DateTime.now)().toUTC();
-      await deps.store.put(set, at.toJSDate());
-      return { data: { ...set, receivedAt: at.toISO() ?? "", frozen: false }, stale: false };
-    } catch (e) {
-      if (row) return { data: { ...row.set, receivedAt: row.receivedAt, frozen: false }, stale: true };
-      throw e;
-    } finally {
-      inflight.delete(number);
-    }
-  })();
-  inflight.set(number, job);
-  return job;
+  const row = await deps.store.get(number).catch(() => { throw new UpstreamError("The saved fares could not be read just now."); });
+  if (!row) throw new UpstreamError("The fares of this train were not collected while the plant's paid fare service lasted, and they are read from the saved data only. Check IRCTC for the fare.");
+  return { data: { ...row.set, receivedAt: row.receivedAt, frozen: !open }, stale: !open };
 }
 
 /** the fares to every stop of a train, as the card gets them */
