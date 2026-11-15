@@ -93,6 +93,8 @@ export interface MarketsData {
   missing: string[];
   gainers: Quote[];
   losers: Quote[];
+  /** present when some quotes are the last saved copy because the source did not answer: the names, and when the oldest of them was received (ISO) */
+  saved?: { at: string; names: string[] };
 }
 
 /** The biggest risers and fallers of the quotes (only those that actually moved, three of each). */

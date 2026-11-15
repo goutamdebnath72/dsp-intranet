@@ -2,9 +2,10 @@
 //
 // THE LOGIC OF THE DURGAPUR AREAS CARD (pure, no React): the colour of a PIN code, the facts of the two legislative seats, and the search of the wards and of the post offices. The data is in data.ts
 // (with its sources); how it is drawn is in PincodeCard.tsx. Tested in pincode.selftest.ts.
-import { PANCHAYATS, POST_OFFICES, WARDS, type Area, type Panchayat, type PostOffice, type Seat, type Ward } from "./data";
+import { PANCHAYATS, POST_OFFICES, WARDS, type Area, type Panchayat, type Police, type PostOffice, type Seat, type Ward } from "./data";
+import { OTHER_UNITS, POLICE, POLICE_ORDER, type PoliceUnit } from "./police";
 
-export type { Area, Panchayat, PostOffice, Seat, Ward };
+export type { Area, Panchayat, Police, PostOffice, Seat, Ward };
 
 /** the PIN codes of the 7132xx series (19 exist, 713201 to 713219), then the two Kanksa codes of the rolls */
 export const DURGAPUR_PINS: string[] = Object.keys(POST_OFFICES).filter((p) => p.startsWith("7132")).sort();
@@ -164,4 +165,77 @@ export function groupByPin(areas: readonly Area[], pins: ReadonlyArray<readonly 
   const by = new Map<string, Area[]>();
   for (const a of areas) { if (!by.has(a[2])) by.set(a[2], []); by.get(a[2])!.push(a); }
   return [...by.entries()].sort((x, y) => (order.indexOf(x[0]) + 1 || 99) - (order.indexOf(y[0]) + 1 || 99)).map(([pin, list]) => ({ pin, areas: list }));
+}
+
+// ---- THE POLICE STATIONS: which areas are under which (the station printed on the roll part of each area; the facts of the stations themselves are in police.ts)
+
+/** the roll parts (polling areas) under a station, in all the wards and gram panchayats */
+export function policeParts(p: Police): number {
+  const n = (list: ReadonlyArray<{ thanas: ReadonlyArray<readonly [Police, number]> }>) => list.reduce((a, x) => a + (x.thanas.find((t) => t[0] === p)?.[1] ?? 0), 0);
+  return n(WARDS) + n(PANCHAYATS);
+}
+
+/** one place (a ward, or a gram panchayat of Kanksa) and the areas of it that are under a station */
+export interface PolicePlace { ward: Ward | null; panchayat: Panchayat | null; areas: readonly Area[]; parts: number }
+
+/** the places under a station with the areas of each, wards in number order, then the gram panchayats */
+export function placesOfPolice(p: Police, wards: readonly Ward[] = WARDS, panchayats: readonly Panchayat[] = PANCHAYATS): PolicePlace[] {
+  const out: PolicePlace[] = [];
+  for (const w of [...wards].sort((a, b) => a.ward - b.ward)) {
+    const parts = w.thanas.find((t) => t[0] === p)?.[1] ?? 0;
+    const areas = w.areas.filter((a) => a[4] === p);
+    if (parts || areas.length) out.push({ ward: w, panchayat: null, areas, parts });
+  }
+  for (const g of panchayats) {
+    const parts = g.thanas.find((t) => t[0] === p)?.[1] ?? 0;
+    const areas = g.areas.filter((a) => a[4] === p);
+    if (parts || areas.length) out.push({ ward: null, panchayat: g, areas, parts });
+  }
+  return out;
+}
+
+/** the stations that cover a ward, the one with most of its roll parts first, with those parts */
+export const policeOfWard = (w: Ward): Array<{ police: Police; parts: number }> => w.thanas.map(([police, parts]) => ({ police, parts }));
+
+/** what a search on the police tab finds, station by station: the places where an area matches, each with only the matching areas (the search means what it means on the wards tab: "ward 22", a PIN, a seat, or words of an area name) */
+export function searchPolice(q: string): Array<{ police: Police; places: PolicePlace[]; areas: number }> {
+  const p = parseWardQuery(q);
+  const wards = searchWards(WARDS, q);
+  const gpOk = !p.wards.length && (!p.seats.length || p.seats.includes("purba"));
+  const gps = gpOk
+    ? PANCHAYATS.flatMap((g) => {
+        if (p.pins.length && !p.pins.every((x) => g.pins.some((y) => y[0] === x))) return [];
+        const areas = g.areas.filter((a) => p.words.every((x) => areaHas(a, x)));
+        return p.words.length && !areas.length ? [] : [{ g, areas }];
+      })
+    : [];
+  const out: Array<{ police: Police; places: PolicePlace[]; areas: number }> = [];
+  for (const police of POLICE_ORDER) {
+    const places: PolicePlace[] = [];
+    for (const r of wards) {
+      const areas = r.areas.filter((a) => a[4] === police);
+      if (areas.length) places.push({ ward: r.ward, panchayat: null, areas, parts: r.ward.thanas.find((t) => t[0] === police)?.[1] ?? 0 });
+      else if (!p.words.length && (r.ward.thanas.find((t) => t[0] === police)?.[1] ?? 0)) places.push({ ward: r.ward, panchayat: null, areas: [], parts: r.ward.thanas.find((t) => t[0] === police)?.[1] ?? 0 });
+    }
+    for (const { g, areas } of gps) {
+      const mine = areas.filter((a) => a[4] === police);
+      if (mine.length) places.push({ ward: null, panchayat: g, areas: mine, parts: g.thanas.find((t) => t[0] === police)?.[1] ?? 0 });
+    }
+    out.push({ police, places, areas: places.reduce((a, x) => a + x.areas.length, 0) });
+  }
+  return out;
+}
+
+/** every investigation centre and outpost the card knows, with the station it is under (null where the sources do not say) */
+export function allUnits(): Array<{ unit: PoliceUnit; under: Police | null }> {
+  return [...POLICE_ORDER.flatMap((p) => POLICE[p].units.map((unit) => ({ unit, under: p as Police | null }))), ...OTHER_UNITS.map((unit) => ({ unit, under: null as Police | null }))];
+}
+/** the units and the two stations of the whole subdivision that a search matches: every word must be in the unit's name, address or station ("waria", "city centre", "bidhannagar", "ambuja", "dsp gate"); the alias "Bengal Ambuja" counts */
+export function searchUnits(q: string): Array<{ unit: PoliceUnit; under: Police | null }> {
+  const ts = tokensOf(q).filter((t) => !/^\d+$/.test(t) && !["ward", "wards", "police", "station", "thana", "ps", "ic", "op", "durgapur", "dmc", "purba", "paschim"].includes(t));
+  if (!ts.length) return [];
+  return allUnits().filter(({ unit, under }) => {
+    const hay = `${unit.name} ${unit.address} ${unit.note ?? ""} ${under ? POLICE[under].name : ""}`.toLowerCase();
+    return ts.every((x) => hay.includes(x));
+  });
 }

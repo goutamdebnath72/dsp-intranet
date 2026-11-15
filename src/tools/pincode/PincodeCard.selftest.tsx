@@ -12,6 +12,7 @@ let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 const h = (el: React.ReactElement) => renderToStaticMarkup(el);
 const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
+const text = (s: string) => s.replace(/<!-- -->/g, "").replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ");
 
 // ---- tab 1: PIN codes
 const pins = h(<PincodeCard />);
@@ -74,5 +75,32 @@ const noNested = (x: string) => !/<button(?:(?!<\/button>)[\s\S])*<button/.test(
 ok("the PINs on a ward card are buttons that jump to the PIN's group (every group is marked data-pin-group), and the card has no button inside a button", count(w22, /<button[^>]*data-pin="\d{6}"[^>]*title="Jump to the areas with PIN \d{6}"/g) === 3 && count(w22, /data-pin-group="\d{6}"/g) === 3 && noNested(w22));
 ok("the PINs on the three gram panchayat cards (4 + 2 + 1) are buttons that jump, and no button sits inside another", count(seats, /<button[^>]*data-pin="\d{6}"[^>]*title="Jump to the areas with PIN/g) === 7 && noNested(seats));
 
+// ---- tab 4: police stations
+const police = h(<PincodeCard initialTab="police" />);
+ok("the card has four tabs, the fourth 'Police stations'; the police tab has the four stations in the order Durgapur, Coke Oven, Kanksa, New Township, each with its address and its page on the Commissionerate's site", count(police, /role="tab"/g) === 4 && />Police stations</.test(police) && [...police.matchAll(/data-police-card="(\w)"/g)].map((x) => x[1]).join("") === "DCKN" && /Arabindo Avenue/.test(police) && /DPL Guest House/.test(police) && count(police, /href="https:\/\/asansoldurgapurpolice\.wb\.gov\.in\/ps-detail\/\d+"/g) === 6 && /Know Your Police Station/.test(police));
+ok("each station says its wards, polling areas and areas (Durgapur 325 polling areas, Coke Oven 111, Kanksa 81, New Township 80); no Bengali and no question mark", [">325<", ">111<", ">81<", ">80<"].every((n) => police.includes(n)) && !/[\u0980-\u09FF]/.test(police) && !/>\?</.test(police));
+const police22 = h(<PincodeCard initialTab="police" initialQuery="ward 22" />);
+ok("a search opens the stations that have a match and lists only the matching areas under their station", /aria-expanded="true"/.test(police22) && count(police22, /data-place-group="w22"/g) >= 1 && !/data-place-group="w23"/.test(police22) && /areas? found/.test(police22));
+const ambPolice = h(<PincodeCard initialTab="police" initialQuery="bengal ambuja" />);
+ok("'Bengal Ambuja' is found on the police tab too, with the badge, under one station", count(ambPolice, /<li[^>]*data-area=/g) >= 1 && /also Bengal Ambuja/.test(ambPolice));
+const w28 = h(<PincodeCard initialTab="wards" initialQuery="ward 28" />);
+ok("a ward with areas under three stations shows all three tags, each a button to the police tab, and a station label on every area; a ward with one station shows one tag and no label on its areas", count(w28, /data-police-tag="\w"/g) === 3 && count(w28, /data-area-police/g) === count(w28, /<li[^>]*data-area=/g) && count(w28, /data-area-police/g) > 0 && count(w22, /data-police-tag="\w"/g) === 1 && count(w22, /data-area-police/g) === 0, `${count(w28, /data-police-tag/g)} ${count(w22, /data-police-tag/g)}`);
+ok("'durgapur police station', 'thana', 'police stations' open the police tab; 'ward 22 police station' opens it on ward 22; the railway words still open the trains; 'police' alone is not this card", ["durgapur police station", "thana", "police stations", "police station"].every((q) => said(q) === "pincode:police|") && said("ward 22 police station") === "pincode:police|ward 22" && said("durgapur railway station trains").startsWith("railway") && said("police") !== "pincode:police|", [said("police"), said("thana")].join());
+ok("readLang reads the police tab", readLang("police|ward 22").tab === "police" && readLang("police|ward 22").query === "ward 22");
+
+ok("while searching, a station with no match is not drawn (ward 28 is under three stations, not four; nothing matching draws none)", count(h(<PincodeCard initialTab="police" initialQuery="ward 28" />), /data-police-card=/g) === 3 && count(h(<PincodeCard initialTab="police" initialQuery="zzzzqq" />), /data-police-card=/g) === 0);
+// ---- the posts, the numbers and the emergency line
+ok("each station card has its telephone numbers as links you can press (a landline and the Commissionerate's mobile; Kanksa only the mobile), whom it reports to, and its posts: five under Durgapur PS, one under New Township PS", count(police, /data-station-phones/g) === 4 && count(police, /href="tel:\+91[^"]+"/g) >= 12 && /Reports to CI-A Durgapur, ACP Durgapur, DCP East/.test(text(police)) && /Reports to CI Budbud, ACP Kanksa, DCP East/.test(text(police)) && count(police, /data-station-units/g) === 2 && count(police, /data-unit-under="D"/g) === 5 && count(police, /data-unit-under="N"/g) === 1);
+ok("the near-the-gate post is said: Waria, near the DSP Main Gate, under Durgapur PS; the posts without a station are listed apart, and the two stations of the whole subdivision (Women PS, Faridpur PS) with their numbers", /Waria Investigation Centre/.test(police) && /Near the DSP Main Gate, Waria/.test(police) && /the nearest post to the Steel Plant&#x27;s main gate/.test(police) && count(police, /data-unit-under="none"/g) === 2 && /A-Zone Investigation Centre/.test(police) && count(police, /data-also="/g) === 2 && /Durgapur Women Police Station/.test(police));
+ok("an emergency line (112) and the four sources with what to know of each are on the tab, and the caution that a number can change", /data-emergency/.test(police) && /dial 112/.test(text(police)) && /data-police-sources/.test(police) && count(police, /<a[^>]*href="https:\/\/(?:wb\.gov\.in|www\.durgapurmunicipalcorporation\.org|en\.wikipedia\.org)/g) >= 3 && /A number or a post can change/.test(text(police)));
+const waria = h(<PincodeCard initialTab="police" initialQuery="waria" />);
+ok("searching 'waria' shows both the post that matches (with its station) and the six areas called Waria, under Durgapur and Coke Oven stations", /data-units-found/.test(waria) && /Waria Investigation Centre/.test(waria) && count(waria, /data-police-card=/g) === 2 && /6 areas found, under Durgapur PS, Coke Oven PS/.test(text(waria)), text(waria).match(/\d+ areas found[^.]*\./)?.[0]);
+const banbahal = h(<PincodeCard initialTab="police" initialQuery="banbahal" />);
+ok("searching a post's name that no area has ('banbahal') shows the post, draws no station card, and says posts match", /data-units-found/.test(banbahal) && count(banbahal, /data-police-card=/g) === 0 && /No area matches that, but 1 police post does\./.test(text(banbahal)));
+const ambu = h(<PincodeCard initialTab="police" initialQuery="bengal ambuja" />);
+ok("searching 'bengal ambuja' finds both the areas (under their station) and the City Centre post at Bengal Ambuja", /data-units-found/.test(ambu) && /City Centre Investigation Centre/.test(ambu) && count(ambu, /data-police-card=/g) >= 1 && /also Bengal Ambuja/.test(ambu));
+ok("the posts and numbers draw no question mark and no Bengali letters; only the allowed text sizes", !/>\?</.test(police) && !/[\u0980-\u09FF]/.test(police) && !/text-\[(?!9px|10px|11px|13px|15px|17px|28px)\d/.test(police));
+
+ok("while searching, a station's own list of posts is not repeated (the 'Posts that match' panel has them): searching 'waria' draws one post row in the panel and none inside the station cards", count(waria, /data-station-units/g) === 0 && count(waria, /data-unit="/g) === 1);
 console.log(`PincodeCard: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

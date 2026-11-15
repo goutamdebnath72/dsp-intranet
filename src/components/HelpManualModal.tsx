@@ -484,8 +484,9 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
               <Section icon={<BarChart3 size={17} />} title="Live cards: source, time and tabs">
                 <p>
                   Prices, markets, news, weather, flights, trains, fares, the
-                  dearness allowance, inflation and the PIN codes and wards of
-                  Durgapur appear as <strong>cards</strong>.
+                  dearness allowance, inflation, the PIN codes, wards and police
+                  stations of Durgapur
+                  appear as <strong>cards</strong>.
                   Every card names its <strong>source</strong> (with a link) and
                   the <strong>time it was fetched</strong> (for saved data, the
                   date it was received or prepared); a source can be late or
@@ -495,7 +496,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   <li>
                     <strong>Tabs inside a card</strong> (News: Business, English,
                     Hindi, Bengali; Durgapur areas: PIN codes, DMC Wards,
-                    Assembly seats; AICPI: Dearness allowance and CPI and
+                    Assembly seats, Police stations; AICPI: Dearness allowance and CPI and
                     inflation; CPI: Combined, Urban, Rural, and the State; Inflation: 1, 3, 5 and 10 years) change the view without a new search.
                   </li>
                   <li>
@@ -507,8 +508,18 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     <strong>Saved figures:</strong> train fares and the
                     consumer price index are kept in the intranet&rsquo;s own
                     database and show the date they were received; the PIN
-                    codes, wards and areas of Durgapur are saved data too.
-                    The fares are never fetched live.
+                    codes, wards, areas and police stations of Durgapur are saved
+                    data too. The fares are never fetched live.
+                  </li>
+                  <li>
+                    <strong>When there is no figure for today:</strong> some
+                    sources publish nothing on Saturdays, Sundays and holidays
+                    (gold rates, the dollar rate, the share market). The card
+                    then shows the <strong>last published figure with its date</strong>,
+                    and a one-year graph ends on that day. If a source does not
+                    answer for a few minutes, the Sensex card shows the last
+                    figures it saved, marked <strong>Not live</strong> with the time
+                    they were received.
                   </li>
                   <li>
                     <strong>Jumping inside a card:</strong> on the Durgapur

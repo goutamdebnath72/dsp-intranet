@@ -46,8 +46,12 @@ export interface MetalRates {
   gold22PerGram: number;
   silverPerKg: number;
   silverPerGram: number;
-  /** which session of today these are: "AM" or "PM" */
+  /** which session these are: "AM" or "PM" */
   session: "AM" | "PM";
+  /** set only when IBJA has no rates for today (Saturday, Sunday, a central government holiday): the date (YYYY-MM-DD) of the last day it published, whose closing (PM) rates these are */
+  asOf?: string;
+  /** the page's own words when it has no rates for today ("Rates are not published on Central Govt. Holidays & SAT/SUN") */
+  notPublished?: string;
   /** the change against the last PM close in the history */
   change: { gold24: { abs: number; pct: number } | null; gold22: { abs: number; pct: number } | null; silver: { abs: number; pct: number } | null };
   /** the PM rate of each trading day, oldest first */
@@ -100,9 +104,12 @@ export function parseIbja(html: string): MetalRates | null {
   const am999 = cell(html, "lblGold999_AM"), pm999 = cell(html, "lblGold999_PM");
   const am916 = cell(html, "lblGold916_AM"), pm916 = cell(html, "lblGold916_PM");
   const amAg = cell(html, "lblSilver999_AM"), pmAg = cell(html, "lblSilver999_PM");
-  const g24 = pm999 ?? am999, g22 = pm916 ?? am916, ag = pmAg ?? amAg;
-  if (!g24 || !g22 || !ag) return null;
-  const session: "AM" | "PM" = pm999 ? "PM" : "AM";
+  let g24 = pm999 ?? am999, g22 = pm916 ?? am916, ag = pmAg ?? amAg;
+  let session: "AM" | "PM" = pm999 ? "PM" : "AM";
+  // no rates for today: only when the page SAYS so (its own message) are the closing rates of the last published day used, and they are shown as that day's; any other page without the rates is an error, never a guess
+  const said = /id="lbl_Message">([^<]*Rates are not published[^<]*)</.exec(html)?.[1].replace(/&amp;/g, "&").trim();
+  const noRatesToday = !g24 || !g22 || !ag;
+  if (noRatesToday && !said) return null;
 
   const gold = hidden(html, "HdnGold") as ChartJson | null;
   const silver = hidden(html, "HdnSilver") as ChartJson | null;
@@ -116,8 +123,17 @@ export function parseIbja(html: string): MetalRates | null {
     });
     history.sort((x, y) => x.date.localeCompare(y.date));
   }
-  const last = history[history.length - 1];
+  let last = history[history.length - 1];
   const first = history[0];
+  let asOf: string | undefined;
+  if (noRatesToday) {
+    if (history.length < 2) return null;
+    ({ gold24: g24, gold22: g22, silver: ag } = last);
+    session = "PM";
+    asOf = last.date;
+    last = history[history.length - 2];
+  }
+  if (!g24 || !g22 || !ag) return null;
   const fmt = (iso: string, withYear: boolean) => DateTime.fromISO(iso, { zone: ZONE }).toFormat(withYear ? "d LLL yyyy" : "d LLL");
   return {
     gold24Per10g: g24,
@@ -127,6 +143,7 @@ export function parseIbja(html: string): MetalRates | null {
     silverPerKg: ag,
     silverPerGram: Math.round((ag / 1000) * 100) / 100,
     session,
+    ...(asOf ? { asOf, notPublished: said } : {}),
     change: { gold24: pct(g24, last?.gold24), gold22: pct(g22, last?.gold22), silver: pct(ag, last?.silver) },
     history,
     rangeText: first && last ? `${fmt(first.date, false)} to ${fmt(last.date, true)}` : "",

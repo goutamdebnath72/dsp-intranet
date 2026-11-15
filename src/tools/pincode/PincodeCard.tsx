@@ -1,28 +1,31 @@
 // src/tools/pincode/PincodeCard.tsx
 //
-// THE DURGAPUR AREAS CARD, seen through the lens of the Steel Plant: its township's PIN codes first, then the 43 wards of the Durgapur Municipal Corporation with the areas of each, then the two legislative seats.
+// THE DURGAPUR AREAS CARD, seen through the lens of the Steel Plant: its township's PIN codes first, then the 43 wards of the Durgapur Municipal Corporation with the areas of each, then the two assembly seats and the police stations.
 // Tab 1 "PIN codes": the 19 codes of the city (713201 to 713219), each with its post offices and the wards that use it, in ITS OWN COLOUR; the Steel Plant's own post offices are marked. Tab 2 "DMC wards": every ward,
 // its seat, its PINs and its areas (in English), with a search. Tab 3 "Assembly seats": Durgapur Purba and Durgapur Paschim, the wards of each, and the three gram panchayats
-// of Kanksa that Durgapur Purba adds. The colour of a PIN is the same on every tab, and a PIN's number is always written too: colour is never the only sign.
+// of Kanksa that Durgapur Purba adds. Tab 4 "Police stations": which areas are under which of the four stations the roll names (Durgapur, Coke Oven, Kanksa, New Township), with the station's address
+// from the Commissionerate's site, and a search that tells which station an area is under. The colour of a PIN is the same on every tab, and a PIN's number is always written too: colour is never the only sign.
 // Nothing is fetched: the data is a reviewed file with its sources and date (data.ts, which also says how the English spellings were made).
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, ExternalLink, Factory, Info, Landmark, Mailbox, MapPinned, Search, Vote, X } from "lucide-react";
+import { ChevronDown, ExternalLink, Factory, Info, Landmark, Mailbox, MapPinned, Phone, Search, ShieldCheck, Siren, Vote, X } from "lucide-react";
 import { Pills } from "@/components/tools/Pills";
 import { DATA_DATE, PANCHAYATS, ROLL_NOTE, WARDS } from "./data";
+import { ALSO_SERVING, EMERGENCY, OTHER_UNITS, POLICE, POLICE_FINDER, POLICE_ORDER, POLICE_SOURCES, type PoliceUnit } from "./police";
 import {
-  DURGAPUR_PINS, KANKSA_PINS, KIND_TEXT, LOK_SABHA, ORDER_WARDS, SEATS, groupByPin, isDspPin, isSailPin, panchayatsOfPin, pinStyle, rangesText, searchAreas, searchPins, searchWards, wardsOfPin, withAliases, wardsOfSeat,
-  type Area, type Panchayat, type PostOffice, type Seat, type Ward,
+  DURGAPUR_PINS, KANKSA_PINS, KIND_TEXT, LOK_SABHA, ORDER_WARDS, SEATS, groupByPin, isDspPin, isSailPin, panchayatsOfPin, pinStyle, policeParts, rangesText, searchAreas, searchPins, searchPolice, searchUnits, searchWards, wardsOfPin, withAliases, wardsOfSeat,
+  type Area, type Panchayat, type Police, type PolicePlace, type PostOffice, type Seat, type Ward,
 } from "./pincode";
 
-export type PincodeTab = "pins" | "wards" | "seats";
+export type PincodeTab = "pins" | "wards" | "seats" | "police";
 
 const TABS: Array<{ id: PincodeTab; text: string }> = [
   { id: "pins", text: "PIN codes" },
   { id: "wards", text: "DMC wards" },
   { id: "seats", text: "Assembly seats" },
+  { id: "police", text: "Police stations" },
 ];
 const PILL = "from-violet-600 to-indigo-600 shadow-violet-600/30";
 
@@ -38,7 +41,7 @@ function PinChip({ pin, count, onClick, big = false, hint }: { pin: string; coun
       {count !== undefined && <span className="text-[10px] font-semibold opacity-70">×{count}</span>}
     </>
   );
-  const cls = "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5";
+  const cls = "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5";
   const style = { background: st.soft, borderColor: st.border, color: st.ink };
   return onClick ? (
     <button type="button" onClick={onClick} data-pin={pin} title={hint ?? `Show the wards of PIN ${pin}`} className={`${cls} transition hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400`} style={style}>{body}</button>
@@ -67,12 +70,14 @@ function SearchBox({ value, onChange, label, placeholder }: { value: string; onC
 }
 
 /** the English name of an area, with the other name of a place written after the word it belongs to */
-function AreaRow({ a }: { a: Area }) {
+function AreaRow({ a, police = false }: { a: Area; police?: boolean }) {
+  const st = POLICE[a[4]];
   return (
-    <li className="min-w-0 rounded-xl bg-white/80 px-2.5 py-1.5 ring-1 ring-slate-100" data-area>
+    <li className="min-w-0 rounded-xl bg-white/80 px-2.5 py-1.5 ring-1 ring-slate-100" data-area data-police={a[4]}>
       <span className="block text-sm font-semibold leading-snug text-slate-800">
         {withAliases(a[1]).map((p, k) => typeof p === "string" ? p : <React.Fragment key={k}>{p.word} <span className="mx-0.5 inline-block rounded-md bg-violet-100 px-1.5 align-middle text-[10px] font-bold text-violet-800" data-alias>also {p.alias}</span></React.Fragment>)}
       </span>
+      {police && <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: st.ink }} data-area-police><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ background: st.color }} />{shortName(a[4])}</span>}
     </li>
   );
 }
@@ -191,8 +196,24 @@ function PinsTab({ go, initialQuery = "" }: { go: (tab: PincodeTab, query?: stri
 
 /* ---------- tab 2: DMC wards ---------- */
 
+/** "Durgapur PS", "Coke Oven PS": the short name of a station */
+const shortName = (p: Police) => POLICE[p].name.replace(" Police Station", " PS");
+
+/** a police station in its own colour: a button when it can be pressed */
+function PoliceTag({ p, count, onClick }: { p: Police; count?: number; onClick?: () => void }) {
+  const st = POLICE[p];
+  const body = (<><ShieldCheck size={12} aria-hidden="true" /><span>{shortName(p)}</span>{count !== undefined && <span className="text-[10px] font-semibold opacity-70">×{count}</span>}</>);
+  const cls = "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-bold";
+  const style = { background: st.soft, borderColor: `${st.color}55`, color: st.ink };
+  return onClick ? (
+    <button type="button" onClick={onClick} data-police-tag={p} title={`See the areas under ${st.name}`} className={`${cls} transition hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400`} style={style}>{body}</button>
+  ) : (
+    <span data-police-tag={p} className={cls} style={style}>{body}</span>
+  );
+}
+
 /** PRESSING A PIN ON A WARD (OR PANCHAYAT) CARD takes you to that PIN's areas in the long list: the list is opened if it is closed, the window scrolls to the PIN's group, and the group is lit for a moment. */
-function usePinJump(open: boolean, openIt: () => void) {
+function usePinJump(open: boolean, openIt: () => void, attr = "data-pin-group", tone: (key: string) => { border: string; soft: string } = pinStyle) {
   const root = useRef<HTMLDivElement & HTMLElement>(null);
   const calm = useReducedMotion();
   const [want, setWant] = useState<{ pin: string; wait: number } | null>(null);
@@ -200,7 +221,7 @@ function usePinJump(open: boolean, openIt: () => void) {
   useEffect(() => {
     if (!want || !open) return;
     const t = setTimeout(() => {
-      root.current?.querySelector<HTMLElement>(`[data-pin-group="${want.pin}"]`)?.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+      root.current?.querySelector<HTMLElement>(`[${attr}="${want.pin}"]`)?.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
       setFlash(want.pin);
       setWant(null);
     }, calm ? 0 : want.wait);
@@ -213,11 +234,11 @@ function usePinJump(open: boolean, openIt: () => void) {
   }, [flash]);
   /* a closed list takes a moment to open (0.22 s) and the window can only scroll as far as the list has grown, so the scroll waits until it has opened */
   const jump = (pin: string) => { if (!open) openIt(); setWant({ pin, wait: open ? 0 : 450 }); };
-  const lit = (pin: string): React.CSSProperties | undefined => (flash === pin ? { boxShadow: `0 0 0 3px ${pinStyle(pin).border}`, background: pinStyle(pin).soft } : undefined);
+  const lit = (pin: string): React.CSSProperties | undefined => (flash === pin ? { boxShadow: `0 0 0 3px ${tone(pin).border}`, background: tone(pin).soft } : undefined);
   return { root, jump, lit };
 }
 
-function WardCard({ w, areas, filtered, open, onToggle }: { w: Ward; areas: readonly Area[]; filtered: boolean; open: boolean; onToggle: () => void }) {
+function WardCard({ w, areas, filtered, open, onToggle, go }: { w: Ward; areas: readonly Area[]; filtered: boolean; open: boolean; onToggle: () => void; go: (tab: PincodeTab, query?: string) => void }) {
   const s = SEATS[w.seat];
   const { root, jump, lit } = usePinJump(open, onToggle);
   const groups = useMemo(() => groupByPin(areas, w.pins), [areas, w.pins]);
@@ -233,6 +254,7 @@ function WardCard({ w, areas, filtered, open, onToggle }: { w: Ward; areas: read
           <div className="flex flex-wrap items-center gap-1.5">
             <SeatTag seat={w.seat} />
             {w.pins.map(([pin, n]) => <PinChip key={pin} pin={pin} count={w.pins.length > 1 ? n : undefined} onClick={() => jump(pin)} hint={`Jump to the areas with PIN ${pin}`} />)}
+            {w.thanas.map(([p, n]) => <PoliceTag key={p} p={p} count={w.thanas.length > 1 ? n : undefined} onClick={() => go("police", `ward ${w.ward}`)} />)}
           </div>
         </div>
         <button type="button" onClick={onToggle} aria-expanded={open} aria-label={`${open ? "Hide" : "Show"} the ${areas.length} areas of ward ${w.ward}`}
@@ -247,7 +269,7 @@ function WardCard({ w, areas, filtered, open, onToggle }: { w: Ward; areas: read
           {groups.map((g) => (
             <section key={g.pin} aria-label={`Areas with PIN ${g.pin}`} data-pin-group={g.pin} style={lit(g.pin)} className="-m-1.5 scroll-mt-2 rounded-xl p-1.5 transition-shadow duration-500">
               <div className="mb-1.5 flex items-center gap-2"><PinChip pin={g.pin} /><span className="text-[11px] font-semibold text-slate-500">{g.areas.length} area{g.areas.length === 1 ? "" : "s"}</span></div>
-              <ul className="grid gap-1.5 sm:grid-cols-2">{g.areas.map((a) => <AreaRow key={a[0] + a[2]} a={a} />)}</ul>
+              <ul className="grid gap-1.5 sm:grid-cols-2">{g.areas.map((a) => <AreaRow key={a[0] + a[2]} a={a} police={w.thanas.length > 1} />)}</ul>
             </section>
           ))}
         </div>
@@ -256,7 +278,7 @@ function WardCard({ w, areas, filtered, open, onToggle }: { w: Ward; areas: read
   );
 }
 
-function WardsTab({ query, setQuery, seat, setSeat, open, setOpen }: { query: string; setQuery: (q: string) => void; seat: "all" | Seat; setSeat: (s: "all" | Seat) => void; open: Set<number>; setOpen: (f: (o: Set<number>) => Set<number>) => void }) {
+function WardsTab({ query, setQuery, seat, setSeat, open, setOpen, go }: { go: (tab: PincodeTab, query?: string) => void; query: string; setQuery: (q: string) => void; seat: "all" | Seat; setSeat: (s: "all" | Seat) => void; open: Set<number>; setOpen: (f: (o: Set<number>) => Set<number>) => void }) {
   const pool = useMemo(() => (seat === "all" ? WARDS : WARDS.filter((w) => w.seat === seat)), [seat]);
   const found = useMemo(() => searchWards(pool, query), [pool, query]);
   const toggle = (n: number) => setOpen((o) => { const x = new Set(o); if (x.has(n)) x.delete(n); else x.add(n); return x; });
@@ -271,7 +293,7 @@ function WardsTab({ query, setQuery, seat, setSeat, open, setOpen }: { query: st
         {found.length === 0 ? "No ward or area matches that." : `${found.length} of ${pool.length} ward${pool.length === 1 ? "" : "s"}${query.trim() ? " found" : ""}. Press a PIN of a ward to jump to its areas.`}
       </p>
       <div className="space-y-2.5">
-        {found.map((r) => <WardCard key={r.ward.ward} w={r.ward} areas={r.areas} filtered={r.filtered} open={r.filtered || open.has(r.ward.ward)} onToggle={() => toggle(r.ward.ward)} />)}
+        {found.map((r) => <WardCard key={r.ward.ward} w={r.ward} areas={r.areas} filtered={r.filtered} open={r.filtered || open.has(r.ward.ward)} onToggle={() => toggle(r.ward.ward)} go={go} />)}
       </div>
       <p className="flex items-start gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900"><Info size={14} className="mt-px shrink-0" aria-hidden="true" />
         <span>The English spellings are written out from the Election Commission&apos;s roll. A ward can use more than one PIN: each area is listed under the PIN its polling area carries.</span></p>
@@ -366,15 +388,183 @@ function SeatsTab({ go }: { go: (tab: PincodeTab, query?: string) => void }) {
   );
 }
 
+/* ---------- tab 4: police stations ---------- */
+
+const placeKey = (x: PolicePlace) => (x.ward ? `w${x.ward.ward}` : `g${x.panchayat!.id}`);
+const placeTone = (key: string) => ({ border: key.startsWith("w") ? "#cbd5e1" : "#c4b5fd", soft: "#f8fafc" });
+
+/** a telephone number you can press: a landline of Durgapur (0343-2564081) or a mobile (9147889404), as a tel: link */
+function PhoneLink({ n, light = false }: { n: string; light?: boolean }) {
+  const digits = n.replace(/\D/g, "");
+  const href = `tel:+91${digits.startsWith("0") ? digits.slice(1) : digits}`;
+  const cls = light ? "bg-white/15 text-white hover:bg-white/25" : "bg-slate-100 text-slate-800 hover:bg-slate-200";
+  return <a href={href} data-phone={n} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold tabular-nums transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${cls}`}><Phone size={11} aria-hidden="true" />{n}</a>;
+}
+
+/** an investigation centre or outpost: its name, where it is, its number, and the station it is under */
+function UnitRow({ u, under }: { u: PoliceUnit; under: Police | null }) {
+  const st = under ? POLICE[under] : null;
+  return (
+    <li className="min-w-0 rounded-xl bg-white/80 px-2.5 py-1.5 ring-1 ring-slate-100" data-unit={u.name} data-unit-under={under ?? "none"}>
+      <span className="flex flex-wrap items-baseline gap-x-2"><span className="text-sm font-bold leading-snug text-slate-800">{u.name}</span><span className="text-[11px] font-semibold text-slate-500">{u.kind}</span></span>
+      <span className="block text-xs leading-snug text-slate-600">{u.address}{u.note ? <span className="font-semibold text-sky-800"> · {u.note}</span> : null}</span>
+      <span className="mt-1 flex flex-wrap items-center gap-1.5">
+        {u.phone ? <PhoneLink n={u.phone} /> : <span className="text-[11px] text-slate-500">no number shown</span>}
+        {st ? <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: st.ink }}><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ background: st.color }} />under {shortName(under!)}</span> : <span className="text-[11px] font-semibold text-slate-500">station not stated</span>}
+      </span>
+    </li>
+  );
+}
+
+/** one station: its address from the Commissionerate's site, how many wards, polling areas and areas it has, a row of its wards (pressing one jumps to it), and the areas of each place under it */
+function StationCard({ p, places, parts, areasFound, open, onToggle, searching }: { p: Police; places: PolicePlace[]; parts: number; areasFound: number; open: boolean; onToggle: () => void; searching: boolean }) {
+  const st = POLICE[p];
+  const { root, jump, lit } = usePinJump(open, onToggle, "data-place-group", placeTone);
+  const wardCount = places.filter((x) => x.ward).length, gpCount = places.length - wardCount;
+  return (
+    <article ref={root} className="overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-sm" data-police-card={p}>
+      <header className={`relative bg-gradient-to-br px-4 py-3.5 text-white ${st.gradient}`}>
+        <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-8 h-28 w-28 rounded-full bg-white/15 blur-xl" />
+        <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.16em] text-white/80"><ShieldCheck size={13} aria-hidden="true" /> {st.zone}, Asansol-Durgapur Police</p>
+        <h4 className="text-xl font-extrabold leading-tight">{st.name}</h4>
+        <p className="mt-0.5 text-xs font-semibold text-white/90">{st.address}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5" data-station-phones>{st.phone && <PhoneLink n={st.phone} light />}{st.mobile && <PhoneLink n={st.mobile} light />}</div>
+        <p className="mt-1.5 text-[11px] font-semibold leading-snug text-white/85">Reports to {st.reportsTo}{st.acpOffice ? <> · ACP&apos;s office <span className="tabular-nums">{st.acpOffice}</span></> : null}</p>
+        <a href={st.page} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-white underline-offset-2 hover:underline">Its page on the Commissionerate&apos;s site <ExternalLink size={11} aria-hidden="true" /></a>
+      </header>
+      <div className="space-y-3 p-3.5">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {[{ n: wardCount, t: wardCount === 1 ? "ward" : "wards" }, { n: parts, t: "polling areas" }, { n: areasFound, t: searching ? "areas found" : "areas" }].map((x) => (
+            <div key={x.t} className="rounded-xl px-2 py-1.5" style={{ background: st.soft }}><div className="text-xl font-extrabold tabular-nums" style={{ color: st.ink }}>{x.n}</div><div className="text-[11px] font-semibold text-slate-600">{x.t}</div></div>
+          ))}
+        </div>
+        {!searching && st.units.length > 0 && (
+          <div data-station-units>
+            <div className="mb-1 text-[11px] font-extrabold uppercase tracking-widest text-slate-500">Investigation centres and outposts under it</div>
+            <ul className="grid gap-1.5">{st.units.map((u) => <UnitRow key={u.name} u={u} under={p} />)}</ul>
+          </div>
+        )}
+        {places.length > 0 && (
+          <div>
+            <div className="mb-1 text-[11px] font-extrabold uppercase tracking-widest text-slate-500">Where it is: press one to see its areas</div>
+            <div className="flex flex-wrap gap-1.5">
+              {places.map((x) => {
+                const key = placeKey(x), seat = x.ward ? SEATS[x.ward.seat] : SEATS.purba;
+                return (
+                  <button key={key} type="button" onClick={() => jump(key)} data-place-chip={key} title={`Jump to the areas of ${x.ward ? `ward ${x.ward.ward}` : x.panchayat!.en} under ${st.name}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-bold transition hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400" style={{ background: seat.soft, borderColor: `${seat.color}55`, color: seat.ink }}>
+                    <span aria-hidden="true" className="h-2 w-2 rounded-sm" style={{ background: seat.color }} />{x.ward ? `Ward ${x.ward.ward}` : x.panchayat!.en}<span className="text-[10px] font-semibold opacity-70">{x.areas.length}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {gpCount > 0 && <p className="mt-1 text-[11px] text-slate-500">Gram panchayats of Kanksa block are in Durgapur Purba.</p>}
+          </div>
+        )}
+        {places.length === 0 && <p className="text-sm text-slate-500">No area matches that under this station.</p>}
+        {places.length > 0 && (
+          <button type="button" onClick={onToggle} aria-expanded={open} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+            {open ? "Hide" : "Show"} the {areasFound} area{areasFound === 1 ? "" : "s"}
+            <ChevronDown size={14} aria-hidden="true" className={`transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+        )}
+      </div>
+      <Collapse open={open}>
+        <div className="space-y-3 border-t border-slate-100 bg-slate-50/70 p-3">
+          {places.map((x) => {
+            const key = placeKey(x);
+            const pinOrder = (x.ward ?? x.panchayat!).pins;
+            const groups = groupByPin(x.areas, pinOrder);
+            return (
+              <section key={key} aria-label={x.ward ? `Ward ${x.ward.ward} under ${st.name}` : `${x.panchayat!.en} under ${st.name}`} data-place-group={key} style={lit(key)} className="-m-1.5 scroll-mt-2 rounded-xl p-1.5 transition-shadow duration-500">
+                <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-extrabold text-slate-800">{x.ward ? `Ward ${x.ward.ward}` : `${x.panchayat!.en} gram panchayat`}</span>
+                  <SeatTag seat={x.ward ? x.ward.seat : "purba"} />
+                  <span className="text-[11px] font-semibold text-slate-500">{x.areas.length} area{x.areas.length === 1 ? "" : "s"}</span>
+                </div>
+                <div className="space-y-2">
+                  {groups.map((g) => (
+                    <div key={g.pin} aria-label={`Areas with PIN ${g.pin}`}>
+                      <div className="mb-1"><PinChip pin={g.pin} /></div>
+                      <ul className="grid gap-1.5 sm:grid-cols-2">{g.areas.map((a) => <AreaRow key={a[0] + a[2]} a={a} />)}</ul>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </Collapse>
+    </article>
+  );
+}
+
+function PoliceTab({ query, setQuery }: { query: string; setQuery: (q: string) => void }) {
+  const found = useMemo(() => searchPolice(query), [query]);
+  const units = useMemo(() => searchUnits(query), [query]);
+  const [open, setOpen] = useState<Set<Police>>(new Set());
+  const searching = query.trim().length > 0;
+  const toggle = (p: Police) => setOpen((o) => { const x = new Set(o); if (x.has(p)) x.delete(p); else x.add(p); return x; });
+  const total = found.reduce((a, f) => a + f.areas, 0);
+  return (
+    <div role="tabpanel" id="pincode-panel-police" aria-labelledby="pincode-tabs" className="space-y-3">
+      <p className="flex items-start gap-2 rounded-2xl border border-sky-100 bg-sky-50/70 px-3 py-2 text-xs leading-relaxed text-slate-700"><ShieldCheck size={15} className="mt-px shrink-0 text-sky-700" aria-hidden="true" />
+        <span>Which police station (thana) an area is under, as the Election Commission&apos;s roll prints it for each polling area. <strong>Four stations</strong> cover the 43 wards and the three gram panchayats: Durgapur, Coke Oven, Kanksa and New Township; each has its telephone numbers, whom it reports to, and the investigation centres and outposts that work under it. Type an area, a ward, a PIN or the name of a post (waria, city centre, bidhannagar) to see its station.</span></p>
+      <SearchBox value={query} onChange={setQuery} label="Find the police station of an area" placeholder="Find an area, a ward or a PIN: ward 22, sagarbhanga, 713204, ambuja" />
+      <p className="text-xs text-slate-500" aria-live="polite">{searching ? (total === 0 ? (units.length > 0 ? `No area matches that, but ${units.length} police post${units.length === 1 ? " does" : "s do"}.` : "No area matches that.") : `${total} area${total === 1 ? "" : "s"} found, under ${found.filter((f) => f.areas > 0).map((f) => shortName(f.police)).join(", ")}.`) : "Press a station\u2019s \u201CShow the areas\u201D to read all of its areas, or a ward in its row to jump to it."}</p>
+      {units.length > 0 && (
+        <section className="rounded-2xl border border-sky-200 bg-sky-50/60 p-3" aria-label="Police posts that match" data-units-found>
+          <h4 className="mb-1.5 text-sm font-extrabold text-slate-900">Posts that match <span className="font-semibold text-slate-500">({units.length})</span></h4>
+          <ul className="grid gap-1.5 sm:grid-cols-2">{units.map((x) => <UnitRow key={x.unit.name} u={x.unit} under={x.under} />)}</ul>
+        </section>
+      )}
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        {POLICE_ORDER.filter((p) => !searching || found.find((x) => x.police === p)!.areas > 0).map((p) => {
+          const f = found.find((x) => x.police === p)!;
+          return <StationCard key={p} p={p} places={f.places} parts={policeParts(p)} areasFound={f.areas} open={searching ? f.areas > 0 : open.has(p)} onToggle={() => toggle(p)} searching={searching} />;
+        })}
+      </div>
+      {!searching && (
+        <div className="grid gap-3 lg:grid-cols-2" data-also-serving>
+          <section className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm" aria-label="Also serving the city">
+            <h4 className="mb-1.5 text-sm font-extrabold text-slate-900">Also serving the city</h4>
+            <ul className="space-y-2">
+              {ALSO_SERVING.map((s) => (
+                <li key={s.id} className="text-xs leading-snug text-slate-600" data-also={s.id}>
+                  <span className="block text-sm font-bold text-slate-800">{s.name}</span>{s.what}.<span className="block">{s.address}</span>
+                  <span className="mt-1 flex flex-wrap items-center gap-1.5"><PhoneLink n={s.mobile} /><a href={s.page} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-sky-800 underline-offset-2 hover:underline">Its page <ExternalLink size={11} aria-hidden="true" /></a></span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm" aria-label="Posts whose station is not stated">
+            <h4 className="mb-1 text-sm font-extrabold text-slate-900">Posts whose station is not stated</h4>
+            <p className="mb-1.5 text-xs text-slate-500">The sources name these posts in Durgapur but do not say which station they work under, so they are not put under one.</p>
+            <ul className="grid gap-1.5">{OTHER_UNITS.map((u) => <UnitRow key={u.name} u={u} under={null} />)}</ul>
+          </section>
+        </div>
+      )}
+      <p className="flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-snug text-rose-900" data-emergency><Siren size={15} className="mt-px shrink-0" aria-hidden="true" /><span><strong>In an emergency dial {EMERGENCY.number}</strong>, {EMERGENCY.note}.</span></p>
+      <p className="text-xs leading-relaxed text-slate-500" data-police-sources>
+        Telephone numbers and posts are as these publications give them: {(["adpc", "dmc", "state", "wiki"] as const).map((k, i) => <span key={k}>{i > 0 ? "; " : ""}<a className="font-semibold text-slate-700 hover:underline" href={POLICE_SOURCES[k].url} target="_blank" rel="noopener noreferrer">{POLICE_SOURCES[k].name}</a> ({POLICE_SOURCES[k].note})</span>)}. A number or a post can change: for a call that matters, check the station&apos;s own page.
+      </p>
+      <p className="flex items-start gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900"><Info size={14} className="mt-px shrink-0" aria-hidden="true" />
+        <span>The station is the one printed on the roll for the area&apos;s polling part (a ward can have areas under more than one), and the boundaries of a station can be changed. To be sure for an address, ask the station or use the Commissionerate&apos;s <a className="font-semibold underline" href={POLICE_FINDER} target="_blank" rel="noopener noreferrer">Know Your Police Station</a>.</span></p>
+    </div>
+  );
+}
+
 /* ---------- the card ---------- */
 
 /** `initialQuery` is what the search line asked for: "ward 22" on the wards tab, or a PIN or a post office's name on the PIN tab */
 export function PincodeCard({ initialTab = "pins", initialQuery = "" }: { initialTab?: PincodeTab; initialQuery?: string }) {
   const [tab, setTab] = useState<PincodeTab>(initialTab);
   const [query, setQuery] = useState(initialTab === "wards" ? initialQuery : "");
+  const [pq, setPq] = useState(initialTab === "police" ? initialQuery : "");
   const [seat, setSeat] = useState<"all" | Seat>("all");
   const [open, setOpen] = useState<Set<number>>(() => { const m = initialTab === "wards" ? initialQuery.match(/^ward (\d+)$/) : null; return new Set(m ? [Number(m[1])] : []); });
   const go = (to: PincodeTab, q?: string) => {
+    if (to === "police") { if (q !== undefined) setPq(q); setTab(to); return; }
     if (q !== undefined) { setQuery(q); setSeat("all"); const m = q.match(/^ward (\d+)$/); if (m) setOpen((o) => new Set(o).add(Number(m[1]))); }
     setTab(to);
   };
@@ -386,7 +576,8 @@ export function PincodeCard({ initialTab = "pins", initialQuery = "" }: { initia
       </div>
       <div id="pincode-tabs" className="sr-only">Durgapur areas</div>
       {tab === "pins" && <PinsTab go={go} initialQuery={initialTab === "pins" ? initialQuery : ""} />}
-      {tab === "wards" && <WardsTab query={query} setQuery={setQuery} seat={seat} setSeat={setSeat} open={open} setOpen={setOpen} />}
+      {tab === "wards" && <WardsTab query={query} setQuery={setQuery} seat={seat} setSeat={setSeat} open={open} setOpen={setOpen} go={go} />}
+      {tab === "police" && <PoliceTab query={pq} setQuery={setPq} />}
       {tab === "seats" && <SeatsTab go={go} />}
       <p className="mt-4 text-xs leading-relaxed text-slate-500" data-sources>
         Sources: <a className="font-semibold text-slate-700 hover:underline" href="https://www.indiapost.gov.in" target="_blank" rel="noopener noreferrer">India Post</a>&apos;s PIN directory (read through <a className="font-semibold text-slate-700 hover:underline" href="https://api.postalpincode.in" target="_blank" rel="noopener noreferrer">api.postalpincode.in</a>);

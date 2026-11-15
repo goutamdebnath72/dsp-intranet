@@ -49,6 +49,10 @@ const mk = buildMarkets([q(INDICES[0], 84000, 83000), q(INDICES[1], 25500, 25600
 const mkHtml = h(<MarketsBody data={mk} />);
 ok("markets: Sensex and Nifty tiles with change, a line for the day, the watch-list movers with SAIL marked, what is missing named, and the not-advice line", /Sensex/i.test(mkHtml) && /84,000\.00/.test(mkHtml) && /Nifty 50/i.test(mkHtml) && /Top gainers/.test(mkHtml) && /Top losers|None is down/.test(mkHtml) && /SAIL/.test(mkHtml) && /Not answering just now: Nifty Bank/.test(mkHtml) && /Market data, not advice/.test(mkHtml) && /fixed list of large companies/.test(mkHtml) && /<polyline/.test(mkHtml));
 
+const mkSaved = { ...mk, saved: { at: "2026-11-13T10:30:00.000Z", names: ["Nifty 50", "SAIL"] } };
+const savedHtml = h(<MarketsBody data={mkSaved} />), allSavedHtml = h(<MarketsBody data={{ ...mk, saved: { at: "2026-11-13T10:30:00.000Z", names: [...mk.indices, ...mk.stocks].map((x) => x.name) } }} />);
+ok("markets: figures from the saved copy say NOT LIVE, name which ones and when they were received; all saved says 'these are'; live figures carry no such note", /data-saved-copy/.test(savedHtml) && /Not live\./.test(savedHtml) && /Nifty 50, SAIL are the last figures/.test(savedHtml) && /these are<\/?[^>]*>?[^<]*the last figures|these are the last figures/.test(allSavedHtml.replace(/<!-- -->/g, "")) && !/data-saved-copy/.test(mkHtml));
+
 // stories: a new tab, safely, only a headline and a link
 const items = parseRss(fx("rss-thehindu.xml"), "The Hindu");
 const storyHtml = h(<StoryList items={items} lang="en" empty="none" />);

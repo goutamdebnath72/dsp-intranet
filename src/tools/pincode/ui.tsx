@@ -18,14 +18,14 @@ const PincodeCard = dynamic(() => import("@/tools/pincode/PincodeCard").then((m)
 /** "wards|ward 22" -> the tab and what to look for */
 export function readLang(lang?: string): { tab: PincodeTab; query: string } {
   const [t, ...rest] = (lang ?? "pins|").split("|");
-  return { tab: t === "wards" || t === "seats" ? t : "pins", query: rest.join("|") };
+  return { tab: t === "wards" || t === "seats" || t === "police" ? t : "pins", query: rest.join("|") };
 }
 
 export const pincodeUi: TopicUi = {
   id: "pincode",
   live: {
-    title: "PIN codes, Wards and Assembly seats of Durgapur",
-    subtitle: "Through the lens of the Steel Plant: the PIN codes, the 43 DMC wards and the two assembly seats",
+    title: "PIN codes, Wards, Assembly seats and Police stations of Durgapur",
+    subtitle: "Through the lens of the Steel Plant: the PIN codes, the 43 DMC wards, the two assembly seats and the four police stations",
     tone: "violet",
     icon: <MapPinned size={20} />,
     card: (lang) => { const r = readLang(lang); return <PincodeCard key={lang ?? "pins|"} initialTab={r.tab} initialQuery={r.query} />; },

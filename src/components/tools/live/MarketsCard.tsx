@@ -6,6 +6,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import { AlertTriangle } from "lucide-react";
 import { DateTime } from "luxon";
 import { useLive } from "@/hooks/useLive";
 import { sessionState, type MarketsData, type Quote } from "@/lib/live/markets";
@@ -48,6 +49,12 @@ export function MarketsBody({ data }: { data: MarketsData }) {
     <div>
       {data.indices.length > 0 && <div className="grid gap-3 sm:grid-cols-3">{data.indices.map((q, i) => <IndexTile key={q.symbol} q={q} i={i} />)}</div>}
       {asOf && <p className="mt-2 text-xs text-slate-500">Last price at {stamp(asOf)} IST. Prices may be delayed by about fifteen minutes.</p>}
+      {data.saved && (
+        <p role="status" data-saved-copy className="mt-2 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900">
+          <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden="true" />
+          <span><strong>Not live.</strong> Yahoo Finance did not answer just now, so {data.saved.names.length === data.indices.length + data.stocks.length ? "these are" : `${data.saved.names.join(", ")} ${data.saved.names.length === 1 ? "is" : "are"}`} the last figures this site saved, received {stamp(data.saved.at)} IST. The price shown for each is its last price, with its own time. Try again in a few minutes for live figures.</span>
+        </p>
+      )}
 
       {data.stocks.length > 0 && (
         <div className="mt-4 rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm">
