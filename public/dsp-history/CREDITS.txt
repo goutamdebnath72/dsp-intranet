@@ -1,0 +1,13 @@
+Pictures of the DSP story card (src/tools/dsphistory/). All are SAIL's own photographs, as SAIL publishes them:
+
+  panorama-inception.jpg, blast-furnace-1-president-prasad-1959.jpg, ks-sen-coke-oven-battery-1959.jpg, queen-elizabeth-with-niyogi-1961.jpg,
+  nehru-section-mill-1961.jpg, bc-roy-merchant-mill-1962.jpg, nehru-wheel-plant-1962.jpg, shastri-bell-1964.jpg, indira-gandhi-wadhera-1970.jpg,
+  sathe-modernisation-1985.jpg
+      SAIL, "Background & History" page (History Tree): https://sail.co.in/en/company/background-history  (the captions on the card are SAIL's)
+  eric-coates-mission.jpg, queen-elizabeth-durgapur-club.jpg
+      SAIL, "Steel Cities" (2020): https://www.sail.co.in/sites/default/files/publication/2020-06/sail_steel_cities.pdf  (pages 66 and 86)
+  surajit-mishra.jpg
+      SAIL, "Board & Organisation" page: https://sail.co.in/en/company/board
+
+Downloaded on 15 November 2026. They are SAIL's property and are used here on the plant's intranet with their SAIL captions and credit.
+If the use of any of them is not wanted, delete the file and its entry in src/tools/dsphistory/history.ts (PHOTOS): the card shows initials where a head has no picture.

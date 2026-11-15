@@ -32,7 +32,7 @@ ok("every topic with logic of its own has its own selftest in its folder (a new 
 // what a topic says it does, it must do
 ok("every form is drawn: a title, a tone, an icon and a tile in the list of calculators", topics.filter((t) => t.form).every((t) => { const f = TOPIC_UIS.find((u) => u.id === t.id)?.form; return !!f && f.title.length > 5 && !!f.tone && !!f.icon && f.menu.title.length > 3 && f.menu.text.length > 10; }));
 ok("a topic has a form in one registry exactly when it has one in the other", topics.every((t) => !!t.form === !!TOPIC_UIS.find((u) => u.id === t.id)?.form));
-ok("every live topic has its card, every card its words", topics.filter((t) => t.live).every((t) => !!TOPIC_UIS.find((u) => u.id === t.id)?.live && t.live!.keys.length > 0) && TOPIC_UIS.filter((u) => u.live).every((u) => !!topics.find((t) => t.id === u.id)?.live));
+ok("every live topic has its card, every card its words", topics.filter((t) => t.live).every((t) => !!TOPIC_UIS.find((u) => u.id === t.id)?.live && (t.live!.keys.length > 0 || (t.live!.phrases?.length ?? 0) > 0)) && TOPIC_UIS.filter((u) => u.live).every((u) => !!topics.find((t) => t.id === u.id)?.live));
 ok("form ranks are unique (the order in which plain-word requests are tried is never a tie)", new Set(topics.filter((t) => t.form).map((t) => t.form!.rank)).size === topics.filter((t) => t.form).length);
 ok("every form has nouns, and a request that is only its nouns and fillers can be told from a sentence", topics.filter((t) => t.form).every((t) => t.form!.nouns.length > 0));
 

@@ -1,7 +1,9 @@
 // src/tools/steel/SteelCard.tsx
 //
-// THE STEEL CARD: what steel costs, who makes how much, and how India and the world are doing. Four tabs.
+// THE STEEL CARD: what steel costs, who makes how much, and how India and the world are doing. Five tabs.
 //  1 "Prices": the retail prices of TMT bar, HR coil and CR coil in Mumbai, month by month, from the Ministry of Steel's monthly reports (the official benchmark), with the iron ore price beside them.
+//  1b "DSP products": what the Durgapur Steel Plant makes to sell (its manuals: sizes, capacities) beside the Durgapur market's quotes for the same kind of steel (a trade-price site, dated, GST not included). The quotes are
+//     the market's, never DSP's or SAIL's own price: the tab says so. dsp.ts holds the figures and their sources.
 //  2 "Companies": SAIL, Tata Steel, JSW Steel and Jindal Steel & Power quarter by quarter, from their own results: production, sales, EBITDA per tonne, and the results.
 //  3 "SAIL & CPSEs": SAIL, RINL and NMDC Steel month by month (the Ministry's tables), SAIL against the same month a year earlier.
 //  4 "India & world": India's crude steel, consumption and trade by year, and the biggest producers.
@@ -16,20 +18,39 @@ import { ColumnChart, type Bar } from "@/components/tools/ColumnChart";
 import { TrendChart } from "@/components/tools/live/LivePieces";
 import { COMPANIES, COMPANIES_READ_ON, type Company, type CompanyQuarter } from "./companies";
 import { IRON_ORE, MOS_OVERVIEW, MOS_REPORTS, MOS_SITE, NSL_MONTHLY, RETAIL, RINL_MONTHLY, SAIL_MONTHLY, WSA_MONTHLY } from "./mos";
+import {
+  BILLET_SECOND, DSP_BYPRODUCTS, DSP_CAPACITY, DSP_HOT_METAL, DSP_MANUAL, DSP_MILLS_FY25, DSP_PRODUCTS, DSP_WTA, DSP_YEARS, MSM_CE_MARK, QUOTES, QUOTES_READ_ON, QUOTE_OLD_AFTER_DAYS, QUOTE_SOURCE, TICKER_NOTE, TMT12_CITIES, ageDays, dateLabel, durgapurTmtRank, fy25Split, withGst, yearChange, type ProdSource, type Quote,
+} from "./dsp";
 import { INDIA_ANNUAL, INDIA_FACTS, INDIA_HALF, INDIA_TRADE, SAIL_CUMULATIVE, WSA_ANNUAL } from "./mosAnnual";
 import {
   PRODUCTS, f1, f2, f3, flatPremium, fyToDate, halfYearChange, indiaGrowth, indiaShareOfWorld, inr, ironOreLatest, latestRetail, latestSail, monthLabel, monthShift, monthShort, pct, retailChange, retailPoints, retailRange, signed, yearOnYear,
   type Product,
 } from "./steel";
 
-export type SteelTab = "prices" | "companies" | "sail" | "india";
+export type SteelTab = "prices" | "dsp" | "companies" | "sail" | "india";
 const TABS: Array<{ id: SteelTab; text: string }> = [
   { id: "prices", text: "Prices" },
+  { id: "dsp", text: "DSP products" },
   { id: "companies", text: "Companies" },
   { id: "sail", text: "SAIL & CPSEs" },
   { id: "india", text: "India & world" },
 ];
 const PILL = "from-sky-600 to-blue-700 shadow-sky-600/30";
+/** one colour for each DSP product (whole class names, so that Tailwind finds them): the strip and price tile (grad), the mill chip (chip), the card's edge (border) and the small labels (label) */
+const DSP_ACCENT: Record<string, { grad: string; chip: string; border: string; label: string }> = {
+  tmt: { grad: "from-orange-500 to-amber-600", chip: "bg-orange-100 text-orange-800", border: "border-orange-200", label: "text-orange-700" },
+  channel: { grad: "from-blue-600 to-indigo-600", chip: "bg-blue-100 text-blue-800", border: "border-blue-200", label: "text-blue-700" },
+  angle: { grad: "from-violet-600 to-purple-600", chip: "bg-violet-100 text-violet-800", border: "border-violet-200", label: "text-violet-700" },
+  beam: { grad: "from-teal-600 to-emerald-600", chip: "bg-teal-100 text-teal-800", border: "border-teal-200", label: "text-teal-700" },
+  billet: { grad: "from-rose-500 to-pink-600", chip: "bg-rose-100 text-rose-800", border: "border-rose-200", label: "text-rose-700" },
+  wheel: { grad: "from-sky-600 to-cyan-600", chip: "bg-sky-100 text-sky-800", border: "border-sky-200", label: "text-sky-700" },
+  pig: { grad: "from-amber-500 to-yellow-600", chip: "bg-amber-100 text-amber-900", border: "border-amber-200", label: "text-amber-800" },
+};
+const DSP_CAPACITY_TILES = [
+  { name: "Hot metal", grad: "from-orange-500 to-amber-600", v: DSP_CAPACITY.hotMetal },
+  { name: "Crude steel", grad: "from-blue-600 to-indigo-600", v: DSP_CAPACITY.crudeSteel },
+  { name: "Saleable steel", grad: "from-teal-600 to-emerald-600", v: DSP_CAPACITY.saleableSteel },
+] as const;
 
 /* ---------- small pieces ---------- */
 
@@ -148,6 +169,230 @@ function PricesTab() {
         Source: Ministry of Steel, <ExtLink href={MOS_SITE}>Monthly Economic Report</ExtLink> for each month ({MOS_REPORTS.length} reports, December 2025 to {monthLabel(MOS_REPORTS[MOS_REPORTS.length - 1].month)}); the month-on-month changes are worked out from two published figures.
         These are the prices at the end of the month for one market (Mumbai): other cities, and the mills&apos; own prices to large buyers, differ. In one report (July 2026) the percentage printed for HR coil does not match its own figures; the figures are shown.
       </p>
+    </div>
+  );
+}
+
+/* ---------- tab: DSP products ---------- */
+
+/** the day's change a trade site prints beside a quote, in rupees: ▲ green, ▼ red, nothing when it prints none */
+function RupeeMove({ change }: { change: number | null }) {
+  if (change === null) return null;
+  const tone = change > 0 ? "bg-emerald-100 text-emerald-800" : change < 0 ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-600";
+  return <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold ${tone}`} data-move>{change > 0 ? "▲" : change < 0 ? "▼" : ""} {inr(Math.abs(change))}<span className="ml-1 font-semibold opacity-70">on the day</span></span>;
+}
+
+/** what DSP produced: by year, the three units of 2024-25, the product mix of 2025-26 and the wheels and axles; every figure as SAIL's reports state it, a dash where they do not */
+function DspProduction() {
+  const years = [...DSP_YEARS].reverse();
+  const split = fy25Split();
+  const mix = DSP_YEARS.find((y) => y.mix)!.mix!;
+  const bars: Bar[] = DSP_YEARS.map((y) => ({ tip: y.crude === null ? `${y.fy}: no figure stated` : `${y.fy}: ${f2(y.crude)} MT of crude steel`, axis: y.fy, value: y.crude }));
+  const cell = (v: number | null, d = 2) => v === null ? <span className="text-slate-400" aria-label="not stated">—</span> : f2(Number(v.toFixed(d)));
+  const wta = [...DSP_WTA].reverse();
+  const hmBars: Bar[] = DSP_HOT_METAL.map((y) => ({ tip: y.mt === null ? `${y.fy}: not stated for DSP` : `${y.fy}: ${f2(y.mt)} MT of hot metal`, axis: y.fy, value: y.mt }));
+  const hmStated = DSP_HOT_METAL.filter((y) => y.mt !== null).length;
+  const hmBest = DSP_HOT_METAL.reduce((a, y) => (y.mt !== null && (a.mt === null || y.mt > a.mt) ? y : a), DSP_HOT_METAL[0]);
+  const hmBest0 = DSP_HOT_METAL.find((y) => y.fy === "2018-19")!;
+  return (
+    <section data-dsp-production className="space-y-3" aria-label="What the plant produced">
+      <Band icon={<TrendingUp size={15} className="mt-px shrink-0" aria-hidden="true" />} tone="sky">
+        <strong>What the plant produced</strong>, as SAIL&apos;s own annual reports and results presentation state it (million tonnes, MT). Where a report gives no figure there is a dash: nothing is estimated. The reports do not give TMT bars, structurals,
+        blooms, billets, wheels or axles in tonnes, nor any month-by-month figure, so those are not here; a figure marked <em>worked out</em> is arithmetic on two stated figures.
+      </Band>
+      <div className="rounded-3xl border border-orange-200 bg-gradient-to-br from-orange-50/80 to-white p-4 shadow-sm" data-dsp-hotmetal>
+        <h4 className="text-sm font-extrabold text-slate-900">DSP hot metal, the last ten years <span className="font-semibold text-slate-500">(MT, financial years)</span></h4>
+        <p className="mt-1 text-xs text-slate-600" data-dsp-hotmetal-count>{hmStated} of the {DSP_HOT_METAL.length} years have a figure that SAIL&apos;s reports state for DSP; the other {DSP_HOT_METAL.length - hmStated} are left empty, not estimated. The best was {f2(hmBest.mt!)} MT in {hmBest.fy}.</p>
+        <div className="mt-2"><ColumnChart bars={hmBars} from="zero" format={(v) => String(Math.round(v * 100) / 100)} valueFormat={(v) => f2(v)} color="#ea580c" ariaLabel={`DSP hot metal by financial year, Million Tonnes, 2016-17 to 2025-26: ${DSP_HOT_METAL.filter((y) => y.mt !== null).map((y) => `${y.fy} ${f2(y.mt!)}`).join(", ")}; the other years are not stated`} showValues /></div>
+        <p className="mt-1 text-[11px] text-slate-500">Capacity: {f2(DSP_CAPACITY.hotMetal)} MT in SAIL&apos;s manual, 2.45 MT in a Lok Sabha reply and the CAG&apos;s audit. For the empty years the reports say only that none beat the {f2(hmBest0.mt!)} MT of {hmBest0.fy} (the best ever until 2022-23).</p>
+        <details className="mt-2 rounded-2xl border border-orange-100 bg-white/70 px-3 py-2">
+          <summary className="cursor-pointer text-xs font-bold text-slate-700 hover:text-slate-900">Each year, and why a year is empty</summary>
+          <table className="mt-2 w-full text-left text-sm" data-dsp-hotmetal-table>
+            <tbody>
+              {[...DSP_HOT_METAL].reverse().map((y) => (
+                <tr key={y.fy} className="border-t border-orange-100 align-top"><th scope="row" className="py-1 pr-3 text-sm font-semibold text-slate-800">{y.fy}</th><td className="py-1 pr-3 text-right tabular-nums">{y.mt === null ? <span className="text-slate-400" aria-label="not stated">—</span> : f2(y.mt)}</td><td className="py-1 text-xs text-slate-600">{y.why}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      </div>
+      <div className="rounded-3xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+        <h4 className="mb-2 text-sm font-extrabold text-slate-900">DSP by financial year <span className="font-semibold text-slate-500">(MT)</span></h4>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left text-sm" data-dsp-years>
+            <thead><tr className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500"><th className="py-1 pr-3">Year</th><th className="py-1 pr-3 text-right">Hot metal</th><th className="py-1 pr-3 text-right">Crude steel</th><th className="py-1 pr-3 text-right">Saleable steel</th><th className="py-1 pr-3 text-right">Finished steel</th><th className="py-1 text-right">Semi-finished</th></tr></thead>
+            <tbody>
+              {years.map((y, i) => {
+                const prev = years[i + 1];
+                const semis = y.fy === "2024-25" ? split.semis : null;
+                return y.mix ? (
+                  <tr key={y.fy} className="border-t border-slate-100"><th scope="row" className="py-1 pr-3 text-sm font-semibold text-slate-800">{y.fy}</th><td colSpan={5} className="py-1 text-xs text-slate-600">Tonnes not stated for DSP. Highest ever finished steel; saleable steel was <strong className="text-orange-700">{mix.longs}% longs</strong> and <strong className="text-emerald-700">{mix.semis}% semi-finished</strong>.</td></tr>
+                ) : (
+                  <tr key={y.fy} className="border-t border-slate-100">
+                    <th scope="row" className="py-1 pr-3 text-sm font-semibold text-slate-800">{y.fy}</th>
+                    <td className="py-1 pr-3 text-right tabular-nums">{cell(y.hotMetal)}</td>
+                    <td className="py-1 pr-3 text-right tabular-nums">{cell(y.crude)} {prev && yearChange(y.crude, prev.crude) !== null && <span className={`text-[11px] font-bold ${(yearChange(y.crude, prev.crude) ?? 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{signed(yearChange(y.crude, prev.crude)!)}</span>}</td>
+                    <td className="py-1 pr-3 text-right tabular-nums">{cell(y.saleable)} {prev && yearChange(y.saleable, prev.saleable) !== null && <span className={`text-[11px] font-bold ${(yearChange(y.saleable, prev.saleable) ?? 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{signed(yearChange(y.saleable, prev.saleable)!)}</span>}</td>
+                    <td className="py-1 pr-3 text-right tabular-nums">{y.finished === null ? cell(null) : f3(y.finished)}</td>
+                    <td className="py-1 text-right tabular-nums">{semis === null ? cell(null) : <>{f2(semis)} <span className="text-[11px] font-semibold text-slate-500">worked out</span></>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-[11px] text-slate-500">2022-23 is the &ldquo;previous best&rdquo; that the 2023-24 report names. Semi-finished 2024-25 is saleable steel ({f2(split.saleable)}) less finished steel ({f3(split.finished)}): finished steel was {split.finishedShare}% of saleable steel, which is how SAIL&apos;s own table splits saleable steel. The change beside a figure is on the year before.</p>
+      </div>
+      <div className="rounded-3xl border border-slate-200 bg-white/70 p-4 shadow-sm" data-dsp-years-chart>
+        <h4 className="mb-2 text-sm font-extrabold text-slate-900">Crude steel by year <span className="font-semibold text-slate-500">(MT; 2025-26 not stated for DSP)</span></h4>
+        <ColumnChart bars={bars} from="zero" format={(v) => String(Math.round(v * 100) / 100)} valueFormat={(v) => f2(v)} color="#ea580c" ariaLabel="DSP crude steel by financial year, Million Tonnes, 2022-23 to 2024-25; 2025-26 is not stated" showValues />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-dsp-units>
+        {DSP_MILLS_FY25.map((m) => {
+          const grad = m.id === "brc" ? "from-rose-500 to-pink-600" : m.id === "msm" ? "from-blue-600 to-indigo-600" : "from-orange-500 to-amber-600";
+          return (
+            <div key={m.id} data-dsp-unit={m.id} className={`relative overflow-hidden rounded-3xl bg-gradient-to-br p-4 text-white shadow-md ${grad}`}>
+              <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/30 blur-2xl" />
+              <div className="relative text-xs font-extrabold uppercase tracking-widest opacity-90">{m.kind} · {m.name}</div>
+              <div className="relative mt-1 text-3xl font-extrabold leading-tight tabular-nums">{f3(m.mt)} <span className="text-sm font-bold opacity-90">MT</span></div>
+              <div className="relative text-xs font-semibold opacity-90">{m.makes} · 2024-25 · its highest ever</div>
+            </div>
+          );
+        })}
+        <div data-dsp-unit="finished" className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-600 to-emerald-600 p-4 text-white shadow-md">
+          <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/30 blur-2xl" />
+          <div className="relative text-xs font-extrabold uppercase tracking-widest opacity-90">Finished steel, all units</div>
+          <div className="relative mt-1 text-3xl font-extrabold leading-tight tabular-nums">{f3(split.finished)} <span className="text-sm font-bold opacity-90">MT</span></div>
+          <div className="relative text-xs font-semibold opacity-90">2024-25 · {f3(split.otherFinished)} MT beyond the two mills (worked out; the report does not itemise it)</div>
+        </div>
+      </div>
+      <p className="text-xs text-slate-500">The three units&apos; output for 2024-25 is the only unit-wise output the reports state; SAIL gives it in lakh tonnes (6.26, 5.57 and 4.28), shown here divided by 10, in MT.</p>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm" data-dsp-mix>
+          <h4 className="text-sm font-extrabold text-slate-900">Product mix, 2025-26 <span className="font-semibold text-slate-500">(share of saleable steel)</span></h4>
+          <div className="mt-2 flex h-6 overflow-hidden rounded-full" role="img" aria-label={`DSP saleable steel 2025-26: ${mix.longs}% longs, ${mix.semis}% semi-finished`}>
+            <span className="flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-xs font-extrabold text-white" style={{ width: `${mix.longs}%` }}>{mix.longs}%</span>
+            <span className="flex items-center justify-center bg-gradient-to-r from-emerald-500 to-teal-500 text-xs font-extrabold text-white" style={{ width: `${mix.semis}%` }}>{mix.semis}%</span>
+          </div>
+          <p className="mt-2 text-xs text-slate-600"><strong className="text-orange-700">Longs</strong> (finished bars and sections, wheels and axles) and <strong className="text-emerald-700">semis</strong> (blooms, billets and rounds sold or sent on): SAIL&apos;s results presentation for the year. In 2024-25 finished steel was {split.finishedShare}% of DSP&apos;s saleable steel (worked out), so the finished share has risen.</p>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm" data-dsp-wta>
+          <h4 className="text-sm font-extrabold text-slate-900">Wheels, tyres and axles supplied to Indian Railways <span className="font-semibold text-slate-500">(items, SAIL)</span></h4>
+          <table className="mt-2 w-full text-left text-sm">
+            <thead><tr className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500"><th className="py-1 pr-2">Year</th><th className="py-1 pr-2 text-right">Items</th><th className="py-1 pr-2 text-right">Change</th><th className="py-1 text-right">Vande Bharat wheels</th></tr></thead>
+            <tbody>
+              {wta.map((w, i) => (
+                <tr key={w.fy} className="border-t border-slate-100"><th scope="row" className="py-1 pr-2 text-sm font-semibold text-slate-800">{w.fy}</th><td className="py-1 pr-2 text-right tabular-nums">{w.items.toLocaleString("en-IN")}</td><td className="py-1 pr-2 text-right"><Delta p={wta[i + 1] ? pct(w.items, wta[i + 1].items) : null} /></td><td className="py-1 text-right tabular-nums">{w.vandeBharat === null ? <span className="text-slate-400" aria-label="not stated">—</span> : w.vandeBharat.toLocaleString("en-IN")}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-[11px] text-slate-500">Numbers of items, not tonnes: the reports give no tonnes of wheels and axles. They are SAIL&apos;s supply; the forged wheels are made at DSP&apos;s Wheel &amp; Axle Plant. The first Vande Bharat wheels left on 20 June 2025.</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DspTab() {
+  const age = ageDays(QUOTES.tmt12.asOf);
+  const asOf = dateLabel(QUOTES.tmt12.asOf);
+  const rank = durgapurTmtRank();
+  const top = TMT12_CITIES[TMT12_CITIES.length - 1].rupees;
+  return (
+    <div role="tabpanel" id="steel-panel-dsp" aria-labelledby="steel-tabs" className="space-y-3">
+      <Band icon={<Factory size={15} className="mt-px shrink-0" aria-hidden="true" />} tone="sky">
+        <strong>What the Durgapur Steel Plant makes to sell</strong>, from the plant&apos;s own manual, beside <strong>what the same kind of steel costs in the Durgapur market</strong> on {asOf} (a trade-price site&apos;s quotes, rupees per tonne, GST not included).
+        These are <strong>market quotes for the kind of steel, not DSP&apos;s or SAIL&apos;s selling prices</strong>: SAIL sells at its own list and dealer rates and publishes none, and a market quote is for one size (TMT 12 mm, while DSP rolls 20 and 25 mm) and mostly the re-rollers&apos; rate.
+      </Band>
+      {age > QUOTE_OLD_AFTER_DAYS && (
+        <Band icon={<Info size={15} className="mt-px shrink-0" aria-hidden="true" />} tone="amber"><span data-dsp-old>These quotes are {age} days old (they were stamped {asOf}). A trade rate moves every few days: treat them as a record of that day, not of today.</span></Band>
+      )}
+      <div className="grid gap-3 sm:grid-cols-3" data-dsp-capacity>
+        {DSP_CAPACITY_TILES.map((t) => (
+          <div key={t.name} className={`relative overflow-hidden rounded-3xl bg-gradient-to-br p-4 text-white shadow-md ${t.grad}`}>
+            <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/30 blur-2xl" />
+            <div className="relative text-xs font-extrabold uppercase tracking-widest opacity-90">{t.name}, capacity</div>
+            <div className="relative mt-1 text-3xl font-extrabold leading-tight tabular-nums">{f2(t.v)} <span className="text-sm font-bold opacity-90">MT a year</span></div>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-slate-500">The plant&apos;s capacity after its modernisation and expansion, as SAIL&apos;s own manual gives it ({DSP_CAPACITY.page}). {DSP_CAPACITY.note}</p>
+
+      <DspProduction />
+
+      <div className="space-y-3">
+        {DSP_PRODUCTS.map((p) => {
+          const a = DSP_ACCENT[p.id];
+          return (
+          <section key={p.id} data-dsp-product={p.id} className={`relative overflow-hidden rounded-3xl border bg-white/85 p-4 pt-5 shadow-sm ${a.border}`} aria-label={p.name}>
+            <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${a.grad}`} />
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <h4 className="text-base font-extrabold text-slate-900">{p.name}</h4>
+              <span className="flex flex-wrap items-center gap-1.5"><span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${a.chip}`}>{p.mill}</span><span className="text-xs font-semibold text-slate-500">manual {p.page}</span></span>
+            </div>
+            <p className="mt-1 text-sm text-slate-700">{p.use}.</p>
+            <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs text-slate-600 sm:grid-cols-[auto,1fr]">
+              <dt className={`font-extrabold uppercase tracking-widest ${a.label}`}>Sizes</dt><dd>{p.sizes}</dd>
+              <dt className={`font-extrabold uppercase tracking-widest ${a.label}`}>Capacity</dt><dd>{p.capacity}</dd>
+              <dt className={`font-extrabold uppercase tracking-widest ${a.label}`}>Produced</dt><dd data-dsp-produced>{p.produced}</dd>
+            </dl>
+            {p.quotes.length > 0 ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {p.quotes.map((qid) => { const q = QUOTES[qid]; return (
+                  <div key={qid} data-dsp-quote={qid} className={`relative overflow-hidden rounded-3xl bg-gradient-to-br p-4 text-white shadow-md ${a.grad}`}>
+                    <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/30 blur-2xl" />
+                    <div className="relative text-xs font-extrabold uppercase tracking-widest opacity-90">Durgapur market · {q.item}</div>
+                    <div className="relative mt-1 text-3xl font-extrabold leading-tight tabular-nums">{inr(q.rupees)}</div>
+                    <div className="relative text-xs font-semibold opacity-90">a tonne, GST not included · {dateLabel(q.asOf)}</div>
+                    <div className="relative mt-1 text-sm font-bold">{inr(withGst(q.rupees))} <span className="text-xs font-semibold opacity-90">with 18% GST</span></div>
+                    <div className="relative mt-2"><RupeeMove change={q.change} /></div>
+                  </div>
+                ); })}
+              </div>
+            ) : (
+              <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900" data-dsp-noquote>No market quote shown.</p>
+            )}
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">{p.note}{p.id === "channel" || p.id === "angle" || p.id === "beam" ? ` ${MSM_CE_MARK}` : ""}{p.id === "billet" && ` A second trade report gave Durgapur billet at ${inr(BILLET_SECOND.rupees)} on ${BILLET_SECOND.when} (${BILLET_SECOND.name}): the two differ a little, as trade reports do.`}</p>
+          </section>
+          );
+        })}
+      </div>
+
+      <section className="rounded-3xl border border-orange-200 bg-gradient-to-br from-orange-50/80 to-white p-4 shadow-sm" data-dsp-cities aria-label="TMT 12 mm in the cities of the same table">
+        <h4 className="text-sm font-extrabold text-slate-900">TMT 12 mm: Durgapur against the other cities of the same table <span className="font-semibold text-slate-500">(₹ a tonne, GST not included, {asOf})</span></h4>
+        <p className="mt-1 text-xs text-slate-600" data-dsp-rank>
+          {rank.rank === 1 ? `Durgapur is the cheapest of the ${rank.of} cities this table lists` : `Durgapur is number ${rank.rank} from the cheapest of the ${rank.of} cities this table lists`}; {rank.dearest.city} is the dearest, {signed(rank.gapPct)} above it ({inr(rank.dearest.rupees - TMT12_CITIES.find((c) => c.city === "Durgapur")!.rupees)} a tonne).
+        </p>
+        <ul className="mt-2 space-y-1">
+          {TMT12_CITIES.map((c) => (
+            <li key={c.city} className={`flex items-center gap-2 text-xs ${c.city === "Durgapur" ? "font-extrabold text-slate-900" : "font-semibold text-slate-600"}`}>
+              <span className="w-32 shrink-0">{c.city}</span>
+              <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100" aria-hidden="true"><span className={`block h-full rounded-full ${c.city === "Durgapur" ? "bg-gradient-to-r from-orange-500 to-amber-500" : "bg-sky-300"}`} style={{ width: `${Math.round((c.rupees / top) * 100)}%` }} /></span>
+              <span className="w-16 shrink-0 text-right tabular-nums">{inr(c.rupees)}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 px-3 py-2.5" data-dsp-byproducts>
+        <h4 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">Also made, with no quote found</h4>
+        <ul className="mt-1 space-y-1 text-xs text-slate-600">
+          {DSP_BYPRODUCTS.map((b) => <li key={b.name}><strong className="text-slate-800">{b.name}</strong>: {b.detail} (manual {b.page})</li>)}
+        </ul>
+      </section>
+
+      <details className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2" data-dsp-sources>
+        <summary className="cursor-pointer text-xs font-bold text-slate-700 hover:text-slate-900">Where each figure was read</summary>
+        <ul className="mt-2 space-y-1.5 text-xs text-slate-600">
+          {(Object.values(QUOTES) as Quote[]).map((q) => <li key={q.id}><strong className="text-slate-800">{q.item}</strong>: <ExtLink href={q.url}>{QUOTE_SOURCE.name}</ExtLink> — &ldquo;{q.line}&rdquo;</li>)}
+          {[...DSP_YEARS.flatMap((y) => y.sources.map((src) => ({ ...src, key: `${y.fy}-${src.page}` }))), ...DSP_HOT_METAL.flatMap((y) => y.sources.map((src) => ({ ...src, key: `hm-${y.fy}-${src.page}` }))), ...DSP_WTA.map((w) => ({ ...w.source, key: `wta-${w.fy}` }))].filter((x, i, a) => a.findIndex((y) => y.url === x.url && y.quote === x.quote) === i).map((src: ProdSource & { key: string }) => (
+            <li key={src.key} data-dsp-prod-source><strong className="text-slate-800">Production</strong>: <ExtLink href={src.url}>{src.name}</ExtLink> ({src.page}) — &ldquo;{src.quote}&rdquo;</li>
+          ))}
+          <li><strong className="text-slate-800">Billet, second report</strong>: <ExtLink href={BILLET_SECOND.url}>{BILLET_SECOND.name}</ExtLink> — &ldquo;{BILLET_SECOND.line}&rdquo;</li>
+        </ul>
+        <p className="mt-2 text-xs text-slate-500">{TICKER_NOTE} The site publishes its rates as {QUOTE_SOURCE.basis}. The quotes were read on {dateLabel(QUOTES_READ_ON)} and are not fetched while the card is open.</p>
+        <p className="mt-1 text-xs text-slate-500">Products, sizes and capacities are from {DSP_MANUAL} and SAIL&apos;s JO Manual &ldquo;Industry &amp; Company Awareness&rdquo; (2022); the page of each is given. Where the manuals differ, the card says so.</p>
+      </details>
     </div>
   );
 }
@@ -451,10 +696,11 @@ export function SteelCard({ initialTab = "prices" }: { initialTab?: SteelTab }) 
     <div data-steel-card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <Pills<SteelTab> id="steel-tabs" label="Steel" gradient={PILL} value={tab} onChange={setTab} tabs={TABS} />
-        <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><Info size={13} aria-hidden="true" /> Latest: {monthLabel(latestRetail().month)} · official and company figures, not live</p>
+        <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><Info size={13} aria-hidden="true" /> {tab === "dsp" ? `Quotes of ${dateLabel(QUOTES.tmt12.asOf)} · trade quotes and the plant manuals, not live` : `Latest: ${monthLabel(latestRetail().month)} · official and company figures, not live`}</p>
       </div>
       <div id="steel-tabs" className="sr-only">Steel</div>
       {tab === "prices" && <PricesTab />}
+      {tab === "dsp" && <DspTab />}
       {tab === "companies" && <CompaniesTab />}
       {tab === "sail" && <SailTab />}
       {tab === "india" && <IndiaTab />}

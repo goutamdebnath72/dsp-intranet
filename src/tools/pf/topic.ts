@@ -12,6 +12,6 @@ export const pfTopic = defineTopic({
     wants: (c) => c.has(["pf", "epf", "provident", "vpf"]) && c.has(["maturity", "corpus", "calculator", "calculate", "calculation", "estimate", "estimator", "estimation"]) && c.only() && !c.has(["loan", "loans"]),
   },
   samples: [
-    { q: "pf maturity calculator", note: "your probable provident fund at retirement" },
+    { q: "pf maturity calculator", note: "your probable provident fund on the retirement day, worked from the figures of your DSP PF page and payslip" },
   ],
 });

@@ -420,7 +420,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     DSP Intranet — User Guide
                   </h2>
                   <p className="mt-0.5 text-sm text-sky-100">
-                    What the search bar can do, questions to try, the words that open each tool, and what the markers mean
+                    What the search bar can do, questions to try, the short and long commands that open each feature, and what the markers mean
                   </p>
                 </div>
                 <button
@@ -471,12 +471,62 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   doctor, a holiday, a circular, a calculation&hellip;) and uses
                   the right source. The areas it covers, and a question to try
                   for each, are on the <strong>Sample questions</strong> tab; the
-                  words that open each tool are on <strong>What to type</strong>.
+                  commands that open each tool, short and long, are on <strong>What to type</strong>.
                 </p>
                 <p>
                   The best answer leads. If a name is also{" "}
                   <em>mentioned in circulars</em>, you get the person first and
                   those circulars below.
+                </p>
+              </Section>
+
+              {/* Short and long commands: how to avail a feature */}
+              <Section icon={<Zap size={17} />} title="Short and long commands: how to open a feature">
+                <p>
+                  Every feature of the <strong>What to type</strong> tab can be
+                  opened in two ways, and both reach the same card.
+                </p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    <strong>Short command:</strong> the fewest words, one or
+                    two, for someone in a hurry: <Pill>gold price</Pill>,{" "}
+                    <Pill>weather</Pill>, <Pill>hindi news</Pill>,{" "}
+                    <Pill>dsp history</Pill>, <Pill>sail units</Pill>. It opens
+                    the card on its first tab.
+                  </li>
+                  <li>
+                    <strong>Long command:</strong> the same thing asked in
+                    full, as a phrase or a question: <Pill>gold rate today</Pill>,{" "}
+                    <Pill>durgapur weather report with forecast</Pill>,{" "}
+                    <Pill>history of durgapur steel plant</Pill>. A long command
+                    can be more exact: it may name the tab (
+                    <Pill>sail steel production</Pill> opens the steel card on
+                    the SAIL tab, <Pill>heads of dsp</Pill> opens the story card
+                    on the Heads tab), a ward (<Pill>ward 22 police station</Pill>), a
+                    PIN (<Pill>pin code 713203</Pill>) or a paper (
+                    <Pill>dainik bhaskar</Pill>).
+                  </li>
+                  <li>
+                    <strong>Your own figures:</strong> a sum, a conversion, a
+                    date, a tyre size, a VIN or a number plate is typed as it is,
+                    with your numbers (<Pill>5 km in miles</Pill>,{" "}
+                    <Pill>205/55 R16 91V</Pill>); there is no fixed short
+                    command, and the tab says so.
+                  </li>
+                  <li>
+                    <strong>Questions:</strong> a person, the hospital, holidays
+                    and circulars are asked as a name, a number or a question: a
+                    few words (<Pill>gift card circular</Pill>) or a full
+                    sentence (<Pill>What is the gift card amount for employees?</Pill>).
+                    The more exactly you name the subject, the better the answer.
+                  </li>
+                </ul>
+                <p>
+                  Each command is marked <strong>as you type</strong> (the
+                  result shows under the search line) or <strong>press Enter</strong>{" "}
+                  (a page opens, or a question is answered). On the{" "}
+                  <strong>What to type</strong> tab, click a command to put it in
+                  the search bar.
                 </p>
               </Section>
 
@@ -486,7 +536,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   Prices, markets, news, weather, flights, trains, fares, the
                   dearness allowance, inflation, the PIN codes, wards and police
                   stations of Durgapur, and steel (prices, the makers compared)
-                  appear as <strong>cards</strong>.
+                  and the story of the Durgapur Steel Plant and its heads appear as <strong>cards</strong>.
                   Every card names its <strong>source</strong> (with a link) and
                   the <strong>time it was fetched</strong> (for saved data, the
                   date it was received or prepared); a source can be late or
@@ -496,7 +546,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   <li>
                     <strong>Tabs inside a card</strong> (News: Business, English,
                     Hindi, Bengali; Durgapur areas: PIN codes, DMC Wards,
-                    Assembly seats, Police stations; Steel: Prices, Companies, SAIL & CPSEs, India & world; AICPI: Dearness allowance and CPI and
+                    Assembly seats, Police stations; Steel: Prices, DSP products, Companies, SAIL & CPSEs, India & world; DSP story: The story, Who made it, First products, Heads of DSP, SAIL & units; AICPI: Dearness allowance and CPI and
                     inflation; CPI: Combined, Urban, Rural, and the State; Inflation: 1, 3, 5 and 10 years) change the view without a new search.
                   </li>
                   <li>
@@ -510,7 +560,9 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     database and show the date they were received; the PIN
                     codes, wards, areas and police stations of Durgapur, and
                     the steel figures (the Ministry of Steel&rsquo;s monthly
-                    reports and the makers&rsquo; own results), are saved data
+                    reports, the makers&rsquo; own results and the plant&rsquo;s
+                    annual-report production), and the history of the Durgapur
+                    Steel Plant with SAIL&rsquo;s photographs, are saved data
                     too. The fares are never fetched live.
                   </li>
                   <li>

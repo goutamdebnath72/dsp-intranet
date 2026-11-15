@@ -12,10 +12,10 @@ import { type TopicUi } from "@/tools/uiTypes";
 export const pfUi: TopicUi = {
   id: "pf",
   form: {
-    title: "Probable PF maturity calculator",
+    title: "Probable PF at superannuation",
     tone: "emerald",
     icon: <PiggyBank size={18} />,
-    menu: { title: "PF maturity", text: "What your provident fund may grow to" },
+    menu: { title: "PF maturity", text: "Your PF on the day you retire, from your DSP PF page" },
     render: () => <PfForm />,
   },
 };

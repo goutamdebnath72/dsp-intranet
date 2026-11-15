@@ -1,6 +1,6 @@
 // src/tools/steel/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the steel card (prices, companies, SAIL and the CPSEs, India and the world). What the search line needs to know is in topic.ts. It is listed once, in
+// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the steel card (prices, DSP products, companies, SAIL and the CPSEs, India and the world). What the search line needs to know is in topic.ts. It is listed once, in
 // src/tools/registry.ui.tsx. The card is loaded when it is asked for.
 "use client";
 
@@ -18,14 +18,14 @@ const SteelCard = dynamic(() => import("@/tools/steel/SteelCard").then((m) => m.
 /** "companies|" -> the tab (the part before the bar); anything else is the prices tab */
 export function readLang(lang?: string): SteelTab {
   const t = (lang ?? "prices|").split("|")[0];
-  return t === "companies" || t === "sail" || t === "india" ? t : "prices";
+  return t === "dsp" || t === "companies" || t === "sail" || t === "india" ? t : "prices";
 }
 
 export const steelUi: TopicUi = {
   id: "steel",
   live: {
     title: "Steel: prices, production and companies",
-    subtitle: "Retail prices, SAIL, Tata Steel, JSW and Jindal Steel, and India's steel",
+    subtitle: "DSP's products and Durgapur prices, retail prices, SAIL, Tata Steel, JSW, Jindal Steel and India's steel",
     tone: "sky",
     icon: <Factory size={20} />,
     card: (lang) => <SteelCard key={lang ?? "prices|"} initialTab={readLang(lang)} />,

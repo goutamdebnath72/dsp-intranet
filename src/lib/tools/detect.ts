@@ -76,7 +76,7 @@ export function detectLive(raw: string): LiveTopic | null {
   if (w.length === 0 || w.length > 6) return null;
   for (const t of TOPIC_LIST) {
     const l = t.live;
-    if (!l || !l.keys.length) continue;
+    if (!l || (!l.keys.length && !l.phrases?.length)) continue;
     const phrases = (l.phrases ?? []).map(phraseWord);
     const isKey = (x: string) => l.keys.includes(x) || phrases.includes(x);
     if (w.some(isKey) && w.every((x) => LIVE_FILLER.has(x) || isKey(x) || l.extra.includes(x))) return t.id as LiveTopic;

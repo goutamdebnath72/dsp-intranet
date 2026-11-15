@@ -9,13 +9,15 @@ import { defineTopic } from "@/tools/types";
 export const steelTopic = defineTopic({
   id: "steel",
   live: {
-    keys: ["steel", "tmt", "hrc", "crc", "rebar", "rebars"],
-    phrases: ["steel price", "steel prices", "steel rate", "steel rates", "steel production", "steel output", "steel companies", "steel makers", "steel comparison", "crude steel", "tata steel", "jsw steel", "jindal steel", "sail steel", "retail steel"],
+    keys: ["steel", "tmt", "hrc", "crc", "rebar", "rebars", "billet", "billets", "joist", "joists"],
+    phrases: ["steel price", "steel prices", "steel rate", "steel rates", "steel production", "steel output", "steel companies", "steel makers", "steel comparison", "crude steel", "tata steel", "jsw steel", "jindal steel", "sail steel", "retail steel", "dsp products", "dsp product", "dsp steel", "durgapur steel", "dsp price", "dsp prices", "wheel and axle"],
     extra: ["sail", "tata", "jsw", "jindal", "jspl", "rinl", "nmdc", "companies", "company", "comparison", "compare", "production", "producers", "producer", "output", "world", "mill", "mills", "makers", "maker", "iron", "ore", "industry", "sector",
       "monthly", "quarterly", "quarter", "realisation", "realization", "ebitda", "vs", "versus", "top", "largest", "biggest", "consumption", "exports", "imports", "export", "import", "bar", "bars", "coil", "coils", "hot", "cold", "rolled",
-      "mumbai", "retail", "benchmark", "tonne", "tonnes", "ton", "tons", "market", "stats", "statistics", "data", "cpse", "cpses", "government", "public", "price", "prices"],
+      "mumbai", "retail", "benchmark", "tonne", "tonnes", "ton", "tons", "market", "stats", "statistics", "data", "cpse", "cpses", "government", "public", "price", "prices",
+      "dsp", "durgapur", "products", "product", "structural", "structurals", "channel", "channels", "angle", "angles", "beam", "beams", "bloom", "blooms", "wheel", "wheels", "axle", "axles", "pig", "merchant", "section"],
     lang: (w) => {
       const has = (...x: string[]) => w.some((t) => x.some((y) => t.includes(y)));
+      if (has("dsp", "durgapur", "billet", "joist", "structural", "channel", "angle", "beam", "bloom", "wheel", "axle", "pig", "merchant", "section")) return "dsp|";
       if (has("sail", "rinl", "nmdc", "cpse")) return "sail|";
       if (has("tata", "jsw", "jindal", "jspl", "compan", "compar", "versus", "vs", "maker", "realis", "ebitda", "quarter", "mill")) return "companies|";
       if (has("production", "output", "world", "producer", "consumption", "export", "import", "largest", "biggest", "top", "crude_steel", "industry", "sector")) return "india|";
@@ -23,6 +25,7 @@ export const steelTopic = defineTopic({
     },
   },
   samples: [
+    { q: "dsp products", note: "the same card on its DSP products tab: what the Durgapur Steel Plant makes to sell (TMT bars, channels, angles, joists and beams, billets and blooms, wheels and axles, pig iron) with its sizes and capacity, beside the Durgapur market's quotes for the same kind of steel, dated and without GST (market quotes, not DSP's own prices); 'durgapur steel' and 'billet price' open it too", instant: true },
     { q: "steel prices", note: "the Ministry of Steel's retail prices of TMT bar, HR coil and CR coil in Mumbai, month by month, with the iron ore price (there is no price list of SAIL, Tata Steel or JSW to show: the card says why)", instant: true },
     { q: "steel companies", note: "the same card on its Companies tab: SAIL, Tata Steel, JSW Steel and Jindal Steel quarter by quarter from their own results (production, sales, EBITDA per tonne); 'tata steel', 'jsw steel' and 'steel comparison' open it too", instant: true },
     { q: "sail steel production", note: "the same card on its SAIL tab: SAIL, RINL and NMDC Steel month by month, with SAIL against the same month a year earlier", instant: true },

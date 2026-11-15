@@ -315,6 +315,7 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
     covers: "Type calculators and press Enter for the menu of ready tools (calculator, converters, dates, loan EMI, PF maturity, gratuity, leave encashment, tyre and rim sizes, VIN reader, BH series, electric car charging); then the live cards: gold, fuel, markets, news, weather, flights, trains and fares, AICPI, SAIL DA and inflation, the PIN codes, wards, assembly seats and police stations of Durgapur, and steel (prices, the makers compared, SAIL and India). The calculators run in your browser: nothing you type is saved anywhere.",
     howToRun: "Sums, conversions and date questions appear AS YOU TYPE: no Enter. A calculator form (EMI, PF, gratuity...): type its name, then press Enter to open the form.",
     tips: [
+      "Most tools open with a short command (gold price, weather, ev charging) or a long one (gold rate today, durgapur weather report with forecast, how long to charge an electric car): the What to type tab lists both for every feature.",
       "Type a sum straight in: + - * / ^, brackets, % (200 + 10%), \"15% of 2400\", lakh and crore (5 lakh * 12).",
       "For a conversion write: number, unit, \"in\" or \"to\", unit. Units: length, area, volume, mass, temperature, angle (degrees and radians), energy (calories, kWh), force, power (bhp and kW), pressure, speed, time.",
       "Currency: dollar, pound, euro and others into rupees, with the day's reference rate (a bank or money changer will quote differently).",
