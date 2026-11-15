@@ -166,7 +166,8 @@ export function CalculatorCard({ start = "basic" }: { start?: Mode }) {
               borderRadius: "calc(var(--calc-h) * 0.045)",
             } as React.CSSProperties
           }
-          className="mx-auto flex flex-col bg-gradient-to-b from-[#2d2d30] to-[#1f1f21] shadow-2xl shadow-black/30 outline-none ring-1 ring-white/10 transition-[width] duration-500 ease-out [--calc-h:29rem] [max-width:100%] focus-visible:ring-2 focus-visible:ring-violet-400/60 supports-[width:1cqw]:[--calc-h:min(29rem,60cqw)]"
+          // overflow-hidden: while the panel widens (basic to scientific) or narrows, no key may show outside its edge; the grid is held to the RIGHT edge (self-end below), so the four basic columns stay where they are and the scientific columns are uncovered from the left as the panel grows
+          className="mx-auto flex flex-col overflow-hidden bg-gradient-to-b from-[#2d2d30] to-[#1f1f21] shadow-2xl shadow-black/30 outline-none ring-1 ring-white/10 transition-[width] duration-500 ease-out [--calc-h:29rem] [max-width:100%] focus-visible:ring-2 focus-visible:ring-violet-400/60 supports-[width:1cqw]:[--calc-h:min(29rem,60cqw)]"
         >
           <div className="relative flex flex-col justify-end px-2 pb-2 pt-1" style={{ height: "var(--calc-disp)" }}>
             <div className="flex min-h-[1.25rem] items-center justify-between gap-2">
@@ -183,7 +184,7 @@ export function CalculatorCard({ start = "basic" }: { start?: Mode }) {
             <div className="h-4 text-right text-xs text-violet-300">{words ? `≈ ${words}` : ""}</div>
           </div>
 
-          <div className="grid" style={{ gridTemplateColumns: `repeat(${sci ? 10 : 4}, var(--calc-bw))`, gridTemplateRows: "repeat(5, var(--calc-d))", gap: "var(--calc-gap)" }}>
+          <div className="grid self-end" data-calc-grid style={{ gridTemplateColumns: `repeat(${sci ? 10 : 4}, var(--calc-bw))`, gridTemplateRows: "repeat(5, var(--calc-d))", gap: "var(--calc-gap)" }}>
             {list.map((row, i) => (
               <React.Fragment key={i}>
                 {lefts && lefts[i].map((b) => <KeyButton key={`${b.key}-${String(b.aria)}`} b={b} onPress={hit} />)}
