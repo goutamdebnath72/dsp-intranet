@@ -20,6 +20,7 @@ import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
 import { OMNIBAR_PREFILL_EVENT } from "@/lib/help/sampleQuestions";
 import { ToolPanel } from "@/components/tools/ToolPanel";
+import { toolFormIsWide, toolFormMaxRem } from "@/components/tools/toolWidth";
 import { detectTool, type FormKind } from "@/lib/tools/detect";
 import { needsWideModal } from "@/lib/search/edsLayout";
 import { useVerifiedSession } from "@/components/SessionGuard";
@@ -583,10 +584,13 @@ export function OmnibarModal({
 
   // A comparison table of 4+ columns on the screen widens the box; it is a pure function of the answer being shown, so it narrows again the moment that answer goes
   // (a new query, an edit of the text, a narrower answer). The text scale (omniK) deliberately stays that of the normal width: the extra room is for the table, not bigger text.
-  const wideModal = mode === "intellectual" && needsWideModal(synthesis);
+  // A calculator page that asks for the wide box (its ui says `wide`: the PF page, with three boxes in a row and a table of years) gets exactly the same width, and the same rule: it goes the moment the form is closed.
+  const wideModal = (mode === "intellectual" && needsWideModal(synthesis)) || toolFormIsWide(toolForm);
   // the normal box: its own width, but never wider than the page. The wide box: the page's width, nothing more, nothing less (100% = the room the row gives it, for a narrow screen).
   const normalMaxWidth = `min(max(${(mode === "intellectual" ? BASE_MODAL_WIDTH_REM * EXECUTIVE_SCALE : BASE_MODAL_WIDTH_REM).toFixed(2)}rem, ${mode === "intellectual" ? (BASE_MODAL_WIDTH_VW * EXECUTIVE_SCALE).toFixed(2) : String(BASE_MODAL_WIDTH_VW)}vw), ${MODAL_MAX_PX}px, 92vw, ${PAGE_WIDTH_VAR}, 100%)`;
-  const currentMaxWidth = wideModal ? `min(${PAGE_WIDTH_VAR}, 100%)` : normalMaxWidth;
+  // a page that asks for a width of its own (`wide: { maxRem }`) gets that many rem, but never more than the page; every other wide box is the page's width
+  const toolRem = toolFormMaxRem(toolForm);
+  const currentMaxWidth = toolRem !== null ? `min(${toolRem}rem, ${PAGE_WIDTH_VAR}, 100%)` : wideModal ? `min(${PAGE_WIDTH_VAR}, 100%)` : normalMaxWidth;
 
   const handleCloseAll = () => {
     setSelectedCircularId(null);

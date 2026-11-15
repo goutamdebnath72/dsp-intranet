@@ -6,8 +6,8 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { PF_DEFAULTS, parseDate, parseMonthYear, pfAtRetirement, pfWhatIf, total, type PfInput, type Trio } from "./pf";
-import { num, rupees, isProblem, RATE_DEFAULTS_AS_OF } from "@/lib/tools/money";
+import { PF_DEFAULTS, parseDate, parseMonthYear, pfAtRetirement, pfWhatIf, total, type PfInput, type PfYear, type Trio } from "./pf";
+import { num, rupees, rupeesShort, isProblem, RATE_DEFAULTS_AS_OF } from "@/lib/tools/money";
 import { Field, TextInput, Stat, Problem, RowsTable } from "@/components/tools/toolAtoms";
 
 type Row = { emp: string; comp: string; vpf: string };
@@ -15,20 +15,28 @@ const empty = (): Row => ({ emp: "", comp: "", vpf: "" });
 const toTrio = (r: Row): Trio => ({ emp: num(r.emp), comp: num(r.comp), vpf: num(r.vpf) });
 const filled = (r: Row) => r.emp.trim() !== "" && r.comp.trim() !== "" && r.vpf.trim() !== "";
 
-/** one row of the PF page: its name, and a box for each of PF (Emp), PF (Comp) and V.P.F */
-function PageRow({ id, label, hint, value, onChange }: { id: string; label: string; hint?: string; value: Row; onChange: (r: Row) => void }) {
+/** one row of the PF page: its name on ONE line, and a box for each of PF (Emp), PF (Comp) and V.P.F. It is drawn as the cells of the grid of the three rows below (see PageGrid), so the name's column is as wide as the longest name and the boxes share the rest. */
+function PageRow({ id, label, value, onChange }: { id: string; label: string; value: Row; onChange: (r: Row) => void }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-[minmax(0,13rem)_repeat(3,minmax(0,1fr))] sm:items-start">
-      <div className="pt-1 sm:pt-3">
-        <div className="text-[13px] font-semibold leading-snug text-slate-800">{label}</div>
-        {hint && <div className="text-[11px] leading-snug text-slate-500">{hint}</div>}
-      </div>
+    <>
+      <div className="col-span-3 mt-1 text-[13px] font-semibold leading-snug text-slate-800 lg:col-span-1 lg:mt-0 lg:whitespace-nowrap lg:pt-3" data-page-row-label>{label}</div>
       {([["emp", "PF (Emp)"], ["comp", "PF (Comp)"], ["vpf", "V.P.F"]] as const).map(([k, h]) => (
-        <div key={k}>
-          <label htmlFor={`${id}-${k}`} className="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:sr-only">{h}</label>
+        <div key={k} className="min-w-0">
+          <label htmlFor={`${id}-${k}`} className="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:sr-only">{h}</label>
           <TextInput id={`${id}-${k}`} value={value[k]} onChange={(v) => onChange({ ...value, [k]: v })} suffix="₹" />
         </div>
       ))}
+    </>
+  );
+}
+
+/** the three rows of the PF page under one header, in ONE grid: a column that fits the longest name (on one line), then three equal boxes */
+function PageGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2.5 lg:grid-cols-[max-content_repeat(3,minmax(0,14rem))] lg:items-start" data-page-grid>
+      <span className="hidden lg:block" aria-hidden="true" />
+      {["PF (Emp)", "PF (Comp)", "V.P.F"].map((h) => <span key={h} className="hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block" aria-hidden="true">{h}</span>)}
+      {children}
     </div>
   );
 }
@@ -39,6 +47,59 @@ function Section({ n, title, children }: { n: number; title: string; children: R
       <h4 className="mb-2.5 flex items-center gap-2 text-[13px] font-extrabold text-slate-800"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[11px] text-white">{n}</span>{title}</h4>
       {children}
     </section>
+  );
+}
+
+const SEG = [
+  { key: "emp", label: "PF (Emp)", cls: "bg-emerald-500" },
+  { key: "comp", label: "PF (Comp)", cls: "bg-sky-500" },
+  { key: "vpf", label: "V.P.F", cls: "bg-amber-400" },
+] as const;
+
+/** THE CHART OF THE PF: one column for today and one for the close of each financial year, each column stacked PF (Emp) / PF (Comp) / V.P.F, with its year under it, its total on top and a scale on the left.
+ *  Every size is relative (percent, rem, flex): the columns share the width but never grow wider than 6 rem, so a few years are not drawn as a few huge blocks. */
+export function PfChart({ now, nowLabel, years }: { now: Trio; nowLabel: string; years: PfYear[] }) {
+  const cols = [{ key: "now", label: nowLabel ? `Today (${nowLabel})` : "Today", t: now }, ...years.map((y) => ({ key: y.fy, label: y.fy, t: y.closing }))];
+  const max = Math.max(...cols.map((c) => total(c.t)), 1);
+  // a long career has many columns: from ten columns up, only every few-th column carries its year and its total (always the first and the last, and never one that would touch the last); the others keep their bar and their hover.
+  const n = cols.length, last = n - 1, step = Math.max(1, Math.ceil(n / 9));
+  const shown = (i: number) => i === last || i === 0 || (i % step === 0 && last - i >= step);
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  return (
+    <figure className="m-0" data-pf-chart aria-label="PF balance today and at the close of each financial year">
+      <figcaption className="mb-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">PF balance today and at the end of each financial year</span>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-600">
+          {SEG.map((s) => <span key={s.key} className="inline-flex items-center gap-1" data-pf-legend><span className={`inline-block h-2.5 w-2.5 rounded-sm ${s.cls}`} aria-hidden="true" />{s.label}</span>)}
+        </span>
+      </figcaption>
+      <div className="flex gap-2">
+        <div className="relative h-52 w-[4.5rem] shrink-0 text-[11px] leading-none text-slate-500" aria-hidden="true">
+          {ticks.map((k) => <span key={k} className="absolute right-0 -translate-y-1/2 whitespace-nowrap" style={{ bottom: `${k * 82}%` }}>{k === 0 ? "₹ 0" : rupeesShort(max * k)}</span>)}
+        </div>
+        <div className="relative min-w-0 flex-1">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-52" aria-hidden="true">
+            {ticks.map((k) => <span key={k} className="absolute inset-x-0 border-t border-slate-200" style={{ bottom: `${k * 82}%` }} />)}
+          </div>
+          <div className={`relative flex items-end justify-around ${n > 12 ? "gap-1" : "gap-2"}`} data-pf-step={step}>
+            {cols.map((c, i) => {
+              const tot = total(c.t);
+              return (
+                <div key={c.key} className="flex min-w-0 max-w-[6rem] flex-1 flex-col items-center" data-pf-col={c.key} title={`${c.label}: ${rupees(tot)} (PF (Emp) ${rupees(c.t.emp)}, PF (Comp) ${rupees(c.t.comp)}, V.P.F ${rupees(c.t.vpf)})`}>
+                  <div className="flex h-52 w-full flex-col items-center justify-end">
+                    <span className="mb-1 whitespace-nowrap text-[11px] font-bold text-slate-800" data-pf-value>{shown(i) ? rupeesShort(tot) : "\u00a0"}</span>
+                    <div className="flex w-full flex-col-reverse overflow-hidden rounded-t-md" style={{ height: `${(tot / max) * 82}%` }}>
+                      {SEG.map((s) => <div key={s.key} className={s.cls} style={{ height: `${tot > 0 ? (c.t[s.key] / tot) * 100 : 0}%` }} />)}
+                    </div>
+                  </div>
+                  <div className="mt-1 whitespace-nowrap text-center text-[11px] font-semibold leading-tight text-slate-700" data-pf-year>{shown(i) ? c.label : "\u00a0"}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </figure>
   );
 }
 
@@ -75,7 +136,6 @@ export function PfForm() {
     const rates = [r0 - 0.5, r0, r0 + 0.5].filter((x) => x >= 0);
     return { rates, rows: pfWhatIf(input, rises, rates) };
   }, [input, res, rate, rise]);
-  const maxClose = res && !isProblem(res) ? Math.max(...res.years.map((y) => y.closingTotal)) : 1;
   const vpfClipped = num(vpf) > num(ceiling);
 
   return (
@@ -88,13 +148,12 @@ export function PfForm() {
         <div className="grid gap-3 sm:grid-cols-3">
           <Field id="pf-posted" label="Monthly recovery posted up to" hint="The page says “Monthly Recovery Posted upto 10/2026 Paybill”: type 10/2026."><TextInput id="pf-posted" value={posted} onChange={setPosted} placeholder="e.g. 10/2026" suffix="MM/YYYY" /></Field>
         </div>
-        <div className="mt-3 hidden gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[minmax(0,13rem)_repeat(3,minmax(0,1fr))]"><span /><span>PF (Emp)</span><span>PF (Comp)</span><span>V.P.F</span></div>
-        <div className="mt-1 space-y-2.5">
+        <PageGrid>
           <PageRow id="pf-a" label="(a) Opening balance as on 1 April" value={open} onChange={setOpen} />
-          <PageRow id="pf-e" label="(e) Monthly contributions (current financial year)" hint="Up to the month above." value={contrib} onChange={setContrib} />
-          <PageRow id="pf-f" label="(f) Interest on monthly contributions" hint="The page's own figure, up to the month above." value={cInt} onChange={setCInt} />
-        </div>
-        <p className="mt-2 text-[11px] leading-snug text-slate-500">The page's own &ldquo;(b) Interest on O.B&rdquo; is worked out here (the opening balance × the rate × the months posted ÷ 12), so you do not type it.</p>
+          <PageRow id="pf-e" label="(e) Monthly contributions (current financial year)" value={contrib} onChange={setContrib} />
+          <PageRow id="pf-f" label="(f) Interest on monthly contributions" value={cInt} onChange={setCInt} />
+        </PageGrid>
+        <p className="mt-2 text-[11px] leading-snug text-slate-500">Rows (e) and (f) are the page's own figures up to the month above. The page's &ldquo;(b) Interest on O.B&rdquo; is worked out here (the opening balance × the rate × the months posted ÷ 12), so you do not type it.</p>
       </Section>
 
       <Section n={2} title="From your payslip: what goes into the PF every month">
@@ -149,13 +208,7 @@ export function PfForm() {
             <p className="text-[13px] leading-snug text-slate-700" data-pf-check>
               Your PF page now: {rupees(res.now.emp)} (Emp) + {rupees(res.now.comp)} (Comp) + {rupees(res.now.vpf)} (VPF) = <strong>{rupees(res.nowTotal)}</strong>. Compare it with the page&apos;s <em>Closing Balance</em>: the two should agree to within a rupee or two; if not, a figure above was typed differently from the page.
             </p>
-            <div>
-              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">PF balance at the end of each financial year</div>
-              <div className="flex h-24 items-end gap-1" role="img" aria-label="PF balance by financial year, growing">
-                {res.years.map((y) => <div key={y.fy} title={`${y.fy}: ${rupees(y.closingTotal)}`} className="flex-1 rounded-t bg-emerald-500/80" style={{ height: `${Math.max(3, (y.closingTotal / maxClose) * 100)}%` }} />)}
-              </div>
-              <div className="mt-0.5 flex justify-between text-[11px] text-slate-500"><span>{res.years[0].fy}</span><span>{res.years[res.years.length - 1].fy}</span></div>
-            </div>
+            <PfChart now={res.now} nowLabel={pm ? `${String(pm.month).padStart(2, "0")}/${pm.year}` : ""} years={res.years} />
             <RowsTable
               head={["Year", "Months", "Your CPF a month", "Added", "Interest", "TDS", "Balance at the close"]}
               rows={res.years.map((y) => [y.fy, String(y.months), rupees(y.monthlyEmp), rupees(total(y.added)), rupees(y.interest), rupees(y.tds), rupees(y.closingTotal)])}

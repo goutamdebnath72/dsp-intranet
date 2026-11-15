@@ -28,6 +28,8 @@ export interface FormUi {
   menu: { title: string; text: string };
   /** the page says that the public exchange-rate table is downloaded */
   rates?: boolean;
+  /** the page needs a WIDE box of the search bar: `true` = as wide as the page behind it (the width an answer with a table of 4 or more columns gets); `{ maxRem }` = that wide but never more than maxRem (a width that follows the text size and the zoom), and never wider than the page. Read by toolWidth.ts */
+  wide?: boolean | { maxRem: number };
   render: (c: UiCtx) => React.ReactNode;
 }
 

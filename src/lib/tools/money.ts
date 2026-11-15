@@ -29,3 +29,12 @@ export function rupees(v: number): string {
   const g = s.length > 3 ? `${s.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ",")},${s.slice(-3)}` : s;
   return `${neg ? "-" : ""}₹ ${g}`;
 }
+
+/** the short form for a label on a chart: ₹ 1.45 Cr (a crore and more), ₹ 63.74 L (a lakh and more), else the whole rupees */
+export function rupeesShort(v: number): string {
+  if (!Number.isFinite(v)) return "—";
+  const a = Math.abs(v), s = v < 0 ? "-" : "";
+  if (a >= 1e7) return `${s}₹ ${(a / 1e7).toFixed(2)} Cr`;
+  if (a >= 1e5) return `${s}₹ ${(a / 1e5).toFixed(2)} L`;
+  return rupees(v);
+}
