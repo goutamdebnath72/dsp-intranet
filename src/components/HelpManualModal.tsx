@@ -484,15 +484,18 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
               <Section icon={<BarChart3 size={17} />} title="Live cards: source, time and tabs">
                 <p>
                   Prices, markets, news, weather, flights, trains, fares, the
-                  dearness allowance and inflation appear as <strong>cards</strong>.
+                  dearness allowance, inflation and the PIN codes and wards of
+                  Durgapur appear as <strong>cards</strong>.
                   Every card names its <strong>source</strong> (with a link) and
-                  the <strong>time it was fetched</strong>; a source can be late or
+                  the <strong>time it was fetched</strong> (for saved data, the
+                  date it was received or prepared); a source can be late or
                   briefly unavailable, and the card says so instead of guessing.
                 </p>
                 <ul className="list-disc space-y-1 pl-5">
                   <li>
                     <strong>Tabs inside a card</strong> (News: Business, English,
-                    Hindi, Bengali; AICPI: Dearness allowance and CPI and
+                    Hindi, Bengali; Durgapur areas: PIN codes, DMC Wards,
+                    Assembly seats; AICPI: Dearness allowance and CPI and
                     inflation; CPI: Combined, Urban, Rural, and the State; Inflation: 1, 3, 5 and 10 years) change the view without a new search.
                   </li>
                   <li>
@@ -503,7 +506,14 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   <li>
                     <strong>Saved figures:</strong> train fares and the
                     consumer price index are kept in the intranet&rsquo;s own
-                    database and show the date they were received.
+                    database and show the date they were received; the PIN
+                    codes, wards and areas of Durgapur are saved data too.
+                    The fares are never fetched live.
+                  </li>
+                  <li>
+                    <strong>Jumping inside a card:</strong> on the Durgapur
+                    areas card, press a PIN on a ward (or a gram panchayat) and
+                    the long list opens at the areas with that PIN.
                   </li>
                 </ul>
               </Section>

@@ -9,7 +9,7 @@ const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++;
 const text = AREAS.map((a) => `${a.label} ${a.detail}`).join(" ").toLowerCase();
 
 // the word of the introduction that names each topic of the registry (a new topic with no word here fails: add it to AREAS and to this table)
-const NAMED_BY: Record<string, string> = { calc: "calculator", emi: "emi", pf: "pf", gratuity: "gratuity", encashment: "encashment", dates: "dates", converter: "converters", tyre: "tyre", rim: "rim", ev: "ev ", vin: "vin", bh: "bh-series", gold: "gold", markets: "sensex", fuel: "petrol", news: "news", sports: "sports", weather: "weather", flights: "flights", railway: "trains", aicpi: "inflation" };
+const NAMED_BY: Record<string, string> = { calc: "calculator", emi: "emi", pf: "pf", gratuity: "gratuity", encashment: "encashment", dates: "dates", converter: "converters", tyre: "tyre", rim: "rim", ev: "ev ", vin: "vin", bh: "bh-series", gold: "gold", markets: "sensex", fuel: "petrol", news: "news", sports: "sports", weather: "weather", flights: "flights", railway: "trains", aicpi: "inflation", pincode: "pin codes" };
 const unmapped = TOPICS.map((t) => t.id).filter((id) => !NAMED_BY[id]);
 ok("every topic of the registry has a word in the table below (so a new tool cannot be forgotten)", unmapped.length === 0, unmapped.join());
 ok("every topic of the registry is named in the introduction", TOPICS.every((t) => !NAMED_BY[t.id] || text.includes(NAMED_BY[t.id])), TOPICS.filter((t) => !text.includes(NAMED_BY[t.id])).map((t) => t.id).join());
