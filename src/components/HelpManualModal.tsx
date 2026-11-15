@@ -485,7 +485,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                 <p>
                   Prices, markets, news, weather, flights, trains, fares, the
                   dearness allowance, inflation, the PIN codes, wards and police
-                  stations of Durgapur
+                  stations of Durgapur, and steel (prices, the makers compared)
                   appear as <strong>cards</strong>.
                   Every card names its <strong>source</strong> (with a link) and
                   the <strong>time it was fetched</strong> (for saved data, the
@@ -496,7 +496,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   <li>
                     <strong>Tabs inside a card</strong> (News: Business, English,
                     Hindi, Bengali; Durgapur areas: PIN codes, DMC Wards,
-                    Assembly seats, Police stations; AICPI: Dearness allowance and CPI and
+                    Assembly seats, Police stations; Steel: Prices, Companies, SAIL & CPSEs, India & world; AICPI: Dearness allowance and CPI and
                     inflation; CPI: Combined, Urban, Rural, and the State; Inflation: 1, 3, 5 and 10 years) change the view without a new search.
                   </li>
                   <li>
@@ -508,8 +508,10 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     <strong>Saved figures:</strong> train fares and the
                     consumer price index are kept in the intranet&rsquo;s own
                     database and show the date they were received; the PIN
-                    codes, wards, areas and police stations of Durgapur are saved
-                    data too. The fares are never fetched live.
+                    codes, wards, areas and police stations of Durgapur, and
+                    the steel figures (the Ministry of Steel&rsquo;s monthly
+                    reports and the makers&rsquo; own results), are saved data
+                    too. The fares are never fetched live.
                   </li>
                   <li>
                     <strong>When there is no figure for today:</strong> some

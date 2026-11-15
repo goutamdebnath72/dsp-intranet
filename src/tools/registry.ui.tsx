@@ -23,8 +23,9 @@ import { flightsUi } from "@/tools/flights/ui";
 import { railwayUi } from "@/tools/railway/ui";
 import { aicpiUi } from "@/tools/aicpi/ui";
 import { pincodeUi } from "@/tools/pincode/ui";
+import { steelUi } from "@/tools/steel/ui";
 import type { TopicUi } from "@/tools/uiTypes";
 
 export const TOPIC_UIS: readonly TopicUi[] = [
-  calcUi, emiUi, pfUi, gratuityUi, encashmentUi, datesUi, converterUi, tyreUi, rimUi, evUi, vinUi, bhUi, goldUi, marketsUi, fuelUi, newsUi, sportsUi, weatherUi, flightsUi, railwayUi, aicpiUi, pincodeUi,
+  calcUi, emiUi, pfUi, gratuityUi, encashmentUi, datesUi, converterUi, tyreUi, rimUi, evUi, vinUi, bhUi, goldUi, marketsUi, fuelUi, newsUi, sportsUi, weatherUi, flightsUi, railwayUi, aicpiUi, pincodeUi, steelUi,
 ];

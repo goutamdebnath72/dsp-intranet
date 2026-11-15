@@ -99,6 +99,17 @@ export const QUICK_REFERENCE: RefGroup[] = [
     ],
   },
   {
+    id: "steel",
+    title: "Steel: prices, production and companies",
+    covers: "What steel costs, who makes how much, and how India is doing: the Ministry of Steel's retail prices, the makers' own quarterly results, and SAIL month by month. One card with four tabs; the figures are published ones, saved, not live.",
+    entries: [
+      { feature: "Steel prices (TMT, HR coil, CR coil)", strings: ["steel prices", "tmt price", "hrc", "steel rate today", "rebar price"], what: "the retail prices of TMT bar (10 mm), HR coil (2.50 mm) and CR coil (0.63 mm) in Mumbai at the end of each month, with the month's change and a graph, and the iron ore price; the Ministry of Steel's figures. No mill publishes a price list, so there is no brand-by-brand table, and the card says so", instant: true, expect: "live:steel:prices|" },
+      { feature: "Steel companies compared (SAIL, Tata Steel, JSW, Jindal Steel)", strings: ["steel companies", "tata steel", "jsw steel", "steel comparison", "jindal steel"], what: "the four makers quarter by quarter from their own results: production, sales and EBITDA per tonne, who is ahead and by how much, with the results and where each figure was read", instant: true, expect: "live:steel:companies|" },
+      { feature: "SAIL and the other steel public-sector companies", strings: ["sail steel production", "sail steel"], what: "SAIL, RINL and NMDC Steel month by month in Million Tonnes, MT (the Ministry's table, converted from lakh tonnes), SAIL against the same month a year earlier and the year to date, and SAIL's average selling price by quarter", instant: true, expect: "live:steel:sail|" },
+      { feature: "India's and the world's steel", strings: ["india steel production", "steel production", "crude steel"], what: "India's crude steel, consumption and trade by year, the month-by-month production, and the biggest producing countries", instant: true, expect: "live:steel:india|" },
+    ],
+  },
+  {
     id: "news",
     title: "News and sports headlines",
     covers: "Headlines from the papers' own free feeds, newest first, refreshed every minute while the card is open. A story opens on the paper's own page in a new tab. A paper's full name opens its own tab.",

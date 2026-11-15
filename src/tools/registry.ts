@@ -25,11 +25,12 @@ import { flightsTopic } from "@/tools/flights/topic";
 import { railwayTopic } from "@/tools/railway/topic";
 import { aicpiTopic } from "@/tools/aicpi/topic";
 import { pincodeTopic } from "@/tools/pincode/topic";
+import { steelTopic } from "@/tools/steel/topic";
 
 export const TOPICS = [
   calcTopic, emiTopic, pfTopic, gratuityTopic, encashmentTopic, datesTopic, converterTopic,
   tyreTopic, rimTopic, evTopic, vinTopic, bhTopic,
-  goldTopic, marketsTopic, fuelTopic, newsTopic, sportsTopic, weatherTopic, flightsTopic, railwayTopic, aicpiTopic, pincodeTopic,
+  goldTopic, marketsTopic, fuelTopic, newsTopic, sportsTopic, weatherTopic, flightsTopic, railwayTopic, aicpiTopic, pincodeTopic, steelTopic,
 ] as const;
 
 type Topic = (typeof TOPICS)[number];
