@@ -8,6 +8,7 @@ import { defineTopic } from "@/tools/types";
 
 export const dspHistoryTopic = defineTopic({
   id: "dsphistory",
+  intent: { title: "Story of the Durgapur Steel Plant", about: "The history of DSP: how it was built, who made it, its first products, the heads of the plant, and the story of SAIL.", words: ["history", "story", "dsp", "durgapur", "steel", "plant", "founded", "foundation", "heads", "gm", "md", "ceo", "queen", "nehru", "british", "collaboration", "sail", "established", "first", "blast", "furnace", "started", "start", "begin", "began", "built", "build"] },
   live: {
     keys: [],
     phrases: [

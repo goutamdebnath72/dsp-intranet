@@ -7,6 +7,7 @@ import { looksLikeVin } from "./vin";
 
 export const vinTopic = defineTopic({
   id: "vin",
+  intent: { title: "VIN reader", about: "Reads a 17-character Vehicle Identification Number (chassis number): maker, country, model year, plant and serial.", words: ["vin", "chassis", "vehicle", "identification", "decoder", "wmi", "model", "year", "manufacturer", "maker", "meaning", "number", "numbers"] },
   form: {
     rank: 90,
     nouns: ["vin", "vins", "number", "numbers", "no", "decoder", "decode", "reader", "read", "guide", "meaning", "explained", "vehicle", "identification", "chassis", "check", "full", "form", "car", "cars", "spec", "specs", "specification", "specifications", "structure", "format", "code", "codes", "and", "chart"],

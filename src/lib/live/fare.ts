@@ -1,5 +1,6 @@
 // src/lib/live/fare.ts
 //
+// (Every function that asks or reads takes the STARTING STATION as a last argument, Durgapur unless given: the Asansol tab's trains have their fares from Asansol (ASN), saved in their own tables.)
 // THE FARE OF A TRAIN FROM DURGAPUR TO THE END OF ITS RUN, read from RailRadar's fare service (GET https://api.railradar.in/v1/trains/{number}/fare?source=DGR&destination=CODE&journeyDate=YYYY-MM-DD&classCode=XX), which
 // relays the railway's own passenger reservation system ("source": "prs" in its reply). It needs the paid plan (the free plan is refused with PLAN_UPGRADE_REQUIRED). Checked on 14 Nov 2026 with about 35 calls:
 //   * ONE CLASS PER CALL. The card asks for the eight reserved classes (CLASSES below) and a class that the train does not have is answered 404 "API:DATA_NOT_AVAILABLE": that class is simply left out.
@@ -109,8 +110,8 @@ export type Fetcher = (url: string) => Promise<{ status: number; json: unknown }
  * a failure of the service or a class whose answer is unreadable makes the whole thing an error (a half list would be mistaken for the train's real classes).
  */
 /** one class of one train from Durgapur to `to`: the reading, or an error for a refusal (429, 401/403), a failure, or an unreadable answer */
-export async function readClass(number: string, to: string, journeyDate: string, cls: FareClass, fetcher: Fetcher): Promise<ClassReading> {
-  const url = `${FARE_BASE_URL}/${number}/fare?source=${STATION.code}&destination=${encodeURIComponent(to)}&journeyDate=${journeyDate}&classCode=${cls.code}`;
+export async function readClass(number: string, to: string, journeyDate: string, cls: FareClass, fetcher: Fetcher, from: string = STATION.code): Promise<ClassReading> {
+  const url = `${FARE_BASE_URL}/${number}/fare?source=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&journeyDate=${journeyDate}&classCode=${cls.code}`;
   const { status, json } = await fetcher(url);
   if (status === 429) throw new UpstreamError("RailRadar's limit for the plant's key has been reached (or the minute's: try again in a moment).", 429);
   if (status === 401 || status === 403) throw new UpstreamError("RailRadar did not accept the plant's key for fares (the plan must include them).", status);
@@ -118,14 +119,14 @@ export async function readClass(number: string, to: string, journeyDate: string,
   return parseClassFare(status, json, number, cls);
 }
 
-export async function askFares(number: string, to: string, journeyDate: string, fetcher: Fetcher): Promise<FareSet> {
-  const readings = await Promise.all(CLASSES.map(async (cls) => ({ cls, r: await readClass(number, to, journeyDate, cls, fetcher) })));
+export async function askFares(number: string, to: string, journeyDate: string, fetcher: Fetcher, from: string = STATION.code): Promise<FareSet> {
+  const readings = await Promise.all(CLASSES.map(async (cls) => ({ cls, r: await readClass(number, to, journeyDate, cls, fetcher, from) })));
   const found = readings.flatMap(({ r }) => (r.kind === "fare" ? [r] : []));
   if (found.length > 0 && new Set(found.map((f) => f.distance)).size !== 1) throw new UpstreamError("RailRadar gave two different distances for one train.");
   return {
     train: number,
     trainName: found[0]?.name ?? "",
-    from: STATION.code,
+    from,
     to,
     journeyDate,
     distanceKm: found[0]?.distance ?? 0,
@@ -144,7 +145,7 @@ export const LOCAL_CLASS: FareClass = { code: "UR", name: "Unreserved second cla
 export class NoHintError extends UpstreamError {}
 
 /** the distance from Durgapur to `to` along the train's own route, in km, from RailRadar's schedule of the train; refused when the schedule is not that train's, lacks a stop, runs the other way or reverses */
-export function parseLocalDistance(json: unknown, number: string, to: string): number {
+export function parseLocalDistance(json: unknown, number: string, to: string, from: string = STATION.code): number {
   const root = json as { success?: unknown; data?: { train?: { number?: unknown; isPrsBookable?: unknown; hasReversal?: unknown }; route?: unknown } } | null;
   const d = root?.success === true ? root.data : undefined;
   if (!d || d.train?.number !== number || !Array.isArray(d.route)) throw new UpstreamError("RailRadar's schedule is not the one asked for.");
@@ -152,15 +153,15 @@ export function parseLocalDistance(json: unknown, number: string, to: string): n
   const stops = d.route as Array<{ sequence?: unknown; station?: { code?: unknown }; distance?: unknown; isReversal?: unknown }>;
   if (stops.some((x) => x?.isReversal === true)) throw new NoHintError("This train reverses on its way: no distance is worked out.");
   const at = (code: string) => stops.find((x) => x?.station?.code === code);
-  const a = at(STATION.code), b = at(to);
+  const a = at(from), b = at(to);
   const da = num(a?.distance), db = num(b?.distance), sa = num(a?.sequence), sb = num(b?.sequence);
-  if (da === null || db === null || sa === null || sb === null) throw new UpstreamError("RailRadar's schedule lacks Durgapur or the end station.");
-  if (sb <= sa || db <= da) throw new UpstreamError("The end station is not after Durgapur on this train's route.");
+  if (da === null || db === null || sa === null || sb === null) throw new UpstreamError("RailRadar's schedule lacks the starting station or the end station.");
+  if (sb <= sa || db <= da) throw new UpstreamError("The end station is not after the starting station on this train's route.");
   return Math.round((db - da) * 10) / 10;
 }
 
 /** the hint for a local train: one class, "UR", an estimate from the table; the distance is the rounded km used */
-export async function askLocalFare(number: string, to: string, fetcher: Fetcher, today: string): Promise<FareSet> {
+export async function askLocalFare(number: string, to: string, fetcher: Fetcher, today: string, from: string = STATION.code): Promise<FareSet> {
   const { status, json } = await fetcher(`${FARE_BASE_URL}/${number}?haltsOnly=true`);
   if (status === 429) throw new UpstreamError("RailRadar's limit for the plant's key has been reached (or the minute's: try again in a moment).", 429);
   if (status === 401 || status === 403) throw new UpstreamError("RailRadar did not accept the plant's key.", status);
@@ -168,14 +169,14 @@ export async function askLocalFare(number: string, to: string, fetcher: Fetcher,
   const name = ((json as { data?: { train?: { name?: unknown } } } | null)?.data?.train?.name);
   let km: number;
   try {
-    km = parseLocalDistance(json, number, to);
+    km = parseLocalDistance(json, number, to, from);
   } catch (e) {
     // a train that reverses has no straight distance: an empty answer (saved, so that it is not asked again), not an error
-    if (e instanceof NoHintError) return { train: number, trainName: typeof name === "string" ? name : "", from: STATION.code, to, journeyDate: today, distanceKm: 0, classes: [] };
+    if (e instanceof NoHintError) return { train: number, trainName: typeof name === "string" ? name : "", from, to, journeyDate: today, distanceKm: 0, classes: [] };
     throw e;
   }
   const hint = fareHint(km);
-  const base = { train: number, trainName: typeof name === "string" ? name : "", from: STATION.code, to, journeyDate: today, distanceKm: km };
+  const base = { train: number, trainName: typeof name === "string" ? name : "", from, to, journeyDate: today, distanceKm: km };
   if (!hint) return { ...base, classes: [] };
   const cls: ClassFare = {
     ...LOCAL_CLASS,
@@ -215,14 +216,14 @@ export interface Schedule {
 }
 
 /** the halts after Durgapur from RailRadar's schedule of a train (GET /v1/trains/{number}?haltsOnly=true) */
-export function parseSchedule(json: unknown, number: string): Schedule {
+export function parseSchedule(json: unknown, number: string, from: string = STATION.code): Schedule {
   const root = json as { success?: unknown; data?: { train?: { number?: unknown; name?: unknown }; route?: unknown } } | null;
   const d = root?.success === true ? root.data : undefined;
   if (!d || d.train?.number !== number || !Array.isArray(d.route)) throw new UpstreamError("RailRadar's schedule is not the one asked for.");
   const route = d.route as Array<{ sequence?: unknown; station?: { code?: unknown; name?: unknown }; distance?: unknown; isReversal?: unknown }>;
-  const at = route.find((x) => x?.station?.code === STATION.code);
+  const at = route.find((x) => x?.station?.code === from);
   const dk = num(at?.distance), ds = num(at?.sequence);
-  if (!at || dk === null || ds === null) throw new UpstreamError("RailRadar's schedule has no Durgapur.");
+  if (!at || dk === null || ds === null) throw new UpstreamError("RailRadar's schedule lacks the starting station.");
   const stops: ScheduleStop[] = [];
   let reverses = false;
   let prev = dk;
@@ -239,10 +240,10 @@ export function parseSchedule(json: unknown, number: string): Schedule {
 }
 
 /** the fares of the classes `classes` from Durgapur to one stop, asked one after the other; null when no class answers (the train does not run, or sell, between them) */
-export async function askLeg(number: string, stop: ScheduleStop, classes: FareClass[], date: string, fetcher: Fetcher): Promise<LegFare | null> {
+export async function askLeg(number: string, stop: ScheduleStop, classes: FareClass[], date: string, fetcher: Fetcher, from: string = STATION.code): Promise<LegFare | null> {
   const found: Array<{ fare: ClassFare; distance: number }> = [];
   for (const cls of classes) {
-    const r = await readClass(number, stop.code, date, cls, fetcher);
+    const r = await readClass(number, stop.code, date, cls, fetcher, from);
     if (r.kind === "fare") found.push({ fare: r.fare, distance: r.distance });
   }
   if (found.length === 0) return null;

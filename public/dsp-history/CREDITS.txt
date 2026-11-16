@@ -7,7 +7,16 @@ Pictures of the DSP story card (src/tools/dsphistory/). All are SAIL's own photo
   eric-coates-mission.jpg, queen-elizabeth-durgapur-club.jpg
       SAIL, "Steel Cities" (2020): https://www.sail.co.in/sites/default/files/publication/2020-06/sail_steel_cities.pdf  (pages 66 and 86)
   surajit-mishra.jpg
-      SAIL, "Board & Organisation" page: https://sail.co.in/en/company/board
+      SAIL, "Board & Organisation" page: https://sail.co.in/en/company/board  (the original file of that page, 354 x 472 px, https://sail.co.in/sites/default/files/2025-08/Surajit%20Mishra.jpg, replaced the 180 x 240 thumbnail on 16 November 2026)
+
+blast-furnace-1-president-prasad-1959.jpg, queen-elizabeth-with-niyogi-1961.jpg and nehru-section-mill-1961.jpg were first the History Tree's copies (805 x 557 px, cropped and enlarged). On 16 November 2026 they were replaced by the pictures as SAIL's "Steel Cities" (2020) prints them, whole and at their own size, taken from the book's PDF without change: the President at the blast furnace 628 x 376 px (page 87), the Queen with Mr Niyogi 600 x 492 px (page 8), Pandit Nehru at the Section Mill 606 x 438 px (page 8). Three smaller copies of the same pictures (484 x 349, 482 x 394 and 469 x 281 px) were supplied by the owner and compared: they are reduced copies of the book's.
+
+panorama-inception.jpg was first the History Tree's copy (805 x 557 px). On 16 November 2026 it was replaced by a larger copy of the same photograph (1209 x 795 px) supplied by the owner of this intranet for this card; the original source of that file is not recorded. The same photograph is in SAIL's "Steel Cities" (2020), page 4, at 1309 x 864 px.
 
 Downloaded on 15 November 2026. They are SAIL's property and are used here on the plant's intranet with their SAIL captions and credit.
 If the use of any of them is not wanted, delete the file and its entry in src/tools/dsphistory/history.ts (PHOTOS): the card shows initials where a head has no picture.
+
+Portraits of six former heads (16 November 2026), supplied for this card from a folder given by the owner of this intranet; their original source is not recorded:
+  punkaj-kumar-bajaj.jpg, prakash-kumar-singh.jpg, arun-kumar-rath.jpg, anirban-dasgupta.jpg, a-v-kamlakar.jpg, brijendra-pratap-singh.jpg
+  (resized for the web; a-v-kamlakar.jpg is the sharp middle part of a picture that had blurred bars above and below it). The card says on screen that they were supplied and that their source is not recorded.
+  If the plant has its own official portraits, replace these files under the same names.

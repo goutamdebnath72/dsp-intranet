@@ -4,6 +4,7 @@
 // database trouble is logged once and the store then answers "nothing saved" (list) or does nothing (put); a row that is not the shape written is not shown.
 import { DateTime } from "luxon";
 import type { ClassFare, LegFare } from "./fare";
+import { FARE_TABLES, type FareStation } from "./fareStore";
 
 export interface LegRow {
   leg: LegFare;
@@ -33,8 +34,12 @@ interface Queryable {
   query(sql: string, params?: unknown[]): Promise<any>;
 }
 
-export const LEG_TABLE_STATEMENTS: string[] = [
-  `CREATE TABLE IF NOT EXISTS public.train_fare_leg (
+/** the leg tables: Durgapur's, and the one of the Asansol tab's trains (see FareStation in fareStore.ts) */
+export const LEG_TABLES: Record<FareStation, string> = { DGR: "train_fare_leg", ASN: "train_fare_leg_asn" };
+export const legTableStatements = (st: FareStation): string[] => {
+  const t = LEG_TABLES[st];
+  return [
+  `CREATE TABLE IF NOT EXISTS public.${t} (
      train_number text        NOT NULL,
      to_code      text        NOT NULL,
      to_name      text        NOT NULL,
@@ -45,9 +50,11 @@ export const LEG_TABLE_STATEMENTS: string[] = [
      fetched_at   timestamptz NOT NULL,
      PRIMARY KEY (train_number, to_code)
    )`,
-  `ALTER TABLE public.train_fare_leg ENABLE ROW LEVEL SECURITY`,
-  `REVOKE ALL ON public.train_fare_leg FROM anon, authenticated`,
-];
+  `ALTER TABLE public.${t} ENABLE ROW LEVEL SECURITY`,
+  `REVOKE ALL ON public.${t} FROM anon, authenticated`,
+  ];
+};
+export const LEG_TABLE_STATEMENTS: string[] = legTableStatements("DGR");
 
 const rowsOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.rows) ? r.rows : []);
 
@@ -65,7 +72,8 @@ export function legFromRow(x: any): LegRow | null {
   }
 }
 
-export function typeormLegStore(ds: Queryable): LegStore {
+export function typeormLegStore(ds: Queryable, station: FareStation = "DGR"): LegStore {
+  const table = LEG_TABLES[station], fareTable = FARE_TABLES[station];
   let ready: Promise<boolean> | null = null;
   let failedAt = 0;
   let warned = false;
@@ -75,15 +83,15 @@ export function typeormLegStore(ds: Queryable): LegStore {
     failedAt = 0;
     ready = (async () => {
       try {
-        const have = rowsOf(await ds.query(`SELECT to_regclass('public.train_fare_leg') AS t`));
+        const have = rowsOf(await ds.query(`SELECT to_regclass('public.${table}') AS t`));
         if (have[0]?.t) return true;
-        for (const sql of LEG_TABLE_STATEMENTS) await ds.query(sql);
+        for (const sql of legTableStatements(station)) await ds.query(sql);
         return true;
       } catch (e: any) {
         failedAt = Date.now();
         if (!warned) {
           warned = true;
-          console.warn("[fares] the leg store is not available (run src/lib/nl2sql/sql/22_train_fare_leg.sql):", e?.message || e);
+          console.warn("[fares] the leg store is not available (run src/lib/nl2sql/sql/22_train_fare_leg.sql, or 27_train_fare_leg_asn.sql for Asansol):", e?.message || e);
         }
         return false;
       }
@@ -95,7 +103,7 @@ export function typeormLegStore(ds: Queryable): LegStore {
     async list(number) {
       if (!(await ensure())) return [];
       try {
-        const r = rowsOf(await ds.query(`SELECT to_code, to_name, seq, distance_km, to_char(journey_date, 'YYYY-MM-DD') AS journey_date, classes, fetched_at FROM public.train_fare_leg WHERE train_number = $1 ORDER BY seq`, [number]));
+        const r = rowsOf(await ds.query(`SELECT to_code, to_name, seq, distance_km, to_char(journey_date, 'YYYY-MM-DD') AS journey_date, classes, fetched_at FROM public.${table} WHERE train_number = $1 ORDER BY seq`, [number]));
         return r.flatMap((x) => { const l = legFromRow(x); return l ? [l] : []; });
       } catch (e: any) {
         console.warn("[fares] could not read the saved legs:", e?.message || e);
@@ -105,7 +113,7 @@ export function typeormLegStore(ds: Queryable): LegStore {
     async stops() {
       if (!(await ensure())) return [];
       try {
-        const r = rowsOf(await ds.query(`SELECT to_code, max(to_name) AS to_name, count(*)::int AS trains FROM public.train_fare_leg GROUP BY to_code ORDER BY max(to_name)`));
+        const r = rowsOf(await ds.query(`SELECT to_code, max(to_name) AS to_name, count(*)::int AS trains FROM public.${table} GROUP BY to_code ORDER BY max(to_name)`));
         return r.flatMap((x) => (typeof x.to_code === "string" && /^[A-Z0-9]{1,8}$/.test(x.to_code) && typeof x.to_name === "string" ? [{ code: x.to_code, name: x.to_name, trains: Number(x.trains) || 0 }] : []));
       } catch (e: any) {
         console.warn("[fares] could not read the stops:", e?.message || e);
@@ -117,7 +125,7 @@ export function typeormLegStore(ds: Queryable): LegStore {
       try {
         const r = rowsOf(await ds.query(
           `SELECT l.train_number, f.train_name, l.to_code, l.to_name, l.seq, l.distance_km, to_char(l.journey_date, 'YYYY-MM-DD') AS journey_date, l.classes, l.fetched_at
-             FROM public.train_fare_leg l LEFT JOIN public.train_fare f ON f.train_number = l.train_number
+             FROM public.${table} l LEFT JOIN public.${fareTable} f ON f.train_number = l.train_number
             WHERE l.to_code = $1 ORDER BY l.train_number`, [code]));
         return r.flatMap((x) => { const l = legFromRow(x); return l && /^\d{5}$/.test(String(x.train_number)) ? [{ number: String(x.train_number), trainName: typeof x.train_name === "string" ? x.train_name : "", leg: l.leg, receivedAt: l.receivedAt }] : []; });
       } catch (e: any) {
@@ -128,7 +136,7 @@ export function typeormLegStore(ds: Queryable): LegStore {
     async coverage() {
       if (!(await ensure())) return { withFares: 0, withLegs: 0 };
       try {
-        const r = rowsOf(await ds.query(`SELECT (SELECT count(*) FROM public.train_fare WHERE jsonb_array_length(classes) > 0)::int AS with_fares, (SELECT count(DISTINCT train_number) FROM public.train_fare_leg)::int AS with_legs`))[0];
+        const r = rowsOf(await ds.query(`SELECT (SELECT count(*) FROM public.${fareTable} WHERE jsonb_array_length(classes) > 0)::int AS with_fares, (SELECT count(DISTINCT train_number) FROM public.${table})::int AS with_legs`))[0];
         return { withFares: Number(r?.with_fares) || 0, withLegs: Number(r?.with_legs) || 0 };
       } catch {
         return { withFares: 0, withLegs: 0 };
@@ -138,7 +146,7 @@ export function typeormLegStore(ds: Queryable): LegStore {
       if (!(await ensure())) return;
       try {
         await ds.query(
-          `INSERT INTO public.train_fare_leg (train_number, to_code, to_name, seq, distance_km, journey_date, classes, fetched_at)
+          `INSERT INTO public.${table} (train_number, to_code, to_name, seq, distance_km, journey_date, classes, fetched_at)
                 VALUES ($1, $2, $3, $4, $5, $6::date, $7::jsonb, $8)
            ON CONFLICT (train_number, to_code) DO UPDATE
                  SET to_name = EXCLUDED.to_name, seq = EXCLUDED.seq, distance_km = EXCLUDED.distance_km, journey_date = EXCLUDED.journey_date,
@@ -152,12 +160,9 @@ export function typeormLegStore(ds: Queryable): LegStore {
   };
 }
 
-const stores = new WeakMap<object, LegStore>();
-export function legStoreFor(ds: Queryable): LegStore {
-  let st = stores.get(ds);
-  if (!st) {
-    st = typeormLegStore(ds);
-    stores.set(ds, st);
-  }
-  return st;
+const stores = new WeakMap<object, Partial<Record<FareStation, LegStore>>>();
+export function legStoreFor(ds: Queryable, station: FareStation = "DGR"): LegStore {
+  const per = stores.get(ds) ?? {};
+  stores.set(ds, per);
+  return (per[station] ??= typeormLegStore(ds, station));
 }

@@ -10,11 +10,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { ExternalLink, Info, Landmark, Users } from "lucide-react";
+import { ExternalLink, Info, Landmark, Maximize2, Users } from "lucide-react";
 import { Pills } from "@/components/tools/Pills";
+import { ImageLightbox } from "@/components/ImageLightbox";
 import {
-  EVENTS, FACTS, FIRST_ITEMS, FIRST_UNKNOWN, HEADS, HEADS_BASIS_NOTE, HEAD_GAPS, KEY_DATES, MAKERS, OTHER_BODIES, PHOTOS, SAIL_NOW, SAIL_STORY, UNITS, eraOf, headsByEra, initials, photoSrc,
-  type Basis, type Head, type PhotoId, type Source,
+  EVENTS, FACTS, FIRST_ITEMS, FIRST_MEMOIR, FIRST_UNKNOWN, HEADS, HEADS_BASIS_NOTE, HEAD_GAPS, KEY_DATES, MAKERS, OTHER_BODIES, PHOTOS, SAIL_NOW, SAIL_STORY, UNITS, eraOf, headsByEra, initials, photoSrc,
+  pageHref, pdfPage, type Basis, type Head, type PhotoId, type Source, type Unit,
 } from "./history";
 
 export type DspHistoryTab = "story" | "makers" | "first" | "heads" | "sail";
@@ -40,31 +41,60 @@ function ExtLink({ href, children }: { href: string; children: React.ReactNode }
 /** one of SAIL's photographs, with its caption, its date and its credit; the picture opens full size in a new tab */
 function Photo({ id, className = "" }: { id: PhotoId; className?: string }) {
   const p = PHOTOS[id];
+  const [big, setBig] = useState(false);
   return (
-    <figure className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`} data-photo={id}>
-      <a href={photoSrc(id)} target="_blank" rel="noopener noreferrer" aria-label={`${p.caption}: open the picture full size`} className="block bg-slate-100">
+    <figure className={`overflow-hidden rounded-2xl bg-white shadow-sm ${className}`} data-photo={id}>
+      <button type="button" onClick={() => setBig(true)} aria-label={`${p.caption}: view the picture larger`} data-photo-open={id} className={`group relative block w-full overflow-hidden bg-slate-100 text-left ${p.portrait ? "" : "aspect-[4/3]"}`}>
+        {/* NO PALE STRIP ROUND A PICTURE. The frame used to have a 1 px pale border; on a half pixel it smeared into a two-pixel, almost white strip against a dark picture (the Queen's picture, at its right edge). Now the picture reaches the frame's outer edge, with no border, and a faint dark ring (data-photo-edge) is drawn INSIDE the picture's edge. A landscape picture is also laid one pixel LARGER than its frame on every side and the frame clips the excess, so that no background can show at any zoom. A portrait is drawn whole. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photoSrc(id)} alt={p.caption} loading="lazy" decoding="async" className={p.portrait ? "mx-auto h-72 w-auto max-w-full object-contain" : "aspect-[4/3] w-full object-cover"} />
-      </a>
+        <img src={photoSrc(id)} alt={p.caption} loading="lazy" decoding="async" data-photo-img={p.portrait ? "whole" : "overscan"} className={p.portrait ? "mx-auto h-72 w-auto max-w-full object-contain" : "absolute inset-[-1px] h-[calc(100%+2px)] w-[calc(100%+2px)] max-w-none object-cover"} />
+        <span aria-hidden="true" data-photo-edge className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/10" />
+        <span aria-hidden="true" className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-bold text-white opacity-90 transition group-hover:bg-black/80"><Maximize2 size={11} /> Enlarge</span>
+      </button>
       <figcaption className="px-3 py-2 text-xs leading-snug text-slate-600">
         {p.date && <span className="mr-1.5 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-extrabold text-rose-800">{p.date}</span>}
         {p.caption}
         <span className="mt-1 block text-[11px] text-slate-400">{p.credit}</span>
       </figcaption>
+      <ImageLightbox picture={big ? { src: photoSrc(id), alt: p.caption, title: p.caption, tag: p.date, credit: p.credit } : null} onClose={() => setBig(false)} />
     </figure>
   );
 }
 
-/** the sources of a part of the card, each once, linked where the source has a page */
+/** one source as the HOD checks it: the document (linked to the cited sentence on a web page), each cited page as its own link that opens THAT page of the PDF, and the words of the document that carry the claim */
+export function SourceLine({ s }: { s: Source }) {
+  const doc = s.url ? <ExtLink href={pageHref(s) ?? s.url}>{s.name}</ExtLink> : s.name;
+  return (
+    <span data-source>
+      {doc}
+      {s.pages && s.pages.length > 0 && (
+        <>, {s.pages.length === 1 ? "p. " : "pp. "}{s.pages.map((n, i) => (
+          <React.Fragment key={n}>{i > 0 && ", "}{s.url ? <a data-page-link={pdfPage(s, n)} className="font-semibold underline underline-offset-2" href={pageHref(s, n)} target="_blank" rel="noopener noreferrer" title={s.spread ? `Opens PDF page ${pdfPage(s, n)}, which carries printed pages ${2 * pdfPage(s, n) - 2} and ${2 * pdfPage(s, n) - 1}` : `Opens page ${n} of the PDF`}>{n}</a> : n}</React.Fragment>
+        ))}</>
+      )}
+      {!s.pages && s.page ? `, ${s.page}` : ""}
+      {s.pages && s.spread && s.url ? <span className="text-slate-400"> (printed page numbers; the PDF shows two to a page)</span> : null}
+      {s.quote && (
+        <details className="mt-0.5 text-slate-600" data-quote>
+          <summary className="cursor-pointer select-none font-semibold text-slate-500 hover:text-slate-700">What it says</summary>
+          <blockquote className="mt-0.5 border-l-2 border-rose-200 pl-2 italic">&ldquo;{s.quote}&rdquo;{!s.url && " (open the file named above at that page)"}{s.url && !s.pages && !s.find && " (search the page for these words)"}</blockquote>
+        </details>
+      )}
+    </span>
+  );
+}
+
+/** the sources of a part of the card, each once, each with its link to the cited page and its words */
 function Sources({ sources, label = "Sources" }: { sources: Source[]; label?: string }) {
   const seen = new Set<string>();
-  const list = sources.filter((s) => { const k = `${s.name}|${s.page ?? ""}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  const list = sources.filter((s) => { const k = `${s.name}|${s.page ?? ""}|${s.quote ?? ""}`; if (seen.has(k)) return false; seen.add(k); return true; });
   return (
-    <p className="text-[11px] leading-relaxed text-slate-500" data-sources>
-      {label}: {list.map((s, i) => (
-        <React.Fragment key={`${s.name}|${s.page ?? ""}`}>{i > 0 && "; "}{s.url ? <ExtLink href={s.url}>{s.name}</ExtLink> : s.name}{s.page ? `, ${s.page}` : ""}</React.Fragment>
-      ))}
-    </p>
+    <div className="text-[11px] leading-relaxed text-slate-500" data-sources>
+      <span className="font-semibold">{label}:</span>
+      <ul className="mt-0.5 space-y-0.5">
+        {list.map((s) => <li key={`${s.name}|${s.page ?? ""}|${s.quote ?? ""}`}><SourceLine s={s} /></li>)}
+      </ul>
+    </div>
   );
 }
 
@@ -100,12 +130,19 @@ function StoryTab() {
           </div>
         ))}
       </div>
+      <details className="rounded-2xl border border-slate-200 bg-white/70 px-3 py-2" data-key-date-sources>
+        <summary className="cursor-pointer select-none text-xs font-bold text-slate-600 hover:text-slate-800">Where each of the five dates is written (pages and the words of the source)</summary>
+        <div className="mt-2 space-y-2">
+          {KEY_DATES.map((d) => <Sources key={d.when} sources={d.sources} label={`${d.when}: ${d.what}`} />)}
+        </div>
+      </details>
       <div className="grid gap-2 sm:grid-cols-2" data-facts>
         {FACTS.map((f) => (
           <div key={f.label} className="rounded-2xl border border-rose-100 bg-white/80 px-3 py-2">
             <div className="text-[11px] font-extrabold uppercase tracking-widest text-rose-700">{f.label}</div>
             <div className="text-sm font-semibold text-slate-800">{f.value}</div>
-            <div className="text-[11px] text-slate-400">{f.source.name}{f.source.page ? `, ${f.source.page}` : ""}</div>
+            {f.note && <p className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-900" data-differ>{f.note}</p>}
+            <div className="mt-1"><Sources sources={f.sources} /></div>
           </div>
         ))}
       </div>
@@ -170,7 +207,7 @@ function FirstTab() {
   return (
     <div role="tabpanel" id="dsphistory-panel-first" aria-labelledby="dsphistory-tabs" className="space-y-3">
       <Band icon={<Info size={15} className="mt-px shrink-0" aria-hidden="true" />} tone="rose">
-        What Durgapur made in its first years, in the order it came: iron, steel, structurals, bars, and the railway wheels and axles that no other plant in India makes.
+        What the sources say Durgapur made in its first years, in the order the units opened: iron, steel in ingots, the Section Mill (structurals), the Merchant Mill (the sources do not say what it first rolled) and the railway wheels and axles that no other plant in India makes. Each line gives its page and the words of the source.
       </Band>
       <ol className="space-y-3" data-first>
         {FIRST_ITEMS.map((f, i) => (
@@ -185,6 +222,12 @@ function FirstTab() {
           </li>
         ))}
       </ol>
+      <section className="rounded-3xl border border-slate-200 bg-slate-50/80 p-3" data-first-memoir>
+        <h4 className="text-sm font-extrabold text-slate-900">{FIRST_MEMOIR.heading}</h4>
+        <p className="mt-1 text-sm leading-relaxed text-slate-700">{FIRST_MEMOIR.text}</p>
+        <p className="mt-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900" data-differ>{FIRST_MEMOIR.caution}</p>
+        <div className="mt-1.5"><Sources sources={FIRST_MEMOIR.source} /></div>
+      </section>
       <Band icon={<Info size={15} className="mt-px shrink-0" aria-hidden="true" />} tone="amber"><span data-first-unknown>{FIRST_UNKNOWN}</span></Band>
     </div>
   );
@@ -192,27 +235,33 @@ function FirstTab() {
 
 /* ---------- tab 4: the heads ---------- */
 
+/** The picture of a head stands at the TOP LEFT of the row, its top edge level with the top of the visible letters of the name beside it (mt-1: the name's line box has about 4 px of room above its letters; measured on the rendered page). A button centres its content, so the button is self-start. */
 function Avatar({ head }: { head: Head }) {
+  const [big, setBig] = useState(false);
   if (head.photo) {
     const p = PHOTOS[head.photo];
     return (
-      <a href={photoSrc(head.photo)} target="_blank" rel="noopener noreferrer" aria-label={`${p.caption}: open the picture full size`} className="block shrink-0" data-head-photo={head.photo}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photoSrc(head.photo)} alt={p.caption} loading="lazy" decoding="async" className={`h-24 rounded-2xl border border-slate-200 shadow-sm ${p.portrait ? "w-[72px] object-cover object-top" : "w-32 object-cover"}`} />
-      </a>
+      <>
+        <button type="button" onClick={() => setBig(true)} aria-label={`${p.caption}: view the picture larger`} className="mt-1 block shrink-0 self-start" data-head-photo={head.photo}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photoSrc(head.photo)} alt={p.caption} loading="lazy" decoding="async" className={`h-24 rounded-2xl border border-slate-200 shadow-sm ${p.portrait ? "w-[72px] object-cover object-top" : "w-32 object-cover"}`} />
+        </button>
+        <ImageLightbox picture={big ? { src: photoSrc(head.photo), alt: p.caption, title: p.caption, tag: p.date, credit: p.credit } : null} onClose={() => setBig(false)} />
+      </>
     );
   }
-  return <span aria-hidden="true" data-head-initials className="flex h-24 w-[72px] shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-200 to-slate-300 text-3xl font-extrabold tracking-wide text-slate-500">{initials(head.name)}</span>;
+  return <span aria-hidden="true" data-head-initials className="flex h-24 w-[72px] shrink-0 items-center justify-center self-start mt-1 rounded-2xl bg-gradient-to-br from-slate-200 to-slate-300 text-3xl font-extrabold tracking-wide text-slate-500">{initials(head.name)}</span>;
 }
 
 function HeadsTab() {
   const erasColor: Record<string, string> = { gm: "from-orange-500 to-amber-600", dic: "from-rose-600 to-pink-600", md: "from-violet-600 to-purple-600", ceo: "from-sky-600 to-indigo-600", dic2: "from-teal-600 to-emerald-600" };
   const withPhoto = HEADS.filter((h) => h.photo).length;
+  const fromSail = HEADS.filter((h) => h.photo && /SAIL/.test(PHOTOS[h.photo].credit)).length;
   return (
     <div role="tabpanel" id="dsphistory-panel-heads" aria-labelledby="dsphistory-tabs" className="space-y-3">
       <Band icon={<Users size={15} className="mt-px shrink-0" aria-hidden="true" />} tone="rose">
         <strong>The heads of the plant, in order.</strong> The post has had five names: <strong>General Manager</strong> in the Hindustan Steel years, <strong>Director-in-Charge</strong> from about 1970, <strong>Managing Director</strong>, <strong>Chief Executive Officer</strong>, and today <strong>Director In-charge</strong>.
-        {` ${HEADS.length} entries; ${withPhoto} with a picture from SAIL (the others show initials because no picture was found).`}
+        {` ${HEADS.length} entries; ${withPhoto} with a picture (the others show initials because no picture was found). ${fromSail} of the pictures are SAIL's own; the other ${withPhoto - fromSail} were supplied for this card, and their original source is not recorded.`}
       </Band>
       <Band icon={<Info size={15} className="mt-px shrink-0" aria-hidden="true" />} tone="amber"><span data-heads-basis>{HEADS_BASIS_NOTE}</span></Band>
       {headsByEra().map(({ era, heads }) => (
@@ -223,7 +272,7 @@ function HeadsTab() {
           </div>
           {heads.map((h) => (
             <React.Fragment key={h.id}>
-              <article data-head={h.id} className="flex gap-3 rounded-3xl border border-slate-200 bg-white/85 p-3 shadow-sm">
+              <article data-head={h.id} className="flex items-start gap-3 rounded-3xl border border-slate-200 bg-white/85 p-3 shadow-sm">
                 <Avatar head={h} />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -250,8 +299,44 @@ function HeadsTab() {
 
 /* ---------- tab 5: SAIL and its units ---------- */
 
+/** the colour of the top edge of a unit's card, by its kind */
+const kindColor: Record<string, string> = { "Integrated steel plant": "from-sky-600 to-indigo-600", "Special steel plant": "from-violet-600 to-purple-600", "Ferro alloy plant": "from-amber-500 to-orange-600", "Other unit": "from-slate-500 to-slate-600" };
+
+/** one unit of SAIL as a card */
+function UnitArticle({ u, className = "" }: { u: Unit; className?: string }) {
+  return (
+    <article data-unit={u.id} className={`relative overflow-hidden rounded-3xl border bg-white/85 p-4 pt-5 shadow-sm ${u.dsp ? "border-rose-300 ring-2 ring-rose-200" : "border-slate-200"} ${className}`}>
+        <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${kindColor[u.kind]}`} />
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <h4 className="text-base font-extrabold text-slate-900">{u.name} <span data-short className="font-bold text-sky-700">({u.short})</span>{u.dsp && <span className="ml-2 rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-extrabold text-white">this plant</span>}</h4>
+          <span className="text-xs font-bold text-slate-500">{u.town ? `${u.town}, ${u.where}` : u.where}</span>
+        </div>
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-extrabold text-slate-700">{u.kind}</span>
+          {u.also && <span data-also className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-800">SAIL also writes {u.also}</span>}
+          {u.partner && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-extrabold text-amber-900" data-partner>{u.partner}</span>}
+        </div>
+        <dl className="mt-2 space-y-1 text-xs text-slate-600">
+          <div><dt className="inline font-extrabold uppercase tracking-widest text-slate-500">Began </dt><dd className="inline">{u.began}</dd></div>
+          <div><dt className="inline font-extrabold uppercase tracking-widest text-slate-500">Today </dt><dd className="inline">{u.today}</dd></div>
+        </dl>
+        {u.status && (
+          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950" data-unit-status>
+            <div className="font-extrabold">Where it stands now</div>
+            <p className="mt-0.5">{u.status.text}</p>
+            <div className="mt-1"><Sources sources={u.status.sources} label="Sources for this" /></div>
+          </div>
+        )}
+        <div className="mt-1.5"><Sources sources={u.source} /></div>
+      </article>
+  );
+}
+
+/** Units that share ONE cell of the two-column grid, the second under the first: a short card (Chandrapur) goes under a card that would otherwise stand in a row beside a much taller one (Visvesvaraya), so the pair
+ *  ends exactly where the tall card ends instead of leaving a gap in one card and a lonely card below. The first keeps its own height; the second stretches to fill what is left (the cell is as tall as the taller neighbour). */
+const STACKED_UNDER: Record<string, string> = { cfp: "ssp" };
+
 function SailTab() {
-  const kindColor: Record<string, string> = { "Integrated steel plant": "from-sky-600 to-indigo-600", "Special steel plant": "from-violet-600 to-purple-600", "Ferro alloy plant": "from-amber-500 to-orange-600", "Other unit": "from-slate-500 to-slate-600" };
   return (
     <div role="tabpanel" id="dsphistory-panel-sail" aria-labelledby="dsphistory-tabs" className="space-y-3">
       <Band icon={<Landmark size={15} className="mt-px shrink-0" aria-hidden="true" />} tone="rose">
@@ -271,29 +356,26 @@ function SailTab() {
         </ol>
       </section>
       <div className="grid gap-3 lg:grid-cols-2" data-units>
-        {UNITS.map((u) => (
-          <article key={u.id} data-unit={u.id} className={`relative overflow-hidden rounded-3xl border bg-white/85 p-4 pt-5 shadow-sm ${u.dsp ? "border-rose-300 ring-2 ring-rose-200" : "border-slate-200"}`}>
-            <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${kindColor[u.kind]}`} />
-            <div className="flex flex-wrap items-center justify-between gap-1.5">
-              <h4 className="text-base font-extrabold text-slate-900">{u.name}{u.dsp && <span className="ml-2 rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-extrabold text-white">this plant</span>}</h4>
-              <span className="text-xs font-bold text-slate-500">{u.where}</span>
+        {UNITS.filter((u) => !STACKED_UNDER[u.id]).map((u) => {
+          const under = UNITS.filter((x) => STACKED_UNDER[x.id] === u.id);
+          return under.length === 0 ? <UnitArticle key={u.id} u={u} /> : (
+            <div key={u.id} className="flex flex-col gap-3" data-unit-stack>
+              <UnitArticle u={u} className="flex-none" />
+              {under.map((x) => <UnitArticle key={x.id} u={x} className="flex-1" />)}
             </div>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-extrabold text-slate-700">{u.kind}</span>
-              {u.partner && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-extrabold text-amber-900" data-partner>{u.partner}</span>}
-            </div>
-            <dl className="mt-2 space-y-1 text-xs text-slate-600">
-              <div><dt className="inline font-extrabold uppercase tracking-widest text-slate-500">Began </dt><dd className="inline">{u.began}</dd></div>
-              <div><dt className="inline font-extrabold uppercase tracking-widest text-slate-500">Today </dt><dd className="inline">{u.today}</dd></div>
-            </dl>
-            <div className="mt-1.5"><Sources sources={u.source} /></div>
-          </article>
-        ))}
+          );
+        })}
       </div>
       <section aria-label="SAIL's other bodies" className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4" data-other-bodies>
         <h4 className="text-base font-extrabold text-slate-900">SAIL&apos;s other bodies</h4>
-        <ul className="mt-2 space-y-1 text-sm text-slate-700">
-          {OTHER_BODIES.map((b) => <li key={b.name}><strong className="text-slate-900">{b.name}</strong>: {b.detail} <span className="text-[11px] text-slate-400">(SAIL JO Manual, {b.page})</span></li>)}
+        <ul className="mt-2 space-y-3 text-sm text-slate-700">
+          {OTHER_BODIES.map((b) => (
+            <li key={b.name} data-body={b.name}>
+              <strong className="text-slate-900">{b.name}{b.short && <span data-short className="text-sky-700"> ({b.short})</span>}</strong>{" "}
+              <span data-body-where className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-900">{b.where}</span>: {b.detail}
+              <div className="mt-0.5"><Sources sources={b.source} /></div>
+            </li>
+          ))}
         </ul>
         <p className="mt-2 text-xs text-slate-600">{SAIL_NOW}</p>
       </section>

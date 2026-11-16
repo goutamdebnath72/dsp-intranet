@@ -1,11 +1,11 @@
 // src/lib/help/sampleQuestions.ts
 //
 // THE SAMPLE QUESTIONS OF THE USER GUIDE: one data file, read by src/components/HelpManualModal.tsx. Nothing about a question is written in the component, so a new area of the
-// search (Executive Deep Synthesis beyond the circulars, a new directory) is one new entry here, not a change to the screen.
+// search (a new directory, a new tool) is one new entry here, not a change to the screen.
 //
-// Every question was taken from a question the project has already run or tested (the router and hospital tests, the employee-directory examples, the EDS panel of 9-12 Nov 2026
-// and its fresh keys), with one rule: a question that names a PERSON is a template ("[name]"), never a real employee. src/lib/help/sampleQuestions.selftest.ts keeps the
-// guide honest: every Deep Synthesis sample must be one the front gate really sends to Deep Synthesis (synthesisIntent.ts), and no ordinary sample may be.
+// Every question was taken from a question the project has already run or tested (the router and hospital tests, the employee-directory examples), with one rule: a question that names a
+// PERSON is a template ("[name]"), never a real employee. src/lib/help/sampleQuestions.selftest.ts keeps the guide honest: no ordinary sample may be one the front gate sends to the deep search
+// (synthesisIntent.ts), except those marked `either`. The deep search (EDS) has its own tab of the guide (src/lib/help/edsGuide.ts); nothing about it is described on the sample questions page.
 //
 // A "[bracket]" in a question is a blank to fill in: the guide shows it highlighted, and "Try it" puts the text in the search box for the reader to edit before pressing Enter.
 
@@ -21,16 +21,8 @@ export interface SampleQuestion {
   note?: string;
   /** the result appears as you type, with no Enter (a number, a site or department name); every other question needs Enter */
   instant?: boolean;
-  /** answered by Deep Synthesis for an executive and by the ordinary search for everyone else (the front gate decides): not tested as ordinary */
+  /** may be sent to the deep search for a signed-in executive and to the ordinary search for everyone else (the front gate decides): not tested as ordinary */
   either?: boolean;
-}
-
-/** The same subject asked three ways, from the simplest to the deepest: teaches how a question grows. */
-export interface Ladder {
-  subject: string;
-  title: string;
-  content: string;
-  deep: string;
 }
 
 export interface SampleSection {
@@ -39,8 +31,6 @@ export interface SampleSection {
   icon: SectionIcon;
   /** what this part of the search covers, in one sentence */
   covers: string;
-  /** shown only for signed-in executives' use: the question is still tried, the badge says who gets the deep answer */
-  executivesOnly?: boolean;
   /** how to run it, said plainly: which input appears as you type and which needs the Enter key */
   howToRun: string;
   /** how to ask well in this area (short, concrete) */
@@ -48,12 +38,11 @@ export interface SampleSection {
   questions: SampleQuestion[];
   /** a fill-in-the-blank shape of a good question */
   patterns?: string[];
-  ladders?: Ladder[];
 }
 
 /** The window event that asks the search bar to open with a question typed in (the reader still presses Enter). */
 export const OMNIBAR_PREFILL_EVENT = "omnibar-prefill";
-/** The window event that opens the user guide (detail: { tab: "samples" | "types" | "how" }). */
+/** The window event that opens the user guide (detail: { tab: "samples" | "types" | "how" | "eds" }). */
 export const OPEN_GUIDE_EVENT = "open-user-guide";
 
 /** A pair that shows what makes a question good: the same need, asked thinly and asked well. */
@@ -87,7 +76,7 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
       "Mobile numbers and emails are masked; press reveal to see them (see Contact details under How it works for who can reveal and copy).",
     ],
     questions: [
-      { q: "[first name] [last name]", note: "similar-sounding: \"Goutam\" also finds \"Gautam\"" },
+      { q: "[first name] [last name]", note: "similar-sounding: \"Goutam\" also finds \"Gautam\" and \"Gautham\"" },
       { q: "anil kumar", note: "words match in order: finds \"Anil Kumar Salian\"" },
       { q: "[part of name] c&it", note: "part of a name plus the department, in any order" },
       { q: "c&it [part of name]", note: "the same, department first" },
@@ -196,7 +185,7 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
       { q: "restricted holidays in 2026" },
       { q: "list of festival holidays 2026" },
       { q: "is Diwali a holiday this year" },
-      { q: "compare festival holidays 2025 and 2026", note: "two years side by side (executives get the deep briefing, others the holiday comparison)", either: true },
+      { q: "compare festival holidays 2025 and 2026", note: "two years side by side", either: true },
       { q: "holiday list for the year 2023", note: "opens the circular itself" },
     ],
   },
@@ -253,62 +242,6 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
     ],
   },
   {
-    id: "eds",
-    title: "Executive Deep Synthesis: compare, trace, list across circulars",
-    icon: "sparkles",
-    executivesOnly: true,
-    howToRun: "Type the whole question, then press Enter. A signed-in executive gets the combined briefing by itself, and it takes longer than a normal search.",
-    covers: "A question that needs several circulars built into one sourced briefing, with a summary, findings, tables and charts. It starts by itself for a signed-in executive (ticket starting with 4); everyone else gets the normal search.",
-    tips: [
-      "Ask in English, in one question: compare, what changed, how did it develop, list every, for each category.",
-      "Name the years or editions and the things to compare (amounts, dates, eligibility, who approves).",
-      "A good question here is long: it names the subject, the years or categories, and each thing you want to see (amounts, dates, eligibility, who approves). Every sample below is a complete question: copy its shape.",
-      "The briefing quotes the circulars and says plainly what they do not state. Check the circular before acting.",
-      "It takes longer than a normal search: watch the three progress messages.",
-    ],
-    questions: [
-      { q: "Compare the holiday lists notified for DSP for 2022 and 2023: closed and public holidays, festival holidays for each category, restricted holidays, and what differs between the two years.", note: "Compare · subject + two years + four kinds of holiday + \"what differs\"" },
-      { q: "How do the public holidays notified for DSP employees in 2024, 2025 and 2026 compare, and which festival dates differ between the years?", note: "Compare · three years + the dates that differ" },
-      { q: "How did the holidays and leave entitlements for contractor workers in DSP change between 2023, 2024 and 2025?", note: "Change over time · one group of employees + two subjects + three years" },
-      { q: "Compare how face-recognition attendance was introduced for executives in 2023 and for contractor workers in 2024: start dates, who is covered, technology used and what happens to those who do not register.", note: "Two rollouts · four points each" },
-      { q: "Compare the Joint Industrial Adviser vacancy in the Ministry of Steel with the ICVL MD & CEO deputation in Mozambique: eligibility, pay, mode of filling and how to apply.", note: "Two notices side by side · four points" },
-      { q: "Compare all the motivational award schemes of DSP by beneficiary grade, award amount, periodicity, executing authority and the occasion on which each is awarded.", note: "One table across many schemes · five columns named" },
-      { q: "Under the scheme for sponsoring executives for higher specialised education, what bond amount and bond period apply to each type of sponsorship by course duration, and who approves study leave with financial assistance for each grade?", note: "Rules by category · two amounts + an approver for each grade" },
-      { q: "Under the rules for retention of company accommodation by ex-employees at city locations, how long can an ex-employee keep the accommodation in Type A and Type B cities, what rent and which authority apply to each period, and what security deposit is required?", note: "Rules by category · period, rent, authority and deposit for each" },
-      { q: "What revised GPAIS premium amounts apply to contract workers from 1 January 2025, and what are the minimum daily wages for contract workers in the Works, Projects and Town Services (Electrical) areas from 1 January 2024?", note: "Two amounts from two circulars · each with its date and its areas" },
-      { q: "List every 2026 last date announced in the circulars and compare them across Mediclaim renewal, ESS allowance entry by non-executives, PF loan repayment requests and the gift card option.", note: "Deadlines gathered from many circulars · four named subjects" },
-      { q: "Explain the online Leave Management System procedure for non-executives: from when it is compulsory, who recommends, who sanctions and what the employee must do.", note: "A procedure · start date, recommender, sanctioner, the employee's steps" },
-      { q: "What selection trials, coach selections, venues, dates and entry conditions were announced for the Inter Steel Plant Football Championship in 2022-23 and in 2024-25?", note: "Two seasons of one event · five points each" },
-      { q: "What do the circulars say about SAIL Gaurav Diwas 2026 and about contributions on Armed Forces Flag Day: dates, how employees take part, and the ways to pay?", note: "Two subjects in one question · three points about them" },
-    ],
-    ladders: [
-      {
-        subject: "Zero tolerance safety rules",
-        title: "zero tolerance safety rules circular",
-        content: "What is the penalty at the fourth stage under the zero tolerance rules?",
-        deep: "Under the revised Zero Tolerance Safety Rules, what consequence follows each violation at each stage, and through whom is it issued?",
-      },
-      {
-        subject: "Gift card",
-        title: "gift card circular",
-        content: "What is the gift card amount for employees?",
-        deep: "Describe the 2026 gift card facility for DSP employees: amount, who can opt, how to opt, the last date, and what the corrigendum changed.",
-      },
-      {
-        subject: "Hindi teaching scheme",
-        title: "Which circular announced the Hindi teaching scheme?",
-        content: "Does the Hindi teaching scheme give a cash prize for Praveen?",
-        deep: "How does the January to May 2026 Hindi Teaching Scheme session differ from the one starting in January 2024 in courses, eligibility, number of candidates and incentives?",
-      },
-      {
-        subject: "Health check-up",
-        title: "health check-up of non-executive employees",
-        content: "What time does the health check-up start?",
-        deep: "Compare the reporting time, venue, preparation instructions and report-collection arrangements for the non-executive health check-ups in December 2024, January 2025 and January 2026.",
-      },
-    ],
-  },
-  {
     id: "tools",
     title: "Calculators, converters and live cards",
     icon: "calculator",
@@ -346,16 +279,9 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
 ];
 
 /** Every question of the guide, with the section it belongs to (the guide's search box and the selftest read this). */
-export function allSamples(): Array<{ sectionId: string; q: string; note?: string; deep?: boolean; either?: boolean }> {
-  const out: Array<{ sectionId: string; q: string; note?: string; deep?: boolean; either?: boolean }> = [];
-  for (const s of SAMPLE_SECTIONS) {
-    for (const x of s.questions) out.push({ sectionId: s.id, q: x.q, note: x.note, deep: !!s.executivesOnly, either: x.either });
-    for (const l of s.ladders ?? []) {
-      out.push({ sectionId: s.id, q: l.title, note: `${l.subject}: title` });
-      out.push({ sectionId: s.id, q: l.content, note: `${l.subject}: content` });
-      out.push({ sectionId: s.id, q: l.deep, note: `${l.subject}: deep`, deep: !!s.executivesOnly });
-    }
-  }
+export function allSamples(): Array<{ sectionId: string; q: string; note?: string; either?: boolean }> {
+  const out: Array<{ sectionId: string; q: string; note?: string; either?: boolean }> = [];
+  for (const s of SAMPLE_SECTIONS) for (const x of s.questions) out.push({ sectionId: s.id, q: x.q, note: x.note, either: x.either });
   return out;
 }
 
@@ -368,9 +294,8 @@ export function filterSections(text: string, sections: SampleSection[] = SAMPLE_
   for (const s of sections) {
     const head = `${s.title} ${s.covers}`;
     const questions = s.questions.filter((x) => has(`${x.q} ${x.note ?? ""} ${head}`));
-    const ladders = (s.ladders ?? []).filter((l) => has(`${l.subject} ${l.title} ${l.content} ${l.deep} ${head}`));
     const patterns = (s.patterns ?? []).filter((p) => has(`${p} ${head}`));
-    if (questions.length || ladders.length || patterns.length) out.push({ ...s, questions, ladders, patterns });
+    if (questions.length || patterns.length) out.push({ ...s, questions, patterns });
   }
   return out;
 }

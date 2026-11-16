@@ -7,6 +7,7 @@ import { looksLikeBh } from "./bh";
 
 export const bhTopic = defineTopic({
   id: "bh",
+  intent: { title: "BH series number plate", about: "The Bharat (BH) series all-India number plate: how it is built, who is eligible, how to apply.", words: ["bh", "bharat", "series", "plate", "number", "registration", "vehicle", "transfer", "state", "eligible", "eligibility", "apply"] },
   form: {
     rank: 100,
     nouns: ["bh", "bharat", "series", "plate", "plates", "number", "numbers", "no", "registration", "mark", "vehicle", "vehicles", "car", "cars", "bike", "two", "wheeler", "rule", "rules", "eligibility", "eligible", "tax", "road", "procedure", "apply", "application", "process", "documents", "guide", "meaning", "explained", "reader", "read", "decode", "india", "all", "state", "states", "valid", "cost", "fee", "fees", "full", "chart", "and", "new", "in", "on", "across", "petrol", "diesel", "electric"],

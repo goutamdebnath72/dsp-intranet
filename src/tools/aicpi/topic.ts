@@ -7,6 +7,7 @@ import { defineTopic } from "@/tools/types";
 
 export const aicpiTopic = defineTopic({
   id: "aicpi",
+  intent: { title: "DA and inflation (AICPI)", about: "The all-India consumer price index (AICPI-IW) behind the dearness allowance (DA), and the inflation rate.", words: ["da", "dearness", "allowance", "aicpi", "cpi", "inflation", "index", "price", "rise", "ida", "industrial", "workers", "increase", "hike", "raise", "raised", "revision", "month", "consumer"] },
   live: {
     keys: ["aicpi", "cpi", "cpiiw", "dearness", "da", "ida", "inflation"],
     extra: ["iw", "index", "indices", "inflation", "industrial", "workers", "worker", "all", "consumer", "formula", "calculator", "calculate", "calculation", "allowance", "central", "government", "govt", "employees", "executive", "executives", "non", "sail", "7th", "cpc", "quarter", "quarterly", "october", "january", "2017", "scale", "scales", "trend", "graph", "chart", "labour", "bureau", "months", "12", "year", "how", "to", "should", "be", "hike", "expected", "next", "percentage", "percent", "relief", "dr", "dearness's", "urban", "rural", "combined", "state", "states", "monthly", "rate", "rates", "years", "5", "3", "10", "mospi", "india", "indian", "price", "prices"],

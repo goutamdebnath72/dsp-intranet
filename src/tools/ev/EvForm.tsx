@@ -1,6 +1,6 @@
 // src/tools/ev/EvForm.tsx
 //
-// ELECTRIC-CAR CHARGING: the battery size, the charge to start and end at, what the car accepts on AC and DC; the answer is a table of how long each kind of charger takes, with what the
+// ELECTRIC-CAR WINDOW, in two tabs: "Charging time" (below) and "EV specifications explained" (EvGuide.tsx). CHARGING TIME: the battery size, the charge to start and end at, what the car accepts on AC and DC; the answer is a table of how long each kind of charger takes, with what the
 // words mean underneath. All in the browser (src/tools/ev/ev.ts); nothing is stored or sent. The times are approximate, and the card says so.
 "use client";
 
@@ -11,6 +11,8 @@ import { motion } from "framer-motion";
 import { BatteryCharging, ChevronRight, PlugZap, Zap } from "lucide-react";
 import { Field, TextInput, Problem } from "@/components/tools/toolAtoms";
 import { ToolSelect } from "@/components/tools/toolKit";
+import { Pills } from "@/components/tools/Pills";
+import { EvGuide } from "./EvGuide";
 
 const BATTERY_PRESETS = [
   { kwh: 15, label: "15 kWh — small city car" },
@@ -34,7 +36,8 @@ function Terms({ title, items }: { title: string; items: Array<{ term: string; m
   );
 }
 
-export function EvForm() {
+/** the first tab: how long a charge takes */
+function ChargeTime() {
   const [capacity, setCapacity] = useState(String(EV_DEFAULTS.capacityKwh));
   const [from, setFrom] = useState(String(EV_DEFAULTS.fromPct));
   const [to, setTo] = useState(String(EV_DEFAULTS.toPct));
@@ -120,6 +123,22 @@ export function EvForm() {
 
       <Terms title="What the battery words mean" items={BATTERY_TERMS} />
       <Terms title="What the charger words mean (AC, DC, kW, connectors)" items={CHARGER_TERMS} />
+    </div>
+  );
+}
+
+export type EvTab = "time" | "guide";
+const EV_TABS: Array<{ id: EvTab; text: string }> = [{ id: "time", text: "Charging time" }, { id: "guide", text: "EV specifications explained" }];
+
+/** the electric-car window: two tabs, the charging-time estimate and the plain-words guide to the words of a spec sheet */
+export function EvForm({ initialTab = "time" }: { initialTab?: EvTab }) {
+  const [tab, setTab] = useState<EvTab>(initialTab);
+  return (
+    <div>
+      <Pills tabs={EV_TABS} value={tab} onChange={setTab} label="Electric car" id="ev" gradient="from-emerald-600 to-teal-600 shadow-emerald-600/30" />
+      <div role="tabpanel" aria-label={EV_TABS.find((t) => t.id === tab)!.text} className="mt-3">
+        {tab === "time" ? <ChargeTime /> : <EvGuide />}
+      </div>
     </div>
   );
 }

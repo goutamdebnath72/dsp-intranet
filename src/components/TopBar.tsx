@@ -189,7 +189,7 @@ export function TopBar() {
   useEffect(() => {
     const handleOpenGuide = (e: Event) => {
       const tab = (e as CustomEvent<{ tab?: GuideTab }>).detail?.tab;
-      setGuideTab(tab === "how" || tab === "types" ? tab : "samples");
+      setGuideTab(tab === "how" || tab === "types" || tab === "eds" ? tab : "samples");
       setIsHelpOpen(true);
     };
     window.addEventListener(OPEN_GUIDE_EVENT, handleOpenGuide);
@@ -214,8 +214,8 @@ export function TopBar() {
       }
       // Close modal on Escape
       if (e.key === "Escape" || e.code === "Escape") {
-        // an open dropdown of the calculators takes this Escape for itself (it closes the list, not the search window)
-        if (e.target instanceof Element && e.target.closest('[data-select-open="true"]')) return;
+        // an open dropdown of the calculators takes this Escape for itself (it closes the list, not the search window); so does a picture opened over the page (src/components/ImageLightbox.tsx)
+        if (e.target instanceof Element && e.target.closest('[data-select-open="true"], [data-escape-own="true"]')) return;
         setIsOmnibarOpen(false);
       }
     };

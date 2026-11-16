@@ -2,7 +2,7 @@
  * Self-test of the omnibar's login/summary hints after the Executive Deep Synthesis BUTTON was removed (step 41a).
  * Run: npx tsx --tsconfig tsconfig.json src/lib/search/loginHints.selftest.ts
  */
-import { decideLoginHint, resumeAsEds, EDS_SIGNIN_TEXT, looksAnalytical, looksLikeLookup, type HintInput } from "./loginHints";
+import { decideLoginHint, resumeAsEds, resumeAskedEds, shouldAskExecutive, EDS_SIGNIN_TEXT, looksAnalytical, looksLikeLookup, type ExecutiveAsk, type HintInput } from "./loginHints";
 import { readFileSync } from "node:fs";
 import { detectSynthesisIntent } from "./synthesisIntent";
 
@@ -89,6 +89,34 @@ ok("the screen passes the EDS kill switch to the advice", /edsEnabled: autoEdsEn
   ok("nothing submitted yet: nothing is re-run", !r({ submittedQuery: "", query: "" }));
 }
 ok("the screen runs the question through EDS when the visitor becomes an executive", /resumeAsEds\(\{/.test(modal) && /triggerSearch\("intellectual", \{ auto: true, query: submittedQuery \}\)/.test(modal) && /\[isExecutive\]\)/.test(modal));
+
+// ---- "Are you an executive?" (owner, 17 Nov 2026): an EDS-kind question from a visitor who is definitely signed out is not searched; the bar asks first
+{
+  const edsQ = "How do the public holidays notified for DSP employees in 2024, 2025 and 2026 compare, and which festival dates differ between the years?";
+  const ask = (o: Partial<{ authStatus: string; query: string; edsEnabled: boolean }> = {}) => shouldAskExecutive({ authStatus: "unauthenticated", query: edsQ, ...o });
+  ok("a signed-out visitor who asks an EDS-kind question is asked 'Are you an executive?' (the same detector as the route: level synthesis)", detectSynthesisIntent(edsQ).synthesis && ask());
+  ok("a signed-in person is never asked: an executive goes to EDS, anyone else to the normal search", !ask({ authStatus: "authenticated" }));
+  ok("while the session is still being checked nobody is asked (the visitor may be signed in)", !ask({ authStatus: "loading" }));
+  ok("an ordinary question or a directory question is never asked about", !ask({ query: "holiday list 2026" }) && !ask({ query: "who is the head of C&IT" }) && !ask({ query: "gold rate today" }));
+  ok("a borderline question (score 3 or 4) is not asked about: only a well-identified EDS question is", !ask({ query: "What amendment was made to the Merit Award Scheme for contract workers in 2026 and what does it change?" }));
+  ok("when EDS is switched off nobody is asked", !ask({ edsEnabled: false }));
+  ok("a line too short to be a question is not asked about", !ask({ query: "  " }));
+
+  // after Yes: signing in as an executive, same question still in the box -> runs through EDS
+  const yes: ExecutiveAsk = { query: edsQ, said: "yes" };
+  const res = (o: Partial<{ ask: ExecutiveAsk | null; wasExecutive: boolean; isExecutive: boolean; isOpen: boolean; query: string; edsEnabled: boolean }> = {}) => resumeAskedEds({ ask: yes, wasExecutive: false, isExecutive: true, isOpen: true, query: edsQ, ...o });
+  ok("after Yes, signing in as an executive with the question still in the box runs it through EDS by itself", res());
+  ok("it does NOT run when he has not said Yes (the question was only asked), when he had no answer, or when he said No (no ask is kept)", !res({ ask: { query: edsQ, said: null } }) && !res({ ask: null }));
+  ok("it does not run when he was already an executive, is not one now, the window is closed, EDS is off, or the question was edited", !res({ wasExecutive: true }) && !res({ isExecutive: false }) && !res({ isOpen: false }) && !res({ edsEnabled: false }) && !res({ query: edsQ + " and more" }));
+  // after No: the simple answer is shown and the sign-in advice is not repeated above it
+  const withHint = decideLoginHint({ ...base, query: edsQ, authStatus: "unauthenticated", authenticated: false, circularShown: true });
+  ok("without an answer the old advice stands for a signed-out visitor (kind eds-signin)", withHint?.kind === "eds-signin");
+  ok("after he answered No for this question no sign-in advice of any kind is repeated above the simple answer (neither the eds-signin nor the synthesis hint)", decideLoginHint({ ...base, query: edsQ, authStatus: "unauthenticated", authenticated: false, circularShown: true, executiveAskAnsweredNo: true }) === null);
+}
+const omniSrc = readFileSync("src/components/OmnibarModal.tsx", "utf8");
+ok("the search bar asks BEFORE it searches: the gate sits in the Enter handler after the utility and ID checks and before the AI intent step and the search itself", (() => { const g = omniSrc.indexOf("shouldAskExecutive({"); return g > omniSrc.indexOf("const understood = clearIntent(qTrim)") && g < omniSrc.indexOf("const proceed = () =>") && g < omniSrc.indexOf("askIntent(qTrim"); })());
+ok("Yes shows the sign-in message and button (the sign-in window opens); No runs the normal search and remembers the answer; the question is dropped when the text is edited or the window closes", /onYes=\{\(\) => setExecutiveAsk\(\{ \.\.\.executiveAsk, said: "yes" \}\)\}/.test(omniSrc) && /setDeclinedAsk\(q\);[\s\S]{0,200}triggerSearch\("semantic"\)/.test(omniSrc) && /onSignIn=\{openModal\}/.test(omniSrc) && /query\.trim\(\) !== executiveAsk\.query/.test(omniSrc) && /if \(!isOpen\) \{ setExecutiveAsk\(null\)/.test(omniSrc));
+ok("after signing in the question runs through EDS by itself (the asked question, not the old submitted one)", /resumeAskedEds\(\{ ask, wasExecutive: was, isExecutive, isOpen, query/.test(omniSrc) && /triggerSearch\("intellectual", \{ auto: true, query: ask\.query \}\)/.test(omniSrc));
 
 const all = [guest, exec].map((h) => h?.text ?? "");
 ok("no hint text sends anyone to a button", all.every((t) => t.length > 0 && !/button/i.test(t)), all.join(" | "));

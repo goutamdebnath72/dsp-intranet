@@ -6,6 +6,7 @@ import { defineTopic } from "@/tools/types";
 
 export const gratuityTopic = defineTopic({
   id: "gratuity",
+  intent: { title: "Gratuity calculator", about: "The gratuity payable on retirement or leaving, from the last pay and the years of service.", words: ["gratuity", "retirement", "benefit", "service", "years", "pay", "settlement", "terminal", "payable", "receive", "entitled"] },
   form: {
     rank: 40,
     nouns: ["gratuity"],

@@ -1,12 +1,13 @@
 // src/lib/live/fareFind.ts
 //
-// "FIND A FARE": the trains that go from Durgapur to a station the user picks, with the saved fare of each class, built from the saved fares to every stop (public.train_fare_leg) joined with the kept timetable (the
+// "FIND A FARE": the trains that go from Durgapur (or from Asansol, on the Asansol tab) to a station the user picks, with the saved fare of each class, built from the saved fares to every stop (public.train_fare_leg) joined with the kept timetable (the
 // departure at Durgapur, the days, the kind of train). Pure: the rows, the timetable and the clock are handed in. Nothing here asks RailRadar: the fares were collected while the paid month lasted.
 import { DateTime } from "luxon";
 import type { ClassFare } from "./fare";
 import { fareServiceOpen } from "./fareService";
 import type { Coverage, StopInfo, StopTrainRow } from "./fareLegStore";
 import type { Day, Kind, Railway, Train } from "./railway";
+import type { AsansolTrains } from "./railwayAsansol";
 
 /** the stations that have a saved fare to them (for the search box) */
 export interface StopsAnswer { stops: StopInfo[] }
@@ -17,7 +18,7 @@ export interface FindTrain {
   /** "Express", "Superfast", "Vande Bharat", "Shatabdi", "MEMU (local)"...; empty when the timetable is not at hand */
   label: string;
   kind: Kind | null;
-  /** at Durgapur; null when the timetable is not at hand */
+  /** at the starting station (Durgapur, or Asansol); null when the timetable is not at hand */
   departure: string | null;
   arrival: string | null;
   days: Day[];
@@ -43,10 +44,18 @@ export interface FindAnswer {
 /** the cheapest fare of a train to the stop (the lowest class), for sorting; Infinity when it has none */
 export const cheapest = (t: FindTrain): number => (t.classes.length ? Math.min(...t.classes.map((c) => c.total)) : Infinity);
 
+/** every train of a timetable, whichever of the two shapes it has: Durgapur's (in groups by direction) or Asansol's (two lists) */
+export function trainsOf(t: Railway | AsansolTrains | null): Train[] {
+  if (!t) return [];
+  if (Array.isArray(t.express)) return [...t.express, ...(t.local as Train[])];
+  const r = t as Railway;
+  return [...r.express.east, ...r.express.west, ...r.express.other, ...r.local.east, ...r.local.west, ...r.local.other];
+}
+
 /** the trains to a station: from the saved fares and the timetable (null when the timetable could not be read); null when no train has a saved fare to it */
-export function buildFind(stop: { code: string; name: string }, rows: StopTrainRow[], railway: Railway | null, coverage: Coverage, now: DateTime, until?: string): FindAnswer | null {
+export function buildFind(stop: { code: string; name: string }, rows: StopTrainRow[], railway: Railway | AsansolTrains | null, coverage: Coverage, now: DateTime, until?: string): FindAnswer | null {
   if (rows.length === 0) return null;
-  const all: Train[] = railway ? [...railway.express.east, ...railway.express.west, ...railway.express.other, ...railway.local.east, ...railway.local.west, ...railway.local.other] : [];
+  const all: Train[] = trainsOf(railway);
   const byNumber = new Map(all.map((t) => [t.number, t]));
   const trains: FindTrain[] = rows.map((r) => {
     const t = byNumber.get(r.number);

@@ -6,6 +6,7 @@ import { defineTopic } from "@/tools/types";
 
 export const fuelTopic = defineTopic({
   id: "fuel",
+  intent: { title: "Petrol, diesel and LPG prices", about: "Petrol, diesel and LPG cylinder prices in Delhi, Mumbai, Chennai and Kolkata, with Kolkata's trend over the year.", words: ["petrol", "diesel", "lpg", "cng", "fuel", "gas", "cylinder", "price", "pump", "refuel", "e20", "litre", "daam", "dam"] },
   live: {
     keys: ["petrol", "diesel", "lpg", "fuel", "fuels", "cylinder", "cylinders", "e20", "cng"],
     extra: ["metro", "metros", "city", "cities", "delhi", "mumbai", "chennai", "kolkata", "subsidised", "subsidized", "unsubsidised", "unsubsidized", "domestic", "commercial", "cooking", "gas", "ujjwala", "litre", "liter", "e20", "blend", "kg", "5", "14.2", "19", "47.5", "trend", "chart", "graph", "history", "year"],

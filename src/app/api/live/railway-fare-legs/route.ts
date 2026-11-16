@@ -1,7 +1,7 @@
 // src/app/api/live/railway-fare-legs/route.ts
 //
 // THE SAVED FARES FROM DURGAPUR TO EVERY STOP AFTER IT on the route of one train (src/lib/live/fareLegStore.ts), for the "Fares to every stop" table. DATABASE ONLY: it never asks RailRadar (a long-distance train has 50 stops and
-// about 200 requests): the stops are collected by scripts/harvest-legs.ts while the plant's paid month lasts. The caller sends nothing but the train number. The time shown is the time of the OLDEST stop's fares.
+// about 200 requests): the stops are collected by scripts/harvest-legs.ts while the plant's paid month lasts. The caller sends nothing but the train number (and `from=ASN` for the Asansol tab's trains). The time shown is the time of the OLDEST stop's fares.
 import { NextResponse, type NextRequest } from "next/server";
 import { DateTime } from "luxon";
 import { getDb } from "@/lib/db";
@@ -17,9 +17,11 @@ const fail = (error: string, status: number) => NextResponse.json({ ok: false, e
 
 export async function GET(req: NextRequest) {
   const number = req.nextUrl.searchParams.get("train") ?? "";
+  // the station the fare starts from: Durgapur unless the Asansol tab asks (`from=ASN`); nothing else is accepted
+  const from = req.nextUrl.searchParams.get("from") === "ASN" ? "ASN" : "DGR";
   if (!/^\d{5}$/.test(number)) return fail("Send the five-digit train number.", 400);
   try {
-    const rows = await legStoreFor(await getDb()).list(number);
+    const rows = await legStoreFor(await getDb(), from).list(number);
     const a = legsAnswer(number, rows, DateTime.now());
     if (!a) return fail(fareServiceOpen(DateTime.now()) ? "The fares to the stops of this train are not collected yet: the collection is still running. Try again later." : "The fares to the stops of this train were not collected before the paid fare service ended.", 404);
     const body: LiveEnvelope<LegsAnswer> = a.hint

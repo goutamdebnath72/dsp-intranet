@@ -6,6 +6,7 @@ import { defineTopic } from "@/tools/types";
 
 export const goldTopic = defineTopic({
   id: "gold",
+  intent: { title: "Gold and silver rates", about: "IBJA gold (24 and 22 carat) and silver rates in India, with the change and the trend of the last months.", words: ["gold", "silver", "bullion", "carat", "karat", "sona", "chandi", "jewellery", "jeweller", "ibja", "rate", "price", "tola", "bhav", "bhaw", "daam", "dam"] },
   live: {
     keys: ["gold", "silver", "bullion", "24k", "22k", "24", "22", "carat", "karat", "sona", "chandi"],
     extra: ["24k", "22k", "carat", "karat", "gold", "silver", "metal", "metals", "ibja", "trend", "chart"],

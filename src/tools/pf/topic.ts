@@ -6,6 +6,7 @@ import { defineTopic } from "@/tools/types";
 
 export const pfTopic = defineTopic({
   id: "pf",
+  intent: { title: "Provident fund (PF) at retirement", about: "Your probable provident fund (PF) corpus on the retirement day, worked from the DSP PF page: the monthly contributions, VPF and the interest.", words: ["pf", "epf", "provident", "fund", "maturity", "corpus", "balance", "vpf", "retirement", "retire", "superannuation", "pension", "accumulate", "savings"] },
   form: {
     rank: 30,
     nouns: ["pf", "epf", "provident", "fund", "maturity", "corpus", "balance", "vpf"],

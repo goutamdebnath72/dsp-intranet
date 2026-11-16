@@ -55,6 +55,16 @@ function fakeDb(opts: { tableExists?: boolean; failCreate?: boolean; failRead?: 
   const good = { train_number: "12019", train_name: "x", to_code: "RNC", journey_date: "2026-11-16", distance_km: "268", classes: JSON.stringify(SET.classes), fetched_at: "2026-11-14T05:40:00Z" };
   ok("a row is read (classes as text or as data; distance as text or number)", fareFromRow(good)?.set.distanceKm === 268 && fareFromRow({ ...good, classes: SET.classes })?.set.classes.length === 2);
   ok("a row with a broken time, a broken class, a wrong number or day, or no classes list is not shown", fareFromRow({ ...good, fetched_at: "garbage" }) === null && fareFromRow({ ...good, classes: [{ code: "CC" }] }) === null && fareFromRow({ ...good, train_number: "12" }) === null && fareFromRow({ ...good, journey_date: "16/11/2026" }) === null && fareFromRow({ ...good, classes: "null" }) === null && fareFromRow({ ...good, distance_km: "abc" }) === null);
-  console.log(`fareStore: ${pass} passed, ${fail} failed`);
+  // the Asansol tab's trains have their own table, so nothing of Durgapur's is touched
+ok("the Asansol store writes and reads its own table (train_fare_asn), makes it by itself, and its rows say they are from ASN; Durgapur's table is untouched", await (async () => {
+  const log: string[] = [];
+  const rows = new Map<string, any>();
+  const db = { async query(sql: string, p: unknown[] = []) { log.push(sql.replace(/\s+/g, " ").trim()); if (/to_regclass/.test(sql)) return [{ t: null }]; if (/^\s*CREATE TABLE|ENABLE ROW LEVEL|REVOKE/.test(sql)) return []; if (/^\s*INSERT INTO/.test(sql)) { rows.set(String(p[0]), { train_number: p[0], train_name: p[1], to_code: p[2], journey_date: p[3], distance_km: p[4], classes: p[5], fetched_at: p[6] }); return []; } if (/FROM public\.train_fare_asn WHERE/.test(sql)) { const r = rows.get(String(p[0])); return r ? [r] : []; } throw new Error("unexpected " + sql); } };
+  const st = typeormFareStore(db, "ASN");
+  await st.put({ ...SET, train: "12302", from: "ASN", to: "HWH" }, new Date("2026-11-16T08:00:00Z"));
+  const back = await st.get("12302");
+  return back?.set.from === "ASN" && back.set.to === "HWH" && log.some((l) => /CREATE TABLE IF NOT EXISTS public\.train_fare_asn /.test(l)) && !log.some((l) => /public\.train_fare( |\()/.test(l.replace("train_fare_asn", "")));
+})());
+console.log(`fareStore: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

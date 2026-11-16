@@ -1,7 +1,7 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/fareLegStore.selftest.ts
 // The saved fares to every stop: written and read back in route order with the time received, a row that is not the shape written is not shown, and database trouble never breaks a card.
 import { DateTime } from "luxon";
-import { LEG_TABLE_STATEMENTS, legFromRow, typeormLegStore } from "./fareLegStore";
+import { LEG_TABLE_STATEMENTS, LEG_TABLES, legFromRow, legTableStatements, typeormLegStore } from "./fareLegStore";
 import type { LegFare } from "./fare";
 
 let pass = 0, fail = 0;
@@ -57,6 +57,17 @@ function fakeDb(o: { exists?: boolean; failCreate?: boolean; failRead?: boolean 
   const good = { to_code: "ASN", to_name: "Asansol Jn", seq: 22, distance_km: "43", journey_date: "2026-11-21", classes: JSON.stringify(leg("ASN", 22, 43, 150).classes), fetched_at: "2026-11-14T08:00:00Z" };
   ok("a row is read (classes as text or data, numbers as text)", legFromRow(good)?.leg.distanceKm === 43 && legFromRow({ ...good, classes: leg("ASN", 22, 43, 150).classes })?.leg.seq === 22);
   ok("a row with a broken time, no classes, a broken class, a bad code or day, or a fractional place is not shown", legFromRow({ ...good, fetched_at: "x" }) === null && legFromRow({ ...good, classes: "[]" }) === null && legFromRow({ ...good, classes: [{ code: "SL" }] }) === null && legFromRow({ ...good, to_code: "asn jn" }) === null && legFromRow({ ...good, journey_date: "21/11/2026" }) === null && legFromRow({ ...good, seq: 2.5 }) === null && legFromRow({ ...good, distance_km: "abc" }) === null);
-  console.log(`fareLegStore: ${pass} passed, ${fail} failed`);
+  // the Asansol tab's trains have their own leg table (and are joined to their own fare table), so nothing of Durgapur's is touched
+ok("the Asansol leg store writes, reads, lists stops and joins only the _asn tables, and makes its table by itself", await (async () => {
+  const log: string[] = [];
+  const rows: any[] = [];
+  const db = { async query(sql: string, p: unknown[] = []) { log.push(sql.replace(/\s+/g, " ").trim()); if (/to_regclass/.test(sql)) return [{ t: null }]; if (/^\s*CREATE TABLE|ENABLE ROW LEVEL|REVOKE/.test(sql)) return []; if (/^\s*INSERT INTO/.test(sql)) { rows.push({ train_number: p[0], to_code: p[1], to_name: p[2], seq: p[3], distance_km: p[4], journey_date: p[5], classes: p[6], fetched_at: p[7] }); return []; } if (/FROM public\.train_fare_leg_asn WHERE train_number/.test(sql)) return rows; if (/FROM public\.train_fare_leg_asn l LEFT JOIN public\.train_fare_asn f/.test(sql)) return rows.map((r) => ({ ...r, train_name: "X" })); throw new Error("unexpected " + sql); } };
+  const st = typeormLegStore(db, "ASN");
+  await st.put("12302", leg("HWH", 30, 200, 300), new Date("2026-11-16T08:00:00Z"));
+  const l = await st.list("12302"), t = await st.toStop("HWH");
+  const touchesDgr = log.some((q) => /public\.train_fare(_leg)?( |\(|$)/.test(q));
+  return l.length === 1 && l[0].leg.to === "HWH" && t.length === 1 && t[0].trainName === "X" && log.some((q) => /CREATE TABLE IF NOT EXISTS public\.train_fare_leg_asn /.test(q)) && !touchesDgr && LEG_TABLES.ASN === "train_fare_leg_asn" && legTableStatements("DGR").join() === LEG_TABLE_STATEMENTS.join();
+})());
+console.log(`fareLegStore: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

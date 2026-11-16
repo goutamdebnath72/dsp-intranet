@@ -17,6 +17,7 @@ const PAPER_WORDS = PAPERS.flatMap(([names]) => names).filter((n) => !n.includes
 
 export const newsTopic = defineTopic({
   id: "news",
+  intent: { title: "News headlines", about: "The latest headlines: business, general English, Hindi and Bengali newspapers.", words: ["news", "headlines", "headline", "newspaper", "paper", "khabar", "samachar", "economic", "times", "hindu", "telegraph", "bhaskar", "anandabazar", "latest"] },
   live: {
     keys: ["news", "newsfeed", "newsfeeds", "newspaper", "newspapers", "headline", "headlines", "stories", "samachar", "khabar", "khabrein", "समाचार", "খবর", ...PAPER_WORDS],
     phrases: PAPER_PHRASES,

@@ -7,6 +7,7 @@ import { evaluateExpression } from "./expression";
 
 export const calcTopic = defineTopic({
   id: "calc",
+  intent: { title: "Calculator", about: "A full basic and scientific calculator; a sum typed as you type is answered too (12*45+7, percentages, square roots, powers).", words: ["calculator", "calculate", "sum", "arithmetic", "add", "subtract", "multiply", "divide", "percentage", "percent", "square", "root", "power", "scientific", "trigonometry", "sin", "cos", "tan", "log", "math", "maths", "mathematics", "hisab"] },
   form: {
     rank: 10,
     nouns: ["calculator", "calc", "scientific", "basic", "standard", "numerical", "numeric", "full", "normal", "simple", "mac", "online", "free", "open", "the", "a", "my", "show", "need", "want"],

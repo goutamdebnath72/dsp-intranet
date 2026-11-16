@@ -53,6 +53,13 @@ const mkSaved = { ...mk, saved: { at: "2026-11-13T10:30:00.000Z", names: ["Nifty
 const savedHtml = h(<MarketsBody data={mkSaved} />), allSavedHtml = h(<MarketsBody data={{ ...mk, saved: { at: "2026-11-13T10:30:00.000Z", names: [...mk.indices, ...mk.stocks].map((x) => x.name) } }} />);
 ok("markets: figures from the saved copy say NOT LIVE, name which ones and when they were received; all saved says 'these are'; live figures carry no such note", /data-saved-copy/.test(savedHtml) && /Not live\./.test(savedHtml) && /Nifty 50, SAIL are the last figures/.test(savedHtml) && /these are<\/?[^>]*>?[^<]*the last figures|these are the last figures/.test(allSavedHtml.replace(/<!-- -->/g, "")) && !/data-saved-copy/.test(mkHtml));
 
+ok("markets: every figure is marked: the saved ones say SAVED COPY, the others are LIVE or LAST CLOSE; the watch list carries its own mark", /data-freshness="saved"[^>]*>[^]*?SAVED COPY/.test(savedHtml) && /data-freshness="saved"/.test(allSavedHtml) && !/data-freshness="saved"/.test(mkHtml) && (mkHtml.match(/data-freshness="(live|last)"/g) ?? []).length === mk.indices.length + 1);
+ok("gold: the rates are marked as today's, the last published day, or a saved copy", /data-freshness="live"[^>]*>[^]*?LIVE · (OPENING \(AM\)|CLOSING \(PM\))/.test(goldHtml) && /data-freshness="saved"/.test(gold ? h(<GoldBody rates={gold} stale />) : "") && /data-freshness="last"[^>]*>[^]*?LAST PUBLISHED/.test(gold ? h(<GoldBody rates={{ ...gold, asOf: "2026-11-13", notPublished: "x" }} />) : ""));
+
+ok("the LIVE pill is the eye-catcher: solid green, a glow, a pinging dot, all of it switched off by reduced-motion; the other two are quiet", /data-freshness="live"[^>]*class="[^"]*bg-emerald-600[^"]*motion-safe:animate-livepulse/.test(goldHtml) && /data-live-dot/.test(goldHtml) && /motion-safe:animate-ping/.test(goldHtml) && !/data-live-dot/.test(allSavedHtml) && !/animate-(ping|livepulse)/.test(gold ? h(<GoldBody rates={gold} stale />) : ""));
+
+const goldCaption = goldHtml.slice(goldHtml.indexOf("IBJA closing") > 0 ? goldHtml.indexOf("IBJA closing") : goldHtml.indexOf("Today&#x27;s"));
+ok("the mark sits ON the cards, in their bottom-right corner, not below them: one on each gold tile, one on each index tile and one on the watch list, none in the caption lines", (goldHtml.match(/data-status-corner/g) ?? []).length === 3 && (mkHtml.match(/data-status-corner/g) ?? []).length === mk.indices.length + 1 && !/data-freshness/.test(goldCaption.split("Click a metal")[0]) && /justify-end/.test(mkHtml));
 // stories: a new tab, safely, only a headline and a link
 const items = parseRss(fx("rss-thehindu.xml"), "The Hindu");
 const storyHtml = h(<StoryList items={items} lang="en" empty="none" />);

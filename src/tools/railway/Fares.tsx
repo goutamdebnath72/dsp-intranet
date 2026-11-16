@@ -16,6 +16,11 @@ import { RAILRADAR_SITE } from "@/lib/live/railway";
 import { stationLabel } from "./stations";
 
 export const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+/** the starting station of a fare: Durgapur, or Asansol for the trains of the Asansol tab */
+export type FareFrom = "DGR" | "ASN";
+export const originName = (from: string | undefined): string => (from === "ASN" ? "Asansol" : "Durgapur");
+const fromQuery = (from: FareFrom) => (from === "ASN" ? "&from=ASN" : "");
+
 const when = (iso: string) => DateTime.fromISO(iso, { zone: "Asia/Kolkata" }).toFormat("ccc d LLL yyyy");
 
 /** how long ago the fares were received, in whole days of Indian time ("today", "yesterday", "5 days ago") */
@@ -72,10 +77,10 @@ export function FareTable({ set, now, local = false }: { set: FareSet & { receiv
   return (
     <div className="min-w-0 max-w-full" data-fares-table>
       <p className="text-xs font-bold text-slate-800">
-        {hint ? "Fare hint" : "Fare"} from Durgapur to {to.name} ({set.to}){set.distanceKm > 0 && <span className="font-semibold text-slate-500"> · {Math.round(set.distanceKm).toLocaleString("en-IN")} km</span>}
+        {hint ? "Fare hint" : "Fare"} from {originName(set.from)} to {to.name} ({set.to}){set.distanceKm > 0 && <span className="font-semibold text-slate-500"> · {Math.round(set.distanceKm).toLocaleString("en-IN")} km</span>}
       </p>
       {set.receivedAt && !noHint && <ReceivedLine receivedAt={set.receivedAt} frozen={set.frozen === true} now={now} hint={hint} />}
-      {!hint && <p className="mt-1.5 text-[11px] text-slate-500">Asked for travel on <strong className="text-slate-700">{when(set.journeyDate)}</strong> (a day the train is at Durgapur)</p>}
+      {!hint && <p className="mt-1.5 text-[11px] text-slate-500">Asked for travel on <strong className="text-slate-700">{when(set.journeyDate)}</strong> (a day the train is at {originName(set.from)})</p>}
       {set.classes.length === 0 ? (
         <p className="mt-2 rounded-lg border border-dashed border-slate-300 bg-white/70 px-3 py-2 text-xs text-slate-700" data-no-fare>
           {local ? "No fare hint for this train: it reverses on its way. Ask at the ticket counter." : "No fare available for this train. Check IRCTC."}
@@ -112,11 +117,11 @@ export const CLASS_FULL: Record<string, string> = {
 };
 
 /** the short forms in a table, written out under it (a phone has no hover): "SL Sleeper · 3A AC 3 Tier" */
-export function ClassKey({ codes }: { codes: string[] }) {
+export function ClassKey({ codes, from = "DGR" }: { codes: string[]; from?: FareFrom }) {
   return (
     <p className="mt-1.5 text-[11px] leading-snug text-slate-500" data-class-key>
       {codes.map((c, i) => <React.Fragment key={c}>{i > 0 && " · "}<strong className="font-bold text-slate-700">{c}</strong> {CLASS_FULL[c] ?? c}</React.Fragment>)}
-      {" · "}<strong className="font-bold text-slate-700">km</strong> distance from Durgapur
+      {" · "}<strong className="font-bold text-slate-700">km</strong> distance from {originName(from)}
     </p>
   );
 }
@@ -127,6 +132,7 @@ export function ShortForms() {
     ...Object.entries(CLASS_FULL).filter(([c]) => c !== "UR"),
     ["MEMU", "Mainline Electric Multiple Unit (the local train)"],
     ["DGR", "the railway code of Durgapur; the code in brackets beside a station is its railway code"],
+    ["ASN", "the railway code of Asansol Junction"],
     ["GST", "Goods and Services Tax"],
     ["IRCTC", "Indian Railway Catering and Tourism Corporation (the ticket booking site)"],
     ["NTES", "National Train Enquiry System (live running status)"],
@@ -147,8 +153,8 @@ export function legClasses(legs: LegsAnswer["legs"]): Array<{ code: string; name
   return [...seen.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([code, name]) => ({ code, name }));
 }
 
-/** THE FARE TO EVERY STOP AFTER DURGAPUR: one row per stop (name, code, distance from Durgapur) and one column per class the train has; a dash where the train does not sell that class between Durgapur and the stop */
-export function LegsTable({ answer, now }: { answer: LegsAnswer; now?: DateTime }) {
+/** THE FARE TO EVERY STOP AFTER THE STARTING STATION (Durgapur, or Asansol on the Asansol tab): one row per stop (name, code, distance from it) and one column per class the train has; a dash where the train does not sell that class between the two */
+export function LegsTable({ answer, now, from = "DGR" }: { answer: LegsAnswer; now?: DateTime; from?: FareFrom }) {
   const cols = legClasses(answer.legs);
   const cell = (l: LegsAnswer["legs"][number], code: string) => {
     const c = l.classes.find((x) => x.code === code);
@@ -158,7 +164,7 @@ export function LegsTable({ answer, now }: { answer: LegsAnswer; now?: DateTime 
   return (
     <div className="min-w-0 max-w-full" data-legs-table>
       <ReceivedLine receivedAt={answer.receivedAt} frozen={answer.frozen} now={now} hint={answer.hint} />
-      <p className="mt-1.5 text-[11px] text-slate-500">{answer.hint ? "Fare hints" : "Fares"} from Durgapur to each of the {answer.legs.length} stops after it; a dash: class not available.</p>
+      <p className="mt-1.5 text-[11px] text-slate-500">{answer.hint ? "Fare hints" : "Fares"} from {originName(from)} to each of the {answer.legs.length} stops after it; a dash: class not available.</p>
       <div className="mt-1.5 max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full min-w-max border-collapse text-left text-[11px] tabular-nums">
           <thead className="sticky top-0 z-20 bg-slate-50 text-slate-500">
@@ -184,27 +190,27 @@ export function LegsTable({ answer, now }: { answer: LegsAnswer; now?: DateTime 
           </tbody>
         </table>
       </div>
-      <ClassKey codes={cols.map((c) => c.code)} />
+      <ClassKey codes={cols.map((c) => c.code)} from={from} />
       {answer.hint ? <HintDisclaimer number={answer.train} /> : <FareDisclaimer />}
     </div>
   );
 }
 
 /** the fares to every stop, asked for (from the database) when the button is pressed */
-export function LegsBox({ number }: { number: string }) {
-  const { state, env, error, reload } = useLive<LegsAnswer>(`/api/live/railway-fare-legs?train=${number}`, true);
+export function LegsBox({ number, from = "DGR" }: { number: string; from?: FareFrom }) {
+  const { state, env, error, reload } = useLive<LegsAnswer>(`/api/live/railway-fare-legs?train=${number}${fromQuery(from)}`, true);
   return (
     <div className="mt-2 min-w-0 max-w-full" data-legs-box>
       {state === "loading" && <p className="flex items-center gap-2 text-xs text-slate-600" aria-busy="true"><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Loading the fares to every stop…</p>}
       {state === "error" && <p className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-3 py-2 text-xs text-slate-700">{error || "The fares to the stops could not be shown."} <button type="button" onClick={reload} className="ml-1 font-bold text-slate-800 underline">Try again</button></p>}
-      {env && <><LegsTable answer={env.data} /><FareSource reservation={!env.data.hint} table={env.data.hint} /></>}
+      {env && <><LegsTable answer={env.data} from={from} /><FareSource reservation={!env.data.hint} table={env.data.hint} /></>}
     </div>
   );
 }
 
 /** the open panel of a train: asks for the fares as it appears */
-export function FareBox({ number, local = false }: { number: string; local?: boolean }) {
-  const { state, env, error, reload } = useLive<FareAnswer>(`/api/live/railway-fare?train=${number}`, true);
+export function FareBox({ number, local = false, from = "DGR" }: { number: string; local?: boolean; from?: FareFrom }) {
+  const { state, env, error, reload } = useLive<FareAnswer>(`/api/live/railway-fare?train=${number}${fromQuery(from)}`, true);
   return (
     <div className="mt-2 min-w-0 max-w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3" data-fare-box role="region" aria-label={`Fares of train ${number}`}>
       {state === "loading" && <p className="flex items-center gap-2 text-xs text-slate-600" aria-busy="true"><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Asking the railway&apos;s reservation system for the fares…</p>}
@@ -216,18 +222,18 @@ export function FareBox({ number, local = false }: { number: string; local?: boo
         </div>
       )}
       {env && <><FareTable set={env.data} local={local} />{!(local && env.data.classes.length === 0) && <FareSource reservation={!env.data.classes.some((c) => c.basis === "table")} table={env.data.classes.some((c) => c.basis === "table")} />}</>}
-      {env && env.data.classes.length > 0 && <StopsToggle number={number} />}
+      {env && env.data.classes.length > 0 && <StopsToggle number={number} from={from} />}
     </div>
   );
 }
 
 /** the button under a train's fares that opens the fare to every stop on its route */
-function StopsToggle({ number }: { number: string }) {
+function StopsToggle({ number, from }: { number: string; from: FareFrom }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-2 min-w-0 max-w-full border-t border-slate-200 pt-2">
       <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-bold text-slate-700 hover:border-rose-300 hover:text-rose-700" data-stops-button>{open ? "Hide the stops" : "Fares to every stop on the route"}</button>
-      {open && <LegsBox number={number} />}
+      {open && <LegsBox number={number} from={from} />}
     </div>
   );
 }

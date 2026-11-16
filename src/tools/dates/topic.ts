@@ -7,6 +7,7 @@ import { answerDateQuestion } from "./dateCalc";
 
 export const datesTopic = defineTopic({
   id: "dates",
+  intent: { title: "Dates and age", about: "Days between two dates, the date after some days, age from a birth date, the retirement date from a birth date, the weekday of a date, working days.", words: ["date", "dates", "age", "birthday", "born", "birth", "retire", "retirement", "superannuation", "days", "weeks", "months", "between", "difference", "weekday", "calendar", "working", "until", "since", "after", "before", "day", "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec"] },
   form: {
     rank: 60,
     nouns: ["date", "dates", "age", "retirement", "superannuation", "days", "between", "difference"],

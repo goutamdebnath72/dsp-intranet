@@ -30,7 +30,15 @@ export function SearchBarIntro() {
         <p className="mb-1.5 mt-3.5 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-slate-500"><Sparkles size={13} aria-hidden="true" /> What you can ask</p>
         <ul className="grid gap-1.5 sm:grid-cols-2">
           {AREAS.map((a) => (
-            <li key={a.label} className="rounded-lg border border-slate-100 bg-white/80 px-2.5 py-1.5 text-[12.5px] leading-snug text-slate-600"><strong className="text-slate-800">{a.label}</strong>: {a.detail}</li>
+            <li key={a.label} className={`rounded-lg border border-slate-100 bg-white/80 px-2.5 py-1.5 text-[12.5px] leading-snug text-slate-600${a.parts ? " sm:col-span-2" : ""}`}><strong className="text-slate-800">{a.label}</strong>: {a.detail}
+              {a.parts && (
+                <ol className="mt-1.5 space-y-1" data-area-parts>
+                  {a.parts.map((p, i) => (
+                    <li key={p.title} className="flex items-start gap-1.5 rounded-md bg-slate-50 px-2 py-1"><span aria-hidden="true" className="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[10px] font-bold text-white">{i + 1}</span><span><strong className="text-slate-800">{p.title}</strong>: {p.detail}</span></li>
+                  ))}
+                </ol>
+              )}
+            </li>
           ))}
         </ul>
         <p className="mb-1 mt-3.5 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-amber-700"><CircleAlert size={13} aria-hidden="true" /> Good to know</p>

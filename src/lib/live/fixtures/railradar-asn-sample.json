@@ -1,0 +1,534 @@
+{
+ "success": true,
+ "data": {
+  "station": {
+   "code": "ASN",
+   "name": "Asansol Jn",
+   "city": "Asansol",
+   "elevation_m": 106,
+   "lat": 23.69132,
+   "lng": 86.97534,
+   "stationType": "junction",
+   "popularity": 0,
+   "railwayLines": null,
+   "facilities": []
+  },
+  "trains": [
+   {
+    "train": {
+     "number": "22213",
+     "name": "Shalimar - Patna Duronto Express",
+     "type": "Duronto Express",
+     "source": {
+      "code": "SHM",
+      "name": "Shalimar"
+     },
+     "destination": {
+      "code": "PNBE",
+      "name": "Patna Jn"
+     },
+     "runDays": [
+      "mon",
+      "wed",
+      "fri"
+     ]
+    },
+    "stop": {
+     "sequence": 54,
+     "arrival": "00:55",
+     "departure": "01:00",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 204.9,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "12302",
+     "name": "New Delhi - Howrah Rajdhani Express",
+     "type": "Rajdhani Express",
+     "source": {
+      "code": "NDLS",
+      "name": "New Delhi"
+     },
+     "destination": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "sat",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 202,
+     "arrival": "07:18",
+     "departure": "07:20",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 1254.2,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "12301",
+     "name": "Howrah - New Delhi Rajdhani Express",
+     "type": "Rajdhani Express",
+     "source": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "destination": {
+      "code": "NDLS",
+      "name": "New Delhi"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat"
+     ]
+    },
+    "stop": {
+     "sequence": 55,
+     "arrival": "18:47",
+     "departure": "18:49",
+     "arrivalDay": 1,
+     "departureDay": 1,
+     "distance": 201,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "12937",
+     "name": "Garba SF Express",
+     "type": "Superfast Express",
+     "source": {
+      "code": "GIMB",
+      "name": "Gandhidham BG"
+     },
+     "destination": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "runDays": [
+      "sat"
+     ]
+    },
+    "stop": {
+     "sequence": 346,
+     "arrival": "09:39",
+     "departure": "09:49",
+     "arrivalDay": 3,
+     "departureDay": 3,
+     "distance": 2321.1,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "13042",
+     "name": "Himgiri Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "JAT",
+      "name": "Jammutavi"
+     },
+     "destination": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "runDays": [
+      "mon",
+      "thu",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 346,
+     "arrival": "07:48",
+     "departure": "07:58",
+     "arrivalDay": 3,
+     "departureDay": 3,
+     "distance": 1824.6,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "13287",
+     "name": "South Bihar Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "DURG",
+      "name": "Durg"
+     },
+     "destination": {
+      "code": "ARA",
+      "name": "Ara"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 122,
+     "arrival": "00:05",
+     "departure": "00:15",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 782.2,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "13513",
+     "name": "Asansol - Hatia Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "ASN",
+      "name": "Asansol Jn"
+     },
+     "destination": {
+      "code": "HTE",
+      "name": "Hatia"
+     },
+     "runDays": [
+      "mon",
+      "wed",
+      "thu",
+      "sat",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 1,
+     "arrival": null,
+     "departure": "04:10",
+     "arrivalDay": null,
+     "departureDay": 1,
+     "distance": 0,
+     "stopType": "origin"
+    }
+   },
+   {
+    "train": {
+     "number": "63541",
+     "name": "Asansol - NSCB Jn. Gomoh MEMU",
+     "type": "MEMU",
+     "source": {
+      "code": "ASN",
+      "name": "Asansol Jn"
+     },
+     "destination": {
+      "code": "GMO",
+      "name": "Nsc Bose J Gomo"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 1,
+     "arrival": null,
+     "departure": "04:45",
+     "arrivalDay": null,
+     "departureDay": 1,
+     "distance": 0,
+     "stopType": "origin"
+    }
+   },
+   {
+    "train": {
+     "number": "03512",
+     "name": "Asansol Special Fare Special",
+     "type": "Train on Demand",
+     "source": {
+      "code": "PNBE",
+      "name": "Patna Jn"
+     },
+     "destination": {
+      "code": "ASN",
+      "name": "Asansol Jn"
+     },
+     "runDays": [
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 88,
+     "arrival": "04:50",
+     "departure": null,
+     "arrivalDay": 2,
+     "departureDay": null,
+     "distance": 331.4,
+     "stopType": "destination"
+    }
+   },
+   {
+    "train": {
+     "number": "12941",
+     "name": "Parasnath Express",
+     "type": "Superfast Express",
+     "source": {
+      "code": "BVC",
+      "name": "Bhavnagar Terminus"
+     },
+     "destination": {
+      "code": "ASN",
+      "name": "Asansol Jn"
+     },
+     "runDays": [
+      "tue"
+     ]
+    },
+    "stop": {
+     "sequence": 353,
+     "arrival": "10:10",
+     "departure": null,
+     "arrivalDay": 3,
+     "departureDay": null,
+     "distance": 2318.5,
+     "stopType": "destination"
+    }
+   },
+   {
+    "train": {
+     "number": "18183",
+     "name": "Tatanagar - Buxar Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "TATA",
+      "name": "Tatanagar Jn"
+     },
+     "destination": {
+      "code": "BXR",
+      "name": "Buxar"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 28,
+     "arrival": "12:00",
+     "departure": "12:10",
+     "arrivalDay": 1,
+     "departureDay": 1,
+     "distance": 165.4,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "15048",
+     "name": "Purvanchal Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "GKP",
+      "name": "Gorakhpur Jn"
+     },
+     "destination": {
+      "code": "KOAA",
+      "name": "Kolkatta Terminal"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "fri",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 129,
+     "arrival": "00:01",
+     "departure": "00:11",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 643.5,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "15050",
+     "name": "Purvanchal Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "GKP",
+      "name": "Gorakhpur Jn"
+     },
+     "destination": {
+      "code": "KOAA",
+      "name": "Kolkatta Terminal"
+     },
+     "runDays": [
+      "wed",
+      "sat"
+     ]
+    },
+    "stop": {
+     "sequence": 138,
+     "arrival": "00:01",
+     "departure": "00:11",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 667.1,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "15052",
+     "name": "Purvanchal Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "GKP",
+      "name": "Gorakhpur Jn"
+     },
+     "destination": {
+      "code": "KOAA",
+      "name": "Kolkatta Terminal"
+     },
+     "runDays": [
+      "thu"
+     ]
+    },
+    "stop": {
+     "sequence": 128,
+     "arrival": "00:01",
+     "departure": "00:11",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 660.1,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "13051",
+     "name": "Netaji Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "destination": {
+      "code": "KLK",
+      "name": "Kalka"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 55,
+     "arrival": "00:22",
+     "departure": "00:27",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 201,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "00442",
+     "name": "Patelnagar - Chitpur Special",
+     "type": "Parcel Express",
+     "source": {
+      "code": "PTNR",
+      "name": "Patelnagar"
+     },
+     "destination": {
+      "code": "CP",
+      "name": "Chitpur"
+     },
+     "runDays": [
+      "thu",
+      "fri"
+     ]
+    },
+    "stop": {
+     "sequence": 200,
+     "arrival": "05:57",
+     "departure": "05:57",
+     "arrivalDay": 3,
+     "departureDay": 3,
+     "distance": 1252.7,
+     "stopType": "pass-through"
+    }
+   },
+   {
+    "train": {
+     "number": "00441",
+     "name": "Chitpur - Patelnagar Special",
+     "type": "Parcel Express",
+     "source": {
+      "code": "CP",
+      "name": "Chitpur"
+     },
+     "destination": {
+      "code": "PTNR",
+      "name": "Patelnagar"
+     },
+     "runDays": [
+      "mon",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 57,
+     "arrival": "06:07",
+     "departure": "06:07",
+     "arrivalDay": 1,
+     "departureDay": 1,
+     "distance": 207.6,
+     "stopType": "pass-through"
+    }
+   }
+  ],
+  "count": 17,
+  "includeIntermediate": true
+ },
+ "meta": {
+  "timestamp": "2026-11-16T13:41:21+05:30",
+  "traceId": "b1c5b064-8a4d-4b17-a91e-6a68d2be1603",
+  "source": "database",
+  "executionTime": 12
+ }
+}

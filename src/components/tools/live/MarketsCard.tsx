@@ -9,8 +9,9 @@ import { motion } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
 import { DateTime } from "luxon";
 import { useLive } from "@/hooks/useLive";
-import { sessionState, type MarketsData, type Quote } from "@/lib/live/markets";
-import { ChangeChip, LiveGate, SourceLine, Sparkline, stamp } from "./LivePieces";
+import type { MarketsData, Quote } from "@/lib/live/markets";
+import { quoteFreshness } from "@/lib/live/freshness";
+import { ChangeChip, LiveGate, SourceLine, Sparkline, StatusPill, stamp } from "./LivePieces";
 
 const num = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -21,22 +22,21 @@ const TILES = [
   { tile: "from-fuchsia-600 via-purple-600 to-violet-700 border-fuchsia-400/60 shadow-fuchsia-500/30", name: "text-fuchsia-100", sub: "text-fuchsia-100/90" },
 ] as const;
 
-function IndexTile({ q, i }: { q: Quote; i: number }) {
+function IndexTile({ q, i, saved }: { q: Quote; i: number; saved: readonly string[] }) {
   const up = q.change >= 0;
   const c = TILES[i % TILES.length];
-  const state = sessionState(q.time, DateTime.now());
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i, type: "spring", stiffness: 260, damping: 24 }} data-index-tile={up ? "up" : "down"} className={`relative overflow-hidden rounded-3xl border bg-gradient-to-br p-4 text-white shadow-lg ${c.tile}`}>
       <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/20 blur-2xl" />
       <span aria-hidden="true" className="pointer-events-none absolute -bottom-12 -left-8 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
       <div className="relative flex items-center justify-between gap-2">
         <span className={`text-xs font-extrabold uppercase tracking-widest ${c.name}`}>{q.name}</span>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${state === "live" ? "bg-emerald-100 text-emerald-800" : "bg-white/85 text-slate-700"}`}>{state === "live" ? "LIVE" : "LAST CLOSE"}</span>
       </div>
       <div className="relative mt-1 text-3xl font-extrabold tabular-nums leading-tight text-white">{num(q.price)}</div>
       <div className="relative mt-1"><ChangeChip abs={q.change} pct={q.pct} /></div>
       <div className="relative mt-2"><Sparkline values={q.spark} color="#ffffff" /></div>
       <div className={`relative mt-1 flex justify-between text-[11px] font-semibold ${c.sub}`}><span>Low {q.low !== null ? num(q.low) : "—"}</span><span>High {q.high !== null ? num(q.high) : "—"}</span></div>
+      <div data-status-corner className="relative mt-2 flex justify-end"><StatusPill label={quoteFreshness(q, DateTime.now(), saved)} /></div>
     </motion.div>
   );
 }
@@ -53,9 +53,12 @@ function MoverRow({ q }: { q: Quote }) {
 export function MarketsBody({ data }: { data: MarketsData }) {
   const sail = data.stocks.find((s) => s.name === "SAIL");
   const asOf = data.indices[0]?.time || data.stocks[0]?.time || "";
+  const savedNames = data.saved?.names ?? [];
+  // the watch list is one session: its pill is the state of its first share (they come from the same feed at the same time)
+  const listState = data.stocks[0] ? quoteFreshness(data.stocks[0], DateTime.now(), savedNames) : null;
   return (
     <div>
-      {data.indices.length > 0 && <div className="grid gap-3 sm:grid-cols-3">{data.indices.map((q, i) => <IndexTile key={q.symbol} q={q} i={i} />)}</div>}
+      {data.indices.length > 0 && <div className="grid gap-3 sm:grid-cols-3">{data.indices.map((q, i) => <IndexTile key={q.symbol} q={q} i={i} saved={savedNames} />)}</div>}
       {asOf && <p className="mt-2 text-xs text-slate-500">Last price at {stamp(asOf)} IST. Prices may be delayed by about fifteen minutes.</p>}
       {data.saved && (
         <p role="status" data-saved-copy className="mt-2 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900">
@@ -82,6 +85,7 @@ export function MarketsBody({ data }: { data: MarketsData }) {
             <summary className="cursor-pointer text-xs font-bold text-slate-600 hover:text-slate-900">The whole watch list ({data.stocks.length})</summary>
             <ul className="mt-2 grid gap-1 sm:grid-cols-2">{[...data.stocks].sort((a, b) => b.pct - a.pct).map((q) => <MoverRow key={q.symbol} q={q} />)}</ul>
           </details>
+          {listState && <div data-status-corner className="mt-3 flex justify-end"><StatusPill label={listState} /></div>}
         </div>
       )}
       {data.missing.length > 0 && <p className="mt-2 text-xs text-amber-700">Not answering just now: {data.missing.join(", ")}.</p>}

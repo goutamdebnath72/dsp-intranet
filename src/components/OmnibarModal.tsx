@@ -22,6 +22,8 @@ import { OMNIBAR_PREFILL_EVENT } from "@/lib/help/sampleQuestions";
 import { ToolPanel } from "@/components/tools/ToolPanel";
 import { toolFormIsWide, toolFormMaxRem } from "@/components/tools/toolWidth";
 import { detectTool, type FormKind } from "@/lib/tools/detect";
+import { clearIntent, intentById, worthAsking } from "@/lib/tools/intent";
+import { askIntent } from "@/lib/tools/intentClient";
 import { needsWideModal } from "@/lib/search/edsLayout";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
@@ -59,7 +61,8 @@ import { AccessLogAdminPanel } from "@/components/AccessLogAdminPanel";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
-import { decideLoginHint, excludeShownPeople } from "@/lib/search/loginHints";
+import { decideLoginHint, excludeShownPeople, resumeAskedEds, shouldAskExecutive, type ExecutiveAsk } from "@/lib/search/loginHints";
+import { OmniExecutiveAsk } from "@/components/OmniExecutiveAsk";
 import { autoEdsEnabled, detectSynthesisIntent } from "@/lib/search/synthesisIntent";
 import { resumeAsEds } from "@/lib/search/loginHints";
 import { Tooltip } from "@/components/Tooltip";
@@ -218,9 +221,30 @@ export function OmnibarModal({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // The calculator form (or the menu of them) opened with Enter. Sums, conversions and date questions need no state: they answer as you type (src/components/tools/ToolPanel.tsx).
   const [toolForm, setToolForm] = useState<FormKind | "menu" | null>(null);
+  // A utility found from a line that used none of its words (src/lib/tools/intent.ts for what the app can tell by itself, intentAi.ts for what the AI is asked): the utility's id and who found it. The line itself
+  // is NEVER sent to the search then (a figure of someone's loan or pay is not logged); `routedQuery` is the sample line that makes the utility's card, for a utility that is a card and not a form.
+  const [routed, setRouted] = useState<{ id: string; via: "local" | "ai" } | null>(null);
+  const [routedQuery, setRoutedQuery] = useState<string | null>(null);
+  const [understanding, setUnderstanding] = useState(false);
+  const routeReq = useRef(0);
+  const forgetRoute = () => { routeReq.current++; setRouted(null); setRoutedQuery(null); setUnderstanding(false); };
   useEffect(() => {
-    if (!isOpen) setToolForm(null);
+    if (!isOpen) { setToolForm(null); forgetRoute(); }
   }, [isOpen]);
+  const openRouted = (id: string, via: "local" | "ai") => {
+    const e = intentById(id);
+    if (!e) return;
+    clearSearch();
+    setEmployeeResults([]);
+    setUnderstanding(false);
+    if ("form" in e.open) { setRoutedQuery(null); setToolForm(id as FormKind); } else { setToolForm(null); setRoutedQuery(e.open.query); }
+    setRouted({ id, via });
+  };
+  // while typing: the utility the line is CLEARLY about, when no exact reader has it (the hint says Enter opens it)
+  const clearHit = useMemo(() => {
+    const q = (query || "").trim();
+    return toolForm || routed || q.length < 4 || detectTool(q) ? null : clearIntent(q);
+  }, [query, toolForm, routed]);
   // Step 59a: a question that uses a FORMER name of a department ("CHRD", "Training Department") is answered with the CURRENT name first: shown above the results, whatever the kind of answer.
   const nameNotice = useMemo(() => formerNameNotice(submittedQuery || ""), [submittedQuery]);
 
@@ -325,6 +349,32 @@ export function OmnibarModal({
     // only a change of isExecutive is the trigger; the other values are read as they are at that moment
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExecutive]);
+  // "Are you an executive?" (src/lib/search/loginHints.ts): a signed-out visitor who asks an EDS-kind question is asked before anything is searched. `executiveAsk` is the question being asked (said: "yes" once he
+  // has said he is an executive); `declinedAsk` is the question for which he said No (the simple answer was shown, so the sign-in advice is not repeated above it).
+  const [executiveAsk, setExecutiveAsk] = useState<ExecutiveAsk | null>(null);
+  const [declinedAsk, setDeclinedAsk] = useState<string | null>(null);
+  const askRef = useRef<ExecutiveAsk | null>(null);
+  askRef.current = executiveAsk;
+  const wasExecutiveAskRef = useRef(isExecutive);
+  useEffect(() => {
+    const was = wasExecutiveAskRef.current;
+    wasExecutiveAskRef.current = isExecutive;
+    const ask = askRef.current;
+    if (ask && resumeAskedEds({ ask, wasExecutive: was, isExecutive, isOpen, query, edsEnabled: autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) })) {
+      setExecutiveAsk(null);
+      triggerSearch("intellectual", { auto: true, query: ask.query });
+    }
+    // only a change of isExecutive is the trigger; the other values are read as they are at that moment
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExecutive]);
+  // the question is dropped when the text is edited, and when the window closes
+  useEffect(() => {
+    if (executiveAsk && query.trim() !== executiveAsk.query) setExecutiveAsk(null);
+    if (declinedAsk !== null && query.trim() !== declinedAsk) setDeclinedAsk(null);
+  }, [query, executiveAsk, declinedAsk]);
+  useEffect(() => {
+    if (!isOpen) { setExecutiveAsk(null); setDeclinedAsk(null); }
+  }, [isOpen]);
   // A reveal the user clicked while logged out; retried after they log in.
   const pendingRevealRef = useRef<{ empId: string; field: "mobile" | "email" } | null>(null);
 
@@ -421,8 +471,9 @@ export function OmnibarModal({
             answerCardShown: !!analytics,
             authStatus: authStatus as "authenticated" | "unauthenticated" | "loading",
             edsEnabled: autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }),
+            executiveAskAnsweredNo: declinedAsk !== null && declinedAsk === (submittedQuery || "").trim(),
           }),
-    [isLoading, submittedQuery, authStatus, isExecutive, mode, analytics, results],
+    [isLoading, submittedQuery, authStatus, isExecutive, mode, analytics, results, declinedAsk],
   );
   // id -> { mobile?: string; email?: string } once revealed in this session.
   const [revealed, setRevealed] = useState<Record<string, { mobile?: string; email?: string }>>({});
@@ -776,6 +827,7 @@ export function OmnibarModal({
                     const val = e.target.value;
                     setQuery(val);
                     if (toolForm) setToolForm(null); // editing the text closes a calculator that Enter had opened
+                    if (routed || routedQuery || understanding) forgetRoute(); // ... and a utility that was found from the old line
                     if (val.trim() === "" || isIdQuery(val.trim())) {
                       employeeReq.current++; // an answer still on its way for the old text must not land
                       setEmployeeResults([]);
@@ -791,6 +843,7 @@ export function OmnibarModal({
                       e.preventDefault();
                       const qTrim = (query || "").trim();
                       if (qTrim.length < 2) return;
+                      if (routed) return; // the utility found from this very line is already open
 
                       // A calculator: a sum, a conversion or a date question already shows its answer (as you type); a request for a calculator form opens it now. Either way the line
                       // is NEVER sent to the search: a figure of someone's loan, pay or savings is not logged anywhere.
@@ -808,30 +861,61 @@ export function OmnibarModal({
                         return;
                       }
 
-                      // Smart Enter: fire ALL deterministic channels at once —
-                      // employee name search + employee/department analytics +
-                      // circular/announcement Smart Semantic. IDs & sites are
-                      // already live as you type.
-                      // Step 27a, ON by default since step 41a (kill switch NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false): for a LOGGED-IN EXECUTIVE a question that needs
-                      // several circulars built into one answer (compare / correlate / what is hidden / what changed ...: see
-                      // src/lib/search/synthesisIntent.ts) starts Executive Deep Synthesis BY ITSELF (there is no button any more):
-                      // same processing panel, same briefing. The server verifies the executive again. Anyone else, and every
-                      // other question, takes the normal Enter path.
-                      if (
-                        isExecutive &&
-                        autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) &&
-                        detectSynthesisIntent(query).synthesis
-                      ) {
-                        if (!isLoading) triggerSearch("intellectual", { auto: true });
-                      } else {
-                        // the people name search is for what can be a NAME (one to four words, not a question): a sentence only burned 1 to 7 s of database time (step 61a)
-                        if (query.trim().length >= 2 && looksLikeNameSearch(query)) {
-                          runEmployeeNameSearch();
-                        } else {
-                          setEmployeeResults([]);
-                        }
-                        triggerSearch("semantic");
+                      // WHAT THE LINE MEANS, when no exact reader has it. First what the app can tell by itself (instant, nothing leaves the browser): a utility the line is clearly about opens, and the
+                      // line is not searched. Then, for a whole sentence that could be neither a name nor an ID, the AI is asked which utility it means (only the line goes, src/lib/tools/intentAi.ts);
+                      // its answer is a utility id or none. Failing both, or on none, the line is searched as it always was.
+                      const understood = clearIntent(qTrim);
+                      if (understood) {
+                        openRouted(understood.id, "local");
+                        return;
                       }
+                      // AN EDS-KIND QUESTION FROM A VISITOR WHO IS SIGNED OUT: nothing is searched yet; the bar asks "Are you an executive?" (Yes: sign in to get the EDS reply; No: the simple reply).
+                      if (shouldAskExecutive({ authStatus, query: qTrim, edsEnabled: autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) })) {
+                        setExecutiveAsk({ query: qTrim, said: null });
+                        setDeclinedAsk(null);
+                        return;
+                      }
+                      const proceed = () => {
+                        // Smart Enter: fire ALL deterministic channels at once —
+                        // employee name search + employee/department analytics +
+                        // circular/announcement Smart Semantic. IDs & sites are
+                        // already live as you type.
+                        // Step 27a, ON by default since step 41a (kill switch NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false): for a LOGGED-IN EXECUTIVE a question that needs
+                        // several circulars built into one answer (compare / correlate / what is hidden / what changed ...: see
+                        // src/lib/search/synthesisIntent.ts) starts Executive Deep Synthesis BY ITSELF (there is no button any more):
+                        // same processing panel, same briefing. The server verifies the executive again. Anyone else, and every
+                        // other question, takes the normal Enter path.
+                        if (
+                          isExecutive &&
+                          autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) &&
+                          detectSynthesisIntent(query).synthesis
+                        ) {
+                          if (!isLoading) triggerSearch("intellectual", { auto: true });
+                        } else {
+                          // the people name search is for what can be a NAME (one to four words, not a question): a sentence only burned 1 to 7 s of database time (step 61a)
+                          if (query.trim().length >= 2 && looksLikeNameSearch(query)) {
+                            runEmployeeNameSearch();
+                          } else {
+                            setEmployeeResults([]);
+                          }
+                          triggerSearch("semantic");
+                        }
+                      };
+                      const synthesis = isExecutive && autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) && detectSynthesisIntent(query).synthesis;
+                      if (!synthesis && worthAsking(qTrim)) {
+                        const mine = ++routeReq.current;
+                        setUnderstanding(true);
+                        const ctl = new AbortController();
+                        const timer = setTimeout(() => ctl.abort(), 5000);
+                        void askIntent(qTrim, ctl.signal).then((pick) => {
+                          clearTimeout(timer);
+                          if (routeReq.current !== mine) return; // the text was edited meanwhile
+                          if (pick) openRouted(pick.id, "ai");
+                          else { setUnderstanding(false); proceed(); }
+                        });
+                        return;
+                      }
+                      proceed();
                     }
                   }}
                   placeholder="Search people, departments, circulars, announcements & sites — press Enter…"
@@ -863,6 +947,21 @@ export function OmnibarModal({
               {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
 
               {nameNotice && <FormerNameNotice notice={nameNotice} />}
+              {executiveAsk && (
+                <OmniExecutiveAsk
+                  ask={executiveAsk}
+                  onYes={() => setExecutiveAsk({ ...executiveAsk, said: "yes" })}
+                  onNo={() => {
+                    // No: the simple reply, exactly as for any other question
+                    const q = executiveAsk.query;
+                    setExecutiveAsk(null);
+                    setDeclinedAsk(q);
+                    if (looksLikeNameSearch(q)) runEmployeeNameSearch(); else setEmployeeResults([]);
+                    triggerSearch("semantic");
+                  }}
+                  onSignIn={openModal}
+                />
+              )}
               {loginHint && <OmniLoginHint hint={loginHint} onSignIn={openModal} />}
 
               <div className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">
@@ -904,7 +1003,23 @@ export function OmnibarModal({
                 ) : (
                   <>
                     {/* Calculators, converters and date answers: as you type, or a form after Enter. Runs in the browser; nothing typed here is stored or sent. */}
-                    <ToolPanel query={query} form={toolForm} onForm={setToolForm} />
+                    {understanding && (
+                      <div role="status" className="mb-3 flex items-center gap-2 rounded-2xl border border-dashed border-violet-300 bg-violet-50 px-4 py-2.5 text-sm text-violet-900">
+                        <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" /> Understanding your request&hellip;
+                      </div>
+                    )}
+                    {clearHit && !understanding && (
+                      <div data-intent-hint className="mb-3 flex items-center gap-2 rounded-2xl border border-dashed border-sky-300 bg-gradient-to-r from-sky-50 to-indigo-50 px-4 py-2.5 text-sm text-sky-900">
+                        <span>Looks like <strong>{intentById(clearHit.id)?.title}</strong>. Press <kbd className="rounded-md border border-sky-300 bg-white px-2 py-0.5 text-xs font-bold shadow-sm">Enter</kbd> to open it.</span>
+                      </div>
+                    )}
+                    {routed && (
+                      <div data-intent-routed={routed.id} className="mb-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs leading-snug text-emerald-900">
+                        Understood as <strong>{intentById(routed.id)?.title}</strong>.
+                        {routed.via === "ai" ? " Gemini, the AI, was shown only the line you typed, to find the right utility; nothing you enter in the utility is sent to it." : " Found from the words of your line, in your browser; nothing was sent anywhere."}
+                      </div>
+                    )}
+                    <ToolPanel query={routedQuery ?? query} form={toolForm} onForm={setToolForm} />
 
                     {error && (
                       <div className="p-4 text-center text-red-600 text-sm font-medium">

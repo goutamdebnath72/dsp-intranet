@@ -7,6 +7,7 @@ import { parseRim } from "./rim";
 
 export const rimTopic = defineTopic({
   id: "rim",
+  intent: { title: "Wheel (rim) marking reader", about: "Reads a wheel (rim) marking such as 8Jx20: width, flange, diameter and the tyre widths that suit it.", words: ["rim", "wheel", "alloy", "flange", "diameter", "marking", "offset", "pcd"] },
   hits: [{
     rank: 20,
     detect: (q) => {

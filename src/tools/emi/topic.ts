@@ -6,6 +6,7 @@ import { defineTopic } from "@/tools/types";
 
 export const emiTopic = defineTopic({
   id: "emi",
+  intent: { title: "Loan EMI calculator", about: "The monthly instalment (EMI) of a bank, PF or co-operative society loan (home, car or personal), with the interest and the repayment schedule.", words: ["emi", "loan", "instalment", "installment", "interest", "repay", "repayment", "borrow", "housing", "mortgage", "society", "cooperative", "tenure", "principal", "prepay", "bank", "home", "car", "personal", "monthly", "pf"] },
   form: {
     rank: 20,
     nouns: ["emi", "emis", "loan", "loans", "home", "car", "personal", "bank", "pf", "coop", "co-operative", "cooperative", "society", "repayment", "installment", "installments", "instalment", "instalments"],

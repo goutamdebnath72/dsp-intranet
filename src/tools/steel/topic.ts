@@ -8,6 +8,7 @@ import { defineTopic } from "@/tools/types";
 
 export const steelTopic = defineTopic({
   id: "steel",
+  intent: { title: "Steel prices, production and companies", about: "Steel: what DSP makes, retail prices of TMT, HR and CR coil, the steel companies' results, and SAIL's, India's and the world's production.", words: ["steel", "tmt", "hrc", "crc", "rebar", "billet", "joist", "iron", "ore", "production", "price", "sail", "tata", "jsw", "jindal", "mill", "bar", "bars", "results", "result", "quarter", "quarterly", "earnings", "profit", "coil", "coils", "hot", "rolled", "cold"] },
   live: {
     keys: ["steel", "tmt", "hrc", "crc", "rebar", "rebars", "billet", "billets", "joist", "joists"],
     phrases: ["steel price", "steel prices", "steel rate", "steel rates", "steel production", "steel output", "steel companies", "steel makers", "steel comparison", "crude steel", "tata steel", "jsw steel", "jindal steel", "sail steel", "retail steel", "dsp products", "dsp product", "dsp steel", "durgapur steel", "dsp price", "dsp prices", "wheel and axle"],

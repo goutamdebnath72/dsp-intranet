@@ -9,10 +9,11 @@ import { parseCurrency } from "./currency";
 
 export const converterTopic = defineTopic({
   id: "converter",
+  intent: { title: "Unit and currency converter", about: "Converts length, area, volume, temperature, energy, power (bhp, kW), pressure, speed, land units (bigha, katha) and currencies (dollar, euro, pound to rupees).", words: ["convert", "converter", "converters", "conversion", "unit", "units", "currency", "exchange", "dollar", "usd", "euro", "pound", "rupee", "inr", "kilometre", "km", "miles", "meter", "metre", "feet", "inch", "kilogram", "celsius", "fahrenheit", "bhp", "kw", "hp", "bigha", "katha", "acre", "hectare", "litre", "gallon", "pressure"] },
   form: {
     rank: 70,
-    nouns: ["unit", "units", "currency", "converter", "conversion", "convert", "length", "area", "volume", "temperature", "angle", "energy", "power", "force", "pressure", "mass", "weight", "speed", "exchange", "rate"],
-    wants: (c) => c.has(["converter", "conversion", "convert"]) && c.only(),
+    nouns: ["unit", "units", "currency", "converter", "converters", "conversion", "convert", "length", "area", "volume", "temperature", "angle", "energy", "power", "force", "pressure", "mass", "weight", "speed", "exchange", "rate"],
+    wants: (c) => c.has(["converter", "converters", "conversion", "convert"]) && c.only(),
   },
   hits: [
     { rank: 70, detect: (q) => { const request = parseCurrency(q); return request ? { kind: "currency" as const, request } : null; } },

@@ -1,4 +1,4 @@
-// scripts/harvest-legs.ts: COLLECT AND SAVE THE FARES TO EVERY STOP AFTER DURGAPUR on the route of each train, while the plant's paid RailRadar month lasts (to 14 Dec 2026).
+// scripts/harvest-legs.ts: COLLECT AND SAVE THE FARES TO EVERY STOP AFTER DURGAPUR on the route of each train (with --station ASN: after ASANSOL, for the trains of the Asansol tab, into public.train_fare_leg_asn), while the plant's paid RailRadar month lasts (to 14 Dec 2026).
 // The plant pays for the fare service, so the most is taken from it: for each express/mail train that has fares (public.train_fare, filled by scripts/harvest-fares.ts) and for each stop after Durgapur, the fare of each class the
 // train has, saved in public.train_fare_leg with the time received. For each LOCAL (MEMU) train the stops get the hint from the railway's fare table (no fare request). The card shows them under "Fares to every stop".
 // RUN scripts/harvest-fares.ts FIRST (it finds which classes each train has), then this:
@@ -8,15 +8,17 @@
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts --max-requests 3000     stop after about 3,000 requests (default 14,000)
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts --gap-ms 3000          seconds between requests, in ms (default 3000 = 20 a minute, leaving room for the intranet itself)
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts --no-locals | --no-express
+//   npx tsx --env-file=.env.local scripts/harvest-legs.ts --station ASN ...       the same for the Asansol tab's trains (run harvest-fares.ts --station ASN first)
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts list                    what is saved
 // COST: one request for each train's schedule, then one per class per stop (about 3 to 5 classes, 10 to 30 stops): a whole pass is several thousand requests of the 30,000 a month, at 20 a minute: ABOUT 15 HOURS for the whole 18,000. It can be stopped
 // at any time and run again: a stop saved in the last 72 hours is not asked again. It stops at once if RailRadar says the limit is reached or the key is refused, and it refuses to run after FARES_LIVE_UNTIL.
 import { Pool } from "pg";
 import { DateTime } from "luxon";
 import { askLeg, CLASSES, journeyDateFor, localLegs, parseSchedule, type FareClass } from "../src/lib/live/fare";
+import { parseAsansol, RAILRADAR_ASN_URL, RAILRADAR_DGR_ALL_URL } from "../src/lib/live/railwayAsansol";
 import { fareServiceOpen, FARES_LIVE_UNTIL } from "../src/lib/live/fareService";
-import { LEG_TABLE_STATEMENTS, typeormLegStore } from "../src/lib/live/fareLegStore";
-import { FARE_TABLE_STATEMENTS, typeormFareStore } from "../src/lib/live/fareStore";
+import { LEG_TABLES, legTableStatements, typeormLegStore } from "../src/lib/live/fareLegStore";
+import { fareTableStatements, typeormFareStore, type FareStation } from "../src/lib/live/fareStore";
 import { parseRailway, RAILRADAR_URL, STATION, type Train } from "../src/lib/live/railway";
 import { FARE_BASE_URL } from "../src/lib/live/fare";
 import { makePaced } from "./lib/paced";
@@ -25,13 +27,16 @@ const arg = (name: string): string | undefined => { const i = process.argv.index
 const flag = (name: string) => process.argv.includes(name);
 
 async function main() {
+  const station = (arg("--station") ?? "DGR").toUpperCase();
+  if (station !== "DGR" && station !== "ASN") throw new Error("--station is DGR (the default) or ASN.");
+  const from: FareStation = station;
   // a pool, not one connection: a dropped connection (the network blinking in a run of many hours) is replaced by a new one instead of ending the run
   const db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 2 });
   db.on("error", (e) => console.warn("database connection lost, a new one is made on the next call:", e.message));
   try {
-    for (const sql of [...FARE_TABLE_STATEMENTS, ...LEG_TABLE_STATEMENTS]) await db.query(sql);
+    for (const sql of [...fareTableStatements(from), ...legTableStatements(from)]) await db.query(sql);
     if (process.argv[2] === "list") {
-      const r = (await db.query(`SELECT count(*)::int AS legs, count(DISTINCT train_number)::int AS trains, min(fetched_at) AS oldest, max(fetched_at) AS newest, count(*) FILTER (WHERE classes->0->>'basis' = 'table')::int AS hints FROM public.train_fare_leg`)).rows[0];
+      const r = (await db.query(`SELECT count(*)::int AS legs, count(DISTINCT train_number)::int AS trains, min(fetched_at) AS oldest, max(fetched_at) AS newest, count(*) FILTER (WHERE classes->0->>'basis' = 'table')::int AS hints FROM public.${LEG_TABLES[from]}`)).rows[0];
       const f = (d: Date | null) => (d ? DateTime.fromJSDate(d).setZone(STATION.zone).toFormat("d LLL yyyy, h:mm a") + " IST" : "-");
       console.log(`${r.legs} stop fare(s) saved for ${r.trains} train(s) (${r.hints} of them local-train hints). Oldest received: ${f(r.oldest)}. Newest received: ${f(r.newest)}.`);
       return;
@@ -46,25 +51,39 @@ async function main() {
     const cap = Number(arg("--max-requests") ?? 14000);
     // 3 s between requests = 20 a minute: the key allows 30, and the rest is left for the intranet's own requests (the timetable, a click on Fares): at 27 a minute the app was turned away now and then
     const { fetcher, count } = makePaced(Number(arg("--gap-ms") ?? 3000));
-    const fares = typeormFareStore(db), legs = typeormLegStore(db);
+    const fares = typeormFareStore(db, from), legs = typeormLegStore(db, from);
     const fresh = (iso: string) => DateTime.now().diff(DateTime.fromISO(iso), "hours").hours < maxAgeH;
     const today = DateTime.now().setZone(STATION.zone).toFormat("yyyy-MM-dd");
 
-    console.log("Reading the timetable of Durgapur (1 request)...");
-    const tt = await fetcher(RAILRADAR_URL);
-    if (tt.status !== 200) throw new Error(`The timetable request was answered ${tt.status}.`);
-    const rw = parseRailway(tt.json);
-    const pick = (g: { east: Train[]; west: Train[]; other: Train[] }) => [...g.east, ...g.west, ...g.other].filter((t, i, a) => t.toCode !== STATION.code && a.findIndex((u) => u.number === t.number) === i && (!only || only.includes(t.number))).sort((a, b) => a.number.localeCompare(b.number));
+    let expressAll: { east: Train[]; west: Train[]; other: Train[] }, localAll: { east: Train[]; west: Train[]; other: Train[] };
+    if (from === "DGR") {
+      console.log("Reading the timetable of Durgapur (1 request)...");
+      const tt = await fetcher(RAILRADAR_URL);
+      if (tt.status !== 200) throw new Error(`The timetable request was answered ${tt.status}.`);
+      const rw = parseRailway(tt.json);
+      expressAll = rw.express;
+      localAll = rw.local;
+    } else {
+      console.log("Reading the timetables of Asansol and of Durgapur (2 requests)...");
+      const a = await fetcher(RAILRADAR_ASN_URL);
+      if (a.status !== 200) throw new Error(`The timetable request of Asansol was answered ${a.status}.`);
+      const d = await fetcher(RAILRADAR_DGR_ALL_URL);
+      if (d.status !== 200) throw new Error(`The timetable request of Durgapur was answered ${d.status}.`);
+      const as = parseAsansol(a.json, d.json);
+      expressAll = { east: [], west: [], other: as.express };
+      localAll = { east: [], west: [], other: as.local };
+    }
+    const pick = (g: { east: Train[]; west: Train[]; other: Train[] }) => [...g.east, ...g.west, ...g.other].filter((t, i, a) => t.toCode !== from && a.findIndex((u) => u.number === t.number) === i && (!only || only.includes(t.number))).sort((a, b) => a.number.localeCompare(b.number));
     // the REGULAR trains first, the specials (festival and Puja trains, numbered 0xxxx, there are many and they run a few days) after them, each group in number order
-    const express = (flag("--no-express") ? [] : pick(rw.express)).sort((a, b) => Number(a.kind === "special") - Number(b.kind === "special") || a.number.localeCompare(b.number));
-    const locals = flag("--no-locals") ? [] : pick(rw.local);
-    console.log(`${express.length} express/mail and ${locals.length} local trains go on from Durgapur.\n`);
+    const express = (flag("--no-express") ? [] : pick(expressAll)).sort((a, b) => Number(a.kind === "special") - Number(b.kind === "special") || a.number.localeCompare(b.number));
+    const locals = flag("--no-locals") ? [] : pick(localAll);
+    console.log(`${express.length} express/mail and ${locals.length} local trains go on from ${from === "DGR" ? "Durgapur" : "Asansol"}.\n`);
 
     const schedule = async (t: Train) => {
       const r = await fetcher(`${FARE_BASE_URL}/${t.number}?haltsOnly=true`);
       if (r.status === 429 || r.status === 401 || r.status === 403) throw Object.assign(new Error(`RailRadar answered ${r.status}.`), { status: r.status });
       if (r.status !== 200) throw new Error(`The schedule was answered ${r.status}.`);
-      return parseSchedule(r.json, t.number);
+      return parseSchedule(r.json, t.number, from);
     };
     const refused = (e: unknown) => { const s = (e as { status?: number }).status; return s === 429 || s === 401 || s === 403; };
 
@@ -86,11 +105,11 @@ async function main() {
         let got = 0, none = 0;
         for (const stop of todo) {
           if (count() >= cap) { stopped = true; break; }
-          const leg = await askLeg(t.number, stop, classes, date, fetcher);
+          const leg = await askLeg(t.number, stop, classes, date, fetcher, from);
           if (leg) { await legs.put(t.number, leg, DateTime.now().toJSDate()); got++; saved++; } else none++;
         }
         trainsDone++;
-        console.log(`${String(trainsDone).padStart(3)}  ${t.number} ${t.name} -> ${t.toCode}: ${sch.stops.length} stops after Durgapur, ${freshTo.size} already saved, ${got} saved, ${none} with no fare; classes ${codes.join("/")}; ${count() - before} requests (total ${count()})`);
+        console.log(`${String(trainsDone).padStart(3)}  ${t.number} ${t.name} -> ${t.toCode}: ${sch.stops.length} stops after ${from === "DGR" ? "Durgapur" : "Asansol"}, ${freshTo.size} already saved, ${got} saved, ${none} with no fare; classes ${codes.join("/")}; ${count() - before} requests (total ${count()})`);
         if (stopped) break;
       } catch (e) {
         failed++;

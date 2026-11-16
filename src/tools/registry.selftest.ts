@@ -80,5 +80,9 @@ const withClasses = files("src").filter((f) => /\.tsx$/.test(f) && !/selftest/.t
 const uncovered = withClasses.filter((f) => !globs.some((g) => f.startsWith(g + "/")));
 ok("every file that draws markup with Tailwind classes is inside a folder that tailwind.config.js scans", uncovered.length === 0 && globs.includes("src/tools"), uncovered.join("\n"));
 
+// every topic says what it is (title, one sentence, words), so that the search box can find it from a line that uses none of its keywords (src/lib/tools/intent.ts)
+const noIntent = (TOPICS as readonly { id: string; intent?: { title: string; about: string; words: string[] } }[]).filter((t) => !t.intent || t.intent.title.length < 4 || t.intent.about.length < 30 || t.intent.words.length < 4);
+ok("every topic has an intent (a title, a sentence about it, and at least four words people use for it)", noIntent.length === 0, noIntent.map((t) => t.id).join());
+
 console.log(`registry selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

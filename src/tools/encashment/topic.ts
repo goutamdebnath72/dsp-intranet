@@ -6,6 +6,7 @@ import { defineTopic } from "@/tools/types";
 
 export const encashmentTopic = defineTopic({
   id: "encashment",
+  intent: { title: "Leave encashment", about: "The money for earned leave (EL) or half pay leave (HPL) encashed.", words: ["leave", "encashment", "encash", "el", "hpl", "earned", "half", "pay", "cash"] },
   form: {
     rank: 50,
     nouns: ["leave", "encashment", "el", "hpl"],

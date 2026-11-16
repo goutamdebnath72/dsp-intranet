@@ -34,7 +34,7 @@ while (queue.length) {
   const src = readFileSync(f, "utf8");
   const dir = f.slice(0, f.lastIndexOf("/"));
   for (const m of src.matchAll(/from\s+["'](@\/components\/|@\/tools\/|\.\/)((?:[A-Za-z0-9_]+\/)*[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)?)["']/g)) {
-    if (/CircularViewerLightbox/.test(m[2])) continue; // its own full-screen layer, not inside the modal card
+    if (/CircularViewerLightbox|ImageLightbox/.test(m[2])) continue; // their own full-screen layers, drawn on <body>, not inside the modal card
     const base = m[1] === "./" ? dir : m[1] === "@/tools/" ? "src/tools" : "src/components"; // a "./" import is relative to the file that has it; the topics of the tools live in src/tools
     for (const ext of [".tsx", ".ts"]) { const p = `${base}/${m[2]}${ext}`; if (existsSync(p)) { queue.push(p); break; } }
   }

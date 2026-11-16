@@ -6,6 +6,7 @@ import { defineTopic } from "@/tools/types";
 
 export const marketsTopic = defineTopic({
   id: "markets",
+  intent: { title: "Sensex, Nifty and shares", about: "Sensex, Nifty and the biggest movers of a watch list of large companies, with SAIL's share price.", words: ["sensex", "nifty", "stock", "stocks", "market", "share", "shares", "bse", "nse", "equity", "trading", "gainers", "losers", "index", "sail"] },
   live: {
     keys: ["sensex", "nifty", "stock", "stocks", "share", "shares", "bse", "nse", "banknifty", "trending", "sail"],
     extra: ["market", "markets", "index", "indices", "bank", "50", "price", "prices", "trending", "stocks", "gainers", "losers", "movers", "top", "today", "live", "watch", "list", "sensex", "nifty", "share", "sail", "bhav"],

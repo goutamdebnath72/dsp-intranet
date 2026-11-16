@@ -96,7 +96,7 @@ ok("the only network call of the tools is the public rate table, with no body an
 ok("the tools write nothing to storage, cookies or the log", ![panelSrc, topicSrc, atomsSrc].some((x) => /localStorage|sessionStorage|document\.cookie|indexedDB|console\.(log|info|warn|error)|navigator\.sendBeacon|XMLHttpRequest/.test(x)));
 const omni = src("src/components/OmnibarModal.tsx");
 ok("in the search bar a tool line returns before any search, name lookup or log", (() => { const i = omni.indexOf("const tool = detectTool(qTrim)"); const j = omni.indexOf("triggerSearch(\"semantic\")"); const k = omni.indexOf("runEmployeeNameSearch();"); const l = omni.indexOf("if (isIdQuery(qTrim))"); return i > 0 && i < j && i < k && i < l && /if \(tool\) \{[\s\S]*?return;\s*\}/.test(omni.slice(i - 20, i + 400)); })());
-ok("the panel is drawn in the search bar and the form closes when the text is edited", /<ToolPanel query=\{query\} form=\{toolForm\} onForm=\{setToolForm\} \/>/.test(omni) && /if \(toolForm\) setToolForm\(null\)/.test(omni));
+ok("the panel is drawn in the search bar and the form closes when the text is edited", /<ToolPanel query=\{routedQuery \?\? query\} form=\{toolForm\} onForm=\{setToolForm\} \/>/.test(omni) && /if \(toolForm\) setToolForm\(null\)/.test(omni));
 
 console.log(`ToolPanel selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

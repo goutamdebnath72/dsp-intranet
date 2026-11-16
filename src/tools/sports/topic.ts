@@ -6,6 +6,7 @@ import { defineTopic } from "@/tools/types";
 
 export const sportsTopic = defineTopic({
   id: "sports",
+  intent: { title: "Sports updates", about: "Sports news: cricket, IPL, football, hockey, tennis and the Olympics.", words: ["sports", "sport", "cricket", "ipl", "football", "hockey", "tennis", "olympics", "match", "score"] },
   live: {
     keys: ["sports", "sport", "cricket", "ipl", "olympics", "olympic", "football", "hockey", "tennis"],
     extra: ["news", "update", "updates", "scores", "score", "live", "match", "matches", "world", "cup", "asian", "games", "commonwealth", "india", "headlines", "latest", "results", "today", "feed", "feeds", "newsfeed", "newsfeeds", "ticker", "stories", "story", "top", "breaking", "my"],

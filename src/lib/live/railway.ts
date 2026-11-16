@@ -125,6 +125,22 @@ export const clock = (t: Train): string => (t.departure ?? t.arrival) as string;
 
 const byClock = (a: Train, b: Train) => mins(clock(a)) - mins(clock(b)) || a.number.localeCompare(b.number);
 
+/** One row of a station timetable (a train and its stop there) read and checked: the train, or null when anything in it cannot be read (the caller counts those, and refuses an answer in which too many are bad). */
+export function readRow(r: Record<string, any>): Train | null {
+  const t = r?.train, s = r?.stop;
+  const number = typeof t?.number === "string" && /^\d{5}$/.test(t.number) ? t.number : null;
+  const name = str(t?.name), type = str(t?.type, 40);
+  const from = str(t?.source?.name), fromCode = str(t?.source?.code, 8), to = str(t?.destination?.name), toCode = str(t?.destination?.code, 8);
+  const runDays = Array.isArray(t?.runDays) && t.runDays.length > 0 && t.runDays.every(isDay) ? (t.runDays as Day[]) : null;
+  const arrival = s?.arrival == null ? null : typeof s.arrival === "string" && HM.test(s.arrival) ? s.arrival : undefined;
+  const departure = s?.departure == null ? null : typeof s.departure === "string" && HM.test(s.departure) ? s.departure : undefined;
+  const day = s?.arrivalDay ?? s?.departureDay;
+  const offset = typeof day === "number" && Number.isInteger(day) && day >= 1 && day <= 5 ? day - 1 : null;
+  if (!number || !name || !type || !from || !fromCode || !to || !toCode || !runDays || arrival === undefined || departure === undefined || (arrival === null && departure === null) || offset === null) return null;
+  const kind: Kind = type === "MEMU" ? "local" : type === "Train on Demand" ? "special" : "express";
+  return { number, name, kind, label: LABEL[type] ?? type, from, fromCode, to, toCode, arrival, departure, days: shiftDays(runDays, offset), heading: headingOf(fromCode, toCode, number) };
+}
+
 /** Reads and checks RailRadar's answer for the station. `min` is the fewest trains a believable answer holds (Durgapur has hundreds). */
 export function parseRailway(json: unknown, opts: { min?: number } = {}): Railway {
   const root = json as { success?: unknown; data?: { station?: { code?: unknown }; trains?: unknown } };
@@ -135,18 +151,8 @@ export function parseRailway(json: unknown, opts: { min?: number } = {}): Railwa
   const trains: Train[] = [];
   let bad = 0;
   for (const r of rows as Array<Record<string, any>>) {
-    const t = r?.train, s = r?.stop;
-    const number = typeof t?.number === "string" && /^\d{5}$/.test(t.number) ? t.number : null;
-    const name = str(t?.name), type = str(t?.type, 40);
-    const from = str(t?.source?.name), fromCode = str(t?.source?.code, 8), to = str(t?.destination?.name), toCode = str(t?.destination?.code, 8);
-    const runDays = Array.isArray(t?.runDays) && t.runDays.length > 0 && t.runDays.every(isDay) ? (t.runDays as Day[]) : null;
-    const arrival = s?.arrival == null ? null : typeof s.arrival === "string" && HM.test(s.arrival) ? s.arrival : undefined;
-    const departure = s?.departure == null ? null : typeof s.departure === "string" && HM.test(s.departure) ? s.departure : undefined;
-    const day = s?.arrivalDay ?? s?.departureDay;
-    const offset = typeof day === "number" && Number.isInteger(day) && day >= 1 && day <= 5 ? day - 1 : null;
-    if (!number || !name || !type || !from || !fromCode || !to || !toCode || !runDays || arrival === undefined || departure === undefined || (arrival === null && departure === null) || offset === null) { bad++; continue; }
-    const kind: Kind = type === "MEMU" ? "local" : type === "Train on Demand" ? "special" : "express";
-    trains.push({ number, name, kind, label: LABEL[type] ?? type, from, fromCode, to, toCode, arrival, departure, days: shiftDays(runDays, offset), heading: headingOf(fromCode, toCode, number) });
+    const t = readRow(r);
+    if (t) trains.push(t); else bad++;
   }
   const min = opts.min ?? 50;
   if (trains.length < min) throw new RailwayError(`RailRadar's timetable holds only ${trains.length} readable trains.`);
@@ -168,4 +174,12 @@ export function nextTrain(list: Train[], now: Moment): Train | null {
 /** the trains of a list that pass the filters: only those that run on `day`, and without the specials */
 export function filterTrains(list: Train[], opts: { today?: Day | null; specials: boolean }): Train[] {
   return list.filter((t) => (opts.specials || t.kind !== "special") && (!opts.today || t.days.includes(opts.today)));
+}
+
+/** whether a saved answer of the Durgapur route is the shape the card draws (the groups of trains, each with its times and days): a saved copy that is not is never shown */
+export function looksLikeRailway(x: unknown): x is Railway {
+  const r = x as Railway | null;
+  const group = (g: Group | undefined) => !!g && ["east", "west", "other"].every((k) => Array.isArray((g as unknown as Record<string, unknown>)[k]));
+  const train = (t: Train) => !!t && /^\d{5}$/.test(t.number) && typeof t.name === "string" && typeof t.fromCode === "string" && typeof t.toCode === "string" && Array.isArray(t.days) && (t.arrival === null || typeof t.arrival === "string") && (t.departure === null || typeof t.departure === "string");
+  return !!r && typeof r === "object" && typeof r.count === "number" && r.count > 0 && group(r.express) && group(r.local) && [...r.express.east, ...r.express.west, ...r.express.other, ...r.local.east, ...r.local.west, ...r.local.other].every(train);
 }

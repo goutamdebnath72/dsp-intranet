@@ -2,7 +2,8 @@
 // "Find a fare": the trains that go from Durgapur to a station, from the saved fares and the timetable.
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
-import { buildFind, cheapest } from "./fareFind";
+import { buildFind, cheapest, trainsOf } from "./fareFind";
+import { parseAsansol } from "./railwayAsansol";
 import { parseRailway } from "./railway";
 import type { StopTrainRow } from "./fareLegStore";
 import type { ClassFare } from "./fare";
@@ -26,5 +27,11 @@ const noTable = buildFind({ code: "ASN", name: "A" }, [row("13005", "Amritsar Ma
 ok("with no timetable the trains still show with the names saved with their fares, without times, in number order", noTable.trains.map((t) => t.number).join() === "12019,13005,22303" && noTable.trains[1].name === "Amritsar Mail (saved)" && noTable.trains.every((t) => t.departure === null && t.label === "" && t.endsAt === null));
 ok("a station nobody has a saved fare to has no answer", buildFind({ code: "XXX", name: "X" }, [], rw, cov, now) === null);
 ok("the cheapest fare of a train is its lowest class; a train with none sorts last (Infinity)", cheapest(a.trains.find((t) => t.number === "12019")!) === 400 && cheapest(a.trains.find((t) => t.number === "13005")!) === 150 && cheapest({ ...a.trains[0], classes: [] }) === Infinity);
+// the Asansol tab's finder: the same logic over Asansol's timetable (two lists, not groups by direction)
+const as = parseAsansol(JSON.parse(readFileSync("src/lib/live/fixtures/railradar-asn-sample.json", "utf8")), JSON.parse(readFileSync("src/lib/live/fixtures/railradar-dgr-all-sample.json", "utf8")), { minAsn: 1, minDgr: 1, minPass: 1 });
+const asnRows = [row("12302", "Rajdhani saved", [cl("3A", 965)]), row("13287", "South Bihar saved", [cl("SL", 400)]), row("63541", "MEMU saved", [cl("UR", 20, "table")])];
+const fa = buildFind({ code: "HWH", name: "Howrah Junction" }, asnRows, as, cov, now)!;
+ok("trainsOf reads both shapes of timetable: Durgapur's groups (24 trains of the sample) and Asansol's two lists (11), and nothing for none", trainsOf(rw).length === 24 && trainsOf(as).length === 11 && trainsOf(null).length === 0);
+ok("over Asansol's timetable the trains are joined with their times AT ASANSOL, in order: 13287 (00:15), 12302 (07:20), the MEMU 63541 (04:45) among them by its time; classes, kinds and where each run ends are carried", fa.trains.map((t) => t.number).join() === "13287,63541,12302" && fa.trains[0].departure === "00:15" && fa.trains[2].departure === "07:20" && fa.trains[2].label === "Rajdhani" && fa.trains[1].kind === "local" && fa.trains[1].hint && fa.trains[2].endsAt?.code === "HWH");
 console.log(`fareFind: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

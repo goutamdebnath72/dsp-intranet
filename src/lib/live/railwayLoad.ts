@@ -7,6 +7,7 @@
 import { unstable_cache } from "next/cache";
 import { UpstreamError } from "./http";
 import { parseRailway, RAILRADAR_URL, type Railway } from "./railway";
+import { parseAsansol, RAILRADAR_ASN_URL, RAILRADAR_DGR_ALL_URL, type AsansolTrains } from "./railwayAsansol";
 import type { Fetcher } from "./fare";
 
 export const KEPT_S = 12 * 60 * 60;
@@ -39,3 +40,23 @@ async function askTimetable(): Promise<Railway> {
 
 /** the timetable from the host-wide cache (twelve hours), asking RailRadar only when there is none or it is old */
 export const loadRailway = unstable_cache(askTimetable, ["railradar-station-DGR-v1"], { revalidate: KEPT_S });
+
+/** one board of RailRadar with the statuses every caller treats the same way */
+async function askBoard(url: string): Promise<unknown> {
+  const { status, json } = await railRadarFetch(url);
+  if (status === 429) throw new UpstreamError("RailRadar turned the request away for going over its limit (30 a minute, 30,000 a month on the plant's key). Try again in a minute.", 429);
+  if (status === 401 || status === 403) throw new UpstreamError("RailRadar did not accept the plant's key.", status);
+  if (status !== 200) throw new UpstreamError(`railradar.in answered ${status}`, status);
+  return json;
+}
+
+/** Asansol's trains that Durgapur does not stop: two boards (Asansol's, and Durgapur's with the pass-throughs), one after the other, kept twelve hours like the Durgapur one (so two requests in twelve hours) */
+async function askAsansol(): Promise<AsansolTrains> {
+  const asn = await askBoard(RAILRADAR_ASN_URL);
+  const dgr = await askBoard(RAILRADAR_DGR_ALL_URL);
+  return parseAsansol(asn, dgr);
+}
+
+/** Asansol's list is kept THREE days (two requests each time, from the free plan's 100 a month, of which Durgapur's twelve-hour timetable already takes about 60): the stations a train stops at hardly change from day to day */
+export const KEPT_ASN_S = 3 * 24 * 60 * 60;
+export const loadAsansol = unstable_cache(askAsansol, ["railradar-asansol-not-at-DGR-v1"], { revalidate: KEPT_ASN_S });

@@ -41,6 +41,13 @@ export interface LiveRule {
   lang?: (w: string[]) => string | undefined;
 }
 
+/** WHAT THE TOPIC IS, in plain words, for finding it from a line that uses none of its keywords: its name, one sentence about it (read by the AI that is asked what a user means, and shown), and the words and near-words people use for it. */
+export interface IntentInfo {
+  title: string;
+  about: string;
+  words: string[];
+}
+
 export interface TopicLogic {
   /** the name of the form (opened with Enter), of the live card, or of the reader */
   id: string;
@@ -50,6 +57,8 @@ export interface TopicLogic {
   hits?: readonly HitRule[];
   /** a live-data card */
   live?: LiveRule;
+  /** what the topic is, for finding it from any line (src/lib/tools/intent.ts) */
+  intent?: IntentInfo;
   /** questions for the user guide ("Calculators and converters"); each must really be answered by this topic */
   samples?: readonly SampleQuestion[];
 }

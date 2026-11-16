@@ -7,6 +7,7 @@ import { defineTopic } from "@/tools/types";
 
 export const flightsTopic = defineTopic({
   id: "flights",
+  intent: { title: "Andal airport flights", about: "The flights between Andal (Kazi Nazrul Islam) Airport at Durgapur and Bengaluru, Hyderabad, Chennai, Delhi and Mumbai.", words: ["flight", "flights", "airport", "andal", "airline", "airlines", "plane", "fly", "air", "departure", "arrival", "rdp"] },
   live: {
     keys: ["flight", "flights", "airport", "andal", "rdp", "vedg", "airlines", "airline"],
     extra: ["durgapur", "kazi", "kaji", "qazi", "nazrul", "najrul", "nazrulislam", "islam", "kni", "to", "from", "and", "arrival", "arrivals", "departure", "departures", "schedule", "timetable", "timings", "timing", "time", "times", "status", "today", "live", "info", "information", "next", "details", "air", "indigo", "bengaluru", "bangalore", "delhi", "mumbai", "chennai", "hyderabad", "durgapur's", "bengal"],

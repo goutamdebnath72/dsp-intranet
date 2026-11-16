@@ -34,6 +34,8 @@ export interface HintInput {
   authStatus?: "authenticated" | "unauthenticated" | "loading";
   /** The kill switch of the automatic EDS route (autoEdsEnabled). When EDS is switched off nobody is told to sign in for it. Default: on. */
   edsEnabled?: boolean;
+  /** The visitor was ASKED "Are you an executive?" for this very question and answered No: the simple answer is what was asked for, so the sign-in advice is not repeated above it. */
+  executiveAskAnsweredNo?: boolean;
 }
 
 export interface LoginHint {
@@ -135,12 +137,13 @@ export function decideLoginHint(i: HintInput): LoginHint | null {
 
   // A signed-out visitor who fired an EDS-category question: say so, and say what to do (sign in as an executive, ask again). Only for a visitor who is definitely signed out.
   const status = i.authStatus ?? (i.authenticated ? "authenticated" : "unauthenticated");
-  if (status === "unauthenticated" && i.edsEnabled !== false && detectSynthesisIntent(i.query || "").synthesis) {
+  if (status === "unauthenticated" && i.edsEnabled !== false && !i.executiveAskAnsweredNo && detectSynthesisIntent(i.query || "").synthesis) {
     return { kind: "eds-signin", text: EDS_SIGNIN_TEXT, action: "signin" };
   }
 
   if (i.circularShown && !i.answerCardShown && looksAnalytical(i.query)) {
     if (!i.authenticated) {
+      if (i.executiveAskAnsweredNo) return null; // he was asked "Are you an executive?" and said No: the same advice is not repeated above the simple answer
       return {
         kind: "synthesis",
         text:
@@ -174,6 +177,34 @@ export function resumeAsEds(i: { wasExecutive: boolean; isExecutive: boolean; is
   const sent = (i.submittedQuery || "").trim();
   if (sent.length < 3 || (i.query || "").trim() !== sent) return false;
   return detectSynthesisIntent(sent).synthesis;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------
+// THE QUESTION "ARE YOU AN EXECUTIVE?" (owner, 17 Nov 2026). When a line is clearly an EDS-category question (the same detector that routes an executive's question: level "synthesis") and the visitor is DEFINITELY signed out,
+// nothing is searched yet: the bar first asks whether he is an executive.
+//   Yes -> he is told that EDS replies come to executives who are signed in, and offered the Sign in button; when he has signed in as an executive with the same question still in the box, it runs by itself through EDS.
+//   No  -> the simple reply (the normal search) is shown, as for any other question, and the sign-in advice is not repeated.
+// While the session is still being checked ("loading"), and for a signed-in person (an executive goes to EDS, anyone else to the normal search), nothing is asked.
+// ---------------------------------------------------------------------------------------------------------------------------------------------------
+export interface ExecutiveAsk {
+  /** the question that was typed (trimmed) */
+  query: string;
+  /** "yes": he said he is an executive and was told to sign in; null: not answered yet */
+  said: "yes" | null;
+}
+
+/** True when the Enter key must ask "Are you an executive?" instead of searching: an EDS-category question from a visitor who is definitely signed out. */
+export function shouldAskExecutive(i: { authStatus: string; query: string; edsEnabled?: boolean }): boolean {
+  if (i.authStatus !== "unauthenticated" || i.edsEnabled === false) return false;
+  const q = (i.query || "").trim();
+  return q.length >= 3 && detectSynthesisIntent(q).synthesis;
+}
+
+/** True when a visitor who said "Yes, I am an executive" has now signed in as an executive, with the window open and the same question still in the box: the question then runs through EDS by itself. */
+export function resumeAskedEds(i: { ask: ExecutiveAsk | null; wasExecutive: boolean; isExecutive: boolean; isOpen: boolean; query: string; edsEnabled?: boolean }): boolean {
+  if (!i.ask || i.ask.said !== "yes") return false;
+  if (i.wasExecutive || !i.isExecutive || !i.isOpen || i.edsEnabled === false) return false;
+  return (i.query || "").trim() === i.ask.query && detectSynthesisIntent(i.ask.query).synthesis;
 }
 
 export function excludeShownPeople<T extends WithTicket>(

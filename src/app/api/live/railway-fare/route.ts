@@ -2,7 +2,7 @@
 //
 // THE FARES OF ONE TRAIN FROM DURGAPUR TO THE END OF ITS RUN, when someone presses "Fares" on a train. DATABASE ONLY: the plant used RailRadar's paid fare service for ONE month (to 14 Dec 2026), the fares were SAVED in the
 // database with the time they were received (src/lib/live/fareStore.ts), and this route never asks RailRadar: after the month the saved data is all there is (src/lib/live/fareService.ts).
-// The caller sends nothing but the train number (`?train=12313`).
+// The caller sends nothing but the train number (`?train=12313`), and `from=ASN` for a train of the Asansol tab (the fares from Asansol; any other value means Durgapur).
 import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import { fareAnswer, type FareAnswer } from "@/lib/live/fareService";
@@ -18,9 +18,11 @@ const fail = (error: string, status: number) => NextResponse.json({ ok: false, e
 
 export async function GET(req: NextRequest) {
   const number = req.nextUrl.searchParams.get("train") ?? "";
+  // the station the fare starts from: Durgapur unless the Asansol tab asks (`from=ASN`); nothing else is accepted
+  const from = req.nextUrl.searchParams.get("from") === "ASN" ? "ASN" : "DGR";
   if (!/^\d{5}$/.test(number)) return fail("Send the five-digit train number.", 400);
   try {
-    const store = fareStoreFor(await getDb());
+    const store = fareStoreFor(await getDb(), from);
     const r = await fareAnswer(number, { store });
     // the time shown is the time the fares were RECEIVED (saved), not the time of this request
     // a local train's HINT comes from the railway's published fare table (the distance from RailRadar); the others are the reservation system's own fares via RailRadar

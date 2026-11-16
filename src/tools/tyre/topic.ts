@@ -7,6 +7,7 @@ import { parseTyre } from "./tyre";
 
 export const tyreTopic = defineTopic({
   id: "tyre",
+  intent: { title: "Tyre size reader", about: "Reads a tyre marking such as 205/55 R16 91V: width, aspect ratio, rim, load index and speed symbol, each explained.", words: ["tyre", "tire", "wheel", "size", "marking", "width", "aspect", "ratio", "load", "speed", "rim", "sidewall", "specification", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "mean"] },
   form: {
     rank: 80,
     nouns: ["tyre", "tyres", "tire", "tires", "size", "sizes", "specification", "specifications", "spec", "specs", "meaning", "meanings", "decode", "reader", "read", "reading", "guide", "chart", "code", "explained", "load", "speed", "index", "rating", "ratings", "symbol", "symbols", "and", "car", "wheel", "wheels", "rim", "rims", "alloy", "marking", "markings", "flange", "offset"],

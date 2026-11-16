@@ -13,6 +13,13 @@ module.exports = {
   ],
   theme: {
     extend: {
+      // the LIVE pill's light blink: it dims to about two thirds and comes back, slowly, so that it is seen without being tiring
+      keyframes: {
+        livepulse: { "0%, 100%": { opacity: "1" }, "50%": { opacity: "0.55" } },
+      },
+      animation: {
+        livepulse: "livepulse 2.2s ease-in-out infinite",
+      },
       screens: {
         "lg-custom": "1500px",
         "xl-custom": "1800px",

@@ -10,6 +10,7 @@ import { AlertTriangle, ArrowDownRight, ArrowUpRight, ExternalLink, Minus, Refre
 import { DateTime } from "luxon";
 import type { LiveEnvelope } from "@/lib/live/envelope";
 import type { LiveState } from "@/hooks/useLive";
+import type { Freshness, FreshnessLabel } from "@/lib/live/freshness";
 
 const ZONE = "Asia/Kolkata";
 
@@ -17,6 +18,29 @@ const ZONE = "Asia/Kolkata";
 export function stamp(iso: string): string {
   const d = DateTime.fromISO(iso, { zone: ZONE });
   return d.isValid ? d.toFormat("h:mm a, d LLL").replace("AM", "am").replace("PM", "pm") : "";
+}
+
+const PILL: Record<Freshness, string> = {
+  // LIVE is a solid green with a soft glow and a ping ring round its dot: it is the one thing on the card meant to catch the eye (the motion stops for people who ask their device for less)
+  live: "bg-emerald-600 text-white ring-emerald-300 shadow-[0_0_0_3px_rgba(16,185,129,0.28),0_0_14px_rgba(16,185,129,0.55)] motion-safe:animate-livepulse",
+  last: "bg-white/90 text-slate-700 ring-slate-300",
+  saved: "bg-amber-100 text-amber-900 ring-amber-300",
+};
+
+/** the one pill that says whether a figure is live, the last close, or a saved copy (the words and the colours are the same on every card; light fills, so it reads on a dark tile and on a pale card) */
+export function StatusPill({ label }: { label: FreshnessLabel }) {
+  return (
+    <span data-freshness={label.state} title={label.detail} className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ring-1 ${PILL[label.state]}`}>
+      {label.state === "live" && (
+        <span aria-hidden="true" data-live-dot className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-75 motion-safe:animate-ping" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+        </span>
+      )}
+      <span>{label.text}</span>
+      <span className="sr-only">. {label.detail}</span>
+    </span>
+  );
 }
 
 /** where the figures came from and when; the Refresh button only when a way to refresh is given (a self-refreshing card has its own, in its status line) */

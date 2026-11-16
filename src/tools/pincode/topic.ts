@@ -12,6 +12,7 @@ const PIN_NUMBERS = [...Array(19)].map((_, i) => String(713201 + i));
 
 export const pincodeTopic = defineTopic({
   id: "pincode",
+  intent: { title: "PIN codes, wards and seats of Durgapur", about: "The PIN codes, municipal wards, assembly seats and police stations of Durgapur, with the areas and post offices.", words: ["pin", "code", "pincode", "postal", "zip", "post", "office", "ward", "wards", "dmc", "assembly", "constituency", "seat", "police", "thana", "area", "locality"] },
   live: {
     keys: ["pin", "pincode", "pincodes", "zip", "postal", "ward", "wards", "dmc", "constituency", "constituencies", "legislative", "vidhan", "thana", "thanas"],
     phrases: ["pin code", "pin codes", "post office", "post offices", "durgapur purba", "durgapur paschim", "vidhan sabha", "municipal corporation", "assembly constituency", "assembly constituencies", "assembly seat", "assembly seats", "legislative seat", "legislative seats", "police station", "police stations"],

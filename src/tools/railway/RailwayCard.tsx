@@ -15,7 +15,7 @@ import { LiveGate, SourceLine } from "@/components/tools/live/LivePieces";
 import { clock, daysChip, DAYS, filterTrains, NTES_URL, nextTrain, RAILRADAR_SITE, STATION, type Group, type Moment, type Railway, type Train } from "@/lib/live/railway";
 import { until } from "@/lib/live/flights";
 import { stationLabel } from "./stations";
-import { FareBox, ShortForms } from "./Fares";
+import { FareBox, ShortForms, type FareFrom } from "./Fares";
 import { FareFinder } from "./FareFinder";
 import { PREMIUM } from "./premium";
 
@@ -25,7 +25,7 @@ export const RAILWAY_REFRESH_MS = 60 * 60 * 1000;
 export const momentNow = (): Moment => { const t = DateTime.now().setZone(STATION.zone); return { hm: t.toFormat("HH:mm"), day: DAYS[t.weekday - 1] }; };
 
 /** the clock of the card (its own small state, ticking every half minute, so that the lists are not redrawn by anything else) */
-function useClock(): Moment {
+export function useClock(): Moment {
   const [t, setT] = useState(momentNow);
   useEffect(() => { const id = setInterval(() => setT((old) => { const n = momentNow(); return n.hm === old.hm && n.day === old.day ? old : n; }), 30_000); return () => clearInterval(id); }, []);
   return t;
@@ -35,7 +35,7 @@ const TRIM = "supports-[text-box:trim-start_cap_alphabetic]:[text-box:trim-start
 /** THE HEADROOM OF A TRIMMED TITLE. The trim puts the top of the box at the height of a capital, and a title that is cut with an ellipsis (overflow hidden) would shave whatever stands higher: in Poppins the tops of b, d, h, k, l (4% of the size above a capital), the dot of i and the tops of f and j (10%). So the box gets 0.12 em of room above it and the same amount of negative margin, which leaves the text exactly where it was and lets those tops show. Measured on the card: a render with the clipping on differs from one with it off in the tops of those letters; with the headroom they are the same. */
 const HEADROOM = "pt-[0.12em] -mt-[0.12em]";
 
-type Tone = "express" | "local";
+export type Tone = "express" | "local";
 /** the local (MEMU) section has its own colour (violet) all through: panel, heading, rows and day chips, so that it is told from the express trains at a glance */
 const TONE = {
   express: { row: "border-slate-100 bg-white", chip: "bg-sky-100 text-sky-800", head: "text-slate-900", count: "bg-slate-100 text-slate-600", sub: "text-slate-800", panel: "" },
@@ -51,12 +51,13 @@ function StationName({ label }: { label: { name: string; junction: boolean } }) 
 }
 
 /** one train. The top of the time and the top of the first line are one row of pixels (the same trimming as the flights card: the room above a capital is trimmed from both, the time let down 0.05 em for Poppins' round digits). */
-function Row({ t, now, next, tone = "express" }: { t: Train; now: Moment; next: boolean; tone?: Tone }) {
+/** `fares`: the fare button (on by default); `origin`: the station the fares start from, Durgapur unless the Asansol tab says ASN (a train that ends at that station has no fare onward); `extra`: a chip of the caller's own beside the days */
+export function Row({ t, now, next, tone = "express", fares: withFares = true, origin = "DGR", extra }: { t: Train; now: Moment; next: boolean; tone?: Tone; fares?: boolean; origin?: FareFrom; extra?: React.ReactNode }) {
   const c = TONE[tone];
   const premium = PREMIUM[t.label];
   const [fares, setFares] = useState(false);
   // a fare is looked up for an express or mail train (or a special) that goes on from Durgapur; for a local (MEMU) train, which is unreserved and has no fare in the reservation system, a HINT is worked out from the railway's fare table
-  const hasFares = t.toCode !== STATION.code;
+  const hasFares = withFares && t.toCode !== origin;
   const isLocal = t.kind === "local";
   const runsToday = t.days.includes(now.day);
   const gone = runsToday && clock(t) < now.hm;
@@ -83,29 +84,31 @@ function Row({ t, now, next, tone = "express" }: { t: Train; now: Moment; next: 
         <span className="mt-1 flex flex-wrap items-center gap-1.5">
           <span title={chip.title} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${c.chip}`}>{chip.text}</span>
           {hasFares && <button type="button" aria-expanded={fares} onClick={() => setFares((v) => !v)} className="rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-[11px] font-bold text-slate-700 hover:border-rose-300 hover:text-rose-700" data-fares-button>{fares ? (isLocal ? "Hide hint" : "Hide fares") : isLocal ? "₹ Fare hint" : "₹ Fares"}</button>}
+          {extra}
           {t.kind === "special" && <span className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-[11px] font-bold text-fuchsia-800" title="A special train (festival, Puja, Chhath or on demand), not in the regular timetable">Special</span>}
         </span>
       </span>
       {next && <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-extrabold text-white">Next · {until(now.hm, clock(t))}</span>}
       {/* the fares take the whole width of the row (below the time and the details), not the narrow column of the details */}
-      {hasFares && fares && <div className="min-w-0 basis-full"><FareBox number={t.number} local={isLocal} /></div>}
+      {hasFares && fares && <div className="min-w-0 basis-full"><FareBox number={t.number} local={isLocal} from={origin} /></div>}
     </li>
   );
 }
 
-function Column({ title, list, now, empty, tone }: { title: string; list: Train[]; now: Moment; empty: string; tone: Tone }) {
+export function Column({ title, list, now, empty, tone, sub, fares = true, origin = "DGR", extra }: { title: string; list: Train[]; now: Moment; empty: string; tone: Tone; sub?: string; fares?: boolean; origin?: FareFrom; extra?: (t: Train) => React.ReactNode }) {
   const next = nextTrain(list, now);
   return (
     // min-w-0: a grid column may otherwise grow to the width of its longest unbroken line (a long train name) and push the cards past the edge of a phone
     <section aria-label={title} className="min-w-0">
       <h5 className={`mb-1.5 flex items-center gap-2 text-sm font-extrabold ${TONE[tone].head}`}>{title}<span className={`rounded-full px-2 text-xs font-bold ${TONE[tone].count}`}>{list.length}</span></h5>
+      {sub && <p className="mb-1.5 text-xs leading-snug text-slate-500">{sub}</p>}
       {list.length === 0 ? <p className="rounded-xl border border-dashed border-slate-300 bg-white/70 px-3 py-2 text-sm text-slate-600">{empty}</p> : (
         // a scrolling list must be reachable by keyboard to be scrolled (the arrow keys), so it takes focus.
         // `relative`: the screen-reader-only words inside the rows are absolutely positioned; without a positioned list around them the list does not clip them, each stays at its place down the (long) list,
         // and together they stretch the scroll area of the whole window by thousands of pixels (a blank, scrollable space under the card).
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         <ol tabIndex={0} aria-label={`${title}: list of trains`} className="relative max-h-[26rem] space-y-1.5 overflow-y-auto pr-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300">
-          {list.map((t) => <Row key={`${t.number}-${clock(t)}`} t={t} now={now} next={t === next} tone={tone} />)}
+          {list.map((t) => <Row key={`${t.number}-${clock(t)}`} t={t} now={now} next={t === next} tone={tone} fares={fares} origin={origin} extra={extra?.(t)} />)}
         </ol>
       )}
     </section>
@@ -138,7 +141,7 @@ function Section({ title, group, now, filters, note, tone = "express" }: { title
 
 type Day2 = Moment["day"] | null;
 
-function Switch({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+export function Switch({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return <button type="button" aria-pressed={on} onClick={onClick} className={`rounded-full border px-3 py-1 text-xs font-bold transition ${on ? "border-rose-400 bg-rose-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-rose-300 hover:text-rose-700"}`}>{children}</button>;
 }
 

@@ -9,7 +9,8 @@ import { motion } from "framer-motion";
 import { DateTime } from "luxon";
 import { useLive } from "@/hooks/useLive";
 import type { MetalRates } from "@/lib/live/gold";
-import { ChangeChip, LiveGate, SourceLine, TrendChart } from "./LivePieces";
+import { goldFreshness } from "@/lib/live/freshness";
+import { ChangeChip, LiveGate, SourceLine, StatusPill, TrendChart } from "./LivePieces";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -28,7 +29,7 @@ const longDate = (iso: string) => `${String(Number(iso.slice(8, 10)))} ${MONTHS[
 
 const METALS: Metal[] = ["gold24", "gold22", "silver"];
 
-export function GoldBody({ rates }: { rates: MetalRates }) {
+export function GoldBody({ rates, stale = false }: { rates: MetalRates; stale?: boolean }) {
   const [metal, setMetal] = useState<Metal>("gold24");
   // arrow keys move between the tabs, as in any tab list
   const onTabKey = (e: React.KeyboardEvent) => {
@@ -40,6 +41,7 @@ export function GoldBody({ rates }: { rates: MetalRates }) {
     requestAnimationFrame(() => document.getElementById(`gold-tab-${next}`)?.focus());
   };
   const est = rates.estimate;
+  const fresh = goldFreshness(rates, stale);
   const stat = metal === "silver" ? est?.silver : est?.gold;
   const value = (m: Metal) => (m === "gold24" ? rates.gold24Per10g : m === "gold22" ? rates.gold22Per10g : rates.silverPerKg);
   const perGram = (m: Metal) => (m === "gold24" ? rates.gold24PerGram : m === "gold22" ? rates.gold22PerGram : rates.silverPerGram);
@@ -71,7 +73,7 @@ export function GoldBody({ rates }: { rates: MetalRates }) {
               <div className="relative text-xs font-extrabold uppercase tracking-widest opacity-80">{META[m].name}</div>
               <div className="relative mt-1 text-3xl font-extrabold leading-tight tabular-nums">{inr(value(m))}</div>
               <div className="relative text-xs font-semibold opacity-80">{META[m].unit} · {inr2(perGram(m))} per gram</div>
-              <div className="relative mt-2 min-h-[1.5rem]">{c && <ChangeChip abs={c.abs} pct={c.pct} money />}</div>
+              <div className="relative mt-2 flex min-h-[1.5rem] flex-wrap items-end justify-between gap-x-2 gap-y-1">{c ? <ChangeChip abs={c.abs} pct={c.pct} money /> : <span />}<span data-status-corner className="ml-auto"><StatusPill label={fresh} /></span></div>
             </motion.button>
           );
         })}
@@ -130,7 +132,7 @@ export function GoldCard() {
     <LiveGate state={state} error={error} reload={reload} what="Gold and silver rates">
       {env && (
         <>
-          <GoldBody rates={env.data} />
+          <GoldBody rates={env.data} stale={env.stale} />
           <SourceLine env={env} reload={reload} loading={state === "loading"} />
         </>
       )}

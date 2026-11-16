@@ -1,0 +1,462 @@
+{
+ "success": true,
+ "data": {
+  "station": {
+   "code": "DGR",
+   "name": "Durgapur",
+   "city": "Durgapur",
+   "elevation_m": 73,
+   "lat": 23.4951,
+   "lng": 87.31737,
+   "stationType": "junction",
+   "popularity": 0,
+   "railwayLines": null,
+   "facilities": []
+  },
+  "trains": [
+   {
+    "train": {
+     "number": "22213",
+     "name": "Shalimar - Patna Duronto Express",
+     "type": "Duronto Express",
+     "source": {
+      "code": "SHM",
+      "name": "Shalimar"
+     },
+     "destination": {
+      "code": "PNBE",
+      "name": "Patna Jn"
+     },
+     "runDays": [
+      "mon",
+      "wed",
+      "fri"
+     ]
+    },
+    "stop": {
+     "sequence": 42,
+     "arrival": "00:17",
+     "departure": "00:17",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 162.6,
+     "stopType": "pass-through"
+    }
+   },
+   {
+    "train": {
+     "number": "12302",
+     "name": "New Delhi - Howrah Rajdhani Express",
+     "type": "Rajdhani Express",
+     "source": {
+      "code": "NDLS",
+      "name": "New Delhi"
+     },
+     "destination": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "sat",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 212,
+     "arrival": "07:53",
+     "departure": "07:53",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 1296.5,
+     "stopType": "pass-through"
+    }
+   },
+   {
+    "train": {
+     "number": "12301",
+     "name": "Howrah - New Delhi Rajdhani Express",
+     "type": "Rajdhani Express",
+     "source": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "destination": {
+      "code": "NDLS",
+      "name": "New Delhi"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat"
+     ]
+    },
+    "stop": {
+     "sequence": 43,
+     "arrival": "18:22",
+     "departure": "18:22",
+     "arrivalDay": 1,
+     "departureDay": 1,
+     "distance": 158.7,
+     "stopType": "pass-through"
+    }
+   },
+   {
+    "train": {
+     "number": "12937",
+     "name": "Garba SF Express",
+     "type": "Superfast Express",
+     "source": {
+      "code": "GIMB",
+      "name": "Gandhidham BG"
+     },
+     "destination": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "runDays": [
+      "sat"
+     ]
+    },
+    "stop": {
+     "sequence": 356,
+     "arrival": "10:28",
+     "departure": "10:28",
+     "arrivalDay": 3,
+     "departureDay": 3,
+     "distance": 2363.4,
+     "stopType": "pass-through"
+    }
+   },
+   {
+    "train": {
+     "number": "13042",
+     "name": "Himgiri Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "JAT",
+      "name": "Jammutavi"
+     },
+     "destination": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "runDays": [
+      "mon",
+      "thu",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 356,
+     "arrival": "08:43",
+     "departure": "08:43",
+     "arrivalDay": 3,
+     "departureDay": 3,
+     "distance": 1866.9,
+     "stopType": "pass-through"
+    }
+   },
+   {
+    "train": {
+     "number": "15048",
+     "name": "Purvanchal Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "GKP",
+      "name": "Gorakhpur Jn"
+     },
+     "destination": {
+      "code": "KOAA",
+      "name": "Kolkatta Terminal"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "fri",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 139,
+     "arrival": "00:40",
+     "departure": "00:42",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 685.8,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "15050",
+     "name": "Purvanchal Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "GKP",
+      "name": "Gorakhpur Jn"
+     },
+     "destination": {
+      "code": "KOAA",
+      "name": "Kolkatta Terminal"
+     },
+     "runDays": [
+      "wed",
+      "sat"
+     ]
+    },
+    "stop": {
+     "sequence": 148,
+     "arrival": "00:40",
+     "departure": "00:42",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 709.4,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "15052",
+     "name": "Purvanchal Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "GKP",
+      "name": "Gorakhpur Jn"
+     },
+     "destination": {
+      "code": "KOAA",
+      "name": "Kolkatta Terminal"
+     },
+     "runDays": [
+      "thu"
+     ]
+    },
+    "stop": {
+     "sequence": 138,
+     "arrival": "00:40",
+     "departure": "00:42",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 702.4,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "13051",
+     "name": "Netaji Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "destination": {
+      "code": "KLK",
+      "name": "Kalka"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 43,
+     "arrival": "23:51",
+     "departure": "23:53",
+     "arrivalDay": 1,
+     "departureDay": 1,
+     "distance": 158.7,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "13036",
+     "name": "Upasana Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "DDN",
+      "name": "Dehradoon"
+     },
+     "destination": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "runDays": [
+      "wed",
+      "sat"
+     ]
+    },
+    "stop": {
+     "sequence": 283,
+     "arrival": "00:25",
+     "departure": "00:25",
+     "arrivalDay": 3,
+     "departureDay": 3,
+     "distance": 1434.3,
+     "stopType": "pass-through"
+    }
+   },
+   {
+    "train": {
+     "number": "13038",
+     "name": "Kumbh Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "DDN",
+      "name": "Dehradoon"
+     },
+     "destination": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "runDays": [
+      "mon",
+      "tue",
+      "thu",
+      "fri",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 283,
+     "arrival": "00:25",
+     "departure": "00:25",
+     "arrivalDay": 3,
+     "departureDay": 3,
+     "distance": 1434.3,
+     "stopType": "pass-through"
+    }
+   },
+   {
+    "train": {
+     "number": "12938",
+     "name": "Garba SF Express",
+     "type": "Superfast Express",
+     "source": {
+      "code": "HWH",
+      "name": "Howrah Jn"
+     },
+     "destination": {
+      "code": "GIMB",
+      "name": "Gandhidham BG"
+     },
+     "runDays": [
+      "mon"
+     ]
+    },
+    "stop": {
+     "sequence": 43,
+     "arrival": "00:47",
+     "departure": "00:47",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 158.7,
+     "stopType": "pass-through"
+    }
+   },
+   {
+    "train": {
+     "number": "13135",
+     "name": "Jaynagar Weekly Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "KOAA",
+      "name": "Kolkatta Terminal"
+     },
+     "destination": {
+      "code": "JYG",
+      "name": "Jaynagar"
+     },
+     "runDays": [
+      "sat"
+     ]
+    },
+    "stop": {
+     "sequence": 48,
+     "arrival": "00:04",
+     "departure": "00:06",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 174.6,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "13155",
+     "name": "Mithilanchal Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "KOAA",
+      "name": "Kolkatta Terminal"
+     },
+     "destination": {
+      "code": "SMI",
+      "name": "Sitamarhi Jn"
+     },
+     "runDays": [
+      "thu",
+      "sun"
+     ]
+    },
+    "stop": {
+     "sequence": 48,
+     "arrival": "00:04",
+     "departure": "00:06",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 174.6,
+     "stopType": "halt"
+    }
+   },
+   {
+    "train": {
+     "number": "13157",
+     "name": "Tirhut Express",
+     "type": "Mail/Express",
+     "source": {
+      "code": "KOAA",
+      "name": "Kolkatta Terminal"
+     },
+     "destination": {
+      "code": "MFP",
+      "name": "Muzaffarpur Jn"
+     },
+     "runDays": [
+      "tue"
+     ]
+    },
+    "stop": {
+     "sequence": 48,
+     "arrival": "00:04",
+     "departure": "00:06",
+     "arrivalDay": 2,
+     "departureDay": 2,
+     "distance": 174.6,
+     "stopType": "halt"
+    }
+   }
+  ],
+  "count": 15,
+  "includeIntermediate": true
+ },
+ "meta": {
+  "timestamp": "2026-11-16T13:41:18+05:30",
+  "traceId": "e5ba3256-d273-4a67-910f-2edcfe5702ce",
+  "source": "database",
+  "executionTime": 18
+ }
+}

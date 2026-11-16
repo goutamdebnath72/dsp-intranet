@@ -21,8 +21,13 @@ interface Queryable {
   query(sql: string, params?: unknown[]): Promise<any>;
 }
 
-export const FARE_TABLE_STATEMENTS: string[] = [
-  `CREATE TABLE IF NOT EXISTS public.train_fare (
+/** the stations whose trains have saved fares: Durgapur (the Durgapur tab) and Asansol (the trains of the Asansol tab, which do not stop at Durgapur, so no train is in both tables). Each has its own table, so that nothing already saved is touched. */
+export type FareStation = "DGR" | "ASN";
+export const FARE_TABLES: Record<FareStation, string> = { DGR: "train_fare", ASN: "train_fare_asn" };
+export const fareTableStatements = (st: FareStation): string[] => {
+  const t = FARE_TABLES[st];
+  return [
+  `CREATE TABLE IF NOT EXISTS public.${t} (
      train_number text        PRIMARY KEY,
      train_name   text        NOT NULL,
      to_code      text        NOT NULL,
@@ -31,14 +36,16 @@ export const FARE_TABLE_STATEMENTS: string[] = [
      classes      jsonb       NOT NULL,
      fetched_at   timestamptz NOT NULL
    )`,
-  `ALTER TABLE public.train_fare ENABLE ROW LEVEL SECURITY`,
-  `REVOKE ALL ON public.train_fare FROM anon, authenticated`,
-];
+  `ALTER TABLE public.${t} ENABLE ROW LEVEL SECURITY`,
+  `REVOKE ALL ON public.${t} FROM anon, authenticated`,
+  ];
+};
+export const FARE_TABLE_STATEMENTS: string[] = fareTableStatements("DGR");
 
 const rowsOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.rows) ? r.rows : []);
 
 /** a saved row read back and CHECKED: a row that is not the shape written is treated as not saved, never shown */
-export function fareFromRow(x: any): FareRow | null {
+export function fareFromRow(x: any, from: FareStation = "DGR"): FareRow | null {
   try {
     const classes = (typeof x.classes === "string" ? JSON.parse(x.classes) : x.classes) as ClassFare[];
     const at = x.fetched_at instanceof Date ? DateTime.fromJSDate(x.fetched_at) : DateTime.fromISO(String(x.fetched_at));
@@ -46,13 +53,14 @@ export function fareFromRow(x: any): FareRow | null {
     if (!Array.isArray(classes) || !at.isValid || !Number.isFinite(distanceKm)) return null;
     for (const c of classes) if (typeof c?.code !== "string" || typeof c?.name !== "string" || typeof c?.total !== "number" || !Array.isArray(c?.parts)) return null;
     if (!/^\d{5}$/.test(String(x.train_number)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(x.journey_date))) return null;
-    return { receivedAt: at.toUTC().toISO() ?? "", set: { train: String(x.train_number), trainName: String(x.train_name), from: "DGR", to: String(x.to_code), journeyDate: String(x.journey_date), distanceKm, classes } };
+    return { receivedAt: at.toUTC().toISO() ?? "", set: { train: String(x.train_number), trainName: String(x.train_name), from, to: String(x.to_code), journeyDate: String(x.journey_date), distanceKm, classes } };
   } catch {
     return null;
   }
 }
 
-export function typeormFareStore(ds: Queryable): FareStore {
+export function typeormFareStore(ds: Queryable, station: FareStation = "DGR"): FareStore {
+  const table = FARE_TABLES[station];
   let ready: Promise<boolean> | null = null;
   let failedAt = 0;
   let warned = false;
@@ -63,15 +71,15 @@ export function typeormFareStore(ds: Queryable): FareStore {
     failedAt = 0;
     ready = (async () => {
       try {
-        const have = rowsOf(await ds.query(`SELECT to_regclass('public.train_fare') AS t`));
+        const have = rowsOf(await ds.query(`SELECT to_regclass('public.${table}') AS t`));
         if (have[0]?.t) return true;
-        for (const sql of FARE_TABLE_STATEMENTS) await ds.query(sql);
+        for (const sql of fareTableStatements(station)) await ds.query(sql);
         return true;
       } catch (e: any) {
         failedAt = Date.now();
         if (!warned) {
           warned = true;
-          console.warn("[fares] the fare store is not available (run src/lib/nl2sql/sql/21_train_fare.sql):", e?.message || e);
+          console.warn("[fares] the fare store is not available (run src/lib/nl2sql/sql/21_train_fare.sql, or 26_train_fare_asn.sql for Asansol):", e?.message || e);
         }
         return false;
       }
@@ -83,8 +91,8 @@ export function typeormFareStore(ds: Queryable): FareStore {
     async get(number) {
       if (!(await ensure())) return null;
       try {
-        const r = rowsOf(await ds.query(`SELECT train_number, train_name, to_code, to_char(journey_date, 'YYYY-MM-DD') AS journey_date, distance_km, classes, fetched_at FROM public.train_fare WHERE train_number = $1`, [number]));
-        return r[0] ? fareFromRow(r[0]) : null;
+        const r = rowsOf(await ds.query(`SELECT train_number, train_name, to_code, to_char(journey_date, 'YYYY-MM-DD') AS journey_date, distance_km, classes, fetched_at FROM public.${table} WHERE train_number = $1`, [number]));
+        return r[0] ? fareFromRow(r[0], station) : null;
       } catch (e: any) {
         console.warn("[fares] could not read the saved fares:", e?.message || e);
         return null;
@@ -94,7 +102,7 @@ export function typeormFareStore(ds: Queryable): FareStore {
       if (!(await ensure())) return;
       try {
         await ds.query(
-          `INSERT INTO public.train_fare (train_number, train_name, to_code, journey_date, distance_km, classes, fetched_at)
+          `INSERT INTO public.${table} (train_number, train_name, to_code, journey_date, distance_km, classes, fetched_at)
                 VALUES ($1, $2, $3, $4::date, $5, $6::jsonb, $7)
            ON CONFLICT (train_number) DO UPDATE
                  SET train_name = EXCLUDED.train_name, to_code = EXCLUDED.to_code, journey_date = EXCLUDED.journey_date,
@@ -109,12 +117,9 @@ export function typeormFareStore(ds: Queryable): FareStore {
 }
 
 // One store per database connection, so the "does the table exist" check is made once per server and not once per request.
-const stores = new WeakMap<object, FareStore>();
-export function fareStoreFor(ds: Queryable): FareStore {
-  let st = stores.get(ds);
-  if (!st) {
-    st = typeormFareStore(ds);
-    stores.set(ds, st);
-  }
-  return st;
+const stores = new WeakMap<object, Partial<Record<FareStation, FareStore>>>();
+export function fareStoreFor(ds: Queryable, station: FareStation = "DGR"): FareStore {
+  const per = stores.get(ds) ?? {};
+  stores.set(ds, per);
+  return (per[station] ??= typeormFareStore(ds, station));
 }

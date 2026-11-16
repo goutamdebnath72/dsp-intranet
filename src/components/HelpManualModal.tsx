@@ -41,6 +41,7 @@ import {
   type SectionIcon,
 } from "@/lib/help/sampleQuestions";
 import { QuickReferenceTab } from "@/components/help/QuickReferenceTab";
+import { EdsTab } from "@/components/help/EdsTab";
 import { SearchBarIntro } from "@/components/help/SearchBarIntro";
 import {
   ANNOUNCEMENT_NEW_THRESHOLD_DAYS,
@@ -52,13 +53,13 @@ type Props = {
   onClose: () => void;
   /** which tab to show when the guide opens (default: the sample questions) */
   initialTab?: GuideTab;
-  /** a signed-in executive: Deep Synthesis questions will be answered as a briefing */
+  /** a signed-in executive: the Deep search (EDS) tab says so */
   isExecutive?: boolean;
   /** puts a sample question in the search bar (the reader still presses Enter) */
   onTry?: (question: string) => void;
 };
 
-export type GuideTab = "samples" | "types" | "how";
+export type GuideTab = "samples" | "types" | "how" | "eds";
 
 const SECTION_ICONS: Record<SectionIcon, React.ReactNode> = {
   calculator: <Calculator size={17} />,
@@ -154,8 +155,8 @@ function QuestionRow({ q, note, instant, onTry }: { q: string; note?: string; in
 }
 
 /** A section of the sample questions, closed or open. */
-function SampleBlock({ s, open, onToggle, isExecutive, onTry }: { s: SampleSection; open: boolean; onToggle: () => void; isExecutive: boolean; onTry?: (q: string) => void }) {
-  const count = s.questions.length + (s.ladders?.length ?? 0) * 3;
+function SampleBlock({ s, open, onToggle, onTry }: { s: SampleSection; open: boolean; onToggle: () => void; onTry?: (q: string) => void }) {
+  const count = s.questions.length;
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-2.5 px-4 py-3 text-left hover:bg-slate-50">
@@ -164,11 +165,6 @@ function SampleBlock({ s, open, onToggle, isExecutive, onTry }: { s: SampleSecti
           <span className="block text-[15px] font-bold text-slate-800">{s.title}</span>
           <span className="block text-[12px] text-slate-500">{count} sample questions</span>
         </span>
-        {s.executivesOnly && (
-          <span className={`hidden rounded-full px-2 py-0.5 text-[11px] font-semibold sm:inline ${isExecutive ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
-            {isExecutive ? "Executives: you can use this" : "Executives only"}
-          </span>
-        )}
         <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
@@ -181,11 +177,6 @@ function SampleBlock({ s, open, onToggle, isExecutive, onTry }: { s: SampleSecti
               {s.howToRun}
             </span>
           </p>
-          {s.executivesOnly && !isExecutive && (
-            <p className="rounded-lg bg-slate-100 px-3 py-2 text-[12.5px] text-slate-600">
-              These questions are answered as a combined briefing only for a signed-in executive (ticket starting with 4). Anyone else who tries them gets the normal search.
-            </p>
-          )}
           <div>
             <p className="mb-1 text-[12px] font-bold uppercase tracking-wide text-slate-500">How to ask well</p>
             <ul className="list-disc space-y-1 pl-5 text-[13px] leading-relaxed text-slate-600">
@@ -214,32 +205,6 @@ function SampleBlock({ s, open, onToggle, isExecutive, onTry }: { s: SampleSecti
               </ul>
             </div>
           )}
-          {(s.ladders?.length ?? 0) > 0 && (
-            <div>
-              <p className="mb-1 text-[12px] font-bold uppercase tracking-wide text-slate-500">The same subject, asked three ways</p>
-              <div className="space-y-3">
-                {s.ladders!.map((l) => (
-                  <div key={l.subject} className="rounded-lg border border-slate-200 bg-white p-3">
-                    <p className="mb-2 text-[13px] font-bold text-slate-700">{l.subject}</p>
-                    <ol className="space-y-1.5">
-                      {[
-                        ["1 · By its title", l.title],
-                        ["2 · By its content", l.content],
-                        ["3 · Deep: across circulars", l.deep],
-                      ].map(([label, q]) => (
-                        <li key={label}>
-                          <p className="mb-0.5 text-[11.5px] font-semibold text-sky-700">{label}</p>
-                          <ul>
-                            <QuestionRow q={q} onTry={onTry} />
-                          </ul>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </section>
@@ -247,7 +212,7 @@ function SampleBlock({ s, open, onToggle, isExecutive, onTry }: { s: SampleSecti
 }
 
 /** The "Sample questions" tab: how to ask, then every area of the search with questions to try. */
-function SamplesTab({ isExecutive, onTry }: { isExecutive: boolean; onTry?: (q: string) => void }) {
+function SamplesTab({ onTry }: { onTry?: (q: string) => void }) {
   const [text, setText] = useState("");
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(["people"]));
   const shown = useMemo(() => filterSections(text), [text]);
@@ -324,7 +289,7 @@ function SamplesTab({ isExecutive, onTry }: { isExecutive: boolean; onTry?: (q: 
       ) : (
         <div className="space-y-2.5">
           {shown.map((s) => (
-            <SampleBlock key={s.id} s={s} open={searching || openIds.has(s.id)} onToggle={() => toggle(s.id)} isExecutive={isExecutive} onTry={onTry} />
+            <SampleBlock key={s.id} s={s} open={searching || openIds.has(s.id)} onToggle={() => toggle(s.id)} onTry={onTry} />
           ))}
         </div>
       )}
@@ -436,6 +401,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   ["samples", "Sample questions"],
                   ["types", "What to type"],
                   ["how", "How it works"],
+                  ["eds", "Deep search (EDS)"],
                 ] as const).map(([id, label]) => (
                   <button
                     key={id}
@@ -455,9 +421,11 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
             {/* Body */}
             <div className="max-h-[70vh] space-y-6 overflow-y-auto overscroll-contain p-6">
               {tab === "samples" ? (
-                <SamplesTab isExecutive={isExecutive} onTry={onTry} />
+                <SamplesTab onTry={onTry} />
               ) : tab === "types" ? (
                 <QuickReferenceTab onTry={onTry} />
+              ) : tab === "eds" ? (
+                <EdsTab isExecutive={isExecutive} onTry={onTry} />
               ) : (
               <>
               {/* How search works: what the Samples tab does not say. The areas are in the introduction and the sample questions; the two ways to run a question are explained once, above the samples. */}
@@ -482,6 +450,20 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
 
               {/* Short and long commands: how to avail a feature */}
               <Section icon={<Zap size={17} />} title="Short and long commands: how to open a feature">
+                <p data-own-words>
+                  <strong>You need not remember any of these words.</strong>{" "}
+                  Write what you want in your own words, in capitals or small
+                  letters, and press Enter: <Pill>PLEASE TELL ME THE CURRENT GOLD PRICE IN KOLKATA SIR</Pill>,{" "}
+                  <Pill>what will come to my account when i leave service</Pill>.
+                  When the box is sure which feature you mean it says{" "}
+                  <em>Looks like &hellip; Press Enter to open it</em> while you type. If
+                  it is not sure, it first tries on its own, and then asks
+                  Gemini, the AI, which feature you mean: only the line you
+                  typed goes to Gemini (never a figure you enter in a feature,
+                  an ID, a person&rsquo;s number or a name), and the answer is
+                  only the name of a feature. If it is none, your line is
+                  searched as usual.
+                </p>
                 <p>
                   Every feature of the <strong>What to type</strong> tab can be
                   opened in two ways, and both reach the same card.
@@ -528,6 +510,113 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   <strong>What to type</strong> tab, click a command to put it in
                   the search bar.
                 </p>
+              </Section>
+
+              {/* The management pages: who may open them, what each does, and how the HOD delegates */}
+              <Section icon={<ShieldCheck size={17} />} title="Management pages: who may open them, and delegation">
+                <p data-management-access className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
+                  <strong>
+                    Currently only the HOD of C&amp;IT can open the management
+                    pages, after signing in with his own login credentials.
+                  </strong>{" "}
+                  He can <strong>delegate</strong> any of these facilities to
+                  other executives and non-executives. Nobody else can open
+                  them: anyone else who asks for one is told{" "}
+                  <em>&ldquo;Not allowed&rdquo;</em>, and nothing is changed.
+                </p>
+                <p>
+                  The management pages change the plant&rsquo;s data, so they
+                  are not in the list of what everyone can ask. There are six.
+                  Type the words on the right of a page, in the search bar, and
+                  press <Pill>Enter</Pill>; the page opens below the box.
+                </p>
+                <ul data-management-pages className="space-y-2">
+                  <li className="rounded-lg border border-slate-200 px-3 py-2">
+                    <strong>Employee manager</strong> &mdash; add a new
+                    employee, edit an employee&rsquo;s record, delete an
+                    employee, and see the history of changes. Type{" "}
+                    <Pill>add new employee</Pill> <Pill>edit employee record</Pill>{" "}
+                    <Pill>manage employees</Pill>. <em>Only the HOD</em> can
+                    delete an employee, and only the HOD sees and changes the
+                    dates of birth and joining; a delegate sees those as locked.
+                  </li>
+                  <li className="rounded-lg border border-slate-200 px-3 py-2">
+                    <strong>PAX directory editor</strong> &mdash; add, edit or
+                    delete a PAX (telephone extension) number with its
+                    department and location. If a line clashes with a saved
+                    one, it asks whether to edit the saved line or whether you
+                    made a mistake. Type <Pill>add new pax number</Pill>{" "}
+                    <Pill>edit pax number</Pill> <Pill>manage pax directory</Pill>.
+                  </li>
+                  <li className="rounded-lg border border-slate-200 px-3 py-2">
+                    <strong>Circular manager</strong> &mdash; post (upload) a
+                    circular with its issue date, so that the search can find
+                    it, browse the recent circulars, and see the history. Type{" "}
+                    <Pill>post circular</Pill> <Pill>upload circular</Pill>{" "}
+                    <Pill>manage circulars</Pill>.
+                  </li>
+                  <li className="rounded-lg border border-slate-200 px-3 py-2">
+                    <strong>Announcement manager</strong> &mdash; publish, edit
+                    or delete a plant announcement, see the latest ones, and see
+                    the history. Type <Pill>manage announcements</Pill>{" "}
+                    <Pill>publish announcement</Pill>.
+                  </li>
+                  <li className="rounded-lg border border-slate-200 px-3 py-2">
+                    <strong>Holiday manager</strong> &mdash; put the holidays of
+                    a year in from a checked file (or pasted text), or clear a
+                    year (it asks you to type a confirmation first), and see the
+                    history. Type <Pill>manage holidays</Pill>{" "}
+                    <Pill>seed holidays 2027</Pill> <Pill>clear holidays 2026</Pill>.
+                  </li>
+                  <li className="rounded-lg border border-slate-200 px-3 py-2">
+                    <strong>Contact access log</strong> &mdash; who revealed or
+                    copied a person&rsquo;s mobile number or e-mail, with
+                    filters, totals and date ranges (today, 7 days, 30 days, all
+                    time). Type <Pill>contact access log</Pill>{" "}
+                    <Pill>who viewed contacts</Pill>. <em>This one can be
+                    delegated to executives only</em>, not to non-executives.
+                  </li>
+                </ul>
+                <p className="font-semibold text-slate-900">How the HOD delegates</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    Open the page and use its <strong>Authorise</strong> tab
+                    (called <strong>Authorised people</strong> in the Employee
+                    manager and the PAX editor; only the HOD sees it), or type,
+                    for example,{" "}
+                    <Pill>delegate pax to [name]</Pill>,{" "}
+                    <Pill>delegate employee editing to [name]</Pill>,{" "}
+                    <Pill>delegate circulars to [name]</Pill>,{" "}
+                    <Pill>who can edit pax</Pill>.
+                  </li>
+                  <li>
+                    <strong>Each page is delegated on its own.</strong> Someone
+                    authorised for the PAX editor gets nothing else.
+                  </li>
+                  <li>
+                    An <strong>executive</strong> is authorised at once. A{" "}
+                    <strong>non-executive</strong> is authorised only after the
+                    HOD answers the question &ldquo;Are you sure you want to
+                    authorise a non-executive?&rdquo; with a confirmation.
+                  </li>
+                  <li>
+                    <strong>Only the HOD</strong> can authorise or withdraw. A
+                    delegate cannot pass the facility on.
+                  </li>
+                  <li>
+                    A withdrawal takes effect <strong>at once</strong> (the
+                    authority is checked on every request), and an employee who
+                    is deleted from the employee roster loses every
+                    authorisation in every page.
+                  </li>
+                  <li>
+                    Every change, by the HOD or by a delegate, and every
+                    authorisation and withdrawal, is kept in the page&rsquo;s{" "}
+                    <strong>History</strong> tab (called <strong>Recent
+                    changes</strong> in the Employee manager and the PAX editor)
+                    with who did it and when.
+                  </li>
+                </ul>
               </Section>
 
               {/* Live cards: what the samples and the words page do not say */}
