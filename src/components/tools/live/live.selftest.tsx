@@ -104,5 +104,11 @@ ok("the news card has four tabs, Business first, and opens on Business", /aria-l
 ok("'business news' opens Business, 'english news' English, 'hindi news' Hindi", tabs("business news").sel === "Business" && tabs("english news").sel === "English" && tabs("hindi news").sel === "हिन्दी" && tabs("bengali news").sel === "বাংলা");
 ok("the Business tab asks the business route address only (a fixed tab word), and says what the free headlines do and do not cover", /useLive<NewsData>\(`\/api\/live\/news\?lang=\$\{lang\}`[,)]/.test(readFileSync(`${dir}/NewsCard.tsx`, "utf8")) && /Business Standard and Financial Express are not included/.test(readFileSync(`${dir}/NewsCard.tsx`, "utf8")) && /ask for a subscription for some of its own stories/.test(readFileSync(`${dir}/NewsCard.tsx`, "utf8")));
 
+// the Sensex and Nifty tiles each have their own deep gradient with white text, apart from the card's pale green; up or down is said by the change pill and the line
+{
+  const src = readFileSync("src/components/tools/live/MarketsCard.tsx", "utf8");
+  ok("the index tiles have deep gradients of their own (indigo-violet, sky-blue, fuchsia-purple) with white text, not the card's pale green", /from-indigo-600 via-violet-600 to-purple-700/.test(src) && /from-sky-500 via-blue-600 to-indigo-600/.test(src) && /from-fuchsia-600 via-purple-600 to-violet-700/.test(src) && /bg-gradient-to-br p-4 text-white/.test(src) && !/from-emerald-300 via-teal-300/.test(src) && !/from-rose-300 via-red-300/.test(src));
+  ok("the line on a dark tile is white and the change pill keeps its own green or red (the up or down of the day), and every tile carries data-index-tile", /<Sparkline values=\{q\.spark\} color="#ffffff" \/>/.test(src) && /<ChangeChip abs=\{q\.change\} pct=\{q\.pct\} \/>/.test(src) && /data-index-tile=\{up \? "up" : "down"\}/.test(src));
+}
 console.log(`live selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

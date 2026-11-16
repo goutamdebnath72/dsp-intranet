@@ -14,21 +14,29 @@ import { ChangeChip, LiveGate, SourceLine, Sparkline, stamp } from "./LivePieces
 
 const num = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** each index has its own deep gradient with white text (so that it stands out from the card's own pale green); whether the day is up or down is said by the change pill and by the line: green on a dark tile would be lost, so the line is white and the pill is the pale green or red it always was */
+const TILES = [
+  { tile: "from-indigo-600 via-violet-600 to-purple-700 border-indigo-400/60 shadow-indigo-500/30", name: "text-indigo-100", sub: "text-indigo-100/90" },
+  { tile: "from-sky-500 via-blue-600 to-indigo-600 border-sky-300/60 shadow-sky-500/30", name: "text-sky-100", sub: "text-sky-100/90" },
+  { tile: "from-fuchsia-600 via-purple-600 to-violet-700 border-fuchsia-400/60 shadow-fuchsia-500/30", name: "text-fuchsia-100", sub: "text-fuchsia-100/90" },
+] as const;
+
 function IndexTile({ q, i }: { q: Quote; i: number }) {
   const up = q.change >= 0;
-  const color = up ? "#10b981" : "#f43f5e";
+  const c = TILES[i % TILES.length];
   const state = sessionState(q.time, DateTime.now());
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i, type: "spring", stiffness: 260, damping: 24 }} className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-      <span aria-hidden="true" className={`pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full blur-2xl ${up ? "bg-emerald-300/30" : "bg-rose-300/30"}`} />
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i, type: "spring", stiffness: 260, damping: 24 }} data-index-tile={up ? "up" : "down"} className={`relative overflow-hidden rounded-3xl border bg-gradient-to-br p-4 text-white shadow-lg ${c.tile}`}>
+      <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/20 blur-2xl" />
+      <span aria-hidden="true" className="pointer-events-none absolute -bottom-12 -left-8 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
       <div className="relative flex items-center justify-between gap-2">
-        <span className="text-xs font-extrabold uppercase tracking-widest text-slate-500">{q.name}</span>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${state === "live" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{state === "live" ? "LIVE" : "LAST CLOSE"}</span>
+        <span className={`text-xs font-extrabold uppercase tracking-widest ${c.name}`}>{q.name}</span>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${state === "live" ? "bg-emerald-100 text-emerald-800" : "bg-white/85 text-slate-700"}`}>{state === "live" ? "LIVE" : "LAST CLOSE"}</span>
       </div>
-      <div className="relative mt-1 text-3xl font-extrabold tabular-nums leading-tight text-slate-900">{num(q.price)}</div>
+      <div className="relative mt-1 text-3xl font-extrabold tabular-nums leading-tight text-white">{num(q.price)}</div>
       <div className="relative mt-1"><ChangeChip abs={q.change} pct={q.pct} /></div>
-      <div className="relative mt-2"><Sparkline values={q.spark} color={color} /></div>
-      <div className="relative mt-1 flex justify-between text-[11px] font-semibold text-slate-500"><span>Low {q.low !== null ? num(q.low) : "—"}</span><span>High {q.high !== null ? num(q.high) : "—"}</span></div>
+      <div className="relative mt-2"><Sparkline values={q.spark} color="#ffffff" /></div>
+      <div className={`relative mt-1 flex justify-between text-[11px] font-semibold ${c.sub}`}><span>Low {q.low !== null ? num(q.low) : "—"}</span><span>High {q.high !== null ? num(q.high) : "—"}</span></div>
     </motion.div>
   );
 }

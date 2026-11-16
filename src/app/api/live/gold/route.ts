@@ -5,7 +5,9 @@
 // If the page cannot be reached the last good answer is returned, marked stale; if the page has changed so that the numbers cannot be found, it is an error, never a guess.
 import { getJson, getText, UpstreamError } from "@/lib/live/http";
 import { liveRoute } from "@/lib/live/envelope";
-import { extendHistory, parseEtfSeries, parseIbja, type EtfSeries } from "@/lib/live/gold";
+import { extendHistory, looksLikeGoldAnswer, parseEtfSeries, parseIbja, type EtfSeries } from "@/lib/live/gold";
+import { getDb } from "@/lib/db";
+import { NO_SNAPSHOT_STORE, snapshotStoreFor, type SnapshotStore } from "@/lib/live/snapshotStore";
 import { memo } from "@/lib/live/memo";
 import { todayIn, yearAgo } from "@/lib/live/yearWindow";
 import snapshot from "@/lib/live/etfSnapshot.json";
@@ -41,12 +43,19 @@ async function etfRecords(): Promise<{ gold: EtfSeries; silver: EtfSeries; saved
   }
 }
 
+/** the saved last good answer, or none when the database cannot be had: the card must not fail because of it */
+async function savedAnswers(): Promise<SnapshotStore> {
+  try { return snapshotStoreFor(await getDb()); } catch { return NO_SNAPSHOT_STORE; }
+}
+
 export async function GET() {
   return liveRoute({
     key: "gold",
     ttlMs: 10 * 60 * 1000,
     source: "IBJA (India Bullion and Jewellers Association)",
     sourceUrl: URL_IBJA,
+    // the last good answer is also kept in the database (src/lib/live/snapshotStore.ts): after a restart, or a quiet night with IBJA unreachable, the card shows it marked stale with its own time instead of an error
+    persist: { store: savedAnswers, check: looksLikeGoldAnswer },
     // the rates are IBJA's; the estimated earlier months (when there are any) use the closing prices of the NSE gold and silver funds, which come from Yahoo Finance: both are named and linked
     sourceLinks: (d) => [{ name: "IBJA (India Bullion and Jewellers Association)", url: URL_IBJA }, ...("estimate" in d && d.estimate ? [{ name: "Yahoo Finance (NSE gold and silver fund prices, for the estimated earlier months)", url: "https://finance.yahoo.com/" }] : [])],
     load: async () => {

@@ -48,9 +48,9 @@ export interface MetalRates {
   silverPerGram: number;
   /** which session these are: "AM" or "PM" */
   session: "AM" | "PM";
-  /** set only when IBJA has no rates for today (Saturday, Sunday, a central government holiday): the date (YYYY-MM-DD) of the last day it published, whose closing (PM) rates these are */
+  /** set only when IBJA has no rates for today (Saturday, Sunday, a central government holiday, or a working day's morning before the first rate is up): the date (YYYY-MM-DD) of the last day it published, whose closing (PM) rates these are */
   asOf?: string;
-  /** the page's own words when it has no rates for today ("Rates are not published on Central Govt. Holidays & SAT/SUN") */
+  /** the page's own words when it has no rates for today ("Rates are not published on Central Govt. Holidays & SAT/SUN", or on a working day's morning "Rates will be uploaded soon") */
   notPublished?: string;
   /** the change against the last PM close in the history */
   change: { gold24: { abs: number; pct: number } | null; gold22: { abs: number; pct: number } | null; silver: { abs: number; pct: number } | null };
@@ -106,8 +106,9 @@ export function parseIbja(html: string): MetalRates | null {
   const amAg = cell(html, "lblSilver999_AM"), pmAg = cell(html, "lblSilver999_PM");
   let g24 = pm999 ?? am999, g22 = pm916 ?? am916, ag = pmAg ?? amAg;
   let session: "AM" | "PM" = pm999 ? "PM" : "AM";
-  // no rates for today: only when the page SAYS so (its own message) are the closing rates of the last published day used, and they are shown as that day's; any other page without the rates is an error, never a guess
-  const said = /id="lbl_Message">([^<]*Rates are not published[^<]*)</.exec(html)?.[1].replace(/&amp;/g, "&").trim();
+  // no rates for today: only when the page SAYS so (its own message) are the closing rates of the last published day used, and they are shown as that day's; any other page without the rates is an error, never a guess.
+  // The page says so in two cases: a Saturday, a Sunday or a holiday ("Rates are not published on Central Govt. Holidays & SAT/SUN") and a working day's morning, before IBJA has put up its first rate of the day ("Rates will be uploaded soon").
+  const said = /id="lbl_Message">([^<]*(?:Rates are not published|Rates will be uploaded soon)[^<]*)</.exec(html)?.[1].replace(/&amp;/g, "&").trim();
   const noRatesToday = !g24 || !g22 || !ag;
   if (noRatesToday && !said) return null;
 
@@ -238,4 +239,12 @@ export function extendHistory(rates: MetalRates, gold: EtfSeries | null, silver:
       ...(savedThrough ? { savedThrough } : {}),
     },
   };
+}
+
+/** whether a saved answer of the gold route is the shape the card draws (the rates and a record of days): a saved copy that is not is never shown */
+export function looksLikeGoldAnswer(x: unknown): x is MetalRates {
+  const r = x as MetalRates | null;
+  const fin = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n > 0;
+  return !!r && typeof r === "object" && fin(r.gold24Per10g) && fin(r.gold22Per10g) && fin(r.silverPerKg) && (r.session === "AM" || r.session === "PM") && Array.isArray(r.history) && r.history.length > 1
+    && r.history.every((p) => p && typeof p.date === "string" && fin(p.gold24) && fin(p.gold22) && fin(p.silver)) && !!r.change && typeof r.rangeText === "string";
 }

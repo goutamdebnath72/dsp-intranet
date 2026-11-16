@@ -76,7 +76,7 @@ export function GoldBody({ rates }: { rates: MetalRates }) {
           );
         })}
       </div>
-      <p className="mt-2 text-xs text-slate-500">{rates.asOf ? <><strong className="text-slate-700">IBJA closing (PM) rates of {DateTime.fromISO(rates.asOf, { zone: "Asia/Kolkata" }).toFormat("cccc, d LLL yyyy")}</strong>, the last day it published: {rates.notPublished ?? "no rates today"}. The change is against the closing rate before it.</> : <>Today&apos;s {rates.session === "AM" ? "opening (AM)" : "closing (PM)"} IBJA rates. The change is against the last closing (PM) rate.</>} Click a metal, or use the tabs over the chart, to see its trend.</p>
+      <p className="mt-2 text-xs text-slate-500">{rates.asOf ? <><strong className="text-slate-700">IBJA closing (PM) rates of {DateTime.fromISO(rates.asOf, { zone: "Asia/Kolkata" }).toFormat("cccc, d LLL yyyy")}</strong>, the last day it published. IBJA&apos;s page says: &ldquo;{rates.notPublished ?? "no rates today"}&rdquo; The change is against the closing rate before it.</> : <>Today&apos;s {rates.session === "AM" ? "opening (AM)" : "closing (PM)"} IBJA rates. The change is against the last closing (PM) rate.</>} Click a metal, or use the tabs over the chart, to see its trend.</p>
 
       <div className="mt-4 rounded-3xl border border-slate-200 bg-white/70 p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
