@@ -9,7 +9,7 @@ export interface IntroArea {
   label: string;
   /** what can be asked, in plain words */
   detail: string;
-  /** an area with several distinct things to know gets a sub-title for each, drawn under the line (the Vehicles area: four) */
+  /** an area with several distinct things to know gets a sub-title for each, drawn under the line (the Vehicles area: five) */
   parts?: IntroPart[];
 }
 
@@ -64,12 +64,12 @@ export const AREAS: IntroArea[] = [
   { label: "Durgapur Steel Plant: its story and its heads", detail: "how the plant came to be (the British collaboration, Dr B C Roy, Pandit Nehru, the Queen's visit), what it made first, the chronological list of its heads and SAIL's foundation and units, with SAIL's photographs and the source of every entry; type dsp history, heads of dsp or sail history" },
   { label: "Steel prices, production and companies", detail: "the Ministry of Steel's monthly prices of TMT bar, HR coil and CR coil with iron ore; what the Durgapur Steel Plant makes, with its capacity and Durgapur market quotes; SAIL, Tata Steel, JSW and Jindal quarter by quarter; India's and the world's steel production" },
   { label: "Calculators and converters", detail: "a full calculator, units, currency, dates, and loan EMI, PF, gratuity and leave encashment forms (the list is one line above); the PF form takes the figures of your DSP PF page and your payslip and gives the probable PF on your retirement day" },
-  { label: "Vehicles", detail: "four things to know about a vehicle, each with its own command:", parts: [
-    { title: "National number plate", detail: "the all-India Bharat BH-series plate: what it is, who can have it, how to apply, the road tax with an estimate, and any BH number read out part by part (type bh series, or a plate such as 26 BH 1234 AA). The 17-character vehicle identification number (VIN) is read the same way (type vin number)." },
+  { label: "Vehicles", detail: "five things to know about a vehicle, each with its own command:", parts: [
+    { title: "National number plate", detail: "the all-India Bharat BH-series plate: what it is, who can have it, how to apply, the road tax with an estimate, and any BH number read out part by part (type bh series, or a plate such as 26 BH 1234 AA)." },
     { title: "Tyre and rim specifications", detail: "what a tyre marking such as 205/55 R16 91V says (width, aspect ratio, rim size, load index and speed symbol) and what a wheel marking such as 8Jx20 says, with the load-index and speed tables (type tyre size)." },
     { title: "EV cars: battery and charger (AC and DC) specifications", detail: "the words of an electric car's spec sheet in plain words (kWh, kW, volts, LFP and the Blade battery, AC and DC charging, the CCS2 socket, C-rate), and how long a charge takes from your own charger (type ev charging; the second tab is the guide)." },
     { title: "Engine power: PS, bhp and kW", detail: "petrol and diesel engines give their power in bhp or PS, electric cars in kW, and one line shows all three together (type 100 bhp). An electric car is usually described by two numbers: the battery in kWh, the size of its tank, which decides the range, and the power in kW, which is the actual power of the car, that of the motor (or motors) turning the wheels. Many makers print the bhp or PS beside the kW so that you can compare." },
-  ] },
+    { title: "VIN (vehicle identification number), simplified", detail: "the 17-character code that identifies one vehicle, stamped on its chassis and given in its papers (the letters I, O and Q are never used). It has three blocks: the first 3 characters give the country and the maker, the next 6 the type of vehicle in the maker's own code, and the last 8 the model year (the 10th character: K is 2019), the plant and the vehicle's own serial number. Type vin number to see each block explained, or type a VIN such as MALBM51BLKM000001 and it is read as you type." },  ] },
 ];
 
 /** what it cannot do yet, said plainly */
