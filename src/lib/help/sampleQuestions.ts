@@ -42,7 +42,7 @@ export interface SampleSection {
 
 /** The window event that asks the search bar to open with a question typed in (the reader still presses Enter). */
 export const OMNIBAR_PREFILL_EVENT = "omnibar-prefill";
-/** The window event that opens the user guide (detail: { tab: "samples" | "types" | "how" | "eds" }). */
+/** The window event that opens the user guide (detail: { tab: "samples" | "utility" | "how" | "eds" }). */
 export const OPEN_GUIDE_EVENT = "open-user-guide";
 
 /** A pair that shows what makes a question good: the same need, asked thinly and asked well. */
@@ -63,132 +63,6 @@ export const RECIPE: string[] = [
 ];
 
 export const SAMPLE_SECTIONS: SampleSection[] = [
-  {
-    id: "people",
-    title: "Find a person",
-    icon: "users",
-    howToRun: "Numbers (ticket, mobile, personal number) appear AS YOU TYPE: no Enter. A name, or part of a name with a department: type it, then press Enter.",
-    covers: "The employee directory: by ticket number, CUG mobile, SAIL personal number, or by name (similar-sounding), with or without the department.",
-    tips: [
-      "A number needs no Enter: a 6-digit ticket, a 10-digit CUG mobile, a SAIL personal number, or the last 4 digits of an executive's CUG mobile.",
-      "A name is matched by sound: a different spelling still finds the person. Honorifics (Mr, Dr, Shri) are ignored.",
-      "Only part of the name? Add the department, in either order.",
-      "Mobile numbers and emails are masked; press reveal to see them (see Contact details under How it works for who can reveal and copy).",
-    ],
-    questions: [
-      { q: "[first name] [last name]", note: "similar-sounding: \"Goutam\" also finds \"Gautam\" and \"Gautham\"" },
-      { q: "anil kumar", note: "words match in order: finds \"Anil Kumar Salian\"" },
-      { q: "[part of name] c&it", note: "part of a name plus the department, in any order" },
-      { q: "c&it [part of name]", note: "the same, department first" },
-      { q: "[6-digit ticket number]", note: "shows the person at once", instant: true },
-      { q: "D111086", note: "a SAIL personal number, any case", instant: true },
-      { q: "2584", note: "last 4 digits of an executive's CUG mobile", instant: true },
-    ],
-  },
-  {
-    id: "roster",
-    title: "Count and compare employees",
-    icon: "chart",
-    howToRun: "Type the whole question, then press Enter.",
-    covers: "Headcounts, designations, heads of department, seniority, grades and name patterns, answered from the employee directory.",
-    tips: [
-      "Ask in plain words: how many, who is, which department, top N, most senior.",
-      "Name the department the way people say it (C&IT, blast furnace, mechanical, plant garage).",
-      "Add a grade or designation to narrow it: DGM, executives, non-executives, S-5 and above.",
-    ],
-    patterns: [
-      "how many [designation] are there in [department]",
-      "who is the Head of Department of [department]",
-      "who is senior to [name]",
-      "designation wise count of employees in [department]",
-    ],
-    questions: [
-      { q: "how many executives are there in C&IT" },
-      { q: "who is the Head of Department of C&IT" },
-      { q: "how many employees are currently posted in the C&IT department, and who is the Head of Department", note: "two things about one department" },
-      { q: "who is in charge of blast furnace" },
-      { q: "designation wise count of employees in plant garage" },
-      { q: "how many DGMs in mechanical" },
-      { q: "how many women executives" },
-      { q: "who are the 10 most senior non executives" },
-      { q: "which department has the most executives and what share of all executives is that" },
-      { q: "how many executives and non-executives work in each blast furnace section" },
-      { q: "who is senior to [name]" },
-      { q: "which department is ticket [6-digit ticket number] in" },
-      { q: "find the names which end with kumar", note: "a name pattern" },
-    ],
-  },
-  {
-    id: "doctors",
-    title: "Doctors and OPD",
-    icon: "stethoscope",
-    howToRun: "Type the whole question, then press Enter.",
-    covers: "The DSP Main Hospital: which doctor sits on which day, department OPD lists, OPD token timings, qualifications, permanent or contractual.",
-    tips: [
-      "Give the doctor's surname (or full name), and a day or a time if you have one.",
-      "For a department, say its name: medicine, surgery, ENT, eye, orthopaedics, dental, chest, gynae.",
-      "The answer comes from the hospital's OPD schedule only: it never invents a timing.",
-    ],
-    patterns: [
-      "on which day of the week can I see dr [surname] in opd",
-      "[department] opd lists",
-      "list the doctors with [MD / MS / DNB] qualification",
-    ],
-    questions: [
-      { q: "on which day of the week can I see dr karmakar in opd" },
-      { q: "can I see dr karmakar on tuesday at 5pm", note: "a day and a time" },
-      { q: "medicine opd lists", note: "one department's OPD" },
-      { q: "opd token timings" },
-      { q: "is opd open today" },
-      { q: "is opd open on 25 december", note: "a date, to check a holiday" },
-      { q: "list the permanent doctors with their specializations" },
-      { q: "list the permanent doctors with their qualifications" },
-      { q: "list the non-permanent doctors with their specializations" },
-      { q: "is dr rajeev kumar permanent" },
-      { q: "list the doctors with MD qualification" },
-    ],
-  },
-  {
-    id: "pax",
-    title: "Telephone extensions (PAX)",
-    icon: "phone",
-    howToRun: "Type the whole question, then press Enter.",
-    covers: "Internal telephone and intercom numbers of offices, departments and places.",
-    tips: [
-      "Name the place or department: fire service, central store, civil.",
-      "Got a number and want to know whose it is? Ask whether it is a PAX number, or who holds it.",
-    ],
-    patterns: ["pax number of [office or department]", "is [number] a pax number"],
-    questions: [
-      { q: "pax number of fire service" },
-      { q: "pax number of central store" },
-      { q: "how many pax numbers does civil have" },
-      { q: "how many pax numbers in plant" },
-      { q: "is 42046 a pax number", note: "who holds an extension" },
-    ],
-  },
-  {
-    id: "holidays",
-    title: "Holidays",
-    icon: "calendar",
-    howToRun: "Type the whole question, then press Enter.",
-    covers: "The plant's closed, festival and restricted holidays, by festival, month or year, and comparisons between years.",
-    tips: [
-      "Name the festival (Durga Puja, Diwali, Eid), the month, or the year.",
-      "Closed/public, festival and restricted holidays are different lists: say which one you mean, or ask for all.",
-      "To see what differs between years, ask to compare, and name the years.",
-    ],
-    patterns: ["when is [festival] holiday in [year]", "holidays in [month]", "compare festival holidays [year] and [year]"],
-    questions: [
-      { q: "when is Durga Puja holiday in 2026" },
-      { q: "holidays in November", note: "a month's holidays" },
-      { q: "restricted holidays in 2026" },
-      { q: "list of festival holidays 2026" },
-      { q: "is Diwali a holiday this year" },
-      { q: "compare festival holidays 2025 and 2026", note: "two years side by side", either: true },
-      { q: "holiday list for the year 2023", note: "opens the circular itself" },
-    ],
-  },
   {
     id: "titles",
     title: "Find a circular by its title",
@@ -242,21 +116,130 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
     ],
   },
   {
-    id: "tools",
-    title: "Calculators, converters and live cards",
-    icon: "calculator",
-    covers: "Type calculators and press Enter for the menu of ready tools (calculator, converters, dates, loan EMI, PF maturity, gratuity, leave encashment, tyre and rim sizes, VIN reader, BH series, electric car charging); then the live cards: gold, fuel, markets, news, weather, flights, trains and fares, AICPI, SAIL DA and inflation, the PIN codes, wards, assembly seats and police stations of Durgapur, and steel (prices, the makers compared, SAIL and India). The calculators run in your browser: nothing you type is saved anywhere.",
-    howToRun: "Sums, conversions and date questions appear AS YOU TYPE: no Enter. A calculator form (EMI, PF, gratuity...): type its name, then press Enter to open the form.",
+    id: "people",
+    title: "Find a person",
+    icon: "users",
+    howToRun: "Numbers (ticket, mobile, personal number) appear AS YOU TYPE: no Enter. A name, or part of a name with a department: type it, then press Enter.",
+    covers: "The employee directory: by ticket number, CUG mobile, SAIL personal number, or by name (similar-sounding), with or without the department.",
     tips: [
-      "Most tools open with a short command (gold price, weather, ev charging) or a long one (gold rate today, durgapur weather report with forecast, how long to charge an electric car): the What to type tab lists both for every feature.",
-      "Type a sum straight in: + - * / ^, brackets, % (200 + 10%), \"15% of 2400\", lakh and crore (5 lakh * 12).",
-      "For a conversion write: number, unit, \"in\" or \"to\", unit. Units: length, area, volume, mass, temperature, angle (degrees and radians), energy (calories, kWh), force, power (bhp and kW), pressure, speed, time.",
-      "Currency: dollar, pound, euro and others into rupees, with the day's reference rate (a bank or money changer will quote differently).",
-      "Dates are written day first: 15/08/1985 is 15 August. Say \"days between ... and ...\", \"90 days from today\", \"age ...\", \"retirement date born ...\".",
-      "Money results are approximations: please double-check them. The forms start with usual rates; change them to the figures of your own case.",
+      "A number needs no Enter: a 6-digit ticket, a 10-digit CUG mobile, a SAIL personal number, or the last 4 digits of an executive's CUG mobile.",
+      "A name is matched by sound: a different spelling still finds the person. Honorifics (Mr, Dr, Shri) are ignored.",
+      "Only part of the name? Add the department, in either order.",
+      "Mobile numbers and emails are masked; press reveal to see them (see Contact details under How it works for who can reveal and copy).",
     ],
-    // the questions are written by the topics themselves (src/tools/<topic>/topic.ts), in the order of the registry; the list of calculators is last
-    questions: [...(TOPICS as readonly TopicLogic[]).flatMap((t) => [...(t.samples ?? [])]), ...MENU_SAMPLES],
+    questions: [
+      { q: "[first name] [last name]", note: "similar-sounding: \"Goutam\" also finds \"Gautam\" and \"Gautham\"" },
+      { q: "anil kumar", note: "words match in order: finds \"Anil Kumar Salian\"" },
+      { q: "[part of name] c&it", note: "part of a name plus the department, in any order" },
+      { q: "c&it [part of name]", note: "the same, department first" },
+      { q: "[6-digit ticket number]", note: "shows the person at once", instant: true },
+      { q: "D111086", note: "a SAIL personal number, any case", instant: true },
+      { q: "2584", note: "last 4 digits of an executive's CUG mobile", instant: true },
+    ],
+  },
+  {
+    id: "roster",
+    title: "Department search, counts and comparisons",
+    icon: "chart",
+    howToRun: "Type the whole question, then press Enter.",
+    covers: "Headcounts, designations, heads of department, seniority, grades and name patterns, answered from the employee directory.",
+    tips: [
+      "Ask in plain words: how many, who is, which department, top N, most senior.",
+      "Name the department the way people say it (C&IT, blast furnace, mechanical, plant garage).",
+      "Add a grade or designation to narrow it: DGM, executives, non-executives, S-5 and above.",
+    ],
+    patterns: [
+      "how many [designation] are there in [department]",
+      "who is the Head of Department of [department]",
+      "who is senior to [name]",
+      "designation wise count of employees in [department]",
+    ],
+    questions: [
+      { q: "how many executives are there in C&IT" },
+      { q: "who is the Head of Department of C&IT" },
+      { q: "how many employees are currently posted in the C&IT department, and who is the Head of Department", note: "two things about one department" },
+      { q: "who is in charge of blast furnace" },
+      { q: "designation wise count of employees in plant garage" },
+      { q: "how many DGMs in mechanical" },
+      { q: "how many women executives" },
+      { q: "who are the 10 most senior non executives" },
+      { q: "which department has the most executives and what share of all executives is that" },
+      { q: "how many executives and non-executives work in each blast furnace section" },
+      { q: "who is senior to [name]" },
+      { q: "which department is ticket [6-digit ticket number] in" },
+      { q: "find the names which end with kumar", note: "a name pattern" },
+    ],
+  },
+  {
+    id: "holidays",
+    title: "Holidays",
+    icon: "calendar",
+    howToRun: "Type the whole question, then press Enter.",
+    covers: "The plant's closed, festival and restricted holidays, by festival, month or year, and comparisons between years.",
+    tips: [
+      "Name the festival (Durga Puja, Diwali, Eid), the month, or the year.",
+      "Closed/public, festival and restricted holidays are different lists: say which one you mean, or ask for all.",
+      "To see what differs between years, ask to compare, and name the years.",
+    ],
+    patterns: ["when is [festival] holiday in [year]", "holidays in [month]", "compare festival holidays [year] and [year]"],
+    questions: [
+      { q: "when is Durga Puja holiday in 2026" },
+      { q: "holidays in November", note: "a month's holidays" },
+      { q: "restricted holidays in 2026" },
+      { q: "list of festival holidays 2026" },
+      { q: "is Diwali a holiday this year" },
+      { q: "compare festival holidays 2025 and 2026", note: "two years side by side", either: true },
+      { q: "holiday list for the year 2023", note: "opens the circular itself" },
+    ],
+  },
+  {
+    id: "doctors",
+    title: "Doctors and OPD",
+    icon: "stethoscope",
+    howToRun: "Type the whole question, then press Enter.",
+    covers: "The DSP Main Hospital: which doctor sits on which day, department OPD lists, OPD token timings, qualifications, permanent or contractual.",
+    tips: [
+      "Give the doctor's surname (or full name), and a day or a time if you have one.",
+      "For a department, say its name: medicine, surgery, ENT, eye, orthopaedics, dental, chest, gynae.",
+      "The answer comes from the hospital's OPD schedule only: it never invents a timing.",
+    ],
+    patterns: [
+      "on which day of the week can I see dr [surname] in opd",
+      "[department] opd lists",
+      "list the doctors with [MD / MS / DNB] qualification",
+    ],
+    questions: [
+      { q: "on which day of the week can I see dr karmakar in opd" },
+      { q: "can I see dr karmakar on tuesday at 5pm", note: "a day and a time" },
+      { q: "medicine opd lists", note: "one department's OPD" },
+      { q: "opd token timings" },
+      { q: "is opd open today" },
+      { q: "is opd open on 25 december", note: "a date, to check a holiday" },
+      { q: "list the permanent doctors with their specializations" },
+      { q: "list the permanent doctors with their qualifications" },
+      { q: "list the non-permanent doctors with their specializations" },
+      { q: "is dr rajeev kumar permanent" },
+      { q: "list the doctors with MD qualification" },
+    ],
+  },
+  {
+    id: "pax",
+    title: "Telephone extensions (PAX)",
+    icon: "phone",
+    howToRun: "Type the whole question, then press Enter.",
+    covers: "Internal telephone and intercom numbers of offices, departments and places.",
+    tips: [
+      "Name the place or department: fire service, central store, civil.",
+      "Got a number and want to know whose it is? Ask whether it is a PAX number, or who holds it.",
+    ],
+    patterns: ["pax number of [office or department]", "is [number] a pax number"],
+    questions: [
+      { q: "pax number of fire service" },
+      { q: "pax number of central store" },
+      { q: "how many pax numbers does civil have" },
+      { q: "how many pax numbers in plant" },
+      { q: "is 42046 a pax number", note: "who holds an extension" },
+    ],
   },
   {
     id: "announcements",
@@ -278,10 +261,29 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
   },
 ];
 
+/** The sample questions of the Utility Services (shown on the Utility Services tab, not among the sample questions of the main features). The questions are written by the topics themselves. */
+export const TOOLS_SECTION: SampleSection = {
+  id: "tools",
+  title: "Calculators, converters and live cards",
+  icon: "calculator",
+  covers: "Type calculators and press Enter for the menu of ready tools (calculator, converters, dates, loan EMI, PF maturity, gratuity, leave encashment, tyre and rim sizes, VIN reader, BH series, electric car charging); then the live cards: gold, fuel, markets, news, weather, flights, trains and fares, AICPI, SAIL DA and inflation, the PIN codes, wards, assembly seats and police stations of Durgapur, and steel (prices, the makers compared, SAIL and India). The calculators run in your browser: nothing you type is saved anywhere.",
+  howToRun: "Sums, conversions and date questions appear AS YOU TYPE: no Enter. A calculator form (EMI, PF, gratuity...): type its name, then press Enter to open the form.",
+  tips: [
+    "Most tools open with a short command (gold price, weather, ev charging) or a long one (gold rate today, durgapur weather report with forecast, how long to charge an electric car): the What to type list (at the end of the How it works tab) gives both for every feature.",
+    "Type a sum straight in: + - * / ^, brackets, % (200 + 10%), \"15% of 2400\", lakh and crore (5 lakh * 12).",
+    "For a conversion write: number, unit, \"in\" or \"to\", unit. Units: length, area, volume, mass, temperature, angle (degrees and radians), energy (calories, kWh), force, power (bhp and kW), pressure, speed, time.",
+    "Currency: dollar, pound, euro and others into rupees, with the day's reference rate (a bank or money changer will quote differently).",
+    "Dates are written day first: 15/08/1985 is 15 August. Say \"days between ... and ...\", \"90 days from today\", \"age ...\", \"retirement date born ...\".",
+    "Money results are approximations: please double-check them. The forms start with usual rates; change them to the figures of your own case.",
+  ],
+  // the questions are written by the topics themselves (src/tools/<topic>/topic.ts), in the order of the registry; the list of calculators is last
+  questions: [...(TOPICS as readonly TopicLogic[]).flatMap((t) => [...(t.samples ?? [])]), ...MENU_SAMPLES],
+};
+
 /** Every question of the guide, with the section it belongs to (the guide's search box and the selftest read this). */
 export function allSamples(): Array<{ sectionId: string; q: string; note?: string; either?: boolean }> {
   const out: Array<{ sectionId: string; q: string; note?: string; either?: boolean }> = [];
-  for (const s of SAMPLE_SECTIONS) for (const x of s.questions) out.push({ sectionId: s.id, q: x.q, note: x.note, either: x.either });
+  for (const s of [...SAMPLE_SECTIONS, TOOLS_SECTION]) for (const x of s.questions) out.push({ sectionId: s.id, q: x.q, note: x.note, either: x.either });
   return out;
 }
 

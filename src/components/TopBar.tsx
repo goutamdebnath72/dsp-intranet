@@ -189,7 +189,7 @@ export function TopBar() {
   useEffect(() => {
     const handleOpenGuide = (e: Event) => {
       const tab = (e as CustomEvent<{ tab?: GuideTab }>).detail?.tab;
-      setGuideTab(tab === "how" || tab === "types" || tab === "eds" ? tab : "samples");
+      setGuideTab(tab === "how" || tab === "utility" || tab === "eds" ? tab : (tab as string) === "types" ? "how" : "samples"); // the old "What to type" tab is now the end of "How it works"
       setIsHelpOpen(true);
     };
     window.addEventListener(OPEN_GUIDE_EVENT, handleOpenGuide);

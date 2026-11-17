@@ -4,10 +4,11 @@
 "use client";
 
 import React from "react";
-import { Calculator, CircleAlert, Search, Sparkles } from "lucide-react";
-import { AREAS, CALCULATORS_LINE, INTRO_LEAD, INTRO_TITLE, LIMITS, START } from "@/lib/help/searchBarIntro";
+import { CircleAlert, Search, Sparkles, Wrench } from "lucide-react";
+import { AREAS, INTRO_LEAD, INTRO_TITLE, LIMITS, START, UTILITY_POINTER } from "@/lib/help/searchBarIntro";
 
-export function SearchBarIntro() {
+/** `onOpenUtility` takes the reader to the Utility Services tab (the pointer under the list of the main features is a button when it is given). */
+export function SearchBarIntro({ onOpenUtility }: { onOpenUtility?: () => void } = {}) {
   return (
     <section aria-label={INTRO_TITLE} className="overflow-hidden rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-indigo-50 shadow-sm">
       <div className="px-4 py-3.5">
@@ -18,16 +19,7 @@ export function SearchBarIntro() {
             <li key={s} className="flex items-start gap-1.5"><span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold text-white">{i + 1}</span><span>{s}</span></li>
           ))}
         </ol>
-        <p data-calculators-line className="mt-3 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50/70 px-3 py-2 text-[13px] leading-snug text-slate-700">
-          <Calculator size={15} className="mt-0.5 shrink-0 text-sky-700" aria-hidden="true" />
-          <span>
-            {CALCULATORS_LINE.before}{" "}
-            <code className="rounded bg-white px-1.5 py-0.5 font-bold text-sky-800">{CALCULATORS_LINE.command}</code>{" "}
-            {CALCULATORS_LINE.after}{" "}
-            <strong className="text-slate-900">{CALCULATORS_LINE.tools.join("; ")}</strong>.
-          </span>
-        </p>
-        <p className="mb-1.5 mt-3.5 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-slate-500"><Sparkles size={13} aria-hidden="true" /> What you can ask</p>
+        <p className="mb-1.5 mt-3.5 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-slate-500"><Sparkles size={13} aria-hidden="true" /> What you can ask: <span data-main-features-mark className="font-extrabold text-orange-600">the main features</span></p>
         <ul className="grid gap-1.5 sm:grid-cols-2">
           {AREAS.map((a) => (
             <li key={a.label} className={`rounded-lg border border-slate-100 bg-white/80 px-2.5 py-1.5 text-[12.5px] leading-snug text-slate-600${a.parts ? " sm:col-span-2" : ""}`}><strong className="text-slate-800">{a.label}</strong>: {a.detail}
@@ -41,6 +33,18 @@ export function SearchBarIntro() {
             </li>
           ))}
         </ul>
+        <p data-utility-pointer className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[13px] leading-snug text-slate-700">
+          <Wrench size={15} className="mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
+          <span>
+            {UTILITY_POINTER.before}{" "}
+            {onOpenUtility ? (
+              <button type="button" onClick={onOpenUtility} className="font-bold text-emerald-800 underline decoration-emerald-400 underline-offset-2 hover:text-emerald-900">{UTILITY_POINTER.term}</button>
+            ) : (
+              <strong className="text-emerald-800">{UTILITY_POINTER.term}</strong>
+            )}{" "}
+            {UTILITY_POINTER.after}
+          </span>
+        </p>
         <p className="mb-1 mt-3.5 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-amber-700"><CircleAlert size={13} aria-hidden="true" /> Good to know</p>
         <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-snug text-slate-600">
           {LIMITS.map((l) => <li key={l}>{l}</li>)}

@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import {
   SAMPLE_SECTIONS,
+  TOOLS_SECTION,
   RECIPE,
   WEAK_VS_GOOD,
   filterSections,
@@ -41,6 +42,7 @@ import {
   type SectionIcon,
 } from "@/lib/help/sampleQuestions";
 import { QuickReferenceTab } from "@/components/help/QuickReferenceTab";
+import { UtilityServicesTab } from "@/components/help/UtilityServicesTab";
 import { EdsTab } from "@/components/help/EdsTab";
 import { SearchBarIntro } from "@/components/help/SearchBarIntro";
 import {
@@ -59,7 +61,8 @@ type Props = {
   onTry?: (question: string) => void;
 };
 
-export type GuideTab = "samples" | "types" | "how" | "eds";
+/** the four tabs, in order: the main features and their sample questions; how it works (with the list of what to type); the Utility Services; the deep search (EDS) */
+export type GuideTab = "samples" | "utility" | "how" | "eds";
 
 const SECTION_ICONS: Record<SectionIcon, React.ReactNode> = {
   calculator: <Calculator size={17} />,
@@ -211,10 +214,16 @@ function SampleBlock({ s, open, onToggle, onTry }: { s: SampleSection; open: boo
   );
 }
 
+/** The sample questions of the Utility Services, one block (open), at the end of the Utility Services tab. */
+function UtilitySamples({ onTry }: { onTry?: (q: string) => void }) {
+  const [open, setOpen] = useState(true);
+  return <SampleBlock s={TOOLS_SECTION} open={open} onToggle={() => setOpen((v) => !v)} onTry={onTry} />;
+}
+
 /** The "Sample questions" tab: how to ask, then every area of the search with questions to try. */
-function SamplesTab({ onTry }: { onTry?: (q: string) => void }) {
+function SamplesTab({ onTry, onOpenUtility }: { onTry?: (q: string) => void; onOpenUtility?: () => void }) {
   const [text, setText] = useState("");
-  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(["people"]));
+  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(["titles"]));
   const shown = useMemo(() => filterSections(text), [text]);
   const searching = text.trim().length >= 2;
   const toggle = (id: string) =>
@@ -226,7 +235,7 @@ function SamplesTab({ onTry }: { onTry?: (q: string) => void }) {
     });
   return (
     <div className="space-y-4">
-      <SearchBarIntro />
+      <SearchBarIntro onOpenUtility={onOpenUtility} />
       <div className="overflow-hidden rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 p-[2px] shadow-md">
         <div className="rounded-[10px] bg-white px-4 py-3.5">
           <p className="flex items-center gap-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-orange-600">
@@ -385,22 +394,23 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     DSP Intranet — User Guide
                   </h2>
                   <p className="mt-0.5 text-sm text-sky-100">
-                    What the search bar can do, questions to try, the short and long commands that open each feature, and what the markers mean
+                    What the search bar can do, questions to try, the Utility Services, the short and long commands that open each feature, and what the markers mean
                   </p>
                 </div>
                 <button
                   onClick={onClose}
                   aria-label="Close"
-                  className="rounded-full p-1.5 text-white/80 transition-colors hover:bg-white/20 hover:text-white"
+                  className="rounded-full p-1.5 text-white/80 transition-colors hover:bg-white/20 hover:!text-white"
                 >
                   <X size={22} />
                 </button>
               </div>
+              {/* hover:!text-… : globals.css sets button:hover to the primary blue with !important, which is invisible on this blue header; the ! keeps the tab text white (the chosen tab stays dark blue on its white) */}
               <div role="tablist" className="mt-4 flex gap-1">
                 {([
                   ["samples", "Sample questions"],
-                  ["types", "What to type"],
                   ["how", "How it works"],
+                  ["utility", "Utility Services"],
                   ["eds", "Deep search (EDS)"],
                 ] as const).map(([id, label]) => (
                   <button
@@ -409,7 +419,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     aria-selected={tab === id}
                     onClick={() => setTab(id)}
                     className={`rounded-t-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                      tab === id ? "bg-white text-sky-800" : "text-sky-100 hover:bg-white/15 hover:text-white"
+                      tab === id ? "bg-white text-sky-800 hover:!text-sky-800" : "text-sky-100 hover:bg-white/15 hover:!text-white"
                     }`}
                   >
                     {label}
@@ -421,9 +431,9 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
             {/* Body */}
             <div className="max-h-[70vh] space-y-6 overflow-y-auto overscroll-contain p-6">
               {tab === "samples" ? (
-                <SamplesTab onTry={onTry} />
-              ) : tab === "types" ? (
-                <QuickReferenceTab onTry={onTry} />
+                <SamplesTab onTry={onTry} onOpenUtility={() => setTab("utility")} />
+              ) : tab === "utility" ? (
+                <UtilityServicesTab onTry={onTry}><UtilitySamples onTry={onTry} /></UtilityServicesTab>
               ) : tab === "eds" ? (
                 <EdsTab isExecutive={isExecutive} onTry={onTry} />
               ) : (
@@ -439,7 +449,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   doctor, a holiday, a circular, a calculation&hellip;) and uses
                   the right source. The areas it covers, and a question to try
                   for each, are on the <strong>Sample questions</strong> tab; the
-                  commands that open each tool, short and long, are on <strong>What to type</strong>.
+                  services that open from a few words, such as the news, prices and calculators, are on the <strong>Utility Services</strong> tab; the commands that open every feature, short and long, are in the <strong>What to type</strong> list at the end of this tab.
                 </p>
                 <p>
                   The best answer leads. If a name is also{" "}
@@ -465,8 +475,9 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   searched as usual.
                 </p>
                 <p>
-                  Every feature of the <strong>What to type</strong> tab can be
-                  opened in two ways, and both reach the same card.
+                  Every feature of the <strong>What to type</strong> list (at the
+                  end of this tab) can be opened in two ways, and both reach the
+                  same card.
                 </p>
                 <ul className="list-disc space-y-1 pl-5">
                   <li>
@@ -506,8 +517,8 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                 <p>
                   Each command is marked <strong>as you type</strong> (the
                   result shows under the search line) or <strong>press Enter</strong>{" "}
-                  (a page opens, or a question is answered). On the{" "}
-                  <strong>What to type</strong> tab, click a command to put it in
+                  (a page opens, or a question is answered). In the{" "}
+                  <strong>What to type</strong> list, click a command to put it in
                   the search bar.
                 </p>
               </Section>
@@ -820,6 +831,11 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   </li>
                 </ul>
               </Section>
+
+              {/* What to type: the list of every feature and the words that open it (it was a tab of its own; merged here so that the guide keeps four tabs) */}
+              <div id="what-to-type" data-what-to-type>
+                <QuickReferenceTab onTry={onTry} />
+              </div>
               </>
               )}
             </div>
