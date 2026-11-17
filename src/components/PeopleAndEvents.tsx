@@ -1,7 +1,7 @@
 // src/components/PeopleAndEvents.tsx
 "use client";
 
-import React, { useState, useEffect, useRef } from "react"; // Added useRef
+import React, { useState, useEffect, useMemo, useRef } from "react"; // Added useRef
 import { motion, AnimatePresence, useInView } from "framer-motion"; // Added useInView
 import { DateTime } from "luxon";
 import { Loader2 } from "lucide-react";
@@ -13,6 +13,7 @@ import { usePeopleEvents } from "./usePeopleEvents";
 import { EventCalendar } from "./EventCalendar";
 import { DIRECTION } from "@/lib/SCROLL_CONFIG";
 import { ZONE } from "@/lib/peopleEvents/rules";
+import { SAMPLE_BIRTHDAYS, USE_SAMPLE_LISTS, sampleRetirements } from "@/lib/peopleEvents/sampleLists";
 
 export type FetchedHoliday = {
   id: number; // real HolidayYear row id from the API -- the only value
@@ -34,6 +35,10 @@ export function PeopleAndEvents() {
   const [activeTab, setActiveTab] = useState<string>(TABS[0]);
   const { data: people, error: peopleError, loading: peopleLoading } = usePeopleEvents();
   const currentMonthShort = people?.monthLabel ?? DateTime.now().setZone(ZONE).toFormat("LLL");
+  // Birthdays and Retirements show the sample people with their pictures (src/lib/peopleEvents/sampleLists.ts); Silver Jubilee comes from the database.
+  // (memoised: the scrolling list restarts when the array it is given is a new one)
+  const birthdays = useMemo(() => (USE_SAMPLE_LISTS ? SAMPLE_BIRTHDAYS : people?.birthdays ?? []), [people]);
+  const retirements = useMemo(() => (USE_SAMPLE_LISTS ? sampleRetirements() : people?.retirements ?? []), [people]);
   const [holidays, setHolidays] = useState<FetchedHoliday[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,11 +54,11 @@ export function PeopleAndEvents() {
       isInView &&
       activeTab === "Birthdays" &&
       !hasPlayedConfetti &&
-      (people?.birthdays.length ?? 0) > 0 // only when somebody really has a birthday today
+      birthdays.length > 0 // only when somebody has a birthday today
     ) {
       setHasPlayedConfetti(true);
     }
-  }, [isInView, activeTab, hasPlayedConfetti, people]);
+  }, [isInView, activeTab, hasPlayedConfetti, birthdays]);
   // --- End Confetti Logic ---
 
   // --- This is your existing, correct logic for fetching holidays ---
@@ -163,8 +168,8 @@ export function PeopleAndEvents() {
           >
             {/* === Birthdays Tab (scrolls UP) === */}
             {activeTab === "Birthdays" && (
-              <PeopleTab loading={peopleLoading} error={peopleError} ready={!!people}>
-                <PeopleScrollList people={people?.birthdays ?? []} direction={DIRECTION.UP} kind="birthday" emptyText="No birthdays today." />
+              <PeopleTab loading={peopleLoading} error={peopleError} ready={USE_SAMPLE_LISTS || !!people}>
+                <PeopleScrollList people={birthdays} direction={DIRECTION.UP} kind="birthday" emptyText="No birthdays today." />
               </PeopleTab>
             )}
 
@@ -192,8 +197,8 @@ export function PeopleAndEvents() {
 
             {/* === Retirements Tab (scrolls DOWN): the farewell is the last day of the month === */}
             {activeTab === "Retirements" && (
-              <PeopleTab loading={peopleLoading} error={peopleError} ready={!!people}>
-                <PeopleScrollList people={people?.retirements ?? []} direction={DIRECTION.DOWN} kind="retirement" emptyText="Nobody retires this month." />
+              <PeopleTab loading={peopleLoading} error={peopleError} ready={USE_SAMPLE_LISTS || !!people}>
+                <PeopleScrollList people={retirements} direction={DIRECTION.DOWN} kind="retirement" emptyText="Nobody retires this month." />
               </PeopleTab>
             )}
 

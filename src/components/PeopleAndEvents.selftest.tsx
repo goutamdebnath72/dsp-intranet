@@ -2,13 +2,15 @@
 // Step 65a: the "People & Events" widget as it is drawn: the cards, the initials, the empty sentences, the four tabs, the note about placeholder dates, and guards on the hook's risky lines.
 // (The loading of the data, the midnight refresh and the clicks are covered by the click-through described in STATUS.)
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PeopleAndEvents, PeopleTab, TABS_FOR_TEST } from "./PeopleAndEvents";
 import { Avatar, PeopleScrollList, PersonCard, dayText, initialsOf } from "./PeopleScrollList";
 import { DIRECTION } from "@/lib/SCROLL_CONFIG";
 import type { PersonEvent } from "@/lib/peopleEvents/query";
+import { SAMPLE_BIRTHDAYS, USE_SAMPLE_LISTS, sampleRetirements } from "@/lib/peopleEvents/sampleLists";
+import { isoDay, todayIST } from "@/lib/peopleEvents/rules";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => {
@@ -53,7 +55,7 @@ ok("the four tabs, in this order: Birthdays (Today), Calendar, Retirements (mont
 ok("the month shows on Retirements and on Silver Jubilee, in three letters ('Oct'), the month in India", (w.match(/\((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\)/g) ?? []).length === 2);
 ok("the tabs are a real tab list; the first is chosen", w.includes('role="tablist"') && (w.match(/role="tab"/g) ?? []).length === 4 && /aria-selected="true"[^>]*>(?:(?!<button)[\s\S])*Birthdays/.test(w));
 ok("the tab strip scrolls sideways (the four tabs do not fit the small panel), with no visible scrollbar, and no tab shrinks or wraps", w.includes("overflow-x-auto") && w.includes("[&amp;::-webkit-scrollbar]:hidden") && (w.match(/flex-shrink-0 whitespace-nowrap/g) ?? []).length === 4);
-ok("at first, before the data arrives: loading", w.includes("Loading..."));
+ok("the first tab (Birthdays) shows its sample people at once, with their pictures, and does not wait for the database", !w.includes("Loading...") && w.includes("Eleanor Vance") && w.includes("/Eleanor_Vance.jpeg") && (w.match(/data-person-card="birthday"/g) ?? []).length === 5);
 ok("there is no 'sample' note on the widget (the data is sample data by design in this development phase; owner, 1 Nov 2026)", !w.includes("data-sample-note") && !/Sample dates/i.test(readFileSync("src/components/PeopleAndEvents.tsx", "utf8")));
 
 // ---- guards on the hook (the render above never runs effects) ----
@@ -63,7 +65,10 @@ ok("the lists are fetched fresh at midnight India time (+ a few seconds), by a t
 ok("a page left open comes back on a new day: it asks again when it becomes visible and the day has changed", /visibilitychange/.test(hook) && /loadedDay\.current !== isoDay\(todayIST\(\)\)/.test(hook) && /removeEventListener\("visibilitychange"/.test(hook));
 ok("the data is never cached by the browser", /cache: "no-store"/.test(hook));
 const widget = readFileSync("src/components/PeopleAndEvents.tsx", "utf8");
-ok("the mock lists are gone from the widget (no mock names, no mock files)", !/mockBirthdays|mockRetirements|BirthdayScrollList|RetirementScrollList|Eleanor|Sophia Clarke/.test(widget));
+ok("the widget has no names of its own: the sample people live in sampleLists.ts, which the widget imports; the old mock components are not back", !/mockBirthdays|mockRetirements|BirthdayScrollList|RetirementScrollList|Eleanor|Sophia Clarke/.test(widget) && /from "@\/lib\/peopleEvents\/sampleLists"/.test(widget));
+ok("Birthdays and Retirements take the sample lists, Silver Jubilee still takes the database's list (people?.jubilee)", /USE_SAMPLE_LISTS \? SAMPLE_BIRTHDAYS/.test(widget) && /USE_SAMPLE_LISTS \? sampleRetirements\(\)/.test(widget) && /people=\{people\?\.jubilee \?\? \[\]\}/.test(widget) && USE_SAMPLE_LISTS === true);
+ok("the five sample birthdays and five sample retirements have names, designations, departments and a picture that exists in the public folder", [...SAMPLE_BIRTHDAYS, ...sampleRetirements()].length === 10 && [...SAMPLE_BIRTHDAYS, ...sampleRetirements()].every((p) => p.name && p.designation && p.department && p.imageUrl && existsSync("public" + p.imageUrl)) && SAMPLE_BIRTHDAYS.every((p) => p.on === null));
+ok("every sample retirement is on the last day of the current month in India, and shows it on its card", sampleRetirements().every((p) => p.on === isoDay(todayIST().endOf("month").startOf("day"))) && h(<PeopleScrollList people={sampleRetirements()} direction={DIRECTION.DOWN} kind="retirement" emptyText="x" />).includes("Retiring: " + dayText(isoDay(todayIST().endOf("month").startOf("day")))));
 ok("the calendar tab and its holiday fetch are as they were (EventCalendar still gets its FetchedHoliday type from this file)", /export type FetchedHoliday/.test(widget) && /<EventCalendar holidays=\{holidays\}/.test(widget) && /api\/holidays\/get-by-year/.test(widget));
 
 console.log(`PeopleAndEvents selftest: ${pass} passed, ${fail} failed`);
