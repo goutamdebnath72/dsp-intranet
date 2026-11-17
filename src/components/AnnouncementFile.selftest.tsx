@@ -63,13 +63,13 @@ ok("the full-screen button only asks the window to open the viewer (the window o
 const feedSrc0 = readFileSync("src/components/AnnouncementsFeed.tsx", "utf8");
 ok("on the home page's card the title text shows the hand cursor when the card opens something, and the plain cursor only when it does not", /\$\{hasContent \|\| isClickableToMarkRead \? "cursor-pointer" : "cursor-default"\}/.test(feedSrc0) && !/truncate cursor-default">/.test(feedSrc0));
 
-// ---- words of the body linked to the PDF, and the title as the link
+// ---- words of the body linked to the PDF (the title is never a link)
 const linked = '<p>Read the <a data-pdf-link="true" role="button" tabindex="0" title="Opens the PDF">attached guidelines</a> before 12th.</p>';
 const withLink = h(<AnnouncementModal announcement={{ ...base, content: linked, file }} onClose={noop} />);
 ok("with a body and a PDF, the linked words are drawn as a link that opens the PDF (a button for the keyboard and screen readers, no address), and the body is wired for click and keys", /<a data-pdf-link="true" role="button" tabindex="0" title="Opens the PDF">attached guidelines<\/a>/.test(withLink) && !/href=/.test((withLink.match(/<a data-pdf-link[^>]*>/) ?? [""])[0]) && /announcement-content/.test(withLink));
 ok("with body text, the title is plain text (not a link), and the PDF card is under the text", !/data-title-pdf-link/.test(withLink) && withLink.indexOf("announcement-content") < withLink.indexOf("data-announcement-file"));
 ok("when the announcement is known to have no PDF, linked words are plain words (no link, the words stay)", (() => { const none = h(<AnnouncementModal announcement={{ ...base, content: linked, file: null }} onClose={noop} />); return !/data-pdf-link/.test(none) && /attached guidelines/.test(none); })());
-ok("an announcement that is only a title and a PDF has its TITLE as the link to the PDF (a button in the heading, opening the PDF full screen); with an empty-looking body it is the same", /<h2[^>]*><button[^>]*data-title-pdf-link[^>]*title="Opens the PDF full screen"[^>]*>SAIL DARPAN \| Frequently Asked Questions<\/button><\/h2>/.test(pdfOnly));
+ok("an announcement that is only a title and a PDF keeps a PLAIN title (no link, no button in the heading, no blue underline): the PDF opens full screen only by the card's expand button, which is there", /<h2[^>]*>SAIL DARPAN \| Frequently Asked Questions<\/h2>/.test(pdfOnly) && !/data-title-pdf-link/.test(pdfOnly) && !/<h2[^>]*><button/.test(pdfOnly) && /data-pdf-fullscreen/.test(pdfOnly));
 ok("an announcement with no PDF has a plain title", /<h2[^>]*>just text|<h2[^>]*>SAIL DARPAN/.test(textOnly) && !/data-title-pdf-link/.test(textOnly) && !/data-title-pdf-link/.test(empty));
 ok("a click, or Enter or Space, on words with the marker opens the PDF; nothing opens when the announcement has no PDF; the viewer is mounted only when there is a PDF", /closest\?\.\(`\[\$\{PDF_LINK_ATTR\}\]`\)\) openPdf\(\)/.test(modalSrc) && /e\.key === "Enter" \|\| e\.key === " "/.test(modalSrc) && /const openPdf = \(\) => \{ if \(file\) setPdfOpen\(true\); \}/.test(modalSrc) && /\{file && <AnnouncementPdfViewer/.test(modalSrc));
 

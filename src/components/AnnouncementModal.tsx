@@ -53,7 +53,7 @@ export default function AnnouncementModal({
     return () => { alive = false; };
   }, [announcement.id, announcement.file]);
 
-  // The PDF full screen over the page: opened by the card's button, by words of the body that are linked to the PDF, and by the title of an announcement that is only a title and a PDF.
+  // The PDF full screen over the page: opened by the card's button, and by words of the body that are linked to the PDF.
   const [pdfOpen, setPdfOpen] = useState(false);
   const openPdf = () => { if (file) setPdfOpen(true); };
 
@@ -107,16 +107,8 @@ export default function AnnouncementModal({
         </button>
 
         <div className="p-6 pr-14 border-b flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-800">
-            {file && !safeHtml ? (
-              // an announcement that is only a title and a PDF: the title IS the link to the PDF
-              <button type="button" onClick={openPdf} data-title-pdf-link title="Opens the PDF full screen" className="text-left text-xl font-semibold text-blue-700 underline decoration-blue-300 underline-offset-4 hover:decoration-blue-600">
-                {announcement.title}
-              </button>
-            ) : (
-              announcement.title
-            )}
-          </h2>
+          {/* always plain text: the PDF opens full screen by the card's own button (or by words of the body linked to it), never by the title */}
+          <h2 className="text-xl font-semibold text-gray-800">{announcement.title}</h2>
           <p className="text-sm text-gray-500 mt-1">
             {announcementDate.toFormat("dd LLL yyyy")}
           </p>
