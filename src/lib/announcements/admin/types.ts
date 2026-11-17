@@ -3,6 +3,7 @@
 // Types for Announcement Management Facility (Modular Facility Kit).
 
 import type { DelegateView, AuditRow, LastChange } from "@/lib/facility/types";
+import type { AnnouncementFileInfo } from "@/lib/announcements/attachment";
 
 export type AnnouncementAdminOp = "publish" | "recent" | "delegate" | "history";
 
@@ -33,6 +34,8 @@ export interface AnnouncementItemView {
   canEdit: boolean;
   hoursLeft: number;
   version: string;
+  /** the PDF of the announcement (name and size; never its address), or null */
+  file?: AnnouncementFileInfo | null;
 }
 
 export type AnnouncementDelegateView = DelegateView;

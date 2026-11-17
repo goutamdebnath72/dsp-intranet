@@ -3,7 +3,7 @@
 
 import React, { useState } from "react";
 import AnnouncementModal from "./AnnouncementModal";
-import { MessageSquareText, Loader } from "lucide-react";
+import { FileText, MessageSquareText, Loader } from "lucide-react";
 import { DateTime } from "luxon";
 import useSWR, { mutate } from "swr";
 import { motion } from "framer-motion";
@@ -17,6 +17,8 @@ type Announcement = {
   content: string | null;
   date: string;
   isRead?: boolean;
+  /** the PDF of the announcement (name and size), or null */
+  file?: { name: string; bytes: number } | null;
 };
 // ----------------------------------------------------
 
@@ -102,7 +104,7 @@ export default function Announcements() {
                     DateTime.fromISO(a.date as any).toMillis()
                 )
                 .map((item) => {
-                  const hasContent = !!item.content;
+                  const hasContent = !!item.content || !!item.file; // an announcement that is only a title and a PDF opens too
                   const itemDate = DateTime.fromISO(item.date as any);
                   const isRecent =
                     DateTime.now().diff(itemDate, "hours").hours <= 24;
@@ -126,10 +128,11 @@ export default function Announcements() {
                                 onClick={() => handleAnnouncementClick(item)}
                                 className="text-left font-medium text-primary-600 hover:text-primary-800 hover:underline flex items-center gap-2"
                               >
-                                <MessageSquareText
-                                  size={16}
-                                  className="opacity-70 flex-shrink-0"
-                                />
+                                {item.file && !item.content ? (
+                                  <FileText size={16} className="opacity-70 flex-shrink-0 text-red-600" aria-label="PDF" />
+                                ) : (
+                                  <MessageSquareText size={16} className="opacity-70 flex-shrink-0" />
+                                )}
                                 <span>{item.title}</span>
                               </button>
                             );

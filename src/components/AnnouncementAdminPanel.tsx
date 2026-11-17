@@ -41,6 +41,9 @@ import RichTextEditor from "@/components/RichTextEditor";
 import { stickySuccess } from "@/lib/ui/stickyToast";
 import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 import { NonExecutiveAsk } from "./facility/NonExecutive";
+import { MAX_PDF_BYTES, type AnnouncementFileInfo } from "@/lib/announcements/attachment";
+import { refreshAnnouncements } from "@/lib/announcements/refresh";
+import { hasPdfLinks } from "@/lib/announcements/pdfLink";
 import {
   AnnouncementAdminHeader,
   AnnouncementCard,
@@ -52,6 +55,7 @@ import {
   HistoryList,
   Notice,
   PRIMARY,
+  PdfPicker,
   PersonRow,
   SECONDARY,
 } from "./AnnouncementAdminUi";
@@ -85,6 +89,37 @@ async function call(payload: Record<string, any>): Promise<{ ok: boolean; status
   }
 }
 
+/** A publish or an edit that carries a PDF (or removes one) goes as a form, not as JSON; a PDF takes longer to send, so the wait is longer. */
+async function callForm(fields: Record<string, string | number | boolean | null | undefined>, file: File | null): Promise<{ ok: boolean; status: number; body: any }> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 120_000);
+  try {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) if (v !== null && v !== undefined) form.append(k, String(v));
+    if (file) form.append("file", file, file.name);
+    const res = await fetch("/api/announcements/admin", { method: "POST", body: form, credentials: "same-origin", signal: ctl.signal });
+    let body: any = {};
+    try {
+      body = await res.json();
+    } catch {
+      body = {};
+    }
+    return { ok: res.ok, status: res.status, body };
+  } catch {
+    return { ok: false, status: 0, body: { error: "The network did not answer. Please try again." } };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Why this file cannot be attached, or null if it can (the server checks the bytes again). */
+function pdfProblem(f: File): string | null {
+  if (!/\.pdf$/i.test(f.name)) return "Only a PDF (a file whose name ends in .pdf) can be attached.";
+  if (f.size === 0) return "The file is empty.";
+  if (f.size > MAX_PDF_BYTES) return `The PDF is larger than ${MAX_PDF_BYTES / (1024 * 1024)} MB.`;
+  return null;
+}
+
 const tabFor = (op: AnnouncementAdminOpen["op"]): Tab => {
   if (op === "recent") return "recent";
   if (op === "delegate") return "people";
@@ -105,6 +140,14 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
   const [editingId, setEditingId] = useState<number | null>(open.prefill?.editId ?? null);
   const [editingVersion, setEditingVersion] = useState<string | null>(null);
   const [staleConflict, setStaleConflict] = useState<{ current: AnnouncementItemView; last: any } | null>(null);
+  // the PDF: the file chosen now, the one the announcement already has (when editing), and whether that one is to be removed
+  const [pdf, setPdf] = useState<File | null>(null);
+  const [currentPdf, setCurrentPdf] = useState<AnnouncementFileInfo | null>(null);
+  const [removePdf, setRemovePdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  // selected words may be made a link to the PDF only when the announcement has one: a PDF chosen now, or the one it already has and is not being removed
+  const pdfAvailable = !!pdf || (!!currentPdf && !removePdf);
+  const clearPdfState = () => { setPdf(null); setCurrentPdf(null); setRemovePdf(false); setPdfError(null); };
 
   // Live IST Clock
   useEffect(() => {
@@ -183,22 +226,19 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
 
     if (editingId) {
       // Modify Existing Announcement
-      const res = await call({
-        op: "modify",
-        id: editingId,
-        title: title.trim(),
-        content,
-        version: editingVersion,
-      });
+      const fields = { op: "modify", id: editingId, title: title.trim(), content, version: editingVersion };
+      const res = pdf || removePdf ? await callForm({ ...fields, removeFile: removePdf && !pdf }, pdf) : await call(fields);
 
       setBusy(false);
       if (res.ok) {
+        void refreshAnnouncements(); // the home page's lists show the edit at once
         stickySuccess("✅ Announcement updated successfully!"); // stays until its cross is clicked
         setNotice({ tone: "ok", text: "Announcement updated successfully!" });
         setEditingId(null);
         setEditingVersion(null);
         setTitle("");
         setContent("");
+        clearPdfState();
         loadRecent();
         loadHistory();
       } else if (res.status === 409 && res.body?.stale) {
@@ -212,19 +252,17 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
       }
     } else {
       // Publish New Announcement
-      const res = await call({
-        op: "publish",
-        title: title.trim(),
-        content,
-        date: currentDateTime.toUTC().toISO(),
-      });
+      const fields = { op: "publish", title: title.trim(), content, date: currentDateTime.toUTC().toISO() };
+      const res = pdf ? await callForm(fields, pdf) : await call(fields);
 
       setBusy(false);
       if (res.ok) {
+        void refreshAnnouncements(); // the home page's lists show the new announcement at once
         stickySuccess(`✅ Announcement published! You can modify or delete this for the next ${Math.round(EDIT_DELETE_WINDOW_HOURS / 24)} days.`); // stays until its cross is clicked
         setNotice({ tone: "ok", text: "Announcement published successfully and indexed for AI search!" });
         setTitle("");
         setContent("");
+        clearPdfState();
         loadRecent();
         loadHistory();
       } else {
@@ -238,6 +276,10 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
     setEditingVersion(item.version);
     setTitle(item.title);
     setContent(item.content || "");
+    setPdf(null);
+    setRemovePdf(false);
+    setPdfError(null);
+    setCurrentPdf(item.file ?? null);
     setStaleConflict(null);
     setNotice(null);
     setTab("publish");
@@ -248,6 +290,7 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
     setEditingVersion(null);
     setTitle("");
     setContent("");
+    clearPdfState();
     setStaleConflict(null);
     setNotice(null);
   };
@@ -268,6 +311,7 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
     setDeletingAnnouncement(null);
 
     if (res.ok) {
+      void refreshAnnouncements(); // and the home page's lists drop it at once
       setNotice({ tone: "ok", text: "Announcement deleted successfully." });
       loadRecent();
       loadHistory();
@@ -451,9 +495,35 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
                 value={content}
                 onChange={setContent}
                 placeholder="Write the announcement details…"
+                pdfLinkAvailable={pdfAvailable}
               />
             </div>
+            {pdfAvailable && (
+              <p data-pdf-link-hint className="mt-1.5 text-[11px] leading-snug text-slate-500">
+                To make words open the PDF, select them and press <strong>PDF link</strong> in the toolbar. The PDF card is always shown under the text as well, so link words only where it reads naturally (for example “the circular”).
+              </p>
+            )}
+            {!pdfAvailable && hasPdfLinks(content) && (
+              <p data-pdf-link-warning role="status" className="mt-1.5 text-[11px] font-semibold leading-snug text-amber-700">
+                Some words are linked to a PDF, but no PDF is attached: they will be saved as plain text.
+              </p>
+            )}
           </div>
+
+          <PdfPicker
+            chosen={pdf}
+            current={currentPdf}
+            removeCurrent={removePdf}
+            onChoose={(f) => {
+              const problem = pdfProblem(f);
+              setPdfError(problem);
+              if (!problem) { setPdf(f); setRemovePdf(false); }
+            }}
+            onClear={() => { setPdf(null); setPdfError(null); }}
+            onRemoveCurrent={setRemovePdf}
+            error={pdfError}
+            disabled={busy}
+          />
 
           <div>
             <label htmlFor="announcement-datetime" className="mb-1 block text-xs font-bold text-slate-700">

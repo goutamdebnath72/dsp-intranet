@@ -81,39 +81,38 @@ button.modal-close:hover svg,
   stroke: #ff0000 !important;
 }
 
-/* ===== Global Scrollbar Styling (Fixed visibility) ===== */
+/* ===== Global Scrollbar Styling: thin, invisible until the pointer is over the area, their room always kept =====
+   Every scrolling area of the app (windows, lists, the editor, the page itself): a thin bar whose thumb is transparent at rest and shows when the pointer is over the area (a modern, Mac-like look).
+   The room of the bar is reserved all the time (a transparent thumb, not an overlay bar), so nothing shifts when it appears. `*` gives each element its own value (scrollbar-color is inherited otherwise);
+   `*:hover` matches the hovered element and its ancestors. .scrollbar-hide (below) is more specific and still wins. The PDF viewer inside a frame draws its own bars: a page cannot style those. */
 
-/* Chrome, Edge, Safari */
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: transparent;
-  border-radius: 10px;
-  transition: background-color 0.2s ease;
-}
-
-/* Show thumb when hovered — parent or self */
-.group:hover .scrollbar-thin::-webkit-scrollbar-thumb,
-.scrollbar-thin:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(100, 116, 139, 0.4); /* neutral-400/50 */
-}
-
-/* Firefox */
-.scrollbar-thin {
+/* Firefox, and Chrome / Edge 121+ (these properties take precedence over the ::-webkit rules) */
+* {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
+*:hover {
+  scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+}
 
-.group:hover .scrollbar-thin,
-.scrollbar-thin:hover {
-  scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+/* Safari and older Chrome */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 0.2s ease;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.45);
 }
 
 
@@ -251,6 +250,18 @@ button.modal-close:hover svg,
 }
 .announcement-content u {
   text-decoration: underline;
+}
+
+/* Words of an announcement that open its PDF (src/lib/announcements/pdfLink.ts): in the editor, in the announcement's window and in the manager's cards. */
+a[data-pdf-link] {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+a[data-pdf-link]:hover {
+  background: rgba(37, 99, 235, 0.1);
 }
 
 /* ===== The width of the page, for the omnibar box =====

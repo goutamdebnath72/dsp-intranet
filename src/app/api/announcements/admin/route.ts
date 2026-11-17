@@ -8,21 +8,37 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorReply, handleAnnouncementAdmin, isSameOrigin } from "@/lib/announcements/admin/api";
 import { sessionActor, typeormAnnouncementDb } from "@/lib/announcements/admin/access";
+import { MAX_PDF_BYTES, readUploadForm, type UploadedPdf } from "@/lib/announcements/attachment";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
+// a PDF of up to 10 MB is read and put into storage in this request
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // JSON for everything; a multipart form when a publish or an edit carries a PDF (fields op, title, content, date, id, version, removeFile and the file called "file").
   let body: unknown;
-  try {
-    const raw = await request.text();
-    body = JSON.parse(raw);
-  } catch {
-    return NextResponse.json({ error: "Bad request: invalid JSON body." }, { status: 400 });
+  let upload: UploadedPdf | null = null;
+  if ((request.headers.get("content-type") || "").toLowerCase().startsWith("multipart/form-data")) {
+    try {
+      const form = await readUploadForm(await request.formData());
+      if (form.tooBig) return NextResponse.json({ error: `The PDF is larger than ${MAX_PDF_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
+      body = form.body;
+      upload = form.file;
+    } catch {
+      return NextResponse.json({ error: "Bad request: the upload could not be read." }, { status: 400 });
+    }
+  } else {
+    try {
+      const raw = await request.text();
+      body = JSON.parse(raw);
+    } catch {
+      return NextResponse.json({ error: "Bad request: invalid JSON body." }, { status: 400 });
+    }
   }
 
   try {
@@ -32,6 +48,7 @@ export async function POST(request: Request) {
     const out = await handleAnnouncementAdmin(body, {
       actor: await sessionActor(ds),
       db: typeormAnnouncementDb(ds),
+      upload,
       findByName: (name) => searchEmployeesByName(ds, name),
       findByTicket: (ticket) => searchEmployeesById(ds, { kind: "ticket", value: ticket }),
     });

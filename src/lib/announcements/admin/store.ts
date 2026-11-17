@@ -19,6 +19,9 @@ import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 import { sanitizeAnnouncementHtml, htmlToPlainText } from "@/lib/announcements/contentProcessing";
 import { embedAnnouncement } from "@/lib/announcements/embedAnnouncement";
 import type { Actor, FacilityDb, QueryFn } from "@/lib/facility/types";
+import { blobFileStorage, checkPdf, type FileStorage, type UploadedPdf } from "@/lib/announcements/attachment";
+import { dropFile, ensureFileTable, fileOf, filesOf, saveFile, type StoredFile } from "./files";
+import { stripPdfLinks } from "@/lib/announcements/pdfLink";
 import type { AnnouncementItemView } from "./types";
 
 export type AnnouncementDb = FacilityDb;
@@ -104,6 +107,7 @@ export async function listRecentAnnouncements(
     );
 
     const now = DateTime.now();
+    const files = await filesOf(q, rows.map((r: any) => Number(r.id))); // the PDFs (name and size only); none if the table is not there yet
 
     return rows.map((r: any) => {
       const createdAt = r.createdAt ? toDateTime(r.createdAt) : now;
@@ -125,6 +129,7 @@ export async function listRecentAnnouncements(
         canEdit,
         hoursLeft,
         version: announcementVersion(r),
+        file: files.get(Number(r.id)) ?? null,
       };
     });
   });
@@ -137,12 +142,17 @@ export async function listRecentAnnouncements(
 export async function publishAnnouncement(
   db: AnnouncementDb,
   actor: Actor,
-  input: { title: string; content?: string; date?: string },
+  input: { title: string; content?: string; date?: string; file?: UploadedPdf },
+  storage: FileStorage = blobFileStorage(),
 ): Promise<{ status: "ok"; id: number } | { status: "invalid"; reason: string }> {
   const title = input.title.trim();
   if (!title) return { status: "invalid", reason: "Title/Headline is required." };
+  // A PDF may stand alone (a title and a PDF, no body text); it must be a real PDF of a fair size.
+  const pdf = input.file ? checkPdf(input.file) : null;
+  if (pdf && !pdf.ok) return { status: "invalid", reason: pdf.reason };
 
-  const safeContent = sanitizeAnnouncementHtml(input.content);
+  // Words linked to the PDF need a PDF: an announcement published without one keeps the words and loses the link.
+  const safeContent = input.file ? sanitizeAnnouncementHtml(input.content) : stripPdfLinks(sanitizeAnnouncementHtml(input.content));
   const contentText = htmlToPlainText(safeContent);
   // The date must be a real ISO date/time (it went straight to the database before: a bad string was a 500).
   let dateIso: string | null;
@@ -154,24 +164,39 @@ export async function publishAnnouncement(
     dateIso = DateTime.now().setZone(IST).toUTC().toISO();
   }
 
-  const id = await db.run(async (q) => {
-    const role = await begin(q, "announcement", actor);
-    const rows = await q(
-      `INSERT INTO public.announcement (title, content, "contentText", date, "createdAt", "authorTicketNo")
-       VALUES ($1, $2, $3, $4, now(), $5)
-       RETURNING id`,
-      [title, safeContent || null, contentText || null, dateIso, actor.ticket],
-    );
-    const newId = Number(rows[0].id);
+  // The PDF goes to storage BEFORE the transaction (a 10 MB upload must not hold the facility lock); if the transaction fails, it is taken back out.
+  let stored: StoredFile | null = null;
+  if (input.file && pdf && pdf.ok) {
+    const url = await storage.put(`announcements/${pdf.name}`, input.file.bytes, "application/pdf");
+    stored = { url, name: pdf.name, bytes: input.file.bytes.length };
+  }
 
-    await writeAudit(q, "announcement", actor, role, "add", {
-      targetId: newId,
-      after: { id: newId, title },
-      note: "Published announcement",
+  let id: number;
+  try {
+    id = await db.run(async (q) => {
+      const role = await begin(q, "announcement", actor);
+      if (stored) await ensureFileTable(q);
+      const rows = await q(
+        `INSERT INTO public.announcement (title, content, "contentText", date, "createdAt", "authorTicketNo")
+         VALUES ($1, $2, $3, $4, now(), $5)
+         RETURNING id`,
+        [title, safeContent || null, contentText || null, dateIso, actor.ticket],
+      );
+      const newId = Number(rows[0].id);
+      if (stored) await saveFile(q, newId, stored, actor.ticket);
+
+      await writeAudit(q, "announcement", actor, role, "add", {
+        targetId: newId,
+        after: stored ? { id: newId, title, file: stored.name } : { id: newId, title },
+        note: stored ? "Published announcement with a PDF" : "Published announcement",
+      });
+
+      return newId;
     });
-
-    return newId;
-  });
+  } catch (e) {
+    if (stored) await storage.del([stored.url]).catch(() => {}); // nothing was saved: the PDF is not left behind
+    throw e;
+  }
 
   // Non-blocking embedding generation
   void embedAnnouncement(id, title, contentText);
@@ -193,14 +218,39 @@ export type ModifyResult =
 export async function modifyAnnouncement(
   db: AnnouncementDb,
   actor: Actor,
-  input: { id: number; title: string; content?: string; sentVersion?: string },
+  input: { id: number; title: string; content?: string; sentVersion?: string; file?: UploadedPdf; removeFile?: boolean },
+  storage: FileStorage = blobFileStorage(),
 ): Promise<ModifyResult> {
   const title = input.title.trim();
   if (!title) return { status: "invalid", reason: "Title is required." };
+  const pdf = input.file ? checkPdf(input.file) : null;
+  if (pdf && !pdf.ok) return { status: "invalid", reason: pdf.reason };
 
-  const safeContent = sanitizeAnnouncementHtml(input.content);
-  const contentText = htmlToPlainText(safeContent);
+  const sanitizedContent = sanitizeAnnouncementHtml(input.content);
+  const contentText = htmlToPlainText(sanitizedContent); // (the words are the same with or without a PDF link)
 
+  // A new PDF goes to storage first (outside the lock). If the edit is then refused (stale, forbidden, not found) or fails, it is taken back out; if it succeeds, the PDF it replaced is.
+  let stored: StoredFile | null = null;
+  if (input.file && pdf && pdf.ok) {
+    const url = await storage.put(`announcements/${pdf.name}`, input.file.bytes, "application/pdf");
+    stored = { url, name: pdf.name, bytes: input.file.bytes.length };
+  }
+  let replacedUrl: string | null = null;
+  let result: ModifyResult;
+  try {
+    result = await modifyInTransaction();
+  } catch (e) {
+    if (stored) await storage.del([stored.url]).catch(() => {});
+    throw e;
+  }
+  if (result.status !== "ok") {
+    if (stored) await storage.del([stored.url]).catch(() => {});
+  } else if (replacedUrl) {
+    await storage.del([replacedUrl]).catch(() => {});
+  }
+  return result;
+
+  async function modifyInTransaction(): Promise<ModifyResult> {
   return db.run(async (q): Promise<ModifyResult> => {
     const role = await begin(q, "announcement", actor);
     const isHod = role === "hod";
@@ -242,7 +292,7 @@ export async function modifyAnnouncement(
     });
 
     if (guarded.status === "missing") return { status: "not-found" };
-    if (guarded.status === "stale") return { status: "stale", current: guarded.current, last: guarded.last };
+    if (guarded.status === "stale") return { status: "stale", current: { ...guarded.current, file: await fileOf(q, input.id).then((f) => (f ? { name: f.name, bytes: f.bytes } : null)) }, last: guarded.last };
 
     const old = guarded.row;
     const isAuthor = String(old.authorTicketNo).trim() === actor.ticket;
@@ -256,6 +306,29 @@ export async function modifyAnnouncement(
       };
     }
 
+    // The PDF: a new one replaces the old; "remove" takes it off; neither leaves it as it was.
+    let fileNote = "";
+    let hasFile: boolean;
+    if (stored) {
+      await ensureFileTable(q);
+      replacedUrl = (await fileOf(q, input.id))?.url ?? null;
+      await saveFile(q, input.id, stored, actor.ticket);
+      fileNote = ` PDF ${replacedUrl ? "replaced" : "attached"}: ${stored.name}.`;
+      hasFile = true;
+    } else if (input.removeFile) {
+      const prev = await fileOf(q, input.id);
+      if (prev) {
+        replacedUrl = prev.url;
+        await dropFile(q, input.id);
+        fileNote = ` PDF removed: ${prev.name}.`;
+      }
+      hasFile = false;
+    } else {
+      hasFile = (await fileOf(q, input.id)) !== null;
+    }
+
+    // Words linked to the PDF stay linked only if the announcement ends up with a PDF.
+    const safeContent = hasFile ? sanitizedContent : stripPdfLinks(sanitizedContent);
     await q(
       `UPDATE public.announcement
           SET title = $1, content = $2, "contentText" = $3
@@ -267,7 +340,7 @@ export async function modifyAnnouncement(
       targetId: input.id,
       before: { title: old.title, content: old.content },
       after: { title, content: safeContent },
-      note: "Updated announcement",
+      note: fileNote ? `Updated announcement.${fileNote}` : "Updated announcement",
     });
 
     // Re-index embedding asynchronously
@@ -275,6 +348,7 @@ export async function modifyAnnouncement(
 
     return { status: "ok" };
   });
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -291,8 +365,10 @@ export async function deleteAnnouncement(
   db: AnnouncementDb,
   actor: Actor,
   input: { id: number; sentVersion?: string },
+  storage: FileStorage = blobFileStorage(),
 ): Promise<DeleteResult> {
-  return db.run(async (q): Promise<DeleteResult> => {
+  let deletedFileUrl: string | null = null;
+  const result = await db.run(async (q): Promise<DeleteResult> => {
     const role = await begin(q, "announcement", actor);
     const isHod = role === "hod";
 
@@ -333,7 +409,7 @@ export async function deleteAnnouncement(
     });
 
     if (guarded.status === "missing") return { status: "not-found" };
-    if (guarded.status === "stale") return { status: "stale", current: guarded.current, last: guarded.last };
+    if (guarded.status === "stale") return { status: "stale", current: { ...guarded.current, file: await fileOf(q, input.id).then((f) => (f ? { name: f.name, bytes: f.bytes } : null)) }, last: guarded.last };
 
     const old = guarded.row;
     const isAuthor = String(old.authorTicketNo).trim() === actor.ticket;
@@ -347,17 +423,22 @@ export async function deleteAnnouncement(
       };
     }
 
+    const file = await fileOf(q, input.id); // its PDF goes with it (the row by cascade; the file in storage after the commit)
     await q(`DELETE FROM public.announcementreadstatus WHERE "announcementId" = $1`, [input.id]);
+    await dropFile(q, input.id);
     await q(`DELETE FROM public.announcement WHERE id = $1`, [input.id]);
+    deletedFileUrl = file?.url ?? null;
 
     await writeAudit(q, "announcement", actor, role, "delete", {
       targetId: input.id,
-      before: { title: old.title, content: old.content },
-      note: "Deleted announcement",
+      before: file ? { title: old.title, content: old.content, file: file.name } : { title: old.title, content: old.content },
+      note: file ? "Deleted announcement and its PDF" : "Deleted announcement",
     });
 
     return { status: "ok" };
   });
+  if (result.status === "ok" && deletedFileUrl) await storage.del([deletedFileUrl]).catch(() => {});
+  return result;
 }
 
 // -----------------------------------------------------------------------------

@@ -111,5 +111,7 @@ const srcModal = readFileSync("src/components/HelpManualModal.tsx", "utf8");
 const srcTop = readFileSync("src/components/TopBar.tsx", "utf8");
 ok("the guide's tab type is samples | utility | how | eds; the old 'types' request (a link or an event) lands on How it works, where the list now is; the pointer button switches tabs", /GuideTab = "samples" \| "utility" \| "how" \| "eds"/.test(srcModal) && /\["utility", "Utility Services"\]/.test(srcModal) && !/\["types",/.test(srcModal) && /\(tab as string\) === "types" \? "how"/.test(srcTop) && /tab === "utility"/.test(srcTop) && /onOpenUtility=\{\(\) => setTab\("utility"\)\}/.test(srcModal));
 
+ok("the guide says an announcement can be a title with text, a title with a PDF, or both (one PDF of up to 10 MB), and that with both, selected words can be made a link that opens the PDF", /Announcement manager<\/strong>[\s\S]{0,80}publish, edit or delete a plant announcement \(a title with text, a title with a PDF, or both; one PDF of up to 10 MB; with both, selected words can be made a link that opens the PDF\)/.test(mgmt.replace(/<!-- -->/g, "")));
+
 console.log(`HelpManualModal selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

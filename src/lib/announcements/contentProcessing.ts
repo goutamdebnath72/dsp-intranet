@@ -1,15 +1,18 @@
 // src/lib/announcements/contentProcessing.ts
 import sanitizeHtml from "sanitize-html";
+import { paletteColourPatterns } from "@/lib/announcements/palette";
+import { PDF_LINK_ATTR } from "@/lib/announcements/pdfLink";
 
 // The only tags the rich-text editor can produce (bold, italic, underline,
-// colored text via <span style="color">, paragraphs/line breaks). Anything
+// text in one of the palette's five colours via <span style="color">, paragraphs/line breaks). Anything
 // outside this set is stripped on save so a crafted payload can never inject
 // script/style/img or event handlers into a stored announcement.
 //
 // sanitize-html is pure Node (no jsdom / no ESM chain), so it bundles cleanly
 // into the Vercel serverless runtime — unlike isomorphic-dompurify, whose
 // jsdom dependency triggers ERR_REQUIRE_ESM there.
-const ALLOWED_TAGS = ["p", "br", "strong", "b", "em", "i", "u", "s", "span"];
+// "a" is allowed ONLY as the marker of a PDF link (see below): it never keeps an address.
+const ALLOWED_TAGS = ["p", "br", "strong", "b", "em", "i", "u", "s", "span", "a"];
 
 /**
  * Sanitize editor HTML for safe storage + rendering. Removes any tag or
@@ -29,19 +32,27 @@ export function sanitizeAnnouncementHtml(
     // Allow the style attribute on span only (for color).
     allowedAttributes: {
       span: ["style"],
+      // a PDF link is an <a> with the marker and nothing else (no href: see src/lib/announcements/pdfLink.ts)
+      a: [PDF_LINK_ATTR, "role", "tabindex", "title"],
     },
-    // Whitelist ONLY the color CSS property, with sane value shapes
-    // (#rrggbb, rgb(), or a bare color keyword). Anything else is stripped.
-    allowedStyles: {
-      "*": {
-        color: [
-          /^#(0x)?[0-9a-fA-F]+$/,
-          /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/,
-          /^[a-zA-Z]+$/,
-        ],
+    transformTags: {
+      // An <a> with the marker becomes exactly the PDF link (whatever else it carried, an address included, is dropped); any other <a> (a link pasted from a page) becomes a plain <span>: its words stay, its address does not.
+      a: (_tag, attribs) => {
+        const out: { tagName: string; attribs: Record<string, string> } =
+          attribs[PDF_LINK_ATTR] !== undefined
+            ? { tagName: "a", attribs: { [PDF_LINK_ATTR]: "true", role: "button", tabindex: "0", title: "Opens the PDF" } }
+            : { tagName: "span", attribs: {} };
+        return out;
       },
     },
-    // No links, images, or URI schemes at all.
+    // Whitelist ONLY the color CSS property, and of colours only the editor's own five (src/lib/announcements/palette.ts), as #rrggbb or as rgb(r, g, b).
+    // Any other colour (the pale grey that pasted text carries, a keyword, a stray hex) is stripped: it dimmed the body of an announcement.
+    allowedStyles: {
+      "*": {
+        color: paletteColourPatterns(),
+      },
+    },
+    // No links with an address, images, or URI schemes at all.
     allowedSchemes: [],
     disallowedTagsMode: "discard",
   }).trim();

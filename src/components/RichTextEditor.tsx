@@ -6,8 +6,12 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
 import { TextStyle, Color } from "@tiptap/extension-text-style";
+import { TEXT_COLOURS } from "@/lib/announcements/palette";
+import { stripPastedColours } from "@/lib/announcements/pasteClean";
+import { PdfLink } from "@/lib/announcements/pdfLinkMark";
 import {
   Bold as BoldIcon,
+  FileText as PdfIcon,
   Italic as ItalicIcon,
   Underline as UnderlineIcon,
 } from "lucide-react";
@@ -21,17 +25,12 @@ type Props = {
   onChange: (html: string) => void;
   placeholder?: string;
   minHeight?: string;
+  /** a PDF is attached (or chosen), so selected words may be made a link to it; without one the "PDF link" button is switched off */
+  pdfLinkAvailable?: boolean;
 };
 
-// A small, fixed palette of readable text colors for the toolbar swatches.
-const COLORS = [
-  { name: "Default", value: "" }, // clears color -> inherits
-  { name: "Red", value: "#dc2626" },
-  { name: "Blue", value: "#2563eb" },
-  { name: "Green", value: "#16a34a" },
-  { name: "Amber", value: "#d97706" },
-  { name: "Purple", value: "#7c3aed" },
-];
+// The toolbar's swatches: "Default" (clears the colour) and the palette (src/lib/announcements/palette.ts), which is also the only set of colours the saving code keeps.
+const COLORS = [{ name: "Default", value: "" }, ...TEXT_COLOURS];
 
 function ToolbarButton({
   active,
@@ -66,8 +65,14 @@ function ToolbarButton({
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, pdfLinkAvailable }: { editor: Editor; pdfLinkAvailable: boolean }) {
   const currentColor = editor.getAttributes("textStyle").color || "";
+  const inPdfLink = editor.isActive("pdfLink");
+  // pressed inside linked words it takes the link off those words; on selected words it makes them the link; with nothing selected it does nothing
+  const togglePdfLink = () => {
+    if (inPdfLink) editor.chain().focus().extendMarkRange("pdfLink").unsetMark("pdfLink").run();
+    else if (!editor.state.selection.empty) editor.chain().focus().setMark("pdfLink").run();
+  };
 
   return (
     <div className="flex flex-wrap items-center gap-1 rounded-t-md border-b border-slate-300 bg-slate-50 px-2 py-1.5">
@@ -94,6 +99,31 @@ function Toolbar({ editor }: { editor: Editor }) {
       >
         <UnderlineIcon size={16} />
       </ToolbarButton>
+
+      <span className="mx-1 h-5 w-px bg-slate-300" aria-hidden />
+
+      {/* PDF link: the selected words open the announcement's PDF. Only when a PDF is attached. */}
+      <button
+        type="button"
+        data-pdf-link-button
+        aria-label="PDF link"
+        aria-pressed={inPdfLink}
+        disabled={!pdfLinkAvailable}
+        title={pdfLinkAvailable ? "Select words, then press this to make them open the PDF (press again inside them to take the link off)" : "Attach a PDF below first; then selected words can be made to open it"}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          if (pdfLinkAvailable) togglePdfLink();
+        }}
+        className={`flex h-8 items-center gap-1 rounded px-2 text-xs font-semibold transition-colors ${
+          !pdfLinkAvailable
+            ? "cursor-not-allowed text-slate-300"
+            : inPdfLink
+              ? "bg-primary-600 text-white"
+              : "text-slate-600 hover:bg-slate-200"
+        }`}
+      >
+        <PdfIcon size={15} aria-hidden="true" /> PDF link
+      </button>
 
       <span className="mx-1 h-5 w-px bg-slate-300" aria-hidden />
 
@@ -144,18 +174,23 @@ export default function RichTextEditor({
   onChange,
   placeholder,
   minHeight = DEFAULT_EDITOR_MIN_HEIGHT,
+  pdfLinkAvailable = false,
 }: Props) {
   const editor = useEditor({
     // SSR-safe: Tiptap renders immediately on the client only.
     immediatelyRender: false,
     extensions: [
-      StarterKit,
+      // StarterKit's own Link is off: it keeps an address and turns typed web addresses into links. The only link here is the PDF link.
+      StarterKit.configure({ link: false }),
       Underline,
       TextStyle,
       Color,
+      PdfLink,
     ],
     content: value || "",
     editorProps: {
+      // pasted text arrives WITHOUT its own colour (a chat, a page or a document brings a pale grey that dimmed the body); colour is put on with the swatches
+      transformPastedHTML: stripPastedColours,
       attributes: {
         class:
           "prose prose-sm max-w-none px-3 py-2 focus:outline-none text-slate-800",
@@ -197,7 +232,7 @@ export default function RichTextEditor({
 
   return (
     <div className="rounded-md border border-slate-500 shadow-md focus-within:ring-1 focus-within:ring-inset focus-within:ring-blue-500">
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} pdfLinkAvailable={pdfLinkAvailable} />
       <EditorContent editor={editor} />
     </div>
   );

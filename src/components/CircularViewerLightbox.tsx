@@ -3,8 +3,9 @@
 
 import { formatCircularTitle } from "@/lib/circularTitle";
 import { useState, useEffect, useRef } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { X, Loader2, AlertCircle, Sparkles } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { Loader2, AlertCircle, Sparkles } from "lucide-react";
+import { ViewerShell } from "@/components/ViewerShell";
 import { isAligned, whenImagesSettled } from "@/lib/ui/scrollWhenSettled";
 
 type Circular = {
@@ -147,36 +148,10 @@ export function CircularViewerLightbox({
   return (
     <AnimatePresence>
       {circularId && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/85 backdrop-blur-md z-[150] flex flex-col"
-          role="dialog"
-          aria-modal="true"
-          tabIndex={0}
-          onClick={onClose}
-          onKeyDown={(e) => e.key === "Escape" && onClose()}
+        <ViewerShell
+          onClose={onClose}
+          title={isLoading && !circular ? "Loading circular..." : formatCircularTitle(circular?.headline) || "Circular"}
         >
-          {/* Top Bar Header */}
-          <header className="flex-shrink-0 bg-black/50 text-white flex items-center p-4 space-x-4 border-b border-white/10">
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-full text-white/70 bg-transparent transition-all duration-200 ease-in-out transform hover:scale-110 hover:bg-red-100 hover:text-red-600"
-              aria-label="Close viewer"
-            >
-              <X size={28} />
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-semibold truncate">
-                {isLoading && !circular
-                  ? "Loading circular..."
-                  : formatCircularTitle(circular?.headline) || "Circular"}
-              </h1>
-            </div>
-          </header>
-
           {/* Main Scrollable Canvas */}
           <div
             ref={scrollerRef}
@@ -246,7 +221,7 @@ export function CircularViewerLightbox({
               </div>
             )}
           </div>
-        </motion.div>
+        </ViewerShell>
       )}
     </AnimatePresence>
   );

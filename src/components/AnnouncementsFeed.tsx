@@ -4,6 +4,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import AnnouncementModal from "./AnnouncementModal";
 import {
+  FileText,
   MessageSquareText,
   Loader2,
   AlertCircle,
@@ -28,6 +29,8 @@ type Announcement = {
   date: string;
   authorTicketNo: string;
   isRead?: boolean;
+  /** the PDF of the announcement (name and size), or null */
+  file?: { name: string; bytes: number } | null;
 };
 
 type AnnouncementWithReadStatus = Announcement & { isRead: boolean };
@@ -179,7 +182,7 @@ export function AnnouncementsFeed() {
     return (
       <div ref={listRef} className="flex flex-col">
         {dataToRender.map((item, index) => {
-          const hasContent = !!item.content;
+          const hasContent = !!item.content || !!item.file; // an announcement that is only a title and a PDF opens too
           const itemDate = DateTime.fromISO(item.date as any);
           const showNewChip = !item.isRead;
           const isClickableToMarkRead = !hasContent && showNewChip && session;
@@ -209,7 +212,9 @@ export function AnnouncementsFeed() {
                 <WrapperComponent {...wrapperProps}>
                   <div className="flex gap-3 p-4 pr-16 w-full min-w-0">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                      {hasContent ? (
+                      {item.file && !item.content ? (
+                        <FileText size={16} className="text-red-600" aria-label="PDF" />
+                      ) : hasContent ? (
                         <MessageSquareText size={16} />
                       ) : (
                         <Megaphone size={16} />
@@ -217,7 +222,7 @@ export function AnnouncementsFeed() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <Tooltip content={item.title} className="block min-w-0 max-w-full">
-                        <p className="text-sm font-medium text-neutral-800 truncate cursor-default">
+                        <p className={`text-sm font-medium text-neutral-800 truncate ${hasContent || isClickableToMarkRead ? "cursor-pointer" : "cursor-default"}`}>
                           {item.title}
                         </p>
                       </Tooltip>

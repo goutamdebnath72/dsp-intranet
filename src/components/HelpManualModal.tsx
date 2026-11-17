@@ -568,8 +568,10 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   </li>
                   <li className="rounded-lg border border-slate-200 px-3 py-2">
                     <strong>Announcement manager</strong> &mdash; publish, edit
-                    or delete a plant announcement, see the latest ones, and see
-                    the history. Type <Pill>manage announcements</Pill>{" "}
+                    or delete a plant announcement (a title with text, a title
+                    with a PDF, or both; one PDF of up to 10 MB; with both,
+                    selected words can be made a link that opens the PDF), see
+                    the latest ones, and see the history. Type <Pill>manage announcements</Pill>{" "}
                     <Pill>publish announcement</Pill>.
                   </li>
                   <li className="rounded-lg border border-slate-200 px-3 py-2">

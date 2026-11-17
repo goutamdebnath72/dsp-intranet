@@ -6,6 +6,7 @@ import { authorityOf } from "@/lib/facility/authority";
 import { resolveGrantTarget } from "@/lib/facility/authorise";
 import type { Actor } from "@/lib/facility/types";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
+import type { FileStorage, UploadedPdf } from "@/lib/announcements/attachment";
 import * as store from "./store";
 import type { AnnouncementDb } from "./store";
 
@@ -14,6 +15,10 @@ export interface ApiContext {
   db: AnnouncementDb;
   findByName: (name: string) => Promise<EmployeeResult[]>;
   findByTicket: (ticket: string) => Promise<EmployeeResult[]>;
+  /** the PDF that came with a publish or a modify (multipart form), or none */
+  upload?: UploadedPdf | null;
+  /** where PDFs are kept (the real storage when left out) */
+  storage?: FileStorage;
 }
 
 export interface ApiReply {
@@ -63,6 +68,13 @@ export function errorReply(e: unknown): ApiReply {
   if (code === "42P01" && /facility_delegate|facility_audit/.test(String(err?.message ?? ""))) {
     return reply(503, {
       error: "The shared facility tables have not been created yet. Run src/lib/nl2sql/sql/17_facility_kit.sql once in Supabase SQL editor.",
+      setupNeeded: true,
+    });
+  }
+  // The first PDF ever attached tries to create public.announcement_file itself; if the database user may not, this is what is said.
+  if ((code === "42501" || code === "42P01") && /announcement_file/.test(String(err?.message ?? ""))) {
+    return reply(503, {
+      error: "Attaching a PDF needs setup in the database. Run src/lib/nl2sql/sql/28_announcement_file.sql once in Supabase SQL editor.",
       setupNeeded: true,
     });
   }
@@ -117,7 +129,7 @@ export async function handleAnnouncementAdmin(body: unknown, ctx: ApiContext): P
     const title = text(b.title, 500);
     const content = typeof b.content === "string" ? b.content : "";
     const date = typeof b.date === "string" ? b.date : undefined;
-    const res = await store.publishAnnouncement(ctx.db, actor, { title, content, date });
+    const res = await store.publishAnnouncement(ctx.db, actor, { title, content, date, file: ctx.upload ?? undefined }, ctx.storage);
     if (res.status === "invalid") return reply(400, { error: res.reason });
     return reply(200, { status: "ok", id: res.id });
   }
@@ -130,7 +142,8 @@ export async function handleAnnouncementAdmin(body: unknown, ctx: ApiContext): P
     const content = typeof b.content === "string" ? b.content : "";
     const sentVersion = typeof b.version === "string" ? b.version : undefined;
 
-    const res = await store.modifyAnnouncement(ctx.db, actor, { id, title, content, sentVersion });
+    const removeFile = b.removeFile === true;
+    const res = await store.modifyAnnouncement(ctx.db, actor, { id, title, content, sentVersion, file: ctx.upload ?? undefined, removeFile }, ctx.storage);
     if (res.status === "not-found") return reply(404, { error: "Announcement not found." });
     if (res.status === "forbidden") return reply(403, { error: res.reason });
     if (res.status === "stale") {
@@ -151,7 +164,7 @@ export async function handleAnnouncementAdmin(body: unknown, ctx: ApiContext): P
     if (!id) return reply(400, { error: "Missing announcement id." });
     const sentVersion = typeof b.version === "string" ? b.version : undefined;
 
-    const res = await store.deleteAnnouncement(ctx.db, actor, { id, sentVersion });
+    const res = await store.deleteAnnouncement(ctx.db, actor, { id, sentVersion }, ctx.storage);
     if (res.status === "not-found") return reply(404, { error: "Announcement not found." });
     if (res.status === "forbidden") return reply(403, { error: res.reason });
     if (res.status === "stale") {

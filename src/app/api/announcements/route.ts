@@ -41,6 +41,15 @@ export async function GET(request: Request) {
       readIds = new Set(readStatuses.map((r) => r.announcementId));
     }
 
+    // The PDFs of the announcements: name and size only (never the address in storage). A database with no table for them yet simply has none.
+    const files = new Map<number, { name: string; bytes: number }>();
+    try {
+      const rows = (await dataSource.query(`SELECT announcement_id, name, bytes FROM public.announcement_file`)) as Array<Record<string, unknown>>;
+      for (const r of rows) files.set(Number(r.announcement_id), { name: String(r.name), bytes: Number(r.bytes) });
+    } catch {
+      /* no table yet: no files */
+    }
+
     const now = DateTime.now();
     // ✅ Uses the token from lib/constants.ts
     const thresholdDate = now.minus({ days: ANNOUNCEMENT_NEW_THRESHOLD_DAYS });
@@ -63,6 +72,7 @@ export async function GET(request: Request) {
       return {
         ...ann,
         isRead: isExpired || hasUserReadIt,
+        file: files.get(ann.id) ?? null,
       };
     });
 

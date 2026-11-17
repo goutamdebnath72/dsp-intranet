@@ -17,6 +17,7 @@ import {
   Clock,
   Edit2,
   ExternalLink,
+  FileText,
   History,
   Info,
   Megaphone,
@@ -27,6 +28,7 @@ import {
   Users,
 } from "lucide-react";
 import { IST } from "@/lib/dates";
+import { MAX_PDF_BYTES, formatBytes, type AnnouncementFileInfo } from "@/lib/announcements/attachment";
 import type {
   AnnouncementAdminOpen,
   AnnouncementAuditView,
@@ -221,7 +223,100 @@ export function AnnouncementCard({
         ) : item.contentText ? (
           <p className="text-xs text-slate-600 line-clamp-3">{item.contentText}</p>
         ) : null}
+        {item.file && (
+          <p data-card-pdf className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700">
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" /> PDF: {item.file.name} · {formatBytes(item.file.bytes)}
+          </p>
+        )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * THE PDF PART OF THE PUBLISH / EDIT FORM. Nothing is uploaded here: it only chooses. `chosen` is the file picked now; `current` is the PDF the announcement already has (when editing);
+ * `removeCurrent` says it is to be taken off. A PDF may stand alone: the body text is optional.
+ */
+export function PdfPicker({
+  chosen,
+  current,
+  removeCurrent,
+  onChoose,
+  onClear,
+  onRemoveCurrent,
+  error,
+  disabled,
+}: {
+  chosen: File | null;
+  current: AnnouncementFileInfo | null;
+  removeCurrent: boolean;
+  onChoose: (f: File) => void;
+  onClear: () => void;
+  onRemoveCurrent: (remove: boolean) => void;
+  error?: string | null;
+  disabled?: boolean;
+}) {
+  const input = React.useRef<HTMLInputElement>(null);
+  return (
+    <div data-pdf-picker>
+      <span className="mb-1 block text-xs font-bold text-slate-700">PDF (Optional)</span>
+      <p className="mb-2 text-[11px] leading-snug text-slate-500">
+        Attach one PDF, up to {MAX_PDF_BYTES / (1024 * 1024)} MB. A title and a PDF alone is enough: the content above may stay empty.
+      </p>
+
+      {current && !removeCurrent && !chosen && (
+        <div data-pdf-current className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+          <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate font-semibold">{current.name} · {formatBytes(current.bytes)}</span>
+          <button type="button" disabled={disabled} onClick={() => onRemoveCurrent(true)} data-pdf-remove-current className="rounded-lg border border-red-200 bg-white px-2 py-1 font-bold text-red-700 hover:bg-red-100 disabled:opacity-50">
+            Remove this PDF
+          </button>
+        </div>
+      )}
+      {current && removeCurrent && !chosen && (
+        <div data-pdf-removing className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <span className="min-w-0 flex-1">The PDF <strong>{current.name}</strong> will be removed when you update.</span>
+          <button type="button" disabled={disabled} onClick={() => onRemoveCurrent(false)} className="rounded-lg border border-amber-300 bg-white px-2 py-1 font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+            Keep it
+          </button>
+        </div>
+      )}
+
+      <input
+        ref={input}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="sr-only"
+        aria-label="Choose a PDF to attach"
+        data-pdf-input
+        disabled={disabled}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onChoose(f);
+          e.target.value = ""; // the same file can be chosen again
+        }}
+      />
+      {chosen ? (
+        <div data-pdf-chosen className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+          <FileText className="h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate font-semibold">{chosen.name} · {formatBytes(chosen.size)}</span>
+          {current && <span className="text-[11px] text-amber-700">replaces {current.name}</span>}
+          <button type="button" disabled={disabled} onClick={onClear} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50">
+            Take it off
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => input.current?.click()}
+          data-pdf-choose
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
+        >
+          <FileText className="h-4 w-4" aria-hidden="true" /> {current && !removeCurrent ? "Replace with another PDF" : "Choose a PDF"}
+        </button>
+      )}
+      {error && <p role="alert" className="mt-1.5 text-xs font-semibold text-rose-700">{error}</p>}
     </div>
   );
 }
