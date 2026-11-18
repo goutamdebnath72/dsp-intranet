@@ -90,6 +90,13 @@ async function call(payload: Record<string, any>): Promise<{ ok: boolean; status
 }
 
 /** A publish or an edit that carries a PDF (or removes one) goes as a form, not as JSON; a PDF takes longer to send, so the wait is longer. */
+/** The notice after a save: what was saved, then what happened when its PDF was read for the search bar (a failure is a warning: the announcement itself is saved). */
+function indexingNotice(saved: string, indexing: { status?: string; message?: string } | undefined, savedWithoutIndexNote?: string): { tone: "ok" | "warn"; text: string } {
+  if (!indexing?.message) return { tone: "ok", text: savedWithoutIndexNote ?? saved };
+  const base = savedWithoutIndexNote ?? saved;
+  return { tone: indexing.status === "failed" ? "warn" : "ok", text: `${base ? `${base} ` : ""}${indexing.message}` };
+}
+
 async function callForm(fields: Record<string, string | number | boolean | null | undefined>, file: File | null): Promise<{ ok: boolean; status: number; body: any }> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 120_000);
@@ -233,7 +240,7 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
       if (res.ok) {
         void refreshAnnouncements(); // the home page's lists show the edit at once
         stickySuccess("✅ Announcement updated successfully!"); // stays until its cross is clicked
-        setNotice({ tone: "ok", text: "Announcement updated successfully!" });
+        setNotice(indexingNotice("Announcement updated successfully!", res.body?.indexing));
         setEditingId(null);
         setEditingVersion(null);
         setTitle("");
@@ -259,7 +266,7 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
       if (res.ok) {
         void refreshAnnouncements(); // the home page's lists show the new announcement at once
         stickySuccess(`✅ Announcement published! You can modify or delete this for the next ${Math.round(EDIT_DELETE_WINDOW_HOURS / 24)} days.`); // stays until its cross is clicked
-        setNotice({ tone: "ok", text: "Announcement published successfully and indexed for AI search!" });
+        setNotice(indexingNotice("Announcement published successfully and indexed for AI search!", res.body?.indexing, "Announcement published successfully."));
         setTitle("");
         setContent("");
         clearPdfState();
@@ -269,6 +276,18 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
         setNotice({ tone: "error", text: res.body?.error || "Failed to publish announcement." });
       }
     }
+  };
+
+  // reads an announcement's PDF for the search bar again (it was not read, or could not be): the reading takes a while, the button is off meanwhile
+  const reindex = async (item: AnnouncementItemView) => {
+    if (busy) return;
+    setBusy(true);
+    setNotice({ tone: "ok", text: `Preparing “${item.title}” for the search bar… reading its PDF can take a minute or two.` });
+    const res = await call({ op: "reindex", id: item.id });
+    setBusy(false);
+    if (res.ok) setNotice(indexingNotice("", res.body?.indexing));
+    else setNotice({ tone: "error", text: res.body?.error || "The PDF could not be read just now." });
+    loadRecent();
   };
 
   const startEdit = (item: AnnouncementItemView) => {
@@ -625,6 +644,7 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
                   item={a}
                   onEdit={startEdit}
                   onDelete={(item) => setDeletingAnnouncement(item)}
+                  onReindex={reindex}
                   busy={busy}
                 />
               ))}

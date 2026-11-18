@@ -570,8 +570,10 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     <strong>Announcement manager</strong> &mdash; publish, edit
                     or delete a plant announcement (a title with text, a title
                     with a PDF, or both; one PDF of up to 10 MB; with both,
-                    selected words can be made a link that opens the PDF), see
-                    the latest ones, and see the history. Type <Pill>manage announcements</Pill>{" "}
+                    selected words can be made a link that opens the PDF; the
+                    PDF is read on publishing so the search bar finds words
+                    inside it, and a PDF that could not be read can be read
+                    again from its card), see the latest ones, and see the history. Type <Pill>manage announcements</Pill>{" "}
                     <Pill>publish announcement</Pill>.
                   </li>
                   <li className="rounded-lg border border-slate-200 px-3 py-2">

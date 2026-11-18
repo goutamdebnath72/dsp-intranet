@@ -176,11 +176,10 @@ export async function executeSmartSemanticRouter(
     merged.push(r);
   }
 
-  merged.sort((a, b) => {
-    const sa = typeof a.similarity === "number" ? a.similarity : 0;
-    const sb = typeof b.similarity === "number" ? b.similarity : 0;
-    return sb - sa;
-  });
+  // An announcement found by its WORDS (the typed phrase, or most of the question's content words) keeps its place beside the circulars however low the cosine of its passage is (a long passage that holds the
+  // answer among other things is only a little like the question in meaning): for the cut below it counts as at least 0.9. The screen then ranks by its own evidence, as for every result.
+  const rankOf = (r: SearchResultRow) => Math.max(typeof r.similarity === "number" ? r.similarity : 0, r.lexicalHit ? 0.9 : 0);
+  merged.sort((a, b) => rankOf(b) - rankOf(a));
 
   return {
     uniqueResults: merged.slice(0, 8),

@@ -8,12 +8,13 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorReply, handleAnnouncementAdmin, isSameOrigin } from "@/lib/announcements/admin/api";
 import { sessionActor, typeormAnnouncementDb } from "@/lib/announcements/admin/access";
+import { realIndexDeps } from "@/lib/announcements/searchIndex/defaults";
 import { MAX_PDF_BYTES, readUploadForm, type UploadedPdf } from "@/lib/announcements/attachment";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
-// a PDF of up to 10 MB is read and put into storage in this request
-export const maxDuration = 60;
+// a PDF of up to 10 MB is read and put into storage in this request, and is then read page by page for the search bar (the circular upload's own reading): up to the platform's ceiling for this plan
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       actor: await sessionActor(ds),
       db: typeormAnnouncementDb(ds),
       upload,
+      indexDeps: realIndexDeps(),
       findByName: (name) => searchEmployeesByName(ds, name),
       findByTicket: (ticket) => searchEmployeesById(ds, { kind: "ticket", value: ticket }),
     });

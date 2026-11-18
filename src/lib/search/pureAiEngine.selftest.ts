@@ -9,6 +9,7 @@
 import { DOCTOR_POOL } from "../hospital/engine";
 import { parseQueryWithLlm, executePureHospital, findDoctors, nameTokens, dayFrom } from "./pureAiEngine";
 
+import { readFileSync } from "node:fs";
 let pass = 0;
 let fail = 0;
 function ok(name: string, cond: boolean, extra = "") {
@@ -131,6 +132,12 @@ async function main() {
   const hi = await parseQueryWithLlm("hello", { llm: fails });
   ok("a bare greeting needs no model", hi?.tool === "conversational");
   ok('"help me find quarters retention rules" is NOT a greeting', (await parseQueryWithLlm("help me find quarters retention rules", { llm: fails })) === null);
+  // the model's word "conversational" is believed only for small talk (a notice's time limit was once answered with "How can I assist you?")
+  const chat = (q: string) => parseQueryWithLlm(q, { llm: llm('{"tool":"conversational","params":{"reply":"Hello, how can I help?"}}') });
+  ok("a line about a notice that the model misreads as chatter is NOT small talk: it goes on to the search", (await chat("OTP valid for five minutes")) === null && (await chat("password at least 8 characters")) === null && (await chat("account lock 5 times in a row")) === null);
+  ok("real small talk is still answered as small talk", (await chat("thanks a lot"))?.tool === "conversational" && (await chat("who made you"))?.tool === "conversational" && (await chat("how are you today"))?.tool === "conversational" && (await chat("good night"))?.tool === "conversational");
+  ok("a capability question is still small talk", (await chat("what can you do now please"))?.tool === "conversational" && (await chat("can you help me"))?.tool === "conversational");
+  ok("the router is told, in its own instructions, that a line naming something to look up is never conversational", /NEVER for a line that names something to look up/.test(readFileSync("src/lib/search/pureAiEngine.ts", "utf8")));
 
   console.log(`pureAiEngine selftest: ${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);

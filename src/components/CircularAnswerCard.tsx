@@ -9,7 +9,7 @@
 
 import React from "react";
 import { DateTime } from "luxon";
-import { ExternalLink, FileText, Info, Sparkles } from "lucide-react";
+import { ExternalLink, FileText, Info, Megaphone, Sparkles } from "lucide-react";
 import { formatCircularTitle } from "@/lib/circularTitle";
 import type { AnswerState } from "@/hooks/useCircularAnswer";
 import type { CircularAnswer } from "@/lib/search/circularAnswer";
@@ -48,7 +48,80 @@ function LoadingDots() {
   );
 }
 
-export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState; onOpenSource: (circularId: number, target?: { page: number | null; quote: string }) => void }) {
+type OpenSource = (id: number, target?: { page: number | null; quote: string }, type?: "circular" | "announcement" | "holiday") => void;
+type SourceOf = CircularAnswer["sources"][number];
+
+/** One source line: what it is, its date and page, and (for a circular or an announcement) the button that opens it. */
+function SourceItem({ s, target, onOpenSource }: { s: SourceOf; target: { page: number | null; quote: string }; onOpenSource: OpenSource }) {
+  const openable = s.type === "circular" || s.type === "announcement";
+  const body = (
+    <>
+      {s.type === "announcement" ? <Megaphone size={16} className="mt-0.5 flex-shrink-0 text-orange-600" aria-hidden /> : <FileText size={16} className="mt-0.5 flex-shrink-0 text-blue-600" aria-hidden />}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-neutral-800">{formatCircularTitle(s.headline)}</span>
+        <span className="text-xs text-neutral-500">
+          {KIND_LABEL[s.type] ?? s.type}
+          {dateLabel(s.publishedAt) ? ` \u2022 ${dateLabel(s.publishedAt)}` : ""}
+          {s.page ? ` \u2022 Page ${s.page}` : ""}
+        </span>
+      </span>
+      {openable && (
+        <span className="mt-0.5 flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-blue-700">
+          {s.type === "announcement" ? "Open announcement" : "Open circular"} <ExternalLink size={12} aria-hidden />
+        </span>
+      )}
+    </>
+  );
+  return (
+    <li>
+      {openable ? (
+        <button type="button" onClick={() => onOpenSource(s.id, target, s.type)} className="flex w-full items-start gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left transition-colors hover:border-blue-200 hover:bg-white">
+          {body}
+        </button>
+      ) : (
+        <div className="flex w-full items-start gap-2 px-2 py-1.5">{body}</div>
+      )}
+    </li>
+  );
+}
+
+/**
+ * THE SUMMARY every circular or announcement reply carries when no precise answer could be proved (documentSummary.ts). It says what the best match is about, says so plainly when it does not answer the question,
+ * and, when the model could not write one, shows the opening of the document in its own words, labelled as that.
+ */
+export function SummaryCard({ summary, onOpenSource }: { summary: NonNullable<AnswerState["summary"]>; onOpenSource: OpenSource }) {
+  return (
+    <section aria-label="Summary" data-summary-card={summary.via} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+      <div className="flex items-center gap-2 bg-gradient-to-r from-slate-600 to-slate-700 px-4 py-2 text-white">
+        <Sparkles size={14} aria-hidden />
+        <span className="text-[11px] font-bold uppercase tracking-[0.14em]">{summary.via === "opening" ? "Summary \u00B7 opening of the document" : "Summary"}</span>
+      </div>
+      <p data-summary-text className="px-4 pt-3.5 text-sm leading-relaxed text-neutral-800">{summary.text}</p>
+      {summary.addresses === false ? (
+        <p data-summary-note="not-addressed" className="mx-4 mt-2 flex items-start gap-2 text-[13px] leading-relaxed text-amber-700">
+          <Info size={14} className="mt-0.5 flex-shrink-0 text-amber-500" aria-hidden />
+          <span>This is a summary of the closest match. It does not answer your question directly: check the document before you rely on it.</span>
+        </p>
+      ) : summary.via === "opening" ? (
+        <p data-summary-note="opening" className="mx-4 mt-2 flex items-start gap-2 text-[13px] leading-relaxed text-slate-500">
+          <Info size={14} className="mt-0.5 flex-shrink-0 text-slate-400" aria-hidden />
+          <span>A written summary was not available just now: this is how the document begins, in its own words.</span>
+        </p>
+      ) : null}
+      <div className="mt-3.5 border-t border-neutral-100 bg-neutral-50/70 px-4 py-3">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Summarised from</div>
+        <ul className="mt-1.5 space-y-1">
+          {summary.sources.map((s) => (
+            <SourceItem key={`${s.type}-${s.id}`} s={s} target={{ page: s.page, quote: "" }} onOpenSource={onOpenSource} />
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/** `type` says what the source is: a circular opens in its viewer, an announcement in its own window (the search window comes back when it is closed). */
+export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState; onOpenSource: OpenSource }) {
   if (state.status === "idle") return null;
 
   if (state.status === "loading") {
@@ -64,7 +137,8 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
   }
 
   const a = state.answer;
-  if (!a) return null;
+  // no precise answer could be proved: the reply carries a summary of the best match instead (never a bare title)
+  if (!a) return state.summary ? <SummaryCard summary={state.summary} onOpenSource={onOpenSource} /> : null;
 
   const single = a.rows.length === 1;
   const sharedColumn = !single && a.rows[0].column && a.rows.every((r) => r.column === a.rows[0].column) ? a.rows[0].column : "";
@@ -83,6 +157,7 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
         <span className="text-[11px] font-bold uppercase tracking-[0.14em]">Answer</span>
       </div>
 
+      {/* the heading is plain text, for circulars and announcements alike: the way into the document is the Source row below ("Open circular" / "Open announcement") */}
       <h3 className="px-4 pt-3.5 text-[17px] font-semibold leading-snug text-neutral-900">{a.title}</h3>
 
       {single ? (
@@ -150,38 +225,9 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
       <div className="mt-3.5 border-t border-neutral-100 bg-neutral-50/70 px-4 py-3">
         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{a.sources.length > 1 ? "Sources" : "Source"}</div>
         <ul className="mt-1.5 space-y-1">
-          {a.sources.map((s) => {
-            const openable = s.type === "circular";
-            const body = (
-              <>
-                <FileText size={16} className="mt-0.5 flex-shrink-0 text-blue-600" aria-hidden />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-neutral-800">{formatCircularTitle(s.headline)}</span>
-                  <span className="text-xs text-neutral-500">
-                    {KIND_LABEL[s.type] ?? s.type}
-                    {dateLabel(s.publishedAt) ? ` \u2022 ${dateLabel(s.publishedAt)}` : ""}
-                    {s.page ? ` \u2022 Page ${s.page}` : ""}
-                  </span>
-                </span>
-                {openable && (
-                  <span className="mt-0.5 flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-blue-700">
-                    Open circular <ExternalLink size={12} aria-hidden />
-                  </span>
-                )}
-              </>
-            );
-            return (
-              <li key={`${s.type}-${s.id}`}>
-                {openable ? (
-                  <button type="button" onClick={() => onOpenSource(s.id, openTargetFor(a, s))} className="flex w-full items-start gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left transition-colors hover:border-blue-200 hover:bg-white">
-                    {body}
-                  </button>
-                ) : (
-                  <div className="flex w-full items-start gap-2 px-2 py-1.5">{body}</div>
-                )}
-              </li>
-            );
-          })}
+          {a.sources.map((s) => (
+            <SourceItem key={`${s.type}-${s.id}`} s={s} target={openTargetFor(a, s)} onOpenSource={onOpenSource} />
+          ))}
         </ul>
 
         <details className="mt-1.5 px-2 text-xs text-neutral-600">

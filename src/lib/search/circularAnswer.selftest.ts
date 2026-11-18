@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPageUnits, planChunks } from "../ingestion/chunking";
 import {
-  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, LIST_NOTE, asksForAList, datesIn, documentSentenceFor, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, sentenceWordsAround, tidyValue, verifyAnswer,
+  answerFromPassages, buildAnswerPrompt, buildPassages, clearAnswerCache, normalizeForQuote, numbersIn, parseModelAnswer, LIST_NOTE, asksForAList, datesIn, documentSentenceFor, percentOf, pickAnswerItems, piecesInOneRow, quoteMissReport, sentenceWordsAround, tidyValue, tidyInfographicDebris, verifyAnswer, withUnit,
   type DocInput, type ModelAnswer, type Passage, type RowIn,
 } from "./circularAnswer";
 
@@ -193,6 +193,50 @@ ok("the request asks for rows, a title and an optional note", /"rows"/.test(prom
 ok("the request carries each document's date", prompt.includes("(dated 2023-12-16)"));
 
 // ---------------------------------------------------------------- asking, caching, failing
+// ---------------------------------------------------------------- THE UNIT SHOWN WITH A BARE NUMBER (an announcement's PDF: "account locked for 15 minutes")
+{
+  const TRI = "Account Lock Policy • If an incorrect password is entered 5 times in a row, your account will be locked for 15 minutes. • If needed, the IT team can help unlock your account sooner using admin account.";
+  const PWD = "Password Requirements Your password must: • Be at least 8 characters long • Be changed every 90 days";
+  eq("a bare number is shown with the unit the document prints right after it", [withUnit("15", TRI), withUnit("5", TRI), withUnit("8", PWD), withUnit("90", PWD)], ["15 min", "5 times", "8 characters", "90 days"]);
+  eq("minutes, hours and seconds are shown short (min, hr, sec), singular or plural, in any case; other units as printed", [withUnit("1", "after 1 minute"), withUnit("2", "within 2 Hours of"), withUnit("30", "30 seconds later"), withUnit("45", "45 Mins"), withUnit("3", "for 3 hrs"), withUnit("10", "10 secs"), withUnit("7", "7 days")], ["1 min", "2 hr", "30 sec", "45 min", "3 hr", "10 sec", "7 days"]);
+  eq("a percentage keeps its sign, with no space", [withUnit("5", "an increase of 5% from January"), withUnit("5", "an increase of 5 % from January")], ["5%", "5%"]);
+  eq("an amount keeps the currency the document prints before it", [withUnit("15,000", "a sum of Rs. 15,000 per month"), withUnit("15000", "paid Rs 15000 only"), withUnit("2,500", "an allowance of \u20B92,500 per day")], ["Rs. 15,000", "Rs. 15000", "\u20B9 2,500"]);
+  eq("a word that is not a unit is not taken for one", [withUnit("51", "Circular 51 dated 12 August"), withUnit("5", "5 Ltd and 6 Co"), withUnit("3", "3 of the following")], ["51", "5", "3"]);
+  eq("a figure with no unit after it stays as it is (a table cell is the table's business)", [withUnit("808", ROW_W_UNIT()), withUnit("12", "Area: 1 | Casual leave: 12 | Medical: 8")], ["808", "12"]);
+  eq("when the number stands in the quote with different units the figure is left as it is (not guessed)", withUnit("10", "within 10 days for staff and 10 hours for contract workers"), "10");
+  eq("when it stands twice with the same unit it is shown with it", withUnit("15", "15 minutes now and 15 minutes later"), "15 min");
+  eq("a value that is not a bare number is left alone (a date, a word, a value that already has its words)", [withUnit("31.08.2026", "till 31.08.2026 days"), withUnit("Four (04)", "Four (04) days Casual Leave"), withUnit("15 min", "15 minutes"), withUnit("Red", "the colour Red days")], ["31.08.2026", "Four (04)", "15 min", "Red"]);
+  eq("a time written with a number word becomes a figure and a short unit: five minutes -> 5 min", [withUnit("five minutes", "valid for only five minutes"), withUnit("Five Minutes", "Five Minutes"), withUnit("twenty-five minutes", "x"), withUnit("twenty five minutes", "x"), withUnit("ninety days", "x"), withUnit("two hours", "x"), withUnit("thirty seconds", "x"), withUnit("one hour", "x")], ["5 min", "5 min", "25 min", "25 min", "90 days", "2 hr", "30 sec", "1 hr"]);
+  eq("a number word is turned into a figure only before a unit of time", [withUnit("Four (04)", "Four (04) days Casual Leave"), withUnit("five", "five of them"), withUnit("one", "one"), withUnit("two persons", "two persons"), withUnit("Five Star", "Five Star")], ["Four (04)", "five", "one", "two persons", "Five Star"]);
+  eq("a time the model wrote in words is shown short too, and a date or other text is not touched", [withUnit("2 hours 30 minutes", "2 hours 30 minutes"), withUnit("10 Seconds", "10 Seconds"), withUnit("31.08.2026", "31.08.2026"), withUnit("90 days", "90 days")], ["2 hr 30 min", "10 sec", "31.08.2026", "90 days"]);
+  eq("a number is never found inside a longer one", withUnit("15", "locked for 215 minutes"), "15");
+  // through the whole verification: the answer is verified with the bare value (as before), and only then shown with its unit
+  const P_TRI = { n: 1, type: "announcement", id: 21, title: "Trinetra Cyber Security Hardening Policy", date: "2026-11-17T04:00:00.000Z", page: 1, text: TRI, parts: [{ page: 1, text: TRI }] } as any;
+  const fa = verifyAnswer({ answerable: true, title: "Account Lock Policy", rows: [{ label: "Account locked duration", column: "Account lock policy", value: "15", source: 1, quote: "If an incorrect password is entered 5 times in a row, your account will be locked for 15 minutes." }], note: "" }, [P_TRI]);
+  ok("the verified answer shows the figure as 15 min", fa.ok && fa.value.rows[0].value === "15 min", reason(fa));
+  const fb = verifyAnswer({ answerable: true, title: "Account Lock Policy", rows: [{ label: "Account locked duration", column: "Account lock policy", value: "15 minutes", source: 1, quote: "If an incorrect password is entered 5 times in a row, your account will be locked for 15 minutes." }], note: "" }, [P_TRI]);
+  ok("a value the model already gave with its unit is not given it twice, and its time unit is shown short too", fb.ok && fb.value.rows[0].value === "15 min", reason(fb));
+  const fc = verifyAnswer({ answerable: true, title: "Account Lock Policy", rows: [{ label: "Account locked duration", column: "Account lock policy", value: "20", source: 1, quote: "If an incorrect password is entered 5 times in a row, your account will be locked for 15 minutes." }], note: "" }, [P_TRI]);
+  ok("a wrong figure is still refused (the unit changes nothing about what is verified)", !fc.ok);
+}
+function ROW_W_UNIT(): string { return ROW_W; }
+
+// ---------------------------------------------------------------- WHAT AN INFOGRAPHIC LEAVES IN THE TEXT (the DSC procedure: step numbers, a sample code, a stopwatch)
+{
+  const RAW = "OTP 123456 1 2 Both OTPs are required to be shared immediately with the vendor's executive, as the OTPs remain valid for only five minutes. - 05:00 - 3 Video verification of both the applicant and the Authorized Signatory will be conducted through a link sent to the registered e-mail ID.";
+  eq("the step numbers and the sample code before the sentence, and the timer with the next step after it, are dropped", tidyInfographicDebris(RAW), "Both OTPs are required to be shared immediately with the vendor's executive, as the OTPs remain valid for only five minutes.");
+  eq("an acronym or a year at the start of a sentence is not debris", [tidyInfographicDebris("TRINETRA Cyber Security Hardening Policy is to be implemented from 13/05/2026 at 10:00am onwards."), tidyInfographicDebris("PF 2024 rules apply to every employee who retires after the date of the order."), tidyInfographicDebris("Circular 13 of 2024 shall be read with the earlier order of the competent authority.")], ["TRINETRA Cyber Security Hardening Policy is to be implemented from 13/05/2026 at 10:00am onwards.", "PF 2024 rules apply to every employee who retires after the date of the order.", "Circular 13 of 2024 shall be read with the earlier order of the competent authority."]);
+  eq("a number inside a sentence is never touched, nor a time without a dash before it", [tidyInfographicDebris("The meeting will be held at 10:30 in the committee room on the second floor."), tidyInfographicDebris("Employees must report within 5 days of the order and carry 2 photographs with them.")], ["The meeting will be held at 10:30 in the committee room on the second floor.", "Employees must report within 5 days of the order and carry 2 photographs with them."]);
+  eq("a cleaning that would leave less than a sentence is not done", tidyInfographicDebris("OTP 123456 1 2 Both OTPs"), "OTP 123456 1 2 Both OTPs");
+  eq("a sentence with nothing to clean comes back as it was, spaces tidied", tidyInfographicDebris("  Your password   must be at least eight characters long.  "), "Your password must be at least eight characters long.");
+  // through the whole path: the note of the answer is the cleaned sentence of the document
+  const DOC = "Step one. OTP 123456 1 2 Both OTPs are required to be shared immediately with the vendor's executive, as the OTPs remain valid for only five minutes. - 05:00 - 3 Video verification of both the applicant and the Authorized Signatory will be conducted through a link sent to the registered e-mail ID.";
+  const PDOC = { n: 1, type: "announcement", id: 21, title: "DSC", date: null, page: 1, text: DOC, parts: [{ page: 1, text: DOC }] } as any;
+  const fv = verifyAnswer({ answerable: true, title: "OTP Validity", rows: [{ label: "OTPs validity", column: "", value: "five minutes", source: 1, quote: "as the OTPs remain valid for only five minutes." }], note: "" }, [PDOC]);
+  ok("through the whole verification: 'five minutes' as the document words it is shown as 5 min", fv.ok && fv.value.rows[0].value === "5 min", reason(fv));
+  eq("the sentence the app picks for the note is cleaned", documentSentenceFor("Both OTPs must be shared immediately with the vendor's executive, as they remain valid for only five minutes", [{ n: 1, type: "announcement", id: 21, title: "DSC", date: null, page: 1, text: DOC, parts: [{ page: 1, text: DOC }] } as any]), "Both OTPs are required to be shared immediately with the vendor's executive, as the OTPs remain valid for only five minutes.");
+}
+
 (async () => {
   clearAnswerCache();
   let calls = 0;

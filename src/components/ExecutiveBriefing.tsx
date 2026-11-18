@@ -6,11 +6,13 @@ import { formatCircularTitle } from "@/lib/circularTitle";
 import { EdsPdfButton } from "@/components/EdsPdfButton";
 import { hasPdfContent } from "@/lib/pdf/edsPdfModel";
 import React from "react";
+import { isAnnouncementSourceId } from "@/lib/search/sourceKey";
 import { motion } from "framer-motion";
 import { DateTime } from "luxon";
 import {
   Sparkles,
   FileText,
+  Megaphone,
   TrendingUp,
   BarChart3,
   PieChart as PieIcon,
@@ -935,7 +937,7 @@ function CitationChips({
             title={formatCircularTitle(c.headline)}
             className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 transition-colors hover:border-amber-400 hover:bg-amber-100 hover:text-amber-900"
           >
-            <FileText size={10} />
+            {isAnnouncementSourceId(id) ? <Megaphone size={10} data-source-kind="announcement" /> : <FileText size={10} />}
             {c.label
               ? c.label
               : c.publishedAt
@@ -1150,7 +1152,7 @@ export function ExecutiveBriefing({
                     title={formatCircularTitle(c.headline)}
                     className="inline-flex max-w-[340px] items-start gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-left text-[11px] font-medium text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-300 hover:text-primary-600 hover:shadow"
                   >
-                    <FileText size={11} className="mt-0.5 shrink-0 text-amber-500" />
+                    {isAnnouncementSourceId(c.id) ? <Megaphone size={11} data-source-kind="announcement" className="mt-0.5 shrink-0 text-orange-500" /> : <FileText size={11} className="mt-0.5 shrink-0 text-amber-500" />}
                     <span className="line-clamp-2 leading-snug">
                       {c.label && <span className="font-bold text-slate-800">{c.label} · </span>}
                       {formatCircularTitle(c.headline)}

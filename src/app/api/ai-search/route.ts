@@ -1,4 +1,6 @@
 // src/app/api/ai-search/route.ts
+import { assembleEdsSources } from "@/lib/search/edsSources";
+import { fetchAnnouncementFullText } from "@/lib/announcements/searchIndex/edsSources";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { executeTitleSearch } from "@/lib/search/titleSearch";
@@ -690,33 +692,32 @@ async function handleSearch(request: Request) {
     // Feed synthesis the FULL text of each source circular (all chunks), not
     // the single readable UI excerpt — so figures in an unmatched chunk (e.g. a
     // rate table) are in context. The UI list still shows the short excerpt.
+    // The deep summary reads CIRCULARS AND ANNOUNCEMENTS (an announcement's text is its body and the text of its PDF). The two have row numbers of their own, which can be the same number, so an announcement
+    // travels as a source under a moved number (src/lib/search/sourceKey.ts) and every citation and card below uses that one number. A holiday note is not a source.
+    const circularIds = topPrimarySources.filter((r) => r.type === "circular").map((r) => r.id);
+    const announcementIds = topPrimarySources.filter((r) => r.type === "announcement").map((r) => r.id);
+    const [circularText, announcementText] = await Promise.all([
+      fetchFullCircularText(dataSource, circularIds),
+      fetchAnnouncementFullText(dataSource, announcementIds),
+    ]);
+    const eds = assembleEdsSources(topPrimarySources as any[], circularText, announcementText);
     let synthesis: SynthesisResult;
-    if (topPrimarySources.length > 0) {
-      const fullText = await fetchFullCircularText(
-        dataSource,
-        topPrimarySources.map((r) => r.id),
-      );
-      const synthesisSources = topPrimarySources.map((r) => ({
-        ...r,
-        chunkText: fullText.get(r.id) || r.chunkText,
-      }));
-      // The reader names a circular by the number the archive shows ("007") and its year, never by the database id.
-      const labels = await fetchCircularLabels(
-        dataSource,
-        topPrimarySources.filter((r) => r.type === "circular").map((r) => r.id),
-      );
+    if (eds.sources.length > 0) {
+      // The reader names a circular by the number the archive shows ("007") and its year, never by the database id; an announcement by its label.
+      const labels = await fetchCircularLabels(dataSource, circularIds);
+      for (const [id, label] of eds.announcementLabels) labels.set(id, label);
       const endSynthesis = traceStep("synthesis");
-      synthesis = await executeExecutiveSynthesis(q, synthesisSources, labels, { store: edsStoreFor(dataSource) });
+      synthesis = await executeExecutiveSynthesis(q, eds.sources, labels, { store: edsStoreFor(dataSource) });
       endSynthesis();
     } else {
       synthesis = emptyBriefing(
-        "No relevant circular records found to synthesize.",
+        "No relevant circular or announcement records found to synthesize.",
       );
     }
 
     return NextResponse.json({
       synthesis,
-      results: topPrimarySources,
+      results: eds.resultRows,
     });
   } catch (error) {
     console.error("Search API error:", error);

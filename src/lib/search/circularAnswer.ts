@@ -672,6 +672,31 @@ const stemWord = (w: string): string => {
  * "Entitlement is calculated proportionately"). So a note is shown only as the document's OWN sentence: the sentence of the cited passages that holds at
  * least 60% of the note's words (word stems), cut at a word. If no sentence does, the note is dropped (the facts stay).
  */
+/**
+ * WHAT AN INFOGRAPHIC LEAVES IN THE TEXT. A page that is a picture with words on it (a numbered procedure with a stopwatch and a sample code) is read word by word, so the numbers of its steps, its sample code and its
+ * timer come out among the sentences: "OTP 123456 1 2 Both OTPs are required to be shared ... five minutes. - 05:00 - 3 Video verification ...". The sentence shown to the reader is cleaned of exactly that, and of nothing else
+ * (what is left is still the document's own words, in order):
+ *   * at the START: the words before the first word that has a lower-case letter are dropped when they hold a lone one- or two-digit number (a step's number) or a number of five digits or more (a sample code):
+ *     "OTP 123456 1 2 Both OTPs ..." -> "Both OTPs ..."; "TRINETRA Cyber Security ..." and "PF 2024 rules" are left alone (an acronym, a year);
+ *   * at the END: from a timer ("- 05:00 -") on, the rest is the next step of the picture.
+ * A cleaning that would leave less than a sentence is not done.
+ */
+export function tidyInfographicDebris(sentence: string): string {
+  let t = sentence.replace(/\s+/g, " ").trim();
+  const timer = /\s[-\u2013\u2022]\s*\d{1,2}:\d{2}\b/.exec(t);
+  if (timer && timer.index >= 25) t = t.slice(0, timer.index).trim();
+  const toks = t.split(" ");
+  const firstWord = toks.findIndex((w) => /\p{Ll}/u.test(w));
+  if (firstWord > 0) {
+    const lead = toks.slice(0, firstWord);
+    if (lead.some((w) => /^\d{1,2}$/.test(w) || /^\d{5,}$/.test(w))) {
+      const rest = toks.slice(firstWord).join(" ");
+      if (rest.length >= 25) t = rest;
+    }
+  }
+  return t;
+}
+
 export function documentSentenceFor(note: string, passages: Passage[]): string {
   const want = Array.from(new Set(contentWords(note).map(stemWord)));
   if (want.length < NOTE_MIN_WORDS) return "";
@@ -709,12 +734,65 @@ export function documentSentenceFor(note: string, passages: Passage[]): string {
     }
   }
   if (bestScore < NOTE_MIN_SCORE) return "";
+  best = tidyInfographicDebris(best);
   return best.length <= NOTE_MAX_CHARS ? best : `${best.slice(0, NOTE_MAX_CHARS).replace(/\s+\S*$/, "")}\u2026`;
 }
 
 /** The OCR reads the "th" of "5th December" as a quote mark: the DISPLAYED value loses that mark (the exact words below it are never touched). */
 export function tidyValue(value: string): string {
   return value.replace(/(\d)["'\u2019\u201d]\s*(?=[A-Za-z]{3,9}\b)/g, "$1 ");
+}
+
+/**
+ * THE UNIT OF A BARE NUMBER, for the big figure of the answer: "15" under "Account locked duration" means nothing without "minutes". The model is told to give the value without units (a unit it adds on its own, or a
+ * "per day" the document never printed, is a made-up fact), and that rule stays. After the answer has been verified, the figure is shown with the unit the DOCUMENT prints right after that number in the verified quote:
+ * "15 minutes", "8 characters", "90 days", "5%", "Rs. 15,000". Only a whole bare number, only a unit from a fixed list of real units (not any word that follows: "51 dated" is not a unit), only when every place the
+ * number stands in the quote gives the same unit (otherwise the figure is shown as it is). The value that was verified is never changed, only the words shown with it.
+ */
+const UNIT_WORDS = new Set(
+  ("second seconds sec secs minute minutes min mins hour hours hr hrs day days week weeks month months year years " +
+    "character characters digit digits attempt attempts time times instance instances employee employees person persons member members post posts vacancy vacancies seat seats page pages copy copies item items unit units " +
+    "kg kgs kilogram kilograms gram grams gm tonne tonnes ton tons mt litre litres liter liters ltr km kilometre kilometres kilometer kilometers metre metres meter meters cm mm kw kva mw kwh hp mbps gb mb kb percent " +
+    "rupee rupees lakh lakhs crore crores thousand million paise").split(" "),
+);
+/** Time units are shown short, as the owner asked: minute(s) -> min, hour(s) -> hr, second(s) -> sec. Every other unit is shown as the document prints it. */
+const SHORT_UNIT: Record<string, string> = { minute: "min", minutes: "min", min: "min", mins: "min", hour: "hr", hours: "hr", hr: "hr", hrs: "hr", second: "sec", seconds: "sec", sec: "sec", secs: "sec" };
+/** the number words a time can be written in: five -> 5, twenty-five -> 25, ninety -> 90 */
+const WORD_UNITS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+const TIME_NOUN = "minutes?|mins?|hours?|hrs?|seconds?|secs?|days?|weeks?|months?|years?";
+const TIME_WORD_RE = new RegExp(`\\b((?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[-\\s](?:one|two|three|four|five|six|seven|eight|nine)|${Object.keys(WORD_UNITS).join("|")})\\s+(?=(?:${TIME_NOUN})\\b)`, "gi");
+
+/**
+ * A time as a figure and a short unit, for the big figure of the answer: "five minutes" -> "5 min", "15 minutes" -> "15 min", "2 Hours" -> "2 hr", "ninety days" -> "90 days". The number word is turned into its figure only where a unit of
+ * time follows it ("five minutes"; never "Four (04)" or a word elsewhere), and only minute(s), hour(s) and second(s) are shortened (min, hr, sec); other units are left as printed.
+ */
+export function shortenTimeUnits(value: string): string {
+  const figures = value.replace(TIME_WORD_RE, (_m, w: string) => {
+    const parts = w.toLowerCase().split(/[-\s]/);
+    return `${parts.reduce((n, p) => n + (WORD_UNITS[p] ?? 0), 0)} `;
+  });
+  return figures.replace(/(\d)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)\b/gi, (_m, d: string, w: string) => `${d} ${SHORT_UNIT[w.toLowerCase()]}`);
+}
+export function withUnit(value: string, quote: string): string {
+  const v = value.trim();
+  if (!/^\d[\d,]*(?:\.\d+)?$/.test(v)) return shortenTimeUnits(value);
+  const spans = valueSpans(quote, v);
+  if (spans.length === 0) return value;
+  const shapes = new Set(
+    spans.map(([from, to]) => {
+      const cur = /(₹|\bRs\.?|\bINR)\s*$/i.exec(quote.slice(Math.max(0, from - 8), from));
+      const prefix = cur ? (cur[1] === "₹" ? "₹" : `${cur[1].replace(/\.?$/, "")}.`) + " " : "";
+      const after = quote.slice(to, to + 40);
+      let suffix = "";
+      if (/^\s?%/.test(after)) suffix = "%";
+      else {
+        const m = /^\s{1,2}([A-Za-z]+)\b/.exec(after);
+        if (m && UNIT_WORDS.has(m[1].toLowerCase())) suffix = ` ${SHORT_UNIT[m[1].toLowerCase()] ?? m[1]}`;
+      }
+      return `${prefix}${v}${suffix}`;
+    }),
+  );
+  return shapes.size === 1 ? Array.from(shapes)[0] : value;
 }
 
 /** True for a question that asks for a list or a count across a period ("list the sports events ... in December 2024"). */
@@ -826,7 +904,7 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
     for (const w of wordSet(column)) supportWords.add(w);
     if (!tableLike) for (const w of wordSet(quote)) supportWords.add(w);
     const part = p.parts.find((pt) => normalizeForQuote(pt.text).includes(nq));
-    rows.push({ label: r.label, column, value: tidyValue(r.value), source: p.n, quote, page: part?.page ?? p.page, linked });
+    rows.push({ label: r.label, column, value: withUnit(tidyValue(r.value), quote), source: p.n, quote, page: part?.page ?? p.page, linked });
   }
 
   // the heading and the note: their numbers come from a quote or from the cited document's own title or date. A heading or note that says more than the

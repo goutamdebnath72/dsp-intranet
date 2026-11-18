@@ -1,6 +1,7 @@
 // src/components/OmnibarModal.tsx
 "use client";
 
+import { isAnnouncementSourceId, realSourceId } from "@/lib/search/sourceKey";
 import { isIdQuery } from "@/lib/search/idQuery";
 import { formatCircularTitle } from "@/lib/circularTitle";
 import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
@@ -323,7 +324,7 @@ export function OmnibarModal({
   const { status: authStatus } = useVerifiedSession();
   // Answer first (step 29a, off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true): once the search has found documents, the answer they
   // prove is written above them, with the source and the exact words. Nothing appears if the text does not prove an answer.
-  const circularAnswer = useCircularAnswer({ enabled: answerFirstEnabled(), query: submittedQuery, results: isLoading ? [] : results, mode });
+  const circularAnswer = useCircularAnswer({ enabled: answerFirstEnabled(), query: submittedQuery, results: isLoading ? [] : results, mode, allowSummary: !looksLikeNameSearch(submittedQuery) && !isIdQuery((submittedQuery || "").trim()) });
   // The documents the answer already cites are not listed a second time below it: the answer's source line is their one link.
   const answeredKeys = new Set((circularAnswer.answer?.sources ?? []).map((s) => `${s.type}-${s.id}`));
   const { openModal } = useModal();
@@ -747,17 +748,27 @@ export function OmnibarModal({
     }
     if (result.type === "announcement") {
       e.preventDefault();
-      // Search rows carry only plain text; fetch the full announcement (with
-      // its rich-text HTML) so the modal renders formatting correctly.
-      fetch(`/api/announcements/${result.id}`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data) setSelectedAnnouncement(data);
-        })
-        .catch(() => {
-          // Non-fatal: if the fetch fails, simply do nothing.
-        });
+      // a result found inside the PDF: the window shows the PDF at that page
+      openAnnouncement(realSourceId(result.id), result.matchInPdf ? result.matchPage ?? null : null);
     }
+  };
+
+  // Search rows carry only plain text; fetch the full announcement (with its rich-text HTML) so the modal renders formatting correctly.
+  const openAnnouncement = (id: number, pdfPage: number | null) => {
+    fetch(`/api/announcements/${id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setSelectedAnnouncement({ ...data, pdfPage });
+      })
+      .catch(() => {
+        // Non-fatal: if the fetch fails, simply do nothing.
+      });
+  };
+
+  // A source of a deep summary: a circular (its viewer) or an announcement (its window). An announcement travels under a moved number (sourceKey.ts).
+  const openEdsSource = (id: number) => {
+    if (isAnnouncementSourceId(id)) openAnnouncement(realSourceId(id), null);
+    else setSelectedCircularId(id);
   };
 
   const activeMatchedCircular = selectedCircularId
@@ -1568,7 +1579,7 @@ export function OmnibarModal({
                         {mode === "intellectual" && synthesis && (
                           <ExecutiveBriefing
                             data={synthesis}
-                            onOpenCircular={setSelectedCircularId}
+                            onOpenCircular={openEdsSource}
                             question={submittedQuery}
                           />
                         )}
@@ -1576,7 +1587,12 @@ export function OmnibarModal({
                         {mode === "semantic" && (
                           <CircularAnswerCard
                             state={circularAnswer}
-                            onOpenSource={(id, target) => {
+                            onOpenSource={(id, target, type) => {
+                              // an announcement opens in its own window, at the page of the PDF the answer came from; closing it brings this window back as it was
+                              if (type === "announcement") {
+                                openAnnouncement(id, target?.page ?? null);
+                                return;
+                              }
                               setBannerDismissed(false);
                               // the viewer opens on the page of the answer and shows the answer's own words (not the search's best clause)
                               setSourceViewer(target?.page ? { pages: [target.page] } : null);
@@ -1773,10 +1789,29 @@ export function OmnibarModal({
                                               )
                                             : "No date"}
                                         </span>
+                                        {result.type === "announcement" && result.matchInPdf && (
+                                          <>
+                                            <span>&bull;</span>
+                                            <span data-match-in-pdf className="font-semibold text-red-600">
+                                              In the PDF{result.matchPage ? `, page ${result.matchPage}` : ""}
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
 
+                                  {/* an announcement found by what its PDF says: the passage, so the reader sees why it matched */}
+                                  {result.type === "announcement" && result.matchInPdf && !result.isPerfectMatch && result.chunkText && (
+                                    <div data-pdf-passage className="ml-12 mt-1 flex items-start gap-3 rounded-md bg-neutral-50 p-2 text-xs leading-relaxed text-neutral-600">
+                                      {result.matchPage ? (
+                                        // the picture of the page the words are on, as the search index kept it (hidden if there is none)
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img src={`/api/announcements/${realSourceId(result.id)}/page/${result.matchPage}`} alt={`Page ${result.matchPage} of the PDF`} data-pdf-page-picture loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} className="h-24 w-auto shrink-0 rounded border border-neutral-200 bg-white object-contain" />
+                                      ) : null}
+                                      <span>&quot;{generateSmartSnippet(result.chunkText, query)}&quot;</span>
+                                    </div>
+                                  )}
                                   {result.isPerfectMatch &&
                                     result.chunkText &&
                                     mode === "semantic" && (
@@ -1941,6 +1976,7 @@ export function OmnibarModal({
           announcement={selectedAnnouncement}
           onClose={() => setSelectedAnnouncement(null)}
           highlightQuery={query}
+          pdfPage={selectedAnnouncement.pdfPage ?? null}
         />
       )}
 

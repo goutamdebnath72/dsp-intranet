@@ -8,6 +8,9 @@ import type { Actor } from "@/lib/facility/types";
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { FileStorage, UploadedPdf } from "@/lib/announcements/attachment";
 import * as store from "./store";
+import { fileOf } from "./files";
+import { describeOutcome, indexAnnouncement, type IndexDeps, type IndexOutcome } from "@/lib/announcements/searchIndex/indexer";
+import { htmlToPlainText, sanitizeAnnouncementHtml } from "@/lib/announcements/contentProcessing";
 import type { AnnouncementDb } from "./store";
 
 export interface ApiContext {
@@ -19,6 +22,8 @@ export interface ApiContext {
   upload?: UploadedPdf | null;
   /** where PDFs are kept (the real storage when left out) */
   storage?: FileStorage;
+  /** how an announcement is prepared for the search bar (the real parts when the route gives them; left out = nothing is prepared, as in the tests of the rest) */
+  indexDeps?: IndexDeps;
 }
 
 export interface ApiReply {
@@ -48,6 +53,7 @@ const OPS = new Set([
   "grant",
   "revoke",
   "audit",
+  "reindex",
 ]);
 
 const HOD_OPS = new Set(["delegates", "find-executive", "grant", "revoke"]);
@@ -104,6 +110,17 @@ export async function findPeopleToAuthorise(q: string, ctx: Pick<ApiContext, "fi
   }));
 }
 
+/** The plain words of a body as it will be saved (what the passages are made from). */
+function plainBody(content: string): string | null {
+  return htmlToPlainText(sanitizeAnnouncementHtml(content)) || null;
+}
+
+/** Prepares the announcement for the search bar and says in a sentence what happened. Never throws. */
+async function indexAndDescribe(db: AnnouncementDb, deps: IndexDeps, input: { id: number; bodyText: string | null; bytes?: Buffer }): Promise<{ status: IndexOutcome["status"]; message: string }> {
+  const outcome = await indexAnnouncement(db, deps, input);
+  return { status: outcome.status, message: describeOutcome(outcome) };
+}
+
 export async function handleAnnouncementAdmin(body: unknown, ctx: ApiContext): Promise<ApiReply> {
   const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const op = typeof b.op === "string" ? b.op : "";
@@ -131,7 +148,9 @@ export async function handleAnnouncementAdmin(body: unknown, ctx: ApiContext): P
     const date = typeof b.date === "string" ? b.date : undefined;
     const res = await store.publishAnnouncement(ctx.db, actor, { title, content, date, file: ctx.upload ?? undefined }, ctx.storage);
     if (res.status === "invalid") return reply(400, { error: res.reason });
-    return reply(200, { status: "ok", id: res.id });
+    // Its text, and the PDF that came with it, are prepared for the search bar now (a failure never fails the publish: the reply says what happened)
+    const indexing = ctx.indexDeps ? await indexAndDescribe(ctx.db, ctx.indexDeps, { id: res.id, bodyText: plainBody(content), bytes: ctx.upload?.bytes }) : undefined;
+    return reply(200, { status: "ok", id: res.id, ...(indexing ? { indexing } : {}) });
   }
 
   // 3. Modify Announcement (Protected with Concurrency Guard)
@@ -155,7 +174,28 @@ export async function handleAnnouncementAdmin(body: unknown, ctx: ApiContext): P
       });
     }
     if (res.status === "invalid") return reply(400, { error: res.reason });
-    return reply(200, { status: "ok" });
+    // The text is prepared again (it may have changed); the PDF only if a new one came (a kept PDF keeps its index)
+    const indexing = ctx.indexDeps ? await indexAndDescribe(ctx.db, ctx.indexDeps, { id, bodyText: plainBody(content), bytes: ctx.upload?.bytes }) : undefined;
+    return reply(200, { status: "ok", ...(indexing ? { indexing } : {}) });
+  }
+
+  // 3b. Prepare an announcement for the search bar again (its text or its PDF failed, or was never prepared): the text from the database, the PDF from storage
+  if (op === "reindex") {
+    const id = num(b.id);
+    if (!id) return reply(400, { error: "Missing announcement id." });
+    if (!ctx.indexDeps) return reply(503, { error: "Preparing an announcement for the search bar is not available here." });
+    const found = await ctx.db.run(async (q) => {
+      const rows = await q(`SELECT "contentText" FROM public.announcement WHERE id = $1`, [id]);
+      return rows[0] ? { bodyText: rows[0].contentText == null ? null : String(rows[0].contentText), file: await fileOf(q, id) } : null;
+    });
+    if (!found) return reply(404, { error: "Announcement not found." });
+    let bytes: Buffer | undefined;
+    if (found.file) {
+      const got = await (ctx.storage ?? ctx.indexDeps.storage).get(found.file.url).catch(() => null);
+      if (!got) return reply(502, { error: "The PDF could not be fetched from storage just now. Please try again." });
+      bytes = got;
+    }
+    return reply(200, { status: "ok", indexing: await indexAndDescribe(ctx.db, ctx.indexDeps, { id, bodyText: found.bodyText, bytes }) });
   }
 
   // 4. Delete Announcement (Protected with Concurrency Guard)

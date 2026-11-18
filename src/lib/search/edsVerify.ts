@@ -102,7 +102,7 @@ export function unusedClauses(q: string, r: SynthesisResult, contextData: string
     return codes.some((t) => used.has(t.toLowerCase())) && codes.some((t) => !used.has(t.toLowerCase()));
   };
   const clauses = contextData
-    .replace(/\[Circular id=[^\]]*\]/g, "\n") // the record header of each circular ends a clause
+    .replace(/\[(?:Circular|Announcement) id=[^\]]*\]/g, "\n") // the record header of each circular (or announcement) ends a clause
     .replace(/\d+ \| P a g e|\[handwritten:[^\]]*\]|\[logo\]/gi, " ") // page footers, signatures and logos are not clauses
     .split(/\n+|(?<=[.;])\s+(?=[A-Z*"'(“‘])|\s(?=\d{1,2}\.\d{1,2}\s+[A-Z‘“"'(])/)
     .map((c) => c.replace(/\s+/g, " ").trim())
@@ -111,7 +111,7 @@ export function unusedClauses(q: string, r: SynthesisResult, contextData: string
       // not a table row (a row is the table's business: the briefing's own table and the missing-row check carry it), not a letterhead, a date stamp or a form
       // a table row is the table's business, EXCEPT a record in which the briefing carries one code but drops another (the account number kept, its IFSC code dropped)
       if (c.includes(" | ") && !droppedCode(c)) return false;
-      return w >= 8 && w <= (c.includes(" | ") ? 170 : 100) && !/GMT[+-]\d|handwritten|\bP a g e\b|\b(?:date of (?:issue|effect)|reference no|page \d|circular id=|annexure|proforma|signature|distribution|tick)\b/i.test(c) && !/\b\d{1,2}[./]\d{1,2}[./]\d{2,4}\b/.test(c);
+      return w >= 8 && w <= (c.includes(" | ") ? 170 : 100) && !/GMT[+-]\d|handwritten|\bP a g e\b|\b(?:date of (?:issue|effect)|reference no|page \d|(?:circular|announcement) id=|annexure|proforma|signature|distribution|tick)\b/i.test(c) && !/\b\d{1,2}[./]\d{1,2}[./]\d{2,4}\b/.test(c);
     });
   const seen = new Set<string>();
   const out: Array<{ c: string; shared: number }> = [];

@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { SearchResultRow } from "./titleSearch";
 import { buildSourceNames, sanitizeSourceRefs } from "./sourceRefs";
 import { GeminiError, geminiGenerate, synthesisModels, type ThinkingLevel } from "../ai/geminiChat";
+import { isAnnouncementSourceId } from "./sourceKey";
 import { scoreBriefing, pickBest, isMagnitudeNotShare, smallNumbersIn, subjectQualifiers, stemsOf, STORE_MIN_SCORE, type BriefingScore, type ScoreContext } from "./edsQuality";
 import type { EdsRow, EdsStore } from "./edsStore";
 import { withKpiCards } from "./kpiFromTable";
@@ -408,6 +409,21 @@ HARD ACCURACY RULES:
 - 2 or 3 table columns only. Keep the table to the rows that matter.
 - Output strictly parseable JSON. No prose outside the JSON.`;
 
+/**
+ * Said to the writer ONLY when an announcement is among the sources (a briefing made from circulars alone reads exactly what it always read, and its stored copies stay valid). Announcements are short notices of
+ * the plant, often bound to a period, so the rules are about dates and about never presenting an old notice as current.
+ */
+export const ANNOUNCEMENT_BRIEF = `ANNOUNCEMENTS AMONG THE RECORDS: a record headed [Announcement id=...] is an announcement of the plant (a short notice, often tied to a period), not a circular; its content is its body text and/or the text of the PDF attached to it. Use it exactly as you use a circular: read it, and cite it by its id in "sources" (the rule "id must be one of the provided [Circular id=...] values" covers [Announcement id=...] too). Name it in text only by its "cite as" label or its title, never by its id. An announcement's Date is the day it was published; the dates INSIDE it (effective from, last date, closure period, deadline) say what it holds for: report them as stated, never say it still applies after the period it names, and when its Date is older than the inquiry's time say so. Where an announcement and a circular, or two announcements, differ on the same point, give each with its source and date; do not choose silently. An announcement that does not answer the inquiry is not cited.`;
+
+/** The part of a stored briefing's validity that the circulars' fingerprint cannot know: WHICH announcements it was made from and what they said. Empty when there is none (a briefing from circulars alone is unchanged). */
+export function announcementFingerprint(records: SearchResultRow[]): string {
+  const ann = records.filter((r) => isAnnouncementSourceId(r.id));
+  if (ann.length === 0) return "";
+  const h = createHash("sha256");
+  for (const r of [...ann].sort((a, b) => a.id - b.id)) h.update(`${r.id}\u0001${r.headline ?? ""}\u0001${r.chunkText ?? ""}\u0002`);
+  return `|a:${h.digest("hex").slice(0, 16)}`;
+}
+
 /** A short signature of the prompt: part of the key of a stored briefing, so a changed prompt can never serve a briefing made with the old one. */
 const PROMPT_SIG = createHash("sha256").update(SYSTEM_PROMPT).digest("hex").slice(0, 10);
 
@@ -499,6 +515,8 @@ export async function executeExecutiveSynthesis(
     }
   }
 
+  fingerprint += announcementFingerprint(records); // a briefing made from announcements is valid only while those announcements, as they were read, are the same
+
   const mem = memory.get(key);
   if (mem && mem.fingerprint === fingerprint && (storeUsable || Date.now() - mem.at < MEMORY_TTL_NO_STORE_MS)) return mem.result;
 
@@ -551,14 +569,14 @@ async function makeBriefing(
   const contextData = sources
     .map(
       (r) =>
-        `[Circular id=${r.id}${labels?.get(r.id) ? ` | cite as: ${labels.get(r.id)}` : ""}${qualifiersBySource[r.id]?.length ? ` | situation: ${qualifiersBySource[r.id].join("; ")}` : ""}] Title: ${r.headline} (Date: ${
+        `[${isAnnouncementSourceId(r.id) ? "Announcement" : "Circular"} id=${r.id}${labels?.get(r.id) ? ` | cite as: ${labels.get(r.id)}` : ""}${qualifiersBySource[r.id]?.length ? ` | situation: ${qualifiersBySource[r.id].join("; ")}` : ""}] Title: ${r.headline} (Date: ${
           r.publishedAt || "N/A"
         })\nContent:\n${condenseForSynthesis(r.chunkText || "", perSourceBudget)}`,
     )
     .join("\n\n---\n\n");
 
   const userPrompt = `Inquiry: "${q}"
-
+${sources.some((r) => isAnnouncementSourceId(r.id)) ? `\n${ANNOUNCEMENT_BRIEF}\n` : ""}
 Official Circular Records:
 ${contextData}
 

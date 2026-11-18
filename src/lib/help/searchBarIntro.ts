@@ -39,7 +39,7 @@ export const AREAS: IntroArea[] = [
   { label: "Holidays", detail: "closed, festival and restricted holidays, by festival, month or year, and comparisons between years" },
   { label: "Hospital OPDs and doctors", detail: "which doctor sits when, and in which OPD" },
   { label: "PAX telephone numbers", detail: "of a few important locations" },
-  { label: "Announcements and intranet sites", detail: "type a site or department name and its link appears as you type" },
+  { label: "Announcements and intranet sites", detail: "find an announcement by its title, by the words of its text, or by what its attached PDF says (the PDF is read when the announcement is published); ask a question and get the answer from inside it. A site or department name shows its intranet link as you type" },
 ];
 
 /** what the search bar's main features cannot do yet, said plainly (what the Utility Services cannot do is on their own tab) */

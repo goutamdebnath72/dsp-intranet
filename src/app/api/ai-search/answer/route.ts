@@ -7,6 +7,8 @@
 // Generic: it knows nothing about any particular circular. Off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true (404 otherwise).
 // Traced like every search: x-omni-* headers and one "[front-path] answer ..." console line with the model's exact tokens.
 
+import { summariseFromPassages } from "@/lib/search/documentSummary";
+import { announcementAnswerChunks } from "@/lib/announcements/searchIndex/answerChunks";
 import { toIsoInstant } from "@/lib/dates";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
@@ -60,7 +62,9 @@ async function loadDocs(items: { type: PassageType; id: number }[]): Promise<Doc
       const rows = await db.query(`SELECT id, title, "contentText", date FROM announcement WHERE id = $1`, [it.id]);
       if (!rows[0]) continue;
       const r = rows[0];
-      docs.push({ type: "announcement", id: it.id, title: String(r.title), date: r.date ? toIsoInstant(r.date) : null, chunks: [{ page: null, index: 0, text: String(r.contentText ?? "") }] });
+      // its body text, then what its PDF says (read page by page for the search bar); no PDF index (or no table yet) = the body alone
+      const pdfRows = await db.query(`SELECT chunk_index, page, text FROM public.announcement_chunk WHERE announcement_id = $1 AND source = 'pdf' ORDER BY chunk_index`, [it.id]).catch(() => []);
+      docs.push({ type: "announcement", id: it.id, title: String(r.title), date: r.date ? toIsoInstant(r.date) : null, chunks: announcementAnswerChunks(r.contentText, pdfRows) });
     }
   }
   return docs;
@@ -90,10 +94,18 @@ async function handle(request: Request, info: { q: string }) {
     endLoad();
     const passages = buildPassages(q, docs);
     const endModel = traceStep("model");
-    const result = await answerFromPassages(q, passages, chatLlm({ maxTokens: 2500 }));
+    // A STRONG match is first tried for a precise, verified answer. A weaker match, or a strong one that cannot be proved, gets a SUMMARY (documentSummary.ts): a reply that found a circular or an announcement
+    // always carries one, and says when the document does not answer the question.
+    const strong = body?.strong === true;
+    const result = strong ? await answerFromPassages(q, passages, chatLlm({ maxTokens: 2500 })) : null;
+    if (result) logAnswer(q, passages, result); // only when ANSWER_LOG_FILE is set: the attempt, the model's reply and the passages, for scripts/answer-replay.ts
+    if (result?.ok) {
+      endModel();
+      return NextResponse.json({ answer: result.value });
+    }
+    const summary = await summariseFromPassages(q, passages, chatLlm({ maxTokens: 700 }));
     endModel();
-    logAnswer(q, passages, result); // only when ANSWER_LOG_FILE is set: the attempt, the model's reply and the passages, for scripts/answer-replay.ts
-    return NextResponse.json(result.ok ? { answer: result.value } : { answer: null, reason: result.reason });
+    return NextResponse.json({ answer: null, ...(summary ? { summary } : {}), reason: result && !result.ok ? result.reason : "weak_match" });
   } catch (e) {
     console.error("[answer] failed:", e);
     return NextResponse.json({ answer: null, reason: "error" }, { status: 200 });

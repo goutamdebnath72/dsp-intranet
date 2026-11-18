@@ -30,12 +30,15 @@ type Props = {
   onClose: () => void;
   // When opened from a search result, the query to highlight in the body.
   highlightQuery?: string;
+  /** opened from a search result that was found inside the PDF: the page of the PDF with the words (the window shows the PDF there) */
+  pdfPage?: number | null;
 };
 
 export default function AnnouncementModal({
   announcement,
   onClose,
   highlightQuery,
+  pdfPage,
 }: Props) {
   // This line is correct because the date is a string from the API
   const announcementDate = DateTime.fromISO(announcement.date);
@@ -132,12 +135,12 @@ export default function AnnouncementModal({
           ) : null}
           {file && (
             <div className={safeHtml ? "mt-5" : ""}>
-              <AnnouncementFile id={announcement.id} file={file} startOpen={!safeHtml} onOpenFull={openPdf} />
+              <AnnouncementFile id={announcement.id} file={file} startOpen={!safeHtml} onOpenFull={openPdf} page={pdfPage} />
             </div>
           )}
         </div>
       </div>
-      {file && <AnnouncementPdfViewer open={pdfOpen} id={announcement.id} title={announcement.title} fileName={file.name} onClose={() => setPdfOpen(false)} />}
+      {file && <AnnouncementPdfViewer open={pdfOpen} id={announcement.id} title={announcement.title} fileName={file.name} onClose={() => setPdfOpen(false)} page={pdfPage} />}
     </div>
   );
 }

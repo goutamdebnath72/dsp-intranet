@@ -159,11 +159,14 @@ export function AnnouncementCard({
   item,
   onEdit,
   onDelete,
+  onReindex,
   busy,
 }: {
   item: AnnouncementItemView;
   onEdit?: (item: AnnouncementItemView) => void;
   onDelete?: (item: AnnouncementItemView) => void;
+  /** reads the PDF for the search bar again (shown for a PDF that was not read, or could not be) */
+  onReindex?: (item: AnnouncementItemView) => void;
   busy?: boolean;
 }) {
   const formattedDate = DateTime.fromISO(item.date).setZone(IST).toFormat("dd MMM yyyy, hh:mm a");
@@ -228,6 +231,7 @@ export function AnnouncementCard({
             <FileText className="h-3.5 w-3.5" aria-hidden="true" /> PDF: {item.file.name} · {formatBytes(item.file.bytes)}
           </p>
         )}
+        {item.file && <PdfSearchState item={item} onReindex={onReindex} busy={busy} />}
       </div>
     </div>
   );
@@ -414,5 +418,50 @@ export function HistoryList({ history }: { history: AnnouncementAuditView[] }) {
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * How the announcement went into the search index: its PDF (read from its own text, or by AI where a page had none; searchable inside, or not and why) and its text. A part that is not in order says so, and one
+ * button prepares the announcement again.
+ */
+export function PdfSearchState({ item, onReindex, busy }: { item: AnnouncementItemView; onReindex?: (item: AnnouncementItemView) => void; busy?: boolean }) {
+  const pdf = item.searchIndex?.pdf ?? null;
+  const body = item.searchIndex?.body ?? null;
+  const bodyFailed = body?.status === "failed";
+  if (!item.file && !bodyFailed) return null;
+  const pdfOk = !!item.file && pdf?.status === "ready";
+  const button = onReindex ? (
+    <button type="button" disabled={busy} onClick={() => onReindex(item)} data-pdf-reindex className="rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 hover:!text-amber-900 disabled:opacity-50 cursor-pointer">
+      Index again
+    </button>
+  ) : null;
+  const lines: React.ReactNode[] = [];
+  if (item.file && pdf?.status === "ready") {
+    const how = pdf.ocrPages ? `: ${pdf.textPages ?? 0} from its own text, ${pdf.ocrPages} read by AI` : "";
+    lines.push(
+      <p key="pdf" data-pdf-search="ready" className="text-[11px] font-semibold text-emerald-700">
+        Searchable inside: the search bar finds words in this PDF{pdf.pages ? ` (${pdf.pages} page${pdf.pages === 1 ? "" : "s"} read${how})` : ""}.{pdf.note ? ` ${pdf.note}` : ""}
+      </p>,
+    );
+  } else if (item.file) {
+    lines.push(
+      <p key="pdf" data-pdf-search={pdf ? "failed" : "unread"} className="text-[11px] font-semibold text-amber-700">
+        {pdf ? `Not searchable inside: ${pdf.note || "the PDF could not be read"}.` : "Not prepared for the search bar yet (only its title is searchable)."}
+      </p>,
+    );
+  }
+  if (bodyFailed) {
+    lines.push(
+      <p key="body" data-body-search="failed" className="text-[11px] font-semibold text-amber-700">
+        The text was not indexed for the search bar: {body?.note || "it could not be done"} (its words are still found literally).
+      </p>,
+    );
+  }
+  return (
+    <div className="space-y-1">
+      {lines}
+      {!(pdfOk && !bodyFailed) && button && <div>{button}</div>}
+    </div>
   );
 }

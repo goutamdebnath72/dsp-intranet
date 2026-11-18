@@ -22,7 +22,7 @@ export const MODELS = {
 
 /** what EDS covers now and what it will cover */
 export const SCOPE = {
-  now: "Today EDS works on uploaded circulars only.",
+  now: "Today EDS works on uploaded circulars and on announcements (their text and the text of their PDFs).",
   later: "After its success, and when reliable, true data becomes available, it will be extended to many more scopes.",
   honest: "EDS is still being improved and is not yet perfect: it can miss a point or word something loosely. Open the circular behind every finding (the numbered chips) and check it before you act on it.",
   who: "It is for signed-in executives (a six-digit ticket starting with 4). A visitor who has not signed in is asked \"Are you an executive?\" and, if not, gets the simple answer of the normal search.",
@@ -30,9 +30,9 @@ export const SCOPE = {
 
 export interface Example { kind: string; question: string; gets: string }
 export const WHAT_IS = {
-  lead: "A normal search finds the circular that answers one question. A deep search (EDS) is for a question that no single circular can answer, because the answer has to be built from several circulars, years or versions put side by side.",
+  lead: "A normal search finds the circular that answers one question. A deep search (EDS) is for a question that no single circular can answer, because the answer has to be built from several circulars (and announcements), years or versions put side by side.",
   points: [
-    "It reads the full text of the best-matching circulars (up to five), not just a snippet.",
+    "It reads the full text of the best-matching circulars and announcements (up to five together), not just a snippet. An announcement is read as its text plus the text of its attached PDF; it is dated by the day it was published, and the dates inside it are reported as stated.",
     "It writes one briefing: an overview, findings, tables and, where the figures allow, charts and number cards. Every finding names the circulars it comes from, and a chip opens that circular.",
     "Where the circulars do not state something it says so (\"Not stated in circular\"); it does not fill the gap.",
     "A second AI reads the briefing against the circulars and plain code removes or corrects what the circulars do not support.",

@@ -96,7 +96,7 @@ AVAILABLE TOOLS & PARAMETERS:
    - "number": intercom number if asking who holds it
 
 7. "conversational":
-   For greetings ("hi", "hello"), capability questions ("what can you do?"), or pleasantries.
+   For greetings ("hi", "hello"), capability questions ("what can you do?"), or pleasantries. NEVER for a line that names something to look up (a rule, a notice, a procedure, a fact, a time limit, a number, a name): such a line is "circular_search", even when it is short or you do not recognise the subject.
    Parameters:
    - "reply": friendly, professional response introducing your capabilities across DSP intranet (one or two sentences)
 
@@ -113,6 +113,14 @@ const HOSPITAL_ACTIONS = new Set(["doctor_schedule", "list_doctors", "department
 const EMPLOYMENT = new Set(["permanent", "contractual", "all"]);
 /** A ticket, a P.No or a phone number in the question: never sent to a third party just to be routed; the employee engine handles these. */
 const ID_LIKE = /\b\d{6}\b|\b\d{10}\b|\bd\d{6}\b/i;
+/**
+ * A line that really is small talk or a question about the assistant itself. The model's word "conversational" is believed ONLY for such a line: a line about a notice, a rule or a fact ("OTP valid for five minutes") that
+ * the model misreads as chatter must go on to the search, which answers it from the documents ("a wrong guess must never replace a right answer").
+ */
+export const CHATTY_LINE = new RegExp(
+  String.raw`\b(?:hi+|hello|hey+|namaste|namaskar|good\s+(?:morning|afternoon|evening|night)|thanks?|thank\s+you|thx|dhanyavad|shukriya|bye|goodbye|ok(?:ay)?|cool|great|nice|how\s+are\s+you|kaise\s+ho|who\s+are\s+you|who\s+made\s+you|what\s+are\s+you|what\s+(?:can|do)\s+you|what\s+is\s+this|can\s+you\s+help|are\s+you\s+(?:there|a\s+bot|real)|your\s+name|about\s+yourself|introduce\s+yourself)\b`,
+  "i",
+);
 const GREETING_ONLY = /^\s*(hi|hello|hey|namaste|good\s+(morning|afternoon|evening)|who\s+are\s+you|what\s+can\s+you\s+do|help)\W*$/i;
 
 const cap = (v: unknown, n = 120): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : null);
@@ -179,6 +187,8 @@ export async function parseQueryWithLlm(
     return null;
   }
   if (!parsed || typeof parsed !== "object" || !TOOLS.has(parsed.tool)) return null;
+  // small talk is believed only when the line is small talk; otherwise the original pipeline (the search) answers it
+  if (parsed.tool === "conversational" && !CHATTY_LINE.test(q)) return null;
 
   // Only known parameters, as short strings: nothing the model returns is trusted further than this.
   const p = parsed.params && typeof parsed.params === "object" ? parsed.params : {};

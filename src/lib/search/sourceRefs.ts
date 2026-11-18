@@ -29,10 +29,10 @@ export function buildSourceNames(
 }
 
 // An id never starts with 0, so "Circular 007" (a serial number) is NOT read as the id 7 -- this also keeps the clean-up idempotent.
-const NUM = String.raw`[1-9]\d{0,5}`;
+const NUM = String.raw`[1-9]\d{0,6}`; // up to 7 digits: an announcement travels as 1,000,000 + its id (sourceKey.ts)
 const LIST = String.raw`${NUM}(?:\s*(?:,|and|&)\s*${NUM})*`;
 // "Circular 49", "circular #49", "Circular no. 49", "Circulars 49 and 51", "Circular id=49", "[Circular id=49]", "Circular 49 (2026)"
-const REF = new RegExp(String.raw`\[?\bcirculars?\s+(?:#|no\.?\s*|number\s+|id\s*[=:]?\s*)?(${LIST})\b(?!\s*[/.\-]\s*\d)(?:\s*\(\s*(?:19|20)\d\d\s*\))?\]?`, "gi");
+const REF = new RegExp(String.raw`\[?\b(?:circulars?|announcements?)\s+(?:#|no\.?\s*|number\s+|id\s*[=:]?\s*)?(${LIST})\b(?!\s*[/.\-]\s*\d)(?:\s*\(\s*(?:19|20)\d\d\s*\))?\]?`, "gi");
 // a bare "(id 49)" / "(id=49)" / "(ids: 49, 51)"
 const PAREN_ID = new RegExp(String.raw`\s*\(\s*ids?\s*[=:]?\s*(${LIST})\s*\)`, "gi");
 

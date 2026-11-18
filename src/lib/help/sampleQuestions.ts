@@ -249,7 +249,7 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
     covers: "Announcements and happenings, and the links to the intranet's sites and departments' pages.",
     tips: [
       "A site or department name, in full, in short form or in part, shows its link under Intranet Sites with an Open button that launches the site in a new tab. A site not yet linked still appears, marked \"Link not available yet\". Typing just a department name brings up its site link.",
-      "Announcements are searched by title and by content like circulars.",
+      "Announcements are searched like circulars: by title, by the words of their text, and by what their attached PDF says (a PDF is read when the announcement is published, so an announcement that is only a title and a PDF is found by what the PDF says). A result found inside a PDF says \"In the PDF, page N\" and opens the PDF at that page.",
     ],
     questions: [
       { q: "ERP", note: "the site appears under Intranet Sites; no Enter", instant: true },
@@ -257,6 +257,8 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
       { q: "e-Str", note: "a short form of a site name", instant: true },
       { q: "C&IT", note: "the department's site link; add a name and press Enter for its people", instant: true },
       { q: "Which theme was chosen for SAIL Gaurav Diwas?" },
+      { q: "procedure for digital signature certificate", note: "an announcement, found by its title" },
+      { q: "who do I contact for DSC queries", note: "an answer from inside the announcement's PDF; it opens at the page, once the PDF has been read" },
     ],
   },
 ];

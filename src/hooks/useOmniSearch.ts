@@ -21,6 +21,7 @@ export interface OmniSearchResult {
   isPerfectMatch?: boolean;
   matchPage?: number | null; // page of the best-matching chunk (viewer jump target)
   matchPages?: number[]; // all pages that contain a match
+  matchInPdf?: boolean; // an announcement found by what its PDF says (matchPage is a page of that PDF)
 }
 
 export interface AnalyticsBreakdownRow {

@@ -22,6 +22,7 @@ import type { Actor, FacilityDb, QueryFn } from "@/lib/facility/types";
 import { blobFileStorage, checkPdf, type FileStorage, type UploadedPdf } from "@/lib/announcements/attachment";
 import { dropFile, ensureFileTable, fileOf, filesOf, saveFile, type StoredFile } from "./files";
 import { stripPdfLinks } from "@/lib/announcements/pdfLink";
+import { dropPdfIndex, indexStateOf, pageUrlsOf } from "@/lib/announcements/searchIndex/tables";
 import type { AnnouncementItemView } from "./types";
 
 export type AnnouncementDb = FacilityDb;
@@ -108,6 +109,7 @@ export async function listRecentAnnouncements(
 
     const now = DateTime.now();
     const files = await filesOf(q, rows.map((r: any) => Number(r.id))); // the PDFs (name and size only); none if the table is not there yet
+    const indexes = await indexStateOf(q, rows.map((r: any) => Number(r.id))); // how each announcement's text and PDF went into the search index; none if the table is not there yet
 
     return rows.map((r: any) => {
       const createdAt = r.createdAt ? toDateTime(r.createdAt) : now;
@@ -130,6 +132,7 @@ export async function listRecentAnnouncements(
         hoursLeft,
         version: announcementVersion(r),
         file: files.get(Number(r.id)) ?? null,
+        searchIndex: indexes.get(Number(r.id)) ?? null,
       };
     });
   });
@@ -198,8 +201,9 @@ export async function publishAnnouncement(
     throw e;
   }
 
-  // Non-blocking embedding generation
-  void embedAnnouncement(id, title, contentText);
+  // Non-blocking embedding generation. With a PDF it is made later, by the PDF's reading (src/lib/announcements/searchIndex/indexer.ts), from title, body and the PDF's text together: a vector made now from the title
+  // alone could land after that one and replace it.
+  if (!stored) void embedAnnouncement(id, title, contentText);
 
   return { status: "ok", id };
 }
@@ -236,6 +240,7 @@ export async function modifyAnnouncement(
     stored = { url, name: pdf.name, bytes: input.file.bytes.length };
   }
   let replacedUrl: string | null = null;
+  let droppedPictures: string[] = []; // the page pictures of the PDF that goes (replaced or removed): out of storage after the commit
   let result: ModifyResult;
   try {
     result = await modifyInTransaction();
@@ -245,8 +250,9 @@ export async function modifyAnnouncement(
   }
   if (result.status !== "ok") {
     if (stored) await storage.del([stored.url]).catch(() => {});
-  } else if (replacedUrl) {
-    await storage.del([replacedUrl]).catch(() => {});
+  } else {
+    const gone = [...(replacedUrl ? [replacedUrl] : []), ...droppedPictures];
+    if (gone.length) await storage.del(gone).catch(() => {});
   }
   return result;
 
@@ -313,6 +319,7 @@ export async function modifyAnnouncement(
       await ensureFileTable(q);
       replacedUrl = (await fileOf(q, input.id))?.url ?? null;
       await saveFile(q, input.id, stored, actor.ticket);
+      droppedPictures = await dropPdfIndex(q, input.id); // the text and pictures of the PDF it replaces are no longer those of the PDF: the new one is read after the commit
       fileNote = ` PDF ${replacedUrl ? "replaced" : "attached"}: ${stored.name}.`;
       hasFile = true;
     } else if (input.removeFile) {
@@ -320,6 +327,7 @@ export async function modifyAnnouncement(
       if (prev) {
         replacedUrl = prev.url;
         await dropFile(q, input.id);
+        droppedPictures = await dropPdfIndex(q, input.id); // what the removed PDF said is no longer searchable
         fileNote = ` PDF removed: ${prev.name}.`;
       }
       hasFile = false;
@@ -343,8 +351,9 @@ export async function modifyAnnouncement(
       note: fileNote ? `Updated announcement.${fileNote}` : "Updated announcement",
     });
 
-    // Re-index embedding asynchronously
-    void embedAnnouncement(input.id, title, contentText);
+    // Re-index embedding asynchronously. A new PDF: its reading makes the vector (see publish). A removed PDF: made without any PDF text (the index rows are not yet gone for another connection). Otherwise: the vector
+    // still includes what the kept PDF says (embedAnnouncement reads it).
+    if (!stored) void embedAnnouncement(input.id, title, contentText, input.removeFile ? null : undefined);
 
     return { status: "ok" };
   });
@@ -368,6 +377,7 @@ export async function deleteAnnouncement(
   storage: FileStorage = blobFileStorage(),
 ): Promise<DeleteResult> {
   let deletedFileUrl: string | null = null;
+  let deletedPictures: string[] = [];
   const result = await db.run(async (q): Promise<DeleteResult> => {
     const role = await begin(q, "announcement", actor);
     const isHod = role === "hod";
@@ -424,6 +434,7 @@ export async function deleteAnnouncement(
     }
 
     const file = await fileOf(q, input.id); // its PDF goes with it (the row by cascade; the file in storage after the commit)
+    deletedPictures = await pageUrlsOf(q, input.id); // and the pictures of its pages
     await q(`DELETE FROM public.announcementreadstatus WHERE "announcementId" = $1`, [input.id]);
     await dropFile(q, input.id);
     await q(`DELETE FROM public.announcement WHERE id = $1`, [input.id]);
@@ -437,7 +448,10 @@ export async function deleteAnnouncement(
 
     return { status: "ok" };
   });
-  if (result.status === "ok" && deletedFileUrl) await storage.del([deletedFileUrl]).catch(() => {});
+  if (result.status === "ok") {
+    const gone = [...(deletedFileUrl ? [deletedFileUrl] : []), ...deletedPictures];
+    if (gone.length) await storage.del(gone).catch(() => {});
+  }
   return result;
 }
 

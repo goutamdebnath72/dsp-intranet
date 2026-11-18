@@ -36,6 +36,8 @@ export interface AnnouncementItemView {
   version: string;
   /** the PDF of the announcement (name and size; never its address), or null */
   file?: AnnouncementFileInfo | null;
+  /** how the announcement's text and its PDF went into the search index (ready or failed, and why), or null (not prepared yet) */
+  searchIndex?: import("@/lib/announcements/searchIndex/tables").IndexState | null;
 }
 
 export type AnnouncementDelegateView = DelegateView;

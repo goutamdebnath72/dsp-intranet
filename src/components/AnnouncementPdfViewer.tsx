@@ -22,19 +22,22 @@ import { fileRoute } from "@/lib/announcements/attachment";
 export const FULL_SCREEN_VIEW = "#navpanes=0&zoom=150";
 
 /** the layer itself, without the portal and the effects (so that it can be drawn and tested on the server) */
-export function PdfViewerView({ id, title, fileName, onClose }: { id: number; title: string; fileName: string; onClose: () => void }) {
+/** the same, opened on a page (the page the search found the words on) */
+export const fullScreenView = (page?: number | null): string => (page && page > 0 ? `#page=${Math.trunc(page)}&navpanes=0&zoom=150` : FULL_SCREEN_VIEW);
+
+export function PdfViewerView({ id, title, fileName, onClose, page }: { id: number; title: string; fileName: string; onClose: () => void; page?: number | null }) {
   return (
     <ViewerShell title={title} onClose={onClose} closeLabel="Close the PDF" zClass="z-[400]" escapeOwn>
       {/* the PDF takes ALL the room below the header: no margin, no width limit, no rounded frame; the browser's own thumbnail panel is closed (navpanes=0) and the page opens at 150% (zoom=150), the same size on every screen, and is read by scrolling */}
       <div role="presentation" data-pdf-viewer-canvas className="group relative min-h-0 flex-1" onClick={(e) => e.stopPropagation()}>
-        <iframe title={fileName} src={`${fileRoute(id)}${FULL_SCREEN_VIEW}`} data-pdf-viewer-frame className="absolute inset-0 h-full w-full border-0 bg-white" />
+        <iframe title={fileName} src={`${fileRoute(id)}${fullScreenView(page)}`} data-pdf-viewer-frame className="absolute inset-0 h-full w-full border-0 bg-white" />
         <PdfBarMask />
       </div>
     </ViewerShell>
   );
 }
 
-export function AnnouncementPdfViewer({ open, id, title, fileName, onClose }: { open: boolean; id: number; title: string; fileName: string; onClose: () => void }) {
+export function AnnouncementPdfViewer({ open, id, title, fileName, onClose, page }: { open: boolean; id: number; title: string; fileName: string; onClose: () => void; page?: number | null }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -52,7 +55,7 @@ export function AnnouncementPdfViewer({ open, id, title, fileName, onClose }: { 
   return createPortal(
     // a click anywhere in the layer must not reach the announcement's window behind it (its backdrop closes it)
     <div onClick={(e) => e.stopPropagation()} data-pdf-viewer-root>
-      <AnimatePresence>{open && <PdfViewerView id={id} title={title} fileName={fileName} onClose={onClose} />}</AnimatePresence>
+      <AnimatePresence>{open && <PdfViewerView id={id} title={title} fileName={fileName} onClose={onClose} page={page} />}</AnimatePresence>
     </div>,
     document.body,
   );
