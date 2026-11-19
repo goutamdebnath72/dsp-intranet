@@ -7,6 +7,7 @@ import { ModalProvider } from "@/context/ModalContext";
 import LoginModal from "@/components/LoginModal";
 import { SessionGuard } from "@/components/SessionGuard"; // Import the guard
 import AppToaster from "@/components/AppToaster";
+import ImageGuard from "@/components/ImageGuard"; // no photograph can be saved: right-click and drag are refused on pictures
 
 // Fonts are now SELF-HOSTED from /public/fonts via @font-face in globals.css.
 // The --font-poppins / --font-source-sans CSS variables are defined there too,
@@ -27,6 +28,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-neutral-100">
         <AppToaster />
+        <ImageGuard />
         <AuthProvider>
           <ModalProvider>
             {/* Wrap the content in SessionGuard to ensure tab-session integrity */}

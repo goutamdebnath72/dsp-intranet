@@ -42,7 +42,7 @@ export const CALCULATORS_LINE: { before: string; command: string; after: string;
   after: "and press Enter: it opens a menu of ready tools, which are",
   tools: [
     "Calculator (basic and scientific)",
-    "Converters (length, area, energy, power, currencies)",
+    "Converters (length, area, energy, power, colours RGB/HEX/HSL, currencies)",
     "Dates (between dates, add days, age, retirement)",
     "Loan EMI",
     "PF maturity",

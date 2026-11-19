@@ -12,7 +12,7 @@ export const dspHistoryTopic = defineTopic({
   live: {
     keys: [],
     phrases: [
-      "dsp history", "history of dsp", "durgapur steel plant history", "history of durgapur steel plant", "dsp story", "story of dsp", "dsp foundation", "foundation of dsp", "dsp founded", "who built dsp", "who built durgapur steel plant",
+      "about dsp", "about durgapur steel plant", "about the durgapur steel plant", "tell me about dsp", "tell me about durgapur steel plant", "dsp history", "history of dsp", "durgapur steel plant history", "history of durgapur steel plant", "dsp story", "story of dsp", "dsp foundation", "foundation of dsp", "dsp founded", "who built dsp", "who built durgapur steel plant",
       "dsp heads", "heads of dsp", "past heads of dsp", "former heads of dsp", "dsp past heads", "dsp chief executives", "dsp general managers", "dsp managing directors", "heads of durgapur steel plant",
       "queen elizabeth durgapur", "queen durgapur", "nehru durgapur", "bc roy durgapur", "bidhan chandra roy durgapur", "dsp first products", "sail history", "history of sail", "sail foundation", "foundation of sail", "sail units",
     ],

@@ -27,6 +27,7 @@ export const dspHistoryUi: TopicUi = {
     title: "Durgapur Steel Plant: its story and its heads",
     subtitle: "The foundation, the British collaboration, the first products, the heads of the plant, and SAIL and its units, with SAIL's photographs",
     tone: "rose",
+    notice: false,
     icon: <Landmark size={20} />,
     card: (lang) => <DspHistoryCard key={lang ?? "story|"} initialTab={readLang(lang)} />,
   },

@@ -6,17 +6,20 @@ import { defineTopic } from "@/tools/types";
 import { parseConversion } from "./units";
 import { parseEngine } from "./converterModel";
 import { parseCurrency } from "./currency";
+import { parseColour } from "./colour";
 
 export const converterTopic = defineTopic({
   id: "converter",
-  intent: { title: "Unit and currency converter", about: "Converts length, area, volume, temperature, energy, power (bhp, kW), pressure, speed, land units (bigha, katha) and currencies (dollar, euro, pound to rupees).", words: ["convert", "converter", "converters", "conversion", "unit", "units", "currency", "exchange", "dollar", "usd", "euro", "pound", "rupee", "inr", "kilometre", "km", "miles", "meter", "metre", "feet", "inch", "kilogram", "celsius", "fahrenheit", "bhp", "kw", "hp", "bigha", "katha", "acre", "hectare", "litre", "gallon", "pressure"] },
+  intent: { title: "Unit and currency converter", about: "Converts length, area, volume, temperature, energy, power (bhp, kW), pressure, speed, land units (bigha, katha) currencies (dollar, euro, pound to rupees) and colours (RGB, HEX and HSL, any to any).", words: ["convert", "converter", "converters", "conversion", "unit", "units", "currency", "exchange", "dollar", "usd", "euro", "pound", "rupee", "inr", "kilometre", "km", "miles", "meter", "metre", "feet", "inch", "kilogram", "celsius", "fahrenheit", "bhp", "kw", "hp", "bigha", "katha", "acre", "hectare", "litre", "gallon", "pressure", "rgb", "hex", "hsl", "colour", "color"] },
   form: {
     rank: 70,
-    nouns: ["unit", "units", "currency", "converter", "converters", "conversion", "convert", "length", "area", "volume", "temperature", "angle", "energy", "power", "force", "pressure", "mass", "weight", "speed", "exchange", "rate"],
+    nouns: ["unit", "units", "currency", "converter", "converters", "conversion", "convert", "length", "area", "volume", "temperature", "angle", "energy", "power", "force", "pressure", "mass", "weight", "speed", "exchange", "rate", "colour", "color", "rgb", "hex", "hsl"],
     wants: (c) => c.has(["converter", "converters", "conversion", "convert"]) && c.only(),
   },
   hits: [
     { rank: 70, detect: (q) => { const request = parseCurrency(q); return request ? { kind: "currency" as const, request } : null; } },
+    // rank 45: ahead of the forms (50), so that "colour converter" and "rgb to hex converter" open the colour card and not the unit converter's form; the reader is strict (a "#", the word hex or rgb, or "to hex"), so nothing else is taken
+    { rank: 45, detect: (q) => { const c = parseColour(q); return c ? { kind: "colour" as const, hex: c.hex } : null; } },
     { rank: 80, detect: (q) => { const result = parseConversion(q); return result ? { kind: "convert" as const, result } : null; } },
     { rank: 100, detect: (q) => { const e = parseEngine(q); return e ? { kind: "engine" as const, value: e.value, id: e.id } : null; } },
   ],
@@ -35,6 +38,10 @@ export const converterTopic = defineTopic({
     { q: "2 katha to sq m", note: "katha (also written cottah or kottah) as used in West Bengal: 720 sq ft; \"katha assam\" and \"katha bihar\" give those states' sizes", instant: true },
     { q: "bigha to decimal", note: "land units of the land records: bigha, katha, chhatak, decimal (dismil, 1/100 acre), with acre, hectare and square feet", instant: true },
     { q: "72 km/h to m/s", note: "speed", instant: true },
+    { q: "#ff5733 to rgb", note: "a colour: HEX to RGB and HSL; '#f53' (three digits) and 'hex ff5733' also work", instant: true },
+    { q: "rgb(255, 87, 51) to hex", note: "a colour: RGB to HEX and HSL; '255,87,51 to hex' and 'rgb 255 87 51' also work; type in any of the three panels of the card and the other two follow", instant: true },
+    { q: "hsl(11, 100%, 60%) to rgb", note: "a colour given as HSL (hue in degrees, saturation and lightness in per cent): the card shows it as RGB and HEX too; 'hsl 11 100 60' also works", instant: true },
+    { q: "rgb to hex to hsl", note: "the colour converter: RGB, HEX and HSL, each way, with the colour shown", instant: true },
     { q: "100 usd to inr", note: "currency", instant: true },
     { q: "1 pound in rupees", note: "currency by words", instant: true },
     { q: "euro rate today", note: "one euro in rupees", instant: true },

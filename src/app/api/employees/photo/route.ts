@@ -9,6 +9,7 @@ import { isSameOrigin } from "@/lib/employees/admin/api";
 import { sessionActor, typeormEmpDb } from "@/lib/employees/admin/access";
 import { handlePhotoGet, handlePhotoPost } from "@/lib/employees/photo/api";
 import { blobStorage } from "@/lib/employees/photo/storage";
+import { imageFetchAllowed } from "@/lib/ui/imageGuard";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  // a photograph is answered to a page that shows it, not to a request to open it on its own (the address typed, "Open image in new tab", "Save link as"); the pages ask for the data of a picture (meta=1) as JSON, which is not a picture
+  if (!new URL(request.url).searchParams.has("meta") && !imageFetchAllowed(request.headers)) return NextResponse.json({ error: "Pictures are shown in the pages of this site only." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   try {
     const url = new URL(request.url);
     const out = await handlePhotoGet(url.searchParams, await ctxOf(), request.headers.get("if-none-match"));

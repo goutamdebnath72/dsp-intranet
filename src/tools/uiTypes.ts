@@ -46,6 +46,8 @@ export interface LiveUi {
   tone: Tone;
   icon: React.ReactNode;
   card: (lang?: string) => React.ReactNode;
+  /** false: the card is drawn without the privacy and approximation notice (it has nothing to type into and gives no sums); true when not said */
+  notice?: boolean;
 }
 
 export interface TopicUi {

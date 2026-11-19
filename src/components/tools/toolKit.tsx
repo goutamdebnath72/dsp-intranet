@@ -117,11 +117,13 @@ export interface ToolShellProps {
   onBack?: () => void;
   /** the card downloads the public rate table (said in the notice) */
   rates?: boolean | string;
+  /** false: the card leaves out the privacy and approximation notice (a card that has nothing to type into and no sums, such as a reading card); true when not said */
+  notice?: boolean;
   children: React.ReactNode;
 }
 
 /** The frame of a calculator card. */
-export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClose, onBack, rates, children }: ToolShellProps) {
+export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClose, onBack, rates, notice = true, children }: ToolShellProps) {
   const t = TONES[tone];
   const calm = useReducedMotion();
   return (
@@ -162,7 +164,7 @@ export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClos
         )}
       </div>
       {children}
-      <ToolNotice rates={rates} />
+      {notice && <ToolNotice rates={rates} />}
     </motion.section>
   );
 }

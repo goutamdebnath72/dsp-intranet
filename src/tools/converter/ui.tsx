@@ -5,7 +5,7 @@
 "use client";
 
 import React from "react";
-import { ArrowLeftRight, Zap } from "lucide-react";
+import { ArrowLeftRight, Palette, Zap } from "lucide-react";
 import { ConverterCard, DEFAULT_START } from "./ConverterCard";
 import { ENGINE_IDS } from "./converterModel";
 import { ToolShell } from "@/components/tools/toolKit";
@@ -23,7 +23,7 @@ export const converterUi: TopicUi = {
     title: "Unit and currency converter",
     tone: "sky",
     icon: <ArrowLeftRight size={18} />,
-    menu: { title: "Converters", text: "Length, area, energy, power, USD/GBP/EUR…" },
+    menu: { title: "Converters", text: "Length, area, energy, power, colours (RGB/HEX/HSL), USD/GBP/EUR…" },
     rates: true,
     render: (c) => <ConverterCard start={DEFAULT_START} rates={c.rates} ratesState={c.ratesState} />,
   },
@@ -50,6 +50,11 @@ export const converterUi: TopicUi = {
         </ToolShell>
       );
     }),
+    onHit("colour", (hit) => (
+      <ToolShell title="Colour converter: RGB, HEX and HSL" subtitle="Appears as you type; type in any panel and the other two follow" tone="violet" icon={<Palette size={20} />} instant>
+        <ConverterCard tone="violet" key={`colour|${hit.hex}`} start={{ kind: "colour", from: "rgb", to: "hex", value: 0, colour: hit.hex }} rates={null} ratesState="idle" />
+      </ToolShell>
+    )),
     onHit("engine", (hit) => engineShell(<ConverterCard tone="amber" key={`engine|${hit.id}|${hit.value}`} start={{ kind: "engine", from: hit.id, to: hit.id, value: hit.value }} rates={null} ratesState="idle" />)),
   ],
 };

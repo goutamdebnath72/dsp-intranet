@@ -5,13 +5,13 @@
 import { UNITS, TEMPERATURES, type UnitKind } from "./units";
 import { CURRENCIES, convertCurrency, currencyOf, type Rates } from "./currency";
 
-export type ConvKind = UnitKind | "currency" | "engine";
+export type ConvKind = UnitKind | "currency" | "engine" | "colour";
 
-export const CONV_KINDS: ConvKind[] = ["length", "area", "volume", "mass", "temperature", "angle", "energy", "force", "power", "engine", "pressure", "speed", "time", "currency"];
+export const CONV_KINDS: ConvKind[] = ["length", "area", "volume", "mass", "temperature", "angle", "energy", "force", "power", "engine", "pressure", "speed", "time", "colour", "currency"];
 
 export const KIND_NAMES: Record<ConvKind, string> = {
   length: "Length", area: "Area", volume: "Volume", mass: "Mass", temperature: "Temperature", angle: "Angle", energy: "Energy",
-  force: "Force", power: "Power", engine: "Engine power (PS · bhp · kW)", pressure: "Pressure", speed: "Speed", time: "Time", currency: "Currency",
+  force: "Force", power: "Power", engine: "Engine power (PS · bhp · kW)", pressure: "Pressure", speed: "Speed", time: "Time", colour: "Colour (RGB · HEX · HSL)", currency: "Currency",
 };
 
 export interface UnitOption {
@@ -23,6 +23,7 @@ const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s)
 
 /** The units of a kind, as the two dropdowns list them ("Mechanical horsepower", "Metric horsepower (PS)", "US dollar (USD)"). */
 export function optionsFor(kind: ConvKind): UnitOption[] {
+  if (kind === "colour") return []; // a colour is three numbers and a HEX, not a unit and a factor: it has its own panel (ColourPanel.tsx)
   if (kind === "engine") return ENGINE_UNITS.map((e) => ({ id: e.id, label: `${e.short} · ${e.name}` }));
   if (kind === "temperature") return TEMPERATURES.map((t) => ({ id: t.id, label: t.id === "K" ? "Kelvin" : t.id === "C" ? "Celsius (°C)" : "Fahrenheit (°F)" }));
   if (kind === "currency") return CURRENCIES.map((c) => ({ id: c.code, label: `${capital(c.name)} (${c.code})` }));
@@ -30,7 +31,7 @@ export function optionsFor(kind: ConvKind): UnitOption[] {
 }
 
 /** The pair a kind opens with (Google's: metre to foot… ours: the most useful for the plant). */
-const DEFAULT_PAIRS: Partial<Record<ConvKind, [string, string]>> = { currency: ["USD", "INR"], power: ["hp", "kW"], engine: ["hp", "ps"], temperature: ["C", "F"] };
+const DEFAULT_PAIRS: Partial<Record<ConvKind, [string, string]>> = { currency: ["USD", "INR"], colour: ["rgb", "hex"], power: ["hp", "kW"], engine: ["hp", "ps"], temperature: ["C", "F"] };
 export function defaultPair(kind: ConvKind): [string, string] {
   const d = DEFAULT_PAIRS[kind];
   if (d) return d;
@@ -66,7 +67,7 @@ export interface Computed {
 
 /** `value` of `fromId` expressed in `toId`; null when a unit is unknown or (currency) the rate is missing. */
 export function compute(kind: ConvKind, value: number, fromId: string, toId: string, rates: Rates | null): Computed | null {
-  if (!Number.isFinite(value)) return null;
+  if (!Number.isFinite(value) || kind === "colour") return null;
   if (kind === "currency") {
     const a = currencyOf(fromId), b = currencyOf(toId);
     if (!a || !b || !rates) return null;

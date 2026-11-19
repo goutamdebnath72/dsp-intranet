@@ -30,6 +30,12 @@ for (const [q, title] of [["gold rate today", "Gold and silver in India"], ["pet
   ok(`"${q}" opens "${title}" with the Instant mark and a fetching state`, x.includes(title) && /Instant/.test(x) && /aria-busy="true"/.test(x) && /only public figures from the source named below are downloaded; what you typed is not sent/.test(x) && /Nothing you type here is saved anywhere/.test(x), x.slice(0, 200));
 }
 
+// the DSP story card is for reading: it has no privacy and approximation strip (nothing is typed into it), while the cards that fetch figures keep theirs
+{
+  const story = panel("dsp history"), gold = panel("gold rate today");
+  ok("the DSP story card carries no 'Nothing you type here is saved' strip, and the gold card still does", /Story of the Durgapur Steel Plant|Durgapur Steel Plant: its story/.test(story) && !/Nothing you type here is saved anywhere/.test(story) && !/Results are approximations/.test(story) && /Nothing you type here is saved anywhere/.test(gold));
+}
+
 // gold
 const gold = parseIbja(readFileSync("src/lib/live/fixtures/ibja.html", "utf8"));
 const goldHtml = gold ? h(<GoldBody rates={gold} />) : "";

@@ -275,3 +275,22 @@ a[data-pdf-link]:hover {
     --omni-page-width: var(--content-width);
   }
 }
+
+/* ===== No photograph can be saved from this app (src/lib/ui/imageGuard.ts) =====
+   A picture cannot be dragged out, selected or long-pressed into a menu, and "Print / Save as PDF" leaves every picture out of the page. */
+img,
+canvas,
+video {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+@media print {
+  img,
+  picture,
+  canvas,
+  video {
+    display: none !important;
+  }
+}

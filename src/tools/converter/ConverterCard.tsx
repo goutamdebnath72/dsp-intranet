@@ -16,12 +16,15 @@ import { CopyButton } from "@/components/tools/toolAtoms";
 import { ToolSelect, fitSize, type Tone } from "@/components/tools/toolKit";
 import { UsdInrTrendCard, isUsdInr } from "./UsdInrTrend";
 import { RatesSource } from "./RatesSource";
+import { ColourPanel } from "./ColourPanel";
 
 export interface ConverterStart {
   kind: ConvKind;
   from: string;
   to: string;
   value: number;
+  /** colour: the HEX it opens with (the typed line "#ff5733 to rgb" or "rgb(255,87,51)" brings it) */
+  colour?: string;
 }
 
 export const DEFAULT_START: ConverterStart = { kind: "length", ...(() => { const [from, to] = defaultPair("length"); return { from, to }; })(), value: 1 };
@@ -87,7 +90,9 @@ export function ConverterCard({ start, rates, ratesState, tone = "sky" }: { star
     <div>
       <ToolSelect variant="kind" tone={tone} value={kind} options={KIND_OPTIONS} onChange={(k) => pickKind(k as ConvKind)} ariaLabel="What to convert" className="w-full sm:w-96" />
 
-      {kind === "engine" ? (
+      {kind === "colour" ? (
+        <ColourPanel key={start.colour ?? "default"} startHex={start.kind === "colour" ? start.colour : undefined} />
+      ) : kind === "engine" ? (
         <div className="mt-4">
           <div
             className="grid grid-cols-1 items-stretch gap-3 transition-[grid-template-columns] duration-500 ease-out sm:[grid-template-columns:var(--cols)]"

@@ -92,7 +92,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
   if (hit.kind === "live") {
     const m = LIVE_BY_ID[hit.topic];
     return (
-      <ToolShell title={m.title} subtitle={m.subtitle} tone={m.tone} icon={m.icon} instant rates="only public figures from the source named below are downloaded; what you typed is not sent">
+      <ToolShell title={m.title} subtitle={m.subtitle} tone={m.tone} icon={m.icon} instant notice={m.notice !== false} rates="only public figures from the source named below are downloaded; what you typed is not sent">
         {m.card(hit.lang)}
       </ToolShell>
     );
