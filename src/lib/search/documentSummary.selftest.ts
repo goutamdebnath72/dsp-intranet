@@ -52,6 +52,7 @@ async function main() {
   const hook = readFileSync("src/hooks/useCircularAnswer.ts", "utf8");
   ok("the hook asks for a summary whenever a circular or announcement was found, except for a search for a person or an ID", /pickSummaryItems\(results\)/.test(hook) && /allowSummary/.test(hook) && /strong: latest\.current\.strong/.test(hook));
   const omni = readFileSync("src/components/OmnibarModal.tsx", "utf8");
+  ok("the documents a summary is drawn from are not listed a second time below it (its 'Summarised from' line is their link), as for a precise answer", /\.\.\.\(circularAnswer\.answer\?\.sources \?\? \[\]\), \.\.\.\(circularAnswer\.summary\?\.sources \?\? \[\]\)\]\.map\(\(s\) => `\$\{s\.type\}-\$\{s\.id\}`\)/.test(omni) && /!answeredKeys\.has\(`\$\{r\.type\}-\$\{r\.id\}`\)/.test(omni));
   ok("the search window does not ask for a summary for a name or an ID search", /allowSummary: !looksLikeNameSearch\(submittedQuery\) && !isIdQuery\(/.test(omni));
 
   console.log(`documentSummary selftest: ${pass} passed, ${fail} failed`);

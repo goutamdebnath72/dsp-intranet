@@ -15,7 +15,7 @@ import { Pills } from "@/components/tools/Pills";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import {
   EVENTS, FACTS, FIRST_ITEMS, FIRST_MEMOIR, FIRST_UNKNOWN, HEADS, HEADS_BASIS_NOTE, HEAD_GAPS, KEY_DATES, MAKERS, OTHER_BODIES, PHOTOS, SAIL_NOW, SAIL_STORY, UNITS, eraOf, headsByEra, initials, photoSrc,
-  pageHref, pdfPage, type Basis, type Head, type PhotoId, type Source, type Unit,
+  pageHref, pdfPage, type Basis, type Head, type Photo as PhotoT, type PhotoId, type Source, type Unit,
 } from "./history";
 
 export type DspHistoryTab = "story" | "makers" | "first" | "heads" | "sail";
@@ -34,8 +34,15 @@ function Band({ icon, tone, children }: { icon: React.ReactNode; tone: "rose" | 
   const c = tone === "rose" ? "border-rose-100 bg-rose-50/70 text-slate-700 [&>svg]:text-rose-700" : tone === "sky" ? "border-sky-100 bg-sky-50/70 text-slate-700 [&>svg]:text-sky-700" : "border-amber-200 bg-amber-50 text-amber-900";
   return <p className={`flex items-start gap-2 rounded-2xl border px-3 py-2 text-xs leading-relaxed ${c}`}>{icon}<span>{children}</span></p>;
 }
+/** THE ONE LOOK OF EVERY LINK ON THIS CARD (document names, page numbers, picture credits): at rest it reads as plain text of the surrounding colour (no underline, no colour); on hover ONLY its colour changes (the app's global rule, globals.css, a:hover, turns it blue; no underline), which is what tells the reader it is a link */
+const LINK = "font-semibold";
 function ExtLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return <a className="inline-flex items-center gap-0.5 font-semibold underline-offset-2 hover:underline" href={href} target="_blank" rel="noopener noreferrer">{children}<ExternalLink size={11} aria-hidden="true" /></a>;
+  return <a className={`inline-flex items-center gap-0.5 ${LINK}`} href={href} target="_blank" rel="noopener noreferrer">{children}<ExternalLink size={11} aria-hidden="true" /></a>;
+}
+
+/** the credit of a picture: a link to the page that carries it (the book's page, or the web page) where there is one, so that anyone can check it */
+function CreditText({ p }: { p: PhotoT }) {
+  return p.creditHref ? <a data-credit-link href={p.creditHref} target="_blank" rel="noopener noreferrer" title="Open the source page to check this picture" className={LINK}>{p.credit}</a> : <>{p.credit}</>;
 }
 
 /** one of SAIL's photographs, with its caption, its date and its credit; the picture opens full size in a new tab */
@@ -54,7 +61,7 @@ function Photo({ id, className = "" }: { id: PhotoId; className?: string }) {
       <figcaption className="px-3 py-2 text-xs leading-snug text-slate-600">
         {p.date && <span className="mr-1.5 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-extrabold text-rose-800">{p.date}</span>}
         {p.caption}
-        <span className="mt-1 block text-[11px] text-slate-400">{p.credit}</span>
+        <span className="mt-1 block text-[11px] text-slate-400"><CreditText p={p} /></span>
       </figcaption>
       <ImageLightbox picture={big ? { src: photoSrc(id), alt: p.caption, title: p.caption, tag: p.date, credit: p.credit } : null} onClose={() => setBig(false)} />
     </figure>
@@ -69,7 +76,7 @@ export function SourceLine({ s }: { s: Source }) {
       {doc}
       {s.pages && s.pages.length > 0 && (
         <>, {s.pages.length === 1 ? "p. " : "pp. "}{s.pages.map((n, i) => (
-          <React.Fragment key={n}>{i > 0 && ", "}{s.url ? <a data-page-link={pdfPage(s, n)} className="font-semibold underline underline-offset-2" href={pageHref(s, n)} target="_blank" rel="noopener noreferrer" title={s.spread ? `Opens PDF page ${pdfPage(s, n)}, which carries printed pages ${2 * pdfPage(s, n) - 2} and ${2 * pdfPage(s, n) - 1}` : `Opens page ${n} of the PDF`}>{n}</a> : n}</React.Fragment>
+          <React.Fragment key={n}>{i > 0 && ", "}{s.url ? <a data-page-link={pdfPage(s, n)} className={LINK} href={pageHref(s, n)} target="_blank" rel="noopener noreferrer" title={s.spread ? `Opens PDF page ${pdfPage(s, n)}, which carries printed pages ${2 * pdfPage(s, n) - 2} and ${2 * pdfPage(s, n) - 1}` : `Opens page ${n} of the PDF`}>{n}</a> : n}</React.Fragment>
         ))}</>
       )}
       {!s.pages && s.page ? `, ${s.page}` : ""}
@@ -103,6 +110,8 @@ const BASIS_STYLE: Record<Basis, string> = {
   "SAIL report": "bg-sky-100 text-sky-800",
   "Annual report": "bg-sky-100 text-sky-800",
   "Press report": "bg-amber-100 text-amber-900",
+  "Obituary": "bg-slate-200 text-slate-800",
+  "Company report": "bg-teal-100 text-teal-800",
   "Memoir": "bg-violet-100 text-violet-800",
 };
 
@@ -166,7 +175,7 @@ function StoryTab() {
                   {e.note && <p className="mt-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900" data-differ>{e.note}</p>}
                   <div className="mt-1.5"><Sources sources={e.sources} /></div>
                 </div>
-                {e.photo && <Photo id={e.photo} />}
+                {e.photo && (e.morePhotos?.length ? <div className="space-y-3"><Photo id={e.photo} />{e.morePhotos.map((id) => <Photo key={id} id={id} />)}</div> : <Photo id={e.photo} />)}
               </div>
             </div>
           </li>
@@ -273,20 +282,21 @@ function HeadsTab() {
           {heads.map((h) => (
             <React.Fragment key={h.id}>
               <article data-head={h.id} className="flex items-start gap-3 rounded-3xl border border-slate-200 bg-white/85 p-3 shadow-sm">
+                <span data-head-no className="flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-full bg-gradient-to-br from-zinc-700 via-zinc-900 to-black ring-2 ring-amber-400 shadow-[0_0_0_3px_rgba(251,191,36,0.25),0_6px_14px_rgba(0,0,0,0.35)]"><span className="sr-only">Number </span><span aria-hidden="true" className="bg-gradient-to-b from-amber-200 via-yellow-400 to-amber-600 bg-clip-text text-xl font-black leading-none tabular-nums text-transparent">{HEADS.indexOf(h) + 1}</span></span>
                 <Avatar head={h} />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <h4 className="text-base font-extrabold text-slate-900">{h.name}</h4>
+                    <h4 className="text-base font-extrabold text-slate-900">{h.name} <span data-head-tenure className="font-bold text-rose-700">({h.tenure})</span></h4>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${BASIS_STYLE[h.basis]}`} data-basis>{h.basis}</span>
                   </div>
                   <div className="text-xs font-bold text-slate-600">{h.title} · <span className="text-rose-700">{h.when}</span></div>
                   <p className="mt-1 text-sm leading-relaxed text-slate-700">{h.note}</p>
-                  {h.photo && <p className="mt-1 text-[11px] text-slate-500">Picture: {PHOTOS[h.photo].caption}{PHOTOS[h.photo].date ? ` (${PHOTOS[h.photo].date})` : ""}. {PHOTOS[h.photo].credit}.</p>}
+                  {h.photo && <p className="mt-1 text-[11px] text-slate-500">Picture: {PHOTOS[h.photo].caption}{PHOTOS[h.photo].date ? ` (${PHOTOS[h.photo].date})` : ""}. <CreditText p={PHOTOS[h.photo]} />.</p>}
                   <div className="mt-1"><Sources sources={h.sources} /></div>
                 </div>
               </article>
               {HEAD_GAPS.filter((g) => g.after === h.id).map((g) => (
-                <p key={g.text} data-head-gap className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">{g.text}</p>
+                <p key={g.text} data-head-gap {...(g.missing ? { "data-head-missing": "true" } : {})} className={g.missing ? "rounded-2xl border-2 border-dashed border-amber-500 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900" : "rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500"}>{g.text}</p>
               ))}
             </React.Fragment>
           ))}
@@ -392,7 +402,7 @@ export function DspHistoryCard({ initialTab = "story" }: { initialTab?: DspHisto
     <div data-dsphistory-card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <Pills<DspHistoryTab> id="dsphistory-tabs" label="Durgapur Steel Plant" gradient={PILL} value={tab} onChange={setTab} tabs={TABS} />
-        <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><Info size={13} aria-hidden="true" /> SAIL&apos;s own history, with its photographs · saved, not live</p>
+        <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><Info size={13} aria-hidden="true" /> Durgapur Steel Plant (DSP) history, with its photographs · saved, not live</p>
       </div>
       <div id="dsphistory-tabs" className="sr-only">Durgapur Steel Plant</div>
       {tab === "story" && <StoryTab />}

@@ -326,7 +326,8 @@ export function OmnibarModal({
   // prove is written above them, with the source and the exact words. Nothing appears if the text does not prove an answer.
   const circularAnswer = useCircularAnswer({ enabled: answerFirstEnabled(), query: submittedQuery, results: isLoading ? [] : results, mode, allowSummary: !looksLikeNameSearch(submittedQuery) && !isIdQuery((submittedQuery || "").trim()) });
   // The documents the answer already cites are not listed a second time below it: the answer's source line is their one link.
-  const answeredKeys = new Set((circularAnswer.answer?.sources ?? []).map((s) => `${s.type}-${s.id}`));
+  // The same for the documents a SUMMARY is drawn from: its "Summarised from" line is their link, so they are not listed a second time below it.
+  const answeredKeys = new Set([...(circularAnswer.answer?.sources ?? []), ...(circularAnswer.summary?.sources ?? [])].map((s) => `${s.type}-${s.id}`));
   const { openModal } = useModal();
   // The "sign in" advice for an EDS-category question (step 83): when the visitor signs in as an executive while that question is on screen, it runs by itself through EDS.
   // (Signing in changes the search address, so the plain search restarts by itself; this sends it to EDS instead, so nobody has to close the window and ask again.)
