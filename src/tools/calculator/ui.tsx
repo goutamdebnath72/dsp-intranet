@@ -22,6 +22,8 @@ export const calcUi: TopicUi = {
     render: () => <CalculatorCard />,
   },
   hits: [
+    // a number typed in a base ("0xFF", "255 to binary"): the scientific calculator itself, open on it in that base; not focused, so that typing in the search line goes on
+    onHit("calcbase", (hit) => <CalculatorCard key={`${hit.base}|${hit.value}`} start="sci" startBase={hit.base} startValue={hit.value} autoFocus={false} />),
     onHit("expression", (hit, c) => {
       const text = hit.result.exact ?? formatNumber(hit.result.value);
       const words = hit.result.exact ? "" : indianWords(hit.result.value);

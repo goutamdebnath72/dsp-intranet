@@ -2,13 +2,15 @@
 //
 // THE FULL CALCULATOR, laid out like the Mac's: BASIC (four columns) and SCIENTIFIC (ten columns: brackets, memory, powers, roots, logs, trig, hyperbolic, 2nd, Rad/Deg, EE), no converters in it.
 // Grey function keys, darker number keys, orange operators (the pending one lights up white). It works with the mouse, the touch and the keyboard (digits, + - * /, Enter, Backspace, Delete).
+// In the scientific calculator a second switch, DEC · BIN · OCT · HEX, writes the number in that base (whole numbers; the keys the base does not have are greyed, and in HEX the six trig keys of the left block become A-F, so the
+// panel keeps its size). In another base the line under the number shows it in the other bases.
 // All the arithmetic is in src/tools/calculator/calcEngine.ts (a pure state machine, tested). Nothing is stored or sent: the memory and the history are only in this window.
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Delete, History, Trash2 } from "lucide-react";
-import { displayNumber, initialState, keyFor, pendingText, press, recall, setMode, valueOf, type BinOp, type CalcState, type Key, type Mode } from "./calcEngine";
+import { BASES, displayNumber, enabled, historyResult, inAllBases, initialState, keyFor, pendingText, press, recall, setBase, setMode, startAt, valueIn, valueOf, type Base, type BinOp, type CalcState, type Key, type Mode } from "./calcEngine";
 import { indianWords } from "./expression";
 import { CopyButton } from "@/components/tools/toolAtoms";
 
@@ -53,6 +55,17 @@ function right(s: CalcState): Btn[][] {
 function left(s: CalcState): Btn[][] {
   const two = s.second;
   const f = (key: Key, label: React.ReactNode, aria: string): Btn => ({ key, label, aria, kind: "fn" });
+  const rows = leftRows(s, two, f);
+  // HEX: the six trig keys (sin cos tan / sinh cosh tanh) are the digits A-F, in the same six places
+  if (s.base === 16) {
+    const hex = (c: string): Btn => ({ key: `h${c}` as Key, label: c, aria: `Digit ${c}`, kind: "num" });
+    rows[3] = [rows[3][0], hex("A"), hex("B"), hex("C"), rows[3][4], rows[3][5]];
+    rows[4] = [rows[4][0], hex("D"), hex("E"), hex("F"), rows[4][4], rows[4][5]];
+  }
+  return rows;
+}
+
+function leftRows(s: CalcState, two: boolean, f: (key: Key, label: React.ReactNode, aria: string) => Btn): Btn[][] {
   return [
     [f("lp", "(", "Open bracket"), f("rp", ")", "Close bracket"), f("mc", "mc", "Memory clear"), f("mplus", "m+", "Add to memory"), f("mminus", "m-", "Take from memory"), f("mr", "mr", "Memory recall")],
     [{ key: "second", label: "2nd", aria: "Second functions", kind: "fn", lit: two }, f("sq", <>x{sup("2")}</>, "Square"), f("cube", <>x{sup("3")}</>, "Cube"), f("pow", <>x{sup("y")}</>, "x to the power y"), two ? f("pow", <>y{sup("x")}</>, "y to the power x") : f("exp", <>e{sup("x")}</>, "e to the power x"), two ? f("twox", <>2{sup("x")}</>, "2 to the power x") : f("tenx", <>10{sup("x")}</>, "10 to the power x")],
@@ -80,16 +93,17 @@ export function labelScale(b: { kind: Kind; key: Key }): number {
   return 0.31;
 }
 
-function KeyButton({ b, onPress }: { b: Btn; onPress: (k: Key) => void }) {
+function KeyButton({ b, onPress, off }: { b: Btn; onPress: (k: Key) => void; off?: boolean }) {
   const lit = b.lit && (b.kind === "op" || b.key === "second");
   return (
     <button
       type="button"
+      disabled={off}
       aria-label={b.aria}
       aria-pressed={b.lit ? true : undefined}
       onClick={() => onPress(b.key)}
       style={{ fontSize: `calc(var(--calc-d) * ${labelScale(b)})` }}
-      className={`flex h-full w-full select-none items-center justify-center rounded-full font-medium leading-none outline-none ring-white/60 transition duration-100 focus-visible:ring-2 active:scale-95 active:brightness-125 ${lit ? "bg-white !text-[#ff9f0a] hover:bg-white" : KIND[b.kind]}`}
+      className={`flex h-full w-full select-none items-center justify-center rounded-full font-medium leading-none outline-none ring-white/60 transition duration-100 focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-30 disabled:active:scale-100 disabled:active:brightness-100 active:scale-95 active:brightness-125 ${lit ? "bg-white !text-[#ff9f0a] hover:bg-white" : KIND[b.kind]}`}
     >
       {b.label}
     </button>
@@ -97,33 +111,38 @@ function KeyButton({ b, onPress }: { b: Btn; onPress: (k: Key) => void }) {
 }
 
 /** the size of the number on the display, as a share of the key height: large, and smaller as the number gets longer (the scientific display is wider, so it keeps the size for longer) */
-export function displayScale(text: string, sci: boolean): number {
-  const room = sci ? 15 : 7;
-  return Math.max(0.34, 0.95 * Math.min(1, room / Math.max(1, text.length)));
+export function displayScale(text: string, sci: boolean, base: Base = 10): number {
+  // a binary number of 53 digits is 66 characters with its spaces, but its digits (0 and 1) are narrow: measured in a browser, 62 characters of binary take about 0.43 of the text size each, so BIN may hold 24 where decimal holds 15; the others keep 15
+  const room = base === 2 ? 24 : sci ? 15 : 7;
+  return Math.max(base === 10 ? 0.34 : 0.22, 0.95 * Math.min(1, room / Math.max(1, text.length)));
 }
 
 const MODES: Array<[Mode, string]> = [["basic", "Basic"], ["sci", "Scientific"]];
 
-export function CalculatorCard({ start = "basic" }: { start?: Mode }) {
-  const [s, setS] = useState<CalcState>(() => initialState(start));
+/** `startBase` and `startValue`: open the scientific calculator on a value in a base (a typed "0xFF"); `autoFocus` false when it is drawn while the user is still typing in the search line */
+export function CalculatorCard({ start = "basic", startBase, startValue, autoFocus = true }: { start?: Mode; startBase?: Base; startValue?: number; autoFocus?: boolean }) {
+  const [s, setS] = useState<CalcState>(() => (startBase !== undefined && startValue !== undefined ? startAt(startBase, startValue) : initialState(start)));
   const [showHistory, setShowHistory] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const sci = s.mode === "sci";
 
   const hit = useCallback((k: Key) => setS((prev) => press(prev, k, Math.random())), []);
   // the calculator takes the keyboard when it opens, as the Mac's does (the search line closes this form when it is typed in)
-  useEffect(() => { panel.current?.focus({ preventScroll: true }); }, []);
+  useEffect(() => { if (autoFocus) panel.current?.focus({ preventScroll: true }); }, [autoFocus]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    const k = keyFor(e.key, e.ctrlKey || e.metaKey);
+    const k = keyFor(e.key, e.ctrlKey || e.metaKey, s.base);
     if (!k) return;
     e.preventDefault(); // Enter on a focused key would press that key again
     e.stopPropagation();
     hit(k);
   };
 
-  const text = s.error ?? displayNumber(s.entry);
-  const words = !s.error && s.fresh ? indianWords(valueOf(s.entry)) : null;
+  const text = s.error ?? displayNumber(s.entry, s.base);
+  const words = !s.error && s.fresh && s.base === 10 ? indianWords(valueOf(s.entry)) : null;
+  // in BIN, OCT or HEX the line under the number shows the same number in the other bases (the longest, binary, last: it is cut with "…" when it does not fit, and the whole is in the line's title)
+  const others = !s.error && s.base !== 10 ? (inAllBases(valueIn(s)) ?? []).filter((x) => x.base !== s.base) : [];
+  const othersText = others.map((x) => `${x.label} ${x.text}`).join("  ·  ");
   const pending = pendingText(s);
   const list = right(s);
   const lefts = sci ? left(s) : null;
@@ -139,6 +158,16 @@ export function CalculatorCard({ start = "basic" }: { start?: Mode }) {
             </button>
           ))}
         </div>
+        {sci && (
+          <div role="tablist" aria-label="Number base" data-calc-base className="relative flex rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm">
+            {BASES.map(([b, label, name]) => (
+              <button key={b} type="button" role="tab" aria-selected={s.base === b} aria-label={`${name[0].toUpperCase()}${name.slice(1)}`} title={`Write the number in ${name}`} onClick={() => { setS((p) => setBase(p, b)); panel.current?.focus({ preventScroll: true }); }} className={`relative rounded-full px-3 py-1.5 text-xs font-bold tracking-wide transition-colors ${s.base === b ? "text-white" : "text-slate-600 hover:text-slate-900"}`}>
+                {s.base === b && <motion.span layoutId="calc-base-pill" transition={{ type: "spring", stiffness: 320, damping: 28 }} className="absolute inset-0 -z-0 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 shadow-md shadow-violet-500/30" />}
+                <span className="relative">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <button type="button" onClick={() => setShowHistory((v) => !v)} aria-pressed={showHistory} className={`ml-auto inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold shadow-sm transition ${showHistory ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"}`}>
           <History size={14} /> History{s.history.length ? ` (${s.history.length})` : ""}
         </button>
@@ -173,22 +202,23 @@ export function CalculatorCard({ start = "basic" }: { start?: Mode }) {
             <div className="flex min-h-[1.25rem] items-center justify-between gap-2">
               <span className="flex gap-1.5">
                 {s.memory !== 0 && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-orange-300">M</span>}
+                {sci && s.base !== 10 && <span data-calc-base-badge className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300">{BASES.find((x) => x[0] === s.base)?.[1]}</span>}
                 {sci && !s.deg && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-sky-300">Rad</span>}
               </span>
               <span className="min-w-0 truncate text-xs text-zinc-400" aria-live="off">{pending}</span>
             </div>
             <div className="flex items-end justify-end gap-2 pt-1">
-              {!s.error && <span className="mb-1"><CopyButton dark text={text.replace(/,/g, "")} /></span>}
-              <motion.div key={text} initial={{ opacity: 0.55, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }} aria-live="polite" aria-label="Display" style={{ fontSize: `calc(var(--calc-d) * ${displayScale(text, sci)})` }} className="min-w-0 flex-1 text-right font-light tabular-nums leading-tight text-white transition-[font-size] duration-300 [overflow-wrap:anywhere]">{text}</motion.div>
+              {!s.error && <span className="mb-1"><CopyButton dark text={text.replace(/[,\s]/g, "")} /></span>}
+              <motion.div key={text} initial={{ opacity: 0.55, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }} aria-live="polite" aria-label="Display" style={{ fontSize: `calc(var(--calc-d) * ${displayScale(text, sci, s.base)})` }} className="min-w-0 flex-1 text-right font-light tabular-nums leading-tight text-white transition-[font-size] duration-300 [overflow-wrap:anywhere]">{text}</motion.div>
             </div>
-            <div className="h-4 text-right text-xs text-violet-300">{words ? `≈ ${words}` : ""}</div>
+            <div className="h-4 truncate text-right text-xs text-violet-300" data-calc-bases={others.length ? "" : undefined} title={othersText || undefined}>{others.length ? othersText : words ? `≈ ${words}` : ""}</div>
           </div>
 
           <div className="grid self-end" data-calc-grid style={{ gridTemplateColumns: `repeat(${sci ? 10 : 4}, var(--calc-bw))`, gridTemplateRows: "repeat(5, var(--calc-d))", gap: "var(--calc-gap)" }}>
             {list.map((row, i) => (
               <React.Fragment key={i}>
-                {lefts && lefts[i].map((b) => <KeyButton key={`${b.key}-${String(b.aria)}`} b={b} onPress={hit} />)}
-                {row.map((b) => <KeyButton key={`${b.key}-${b.aria}`} b={b} onPress={hit} />)}
+                {lefts && lefts[i].map((b) => <KeyButton key={`${b.key}-${String(b.aria)}`} b={b} onPress={hit} off={!enabled(s, b.key)} />)}
+                {row.map((b) => <KeyButton key={`${b.key}-${b.aria}`} b={b} onPress={hit} off={!enabled(s, b.key)} />)}
               </React.Fragment>
             ))}
           </div>
@@ -210,7 +240,7 @@ export function CalculatorCard({ start = "basic" }: { start?: Mode }) {
                     <li key={`${h.expr}-${i}`}>
                       <button type="button" onClick={() => { setS((p) => recall(p, h.result)); panel.current?.focus(); }} className="flex w-full items-baseline justify-between gap-3 rounded-xl px-3 py-1.5 text-left text-sm hover:bg-violet-50">
                         <span className="min-w-0 truncate text-slate-600">{h.expr} =</span>
-                        <span className="font-bold tabular-nums text-slate-900">{displayNumber(h.result)}</span>
+                        <span className="font-bold tabular-nums text-slate-900">{historyResult(h)}</span>
                       </button>
                     </li>
                   ))}
