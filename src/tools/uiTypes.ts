@@ -16,6 +16,8 @@ export interface UiCtx {
   ratesState: RatesState;
   /** opens a form (or the list of calculators), or closes it with null */
   openForm: (f: FormKind | "menu" | null) => void;
+  /** the line typed in the search bar when the form was opened (a page with tabs may start on the tab the line is about: "pf loan emi") */
+  query?: string;
 }
 
 /** A calculator or reader that has its own page, opened from the list of calculators or with Enter */

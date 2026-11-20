@@ -45,7 +45,7 @@ export const AREAS: IntroArea[] = [
 /** what the search bar's main features cannot do yet, said plainly (what the Utility Services cannot do is on their own tab) */
 export const LIMITS: string[] = [
   "Plant production data is not answered yet: no daily or monthly production data of the plant is connected to the search bar (the DSP tab of the steel card shows only the yearly figures that SAIL's annual reports state).",
-  "The management pages (Employee, PAX directory, Circular, Announcement and Holiday managers, and the Contact access log) change the plant's data. Currently only the HOD of C&IT can open them, after signing in with his own login; he can delegate each page to other executives and non-executives (the Contact access log to executives only).",
+  "The management pages (Employee, PAX directory, Circular, Announcement and Holiday managers, and the Contact access log) change the plant's data. The HOD of C&IT opens them after signing in, and can delegate each page (the Contact access log to executives only). Signed in, type management to see the titles of the pages you may open (only those the HOD has given you).",
   "AI can make mistakes: check the circular or the source before you act on a figure.",
 ];
 

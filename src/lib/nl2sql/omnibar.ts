@@ -108,6 +108,8 @@ export interface OmnibarDeps {
   announcementAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** A request to view/manage CONTACT ACCESS LOG: "access log management", "contact access log admin", "access log". */
   accessLogAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
+  /** The MANAGEMENT PAGE ("management", "admin"): the titles of the management tools this person may open. Asks nobody for anything unless the sentence IS such a request; not signed in or no authority gets one plain sentence. */
+  managementHub?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** The previous rule-based employee engine (safety net). */
   legacy: (q: string) => Promise<AnalyticsPayload | null>;
   /** Different people who must confirm an answer before it is served without the model. */
@@ -360,6 +362,10 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
   }
 
   if (!retry) {
+    // 0-----. the MANAGEMENT PAGE: "management", "admin", "management page". It comes first: the page lists the tools, and each tool's own request below is checked again when a title is opened.
+    const managementHub = deps.managementHub ? await deps.managementHub(q, userKey).catch(() => null) : null;
+    if (managementHub) return { ...managementHub, source: "holiday", attempt };
+
     // 0----. a request to CHANGE employee data (step 66a): "add new employee", "edit employee record", "change dob of X", "delete employee 498880", "delegate employee editing to X". The sentence is read first (pure) and an action word has to LEAD it, so a question about employees never lands here; only such a sentence asks who the person is.
     const employeeAdmin = deps.employeeAdmin ? await deps.employeeAdmin(q, userKey).catch(() => null) : null;
     if (employeeAdmin) return { ...employeeAdmin, source: "holiday", attempt };
@@ -550,6 +556,12 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
         findByTicket: async (t) => searchEmployeesById(await getDb(), { kind: "ticket", value: t }),
         datesOf: async (tickets) => readDates(async (sql, params) => rowsOf(await (await getDb()).query(sql, params as never[])), tickets),
       });
+    },
+    managementHub: async (qq, ticket) => {
+      const { answerManagementHub } = await import("@/lib/facility/hub");
+      const { authoritiesForTicket, nameOfTicket } = await import("@/lib/facility/hubAccess");
+      const { getDb } = await import("@/lib/db");
+      return answerManagementHub(qq, ticket, { authorities: async (t) => authoritiesForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
     },
     paxAdmin: async (qq, ticket) => {
       // the editor of the PAX directory (step 64a, src/lib/pax/admin/omnibar.ts): the sentence is read first, the database is asked only for a sentence that IS such a request

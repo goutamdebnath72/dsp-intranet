@@ -10,8 +10,8 @@ let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 
 ok("the PF page asks for the wide box, and for a width of its own in rem (PF_BOX_REM), which follows the text size and the zoom and is never more than the page", toolFormIsWide("pf") && toolFormMaxRem("pf") === PF_BOX_REM && PF_BOX_REM >= 52 && PF_BOX_REM <= 100);
-ok("no other form, the menu or no form asks for a width in rem", ["emi", "gratuity", "calc", "menu"].every((f) => toolFormMaxRem(f) === null) && toolFormMaxRem(null) === null);
-ok("no other calculator page does (loan EMI, gratuity, leave encashment, dates, converter, tyre, EV, VIN, BH, calculator), nor the menu, nor no form", ["emi", "gratuity", "encashment", "dates", "converter", "tyre", "ev", "vin", "bh", "calc", "menu"].every((f) => !toolFormIsWide(f)) && !toolFormIsWide(null) && !toolFormIsWide(undefined) && !toolFormIsWide("nonsense"));
+ok("no other form, the menu or no form asks for a width in rem", ["gratuity", "calc", "menu"].every((f) => toolFormMaxRem(f) === null) && toolFormMaxRem(null) === null);
+ok("no other calculator page does (gratuity, leave encashment, dates, converter, tyre, EV, VIN, BH, calculator), nor the menu, nor no form", ["gratuity", "encashment", "dates", "converter", "tyre", "ev", "vin", "bh", "calc", "menu"].every((f) => !toolFormIsWide(f)) && !toolFormIsWide(null) && !toolFormIsWide(undefined) && !toolFormIsWide("nonsense"));
 ok("exactly one form asks for the wide box today", TOPIC_UIS.filter((t) => t.form?.wide).map((t) => t.id).join() === "pf");
 // the box takes the same width as the Deep Synthesis answer with a table of 4+ columns: one switch, one width, written once
 const src = readFileSync("src/components/OmnibarModal.tsx", "utf8");

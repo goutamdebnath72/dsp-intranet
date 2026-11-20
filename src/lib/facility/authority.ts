@@ -32,6 +32,18 @@ export async function authorityOf(q: QueryFn, facility: FacilityKey, ticket: str
   return r.length > 0 ? "delegate" : null;
 }
 
+/** HOD or delegate, for EVERY tool at once (one question to the database: the tools this ticket holds and has not had withdrawn). The same rule as authorityOf, for the management page. */
+export async function authoritiesOfAll(q: QueryFn, ticket: string | null | undefined): Promise<Record<FacilityKey, Authority | null>> {
+  const t = String(ticket ?? "").trim();
+  const none = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, null])) as Record<FacilityKey, Authority | null>;
+  if (!t) return none;
+  if (isSuperAdmin(t)) return Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, "hod"])) as Record<FacilityKey, Authority | null>;
+  const rows = await q(`SELECT DISTINCT facility FROM public.facility_delegate WHERE ticket_no = $1 AND revoked_at IS NULL`, [t]);
+  const held = { ...none };
+  for (const r of rows) { const f = str(r.facility); if (isFacilityKey(f)) held[f] = "delegate"; }
+  return held;
+}
+
 /** The start of every write of a tool: take the tool's global write lock, then decide who is acting. Throws Forbidden when this person may not (or, with needHod, is not the HOD). */
 export async function begin(q: QueryFn, facility: FacilityKey, actor: Actor, needHod = false): Promise<Authority> {
   must(facility);

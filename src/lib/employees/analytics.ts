@@ -118,6 +118,8 @@ export interface AnalyticsPayload {
   announcementAdmin?: import("@/lib/announcements/admin/types").AnnouncementAdminOpen;
   /** The Contact Access Log was asked for by someone who may use it: drawn as a panel by AccessLogAdminPanel. */
   accessLogAdmin?: import("@/lib/accessLog/admin/types").AccessLogAdminOpen;
+  /** The management page (the titles of the management tools this person may open): drawn by ManagementHubPanel. */
+  managementHub?: import("@/lib/facility/hub").ManagementHubOpen;
   /** The ONE clean answer, shown first, big and bold (step 61a): a Yes or No (holiday verdicts), the date asked for, the department asked for. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   headline?: import("@/lib/ui/answerHeadline").AnswerHeadline;
   typeBreakdown?: { type: string; label: string; count: number }[];

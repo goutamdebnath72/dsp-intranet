@@ -268,7 +268,7 @@ export const TOOLS_SECTION: SampleSection = {
   id: "tools",
   title: "Calculators, converters and live cards",
   icon: "calculator",
-  covers: "Type calculators and press Enter for the menu of ready tools (calculator, converters, dates, loan EMI, PF maturity, gratuity, leave encashment, tyre and rim sizes, VIN reader, BH series, electric car charging); then the live cards: gold, fuel, markets, news, weather, flights, trains and fares, AICPI, SAIL DA and inflation, the PIN codes, wards, assembly seats and police stations of Durgapur, and steel (prices, the makers compared, SAIL and India). The calculators run in your browser: nothing you type is saved anywhere.",
+  covers: "Type calculators and press Enter for the menu of ready tools (calculator, converters, dates, provident fund (PF maturity and PF loan EMI), gratuity, leave encashment, tyre and rim sizes, VIN reader, BH series, electric car charging); then the live cards: gold, fuel, markets, news, weather, flights, trains and fares, AICPI, SAIL DA and inflation, the PIN codes, wards, assembly seats and police stations of Durgapur, and steel (prices, the makers compared, SAIL and India). The calculators run in your browser: nothing you type is saved anywhere.",
   howToRun: "Sums, conversions and date questions appear AS YOU TYPE: no Enter. A calculator form (EMI, PF, gratuity...): type its name, then press Enter to open the form.",
   tips: [
     "Most tools open with a short command (gold price, weather, ev charging) or a long one (gold rate today, durgapur weather report with forecast, how long to charge an electric car): the What to type list (at the end of the How it works tab) gives both for every feature.",

@@ -74,6 +74,8 @@ export interface AnalyticsAnswer {
   announcementAdmin?: import("@/lib/announcements/admin/types").AnnouncementAdminOpen;
   /** The Contact Access Log was asked for by someone who may use it: drawn as a panel by AccessLogAdminPanel. */
   accessLogAdmin?: import("@/lib/accessLog/admin/types").AccessLogAdminOpen;
+  /** The management page (the titles of the management tools this person may open): drawn by ManagementHubPanel. */
+  managementHub?: import("@/lib/facility/hub").ManagementHubOpen;
   /** The ONE clean answer shown first, big and bold (step 61a). The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   headline?: import("@/lib/ui/answerHeadline").AnswerHeadline;
   /** Per-type (RH/CH/FH) tally for a holiday list query, only present when

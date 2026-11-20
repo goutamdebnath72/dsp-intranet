@@ -122,6 +122,25 @@ export interface ToolShellProps {
   children: React.ReactNode;
 }
 
+/** THE BACK BUTTON of every page that was opened from a list (the calculators' pages, the management pages): the arrow and "Back", one look everywhere; `label` says where it goes (for the screen reader and the tooltip) */
+export function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} title={label} className="group flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 pl-2.5 pr-3.5 text-xs font-bold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-900">
+      <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-0.5" />
+      Back
+    </button>
+  );
+}
+
+/** THE CROSS of every page that can be closed (the calculators' pages, the management page): one look everywhere; `label` says what it closes (for the screen reader) */
+export function CloseButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-500 shadow-sm transition hover:rotate-90 hover:border-slate-300 hover:text-slate-800">
+      <X size={16} />
+    </button>
+  );
+}
+
 /** The frame of a calculator card. */
 export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClose, onBack, rates, notice = true, children }: ToolShellProps) {
   const t = TONES[tone];
@@ -152,15 +171,10 @@ export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClos
           </span>
         )}
         {onBack && (
-          <button type="button" onClick={onBack} aria-label="Back to the calculators list" title="Back to the calculators list" className="group flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 pl-2.5 pr-3.5 text-xs font-bold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-900">
-            <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-0.5" />
-            Back
-          </button>
+          <BackButton label="Back to the calculators list" onClick={onBack} />
         )}
         {onClose && (
-          <button type="button" onClick={onClose} aria-label="Close this calculator" className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-500 shadow-sm transition hover:rotate-90 hover:border-slate-300 hover:text-slate-800">
-            <X size={16} />
-          </button>
+          <CloseButton label="Close this calculator" onClick={onClose} />
         )}
       </div>
       {children}

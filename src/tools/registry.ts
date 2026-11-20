@@ -4,7 +4,6 @@
 // The ORDER here is the order of the user guide's sample questions and of the tiles in the list of calculators (registry.ui.tsx follows it); the order in which a typed line is tried is set
 // by each topic's `rank`, not by this list. Nothing outside this folder names a topic: detect.ts, ToolPanel.tsx and sampleQuestions.ts only walk this list.
 import { calcTopic } from "@/tools/calculator/topic";
-import { emiTopic } from "@/tools/emi/topic";
 import { pfTopic } from "@/tools/pf/topic";
 import { gratuityTopic } from "@/tools/gratuity/topic";
 import { encashmentTopic } from "@/tools/encashment/topic";
@@ -29,7 +28,7 @@ import { steelTopic } from "@/tools/steel/topic";
 import { dspHistoryTopic } from "@/tools/dsphistory/topic";
 
 export const TOPICS = [
-  calcTopic, emiTopic, pfTopic, gratuityTopic, encashmentTopic, datesTopic, converterTopic,
+  calcTopic, pfTopic, gratuityTopic, encashmentTopic, datesTopic, converterTopic,
   tyreTopic, rimTopic, evTopic, vinTopic, bhTopic,
   goldTopic, marketsTopic, fuelTopic, newsTopic, sportsTopic, weatherTopic, flightsTopic, railwayTopic, aicpiTopic, pincodeTopic, steelTopic, dspHistoryTopic,
 ] as const;

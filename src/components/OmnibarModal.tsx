@@ -59,6 +59,8 @@ import { HolidayAdminPanel } from "@/components/HolidayAdminPanel";
 import { CircularAdminPanel } from "@/components/CircularAdminPanel";
 import { AnnouncementAdminPanel } from "@/components/AnnouncementAdminPanel";
 import { AccessLogAdminPanel } from "@/components/AccessLogAdminPanel";
+import { ManagementBack, ManagementHubPanel } from "@/components/ManagementHubPanel";
+import { detectManagementHubIntent } from "@/lib/facility/hub";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
@@ -246,6 +248,11 @@ export function OmnibarModal({
     const q = (query || "").trim();
     return toolForm || routed || q.length < 4 || detectTool(q) ? null : clearIntent(q);
   }, [query, toolForm, routed]);
+  // the management page typed ("management", "admin"...) but not sent yet: the hint that Enter opens it (it goes once the line has been sent)
+  const hubTyped = useMemo(() => {
+    const q = (query || "").trim().toLowerCase();
+    return !toolForm && detectManagementHubIntent(q) && (submittedQuery || "").trim().toLowerCase() !== q;
+  }, [query, submittedQuery, toolForm]);
   // Step 59a: a question that uses a FORMER name of a department ("CHRD", "Training Department") is answered with the CURRENT name first: shown above the results, whatever the kind of answer.
   const nameNotice = useMemo(() => formerNameNotice(submittedQuery || ""), [submittedQuery]);
 
@@ -1031,6 +1038,12 @@ export function OmnibarModal({
                         {routed.via === "ai" ? " Gemini, the AI, was shown only the line you typed, to find the right utility; nothing you enter in the utility is sent to it." : " Found from the words of your line, in your browser; nothing was sent anywhere."}
                       </div>
                     )}
+                    {hubTyped && (
+                      <div data-management-hint className="mb-3 flex items-center gap-3 rounded-2xl border border-dashed border-sky-300 bg-gradient-to-r from-sky-50 to-indigo-50 px-4 py-3 text-sm text-sky-900 shadow-sm">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-500 text-white"><ShieldCheck size={16} aria-hidden="true" /></span>
+                        <span>Press <kbd className="rounded-md border border-sky-300 bg-white px-2 py-0.5 text-xs font-bold shadow-sm">Enter</kbd> to open the management page.</span>
+                      </div>
+                    )}
                     <ToolPanel query={routedQuery ?? query} form={toolForm} onForm={setToolForm} />
 
                     {error && (
@@ -1073,7 +1086,12 @@ export function OmnibarModal({
                             {analytics.lead && (
                               <p className="mb-2 text-sm font-semibold text-neutral-800">{analytics.headline ? afterVerdict(analytics.lead) : analytics.lead}</p>
                             )}
-                            {analytics.paxAdmin ? (
+                            {(analytics.paxAdmin || analytics.employeeAdmin || analytics.holidayAdmin || analytics.circularAdmin || analytics.announcementAdmin || analytics.accessLogAdmin) && (
+                              <ManagementBack onBack={() => triggerSearch("semantic", { query: "management" })} />
+                            )}
+                            {analytics.managementHub ? (
+                              <ManagementHubPanel open={analytics.managementHub} onOpen={(phrase) => triggerSearch("semantic", { query: phrase })} onClose={() => clearSearch()} />
+                            ) : analytics.paxAdmin ? (
                               <PaxAdminPanel open={analytics.paxAdmin} />
                             ) : analytics.employeeAdmin ? (
                               <EmployeeAdminPanel open={analytics.employeeAdmin} />

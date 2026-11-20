@@ -33,7 +33,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
   const hit = useMemo(() => detectTool(query), [query]);
   const wantsRates = TOPIC_UIS.some((t) => t.needsRates?.(hit, form));
   const { rates, state } = useRates(wantsRates);
-  const ctx: UiCtx = { rates, ratesState: state, openForm: onForm };
+  const ctx: UiCtx = { rates, ratesState: state, openForm: onForm, query };
 
   // the form opened with Enter
   if (form) {

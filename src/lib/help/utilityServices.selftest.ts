@@ -17,7 +17,7 @@ ok("the tab is called Utility Services; the lead calls them a host of Utility Se
 ok("two steps say how to get a service: click or type the words, press Enter (a sum, a conversion, a PIN code or a ward show as you type)", UTILITY_HOW.length === 2 && /Click the words/.test(UTILITY_HOW[0]) && /Press Enter/.test(UTILITY_HOW[1]) && /as you type/.test(UTILITY_HOW[1]));
 
 // ---- every tool of the registry is named
-const NAMED_BY: Record<string, string> = { dsphistory: "dsp history", steel: "steel prices", calc: "calculator", emi: "emi", pf: "pf", gratuity: "gratuity", encashment: "encashment", dates: "dates", converter: "converters", tyre: "tyre", rim: "rim", ev: "ev ", vin: "vin", bh: "bh-series", gold: "gold", markets: "sensex", fuel: "petrol", news: "news", sports: "sports", weather: "weather", flights: "flights", railway: "trains", aicpi: "inflation", pincode: "pin codes" };
+const NAMED_BY: Record<string, string> = { dsphistory: "dsp history", steel: "steel prices", calc: "calculator", pf: "pf", gratuity: "gratuity", encashment: "encashment", dates: "dates", converter: "converters", tyre: "tyre", rim: "rim", ev: "ev ", vin: "vin", bh: "bh-series", gold: "gold", markets: "sensex", fuel: "petrol", news: "news", sports: "sports", weather: "weather", flights: "flights", railway: "trains", aicpi: "inflation", pincode: "pin codes" };
 const unmapped = TOPICS.map((t) => t.id).filter((id) => !NAMED_BY[id]);
 ok("every topic of the registry has a word in the table above (so a new tool cannot be forgotten)", unmapped.length === 0, unmapped.join());
 ok("every topic of the registry is named in the Utility Services", TOPICS.every((t) => !NAMED_BY[t.id] || text.includes(NAMED_BY[t.id])), TOPICS.filter((t) => !text.includes(NAMED_BY[t.id])).map((t) => t.id).join());
@@ -40,7 +40,7 @@ const menuTitles = TOPIC_UIS.flatMap((u) => (u.form ? [u.form.menu.title] : []))
 const lineText = CALCULATORS_LINE.tools.join(" ").toLowerCase();
 const wordOf = (title: string) => title.toLowerCase().replace(/ \(.*$/, "").split(" ")[0];
 ok("the Calculators line names the command and says Enter opens a menu", CALCULATORS_LINE.command === "calculators" && /Enter/.test(CALCULATORS_LINE.after) && /menu/.test(CALCULATORS_LINE.after));
-ok("every tool of the calculators menu is named in that line (a new tool cannot be forgotten)", menuTitles.length >= 11 && menuTitles.every((m) => lineText.includes(wordOf(m))), menuTitles.filter((m) => !lineText.includes(wordOf(m))).join(" | "));
+ok("every tool of the calculators menu is named in that line (a new tool cannot be forgotten)", menuTitles.length >= 10 && menuTitles.every((m) => lineText.includes(wordOf(m))), menuTitles.filter((m) => !lineText.includes(wordOf(m))).join(" | "));
 
 // ---- the prose that moved: the railway, steel and DA entries are short and keep their facts
 const svc = (l: string) => UTILITY_SERVICES.find((x) => x.label === l)!;

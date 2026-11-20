@@ -2,7 +2,6 @@
 //
 // THE LIST OF TOPICS (panel side). One line for each topic, in the order of src/tools/registry.ts: this order is the order of the tiles in the list of calculators. See types.ts and uiTypes.ts.
 import { calcUi } from "@/tools/calculator/ui";
-import { emiUi } from "@/tools/emi/ui";
 import { pfUi } from "@/tools/pf/ui";
 import { gratuityUi } from "@/tools/gratuity/ui";
 import { encashmentUi } from "@/tools/encashment/ui";
@@ -28,5 +27,5 @@ import { dspHistoryUi } from "@/tools/dsphistory/ui";
 import type { TopicUi } from "@/tools/uiTypes";
 
 export const TOPIC_UIS: readonly TopicUi[] = [
-  calcUi, emiUi, pfUi, gratuityUi, encashmentUi, datesUi, converterUi, tyreUi, rimUi, evUi, vinUi, bhUi, goldUi, marketsUi, fuelUi, newsUi, sportsUi, weatherUi, flightsUi, railwayUi, aicpiUi, pincodeUi, steelUi, dspHistoryUi,
+  calcUi, pfUi, gratuityUi, encashmentUi, datesUi, converterUi, tyreUi, rimUi, evUi, vinUi, bhUi, goldUi, marketsUi, fuelUi, newsUi, sportsUi, weatherUi, flightsUi, railwayUi, aicpiUi, pincodeUi, steelUi, dspHistoryUi,
 ];
