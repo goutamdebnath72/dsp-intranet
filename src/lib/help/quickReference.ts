@@ -22,7 +22,7 @@ export interface RefEntry {
   noShort?: string;
   /** said on the page when there is no long command, and why */
   noLong?: string;
-  /** one short line: what opens, and anything worth knowing */
+  /** one short line: what opens, and anything worth knowing; words between ** ** are shown in bold */
   what: string;
   /** the result appears as you type (true), or the line needs the Enter key (false) */
   instant: boolean;
@@ -59,7 +59,7 @@ export const QUICK_REFERENCE: RefGroup[] = [
     covers: "Sums, conversions, currency, dates and the loan, PF, gratuity and leave forms. All of it runs in your browser; nothing you type is saved.",
     entries: [
       { feature: "List of all the calculators (the menu)", short: ["calculators", "all tools", "calculator menu"], long: ["list of all the calculators"], what: "opens the menu of ready tools: calculator, converters, dates, loan EMI, PF maturity, gratuity, leave encashment, tyre and rim sizes, VIN reader, BH series, electric car charging", instant: false, expect: "menu" },
-      { feature: "Calculator (basic and scientific)", short: ["calculator", "scientific calculator", "calc"], long: ["open the scientific calculator"], what: "the full calculator, like the Mac's: keys or keyboard, memory, brackets, powers, roots, trigonometry, history; the scientific one also has a DEC · BIN · OCT · HEX switch (see the next entry)", instant: false, expect: "form:calc" },
+      { feature: "Calculator (basic and scientific)", short: ["calculator", "scientific calculator", "calc"], long: ["open the scientific calculator"], what: "the full calculator, like the Mac's: keys or keyboard, memory, brackets, powers, roots, trigonometry, history; the scientific one also has a **DEC · BIN · OCT · HEX** switch (see the next entry)", instant: false, expect: "form:calc" },
       { feature: "Number in binary, octal, decimal or hexadecimal", short: ["0xFF", "0b1010", "0o17"], long: ["255 to binary", "10 in hex", "1010 binary to decimal", "ff hex to octal"], what: "the scientific calculator opens on the number in that base, with the number in the other bases under it; whole numbers only (a fraction, or a number beyond 9,007,199,254,740,991, is refused, never rounded); in HEX the keys sin to tanh become A to F, and the keys a base does not have are greyed", instant: true, expect: "calcbase" },
       { feature: "A sum typed straight in", short: ["12*45+7", "12 squared"], long: ["15% of 2400", "200 + 10%", "5 lakh * 12", "sq rt of 4^3", "cube root of 27"], what: "the answer appears under the search line; + - * / ^, brackets, %, lakh and crore, roots and squares", instant: true, expect: "expression" },
       { feature: "Constants", short: ["golden ratio"], long: ["value of pi", "value of e"], what: "the value to 20 digits (they can also be used in a sum: 2*pi*8)", instant: true, expect: "expression" },
@@ -181,8 +181,15 @@ export function filterReference(text: string, groups: RefGroup[] = QUICK_REFEREN
   const out: RefGroup[] = [];
   for (const g of groups) {
     const head = `${g.title} ${g.covers}`;
-    const entries = g.entries.filter((e) => { const hay = `${e.feature} ${entryStrings(e).join(" ")} ${e.what} ${head}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
+    const entries = g.entries.filter((e) => { const hay = `${e.feature} ${entryStrings(e).join(" ")} ${e.what.replace(/\*\*/g, "")} ${head}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
     if (entries.length) out.push({ ...g, entries });
   }
   return out;
+}
+
+/** a line's pieces for the screen: the plain text and the bold text (written between ** **), in order; an odd, unclosed ** is left as plain text */
+export function boldParts(text: string): Array<{ text: string; bold: boolean }> {
+  const parts = text.split("**");
+  if (parts.length % 2 === 0) return [{ text, bold: false }];
+  return parts.map((t, i) => ({ text: t, bold: i % 2 === 1 })).filter((p) => p.text !== "");
 }

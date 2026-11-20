@@ -1,7 +1,7 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/help/quickReference.selftest.ts
 // The "What to type" page of the guide must not drift from how the search really behaves: every string of every entry is run through the real detector and must open exactly the feature the entry names.
 import { DateTime } from "luxon";
-import { QUICK_REFERENCE, allReferenceStrings, entryStrings, filterReference } from "./quickReference";
+import { QUICK_REFERENCE, allReferenceStrings, entryStrings, filterReference, boldParts } from "./quickReference";
 import { detectTool } from "../tools/detect";
 import { TOPICS } from "@/tools/registry";
 
@@ -42,5 +42,7 @@ ok("every kind is counted: the list has both short and long commands in every gr
 ok("the records page covers the people, the hospital, PAX, holidays, circulars and circular questions, and says nothing of the deep search (EDS), which has its own tab", ["A person, by number", "A person, by name", "Count and compare employees", "Doctors and OPD", "PAX telephone extensions", "Holidays", "A circular, by its title", "What a circular says"].every((f) => QUICK_REFERENCE[0].entries.some((e) => e.feature === f)) && !JSON.stringify(QUICK_REFERENCE).match(/deep synthesis|\bEDS\b|deep briefing/i));
 // the filter
 ok("the filter finds a feature by its name, by a string or by a word of the note, and an empty text keeps all", filterReference("").length === 8 && filterReference("bhaskar")[0].entries[0].feature === "Hindi news" && filterReference("gratuity").length === 1 && filterReference("silver price")[0].entries.some((e) => e.feature.startsWith("Gold")) && filterReference("zzzz").length === 0);
+ok("the base switch's name is bold in the calculator entry: DEC · BIN · OCT · HEX is a bold piece, the words around it are plain, and no ** shows on the page", (() => { const e = QUICK_REFERENCE.flatMap((g) => g.entries).find((x) => x.feature === "Calculator (basic and scientific)"); const parts = e ? boldParts(e.what) : []; return parts.some((p) => p.bold && p.text === "DEC · BIN · OCT · HEX") && parts.filter((p) => !p.bold).every((p) => !p.text.includes("**")) && parts.map((p) => p.text).join("").includes("has a DEC · BIN · OCT · HEX switch"); })());
+ok("boldParts: plain text is one plain piece; an unclosed ** is left as it is; the search ignores the ** (typing 'hex switch' finds the calculator)", (() => { const a = boldParts("no bold here"); const b = boldParts("a **b** c"); const c = boldParts("a ** b"); const f = filterReference("bin oct hex switch"); return a.length === 1 && !a[0].bold && b.length === 3 && b[1].bold && b[1].text === "b" && c.length === 1 && c[0].text === "a ** b" && f.some((g) => g.entries.some((x) => x.feature === "Calculator (basic and scientific)")); })());
 console.log(`quickReference: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

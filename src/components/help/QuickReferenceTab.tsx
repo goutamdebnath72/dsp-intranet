@@ -6,7 +6,7 @@
 
 import React, { useMemo, useState } from "react";
 import { CornerDownLeft, Search, Zap } from "lucide-react";
-import { QUICK_REFERENCE, allReferenceStrings, filterReference, type RefEntry } from "@/lib/help/quickReference";
+import { QUICK_REFERENCE, allReferenceStrings, filterReference, boldParts, type RefEntry } from "@/lib/help/quickReference";
 
 function Run({ instant }: { instant: boolean }) {
   return instant ? (
@@ -61,7 +61,7 @@ function Row({ e, onTry }: { e: RefEntry; onTry?: (q: string) => void }) {
       <div className="min-w-0 space-y-1">
         <CommandLine kind="short" strings={e.short} why={e.noShort} onTry={onTry} />
         <CommandLine kind="long" strings={e.long} why={e.noLong} onTry={onTry} />
-        <p className="pt-0.5 text-[12px] leading-snug text-slate-500">{e.what}</p>
+        <p className="pt-0.5 text-[12px] leading-snug text-slate-500">{boldParts(e.what).map((p, i) => (p.bold ? <strong key={i} className="font-extrabold text-slate-700">{p.text}</strong> : <React.Fragment key={i}>{p.text}</React.Fragment>))}</p>
       </div>
     </li>
   );
