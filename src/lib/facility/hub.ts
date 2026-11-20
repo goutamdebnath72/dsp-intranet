@@ -6,12 +6,13 @@
 //   signed in, no authority  -> "Not allowed", and nothing about the tools
 //   the HOD of C&IT          -> all of them
 //   a delegate               -> only the tools the HOD gave him (a withdrawn one is gone at once: asked from the database on every request)
+// The two refusals are not plain sentences but a small card of their own (src/components/ManagementHubPanel.tsx, ManagementGatePanel): "login" has a Sign in button that opens the login window (and when the person has signed in the
+// same question is asked again by itself, so the page, or the refusal, comes up without typing anything); "denied" says, in the same words whether the person was signed in already or has just signed in, that he is not authorised.
 // The list is only a convenience. The authority of a tool is checked again by the tool itself when a title is opened (a title types the tool's own phrase into the search bar, and the tool's own responder asks the
 // database who is asking), so the page can never open more than the person may use. Who is asking is always the login (the route ignores a ticket sent by the browser).
 // PURE apart from the `authorities` and `nameOf` that the caller gives (src/lib/facility/hubAccess.ts gives the database's).
 
 import type { AnalyticsPayload } from "@/lib/employees/analytics";
-import type { HospitalAnswer } from "@/lib/hospital/types";
 import { FACILITIES, type FacilityKey } from "./registry";
 import type { Authority } from "./types";
 
@@ -25,6 +26,21 @@ export interface HubTool {
   /** how this person holds the tool */
   role: Authority;
 }
+
+/** what a person who may not have the page is shown: asked to sign in (he is not signed in: nobody is told who may or may not have the page), or told he is not authorised (signed in, and holding no management tool) */
+export interface ManagementGate {
+  state: "login" | "denied";
+  /** the signed-in person's name, for the refusal ("signed in as ..."), when it is known */
+  name?: string;
+}
+
+/** the words of the two refusals, said once (the card and the plain `answer` use them) */
+export const GATE_TEXT = {
+  loginTitle: "Sign in to open the management pages",
+  login: "The management pages are for the HOD of C&IT and for the people he has authorised. Sign in with your ticket number: if you are one of them, the page opens at once.",
+  deniedTitle: "You are not authorised to access this page",
+  denied: "Only the HOD of C&IT, or a person he has authorised for a management page, can open the management pages.",
+} as const;
 
 export interface ManagementHubOpen {
   ticket: string;
@@ -69,10 +85,7 @@ export interface HubDeps {
   nameOf?: (ticket: string) => Promise<string | null>;
 }
 
-const message = (headline: string, tone: "unknown" | "no", text: string): AnalyticsPayload => {
-  const card: HospitalAnswer = { title: "Management", headline: { text: headline, tone }, status: { tone: tone === "no" ? "closed" : "unknown", text } };
-  return { kind: "count", answer: text, hospital: card };
-};
+const gate = (g: ManagementGate): AnalyticsPayload => ({ kind: "count", answer: g.state === "login" ? GATE_TEXT.login : GATE_TEXT.denied, managementGate: g }) as AnalyticsPayload;
 
 /** the tools this person holds, in the usual order (empty when none) */
 export function toolsOf(a: Authorities): HubTool[] {
@@ -87,7 +100,7 @@ export async function answerManagementHub(typed: string, ticket: string | null, 
 
   const who = (ticket ?? "").trim();
   if (!who) {
-    return message("Please log in", "unknown", "The management pages are for the HOD of C&IT and for the people he has authorised. Please log in with your ticket number first.");
+    return gate({ state: "login" });
   }
 
   const [held, name] = await Promise.all([
@@ -96,7 +109,7 @@ export async function answerManagementHub(typed: string, ticket: string | null, 
   ]);
   const tools = held ? toolsOf(held) : [];
   if (tools.length === 0) {
-    return message("Not allowed", "no", "Only the HOD of C&IT, or a person he has authorised for a management page, can open the management pages.");
+    return gate({ state: "denied", ...(name && name.trim() ? { name: name.trim() } : {}) });
   }
 
   const role: Authority = tools.some((t) => t.role === "hod") ? "hod" : "delegate";

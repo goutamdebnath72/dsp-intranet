@@ -59,7 +59,7 @@ import { HolidayAdminPanel } from "@/components/HolidayAdminPanel";
 import { CircularAdminPanel } from "@/components/CircularAdminPanel";
 import { AnnouncementAdminPanel } from "@/components/AnnouncementAdminPanel";
 import { AccessLogAdminPanel } from "@/components/AccessLogAdminPanel";
-import { ManagementBack, ManagementHubPanel } from "@/components/ManagementHubPanel";
+import { ManagementBack, ManagementGatePanel, ManagementHubPanel } from "@/components/ManagementHubPanel";
 import { detectManagementHubIntent } from "@/lib/facility/hub";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
@@ -1089,7 +1089,9 @@ export function OmnibarModal({
                             {(analytics.paxAdmin || analytics.employeeAdmin || analytics.holidayAdmin || analytics.circularAdmin || analytics.announcementAdmin || analytics.accessLogAdmin) && (
                               <ManagementBack onBack={() => triggerSearch("semantic", { query: "management" })} />
                             )}
-                            {analytics.managementHub ? (
+                            {analytics.managementGate ? (
+                              <ManagementGatePanel gate={analytics.managementGate} onSignIn={openModal} onClose={() => clearSearch()} />
+                            ) : analytics.managementHub ? (
                               <ManagementHubPanel open={analytics.managementHub} onOpen={(phrase) => triggerSearch("semantic", { query: phrase })} onClose={() => clearSearch()} />
                             ) : analytics.paxAdmin ? (
                               <PaxAdminPanel open={analytics.paxAdmin} />

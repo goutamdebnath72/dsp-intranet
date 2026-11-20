@@ -113,6 +113,10 @@ export interface ToolShellProps {
   instant?: boolean;
   /** the cross: closes the card (the calculators list, which leaves the search window as it is) */
   onClose?: () => void;
+  /** what the cross says it closes, for the screen reader (the calculators say "Close this calculator") */
+  closeLabel?: string;
+  /** a small chip at the right of the header, before the back arrow and the cross (the management page puts who holds it there) */
+  badge?: React.ReactNode;
   /** the back arrow: a page opened from a list goes back to it. A cross would say "close", and this does not close anything */
   onBack?: () => void;
   /** the card downloads the public rate table (said in the notice) */
@@ -142,7 +146,7 @@ export function CloseButton({ label, onClick }: { label: string; onClick: () => 
 }
 
 /** The frame of a calculator card. */
-export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClose, onBack, rates, notice = true, children }: ToolShellProps) {
+export function ToolShell({ title, subtitle, icon, tone = "sky", instant, badge, closeLabel = "Close this calculator", onClose, onBack, rates, notice = true, children }: ToolShellProps) {
   const t = TONES[tone];
   const calm = useReducedMotion();
   return (
@@ -170,11 +174,12 @@ export function ToolShell({ title, subtitle, icon, tone = "sky", instant, onClos
             <Zap size={11} aria-hidden="true" /> Instant
           </span>
         )}
+        {badge}
         {onBack && (
           <BackButton label="Back to the calculators list" onClick={onBack} />
         )}
         {onClose && (
-          <CloseButton label="Close this calculator" onClick={onClose} />
+          <CloseButton label={closeLabel} onClick={onClose} />
         )}
       </div>
       {children}
