@@ -16,6 +16,7 @@ import { detectCircularAdminIntent } from "@/lib/circulars/admin/intent";
 import { detectAnnouncementAdminIntent } from "@/lib/announcements/admin/intent";
 import { detectAccessLogAdminIntent } from "@/lib/accessLog/admin/intent";
 import { detectTool } from "@/lib/tools/detect";
+import { QUICK_REFERENCE, entryStrings } from "@/lib/help/quickReference";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: unknown, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -110,6 +111,8 @@ async function main() {
   ok("the management page has the cross of the calculators' pages: the SAME button (same classes, one component, CloseButton), at the right of the header, saying what it closes", /aria-label="Close the management page"/.test(html) && closeCls(html) !== "" && closeCls(html) === closeCls(shellClose) && /aria-label="Close this calculator"/.test(shellClose) && html.indexOf("Authorised delegate") < html.indexOf('aria-label="Close the management page"') && /aria-label="Somewhere"/.test(renderToStaticMarkup(<CloseButton label="Somewhere" onClick={() => undefined} />)));
   ok("the cross does what the calculators' cross does: it closes the page and leaves what was typed in the box (clearSearch drops the answer and the sent line, not the text), so 'Press Enter to open the management page' is there again", /<ManagementHubPanel open=\{analytics\.managementHub\}[\s\S]*?onClose=\{\(\) => clearSearch\(\)\} \/>/.test(modal) && /const clearSearch = useCallback\(\(\) => \{\s*setSubmittedQuery\(""\);\s*setMode\(null\);/.test(readFileSync("src/hooks/useOmniSearch.ts", "utf8")) && !/const clearSearch = useCallback\(\(\) => \{[^}]*setQuery\(/.test(readFileSync("src/hooks/useOmniSearch.ts", "utf8")));
   ok("the six tools' pages keep their Back button and have no cross of their own added (the management page's cross is on the page itself)", !/ManagementBack[^\n]*onClose/.test(modal));
+  const guideEntry = QUICK_REFERENCE.flatMap((g) => g.entries).find((e) => /^Management pages/.test(e.feature));
+  ok("the guide's What-to-type list has an entry for the management page, and every word it gives is one the page really answers to (the guide cannot promise a word that does nothing)", !!guideEntry && entryStrings(guideEntry).length >= 4 && entryStrings(guideEntry).every(detectManagementHubIntent), JSON.stringify(guideEntry ? entryStrings(guideEntry).filter((q) => !detectManagementHubIntent(q)) : "no entry"));
   console.log(`hub selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
