@@ -85,14 +85,18 @@ export function WeatherBody({ w }: { w: Weather }) {
 
       <h4 className="mb-1.5 mt-4 text-sm font-extrabold text-slate-800">Next 24 hours</h4>
       <ol className="grid grid-cols-4 gap-1.5 sm:grid-cols-8" aria-label="The next 24 hours, three hours at a time">
-        {w.hours.map((h) => (
-          <li key={h.time} className="flex flex-col items-center rounded-xl border border-slate-100 bg-white px-1 py-2 text-center" title={h.text}>
-            <span className="text-[11px] font-semibold text-slate-500">{hourLabel(h.time)}</span>
-            <SkyIcon code={h.code} night={!isDaylight(h.time, w)} size={20} />
-            <span className="text-sm font-bold tabular-nums text-slate-900">{deg(h.temp)}</span>
-            <span className="flex items-center gap-0.5 text-[11px] tabular-nums text-sky-700"><Droplets size={10} aria-hidden="true" />{h.rainChance}%</span>
-          </li>
-        ))}
+        {w.hours.map((h) => {
+          const day = isDaylight(h.time, w);
+          // each hour is its own small card: a firmer border and a soft shadow lift it off the panel, and its tint tells the daytime hours (warm sky) from the night ones (indigo) at a glance
+          return (
+            <li key={h.time} data-hour-card={day ? "day" : "night"} className={`flex flex-col items-center rounded-xl border px-1 py-2 text-center shadow-sm ${day ? "border-sky-200 bg-gradient-to-b from-sky-50 to-white" : "border-indigo-200 bg-gradient-to-b from-indigo-100/70 to-white"}`} title={h.text}>
+              <span className={`text-[11px] font-bold ${day ? "text-sky-800" : "text-indigo-800"}`}>{hourLabel(h.time)}</span>
+              <SkyIcon code={h.code} night={!day} size={20} />
+              <span className="text-sm font-bold tabular-nums text-slate-900">{deg(h.temp)}</span>
+              <span className="flex items-center gap-0.5 text-[11px] tabular-nums text-sky-700"><Droplets size={10} aria-hidden="true" />{h.rainChance}%</span>
+            </li>
+          );
+        })}
       </ol>
 
       <h4 className="mb-1.5 mt-4 text-sm font-extrabold text-slate-800">{w.days.length} days</h4>
