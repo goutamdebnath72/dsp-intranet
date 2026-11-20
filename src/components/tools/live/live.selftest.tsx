@@ -10,7 +10,7 @@ import { GoldBody } from "./GoldCard";
 import { FuelBody, buildRows } from "./FuelCard";
 import { MarketsBody } from "./MarketsCard";
 import { StoryList, ago } from "./StoryList";
-import { SourceLine, LiveGate, TrendChart, stamp, niceTicks, dateTicks, spanText } from "./LivePieces";
+import { SourceLine, LiveGate, TrendChart, stamp, niceTicks, dateTicks, spanText, trendFraction, trendIndex, TREND_W, TREND_PAD } from "./LivePieces";
 import { parseIbja, extendHistory, parseEtfSeries } from "../../../lib/live/gold";
 import { assemble, type City } from "../../../lib/live/fuel";
 import { buildMarkets, INDICES, WATCHLIST, parseYahooChart } from "../../../lib/live/markets";
@@ -123,5 +123,11 @@ ok("the Business tab asks the business route address only (a fixed tab word), an
   ok("the index tiles have deep gradients of their own (indigo-violet, sky-blue, fuchsia-purple) with white text, not the card's pale green", /from-indigo-600 via-violet-600 to-purple-700/.test(src) && /from-sky-500 via-blue-600 to-indigo-600/.test(src) && /from-fuchsia-600 via-purple-600 to-violet-700/.test(src) && /bg-gradient-to-br p-4 text-white/.test(src) && !/from-emerald-300 via-teal-300/.test(src) && !/from-rose-300 via-red-300/.test(src));
   ok("the line on a dark tile is white and the change pill keeps its own green or red (the up or down of the day), and every tile carries data-index-tile", /<Sparkline values=\{q\.spark\} color="#ffffff" \/>/.test(src) && /<ChangeChip abs=\{q\.change\} pct=\{q\.pct\} \/>/.test(src) && /data-index-tile=\{up \? "up" : "down"\}/.test(src));
 }
+// THE HOVER DOT IS UNDER THE POINTER: the points are drawn from PAD to W - PAD of the drawing, so the pointer's place must be mapped back through the same padding (it was mapped over the whole width, which put the dot up to 1.7% of the chart's width, about 12 px, away from the pointer)
+ok("trendIndex is the exact inverse of where a point is drawn: for 2, 3, 30, 246 and 366 points, a pointer exactly at the i-th point's place picks the i-th", [2, 3, 30, 246, 366].every((n) => Array.from({ length: n }, (_, i) => i).every((i) => trendIndex(trendFraction(i, n), n) === i)));
+ok("the dot is never more than half the space between two points from the pointer, along the whole drawn line (246 points); the old whole-width mapping was up to 1.7% of the width off", (() => { const n = 246; const half = (trendFraction(1, n) - trendFraction(0, n)) / 2; let worst = 0, worstOld = 0; for (let f = trendFraction(0, n); f <= trendFraction(n - 1, n); f += 0.0007) { worst = Math.max(worst, Math.abs(trendFraction(trendIndex(f, n), n) - f)); const old = Math.round(f * (n - 1)); worstOld = Math.max(worstOld, Math.abs(trendFraction(old, n) - f)); } return worst <= half + 1e-9 && worstOld > 0.014; })());
+ok("a pointer over the padding at either end takes the first or the last point, and one outside the chart cannot pick a point that does not exist", trendIndex(0, 246) === 0 && trendIndex(TREND_PAD / TREND_W / 2, 246) === 0 && trendIndex(1, 246) === 245 && trendIndex(-0.2, 246) === 0 && trendIndex(1.3, 246) === 245);
+ok("the chart measures the pointer inside the frame's border, over the width the drawing fills (clientLeft and clientWidth), through trendIndex", (() => { const src = readFileSync("src/components/tools/live/LivePieces.tsx", "utf8"); return /el\.clientLeft/.test(src) && /el\.clientWidth/.test(src) && /trendIndex\(/.test(src) && !/Math\.round\(\(\(e\.clientX - r\.left\) \/ r\.width\)/.test(src); })());
+
 console.log(`live selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

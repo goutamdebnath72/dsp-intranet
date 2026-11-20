@@ -164,6 +164,18 @@ const edgeShift = (pct: number) => (pct < 16 ? "0%" : pct > 84 ? "-100%" : "-50%
  * For a price that stays as it is until the day it is changed (fuel), `step` draws it as a staircase (a sloping line would say the price drifted), `ties: "first"` names the DAY a high or a low was
  * first reached (not the latest day on which it still held), and the high and the low say how long they held.
  */
+/** the drawing's own units: the points are drawn from PAD to W - PAD across a drawing W wide (so they do not touch the frame) */
+export const TREND_W = 600, TREND_H = 220, TREND_PAD = 10;
+
+/** where on the drawing (0 at its left edge, 1 at its right) the i-th of n points is drawn */
+export const trendFraction = (i: number, n: number): number => (TREND_PAD + (i / Math.max(1, n - 1)) * (TREND_W - 2 * TREND_PAD)) / TREND_W;
+
+/** the point nearest to a place on the drawing (0 to 1 from its left edge): the inverse of trendFraction, so that the dot is drawn at the place the pointer is (a pointer over the padding takes the first or the last point) */
+export function trendIndex(fraction: number, n: number): number {
+  const i = Math.round(((fraction * TREND_W - TREND_PAD) / (TREND_W - 2 * TREND_PAD)) * (n - 1));
+  return Math.max(0, Math.min(n - 1, i));
+}
+
 export function TrendChart({ points, color = "#0ea5e9", format, ariaLabel, step = false, ties = "last", latestLabel = "Latest", pointsText, todayIso }: {
   points: TrendPoint[]; color?: string; format: (v: number) => string; ariaLabel: string;
   step?: boolean; ties?: "first" | "last"; latestLabel?: string; pointsText?: string;
@@ -183,7 +195,7 @@ export function TrendChart({ points, color = "#0ea5e9", format, ariaLabel, step 
     return () => ro.disconnect();
   }, []);
   const dateWant = datesThatFit(width);
-  const W = 600, H = 220, PAD = 10;
+  const W = TREND_W, H = TREND_H, PAD = TREND_PAD;
   const geo = useMemo(() => {
     const vs = points.map((p) => p.value);
     const lo = Math.min(...vs), hi = Math.max(...vs);
@@ -212,9 +224,12 @@ export function TrendChart({ points, color = "#0ea5e9", format, ariaLabel, step 
   }, [points, step, ties, dateWant]);
   if (points.length < 2) return <p className="text-sm text-slate-500">Not enough history to draw a trend.</p>;
   const idx = (e: React.PointerEvent) => {
-    const r = box.current?.getBoundingClientRect();
-    if (!r) return null;
-    return Math.max(0, Math.min(points.length - 1, Math.round(((e.clientX - r.left) / r.width) * (points.length - 1))));
+    const el = box.current;
+    if (!el) return null;
+    // the drawing fills the inside of the frame (not its 1 px border) and the points do not start at its edge: the same mapping the drawing uses, run backwards
+    const r = el.getBoundingClientRect();
+    if (!el.clientWidth) return null;
+    return trendIndex((e.clientX - r.left - el.clientLeft) / el.clientWidth, points.length);
   };
   const full = (p: TrendPoint) => `${p.full ?? p.label}${p.est ? " (est.)" : ""}`;
   const h = hover !== null ? { p: points[hover], q: geo.xy[hover] } : null;
