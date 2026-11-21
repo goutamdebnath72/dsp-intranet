@@ -524,16 +524,19 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
   return payload;
 }
 
-/** Entry point used by the search route: wires the real model, database and existing engines. */
-export async function answerOmnibar(q: string, userKey: string | null, retry: RetryInfo | null = null, opts: { skipModel?: boolean } = {}): Promise<OmnibarPayload | null> {
-  const { chatLlm } = await import("./llm");
-  const { withDefaultClient } = await import("./db");
-  return runOmnibar(q, userKey, {
-    enabled: process.env.NL2SQL_OMNIBAR_ENABLED !== "false",
-    verifiedMin: verifiedMinConfirms(),
-    skipModel: opts.skipModel,
-    llm: chatLlm(),
-    withClient: withDefaultClient,
+/**
+ * THE MANAGEMENT REQUESTS, in one place: the management page ("management", "admin") and the six management tools' own requests (employee, PAX directory, holiday, circular, announcement, contact access log). Each reads the
+ * sentence first (pure) and asks the database who is asking only for a sentence that IS its request. The search route tries them FIRST (answerAdminFast below), before anything slow: the name checks and the language-model
+ * router would otherwise make a page that is only a list wait for them. The chain still has them too, for a request that got past the early try (a retry).
+ */
+function adminResponders(): Pick<OmnibarDeps, "managementHub" | "employeeAdmin" | "paxAdmin" | "holidayAdmin" | "circularAdmin" | "announcementAdmin" | "accessLogAdmin"> {
+  return {
+    managementHub: async (qq, ticket) => {
+      const { answerManagementHub } = await import("@/lib/facility/hub");
+      const { authoritiesForTicket, nameOfTicket } = await import("@/lib/facility/hubAccess");
+      const { getDb } = await import("@/lib/db");
+      return answerManagementHub(qq, ticket, { authorities: async (t) => authoritiesForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
+    },
     employeeAdmin: async (qq, ticket) => {
       // the employee manager (step 66a, src/lib/employees/admin/omnibar.ts): the sentence is read first (pure), the database is asked only for a sentence that IS such a request
       const { answerEmployeeAdmin } = await import("@/lib/employees/admin/omnibar");
@@ -541,27 +544,6 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
       const { nameOfTicket } = await import("@/lib/pax/admin/access");
       const { getDb } = await import("@/lib/db");
       return answerEmployeeAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
-    },
-    dates: async (qq, ticket) => {
-      // the date of birth / date of joining of an employee: ONLY the HOD of C&IT (step 65b, src/lib/peopleEvents/datesLookup.ts). `ticket` is the LOGIN's (the route ignores the one in the URL); the sentence is read first,
-      // the people directory and the dates are asked only for a sentence that IS such a question, with the application's own connection (never the model's)
-      const { answerDates, readDates } = await import("@/lib/peopleEvents/datesLookup");
-      const { rowsOf } = await import("@/lib/pax/admin/rows");
-      const { getDb } = await import("@/lib/db");
-      const { isSuperAdmin } = await import("@/lib/superAdmin");
-      const { searchEmployeesById, searchEmployeesByName } = await import("@/lib/search/employeeSearch");
-      return answerDates(qq, ticket, {
-        isHod: (t) => !!t && isSuperAdmin(t),
-        findByName: async (name) => searchEmployeesByName(await getDb(), name),
-        findByTicket: async (t) => searchEmployeesById(await getDb(), { kind: "ticket", value: t }),
-        datesOf: async (tickets) => readDates(async (sql, params) => rowsOf(await (await getDb()).query(sql, params as never[])), tickets),
-      });
-    },
-    managementHub: async (qq, ticket) => {
-      const { answerManagementHub } = await import("@/lib/facility/hub");
-      const { authoritiesForTicket, nameOfTicket } = await import("@/lib/facility/hubAccess");
-      const { getDb } = await import("@/lib/db");
-      return answerManagementHub(qq, ticket, { authorities: async (t) => authoritiesForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
     },
     paxAdmin: async (qq, ticket) => {
       // the editor of the PAX directory (step 64a, src/lib/pax/admin/omnibar.ts): the sentence is read first, the database is asked only for a sentence that IS such a request
@@ -593,6 +575,45 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
       const { authorityForTicket, nameOfTicket } = await import("@/lib/accessLog/admin/access");
       const { getDb } = await import("@/lib/db");
       return answerAccessLogAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
+    },
+  };
+}
+
+/** The management page, or one of the tools' own requests, answered at once (null for any other sentence): the first of them that reads the sentence as its own; the same order as in the chain. */
+export async function answerAdminFast(q: string, userKey: string | null): Promise<OmnibarPayload | null> {
+  const r = adminResponders();
+  for (const k of ["managementHub", "employeeAdmin", "paxAdmin", "holidayAdmin", "circularAdmin", "announcementAdmin", "accessLogAdmin"] as const) {
+    const payload = await r[k]?.(q, userKey).catch(() => null);
+    if (payload) return { ...payload, source: "holiday", attempt: 1 } as OmnibarPayload;
+  }
+  return null;
+}
+
+/** Entry point used by the search route: wires the real model, database and existing engines. */
+export async function answerOmnibar(q: string, userKey: string | null, retry: RetryInfo | null = null, opts: { skipModel?: boolean } = {}): Promise<OmnibarPayload | null> {
+  const { chatLlm } = await import("./llm");
+  const { withDefaultClient } = await import("./db");
+  return runOmnibar(q, userKey, {
+    enabled: process.env.NL2SQL_OMNIBAR_ENABLED !== "false",
+    verifiedMin: verifiedMinConfirms(),
+    skipModel: opts.skipModel,
+    llm: chatLlm(),
+    withClient: withDefaultClient,
+    ...adminResponders(),
+    dates: async (qq, ticket) => {
+      // the date of birth / date of joining of an employee: ONLY the HOD of C&IT (step 65b, src/lib/peopleEvents/datesLookup.ts). `ticket` is the LOGIN's (the route ignores the one in the URL); the sentence is read first,
+      // the people directory and the dates are asked only for a sentence that IS such a question, with the application's own connection (never the model's)
+      const { answerDates, readDates } = await import("@/lib/peopleEvents/datesLookup");
+      const { rowsOf } = await import("@/lib/pax/admin/rows");
+      const { getDb } = await import("@/lib/db");
+      const { isSuperAdmin } = await import("@/lib/superAdmin");
+      const { searchEmployeesById, searchEmployeesByName } = await import("@/lib/search/employeeSearch");
+      return answerDates(qq, ticket, {
+        isHod: (t) => !!t && isSuperAdmin(t),
+        findByName: async (name) => searchEmployeesByName(await getDb(), name),
+        findByTicket: async (t) => searchEmployeesById(await getDb(), { kind: "ticket", value: t }),
+        datesOf: async (tickets) => readDates(async (sql, params) => rowsOf(await (await getDb()).query(sql, params as never[])), tickets),
+      });
     },
     pax: async (qq) => {
       // the PAX directory (a department's number) or an executive's CUG number, decided by the subject (step 63b, src/lib/pax/route.ts: it reads with the application's OWN connection, never the model's)

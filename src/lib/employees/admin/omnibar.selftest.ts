@@ -64,7 +64,7 @@ async function main() {
   // ---- the wiring in the files ----
   const src = readFileSync("src/lib/nl2sql/omnibar.ts", "utf8");
   const code = (t: string) => t.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
-  const wiring = src.slice(src.indexOf("employeeAdmin: async (qq, ticket)"), src.indexOf("dates: async (qq, ticket)"));
+  const wiring = src.slice(src.indexOf("employeeAdmin: async (qq, ticket)"), src.indexOf("paxAdmin: async (qq, ticket)"));
   ok("omnibar.ts wires the manager to the application's own connection (getDb) and to the employee manager's authority check", wiring.includes("getDb") && wiring.includes("authorityForTicket") && wiring.includes("@/lib/employees/admin/access"), wiring.slice(0, 160));
   ok("...never to the model's client or its read-only role", !/withClient|withDefaultClient|nlq_reader|NL2SQL_DATABASE_URL/.test(code(wiring)));
   ok("...the route comes BEFORE the date lookup, inside the block that a retry skips", src.indexOf("deps.employeeAdmin ?") > 0 && src.indexOf("deps.employeeAdmin ?") < src.indexOf("deps.dates ?") && src.lastIndexOf("if (!retry) {", src.indexOf("deps.employeeAdmin ?")) > 0);

@@ -15,7 +15,7 @@ import { fetchCircularLabels } from "@/lib/search/circularLabels";
 import { SearchUnavailableError } from "@/lib/search/searchResilience";
 import { classifyQuoted, literalPhraseMatches } from "@/lib/search/quotedMatch";
 import { cleanQueryString } from "@/lib/utils/queryCleaner";
-import { answerOmnibar, parseRetry } from "@/lib/nl2sql/omnibar";
+import { answerAdminFast, answerOmnibar, parseRetry } from "@/lib/nl2sql/omnibar";
 import { continueToCirculars } from "@/lib/search/dataGapRule";
 import { contentTokens, isHolidayTopic, topicTokens } from "@/lib/search/topicGate";
 import { applyRankAdjustments } from "@/lib/search/rankAdjust";
@@ -211,6 +211,16 @@ async function handleSearch(request: Request) {
 
     if (!q || q.length < 2) {
       return NextResponse.json([]);
+    }
+
+    // THE MANAGEMENT PAGE AND THE MANAGEMENT TOOLS' OWN REQUESTS ("management", "admin", "holiday management", "add new employee"...) are answered FIRST, before the name checks, the language-model router and the directory
+    // loads below: those cost database round trips and a call to the model, and a page that is only a list of titles (or a tool that opens at once) has no use for any of them. Each request is read as a sentence first (pure); the
+    // database is asked only who is calling (one query for the management page), and the login is the session's, as everywhere here. A sentence that is none of them goes on as before.
+    if (mode === "semantic") {
+      const endAdmin = traceStep("management");
+      const admin = await answerAdminFast(q, userTicket ?? null).catch(() => null);
+      endAdmin();
+      if (admin) return NextResponse.json({ analytics: admin });
     }
 
     const endNameChecks = traceStep("name-checks");

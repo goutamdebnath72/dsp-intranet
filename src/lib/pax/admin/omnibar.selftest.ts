@@ -77,7 +77,7 @@ async function main() {
 
   // ---- the wiring in the files ----
   const src = readFileSync("src/lib/nl2sql/omnibar.ts", "utf8");
-  const wiring = src.slice(src.indexOf("paxAdmin: async (qq, ticket)"), src.indexOf("pax: async (qq)"));
+  const wiring = src.slice(src.indexOf("paxAdmin: async (qq, ticket)"), src.indexOf("holidayAdmin: async (qq, ticket)"));
   const code = (t: string) => t.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
   ok("omnibar.ts wires the editor route to the application's own connection (getDb) and to authorityForTicket", wiring.includes("getDb") && wiring.includes("authorityForTicket") && wiring.includes("answerPaxAdmin"), wiring.slice(0, 200));
   ok("...never to the model's client (withClient, nlq_reader, NL2SQL_DATABASE_URL)", !/withClient|withDefaultClient|nlq_reader|NL2SQL_DATABASE_URL/.test(code(wiring)));

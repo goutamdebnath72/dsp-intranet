@@ -215,6 +215,7 @@ export function OmnibarModal({
     isStale,
     mode,
     triggerSearch,
+    prefetchSearch,
     results,
     synthesis,
     analytics,
@@ -880,6 +881,14 @@ export function OmnibarModal({
                         return;
                       }
 
+                      // THE MANAGEMENT PAGE ("management", "admin"...): the server answers it from the words alone, so it is sent at once. It must not wait for the AI that is asked "which utility do you mean" (a call to the model, up to 5 seconds,
+                      // with "Understanding your request" on the screen) nor start the people name search (database time, and people shown under a page of titles): neither has anything to add for a line that is the page's own words.
+                      if (detectManagementHubIntent(qTrim)) {
+                        setEmployeeResults([]);
+                        triggerSearch("semantic");
+                        return;
+                      }
+
                       // WHAT THE LINE MEANS, when no exact reader has it. First what the app can tell by itself (instant, nothing leaves the browser): a utility the line is clearly about opens, and the
                       // line is not searched. Then, for a whole sentence that could be neither a name nor an ID, the AI is asked which utility it means (only the line goes, src/lib/tools/intentAi.ts);
                       // its answer is a utility id or none. Failing both, or on none, the line is searched as it always was.
@@ -1092,7 +1101,7 @@ export function OmnibarModal({
                             {analytics.managementGate ? (
                               <ManagementGatePanel gate={analytics.managementGate} onSignIn={openModal} onClose={() => clearSearch()} />
                             ) : analytics.managementHub ? (
-                              <ManagementHubPanel open={analytics.managementHub} onOpen={(phrase) => triggerSearch("semantic", { query: phrase })} onClose={() => clearSearch()} />
+                              <ManagementHubPanel open={analytics.managementHub} onOpen={(phrase) => triggerSearch("semantic", { query: phrase })} onPrefetch={(phrase) => prefetchSearch("semantic", phrase)} onClose={() => clearSearch()} />
                             ) : analytics.paxAdmin ? (
                               <PaxAdminPanel open={analytics.paxAdmin} />
                             ) : analytics.employeeAdmin ? (

@@ -3,7 +3,7 @@ import type { HolidayDetail } from "@/lib/holidays/format";
 import type { HolidayCompareView } from "@/lib/holidays/compareView";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { isIdQuery } from "@/lib/search/idQuery";
-import useSWR, { mutate as globalMutate } from "swr";
+import useSWR, { mutate as globalMutate, preload } from "swr";
 import type { SynthesisResult } from "@/lib/search/executiveSynthesis";
 import type { Nl2SqlExtras } from "@/lib/nl2sql/clientTypes";
 import { markWeakMatches } from "@/lib/search/weakMatch";
@@ -122,6 +122,19 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
+type SearchRetry = { attempt: number; reason: string; note: string; logId: number | null };
+
+/** the address of one search: the SWR key of the answer on screen and of an answer fetched ahead are this same text, so a fetched-ahead answer is found at once */
+export function searchKey(text: string, mode: SearchMode, ticketNo?: string, retry?: SearchRetry | null): string {
+  return `/api/ai-search?q=${encodeURIComponent(text)}&mode=${mode}${ticketNo ? `&ticket=${ticketNo}` : ""}${
+    retry
+      ? `&ra=${retry.attempt}&rr=${encodeURIComponent(retry.reason)}${retry.logId ? `&rl=${retry.logId}` : ""}${
+          retry.note ? `&rn=${encodeURIComponent(retry.note)}` : ""
+        }`
+      : ""
+  }`;
+}
+
 export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
@@ -170,6 +183,14 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     }
   };
 
+  // FETCH AHEAD: ask for an answer before it is wanted (the management page does it when a title is pointed at, so pressing it shows the page at once). Same address as triggerSearch makes, so the answer is
+  // found when asked for; a request already on its way is shared, not repeated. Nothing is shown and nothing changes on screen.
+  const prefetchSearch = (selectedMode: SearchMode, text: string) => {
+    const t = text.trim();
+    if (!isOpen || !selectedMode || t.length < 3) return;
+    preload(searchKey(t, selectedMode, ticketNo), fetcher).catch(() => undefined);
+  };
+
   // STRICT: SWR only fetches if modal is open, a button was clicked (mode !== null), and text is submitted
   const shouldFetch =
     isOpen && mode !== null && submittedQuery.trim().length >= 3;
@@ -179,15 +200,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     error,
     isLoading: isSwrLoading,
   } = useSWR<OmniSearchResponse | OmniSearchResult[]>(
-    shouldFetch
-      ? `/api/ai-search?q=${encodeURIComponent(submittedQuery)}&mode=${mode}${ticketNo ? `&ticket=${ticketNo}` : ""}${
-          retry
-            ? `&ra=${retry.attempt}&rr=${encodeURIComponent(retry.reason)}${retry.logId ? `&rl=${retry.logId}` : ""}${
-                retry.note ? `&rn=${encodeURIComponent(retry.note)}` : ""
-              }`
-            : ""
-        }`
-      : null,
+    shouldFetch ? searchKey(submittedQuery, mode, ticketNo, retry) : null,
     fetcher,
     {
       keepPreviousData: false,
@@ -254,6 +267,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     // A synthesis that arrives on the plain Enter path (the engine chose it, step 26a) is shown as one: the screen follows the answer.
     mode: synthesis ? ("intellectual" as SearchMode) : mode,
     triggerSearch,
+    prefetchSearch,
     results,
     synthesis,
     analytics,

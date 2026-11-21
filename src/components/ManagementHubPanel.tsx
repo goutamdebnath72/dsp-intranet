@@ -27,7 +27,7 @@ const TILE: Record<FacilityKey, string> = {
   access_log: "bg-gradient-to-br from-rose-600 to-red-600",
 };
 
-export function ManagementHubPanel({ open, onOpen, onClose }: { open: ManagementHubOpen; onOpen: (phrase: string) => void; onClose: () => void }) {
+export function ManagementHubPanel({ open, onOpen, onPrefetch, onClose }: { open: ManagementHubOpen; onOpen: (phrase: string) => void; /** called when a title is pointed at, touched or focused: the page behind it is asked for ahead of the press */ onPrefetch?: (phrase: string) => void; onClose: () => void }) {
   const hod = open.role === "hod";
   // the page is a ToolShell, the frame of the calculators' pages: the same soft gradient and blurred lights (the bluish glow behind the cross), the same header, the same cross
   return (
@@ -49,6 +49,9 @@ export function ManagementHubPanel({ open, onOpen, onClose }: { open: Management
               type="button"
               data-hub-tool={t.key}
               onClick={() => onOpen(t.phrase)}
+              onPointerEnter={() => onPrefetch?.(t.phrase)}
+              onPointerDown={() => onPrefetch?.(t.phrase)}
+              onFocus={() => onPrefetch?.(t.phrase)}
               className="group flex h-full w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3.5 py-3 text-left shadow-sm transition-colors hover:border-slate-300 hover:bg-white hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             >
               <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow ${TILE[t.key]}`}>{ICON[t.key]}</span>
