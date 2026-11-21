@@ -68,8 +68,7 @@ const nextConfig = {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
 
-  // 1. ✅ Disable the SWC minifier
-  swcMinify: false,
+  // (the old `swcMinify: false` option is gone in Next 16; minification is switched off for the webpack build below, which is what keeps TypeORM's class names)
 
   webpack: (config, { isServer, dev }) => {
     // 2. ✅ PRESERVE ORIGINAL NATIVE DRIVER EXTERNAL SETTINGS
@@ -101,9 +100,9 @@ const nextConfig = {
     return config;
   },
 
-  experimental: {
-    // ✅ Keep allowing native database modules to load correctly at runtime
-    serverComponentsExternalPackages: [
+  // Next 16: these three settings are top-level (they were under `experimental` in Next 14)
+  // ✅ Keep allowing native database modules to load correctly at runtime
+  serverExternalPackages: [
       "pg",
       "pg-hstore",
       "sequelize",
@@ -203,7 +202,6 @@ const nextConfig = {
         "./node_modules/pdf-parse/lib/pdf.js/v2.0.550/**",
       ],
     },
-  },
 };
 
 module.exports = nextConfig;

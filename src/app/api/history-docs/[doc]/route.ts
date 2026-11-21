@@ -10,8 +10,8 @@ import { serveDoc } from "@/tools/dsphistory/serve";
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-export async function GET(request: Request, { params }: { params: { doc: string } }) {
-  return serveDoc(request, params.doc, {
+export async function GET(request: Request, { params }: { params: Promise<{ doc: string }> }) {
+  return serveDoc(request, (await params).doc, {
     ticket: getSessionTicket,
     async find(blobName) {
       const { list } = await import("@vercel/blob");

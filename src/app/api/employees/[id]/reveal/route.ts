@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const authOptions = await getAuthOptions();
   const session = await getServerSession(authOptions);
@@ -29,7 +29,7 @@ export async function POST(
     return NextResponse.json({ error: "No viewer identity" }, { status: 400 });
   }
 
-  const viewedUserId = params.id;
+  const viewedUserId = (await params).id;
   let field: string;
   try {
     const body = await request.json();

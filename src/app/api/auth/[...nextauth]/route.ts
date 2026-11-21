@@ -11,7 +11,7 @@ import { NextRequest } from "next/server";
  */
 async function handler(
   req: NextRequest,
-  context: { params: { nextauth: string[] } }
+  context: { params: Promise<{ nextauth: string[] }> }
 ) {
   // 1. Get the auth options (which are async)
   const authOptions = await getAuthOptions();

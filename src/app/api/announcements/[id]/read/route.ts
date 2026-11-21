@@ -12,8 +12,9 @@ import { DateTime } from "luxon";
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } },
+  { params: paramsPromise }: { params: Promise<{ id: string }> },
 ) {
+  const params = await paramsPromise;
   const announcementId = parseInt(params.id, 10);
   if (isNaN(announcementId)) {
     return NextResponse.json(

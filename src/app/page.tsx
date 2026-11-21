@@ -47,7 +47,7 @@ export default async function Home() {
   // The server can be SURE about exactly one kind of visitor: one with no login cookie at all is logged out. (It only looks whether such a cookie
   // exists, never at whose it is: that is why this stays consistent with the rule at the top of this file.) For that visitor the red badge is put
   // into the very first HTML, together with the rest of the page. Anyone else is told by the page itself once it has checked this tab.
-  const visitorHasNoLoginCookie = !cookies()
+  const visitorHasNoLoginCookie = !(await cookies())
     .getAll()
     .some((c) => c.name.includes("next-auth.session-token"));
   const recentCircularIdsPromise = withDbRetry(async () => getRecentCircularIds(await getDb())).catch(() => null);

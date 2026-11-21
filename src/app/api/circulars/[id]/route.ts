@@ -13,14 +13,14 @@ import { EDIT_DELETE_WINDOW_HOURS } from "@/lib/constants";
 class NotFoundNow extends Error {}
 
 type RouteContext = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export async function GET(request: Request, context: RouteContext) {
   const dataSource = await getDb();
-  const { params } = context;
+  const params = await context.params;
 
   try {
     const id = Number(params.id);
@@ -79,7 +79,7 @@ async function authorise(request: Request, circular: { authorTicketNo?: string |
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
-  const circularId = parseInt(context.params.id, 10);
+  const circularId = parseInt((await context.params).id, 10);
   if (!Number.isInteger(circularId)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
   try {
@@ -116,7 +116,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
-  const { params } = context;
+  const params = await context.params;
   const circularId = parseInt(params.id, 10);
   if (!Number.isInteger(circularId)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 

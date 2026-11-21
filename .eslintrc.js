@@ -1,4 +1,4 @@
-// TypeScript 5.9 + Next 14 + Sequelize compatible
+// TypeScript 5.9 + Next 16 + Sequelize compatible (eslint-config-next is kept at 15.5.x because 16.x needs ESLint 9 and flat config; moving to ESLint 9 is a separate job)
 module.exports = {
   root: true,
   parser: "@typescript-eslint/parser",

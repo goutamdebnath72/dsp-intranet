@@ -12,7 +12,8 @@ import { blobFileStorage } from "@/lib/announcements/attachment";
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-export async function GET(_request: Request, { params }: { params: { id: string; n: string } }) {
+export async function GET(_request: Request, { params: paramsPromise }: { params: Promise<{ id: string; n: string }> }) {
+  const params = await paramsPromise;
   const id = Number.parseInt(params.id, 10);
   const n = Number.parseInt(params.n, 10);
   if (!Number.isInteger(id) || id < 1 || !Number.isInteger(n) || n < 1 || n > 500) return NextResponse.json({ error: "Not found" }, { status: 404 });

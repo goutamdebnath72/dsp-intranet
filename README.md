@@ -2,7 +2,7 @@
 
 The intranet of SAIL Durgapur Steel Plant: home page, circulars archive, holiday calendar, employee directory, and the **omnibar**, a natural-language search bar that answers questions about employees, holidays, circulars and health check-up schedules.
 
-Built with Next.js 14 (App Router), TypeORM on Postgres (Supabase), Vercel Blob for the circulars' page images, Gemini vision OCR (two models read every page), and Groq / Gemini for the language model and embeddings.
+Built with Next.js 16 (App Router, React 19, webpack build), TypeORM on Postgres (Supabase), Vercel Blob for the circulars' page images, Gemini vision OCR (two models read every page), and Groq / Gemini for the language model and embeddings.
 
 ## Run it locally
 
