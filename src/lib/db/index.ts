@@ -151,7 +151,7 @@ export async function getDb(): Promise<DataSource> {
 
   // 3. Construct exact, optimized structural configurations mapped by enterprise driver targets
   if (dbType === "oracle") {
-    console.log(
+    if (!global.cachedTypeORMInitPromise) console.log(
       "🔌 Configuring TypeORM client ecosystem connection for Oracle Database Enterprise Matrix...",
     );
     const oracleConfig = getOracleConfig();
@@ -174,7 +174,8 @@ export async function getDb(): Promise<DataSource> {
       },
     };
   } else {
-    console.log(
+    // said once per start, not by every request that arrives while the connection is still being made (they all pass here)
+    if (!global.cachedTypeORMInitPromise) console.log(
       "🔌 Configuring TypeORM client connectivity options for Supabase Postgres Cluster...",
     );
     dataSourceOptions = {

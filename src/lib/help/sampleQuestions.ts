@@ -123,10 +123,10 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
     covers: "The employee directory: by ticket number, CUG mobile, SAIL personal number, or by name (similar-sounding), with or without the department.",
     tips: [
       "A number needs no Enter: a 6-digit ticket, a 10-digit CUG mobile, a SAIL personal number, or the last 4 digits of an executive's CUG mobile.",
-      "Before you sign in, a person shows as name and department only, and only a ticket number can be looked up. After you sign in the card also shows the ticket number, designation and masked contacts, and a mobile or SAIL personal number can be looked up (the personal number is also the first password, so the card shows it with its middle hidden).",
+      "A card shows the name, ticket number, SAIL personal number, designation and department. The ticket number, the personal number, the mobile number and the e-mail are all masked: press one to see it. Before you sign in, only a ticket number or a name can be looked up; a mobile or SAIL personal number needs a sign-in. The personal number is also the first password, so only a few can be revealed in an hour.",
       "A name is matched by sound: a different spelling still finds the person. Honorifics (Mr, Dr, Shri) are ignored.",
       "Only part of the name? Add the department, in either order.",
-      "Mobile numbers and emails are masked; press reveal to see them (see Contact details under How it works for who can reveal and copy).",
+      "Press a masked ticket number, personal number, mobile number or e-mail to see it. If you have not signed in, the sign-in window opens and, once you are in, it is shown; every reveal is recorded (see Contact details under How it works for who can reveal and copy).",
     ],
     questions: [
       { q: "[first name] [last name]", note: "similar-sounding: \"Goutam\" also finds \"Gautam\" and \"Gautham\"" },

@@ -170,6 +170,11 @@ async function loadVocabulary(withClient: WithClient): Promise<NameVocabulary> {
   return vocab;
 }
 
+/** The name words of the directory (letters only, upper case, at least 3 letters), for the search bar's "looks like a name" hint: the words only, with nobody attached. Kept for ten minutes, like the rest. */
+export async function directoryNameWords(withClient: WithClient): Promise<string[]> {
+  return (await loadVocabulary(withClient)).words;
+}
+
 /** The second search: the same SQL with the nearest real spellings. Null when nothing could be corrected or the corrected SQL finds nobody either. */
 export async function spellingRetry(sql: string, deps: { withClient: WithClient; exec?: ExecOptions }): Promise<{ sql: string; data: QueryResultData; note: string } | null> {
   if (!nameLiteralsIn(sql).length) return null;

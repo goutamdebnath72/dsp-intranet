@@ -6,6 +6,8 @@
 
 /** reveals and copies one ticket may make in an hour */
 export const REVEALS_PER_HOUR = 120;
+/** of those, how many may be SAIL P.Nos: the P.No. is also the first password, so it has a cap of its own, far below the other (logged as the field "sailpno") */
+export const PNO_REVEALS_PER_HOUR = 20;
 
 export type Query = (sql: string, params: unknown[]) => Promise<Array<Record<string, unknown>>>;
 
@@ -18,4 +20,15 @@ export async function accessesInLastHour(query: Query, viewerTicketNo: string): 
 /** true when this ticket may reveal one more */
 export async function mayReveal(query: Query, viewerTicketNo: string, limit: number = REVEALS_PER_HOUR): Promise<boolean> {
   return (await accessesInLastHour(query, viewerTicketNo)) < limit;
+}
+
+/** how many P.No. reveals this ticket has written in the last hour */
+export async function pnoRevealsInLastHour(query: Query, viewerTicketNo: string): Promise<number> {
+  const rows = await query(`SELECT count(*)::int AS n FROM public.contact_access_log WHERE "viewerTicketNo" = $1 AND field = 'sailpno' AND "accessedAt" > now() - interval '1 hour'`, [viewerTicketNo]);
+  return Number(rows[0]?.n ?? 0);
+}
+
+/** true when this ticket may reveal one more P.No. */
+export async function mayRevealPno(query: Query, viewerTicketNo: string, limit: number = PNO_REVEALS_PER_HOUR): Promise<boolean> {
+  return (await pnoRevealsInLastHour(query, viewerTicketNo)) < limit;
 }

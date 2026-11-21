@@ -6,11 +6,12 @@ import { Palette } from "lucide-react";
 import { originOfTicket } from "@/lib/nl2sql/designationFilter";
 import { originClass, originDot, useOriginTint } from "@/lib/ui/originTint";
 
-/** A ticket number; with the tint on, coloured by origin and marked with a dot. Anything that is not an executive ticket stays plain. */
-export function TicketText({ ticket, tint }: { ticket: string | null | undefined; tint: boolean }) {
+/** A ticket number; with the tint on, coloured by origin and marked with a dot. Anything that is not an executive ticket stays plain.
+ *  `origin` is given when the text shown is a MASKED ticket (the server sends the origin read from the real one: src/lib/security/sensitiveFields.ts); otherwise it is read from the ticket itself. */
+export function TicketText({ ticket, tint, origin: given }: { ticket: string | null | undefined; tint: boolean; origin?: "direct" | "promotee" | "" }) {
   const t = String(ticket ?? "").trim();
   if (!t) return null;
-  const origin = tint ? originOfTicket(t) : "";
+  const origin = tint ? (given ?? originOfTicket(t)) : "";
   if (!origin) return <>{t}</>;
   return (
     <span className={originClass(origin)}>

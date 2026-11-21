@@ -3,6 +3,7 @@
 // THE KOLKATA PRICE OF PETROL, DIESEL AND LPG OVER THE LAST YEAR. Reads nothing from the caller. Petrol and diesel: the daily table of the Petroleum Planning & Analysis Cell (a PDF found on its page,
 // read with pdf-parse). LPG: GoodReturns' monthly table for Kolkata. Each is checked by src/lib/live/fuelTrend.ts (a changed source is an error, never a wrong price); when one cannot be had, the copy
 // kept with the app takes its place and the card says so. The two kinds are asked separately, so a failure of one does not take the other down.
+import { plainBytes } from "@/lib/pdf/plainBytes";
 import { DateTime } from "luxon";
 import snapshot from "@/lib/live/fuelTrendSnapshot.json";
 import { getBuffer, getText } from "@/lib/live/http";
@@ -20,7 +21,7 @@ const SAVED = snapshot as Snapshot;
 
 async function pdfText(buf: Buffer): Promise<string> {
   const mod = await import("pdf-parse/lib/pdf-parse.js");
-  return (await mod.default(buf)).text;
+  return (await mod.default(plainBytes(buf))).text;
 }
 
 const longDate = (iso: string) => DateTime.fromISO(iso, { zone: "Asia/Kolkata", locale: "en" }).toFormat("d LLLL yyyy");

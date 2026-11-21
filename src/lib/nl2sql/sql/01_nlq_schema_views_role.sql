@@ -40,12 +40,14 @@ LANGUAGE sql IMMUTABLE AS $$
          regexp_replace(
          regexp_replace(
          regexp_replace(
+         regexp_replace(
          regexp_replace(coalesce(t, ''),
            '\mMUKH?[OA]PADH[AY]{1,5}\M',    'MUKHOPADHYAY',  'gi'),
            '\mBAND[YH]?OPADH[AY]{1,5}\M',   'BANDYOPADHYAY', 'gi'),
            '\mCHATT?OPADH[AY]{1,5}\M',      'CHATTOPADHYAY', 'gi'),
            '\mGANG[OA]PADH[AY]{1,5}\M',     'GANGOPADHYAY',  'gi'),
-           '\mBHATT?ACHAR(?:Y+A?Y*|J+(?:EE+|I|Y+A)?)\M', 'BHATTACHARYA', 'gi')
+           '\mBHATT?ACHAR(?:Y+A?Y*|J+(?:EE+|I|Y+A)?)\M', 'BHATTACHARYA', 'gi'),
+           '\mDATT(?:A)?\M',                  'DUTTA',         'gi')
 $$;
 
 -- Phonetic code of ONE word, the same code stored in nlq.employees.name_codes.

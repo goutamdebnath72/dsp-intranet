@@ -63,6 +63,9 @@ import { ManagementBack, ManagementGatePanel, ManagementHubPanel } from "@/compo
 import { detectManagementHubIntent } from "@/lib/facility/hub";
 import { TicketText } from "@/components/OriginSwitch";
 import { useOriginTint } from "@/lib/ui/originTint";
+import { detectNameHint } from "@/lib/search/nameHint/nameHint";
+import { NAME_HINT_MODE, nameHintSources } from "@/lib/search/nameHint/config";
+import { useNameVocab } from "@/hooks/useNameVocab";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
 import { decideLoginHint, excludeShownPeople, resumeAskedEds, shouldAskExecutive, type ExecutiveAsk } from "@/lib/search/loginHints";
 import { OmniExecutiveAsk } from "@/components/OmniExecutiveAsk";
@@ -95,6 +98,11 @@ const PAGE_WIDTH_VAR = "var(--omni-page-width)";
 const MODAL_TEXT_FACTOR = 0.97;
 const MD_BREAKPOINT_PX = 768; // where the page changes from full width to --content-width (Tailwind md)
 
+/** what can be revealed on a card, each time a signed-in person presses it (the server logs it): the mobile number, the e-mail, the SAIL P.No. and the ticket number */
+type RevealField = "mobile" | "email" | "ticket" | "sailpno";
+type Revealed = Partial<Record<RevealField, string>>;
+const MASK_BUTTON = "cursor-pointer rounded px-0.5 underline decoration-dotted underline-offset-2 hover:bg-neutral-200 hover:text-emerald-700";
+
 function PersonRow({
   emp,
   rev,
@@ -102,13 +110,16 @@ function PersonRow({
   copiedId,
   onReveal,
   onCopy,
+  notice,
 }: {
   emp: any;
-  rev: { mobile?: string; email?: string };
+  rev: Revealed;
   authStatus: string;
   copiedId: string | null;
-  onReveal: (id: string, field: "mobile" | "email") => void;
+  onReveal: (id: string, field: RevealField) => void;
   onCopy: (emp: any) => void;
+  /** a refused or failed reveal for this person (the hourly cap, a log fault): said under the card */
+  notice?: string | null;
   /** Kept for the callers; the department (name and code) is now shown on every card, also under a department heading. */
   hideDepartment?: boolean;
 }) {
@@ -124,15 +135,38 @@ function PersonRow({
           <PersonBadges isExecutive={emp.isExecutive} phd={emp.phd} discipline={emp.discipline} />
         </p>
         <p className="text-xs text-neutral-500 truncate">
-          <TicketText ticket={emp.ticketNo} tint={tint} />
-          {[
-            emp.sailPNo,
-            emp.designation ? `${tidyDesignation(emp.designation)}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
-            emp.department ? `${emp.department}${emp.departmentCode ? ` (${emp.departmentCode})` : ""}` : null,
-          ]
-            .filter(Boolean)
-            .map((part, i) => `${emp.ticketNo || i > 0 ? "  \u00b7  " : ""}${part}`)
-            .join("")}
+          {(() => {
+            // The ticket number and the SAIL P.No. arrive MASKED; pressing one asks the server for the real value (a sign-in is asked for first, and the press is logged).
+            const parts: React.ReactNode[] = [];
+            if (emp.ticketNo)
+              parts.push(
+                rev.ticket ? (
+                  <TicketText ticket={rev.ticket} tint={tint} />
+                ) : (
+                  <button type="button" onClick={() => onReveal(emp.id, "ticket")} title="Press to show the ticket number (sign-in needed; every press is recorded)" className={MASK_BUTTON}>
+                    <TicketText ticket={emp.ticketNo} tint={tint} origin={emp.ticketOrigin} />
+                  </button>
+                ),
+              );
+            if (emp.sailPNo)
+              parts.push(
+                rev.sailpno ? (
+                  <span>{rev.sailpno}</span>
+                ) : (
+                  <button type="button" onClick={() => onReveal(emp.id, "sailpno")} title="Press to show the SAIL personal number (sign-in needed; every press is recorded)" className={MASK_BUTTON}>
+                    {emp.sailPNo}
+                  </button>
+                ),
+              );
+            if (emp.designation) parts.push(<span>{`${tidyDesignation(emp.designation)}${emp.designationCode ? ` (${emp.designationCode})` : ""}`}</span>);
+            if (emp.department) parts.push(<span>{`${emp.department}${emp.departmentCode ? ` (${emp.departmentCode})` : ""}`}</span>);
+            return parts.map((node, i) => (
+              <React.Fragment key={i}>
+                {i > 0 ? "\u00a0\u00b7\u00a0 " : null}
+                {node}
+              </React.Fragment>
+            ));
+          })()}
         </p>
         {Array.isArray(emp.extraFields) && emp.extraFields.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1.5">
@@ -177,6 +211,7 @@ function PersonRow({
             </button>
           )}
         </div>
+        {notice && <p role="alert" className="mt-1 text-[11px] text-red-600">{notice}</p>}
       </div>
       <div className="flex flex-shrink-0 flex-col items-end gap-1 self-start">
         {emp.matchKind === "name-phonetic" && (
@@ -254,6 +289,15 @@ export function OmnibarModal({
     const q = (query || "").trim().toLowerCase();
     return !toolForm && detectManagementHubIntent(q) && (submittedQuery || "").trim().toLowerCase() !== q;
   }, [query, submittedQuery, toolForm]);
+  // "Looks like a name": one to four words that read as an Indian name earn the hint that Enter searches people (src/lib/search/nameHint/nameHint.ts). Only a hint: it is shown when no command, utility or
+  // management page has claimed the line and the line has not been searched yet; it runs in the browser with no network call per keystroke (the plant's name words are fetched once, when the box opens).
+  const nameSources = nameHintSources(NAME_HINT_MODE);
+  const plantNames = useNameVocab(isOpen && nameSources.usePlant);
+  const nameHint = useMemo(() => {
+    const q = (query || "").trim();
+    if (NAME_HINT_MODE === "off" || !q || mode === "intellectual" || toolForm || routed || clearHit || hubTyped || (submittedQuery || "").trim() === q || detectTool(q)) return null;
+    return detectNameHint(q, { useBuiltin: nameSources.useBuiltin, plant: nameSources.usePlant ? plantNames : null });
+  }, [query, mode, toolForm, routed, clearHit, hubTyped, submittedQuery, plantNames, nameSources.useBuiltin, nameSources.usePlant]);
   // Step 59a: a question that uses a FORMER name of a department ("CHRD", "Training Department") is answered with the CURRENT name first: shown above the results, whatever the kind of answer.
   const nameNotice = useMemo(() => formerNameNotice(submittedQuery || ""), [submittedQuery]);
 
@@ -386,7 +430,7 @@ export function OmnibarModal({
     if (!isOpen) { setExecutiveAsk(null); setDeclinedAsk(null); }
   }, [isOpen]);
   // A reveal the user clicked while logged out; retried after they log in.
-  const pendingRevealRef = useRef<{ empId: string; field: "mobile" | "email" } | null>(null);
+  const pendingRevealRef = useRef<{ empId: string; field: RevealField } | null>(null);
 
   // Client-side site directory matches (the "site" result type). Sites are a
   // static list, so this needs no server round-trip. Shown pinned above the
@@ -485,8 +529,10 @@ export function OmnibarModal({
           }),
     [isLoading, submittedQuery, authStatus, isExecutive, mode, analytics, results, declinedAsk],
   );
-  // id -> { mobile?: string; email?: string } once revealed in this session.
-  const [revealed, setRevealed] = useState<Record<string, { mobile?: string; email?: string }>>({});
+  // id -> { mobile?, email?, ticket?, sailpno? } once revealed in this session.
+  const [revealed, setRevealed] = useState<Record<string, Revealed>>({});
+  // a reveal the server refused (the hourly cap) or could not log: said under that person's card
+  const [revealNotice, setRevealNotice] = useState<{ empId: string; text: string } | null>(null);
   // id of the row most recently copied (for a transient "Copied" confirmation).
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -560,7 +606,7 @@ export function OmnibarModal({
 
   // Reveal a masked contact field: unmask inline + server writes the audit row.
   const doReveal = useCallback(
-    async (empId: string, field: "mobile" | "email"): Promise<boolean> => {
+    async (empId: string, field: RevealField): Promise<boolean> => {
       try {
         const r = await fetch(`/api/employees/${empId}/reveal`, {
           method: "POST",
@@ -568,7 +614,13 @@ export function OmnibarModal({
           body: JSON.stringify({ field }),
         });
         if (r.status === 401) return false; // not logged in
-        if (!r.ok) return true; // other error: stop, don't loop into login
+        if (!r.ok) {
+          // the cap (429) or a fault: say so under the card; do not loop into login
+          const e = await r.json().catch(() => null);
+          setRevealNotice({ empId, text: typeof e?.error === "string" ? e.error : "That could not be shown just now. Please try again." });
+          return true;
+        }
+        setRevealNotice(null);
         const d = await r.json();
         setRevealed((prev) => ({
           ...prev,
@@ -583,7 +635,7 @@ export function OmnibarModal({
   );
 
   const revealContact = useCallback(
-    async (empId: string, field: "mobile" | "email") => {
+    async (empId: string, field: RevealField) => {
       // Logged in -> reveal directly (session cookie carries identity).
       if (authStatus === "authenticated") {
         await doReveal(empId, field);
@@ -604,10 +656,11 @@ export function OmnibarModal({
     async (emp: any) => {
       if (authStatus !== "authenticated") return; // button is disabled anyway
       const rev = revealed[emp.id] || {};
+      // the ticket number and the P.No. are copied only if this person has already revealed them (otherwise the record carries the name, designation and department)
       const line = [
         withTitle(emp.name, emp.title),
-        emp.ticketNo,
-        emp.sailPNo,
+        rev.ticket,
+        rev.sailpno,
         emp.designation ? `${tidyDesignation(emp.designation)}${emp.designationCode ? ` (${emp.designationCode})` : ""}` : null,
         emp.department ? `${emp.department}${emp.departmentCode ? ` (${emp.departmentCode})` : ""}` : null,
       ]
@@ -1041,6 +1094,17 @@ export function OmnibarModal({
                         <span>Looks like <strong>{intentById(clearHit.id)?.title}</strong>. Press <kbd className="rounded-md border border-sky-300 bg-white px-2 py-0.5 text-xs font-bold shadow-sm">Enter</kbd> to open it.</span>
                       </div>
                     )}
+                    {nameHint && !clearHit && !understanding && (
+                      <div data-name-hint={nameHint.basis} className="mb-3 flex items-center gap-2 rounded-2xl border border-dashed border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-2.5 text-sm text-emerald-900">
+                        <UserRound size={16} className="shrink-0 text-emerald-700" aria-hidden="true" />
+                        <span>
+                          Looks like a name{nameHint.wordCount === 1 ? " (or part of one)" : ""}. Press <kbd className="rounded-md border border-emerald-300 bg-white px-2 py-0.5 text-xs font-bold shadow-sm">Enter</kbd> to search people.{" "}
+                          <span className="text-xs text-emerald-800/70">
+                            {nameHint.basis === "plant" ? "Found in the DSP name list." : nameHint.basis === "builtin" ? "A common Indian name." : `Similar to ${nameHint.similarTo?.took} in the DSP name list.`}
+                          </span>
+                        </span>
+                      </div>
+                    )}
                     {routed && (
                       <div data-intent-routed={routed.id} className="mb-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs leading-snug text-emerald-900">
                         Understood as <strong>{intentById(routed.id)?.title}</strong>.
@@ -1141,7 +1205,8 @@ export function OmnibarModal({
                                 <span>{analytics.notice}</span>
                               </p>
                             )}
-                            {analytics.interpretation && (
+                            {/* the model's own "Understood as" line is not shown (22 Nov 2026); the lookups that are not written by the model (PAX, dates, holidays ...) keep theirs, it carries their source and limits */}
+                            {analytics.interpretation && !analytics.nl2sql && (
                               <InterpretationNote text={analytics.interpretation} />
                             )}
                             {typeof analytics.pendingPatternId === "number" && authStatus === "authenticated" && (
@@ -1152,7 +1217,7 @@ export function OmnibarModal({
                             )}
                             {analytics.nl2sql && (
                               <Nl2SqlAnswerExtras
-                                key={analytics.nl2sql.logId ?? analytics.nl2sql.sql}
+                                key={analytics.nl2sql.logId ?? analytics.answer}
                                 nl2sql={analytics.nl2sql}
                               />
                             )}
@@ -1342,6 +1407,7 @@ export function OmnibarModal({
                                 copiedId={copiedId}
                                 onReveal={revealContact}
                                 onCopy={copyRecord}
+                                notice={revealNotice && revealNotice.empId === emp.id ? revealNotice.text : null}
                                 hideDepartment={hideDepartment}
                               />
                             );
@@ -1599,6 +1665,7 @@ export function OmnibarModal({
                             copiedId={copiedId}
                             onReveal={revealContact}
                             onCopy={copyRecord}
+                            notice={revealNotice && revealNotice.empId === emp.id ? revealNotice.text : null}
                           />
                         ))}
                       </div>

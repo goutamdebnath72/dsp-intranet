@@ -475,6 +475,13 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   searched as usual.
                 </p>
                 <p>
+                  When what you type reads as a <strong>person&rsquo;s name</strong>{" "}
+                  (one to four words, a whole name or a part of one) the box
+                  says <em>Looks like a name. Press Enter to search people</em>{" "}
+                  while you type. It is only a hint, worked out in your browser
+                  with no AI, and it never stops the search.
+                </p>
+                <p>
                   Every feature of the <strong>What to type</strong> list (at the
                   end of this tab) can be opened in two ways, and both reach the
                   same card.
@@ -694,26 +701,30 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
               >
                 <p>
                   A person&rsquo;s row shows name, ticket, personal number,
-                  designation and department. Mobile and email are{" "}
-                  <strong>masked</strong> (e.g. <Pill>943479xxxx</Pill>); click{" "}
-                  <strong>reveal</strong> to see the full value. Each row also has
-                  a <strong>Copy</strong> button that copies the person’s record
-                  (including any contact you have revealed).
+                  designation and department. The{" "}
+                  <strong>ticket number, personal number, mobile and email</strong>{" "}
+                  are all <strong>masked</strong> (e.g. <Pill>4••••0</Pill>,{" "}
+                  <Pill>D•••••2</Pill>, <Pill>943479xxxx</Pill>); click one to see
+                  the full value. Each row also has a <strong>Copy</strong> button
+                  that copies the person’s record (including anything you have
+                  revealed).
                 </p>
                 <ul className="list-disc space-y-1 pl-5">
                   <li>
                     <strong>Signed out:</strong> you can search and read the
                     directory, but the <strong>Copy button is disabled</strong>{" "}
                     and the on-screen details <strong>cannot be selected or
-                    copied</strong>. Revealing a contact asks you to sign in
-                    first.
+                    copied</strong>. Revealing anything asks you to sign in
+                    first, and shows it as soon as you are in.
                   </li>
                   <li>
                     <strong>Signed in:</strong> you can reveal contacts and copy
                     freely — but note that{" "}
                     <strong>every reveal and every copy is recorded</strong>{" "}
-                    (who accessed whose contact, which field, whether it was a
-                    view or a copy, and when).
+                    (who accessed whose detail, which field: mobile, email,
+                    personal number or ticket, whether it was a view or a copy,
+                    and when). The personal number is also the first password, so
+                    only a few of them can be revealed in an hour.
                   </li>
                 </ul>
               </Section>

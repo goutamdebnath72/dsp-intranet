@@ -17,7 +17,8 @@ const h = (n: Nl2SqlExtras) => renderToStaticMarkup(<Nl2SqlAnswerExtras nl2sql={
 
 const withNote = h({ ...base, spellingNote: note });
 ok("the note is drawn, with its own mark, in an amber box", /data-spelling-note="true"/.test(withNote) && /border-amber-300 bg-amber-50/.test(withNote) && withNote.includes("nearest: Goswami"));
-ok("...above 'Departments covered' and above the SQL", withNote.indexOf("data-spelling-note") < withNote.indexOf("Departments covered") && withNote.indexOf("Departments covered") < withNote.indexOf("SQL the model wrote"));
+ok("...above 'Departments covered'", withNote.indexOf("data-spelling-note") < withNote.indexOf("Departments covered"));
+ok("the SQL is not drawn at all (it stays on the server)", !/SQL the model wrote|SELECT 1|<pre/.test(withNote));
 ok("no note, nothing drawn (also for an empty note)", !/data-spelling-note/.test(h(base)) && !/data-spelling-note/.test(h({ ...base, spellingNote: "" })));
 ok("a note with markup is escaped", !/<script>/.test(h({ ...base, spellingNote: "<script>x</script>" })) && h({ ...base, spellingNote: "<script>x</script>" }).includes("&lt;script&gt;"));
 console.log(`Nl2SqlAnswerExtras spelling selftest: ${pass} passed, ${fail} failed`);

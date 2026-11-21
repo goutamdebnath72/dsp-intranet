@@ -18,7 +18,8 @@ const h = (n: Nl2SqlExtras) => renderToStaticMarkup(<Nl2SqlAnswerExtras nl2sql={
 const withNote = h({ ...base, departmentNote: note });
 ok("the note is drawn, with its own mark", /data-department-note="true"/.test(withNote) && withNote.includes("its 5 people are counted in both"));
 ok("...escaped (the & of CO & CC is safe)", withNote.includes("CO &amp; CC") && !/CO & CC/.test(withNote));
-ok("...under 'Departments covered' and above the SQL", withNote.indexOf("Departments covered") < withNote.indexOf("data-department-note") && withNote.indexOf("data-department-note") < withNote.indexOf("SQL the model wrote"));
+ok("...under 'Departments covered'", withNote.indexOf("Departments covered") < withNote.indexOf("data-department-note"));
+ok("the SQL is not drawn at all (it stays on the server)", !/SQL the model wrote|SELECT 1|<pre/.test(withNote));
 ok("no note, nothing drawn", !/data-department-note/.test(h(base)) && !/data-department-note/.test(h({ ...base, departmentNote: undefined })));
 ok("an empty note draws nothing", !/data-department-note/.test(h({ ...base, departmentNote: "" })));
 ok("a note with markup is escaped", !/<script>/.test(h({ ...base, departmentNote: "<script>x</script>" })) && h({ ...base, departmentNote: "<script>x</script>" }).includes("&lt;script&gt;"));

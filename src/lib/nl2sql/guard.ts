@@ -141,6 +141,12 @@ export function guardSql(rawSql: string): GuardResult {
         }
       }
 
+      // The SAIL personal number is also the first password of every account: it is never selected, filtered or sorted on here (a filter would tell a stranger whose number a guess is). Whoever needs it finds
+      // the person and presses "reveal" on the card, which asks for a sign-in and is logged. (SELECT * is not refused; the answer's own P.No. column is masked on its way out: src/lib/security/sensitiveFields.ts.)
+      if (t === "ref" && String(node.name ?? "").toLowerCase() === "sail_pno") {
+        problems.push(`The column "sail_pno" (the SAIL personal number) is not available: it is the first password. Do not select, filter or sort by it; answer with unanswerable_reason saying that the person's number is shown on their card with a reveal button.`);
+      }
+
       if (t === "cast") {
         const to = String(node.to?.name ?? "").toLowerCase();
         if (to.startsWith("reg")) problems.push(`Casting to "${to}" is not allowed.`);

@@ -11,7 +11,8 @@ import { findSailDepartmentInText } from "@/lib/employees/sailDepartments";
 import { normTerm } from "@/lib/employees/parser";
 import { getSessionTicket } from "@/lib/apiAuth";
 import { clientIp, createLimiter, retryHeaders } from "@/lib/security/rateLimit";
-import { visitorView } from "@/lib/security/visitorView";
+import { VISITOR_CUT_ENABLED, visitorView } from "@/lib/security/visitorView";
+import { maskAnswer } from "@/lib/security/sensitiveFields";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -47,8 +48,9 @@ export async function GET(request: Request) {
   // Decided before the database is touched.
   // Likewise a lookup by MOBILE or CUG number: it would tell a visitor whose number it is.
   if (mode === "id" && !ticket && ["sailpno", "mobile", "cug4"].includes(detectShape(q).kind)) return NextResponse.json({ results: [] }, { status: 401, headers: { "Cache-Control": "no-store" } });
-  // A visitor (not signed in) sees a name and a department only (src/lib/security/visitorView.ts); a signed-in person sees the whole card.
-  const send = (results: unknown[]) => NextResponse.json({ results: ticket ? results : visitorView(results) });
+  // Everybody gets the same cards (contacts masked, the P.No. masked; a reveal needs a sign-in and is audited). The cut-down view for a visitor (src/lib/security/visitorView.ts) is kept ready and is off.
+  // The ticket number and the P.No. leave masked for everybody (src/lib/security/sensitiveFields.ts); a reveal needs a sign-in.
+  const send = (results: unknown[]) => NextResponse.json({ results: maskAnswer(ticket || !VISITOR_CUT_ENABLED ? results : visitorView(results), { signedIn: !!ticket }) });
 
   try {
     const ds = await getDb();

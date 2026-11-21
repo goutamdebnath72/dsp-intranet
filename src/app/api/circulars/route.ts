@@ -1,4 +1,5 @@
 // src/app/api/circulars/route.ts
+import { plainBytes } from "@/lib/pdf/plainBytes";
 import { NextResponse } from "next/server";
 import { put, del } from "@vercel/blob";
 import { promises as fs } from "fs";
@@ -87,7 +88,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     const pdfParseModule: any = await import("pdf-parse");
     const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
     if (typeof parseFn === "function") {
-      const parsed: any = await parseFn(buffer);
+      const parsed: any = await parseFn(plainBytes(buffer));
       const text = (parsed?.text || "").replace(/\s+/g, " ").trim();
       await safeUnlink();
       return text;
@@ -304,7 +305,7 @@ export async function POST(req: Request) {
 
       const pdfParseModule: any = await import("pdf-parse");
       const parseFn: any = pdfParseModule?.default ?? pdfParseModule;
-      const parsed: any = await parseFn(fileBytes);
+      const parsed: any = await parseFn(plainBytes(fileBytes));
       const numPages = parsed.numpages || doc.length || 1;
 
       try {

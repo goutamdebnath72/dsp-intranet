@@ -3,14 +3,14 @@
 // Omnibar intent detection for Contact Access Log facility.
 // Recognizes requests from authorised users to inspect or manage contact access logs.
 
-import type { AccessLogAdminOp } from "./types";
+import type { AccessLogAdminOp, AccessLogField } from "./types";
 
 export interface AccessLogAdminIntent {
   op: AccessLogAdminOp;
   prefill?: {
     viewer?: string;
     viewed?: string;
-    field?: "mobile" | "email";
+    field?: AccessLogField;
     action?: "reveal" | "copy";
   };
 }
@@ -91,13 +91,15 @@ export function detectAccessLogAdminIntent(typed: string): AccessLogAdminIntent 
   if (viewerMatch) viewer = viewerMatch[1];
 
   const viewedMatch = /\b(?:of|for|viewed)\s+([a-z0-9]+)\b/i.exec(norm);
-  if (viewedMatch && !["all", "mobile", "email", "logs", "management", "admin"].includes(viewedMatch[1])) {
+  if (viewedMatch && !["all", "mobile", "email", "ticket", "pno", "logs", "management", "admin"].includes(viewedMatch[1])) {
     viewed = viewedMatch[1];
   }
 
-  let field: "mobile" | "email" | undefined;
+  let field: AccessLogField | undefined;
   if (/\bmobile\b/i.test(norm)) field = "mobile";
   else if (/\bemail\b/i.test(norm)) field = "email";
+  else if (/\b(?:p\.?\s?no|pno|personal\s+(?:no|number)|sail\s+p\.?\s?no)\b/i.test(norm)) field = "sailpno";
+  else if (/\bticket\s+(?:numbers?|nos?\.?|reveals?|lookups?)\b/i.test(norm)) field = "ticket";
 
   let action: "reveal" | "copy" | undefined;
   if (/\b(?:reveal|revealed|reveals)\b/i.test(norm)) action = "reveal";

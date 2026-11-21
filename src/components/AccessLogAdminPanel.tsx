@@ -5,8 +5,8 @@
 // CONTACT ACCESS LOG FACILITY PANEL (Modular Facility Kit).
 // Renders inside the Omnibar modal answer area when an authorised user asks to inspect contact access logs.
 // Features:
-//   - Filterable & searchable audit log of all contact reveals and copies (mobile / email)
-//   - Live summary statistics cards (Total events, reveals, copies, mobile, email, unique viewers)
+//   - Filterable & searchable audit log of all reveals and copies (mobile, e-mail, SAIL P.No., ticket number)
+//   - Live summary statistics cards (Total events, reveals, copies, mobile, e-mail, P.No, ticket, unique viewers)
 //   - Date range presets (Today, Last 7 Days, Last 30 Days, All time)
 //   - Authorise / Revoke delegates strictly restricted to Executives (allowNonExecutive: false)
 //   - Append-only Facility Audit trail from public.facility_audit
@@ -20,6 +20,8 @@ import {
   Filter,
   History,
   Loader2,
+  Hash,
+  KeyRound,
   Mail,
   Phone,
   RefreshCw,
@@ -36,6 +38,7 @@ import type {
   AccessLogAdminOpen,
   AccessLogAuditView,
   AccessLogDelegateView,
+  AccessLogField,
   AccessLogRowView,
   AccessLogStatsView,
 } from "@/lib/accessLog/admin/types";
@@ -101,7 +104,7 @@ export function AccessLogAdminPanel({ open }: { open: AccessLogAdminOpen }) {
   // --------------------------------------------------------------------------
   const [searchQuery, setSearchQuery] = useState(open.prefill?.viewer || open.prefill?.viewed || "");
   const [actionFilter, setActionFilter] = useState<"all" | "reveal" | "copy">(open.prefill?.action || "all");
-  const [fieldFilter, setFieldFilter] = useState<"all" | "mobile" | "email">(open.prefill?.field || "all");
+  const [fieldFilter, setFieldFilter] = useState<"all" | AccessLogField>(open.prefill?.field || "all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
@@ -116,6 +119,8 @@ export function AccessLogAdminPanel({ open }: { open: AccessLogAdminOpen }) {
     copies: 0,
     mobileCount: 0,
     emailCount: 0,
+    pnoCount: 0,
+    ticketCount: 0,
     uniqueViewers: 0,
   });
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -338,7 +343,7 @@ export function AccessLogAdminPanel({ open }: { open: AccessLogAdminOpen }) {
       {tab === "logs" && (
         <div className="space-y-4">
           {/* Summary Statistics Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <StatsCard
               label="Total Access"
               value={stats.total}
@@ -368,6 +373,18 @@ export function AccessLogAdminPanel({ open }: { open: AccessLogAdminOpen }) {
               value={stats.emailCount}
               icon={Mail}
               color="amber"
+            />
+            <StatsCard
+              label="SAIL P. No. Lookups"
+              value={stats.pnoCount}
+              icon={KeyRound}
+              color="indigo"
+            />
+            <StatsCard
+              label="Ticket Lookups"
+              value={stats.ticketCount}
+              icon={Hash}
+              color="slate"
             />
             <StatsCard
               label="Unique Viewers"
@@ -487,6 +504,30 @@ export function AccessLogAdminPanel({ open }: { open: AccessLogAdminOpen }) {
                   }`}
                 >
                   Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFieldFilter("sailpno");
+                    setPage(1);
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg text-center transition cursor-pointer ${
+                    fieldFilter === "sailpno" ? "bg-white text-rose-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  P.No
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFieldFilter("ticket");
+                    setPage(1);
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg text-center transition cursor-pointer ${
+                    fieldFilter === "ticket" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Ticket
                 </button>
               </div>
 

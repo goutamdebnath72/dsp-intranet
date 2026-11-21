@@ -17,8 +17,10 @@ import {
   Clock,
   Copy,
   Eye,
+  Hash,
   History,
   Info,
+  KeyRound,
   Mail,
   Phone,
   Search,
@@ -191,10 +193,20 @@ export function StatsCard({
   );
 }
 
+/** how each logged field is drawn: the mobile number, the e-mail, the SAIL P.No., the ticket number, and (for a copy) the whole record */
+const FIELD_BADGE: Record<string, { label: string; icon: React.ElementType; cls: string }> = {
+  mobile: { label: "Mobile", icon: Phone, cls: "border border-emerald-200 bg-emerald-50 text-emerald-700" },
+  email: { label: "Email", icon: Mail, cls: "border border-amber-200 bg-amber-50 text-amber-700" },
+  sailpno: { label: "P.No", icon: KeyRound, cls: "border border-rose-200 bg-rose-50 text-rose-700" },
+  ticket: { label: "Ticket", icon: Hash, cls: "border border-indigo-200 bg-indigo-50 text-indigo-700" },
+  record: { label: "Record", icon: Copy, cls: "border border-slate-200 bg-slate-50 text-slate-700" },
+};
+
 export function LogRow({ row }: { row: AccessLogRowView }) {
   const time = DateTime.fromISO(row.accessedAt).setZone(IST).toFormat("dd MMM yyyy, hh:mm:ss a");
   const isCopy = row.action.toLowerCase() === "copy";
-  const isEmail = row.field.toLowerCase() === "email";
+  const fieldBadge = FIELD_BADGE[row.field.toLowerCase()] ?? { label: row.field || "Field", icon: Eye, cls: "border border-slate-200 bg-slate-50 text-slate-700" };
+  const FieldIcon = fieldBadge.icon;
 
   return (
     <div className="group rounded-2xl border border-slate-200/80 bg-white/90 p-3.5 shadow-xs transition hover:border-blue-300 hover:shadow-md">
@@ -217,15 +229,9 @@ export function LogRow({ row }: { row: AccessLogRowView }) {
           </span>
 
           {/* Field badge */}
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-              isEmail
-                ? "border border-amber-200 bg-amber-50 text-amber-700"
-                : "border border-emerald-200 bg-emerald-50 text-emerald-700"
-            }`}
-          >
-            {isEmail ? <Mail className="h-2.5 w-2.5" /> : <Phone className="h-2.5 w-2.5" />}
-            {isEmail ? "Email" : "Mobile"}
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${fieldBadge.cls}`} data-log-field={row.field.toLowerCase()}>
+            <FieldIcon className="h-2.5 w-2.5" />
+            {fieldBadge.label}
           </span>
         </div>
       </div>

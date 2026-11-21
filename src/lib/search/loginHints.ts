@@ -161,7 +161,7 @@ export function decideLoginHint(i: HintInput): LoginHint | null {
   return null;
 }
 
-type WithTicket = { ticketNo?: string | null };
+type WithTicket = { ticketNo?: string | null; id?: string | null };
 
 /** Drop from `others` anyone whose ticket number is already present in `shown`. Rows with no ticket are kept. */
 /**
@@ -211,12 +211,15 @@ export function excludeShownPeople<T extends WithTicket>(
   shown: WithTicket[] | null | undefined,
   others: T[],
 ): T[] {
-  const seen = new Set(
-    (shown || []).map((p) => String(p?.ticketNo ?? "").trim()).filter((t) => t.length > 0),
-  );
-  if (seen.size === 0) return others;
+  // A person is the same person when the record id matches, or when the ticket number matches. A ticket number counts only when it is a whole number: the cards carry it MASKED ("4••••0"),
+  // and many people share a mask, so a masked ticket must never make one person hide another.
+  const whole = (t: string) => /^\d+$/.test(t);
+  const tickets = new Set((shown || []).map((p) => String(p?.ticketNo ?? "").trim()).filter((t) => t.length > 0 && whole(t)));
+  const ids = new Set((shown || []).map((p) => String(p?.id ?? "").trim()).filter((t) => t.length > 0));
+  if (tickets.size === 0 && ids.size === 0) return others;
   return others.filter((p) => {
     const t = String(p?.ticketNo ?? "").trim();
-    return t.length === 0 || !seen.has(t);
+    const i = String(p?.id ?? "").trim();
+    return !((t.length > 0 && whole(t) && tickets.has(t)) || (i.length > 0 && ids.has(i)));
   });
 }

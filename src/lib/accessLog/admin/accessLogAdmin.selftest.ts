@@ -87,6 +87,20 @@ async function runTests() {
   const mobilePrefill = detectAccessLogAdminIntent("contact access log mobile reveals");
   ok("prefill field mobile and action reveal", mobilePrefill?.prefill?.field === "mobile" && mobilePrefill?.prefill?.action === "reveal");
 
+  // The SAIL P.No. and the ticket number are fields of the log too (a card reveals them on a press, and each press is logged)
+  ok("prefill field sailpno: 'access log p.no reveals'", detectAccessLogAdminIntent("access log p.no reveals")?.prefill?.field === "sailpno");
+  ok("prefill field sailpno: 'contact access log personal number'", detectAccessLogAdminIntent("contact access log personal number")?.prefill?.field === "sailpno");
+  ok("prefill field ticket: 'access log ticket number reveals'", detectAccessLogAdminIntent("access log ticket number reveals")?.prefill?.field === "ticket");
+  ok("'access log by ticket 498301' is a viewer, not the ticket field", detectAccessLogAdminIntent("access log by ticket 498301")?.prefill?.field === undefined);
+
+  // The panel and the row: two more filter buttons, two more counters, a badge for each field
+  const panelSrc = (await import("node:fs")).readFileSync("src/components/AccessLogAdminPanel.tsx", "utf8");
+  const uiSrc = (await import("node:fs")).readFileSync("src/components/AccessLogAdminUi.tsx", "utf8");
+  const storeSrc = (await import("node:fs")).readFileSync("src/lib/accessLog/admin/store.ts", "utf8");
+  ok("the panel has filter buttons for P.No and Ticket and counters for them", /setFieldFilter\("sailpno"\)/.test(panelSrc) && /setFieldFilter\("ticket"\)/.test(panelSrc) && /stats\.pnoCount/.test(panelSrc) && /stats\.ticketCount/.test(panelSrc));
+  ok("the log row draws a badge for each field (mobile, email, sailpno, ticket, record) and not everything-else-as-mobile", /sailpno: \{ label: "P\.No"/.test(uiSrc) && /ticket: \{ label: "Ticket"/.test(uiSrc) && /record: \{ label: "Record"/.test(uiSrc) && !/isEmail \? "Email" : "Mobile"/.test(uiSrc));
+  ok("the counters come from the logged field values sailpno and ticket", /pnoCount: fieldCounts\["sailpno"\]/.test(storeSrc) && /ticketCount: fieldCounts\["ticket"\]/.test(storeSrc));
+
   // Negative tests (pure questions or unrelated topics)
   ok("what is the network access policy -> null", detectAccessLogAdminIntent("what is the network access policy") === null);
   ok("where is gate access office -> null", detectAccessLogAdminIntent("where is gate access office") === null);

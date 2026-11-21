@@ -47,7 +47,7 @@ question ──► prompt (schema + domain rules + phonetic teaching + live list
          ──► language model writes JSON: { sql, understood_as, confidence, … }
          ──► guard   (parses the SQL; one read-only SELECT on 3 approved views, approved functions only)
          ──► executor (READ ONLY transaction, role nlq_reader, 5 s timeout, row cap, always ROLLBACK)
-         ──► answer  (rows + total + "Understood as" + the SQL, with ✓ / ✗)
+         ──► answer  (rows + total, with ✓ / ✗; the "Understood as" line and the SQL are not shown, the SQL is in the server log in development and in public.nl2sql_log)
 ```
 If the guard or the database rejects the SQL, the model is shown the exact problem and retries (up to 3 attempts).
 
@@ -119,7 +119,7 @@ Every question is stored in `public.nl2sql_log`. A ✓ marks the question/SQL pa
 - The SQL parser cannot read: array slices `a[2:5]`, `SELECT INTO`, `IS [NOT] DISTINCT FROM`, `SIMILAR TO`, `EXCEPT`, `INTERSECT`, `trim(both …)`. The model is told, and a rejected query is retried.
 - `employee_roster` is a snapshot (26 Sep 2026); this reads whatever the views currently show.
 - The local self-test uses stand-ins for your phonetic functions (built from the JavaScript port and verified against it). Your real functions are only exercised on your real database – the live evaluation does that.
-- Answers are only as good as the model's reading. The "Understood as" line, the visible SQL and ✓/✗ exist because that reading can be wrong.
+- Answers are only as good as the model's reading. The ✓/✗ exists because that reading can be wrong; the reading and the SQL are kept in public.nl2sql_log (and in the server log in development, see log.ts) for the developer to check, not shown to the person (22 Nov 2026).
 
 ## Extending
 - New short forms for departments/designations: `aliasHints.ts` (data, one line each).

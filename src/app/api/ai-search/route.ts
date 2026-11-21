@@ -29,7 +29,9 @@ import { decideModelSkip, frontGateEnabled, loadDirectoryNameWords } from "@/lib
 import { getSessionTicket } from "@/lib/apiAuth";
 import { parseQueryWithLlm } from "@/lib/search/pureAiEngine";
 import { clientIp, createLimiter, retryHeaders } from "@/lib/security/rateLimit";
-import { visitorView } from "@/lib/security/visitorView";
+import { VISITOR_CUT_ENABLED, visitorView } from "@/lib/security/visitorView";
+import { maskAnswer } from "@/lib/security/sensitiveFields";
+import { withoutSql } from "@/lib/security/answerSql";
 import { answerHospitalQuestion } from "@/lib/search/hospitalDispatch";
 
 // Vercel stops a serverless function after a time limit. A question can legitimately take
@@ -166,13 +168,15 @@ function pickReadableExcerpt(
  * saying which route answered, how long each stage took and how many model calls and tokens it used. Tracing can never
  * break a search.
  */
-async function forVisitors(res: Response): Promise<Response> {
+/** The answer as it leaves: the ticket number and the P.No. masked for everybody (src/lib/security/sensitiveFields.ts), the SQL the model wrote kept on the server (answerSql.ts), and, only while VISITOR_CUT_ENABLED is on, a visitor's cut-down view. */
+async function shaped(res: Response, signedIn: boolean): Promise<Response> {
   if (!(res.headers.get("content-type") || "").includes("application/json")) return res;
   const body = await res.clone().json().catch(() => undefined);
   if (body === undefined) return res;
   const headers = new Headers(res.headers);
   headers.delete("content-length");
-  return new Response(JSON.stringify(visitorView(body)), { status: res.status, headers });
+  const cut = signedIn || !VISITOR_CUT_ENABLED ? body : visitorView(body);
+  return new Response(JSON.stringify(withoutSql(maskAnswer(cut, { signedIn }))), { status: res.status, headers });
 }
 
 const aiByTicket = createLimiter({ max: 60, windowMs: 60_000 });
@@ -182,8 +186,8 @@ export async function GET(request: Request) {
   const trace = startTrace();
   const params = new URL(request.url).searchParams;
   const answered = await withTrace(trace, () => handleSearch(request));
-  // A person who has not signed in gets employees as a name and a department only (src/lib/security/visitorView.ts): cut here, on the answer that is about to leave, whatever route produced it.
-  const res = (await getSessionTicket()) ? answered : await forVisitors(answered);
+  // Every answer is shaped on its way out: ticket numbers and P.Nos masked (src/lib/security/sensitiveFields.ts); the cut-down view for a visitor (src/lib/security/visitorView.ts) is kept ready and is off.
+  const res = await shaped(answered, !!(await getSessionTicket()));
   try {
     const body = await res.clone().json().catch(() => null);
     const named = routeFromReply(res.status, params.get("mode") || "semantic", body);

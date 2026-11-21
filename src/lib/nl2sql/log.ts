@@ -20,6 +20,23 @@ export interface LogEntry {
   retryOf?: number | null;
 }
 
+/**
+ * ONE LINE PER ANSWER in the server's own log while the app runs in development (`npm run dev:log` keeps it in .dev-server.log), so a wrong or failed answer can be checked without the SQL being shown on the
+ * screen: the question, how it was read, the SQL on one line, and the outcome. No ticket number. Not written in production (the same facts are in public.nl2sql_log, below). Never throws.
+ */
+export function logLine(e: LogEntry, id: number | null): void {
+  if (process.env.NODE_ENV === "production") return;
+  try {
+    const oneLine = (t: string | null) => String(t ?? "").replace(/\s+/g, " ").trim();
+    console.log(
+      `[nl2sql] #${id ?? "-"} ${e.ok ? "ok" : "FAILED"} ${e.source ?? "nl2sql"} rows=${e.rowTotal ?? "-"} ${e.elapsedMs}ms attempts=${e.attempts} confidence=${e.confidence ?? "-"}\n` +
+        `  Q: ${oneLine(e.question)}\n  understood: ${oneLine(e.understoodAs) || "-"}\n  SQL: ${oneLine(e.sql) || "-"}` + (e.error ? `\n  error: ${oneLine(e.error)}` : ""),
+    );
+  } catch {
+    /* a log line never breaks an answer */
+  }
+}
+
 export async function logResult(client: SqlClient, e: LogEntry): Promise<number | null> {
   try {
     const r = await client.query(
@@ -28,8 +45,11 @@ export async function logResult(client: SqlClient, e: LogEntry): Promise<number 
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
       [e.userKey, e.question, normalizeQuestion(e.question), e.sql, e.understoodAs, e.confidence, e.ok, e.error, e.rowTotal, e.elapsedMs, e.attempts, e.source ?? "nl2sql", e.retryOf ?? null],
     );
-    return r.rows[0]?.id != null ? Number(r.rows[0].id) : null;
+    const id = r.rows[0]?.id != null ? Number(r.rows[0].id) : null;
+    logLine(e, id);
+    return id;
   } catch {
+    logLine(e, null);
     return null;
   }
 }

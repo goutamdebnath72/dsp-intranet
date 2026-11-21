@@ -3,16 +3,16 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
-import { mayReveal } from "@/lib/security/revealCap";
+import { mayReveal, mayRevealPno } from "@/lib/security/revealCap";
 
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/employees/:id/reveal   body: { field: "mobile" | "email" }
+ * POST /api/employees/:id/reveal   body: { field: "mobile" | "email" | "sailpno" | "ticket" }
  *
- * Returns the UNMASKED contact value for one employee AND writes an audit row
- * recording who revealed it (viewer ticket), the viewer's IP, and the time.
- * Login-gated.
+ * Returns the UNMASKED value of one field of one employee (mobile, e-mail, SAIL P.No., ticket number) AND writes an audit row
+ * recording who revealed it (viewer ticket), the viewer's IP, and the time (the field is logged as mobile, email, sailpno or ticket).
+ * Login-gated. The P.No. is also the first password, so its reveals have a cap of their own (src/lib/security/revealCap.ts).
  */
 export async function POST(
   request: Request,
@@ -37,7 +37,7 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
-  if (field !== "mobile" && field !== "email") {
+  if (field !== "mobile" && field !== "email" && field !== "sailpno" && field !== "ticket") {
     return NextResponse.json({ error: "Invalid field" }, { status: 400 });
   }
 
@@ -54,19 +54,28 @@ export async function POST(
       return NextResponse.json({ error: "You have revealed a great many contact details in the last hour. Please try again later." }, { status: 429, headers: { "Retry-After": "600", "Cache-Control": "no-store" } });
     }
 
-    // Fetch the target employee's contact + ticket.
-    const rows = await ds.query(
-      `SELECT id, "ticketNo" AS "ticketNo", "contactNo" AS "contactNo", email
-       FROM public."user" WHERE id = $1 LIMIT 1`,
-      [viewedUserId],
-    );
+    // The P.No. is the first password: a cap of its own, far below the general one.
+    if (field === "sailpno" && !(await mayRevealPno((sql, params) => ds.query(sql, params as never[]), String(viewerTicketNo)))) {
+      return NextResponse.json({ error: "You have revealed a great many personal numbers in the last hour. Please try again later." }, { status: 429, headers: { "Retry-After": "900", "Cache-Control": "no-store" } });
+    }
+
+    // Fetch the target employee's contact, ticket and P.No. A card with no login account behind it has the id "roster:<n>" (the roster row), which has a ticket and a P.No. but no contact.
+    const rosterId = /^roster:(\d{1,9})$/.exec(viewedUserId)?.[1];
+    const rows = rosterId
+      ? await ds.query(`SELECT NULL::text AS id, ticket_no AS "ticketNo", NULL::text AS "contactNo", NULL::text AS email, sail_pno AS "sailPNo" FROM public.employee_roster WHERE id = $1 LIMIT 1`, [Number(rosterId)])
+      : await ds.query(
+          `SELECT id, "ticketNo" AS "ticketNo", "contactNo" AS "contactNo", email, "sailPNo" AS "sailPNo"
+           FROM public."user" WHERE id = $1 LIMIT 1`,
+          [viewedUserId],
+        );
     if (!rows || rows.length === 0) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
     const emp = rows[0];
-    const value = field === "mobile" ? emp.contactNo : emp.email;
+    const value = field === "mobile" ? emp.contactNo : field === "email" ? emp.email : field === "sailpno" ? emp.sailPNo : emp.ticketNo;
 
-    // Write the audit row (never blocks the reveal on log failure, but we try).
+    // Write the audit row. A mobile or e-mail reveal is not blocked by a log failure (we try, and say so in the server log); a P.No. reveal IS: it is the first password, and the log is also what counts the cap.
+    let logged = true;
     try {
       await ds.query(
         `INSERT INTO public.contact_access_log
@@ -75,7 +84,7 @@ export async function POST(
         [
           crypto.randomUUID(),
           viewerTicketNo,
-          emp.id,
+          emp.id ?? viewedUserId,
           emp.ticketNo,
           field,
           ip,
@@ -83,7 +92,11 @@ export async function POST(
         ],
       );
     } catch (logErr: any) {
+      logged = false;
       console.error("⚠️ contact_access_log write failed:", logErr?.message ?? logErr);
+    }
+    if (field === "sailpno" && !logged) {
+      return NextResponse.json({ error: "The personal number could not be shown just now. Please try again." }, { status: 503, headers: { "Cache-Control": "no-store" } });
     }
 
     // Retention is handled by a scheduled pg_cron job (see setup SQL), so no

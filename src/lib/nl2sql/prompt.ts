@@ -32,7 +32,8 @@ OUTPUT -- a single JSON object and nothing else:
 THE ONLY TABLES YOU MAY USE (views in schema nlq):
 
 nlq.employees -- one row per employee (about 6,500)
-  id, ticket_no (text), sail_pno (text), name (text, as written, e.g. 'G D KUMAR KISPOTTA')
+  id, ticket_no (text), name (text, as written, e.g. 'G D KUMAR KISPOTTA')
+  (the SAIL P.No. is NEVER available: not to show, filter or sort by. If asked, sql = null with unanswerable_reason: it is on the person's card behind a reveal button.)
   cohort: 'executive' or 'nonexecutive'
   designation (text title, e.g. 'General Manager', 'S-11'), designation_code, designation_track ('managerial' | 'medical' | 'nonexec'),
   rank_order (int, 1 = most senior grade), grade_id (int, = nlq.designations.id)

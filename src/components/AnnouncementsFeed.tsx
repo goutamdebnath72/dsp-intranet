@@ -188,17 +188,17 @@ export function AnnouncementsFeed() {
           const isClickableToMarkRead = !hasContent && showNewChip && session;
           const isOwner = canModify(item);
 
-          const WrapperComponent: React.ElementType = hasContent
-            ? "button"
+          // The card is a plain box. What opens the announcement (or marks it read) is ONE button INSIDE it, and the owner's edit and delete buttons sit NEXT TO that button, not in it:
+          // a button inside a button is invalid HTML (React reports it as a hydration error, and a click on the inner one is also a click on the outer one).
+          const clickable = hasContent || isClickableToMarkRead;
+          const onOpen = hasContent
+            ? () => handleAnnouncementClick(item)
             : isClickableToMarkRead
-              ? "button"
-              : "div";
-          const wrapperProps = {
-            onClick: hasContent
-              ? () => handleAnnouncementClick(item)
-              : isClickableToMarkRead
-                ? () => handleReadClick(item)
-                : undefined,
+              ? () => handleReadClick(item)
+              : undefined;
+          const ClickTarget: React.ElementType = clickable ? "button" : "div";
+          const clickProps = clickable ? { type: "button" as const, onClick: onOpen, className: "block w-full rounded-lg text-left" } : { className: "block w-full rounded-lg text-left" };
+          const cardProps = {
             className: `relative w-full bg-white rounded-lg border border-neutral-200/80 shadow-sm text-left ${hasContent || isClickableToMarkRead ? "transition-all duration-300 hover:shadow-md hover:border-neutral-300 hover:bg-neutral-50" : ""}`,
           };
 
@@ -209,7 +209,8 @@ export function AnnouncementsFeed() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.18 }}
               >
-                <WrapperComponent {...wrapperProps}>
+                <div {...cardProps}>
+                  <ClickTarget {...clickProps}>
                   <div className="flex gap-3 p-4 pr-16 w-full min-w-0">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
                       {item.file && !item.content ? (
@@ -231,6 +232,7 @@ export function AnnouncementsFeed() {
                       </p>
                     </div>
                   </div>
+                  </ClickTarget>
                   {isOwner && (
                     <div className="absolute top-3 right-1 flex gap-1">
                       <button
@@ -250,12 +252,12 @@ export function AnnouncementsFeed() {
                   )}
                   {showNewChip && (
                     <span
-                      className={`absolute bottom-3 right-3 bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full`}
+                      className={`pointer-events-none absolute bottom-3 right-3 bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full`}
                     >
                       New
                     </span>
                   )}
-                </WrapperComponent>
+                </div>
               </motion.div>
               <div
                 style={{ height: SCROLL_CONFIG.gapHeight }}

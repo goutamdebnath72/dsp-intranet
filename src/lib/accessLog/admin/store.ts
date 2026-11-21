@@ -162,6 +162,8 @@ export async function queryAccessLogs(
     copies: actionCounts["copy"] ?? 0,
     mobileCount: fieldCounts["mobile"] ?? 0,
     emailCount: fieldCounts["email"] ?? 0,
+    pnoCount: fieldCounts["sailpno"] ?? 0,
+    ticketCount: fieldCounts["ticket"] ?? 0,
     uniqueViewers,
   };
 

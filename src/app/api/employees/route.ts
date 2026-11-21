@@ -8,6 +8,7 @@ import {
   searchEmployeesById,
   searchEmployeesByName,
 } from "@/lib/search/employeeSearch";
+import { maskAnswer } from "@/lib/security/sensitiveFields";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
 
     if (mode === "name") {
       const results = await searchEmployeesByName(ds, q);
-      return NextResponse.json({ results });
+      return NextResponse.json({ results: maskAnswer(results, { signedIn: true }) });
     }
 
     // mode === "id": only run if the shape is actually an ID pattern.
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
       shape.kind === "sailpno"
     ) {
       const results = await searchEmployeesById(ds, shape);
-      return NextResponse.json({ results });
+      return NextResponse.json({ results: maskAnswer(results, { signedIn: true }) });
     }
 
     // A name-shaped query in id mode -> nothing live (waits for Enter).

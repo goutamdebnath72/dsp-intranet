@@ -79,6 +79,14 @@ ok("the corrected SQL still has exactly the shape the guard expects (one SELECT,
 ok("the note names the typed word and the nearest spelling", spellingNote([{ typed: "gosyami", corrected: ["GOSWAMI"], alsoClose: [] }]) === "No name is spelled “Gosyami” (nearest: Goswami): showing the nearest real spelling instead.", spellingNote([{ typed: "gosyami", corrected: ["GOSWAMI"], alsoClose: [] }]));
 ok("two words, and a tie", spellingNote([{ typed: "rupk", corrected: ["RUPAK"], alsoClose: [] }, { typed: "karmakr", corrected: ["KARMAKAR", "KARMAKER"], alsoClose: [] }]) === "No name is spelled “Rupk” (nearest: Rupak) or “Karmakr” (nearest: Karmakar or Karmaker): showing the nearest real spellings instead.");
 
+// ---- Datta is Dutta (the owner, 22 Nov 2026): the same code in the program, as nlq.spelling_fix gives it in the database
+import { foldToken } from "../employees/namePredicate";
+ok("Datta, Datt, Dutt and Dutta share one code", new Set(["DATTA", "DATT", "DUTT", "DUTTA", "datta"].map((w) => foldToken(w, true))).size === 1);
+ok("...and stay different from Dey, Dhar, Datar and Dattatreya", ["DEY", "DHAR", "DATAR", "DATTATREYA"].every((w) => foldToken(w, true) !== foldToken("DUTTA", true)));
+ok("a typed Dutta is a known word when the directory has only Datta", isKnownWord("DUTTA", buildVocabulary([{ w: "DATTA", n: 3 }, { w: "DEBAPRIYA", n: 3 }])));
+const rule = /\bDATT(?:A)?\b/i; // the same pattern as \mDATT(?:A)?\M in sql/06_spelling_families.sql
+ok("the pattern of the rule touches Datta and Datt as whole words only", ["DATTA", "DATT", "Datta Roy"].every((t) => rule.test(t)) && ["DATTATREYA", "DATTANI", "DATA", "DATAR"].every((t) => !rule.test(t)));
+
 // ---- the second search needs nothing from the database when there is nothing to correct
 (async () => {
   const noDb = { withClient: async () => { throw new Error("the database must not be touched"); } } as never;

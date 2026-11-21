@@ -16,6 +16,7 @@ import { runReadOnly } from "@/lib/nl2sql/executor";
 import { PAGE_SIZE } from "@/lib/nl2sql/paging";
 import { peoplePage } from "@/lib/nl2sql/omnibar";
 import { presentPeople } from "@/lib/nl2sql/seniorityDisplay";
+import { maskAnswer } from "@/lib/security/sensitiveFields";
 
 export const dynamic = "force-dynamic";
 
@@ -47,14 +48,15 @@ export async function POST(req: Request) {
     const people = data.columns.includes("ticket_no") ? await withDefaultClient((c) => peoplePage(c, data, body?.labels)) : null;
     // The page's rows get the same presentation as page one: no internal rank, plus the cohort column.
     const hz = presentPeople(data.columns, data.rows, people);
-    return NextResponse.json({
+    // masked on the way out like page one (src/lib/security/sensitiveFields.ts); the person is signed in
+    return NextResponse.json(maskAnswer({
       ok: true,
       columns: hz.columns,
       rows: hz.rows,
       people,
       total: data.total,
       hasMore: data.truncated,
-    });
+    }, { signedIn: true }));
   } catch {
     return NextResponse.json({ error: "Could not load more just now. Please try again." }, { status: 500 });
   }

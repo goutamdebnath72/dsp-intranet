@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:log": ": > .browser-console.log && next dev --webpack 2>&1 | tee .dev-server.log",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "typeorm": "tsx ./node_modules/typeorm/cli.js",
     "wipe:circulars": "node scripts/wipe-circulars.mjs",
-    "test:search": "node scripts/test-search.mjs"
+    "test:search": "node scripts/test-search.mjs",
+    "errors": "tsx --env-file=.env.local scripts/errors.ts"
   },
   "dependencies": {
     "@auth/typeorm-adapter": "^2.11.2",

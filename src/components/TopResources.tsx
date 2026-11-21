@@ -193,7 +193,8 @@ const ResourceLink: React.FC<{ link: (typeof links)[0]; color: string }> = ({
           <Image
             src={link.icon}
             alt={link.title || "Icon"}
-            width={link.icon === "/blast-furnace.png" ? 32 : 24}
+            // the declared size is the size of the box the picture is drawn in (w-8 h-8 for the furnace, w-8 h-6 for the rest); a declared size that differs from the box in ONE direction only makes Next warn on every start
+            width={32}
             height={link.icon === "/blast-furnace.png" ? 32 : 24}
             className="w-full h-full object-contain"
             style={{ filter: "brightness(0) invert(1)" }}

@@ -250,10 +250,13 @@ function nameSynonymNormalizeJs(tok: string, isLast: boolean): string {
     ray: "roy", mazumdar: "majumdar", mazumder: "majumdar",
     surinder: "surendra", aggrawal: "aggarwal", ghose: "ghosh",
     basu: "bose", bosu: "bose", dutt: "dutta", dut: "dutta",
+    // Datta is the same Bengali surname as Dutta (the owner, 22 Nov 2026); the database side is nlq.spelling_fix (sql/06_spelling_families.sql)
+    datta: "dutta", datt: "dutta",
     singha: "sinha", bandyopadhyay: "banerjee", bandopadhyay: "banerjee",
     chattopadhyay: "chatterjee", mukhopadhyay: "mukherjee", gangopadhyay: "ganguly",
   };
-  return map[t] ?? tok;
+  // an OWN property only: a typed word like "constructor" or "__proto__" is a word, not something every object already has
+  return Object.prototype.hasOwnProperty.call(map, t) ? map[t] : tok;
 }
 
 export function foldToken(tok: string, isLast: boolean): string {

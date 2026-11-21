@@ -1,7 +1,7 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/security/visitorView.selftest.ts
-// A PERSON WHO HAS NOT SIGNED IN SEES AN EMPLOYEE AS A NAME AND A DEPARTMENT (option C): cards cut down to an allow-list, table columns taken out, nothing else changed, the original untouched.
+// THE CUT-DOWN VIEW OF AN EMPLOYEE FOR A PERSON WHO HAS NOT SIGNED IN (option C; kept ready, switched off): a name and a department; cards cut down to an allow-list, table columns taken out, nothing else changed, the original untouched.
 import { readFileSync } from "node:fs";
-import { visitorCard, visitorView } from "./visitorView";
+import { VISITOR_CUT_ENABLED, visitorCard, visitorView } from "./visitorView";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -25,8 +25,9 @@ ok("things that are not employees or tables pass through (numbers, strings, null
 
 // the wiring
 const search = src("src/app/api/employees/search/route.ts");
-ok("the open search route sends a visitor the cut-down cards, and a lookup by P.No., mobile or CUG needs a sign-in", /visitorView\(results\)/.test(search) && /\["sailpno", "mobile", "cug4"\]\.includes\(detectShape\(q\)\.kind\)/.test(search) && (search.match(/return send\(results\)/g) ?? []).length === 3);
+ok("the open search route sends a visitor the cut-down cards, and a lookup by P.No., mobile or CUG needs a sign-in", /ticket \|\| !VISITOR_CUT_ENABLED \? results : visitorView\(results\)/.test(search) && /\["sailpno", "mobile", "cug4"\]\.includes\(detectShape\(q\)\.kind\)/.test(search) && (search.match(/return send\(results\)/g) ?? []).length === 3);
 const ai = src("src/app/api/ai-search/route.ts");
-ok("the search route cuts every answer for a person who is not signed in, after the answer is made and before it leaves", /\(await getSessionTicket\(\)\) \? answered : await forVisitors\(answered\)/.test(ai) && /visitorView\(body\)/.test(ai));
+ok("the search route shapes every answer after it is made and before it leaves; the visitor cut applies only while it is switched on", /const cut = signedIn \|\| !VISITOR_CUT_ENABLED \? body : visitorView\(body\)/.test(ai) && /maskAnswer\(cut, \{ signedIn \}\)/.test(ai) && /await shaped\(answered/.test(ai));
+ok("the cut is switched off (the owner, 22 Nov 2026): a visitor gets the full cards, contacts masked, and a masked contact opens the login window; set VISITOR_CUT_ENABLED to bring the cut back", VISITOR_CUT_ENABLED === false);
 console.log(`visitorView selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

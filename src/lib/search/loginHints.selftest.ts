@@ -2,7 +2,7 @@
  * Self-test of the omnibar's login/summary hints after the Executive Deep Synthesis BUTTON was removed (step 41a).
  * Run: npx tsx --tsconfig tsconfig.json src/lib/search/loginHints.selftest.ts
  */
-import { decideLoginHint, resumeAsEds, resumeAskedEds, shouldAskExecutive, EDS_SIGNIN_TEXT, looksAnalytical, looksLikeLookup, type ExecutiveAsk, type HintInput } from "./loginHints";
+import { decideLoginHint, excludeShownPeople, resumeAsEds, resumeAskedEds, shouldAskExecutive, EDS_SIGNIN_TEXT, looksAnalytical, looksLikeLookup, type ExecutiveAsk, type HintInput } from "./loginHints";
 import { readFileSync } from "node:fs";
 import { detectSynthesisIntent } from "./synthesisIntent";
 
@@ -117,6 +117,14 @@ const omniSrc = readFileSync("src/components/OmnibarModal.tsx", "utf8");
 ok("the search bar asks BEFORE it searches: the gate sits in the Enter handler after the utility and ID checks and before the AI intent step and the search itself", (() => { const g = omniSrc.indexOf("shouldAskExecutive({"); return g > omniSrc.indexOf("const understood = clearIntent(qTrim)") && g < omniSrc.indexOf("const proceed = () =>") && g < omniSrc.indexOf("askIntent(qTrim"); })());
 ok("Yes shows the sign-in message and button (the sign-in window opens); No runs the normal search and remembers the answer; the question is dropped when the text is edited or the window closes", /onYes=\{\(\) => setExecutiveAsk\(\{ \.\.\.executiveAsk, said: "yes" \}\)\}/.test(omniSrc) && /setDeclinedAsk\(q\);[\s\S]{0,200}triggerSearch\("semantic"\)/.test(omniSrc) && /onSignIn=\{openModal\}/.test(omniSrc) && /query\.trim\(\) !== executiveAsk\.query/.test(omniSrc) && /if \(!isOpen\) \{ setExecutiveAsk\(null\)/.test(omniSrc));
 ok("after signing in the question runs through EDS by itself (the asked question, not the old submitted one)", /resumeAskedEds\(\{ ask, wasExecutive: was, isExecutive, isOpen, query/.test(omniSrc) && /triggerSearch\("intellectual", \{ auto: true, query: ask\.query \}\)/.test(omniSrc));
+
+// one person is printed once: the answer card and the directory search are matched by ticket number, or by record id when a list has no ticket number
+const shown = [{ id: "u1", ticketNo: "498880" }];
+ok("a person in both lists is printed once (same ticket number)", excludeShownPeople(shown, [{ id: "u1", ticketNo: "498880" }, { id: "u2", ticketNo: "412345" }]).map((p) => p.id).join() === "u2");
+ok("a person in both lists is printed once even when one list carries no ticket number (same record id)", excludeShownPeople(shown, [{ id: "u1", ticketNo: "" }, { id: "u2", ticketNo: "" }]).map((p) => p.id).join() === "u2");
+ok("two different people with no ticket and no id are both kept; an empty first list changes nothing", excludeShownPeople(shown, [{ ticketNo: "" }, { ticketNo: null }]).length === 2 && excludeShownPeople([], [{ id: "u1", ticketNo: "1" }]).length === 1 && excludeShownPeople(null, [{ id: "u1" }]).length === 1);
+
+ok("two different people whose tickets are masked alike are both kept (a mask never hides a person); the same person is still found by id", excludeShownPeople([{ id: "u1", ticketNo: "4••••0" }], [{ id: "u2", ticketNo: "4••••0" }, { id: "u1", ticketNo: "4••••0" }]).map((p) => p.id).join() === "u2");
 
 const all = [guest, exec].map((h) => h?.text ?? "");
 ok("no hint text sends anyone to a button", all.every((t) => t.length > 0 && !/button/i.test(t)), all.join(" | "));

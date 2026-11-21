@@ -251,6 +251,9 @@ async function main() {
   for (const [x, y] of [["mukherjee", "banerjee"], ["mukherjee", "chatterjee"], ["banerjee", "chatterjee"], ["ganguly", "mukherjee"], ["upadhyay", "mukherjee"], ["gangadhar", "ganguly"], ["mukund", "mukherjee"]]) {
     check(`different surnames stay different: ${x} / ${y}`, !(await sameCode(x, y)));
   }
+  for (const [variant, family] of [["datta", "dutta"], ["datt", "dutta"], ["dutt", "dutta"], ["DATTA", "DUTTA"]]) check(`typed "${variant}" matches ${family} (the owner, 22 Nov 2026: Datta is Dutta)`, await sameCode(variant, family));
+  check("words that merely CONTAIN datta are untouched (DATTATREYA, DATTANI, DATA)", (await pg.query(`SELECT nlq.spelling_fix('DATTATREYA') AS a, nlq.spelling_fix('DATTANI') AS b, nlq.spelling_fix('DATA') AS c`)).rows.every((r: any) => r.a === "DATTATREYA" && r.b === "DATTANI" && r.c === "DATA"));
+  check("Dutta stays different from Dhar and Dey", !(await sameCode("dutta", "dhar")) && !(await sameCode("dutta", "dey")));
   check("Upadhyay is untouched by the -padhyay rule", (await pg.query(`SELECT nlq.spelling_fix('UPADHYAY') AS s`)).rows[0].s === "UPADHYAY");
   await pg.query("BEGIN");
   try {

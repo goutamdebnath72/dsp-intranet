@@ -6,6 +6,7 @@
 //
 // Without GEMINI_API_KEY the pages with a usable text layer are still read; the others are named as unread.
 
+import { plainBytes } from "@/lib/pdf/plainBytes";
 import { createGeminiOcr, geminiOcrReaders } from "@/lib/ingestion/geminiOcr";
 import { MAX_PAGES, type PageRead, type PdfReading } from "./indexer";
 
@@ -28,7 +29,7 @@ export async function textLayerOf(bytes: Buffer): Promise<string[]> {
   try {
     const mod: any = await import("pdf-parse");
     const parse = mod?.default ?? mod;
-    await parse(bytes, {
+    await parse(plainBytes(bytes), {
       pagerender: async (pageData: any) => {
         const tc = await pageData.getTextContent({ normalizeWhitespace: true });
         let lastY: number | undefined;

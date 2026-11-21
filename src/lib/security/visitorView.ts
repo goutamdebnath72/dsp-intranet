@@ -4,6 +4,12 @@
 // login, and a designation, a P.No., a contact hint or an executive's badge is for colleagues who have signed in. This is done on the SERVER, on the answer that is about to leave it, so no screen has to remember to
 // hide anything: an employee card is cut down to an allow-list of fields (so a field added later is hidden until it is allowed here), and a table answer loses the columns that carry those details.
 // Pure: it never changes what it is given, it returns a copy.
+//
+// SWITCHED OFF (the owner, 22 Nov 2026): a visitor sees the same cards as a signed-in person, with the contacts masked, and a click on a masked mobile or e-mail opens the login window and, after the sign-in, reveals it
+// (audited). The P.No. stays masked for everybody (it is also the first password). This code is kept ready: set VISITOR_CUT_ENABLED to true and the two search routes cut an answer for a visitor again.
+
+/** false = a visitor sees the full (masked) cards; true = a visitor sees name and department only. Read by the two search routes. */
+export const VISITOR_CUT_ENABLED = false;
 
 /** the only fields of an employee card a visitor receives */
 const CARD_FIELDS = ["id", "type", "name", "title", "phd", "department", "departmentCode", "matchKind", "score"] as const;

@@ -18,10 +18,13 @@ export interface AccessLogAdminOpen {
   prefill?: {
     viewer?: string;
     viewed?: string;
-    field?: "mobile" | "email";
+    field?: AccessLogField;
     action?: "reveal" | "copy";
   };
 }
+
+/** what a person can ask the card to reveal (and so what the log records): the mobile number, the e-mail, the SAIL P.No., the ticket number */
+export type AccessLogField = "mobile" | "email" | "sailpno" | "ticket";
 
 export interface AccessLogRowView {
   /** the log line's own id: a uuid string in the database (it was read as a number, which is NaN) */
@@ -35,7 +38,7 @@ export interface AccessLogRowView {
   viewedName: string | null;
   viewedDesignation: string | null;
   viewedDepartment: string | null;
-  field: "mobile" | "email" | string;
+  field: AccessLogField | string;
   action: "reveal" | "copy" | string;
 }
 
@@ -45,6 +48,10 @@ export interface AccessLogStatsView {
   copies: number;
   mobileCount: number;
   emailCount: number;
+  /** reveals of the SAIL P.No. (field "sailpno") */
+  pnoCount: number;
+  /** reveals of the ticket number (field "ticket") */
+  ticketCount: number;
   uniqueViewers: number;
 }
 
