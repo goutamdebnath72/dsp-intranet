@@ -111,6 +111,7 @@ ok("'queen elizabeth durgapur', 'nehru durgapur', 'bc roy durgapur', 'who built 
 ok("'sail history', 'history of sail', 'sail foundation', 'foundation of sail', 'sail units' open the SAIL tab", ["sail history", "history of sail", "sail foundation", "foundation of sail", "sail units"].every((q) => said(q) === "dsphistory:sail|"), ["sail history", "sail units"].map(said).join());
 ok("other lines are not this card: 'dsp', 'history', 'queen', 'nehru', 'who is the head of dsp', 'head of dsp', 'dsp ceo', 'durgapur pin code', 'steel prices', 'sail steel', 'dsp products'", ["dsp", "history", "queen", "nehru", "who is the head of dsp", "head of dsp", "dsp ceo", "durgapur pin code", "steel prices", "sail steel", "dsp products", "durgapur steel"].every((q) => !said(q).startsWith("dsphistory:")), ["dsp", "history", "who is the head of dsp", "dsp ceo"].map(said).join());
 ok("readLang reads the tab and falls back to the story", readLang("heads|") === "heads" && readLang("makers|") === "makers" && readLang("first|") === "first" && readLang("sail|") === "sail" && readLang(undefined) === "story" && readLang("nonsense|") === "story");
+ok("the timeline dots sit exactly on the line: the 12px dot is 23px left of its entry (2px line, 16px padding: 18 - 1 + 6 = 23), measured 0.000px off in a browser at 1x, 2x and 3x", /data-timeline[\s\S]{0,400}absolute -left-\[23px\] top-3 h-3 w-3/.test(readFileSync(new URL("./DspHistoryCard.tsx", import.meta.url), "utf8")));
 
 console.log(`DspHistoryCard: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

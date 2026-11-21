@@ -188,7 +188,7 @@ function StoryTab() {
       <ol className="relative space-y-3 border-l-2 border-rose-200 pl-4" data-timeline>
         {EVENTS.map((e) => (
           <li key={e.id} data-event={e.id} className="relative">
-            <span aria-hidden="true" className="absolute -left-[25px] top-3 h-3 w-3 rounded-full border-2 border-white bg-gradient-to-br from-rose-600 to-orange-600 shadow" />
+            <span aria-hidden="true" className="absolute -left-[23px] top-3 h-3 w-3 rounded-full border-2 border-white bg-gradient-to-br from-rose-600 to-orange-600 shadow" />
             <div className="rounded-3xl border border-slate-200 bg-white/85 p-3 shadow-sm">
               <div className={`grid gap-3 ${e.photo ? "sm:grid-cols-[1fr,240px]" : ""}`}>
                 <div>
