@@ -45,7 +45,29 @@ function traceIncludesForPackage(pkgName, seen = new Set()) {
   return globs;
 }
 
+// SECURITY HEADERS on every response (none of them changes what a page does or how fast it comes):
+//  - Strict-Transport-Security: the browser uses https only, for two years;
+//  - X-Content-Type-Options: a file is what its Content-Type says (no guessing a script out of a picture or a PDF);
+//  - X-Frame-Options SAMEORIGIN: another site cannot put this one in a frame (clickjacking); the app's own pages may (the PDF viewers frame /api/... files of the same address);
+//  - Referrer-Policy: another site is told only the address's origin, never the path or the search words;
+//  - Permissions-Policy: the page cannot ask for the camera, microphone, location, payment or USB (nothing here uses them).
+// A Content-Security-Policy is the next step and is NOT here: it needs a pass in a real browser over every page first (the PDF viewers, the history card's pdf.js worker, the lightbox, the login window),
+// because a policy that is too tight breaks a page without a word.
+const SECURITY_HEADERS = [
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+];
+
 const nextConfig = {
+  // the response no longer says which framework (and so which version's weaknesses) is behind it
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
+
   // 1. ✅ Disable the SWC minifier
   swcMinify: false,
 

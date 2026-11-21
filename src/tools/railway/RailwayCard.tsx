@@ -12,6 +12,7 @@ import { ExternalLink } from "lucide-react";
 import { DateTime } from "luxon";
 import { useLive } from "@/hooks/useLive";
 import { LiveGate, SourceLine } from "@/components/tools/live/LivePieces";
+import { viaOf } from "./routeVia";
 import { clock, daysChip, DAYS, filterTrains, NTES_URL, nextTrain, RAILRADAR_SITE, STATION, type Group, type Moment, type Railway, type Train } from "@/lib/live/railway";
 import { until } from "@/lib/live/flights";
 import { stationLabel } from "./stations";
@@ -74,7 +75,7 @@ export function Row({ t, now, next, tone = "express", fares: withFares = true, o
       </span>
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-sm font-bold leading-snug ${c.sub} ${HEADROOM} ${TRIM}`} title={t.name}>{t.name}</span>
-        <span className="mt-[calc(0.125rem-0.12em)] block truncate pt-[0.12em] text-xs text-slate-500">{t.number} · {premium ? <span className={`rounded px-1.5 py-px text-[10px] font-extrabold tracking-wide ${premium.badge}`} title={`${t.label}: a premium train`}>{premium.text}</span> : t.label}</span>
+        <span className="mt-[calc(0.125rem-0.12em)] block truncate pt-[0.12em] text-xs text-slate-500">{t.number} · {premium ? <span className={`rounded px-1.5 py-px text-[10px] font-extrabold tracking-wide ${premium.badge}`} title={`${t.label}: a premium train`}>{premium.text}</span> : t.label}{viaOf(t.number) && <> · <span data-via-route={viaOf(t.number)!.via} className="font-semibold text-slate-700" title={viaOf(t.number)!.note}>via {viaOf(t.number)!.via}</span></>}</span>
         <span className="mt-0.5 block text-xs leading-snug text-slate-700" data-route>
           <StationName label={from} />&nbsp;<abbr title={`Railway station code ${from.code}`} className="text-[11px] font-bold text-slate-400 no-underline">({from.code})</abbr>
           <span aria-hidden="true"> → </span><span className="sr-only"> to </span>

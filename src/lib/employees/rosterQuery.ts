@@ -29,6 +29,7 @@ import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { isDoctorPerson, isPhdHolder, titleFor } from "@/lib/employees/honorific";
 import { disciplineOfTicket } from "@/lib/hospital/discipline";
 import { compileNamePredicate, evaluateNamePredicate } from "./namePredicate";
+import { maskPno } from "@/lib/security/maskPno";
 
 export type NameMatchMode = "surname" | "firstname" | "anyword" | "contains" | "auto";
 
@@ -125,7 +126,7 @@ function rowToEmployee(r: any): EmployeeResult {
     type: "employee",
     name: r.name,
     ticketNo: ticket,
-    sailPNo: r.sail_pno || null,
+    sailPNo: maskPno(r.sail_pno), // masked: the P.No. is also the first password
     designation: r.designation_title || null,
     department: formatDepartmentDisplay(r.dept_name),
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,

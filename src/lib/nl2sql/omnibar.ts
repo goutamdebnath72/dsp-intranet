@@ -40,6 +40,7 @@ import { answerFromVerified, answerQuestion, type PipelineExtra } from "./pipeli
 import { loadLogRow } from "./log";
 import { isReasonCode, retryHint, verifiedMinConfirms, type AnswerSource, type ReasonCode } from "./learning";
 import { friendlyUnanswerable } from "@/lib/search/dataGapRule";
+import { maskPno } from "@/lib/security/maskPno";
 
 export type OmnibarPayload = AnalyticsPayload & {
   nl2sql?: Nl2SqlExtras;
@@ -191,7 +192,7 @@ function rowToEmployee(r: any): EmployeeResult {
     type: "employee",
     name: r.name,
     ticketNo: String(r.ticket_no || "").trim(),
-    sailPNo: r.sail_pno || null,
+    sailPNo: maskPno(r.sail_pno), // masked: the P.No. is also the first password
     designation: r.designation_title || null,
     designationTrack: r.designation_track || null,
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,

@@ -146,7 +146,7 @@ export const looksLikeSentence = (line: string): boolean => norm(line).length >=
 export function maskForAi(line: string): string | null {
   const q = (line || "").trim();
   if (q.length < 6 || q.length > 300 || isIdQuery(q)) return null;
-  // a line of nothing but numbers and ID-like tokens ("D000896 2584": a person by number) is a lookup, never a question for the AI
+  // a line of nothing but numbers and ID-like tokens ("D123456 2584": a person by number) is a lookup, never a question for the AI
   if (q.split(/\s+/).every((t) => /^[A-Za-z]?\d+$/.test(t))) return null;
   return q.replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[email]").replace(/\d[\d\s-]{4,}\d/g, "[number]").replace(/\s+/g, " ");
 }

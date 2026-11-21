@@ -28,6 +28,8 @@ import { detectSynthesisIntent } from "@/lib/search/synthesisIntent";
 import { decideModelSkip, frontGateEnabled, loadDirectoryNameWords } from "@/lib/search/frontGate";
 import { getSessionTicket } from "@/lib/apiAuth";
 import { parseQueryWithLlm } from "@/lib/search/pureAiEngine";
+import { clientIp, createLimiter, retryHeaders } from "@/lib/security/rateLimit";
+import { visitorView } from "@/lib/security/visitorView";
 import { answerHospitalQuestion } from "@/lib/search/hospitalDispatch";
 
 // Vercel stops a serverless function after a time limit. A question can legitimately take
@@ -164,10 +166,24 @@ function pickReadableExcerpt(
  * saying which route answered, how long each stage took and how many model calls and tokens it used. Tracing can never
  * break a search.
  */
+async function forVisitors(res: Response): Promise<Response> {
+  if (!(res.headers.get("content-type") || "").includes("application/json")) return res;
+  const body = await res.clone().json().catch(() => undefined);
+  if (body === undefined) return res;
+  const headers = new Headers(res.headers);
+  headers.delete("content-length");
+  return new Response(JSON.stringify(visitorView(body)), { status: res.status, headers });
+}
+
+const aiByTicket = createLimiter({ max: 60, windowMs: 60_000 });
+const aiByAddress = createLimiter({ max: 120, windowMs: 60_000 });
+
 export async function GET(request: Request) {
   const trace = startTrace();
   const params = new URL(request.url).searchParams;
-  const res = await withTrace(trace, () => handleSearch(request));
+  const answered = await withTrace(trace, () => handleSearch(request));
+  // A person who has not signed in gets employees as a name and a department only (src/lib/security/visitorView.ts): cut here, on the answer that is about to leave, whatever route produced it.
+  const res = (await getSessionTicket()) ? answered : await forVisitors(answered);
   try {
     const body = await res.clone().json().catch(() => null);
     const named = routeFromReply(res.status, params.get("mode") || "semantic", body);
@@ -212,6 +228,15 @@ async function handleSearch(request: Request) {
     if (!q || q.length < 2) {
       return NextResponse.json([]);
     }
+
+    // A QUESTION THAT CAN REACH THE MODEL (Enter: "semantic" and "intellectual"; "title" is a plain lookup) COSTS MONEY, and the route answers signed-out visitors too: without a limit a loop at one address
+    // could spend the whole model budget. 60 a minute for one signed-in ticket, 120 a minute for one address (a department behind one gateway still fits: a person asks a few a minute at most).
+    // See src/lib/security/rateLimit.ts for what a limit held in one server copy can and cannot do.
+    if (mode === "semantic" || mode === "intellectual") {
+      const turn = userTicket ? aiByTicket.take(userTicket) : aiByAddress.take(clientIp(request.headers));
+      if (!turn.ok) return NextResponse.json({ error: "rate_limited", message: "Too many questions in a short time. Please wait a moment and try again." }, { status: 429, headers: retryHeaders(turn) });
+    }
+    if (q.length > 1000) return NextResponse.json({ error: "too_long", message: "The question is too long." }, { status: 400 });
 
     // THE MANAGEMENT PAGE AND THE MANAGEMENT TOOLS' OWN REQUESTS ("management", "admin", "holiday management", "add new employee"...) are answered FIRST, before the name checks, the language-model router and the directory
     // loads below: those cost database round trips and a call to the model, and a page that is only a list of titles (or a tool that opens at once) has no use for any of them. Each request is read as a sentence first (pure); the

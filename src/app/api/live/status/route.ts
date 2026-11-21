@@ -3,6 +3,8 @@
 // ARE THE LIVE SOURCES ANSWERING? One page that asks the live routes (gold, fuel, news, sports, markets, the weather, the airport flights, the trains at Durgapur station, and the two history charts) and says, for each, whether its source answered, how long it took and what it said if it did not.
 // The place to look first after a deployment, because a source can answer on one host and refuse on another (some sites turn away the addresses of cloud servers). Reads nothing from the caller.
 import { NextResponse } from "next/server";
+import { getSessionTicket } from "@/lib/apiAuth";
+import { isSuperAdmin } from "@/lib/superAdmin";
 import { GET as gold } from "../gold/route";
 import { GET as fuel } from "../fuel/route";
 import { GET as sports } from "../sports/route";
@@ -38,6 +40,9 @@ async function check(name: string, run: () => Promise<Response>): Promise<Check>
 }
 
 export async function GET() {
+  // FOR THE HOD OF C&IT ONLY (the owner's check after a deployment). Each call asks every live source once (about sixteen outgoing requests, some on the plant's metered RailRadar key) and reports the
+  // raw error text of the ones that fail: open to anybody, a loop here would be a free way to burn the sources' limits and the function's time. Anybody else is told there is no such page.
+  if (!isSuperAdmin(await getSessionTicket())) return NextResponse.json({ error: "Not found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
   const checks = await Promise.all([
     check("gold and silver (IBJA)", () => gold()),
     check("fuel (GoodReturns)", () => fuel()),

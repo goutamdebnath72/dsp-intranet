@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { AnimatedInput } from './AnimatedInput';
 
+import { PASSWORD_MODULE_ENABLED } from "@/lib/security/passwordModule";
+
 export const StepTwo = ({ ticketNo, password, setPassword, onSubmit, error, isLoading, onBack }: any) => {
   // After a failed attempt the password is cleared (see LoginModal); put the cursor back in the empty field
   // so the next thing typed is the whole password, not an addition to the old one.
@@ -33,7 +35,7 @@ export const StepTwo = ({ ticketNo, password, setPassword, onSubmit, error, isLo
         />
         <AnimatedInput
           id="password"
-          label="SAIL Personal No."
+          label="Password"
           type="password"
           value={password}
           onChange={(e: any) => setPassword(e.target.value)}
@@ -41,6 +43,7 @@ export const StepTwo = ({ ticketNo, password, setPassword, onSubmit, error, isLo
           autoFocus
           selectOnFocus
         />
+        {PASSWORD_MODULE_ENABLED && <p className="-mt-5 text-xs text-neutral-500">First time? Your password is your SAIL Personal No. You can change it after signing in (your name at the top right, then Change password).</p>}
       </div>
 
       <div className="mt-auto flex flex-col items-center">

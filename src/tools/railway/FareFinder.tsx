@@ -14,6 +14,7 @@ import { cheapest, type FindAnswer, type FindTrain, type StopsAnswer } from "@/l
 import { daysChip, type Moment } from "@/lib/live/railway";
 import { FareDisclaimer, FareSource, originName, ReceivedLine, rupees, type FareFrom } from "./Fares";
 import { PREMIUM } from "./premium";
+import { viaOf } from "./routeVia";
 import { stationLabel } from "./stations";
 
 export type SortBy = "time" | "price";
@@ -41,6 +42,7 @@ export function FindRow({ t }: { t: FindTrain }) {
         <span className={`block truncate text-sm font-bold ${local ? "text-violet-900" : "text-slate-800"}`} title={t.name}>{t.name}</span>
         <span className="block text-[11px] text-slate-500">
           {t.number} · {premium ? <span className={`rounded px-1.5 py-px text-[10px] font-extrabold tracking-wide ${premium.badge}`}>{premium.text}</span> : t.label || "train"}
+          {viaOf(t.number) && <> · <span data-via-route={viaOf(t.number)!.via} className="font-semibold text-slate-700" title={viaOf(t.number)!.note}>via {viaOf(t.number)!.via}</span></>}
           {t.endsAt && <> · runs on to {stationLabel(t.endsAt.code, t.endsAt.name).name}</>} · {Math.round(t.distanceKm).toLocaleString("en-IN")} km
         </span>
         <span className="mt-1 flex flex-wrap items-center gap-1">

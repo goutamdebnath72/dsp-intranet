@@ -42,7 +42,7 @@ export async function GET(req: Request) {
   } catch (err: any) {
     console.error("❌ Error fetching holidays:", err);
     return NextResponse.json(
-      { error: err.message || "Internal server error" },
+      { error: "The holidays could not be loaded just now." }, // the raw error text (a database message) stays in the server log
       { status: 500 },
     );
   }

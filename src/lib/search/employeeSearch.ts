@@ -3,6 +3,7 @@ import { DataSource } from "typeorm";
 import { isDoctorPerson, isPhdHolder, stripDoctorTitle, titleFor } from "@/lib/employees/honorific";
 import { disciplineOfTicket } from "@/lib/hospital/discipline";
 import { formatDepartmentDisplay } from "@/lib/employees/sailDepartments";
+import { maskPno } from "@/lib/security/maskPno";
 
 export interface EmployeeResult {
   id: string;
@@ -82,7 +83,7 @@ function rowToResult(r: any, matchKind: EmployeeResult["matchKind"], score: numb
     type: "employee",
     name: r.name,
     ticketNo: ticket,
-    sailPNo: r.sailPNo || null,
+    sailPNo: maskPno(r.sailPNo), // masked: the P.No. is also the first password (src/lib/security/maskPno.ts)
     designation: r.designation || null,
     department: formatDepartmentDisplay(r.dept_name),
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,

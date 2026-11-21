@@ -40,7 +40,7 @@ async function runTests() {
     FACILITIES.access_log.allowNonExecutive === false,
   );
   ok("HOD_CIT constants defined with post details", HOD_CIT.post === "HOD of C&IT" && HOD_CIT.name === "Mohd Anwar Ullah");
-  ok("HOD_CIT ticketNo is 498301 and sailPNo is D000896", HOD_CIT_TICKET === "498301" && HOD_CIT.sailPNo === "D000896");
+  ok("HOD_CIT ticketNo is 498301, and the P.No. (which is a password) is NOT kept in the code", HOD_CIT_TICKET === "498301" && !("sailPNo" in HOD_CIT));
   ok(
     "HOD_CIT has true designation, department code, and department name",
     HOD_CIT.designation === "GM" &&

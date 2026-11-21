@@ -21,7 +21,7 @@ const bad = (reason: string): Normalised => ({ ok: false, reason });
 export async function normalisePhoto(input: Buffer): Promise<Normalised> {
   if (input.length === 0 || input.length > PHOTO.serverMaxBytes) return bad("The picture is too large (the screen sends a much smaller one: try again).");
   if (!sniff(input)) return bad("This file is not a JPG, PNG or WebP picture.");
-  let oriented: { data: Buffer; info: sharp.OutputInfo };
+  let oriented: { data: Buffer; info: { width: number; height: number } };
   try { oriented = await sharp(input, { failOn: "error" }).rotate().toBuffer({ resolveWithObject: true }); } catch { return bad("This picture cannot be read."); }
   const { width, height } = oriented.info;
   if (Math.abs(width - height) > 2) return bad("The photo must be a square (the screen makes it so): choose it again.");

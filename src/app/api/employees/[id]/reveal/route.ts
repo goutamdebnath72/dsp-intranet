@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
+import { mayReveal } from "@/lib/security/revealCap";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,11 @@ export async function POST(
 
   try {
     const ds = await getDb();
+
+    // A CAP, so that the directory cannot be copied out one reveal at a time: the audit table is the counter (src/lib/security/revealCap.ts)
+    if (!(await mayReveal((sql, params) => ds.query(sql, params as never[]), String(viewerTicketNo)))) {
+      return NextResponse.json({ error: "You have revealed a great many contact details in the last hour. Please try again later." }, { status: 429, headers: { "Retry-After": "600", "Cache-Control": "no-store" } });
+    }
 
     // Fetch the target employee's contact + ticket.
     const rows = await ds.query(

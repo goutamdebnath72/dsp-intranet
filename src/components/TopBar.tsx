@@ -8,6 +8,8 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
+import { ChangePasswordModal } from "@/components/ChangePasswordModal";
+import { PASSWORD_MODULE_ENABLED } from "@/lib/security/passwordModule";
 import {
   Settings,
   HelpCircle,
@@ -15,6 +17,7 @@ import {
   LogIn,
   LogOut,
   Undo2,
+  KeyRound,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogoModal } from "./LogoModal";
@@ -162,6 +165,9 @@ export function TopBar() {
   const { openModal } = useModal();
   const pathname = usePathname();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isPasswordOpen, setIsPasswordOpen] = useState(false);
+  // the password has run out (180 days): the window comes up by itself after sign-in and cannot be closed
+  const [passwordRequired, setPasswordRequired] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
@@ -177,6 +183,18 @@ export function TopBar() {
 
   // Authorized if it's a valid 6-digit ticket starting with 4
   const isExecutiveUser = /^4\d{5}$/.test(userTicket.trim());
+
+  // AFTER SIGN-IN: if this person's password has run out (valid 180 days), the change window comes up by itself and cannot be closed. One small request per sign-in; the server decides (the HOD in the development phase never is).
+  useEffect(() => {
+    const t = userTicket.trim();
+    if (!PASSWORD_MODULE_ENABLED || !t) { setPasswordRequired(false); return; }
+    let live = true;
+    fetch("/api/account/password", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { required?: boolean } | null) => { if (live && d?.required) { setPasswordRequired(true); setIsPasswordOpen(true); } })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [userTicket]);
 
   // Listen for programmatic Omnibar open requests across components
   useEffect(() => {
@@ -313,6 +331,14 @@ export function TopBar() {
                           <span className="text-sm">Home</span>
                         </Link>
                       )}
+                      {PASSWORD_MODULE_ENABLED && <button
+                        data-change-password-item
+                        onClick={() => { setIsDropdownOpen(false); setIsPasswordOpen(true); }}
+                        className="w-full flex items-center gap-3 p-2 rounded-md text-neutral-600 font-medium hover:bg-neutral-100 transition-colors"
+                      >
+                        <KeyRound size={18} />
+                        <span className="text-sm">Change password</span>
+                      </button>}
                       <button
                         onClick={() => signOut()}
                         className="w-full flex items-center gap-3 p-2 rounded-md text-neutral-600 font-medium hover:bg-neutral-100 transition-colors"
@@ -345,6 +371,7 @@ export function TopBar() {
         ticketNo={userTicket.trim() || undefined}
       />
       <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} initialTab={guideTab} isExecutive={isExecutiveUser} onTry={tryQuestion} />
+      {PASSWORD_MODULE_ENABLED && <ChangePasswordModal isOpen={isPasswordOpen} required={passwordRequired} onChanged={() => setPasswordRequired(false)} onClose={() => setIsPasswordOpen(false)} />}
       <HolidayNotificationToast />
     </>
   );
