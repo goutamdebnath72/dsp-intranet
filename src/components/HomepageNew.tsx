@@ -131,7 +131,7 @@ export function HomepageNew({
       {/* --- Hero Section --- */}
       <div
         className="w-full md:w-[var(--content-width)] mx-auto bg-cover bg-center relative h-[455px]"
-        style={{ backgroundImage: "url('/steel-plant1.png')" }}
+        style={{ backgroundImage: "url('/steel-plant1.jpg')" }}
       >
         <div className="absolute inset-0 bg-black/30" />
         <div

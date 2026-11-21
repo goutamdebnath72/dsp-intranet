@@ -152,6 +152,35 @@ const nextConfig = {
       // automatically instead of a hand-typed list.
       "/**": traceIncludesForPackage("pg"),
     },
+    // WHAT THE DEPLOYED FUNCTIONS DO NOT CARRY (measured on a production build; every deployment stores a copy of every route's files, and the Hobby plan stores 10 GB of them).
+    // 1. Next matches a key of outputFileTracingIncludes/Excludes against any route that CONTAINS the text, so the includes of "/api/circulars" above (the upload: pdfjs-dist, the canvas and sharp binaries)
+    //    also reached /api/circulars/seen, /[id], /[id]/read and /admin, which read the database and never touch a PDF: 85 MB each instead of about 5. Those four are cleaned here ("/api/circulars/*" matches them
+    //    and not the upload itself, which has no "/" after "circulars").
+    // 2. pdfjs-dist is force-included as a whole (see above), but the server only ever runs its legacy build (pdf-to-img imports "pdfjs-dist/legacy/build/pdf.mjs"): the source maps (18 MB), the viewer (web),
+    //    the type files, the second, non-legacy build and the scripting sandbox are never read.
+    // 3. pdf-parse ships four copies of pdf.js and loads one, v1.10.100, which is its default (nothing here asks for another version); the other three are never read.
+    // Checked: a real PDF (src/lib/announcements/searchIndex/__fixtures__/true.pdf) drawn page by page with pdf-to-img and read with pdf-parse gives byte-for-byte the same pictures and the same text before and
+    // after these files are removed. If pdfjs-dist or pdf-parse is upgraded, draw a PDF again before trusting this list.
+    outputFileTracingExcludes: {
+      "/api/circulars/*": [
+        "./node_modules/pdfjs-dist/**",
+        "./node_modules/@napi-rs/**",
+        "./node_modules/@img/**",
+        "./node_modules/sharp/**",
+      ],
+      "/**": [
+        "./node_modules/pdfjs-dist/**/*.map",
+        "./node_modules/pdfjs-dist/web/**",
+        "./node_modules/pdfjs-dist/legacy/web/**",
+        "./node_modules/pdfjs-dist/types/**",
+        "./node_modules/pdfjs-dist/build/**",
+        "./node_modules/pdfjs-dist/legacy/build/pdf.sandbox*",
+        "./node_modules/pdfjs-dist/**/*.d.mts",
+        "./node_modules/pdf-parse/lib/pdf.js/v1.10.88/**",
+        "./node_modules/pdf-parse/lib/pdf.js/v1.9.426/**",
+        "./node_modules/pdf-parse/lib/pdf.js/v2.0.550/**",
+      ],
+    },
   },
 };
 

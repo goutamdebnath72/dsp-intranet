@@ -38,7 +38,7 @@ export function LogoViewerModal({ isOpen, onClose }: LogoViewerModalProps) {
             </button>
             <div className="w-[400px] h-[400px] relative">
               <Image
-                src="/vibrant-logo.png"
+                src="/vibrant-logo.webp"
                 alt="DSP Intranet Logo - Large"
                 fill
                 className="object-contain"

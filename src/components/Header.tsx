@@ -51,7 +51,7 @@ export default function Header() {
               aria-label="View larger logo"
             >
               <Image
-                src="/vibrant-logo.png"
+                src="/vibrant-logo.webp"
                 alt="DSP Intranet Logo"
                 width={1024}
                 height={1024}

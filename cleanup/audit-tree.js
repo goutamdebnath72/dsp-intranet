@@ -152,7 +152,7 @@ for (const name of Object.keys(deps)) {
     const real = name.slice(7).replace("__", "/");
     if (packagesUsed.has(real) || packagesUsed.has("@" + real) || deps[real] || deps["@" + real]) { if (packagesUsed.has(real) || packagesUsed.has("@" + real)) continue; }
   }
-  if (configOnly.includes(name)) continue; // named in a config file, in any quotes (next.config.js lists oracledb and pg-connection-string on purpose)
+  if (configOnly.includes(name)) continue; // named in a config file, in any quotes (next.config.js lists pg-connection-string on purpose; oracledb is no longer a dependency, next.config.js still names it as an external so the build never looks for it)
   const eslintShort = name.match(/^(@[^/]+)\/eslint-plugin$/) ? RegExp.$1 : name.match(/^eslint-plugin-(.+)$/) ? RegExp.$1 : name.match(/^eslint-config-(.+)$/) ? RegExp.$1 : null;
   if (eslintShort && (configOnly.includes(`"${eslintShort}"`) || configOnly.includes(`'${eslintShort}'`) || configOnly.includes(`plugin:${eslintShort}/`) || configOnly.includes(`"${eslintShort}/`))) continue; // an ESLint plugin is named by its short name
   const bin = name.replace(/^@[^/]+\//, "");

@@ -10,5 +10,5 @@ import { type TopicUi } from "@/tools/uiTypes";
 
 export const railwayUi: TopicUi = {
   id: "railway",
-  live: { title: "Trains at Durgapur and Asansol", subtitle: "Express, mail and local timetable: stops at Durgapur, and trains to board at Asansol", tone: "rose", icon: <TrainFront size={20} />, card: () => <RailwayTabs /> },
+  live: { title: "Trains at Durgapur and Asansol", subtitle: "Express, mail and local timetable: stops at Durgapur, and trains to board at Asansol", tone: "rose", icon: <TrainFront size={20} />, card: (lang) => <RailwayTabs key={lang === "asn" ? "asn" : "dgr"} start={lang === "asn" ? "asn" : "dgr"} /> },
 };
