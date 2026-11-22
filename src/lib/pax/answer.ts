@@ -174,6 +174,13 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   const interp = `${baseInterp}${areaPhrase(plan.area)}.${noteFromCorrections(m.corrections)}`.replace(/\.\./g, ".");
   const title = plan.fault ? "PAX complaint numbers" : `PAX number for ${quote(asked)}`;
   if (m.rows.length === 0) {
+    // no entry is named so, but related entries share its words ("central store" and the "Store House - SH # nn" lines): their numbers are shown, said plainly to be related and not exact
+    if (!plan.fault && m.closestRows.length > 0) {
+      const n = arranged(m.closestRows).length;
+      const shared = m.closestShared.map(quote).join(" and ");
+      const sentence = `No PAX entry is named ${quote(asked)}. ${plural(n, "entry shares", "entries share")} ${shared}; their numbers are shown.`;
+      return notFound(`${n} related ${n === 1 ? "entry" : "entries"}`, title, sentence, interp, [], m.closestRows);
+    }
     const lines = m.closest.length ? [`Closest names in the directory: ${distinct(m.closest.map(nameOf)).join("; ")}`] : [];
     const sentence = plan.fault ? "The directory has no PAX complaint number." : `No PAX number matches ${quote(asked)} in the Telecom directory.`;
     return notFound("Not found", title, sentence, interp, lines);

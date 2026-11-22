@@ -19,3 +19,13 @@ export function needsWideModal(synthesis: { table?: TableLike | null; extraTable
     (t) => !!t && (t.columns?.length ?? 0) >= WIDE_TABLE_COLUMNS && (t.rows?.length ?? 0) > 0,
   );
 }
+
+/** The same rule for an ANSWER CARD (the hospital card's tables, the table of a model-written or finder answer): 4 or more columns and a row widen the box
+ *  (owner, 23 Nov 2026: a weekly OPD schedule of seven columns was cramped). Pure function of the answer on screen, so the box narrows again when it goes. */
+export function answerNeedsWideModal(
+  analytics: { hospital?: { table?: TableLike | null; extraTables?: { table?: TableLike | null }[] | null } | null; nl2sql?: { table?: TableLike | null } | null } | null | undefined,
+): boolean {
+  if (!analytics) return false;
+  const h = analytics.hospital;
+  return needsWideModal({ table: h?.table ?? analytics.nl2sql?.table ?? null }) || (h?.extraTables ?? []).some((x) => needsWideModal({ table: x.table })) || needsWideModal({ table: analytics.nl2sql?.table ?? null });
+}

@@ -61,11 +61,20 @@ async function call(payload: Json): Promise<{ ok: boolean; status: number; body:
 const emptyForm = (p?: PaxAdminOpen["prefill"]): FormValues => ({ department: p?.department ?? "", location: "", number: p?.number ?? "" });
 const tabFor = (op: PaxAdminOpen["op"]): Tab => (op === "modify" ? "modify" : op === "delete" ? "delete" : op === "delegate" ? "people" : "add");
 
-export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
+export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen; /** the departments to choose from, when they are known already (the tests, which draw the panel once and run no request) */ initialDepartments?: string[] }) {
   const isHod = open.role === "hod";
   const [tab, setTab] = useState<Tab>(tabFor(open.op));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "error"; text: string } | null>(null);
+
+  // THE DEPARTMENTS TO CHOOSE FROM (owner, 23 Nov 2026): the department of a line is picked from the departments the directory holds, never typed. null = still loading; the server refuses any other name as well.
+  const [departments, setDepartments] = useState<string[] | null>(initialDepartments ?? null);
+  const inList = (name: string, own?: string) => {
+    const t = cleanInput({ department: name, location: "", number: "" }).department.toLowerCase();
+    return !!t && (!!departments?.some((d) => d.toLowerCase() === t) || (own !== undefined && t === own.trim().toLowerCase())); // a line saved before the rule may keep its own department
+  };
+  /** the list for the change form: the plant's departments, plus the department the line already has (when it is not one of them) so that the box can show it */
+  const listFor = (own: string | undefined): string[] | null => (departments && own && !departments.some((d) => d.toLowerCase() === own.trim().toLowerCase()) ? [own, ...departments] : departments);
 
   // add
   const [addForm, setAddForm] = useState<FormValues>(emptyForm(open.prefill));
@@ -116,6 +125,21 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
       if (alive.current && r.ok && typeof r.body.name === "string" && r.body.name.trim()) setMe(r.body.name.trim());
     })();
   }, [initialName]);
+  useEffect(() => {
+    if (initialDepartments) return;
+    void (async () => {
+      const r = await call({ op: "departments" });
+      if (!alive.current) return;
+      const list = r.ok && Array.isArray(r.body.departments) ? (r.body.departments as string[]) : [];
+      setDepartments(list);
+      // a department that came with the request (typed words) counts only if it is one of the list: otherwise the box starts empty and the person chooses
+      setAddForm((f) => {
+        const hit = list.find((d) => d.toLowerCase() === f.department.trim().toLowerCase());
+        return f.department && !hit ? { ...f, department: "" } : hit ? { ...f, department: hit } : f;
+      });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const guard = useCallback(async <T,>(fn: () => Promise<T>, keepNotice = false): Promise<T | undefined> => {
     setBusy(true);
     if (!keepNotice) setNotice(null); // a reload that follows an action must not wipe the message that action has just set
@@ -157,11 +181,13 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
   // ---- add ----
   /** The add form saves only when its required inputs are there (the department and a PAX number of exactly 5 digits starting with 4; the location is optional): the button stays off until then (owner, 31 Oct 2026), and says what is missing. */
   const addValid = validateEntry(addForm);
-  const addHint = addValid.ok ? undefined : (addValid.errors.department ?? addValid.errors.number ?? addValid.errors.location);
+  const addDeptOk = inList(addForm.department);
+  const addHint = !addDeptOk ? "Choose the department from the list." : addValid.ok ? undefined : (addValid.errors.department ?? addValid.errors.number ?? addValid.errors.location);
 
   async function submitAdd(ack: Acknowledge[] = []) {
     const v = validateEntry(addForm);
     if (!v.ok) return setAddErrors(v.errors);
+    if (!inList(addForm.department)) return setAddErrors({ department: "Choose the department from the list." });
     setAddErrors({});
     const r = await guard(() => call({ op: "add", ...v.value, acknowledge: ack }));
     if (!r || !alive.current) return;
@@ -334,8 +360,8 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
 
       {tab === "add" && (
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">Type the department, the location and the new PAX number. Every entry is checked against what is saved.</p>
-          <EntryFormView idPrefix="pax-add" values={addForm} errors={addErrors} busy={busy} submitLabel="Check and save" submitDisabled={!addValid.ok} submitHint={addHint} onChange={(v) => { setAddForm(v); setAddConflict(null); }} onSubmit={() => void submitAdd()}>
+          <p className="text-sm text-slate-600">Choose the department, type the location and the new PAX number. Every entry is checked against what is saved.</p>
+          <EntryFormView idPrefix="pax-add" values={addForm} errors={addErrors} busy={busy} submitLabel="Check and save" submitDisabled={!addValid.ok || !addDeptOk} submitHint={addHint} departments={departments} onChange={(v) => { setAddForm(v); setAddConflict(null); }} onSubmit={() => void submitAdd()}>
             {addConflict && (
               <ConflictView
                 conflicts={addConflict.conflicts}
@@ -357,7 +383,7 @@ export function PaxAdminPanel({ open }: { open: PaxAdminOpen }) {
             <>
               <ChangingBanner line={editing} />
               {stale && <StaleCard who={stale.last ? { name: stale.last.actorName, ticket: stale.last.actorTicket, at: stale.last.at } : null} changes={theirEntryChanges(editing, stale.current)} busy={busy} onTheirs={takeTheirs} onMine={keepMine} />}
-              <EntryFormView idPrefix="pax-edit" values={editForm} errors={editErrors} busy={busy} submitLabel="Check and save the change" submitDisabled={!canSaveEdit || !!stale} submitHint={stale ? "Somebody else changed this line: choose one of the two buttons above first." : editHint} editing onChange={(v) => { setEditForm(v); setEditConflict(null); }} onSubmit={() => void submitEdit()} onCancel={() => { setEditing(null); setEditConflict(null); setStale(null); }}>
+              <EntryFormView idPrefix="pax-edit" values={editForm} errors={editErrors} busy={busy} submitLabel="Check and save the change" submitDisabled={!canSaveEdit || !!stale || !inList(editForm.department, editing?.department)} departments={listFor(editing?.department)} submitHint={stale ? "Somebody else changed this line: choose one of the two buttons above first." : editHint} editing onChange={(v) => { setEditForm(v); setEditConflict(null); }} onSubmit={() => void submitEdit()} onCancel={() => { setEditing(null); setEditConflict(null); setStale(null); }}>
                 {editConflict && (
                   <ConflictView
                     conflicts={editConflict.conflicts}

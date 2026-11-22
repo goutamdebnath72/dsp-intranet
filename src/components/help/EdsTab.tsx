@@ -7,7 +7,7 @@
 import React, { useMemo, useState } from "react";
 import { BookOpenCheck, Check, ClipboardCheck, Copy, Cpu, Database, FileSearch, Layers, Search, Sparkles, Upload, UserCheck, Zap } from "lucide-react";
 import { detectSynthesisIntent } from "@/lib/search/synthesisIntent";
-import { ASK_MODELS, ASK_STEPS, BEFORE_YOU_TEST, BUILD_TIPS, EDS_TITLE, NOT_DEEP, SCOPE, TEMPLATES, TEST_QUERIES, UPLOAD_MODELS, UPLOAD_STEPS, WHAT_IS, type ModelRow, type Step } from "@/lib/help/edsGuide";
+import { ASK_MODELS, ASK_STEPS, BEFORE_YOU_TEST, BUILD_TIPS, EDS_TITLE, NOT_DEEP, SCOPE, TEMPLATES, TEST_QUERIES, UPLOAD_MODELS, UPLOAD_STEPS, WAYS_IN, WHAT_IS, type ModelRow, type Step } from "@/lib/help/edsGuide";
 
 function H({ icon, no, title, children }: { icon: React.ReactNode; no: number; title: string; children?: React.ReactNode }) {
   return (
@@ -107,6 +107,7 @@ export function EdsTab({ isExecutive, onTry }: { isExecutive: boolean; onTry?: (
           <UserCheck size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>{SCOPE.who} {isExecutive ? "You are signed in as an executive: you can use it." : "You are not signed in as an executive on this page."}</span>
         </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-slate-700" data-eds-ways-in>{WAYS_IN}</p>
       </section>
 
       <section aria-label="What EDS is" data-eds-what>

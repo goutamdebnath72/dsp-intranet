@@ -252,8 +252,12 @@ export interface PaxMatch {
   rows: PaxRow[];
   /** Words of the question read through a spelling slip: [asked, read as]. Said to the person, never silent. */
   corrections: Array<[string, string]>;
-  /** When nothing matched: the names that share some of the words (never presented as the answer). */
+  /** When nothing matched: the names that share some of the words. */
   closest: string[];
+  /** When nothing matched: the rows of the entries that share the MOST words (every one of them, up to 40: "all the SH"), shown WITH their numbers as related entries, never as the exact answer. */
+  closestRows: PaxRow[];
+  /** the words of the question that those entries share */
+  closestShared: string[];
 }
 
 const byLabel = (a: PaxRow, b: PaxRow) => a.label.localeCompare(b.label, "en", { numeric: true, sensitivity: "base" }) || a.number.localeCompare(b.number);
@@ -311,6 +315,8 @@ function matchByNameCore(rows: PaxRow[], tokens: string[], exactOnly: boolean): 
   }
   const rowsOut = uniqueRows(sortPaxRows(chosen.map((s) => s.row)));
   let closest: string[] = [];
+  let closestRows: PaxRow[] = [];
+  let closestShared: string[] = [];
   if (rowsOut.length === 0) {
     // names that share at least one word (or nearly): shown as "closest", never as the answer
     const near = scored
@@ -322,8 +328,15 @@ function matchByNameCore(rows: PaxRow[], tokens: string[], exactOnly: boolean): 
       .filter((s) => s.loose > 0)
       .sort((a, b) => b.loose - a.loose || a.label.localeCompare(b.label));
     closest = Array.from(new Set(near.map((n) => n.label))).slice(0, 4);
+    // the related entries: every entry that shares the most words (the sub-departments of "central store" are all the "Store House - SH # nn" lines)
+    if (near.length > 0) {
+      const best = near[0].loose;
+      const labels = new Set(near.filter((n) => n.loose === best).map((n) => n.label));
+      closestRows = uniqueRows(sortPaxRows(rows.filter((r) => labels.has(r.label)))).slice(0, 40);
+      closestShared = tokens.filter((t) => closestRows.some((r) => matchToken(t, rowTokens(r))));
+    }
   }
-  return { rows: rowsOut, corrections, closest };
+  return { rows: rowsOut, corrections, closest, closestRows, closestShared };
 }
 
 export const filterByArea = (rows: PaxRow[], area: PaxArea | null): PaxRow[] => (area ? rows.filter((r) => r.area === area) : rows);

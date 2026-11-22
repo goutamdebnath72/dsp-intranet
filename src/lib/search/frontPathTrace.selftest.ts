@@ -129,6 +129,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   console.info = () => {};
   try { eq("the adapter works untraced", await groqLlm()("hello"), "x"); } finally { console.info = origInfo; globalThis.fetch = realFetch; }
 
+  // the umbrella's shadow comparison (src/records): headers and a mention in the line only when it says something
+  eq("no plan/scope headers when not recorded", ["x-omni-plan" in h, "x-omni-scope" in h], [false, false]);
+  eq("plan and scope headers", [traceHeaders({ ...sum, plan: "pax", scope: "auto" })["x-omni-plan"], traceHeaders({ ...sum, plan: "pax", scope: "auto" })["x-omni-scope"]], ["pax", "auto"]);
+  ok("console line stays quiet under Everything when the planner has no reading", !traceLine({ ...sum, plan: "-", scope: "auto" }, "q").includes("scope"));
+  ok("console line names a chosen selection beside the planner's reading", traceLine({ ...sum, plan: "hospital", scope: "pax" }, "q").includes("| scope pax plan hospital |"));
+  ok("console line names the planner's reading under Everything", traceLine({ ...sum, plan: "pax", scope: "auto" }, "q").includes("| scope auto plan pax |"));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

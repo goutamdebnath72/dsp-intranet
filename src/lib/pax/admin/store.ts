@@ -17,6 +17,7 @@ import { isSuperAdmin } from "@/lib/superAdmin";
 import { loadPaxRows, PORTAL_SOURCE, type QueryFn } from "../store";
 import type { PaxRow } from "../matcher";
 import { placeName } from "../display";
+import { formatDepartmentDisplay } from "@/lib/employees/sailDepartments";
 import { acknowledgementCovers, findConflicts, savedLines } from "./conflicts";
 import type { Acknowledge, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView, PaxLastChange } from "./types";
 import { composeLabel, validateEntry, type EntryInput, type FieldErrors } from "./validate";
@@ -93,6 +94,33 @@ const lastChangeOf = (q: QueryFn, id: number): Promise<PaxLastChange | null> => 
 
 const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === "23505";
 
+/**
+ * THE DEPARTMENTS TO CHOOSE FROM (owner, 23 Nov 2026): the department of a PAX line is CHOSEN from the plant's departments (public.sail_department, the register the employee directory uses: about three hundred names), never typed.
+ * The list is every distinct department name as the rest of the app shows it (formatDepartmentDisplay), A to Z. The server holds the rule (a typed or altered name is refused) because the form is only a convenience; a name that
+ * differs from a listed one only in capitals or spaces takes the listed spelling. A line that was saved before this rule keeps its own department when only its number is changed (the department is left as it is).
+ */
+export const DEPARTMENT_CHOICE = "Choose the department from the list.";
+export function departmentsOf(names: Array<string | null | undefined>): string[] {
+  const seen = new Map<string, string>();
+  for (const n of names) {
+    const d = (formatDepartmentDisplay(String(n ?? "")) ?? "").trim();
+    if (d && !seen.has(d.toLowerCase())) seen.set(d.toLowerCase(), d);
+  }
+  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" }));
+}
+/** the listed spelling of a department, or null when it is not one of them */
+export function pickDepartment(list: string[], typed: string): string | null {
+  const t = String(typed ?? "").normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+  return t ? list.find((d) => d.toLowerCase() === t) ?? null : null;
+}
+async function loadDepartmentNames(q: QueryFn): Promise<string[]> {
+  const rows = await q(`SELECT name FROM public.sail_department`);
+  return departmentsOf(rows.map((r) => (r as { name?: string }).name));
+}
+export async function listDepartments(db: PaxDb): Promise<string[]> {
+  return db.run((q) => loadDepartmentNames(q));
+}
+
 /** Every saved line in the table's own words (department, location, number), in the order of the table. */
 export async function listEntries(db: PaxDb, search = ""): Promise<PaxEntryView[]> {
   const rows = await db.run((q) => loadPaxRows(q));
@@ -109,6 +137,9 @@ export async function addEntry(db: PaxDb, actor: Actor, raw: Partial<Record<keyo
     return await db.run(async (q): Promise<EntryResult> => {
       const role = await begin(q, actor);
       const rows = await loadPaxRows(q);
+      const dept = pickDepartment(await loadDepartmentNames(q), v.value.department);
+      if (!dept) return { status: "invalid", errors: { department: DEPARTMENT_CHOICE } };
+      v.value.department = dept;
       const conflicts = findConflicts(rows, v.value);
       if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts: withVersions(conflicts, rows), acknowledgeable: acknowledgeable(conflicts) };
       const label = composeLabel(v.value.department, v.value.location);
@@ -138,6 +169,10 @@ export async function modifyEntry(db: PaxDb, actor: Actor, id: number, raw: Part
       const g = await guardRecord(q, "pax", id, { sent: version, load: loadLine(q, id), version: (r) => versionOfRow(r.old), current: (r) => ({ id, department: r.mine.department, location: r.mine.location, number: r.mine.number, version: versionOfRow(r.old) }) });
       if (g.status !== "fresh") return g;
       const { rows, mine, old } = g.row;
+      // the line's own department may stay as it is (a line saved before the rule); any other department must be one of the list
+      const dept = v.value.department === mine.department ? mine.department : pickDepartment(await loadDepartmentNames(q), v.value.department);
+      if (!dept) return { status: "invalid", errors: { department: DEPARTMENT_CHOICE } };
+      v.value.department = dept;
       if (mine.department === v.value.department && mine.location === v.value.location && mine.number === v.value.number) return { status: "unchanged" };
       const conflicts = findConflicts(rows, v.value, { ignoreId: id, keepsNumber: mine.number === v.value.number });
       if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts: withVersions(conflicts, rows), acknowledgeable: acknowledgeable(conflicts) };

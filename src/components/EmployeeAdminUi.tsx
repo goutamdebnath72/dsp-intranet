@@ -465,7 +465,8 @@ export function EmployeeForm(p: EmployeeFormProps) {
         </aside>
       </div>
       {errors.form && <p className="text-xs font-semibold text-rose-700" role="alert">{errors.form}</p>}
-      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-3 rounded-b-3xl border-t border-white/80 bg-white/75 px-4 py-3 backdrop-blur-xl sm:-mx-5 sm:-mb-5 sm:px-5" data-emp-actions="true">
+      {/* THE ACTION BAR IS DOCKED, NOT FLOATING (owner, 23 Nov 2026): solid white, square, with a rule and a soft upward shadow, flush with the bottom of the scrolling area (-bottom-2 cancels the 0.5rem padding of that area, so nothing of the form shows beneath it); the form scrolls above it */}
+      <div className="sticky -bottom-2 z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-4 py-3 shadow-[0_-10px_14px_-12px_rgba(15,23,42,0.35)] sm:-mx-5 sm:-mb-5 sm:px-5" data-emp-actions="true">
         <button type="button" data-emp-submit={p.mode} className={PRIMARY} disabled={p.busy || p.submitDisabled} onClick={p.onSubmit} aria-describedby={p.submitDisabled && p.submitHint ? `${idPrefix}-submit-hint` : undefined}>
           {p.submitLabel}<ArrowRight className="h-4 w-4" aria-hidden="true" />
         </button>

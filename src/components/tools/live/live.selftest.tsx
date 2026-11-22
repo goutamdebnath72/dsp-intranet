@@ -108,7 +108,7 @@ ok("the one fetch is a fixed route address (the news adds only its language tab)
 const routes = ["gold", "fuel", "news", "sports", "markets", "fuel-trend", "usd-inr"].map((n) => readFileSync(`src/app/api/live/${n}/route.ts`, "utf8").replace(/\/\/.*$/gm, ""));
 ok("the routes read nothing of the caller (only the news reads its language, from a fixed list) and every upstream address is fixed in the code", routes.every((t) => !/req\.json|req\.text|formData|cookies\(|headers\(\)|searchParams\.get\((?!"lang")/.test(t)) && routes[2].includes('searchParams.get("lang")') && routes.slice(0, 2).concat(routes.slice(3)).every((t) => !/request|req\b/.test(t.replace(/Request/g, ""))));
 const modal = readFileSync("src/components/OmnibarModal.tsx", "utf8");
-ok("a live line is a tool line: the search window returns before any search or lookup", modal.indexOf("const tool = detectTool(qTrim)") < modal.indexOf("fetchEmployees(\"id\"") && /if \(tool\) \{[\s\S]{0,200}return;\s*\}/.test(modal));
+ok("a live line is a tool line: the search window returns before any search or lookup", modal.indexOf("const tool = detectTool(qTrim)") < modal.indexOf("fetchEmployees(\"id\"") && /if \(tool(?: && selection\.scope === "auto")?\) \{[\s\S]{0,260}return;\s*\}/.test(modal));
 
 // the news card: Business is the first tab and the one that opens; a line can open another tab
 const tabs = (q: string) => { const x = panel(q); return { x, sel: (/role="tab"[^>]*aria-selected="true"[^>]*>([^<]*)</.exec(x) ?? [])[1] }; };

@@ -23,7 +23,7 @@ import { queryTokenWeights, weightedCoverage } from "@/lib/search/tokenWeights";
 import { loadDocumentChunks, bestPassage } from "@/lib/search/documentText";
 import { findSailDepartmentInText } from "@/lib/employees/sailDepartments";
 import { normTerm } from "@/lib/employees/designations";
-import { routeFromReply, setTraceGate, setTraceSynth, startTrace, summarizeTrace, traceHeaders, traceLine, traceStep, withTrace } from "@/lib/search/frontPathTrace";
+import { routeFromReply, setTraceGate, setTracePlan, setTraceSynth, startTrace, summarizeTrace, traceHeaders, traceLine, traceStep, withTrace } from "@/lib/search/frontPathTrace";
 import { detectSynthesisIntent } from "@/lib/search/synthesisIntent";
 import { decideModelSkip, frontGateEnabled, loadDirectoryNameWords } from "@/lib/search/frontGate";
 import { getSessionTicket } from "@/lib/apiAuth";
@@ -33,6 +33,10 @@ import { VISITOR_CUT_ENABLED, visitorView } from "@/lib/security/visitorView";
 import { maskAnswer } from "@/lib/security/sensitiveFields";
 import { withoutSql } from "@/lib/security/answerSql";
 import { answerHospitalQuestion } from "@/lib/search/hospitalDispatch";
+import { parseFacet, parseScope } from "@/records/scope";
+import { answerScoped } from "@/lib/records/scoped";
+import { planLine } from "@/records/plan";
+import { absentWords, judgeAbsent } from "@/lib/search/absentWords";
 
 // Vercel stops a serverless function after a time limit. A question can legitimately take
 // longer than the default (the language model may have to wait for its per-minute allowance), and an Executive Deep Synthesis
@@ -252,6 +256,23 @@ async function handleSearch(request: Request) {
       if (admin) return NextResponse.json({ analytics: admin });
     }
 
+    // THE READER'S FIXED SELECTION (src/records): "auto" is everything below, unchanged. A chosen selection is answered by its own engines only (src/lib/records/scoped.ts) and never falls through to the circulars;
+    // "documents" skips every record path and goes straight to the circular search below. The planner's reading of the line is only logged, beside what the selection was (the shadow comparison).
+    const scope = parseScope(searchParams.get("scope"));
+    const facet = parseFacet(searchParams.get("facet"));
+    setTracePlan(planLine(q).best?.domain ?? "-", scope);
+    if (mode === "semantic" && scope === "people" && facet === "find") return NextResponse.json([]); // a name or a number is looked up by the directory's own routes in the browser: nothing to answer here
+    if (mode === "semantic" && scope !== "auto" && scope !== "documents") {
+      const endScoped = traceStep("scoped");
+      const payload = await answerScoped({
+        scope, facet, q, userKey: userTicket ?? null, retry: parseRetry(searchParams),
+        departmentId: searchParams.get("dept"), gradeId: searchParams.get("grade"), name: searchParams.get("nm"),
+      });
+      endScoped();
+      return NextResponse.json({ analytics: payload });
+    }
+    const recordsOpen = scope === "auto"; // under "documents" no person, department or other record is looked at
+
     const endNameChecks = traceStep("name-checks");
     // Name-shaped: 2-3 words, all pure Latin letters (a person's name). Such a
     // query must anchor lexically in a document to qualify it (see the filter
@@ -269,7 +290,7 @@ async function handleSearch(request: Request) {
     // Latin words ("leave policy") — the latter keeps the normal semantic floor.
     let isNameShaped = false;
     let deptMentioned = false; // read by the front-path gate (frontGate.ts)
-    if (looksLikeName) {
+    if (recordsOpen && looksLikeName) {
       try {
         const nameHit = await dataSource.query(
           `SELECT 1 FROM public."user"
@@ -289,7 +310,7 @@ async function handleSearch(request: Request) {
     // same strict anchor as a plain name query so floor-riding noise circulars
     // don't leak in under the People results. A department + a real TOPIC
     // fragment ("c&it attendance") is NOT a person -> keeps the normal floor.
-    if (!isNameShaped && !INDIC_SCRIPT_REGEX.test(q)) {
+    if (recordsOpen && !isNameShaped && !INDIC_SCRIPT_REGEX.test(q)) {
       try {
         const dept = await findSailDepartmentInText(q);
         if (dept) {
@@ -333,7 +354,7 @@ async function handleSearch(request: Request) {
     // pipeline below answers: a wrong guess must never replace a right answer.
     const retrievalOnly = process.env.NODE_ENV !== "production" && searchParams.get("retrievalOnly") === "1";
     const retryInfo = parseRetry(searchParams);
-    const toolCall = mode === "semantic" && !retrievalOnly && !retryInfo ? await parseQueryWithLlm(q).catch(() => null) : null;
+    const toolCall = recordsOpen && mode === "semantic" && !retrievalOnly && !retryInfo ? await parseQueryWithLlm(q).catch(() => null) : null;
     const agentDecision = toolCall;
 
     // 1. Conversational (greeting / what can you do)
@@ -434,7 +455,7 @@ async function handleSearch(request: Request) {
     } else if (agentDecision?.tool === "employee_roster") {
       modelSkipped = false;
       setTraceGate("model");
-    } else if (mode === "semantic" && !retrievalOnly && !retryInfo && frontGateEnabled()) {
+    } else if (recordsOpen && mode === "semantic" && !retrievalOnly && !retryInfo && frontGateEnabled()) {
       const endGate = traceStep("gate");
       try {
         const directoryWords = await loadDirectoryNameWords((sql) => dataSource.query(sql));
@@ -456,7 +477,7 @@ async function handleSearch(request: Request) {
     // The structured data may answer "unanswerable" (no such column). When nobody is named, the circulars get their turn first and the
     // explanation is kept in heldAnswer, shown only if they have nothing either (step 38c, src/lib/search/dataGapRule.ts).
     let heldAnswer: Awaited<ReturnType<typeof answerOmnibar>> = null;
-    if (mode === "semantic" && !retrievalOnly) {
+    if (recordsOpen && mode === "semantic" && !retrievalOnly) {
       const endOmnibar = traceStep("omnibar");
       const payload = await answerOmnibar(q, userTicket || null, retryInfo, { skipModel: modelSkipped });
       endOmnibar();
@@ -502,6 +523,13 @@ async function handleSearch(request: Request) {
     // Rarity weights (lib/search/tokenWeights.ts): a word found in every circular counts
     // little, a word found in one or two counts a lot. Quoted/Indic queries stay unweighted.
     const tokenWeight = strictLexical ? await queryTokenWeights(dataSource, queryTokens) : null;
+    // UNDER "CIRCULARS & NOTICES" the reader asked for documents only, so a question whose words are in NO document is told so (src/lib/search/absentWords.ts), not answered with whatever shares one common word
+    let documentsNote: string | null = null;
+    if (scope === "documents" && mode === "semantic" && strictLexical && !retryInfo) {
+      const verdict = judgeAbsent(queryTokens, await absentWords(dataSource, queryTokens));
+      if (verdict.nothing) return NextResponse.json({ analytics: { kind: "clarify", answer: verdict.sentence, source: "none", attempt: 1 }, results: [] });
+      if (verdict.partial) documentsNote = verdict.sentence;
+    }
     // Lexical evidence is read from the BEST PASSAGE among all of a circular's chunks, not only
     // the one chunk the engine surfaced (lib/search/documentText.ts). Quoted/Indic queries keep
     // the single chunk.
@@ -724,6 +752,7 @@ async function handleSearch(request: Request) {
         }
       }
       if (merged.length === 0 && heldAnswer) return NextResponse.json({ analytics: heldAnswer });
+      if (documentsNote && merged.length > 0) return NextResponse.json({ analytics: { kind: "clarify", answer: documentsNote, source: "none", attempt: 1 }, results: merged });
       return NextResponse.json(merged);
     }
 

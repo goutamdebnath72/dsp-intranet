@@ -117,5 +117,13 @@ for (const tone of ["open", "closed", "unknown", "info"] as const) {
   const t = h(<HospitalAnswerCard answer={{ title: "T", status: { tone, text: `verdict ${tone}` } }} />);
   ok(`verdict ${tone} has its own colour classes`, t.includes(`data-tone="${tone}"`) && /bg-(green|red|amber|slate)-100/.test(t));
 }
+// a list of departments whose names open their own OPD (owner, 23 Nov 2026)
+{
+  const answer = { title: "OPD departments and OPD numbers", table: { columns: ["Department", "OPD / clinic"], rows: [["Eye", "OPD 14B"], ["Gynae & Obs", "OPD 46"]], asks: ["Eye opd", "Gynae & Obs opd"] } };
+  const withAsk = h(<HospitalAnswerCard answer={answer} onAsk={() => undefined} />);
+  ok("with a handler, each department's name is a button carrying its question", (withAsk.match(/data-table-ask="/g) ?? []).length === 2 && /data-table-ask="Gynae &amp; Obs opd"/.test(withAsk) && /title="Show the OPD of Gynae &amp; Obs"/.test(withAsk));
+  ok("only the FIRST column is pressable (the OPD numbers are not)", !/data-table-ask[^>]*>[^<]*<[^>]*>[^<]*OPD 46/.test(withAsk) && (withAsk.match(/<button/g) ?? []).length === 2);
+  ok("without a handler (or without asks) nothing is a button: the same plain table as before", !/data-table-ask/.test(h(<HospitalAnswerCard answer={answer} />)) && !/data-table-ask/.test(h(<HospitalAnswerCard answer={{ ...answer, table: { columns: answer.table.columns, rows: answer.table.rows } }} onAsk={() => undefined} />)));
+}
 console.log(`HospitalAnswerCard selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1,7 +1,7 @@
 // Run (from the project root): npx tsx src/lib/search/edsLayout.selftest.ts
 // The omnibar box widens only while an answer shows a table of 4+ columns, and it is a pure function of that answer.
 import { readFileSync } from "node:fs";
-import { needsWideModal } from "./edsLayout";
+import { answerNeedsWideModal, needsWideModal } from "./edsLayout";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean) => { if (cond) pass++; else { fail++; console.log(`FAIL ${name}`); } };
@@ -17,9 +17,18 @@ ok("a 4-column table with no rows: normal width", needsWideModal({ table: { colu
 ok("the second table alone can widen it", needsWideModal({ table: { columns: ["P", "A"], rows: [["x", "y"]] }, extraTable: { columns: ["P", "A", "B", "C"], rows } }) === true);
 ok("missing columns do not throw", needsWideModal({ table: { rows } }) === false);
 
+// an answer CARD (hospital tables, model/finder table) follows the same rule
+const wide4 = { columns: ["A", "B", "C", "D"], rows: [["1", "2", "3", "4"]] };
+const narrow2 = { columns: ["A", "B"], rows: [["1", "2"]] };
+ok("card: no answer / no table: normal", !answerNeedsWideModal(null) && !answerNeedsWideModal({}) && !answerNeedsWideModal({ hospital: {} }));
+ok("card: hospital table of 4+ columns: wide (the weekly OPD schedule has 7)", answerNeedsWideModal({ hospital: { table: { columns: ["Room", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], rows: [["OPD 46", "-", "-", "-", "-", "-", "-"]] } } }));
+ok("card: hospital table of 2 columns: normal", !answerNeedsWideModal({ hospital: { table: narrow2 } }));
+ok("card: a wide extra table widens it", answerNeedsWideModal({ hospital: { table: narrow2, extraTables: [{ table: wide4 }] } }));
+ok("card: a model/finder table of 4+ columns: wide, of 3: normal", answerNeedsWideModal({ nl2sql: { table: wide4 } }) && !answerNeedsWideModal({ nl2sql: { table: { columns: ["A", "B", "C"], rows: [["1", "2", "3"]] } } }));
+
 // the screen takes the answer being shown, so it narrows when that answer goes (a new query or an edit makes `synthesis` null)
 const src = readFileSync("src/components/OmnibarModal.tsx", "utf8");
-ok("the box width is computed from the synthesis shown now (and from a calculator page that asks for the wide box: toolWidth.selftest.ts)", src.includes('const wideModal = (mode === "intellectual" && needsWideModal(synthesis)) || toolFormIsWide(toolForm);'));
+ok("the box width is computed from the synthesis shown now (and from a calculator page that asks for the wide box: toolWidth.selftest.ts)", src.includes('const wideModal = (mode === "intellectual" && needsWideModal(synthesis)) || (!isLoading && answerNeedsWideModal(analytics)) || toolFormIsWide(toolForm);'));
 ok("the wide box is exactly the page's width (--omni-page-width), and no other box is wider than the page", src.includes("wideModal ? `min(${PAGE_WIDTH_VAR}, 100%)` : normalMaxWidth;") && src.includes("${PAGE_WIDTH_VAR}, 100%)`") && src.includes("maxWidth: currentMaxWidth,"));
 ok("the box's row leaves the scrollbar's room on its right, so the box and the page behind share one centre", src.includes('html.style.setProperty("--scrollbar-comp"') && src.includes('html.style.removeProperty("--scrollbar-comp")') && src.includes('style={{ paddingRight: "calc(1rem + var(--scrollbar-comp, 0px))" }}'));
 ok("the blur covers only the page's footprint; the dimming covers the screen (a screen-wide blur smeared the page's dark edge outside the box)", src.includes('className="fixed inset-0 bg-neutral-900/40"') && src.includes('className="fixed inset-y-0 left-0 mx-auto backdrop-blur-sm"') && src.includes('style={{ right: "var(--scrollbar-comp, 0px)", width: PAGE_WIDTH_VAR, maxWidth: "100%" }}') && !/bg-neutral-900\/40 backdrop-blur-sm/.test(src));

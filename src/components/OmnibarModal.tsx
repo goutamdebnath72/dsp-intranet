@@ -19,13 +19,18 @@ import {
 } from "lucide-react";
 import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
+import { RecordsScopeBar } from "@/components/RecordsScopeBar";
+import { ADMIN_CHOICE, EDS_CHOICE, domainById, facetById } from "@/records/domains";
+import { suggestDomain } from "@/records/plan";
+import { AUTO_SELECTION, finderLabel, finderReady } from "@/records/scope";
+import type { Selection } from "@/records/types";
 import { OMNIBAR_PREFILL_EVENT } from "@/lib/help/sampleQuestions";
 import { ToolPanel } from "@/components/tools/ToolPanel";
 import { toolFormIsWide, toolFormMaxRem } from "@/components/tools/toolWidth";
 import { detectTool, type FormKind } from "@/lib/tools/detect";
 import { clearIntent, intentById, worthAsking } from "@/lib/tools/intent";
 import { askIntent } from "@/lib/tools/intentClient";
-import { needsWideModal } from "@/lib/search/edsLayout";
+import { answerNeedsWideModal, needsWideModal } from "@/lib/search/edsLayout";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
 import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
@@ -69,6 +74,7 @@ import { useNameVocab } from "@/hooks/useNameVocab";
 import { answerFirstEnabled, useCircularAnswer } from "@/hooks/useCircularAnswer";
 import { decideLoginHint, excludeShownPeople, resumeAskedEds, shouldAskExecutive, type ExecutiveAsk } from "@/lib/search/loginHints";
 import { OmniExecutiveAsk } from "@/components/OmniExecutiveAsk";
+import { OmniAdminAsk } from "@/components/OmniAdminAsk";
 import { autoEdsEnabled, detectSynthesisIntent } from "@/lib/search/synthesisIntent";
 import { resumeAsEds } from "@/lib/search/loginHints";
 import { Tooltip } from "@/components/Tooltip";
@@ -254,6 +260,8 @@ export function OmnibarModal({
     mode,
     triggerSearch,
     prefetchSearch,
+    selection,
+    setSelection,
     results,
     synthesis,
     analytics,
@@ -263,6 +271,35 @@ export function OmnibarModal({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // The calculator form (or the menu of them) opened with Enter. Sums, conversions and date questions need no state: they answer as you type (src/components/tools/ToolPanel.tsx).
   const [toolForm, setToolForm] = useState<FormKind | "menu" | "services" | null>(null);
+  // THE UTILITY SERVICES BUTTON opens the page ALONE: the box and the choices above it go away (they would only take height), and the page's own Back returns to the ordinary window of the search.
+  // The page stays alone while a calculator opened from it is open, and ends when the page is closed.
+  const [utilityShellOn, setUtilityShellOn] = useState(false);
+  const utilityFocus = utilityShellOn && toolForm !== null;
+  useEffect(() => { if (toolForm === null) setUtilityShellOn(false); }, [toolForm]);
+  // Escape on the page alone goes back to the ordinary window (it does not close the search); heard before the window's own handler
+  useEffect(() => {
+    if (!utilityFocus) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && toolForm === "services") { e.preventDefault(); e.stopImmediatePropagation(); setToolForm(null); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [utilityFocus, toolForm]);
+  // A MANAGEMENT TOOL'S OWN PAGE (Employee manager, PAX directory editor, Holiday, Circular and Announcement managers, Contact access log) stands alone exactly like the Utility Services page: the box and the choices go away
+  // (they would only take height), the page has the whole height of the window, and its Back button (ManagementBack) returns to the management page with the ordinary window around it. Escape on the page goes back the same way.
+  // It is a pure function of the answer on screen, so it is gone the moment that answer goes (Back, a new search, a closed window).
+  const adminFocus = !isLoading && !!analytics && !!(analytics.employeeAdmin || analytics.paxAdmin || analytics.holidayAdmin || analytics.circularAdmin || analytics.announcementAdmin || analytics.accessLogAdmin);
+  const pageAlone = utilityFocus || adminFocus;
+  useEffect(() => {
+    if (!adminFocus) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); triggerSearch("semantic", { query: "management" }); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+    // triggerSearch is read as it is at that moment
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminFocus]);
   // A utility found from a line that used none of its words (src/lib/tools/intent.ts for what the app can tell by itself, intentAi.ts for what the AI is asked): the utility's id and who found it. The line itself
   // is NEVER sent to the search then (a figure of someone's loan or pay is not logged); `routedQuery` is the sample line that makes the utility's card, for a utility that is a card and not a form.
   const [routed, setRouted] = useState<{ id: string; via: "local" | "ai" } | null>(null);
@@ -282,11 +319,11 @@ export function OmnibarModal({
     if ("form" in e.open) { setRoutedQuery(null); setToolForm(id as FormKind); } else { setToolForm(null); setRoutedQuery(e.open.query); }
     setRouted({ id, via });
   };
-  // while typing: the utility the line is CLEARLY about, when no exact reader has it (the hint says Enter opens it)
+  // while typing: the utility the line is CLEARLY about, when no exact reader has it (the hint says Enter opens it). Only on Everything: under a chosen button the reader said where to look, so no utility is guessed and no hint is shown (owner, 23 Nov 2026: "pf loan repayment" under Circulars & Notices showed "Press Enter to open the provident fund")
   const clearHit = useMemo(() => {
     const q = (query || "").trim();
-    return toolForm || routed || q.length < 4 || detectTool(q) ? null : clearIntent(q);
-  }, [query, toolForm, routed]);
+    return selection.scope !== "auto" || toolForm || routed || q.length < 4 || detectTool(q) ? null : clearIntent(q);
+  }, [query, toolForm, routed, selection.scope]);
   // the management page typed ("management", "admin"...) but not sent yet: the hint that Enter opens it (it goes once the line has been sent)
   const hubTyped = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
@@ -298,9 +335,9 @@ export function OmnibarModal({
   const plantNames = useNameVocab(isOpen && nameSources.usePlant);
   const nameHint = useMemo(() => {
     const q = (query || "").trim();
-    if (NAME_HINT_MODE === "off" || !q || mode === "intellectual" || toolForm || routed || clearHit || hubTyped || (submittedQuery || "").trim() === q || detectTool(q)) return null;
+    if (selection.scope !== "auto" || NAME_HINT_MODE === "off" || !q || mode === "intellectual" || toolForm || routed || clearHit || hubTyped || (submittedQuery || "").trim() === q || detectTool(q)) return null;
     return detectNameHint(q, { useBuiltin: nameSources.useBuiltin, plant: nameSources.usePlant ? plantNames : null });
-  }, [query, mode, toolForm, routed, clearHit, hubTyped, submittedQuery, plantNames, nameSources.useBuiltin, nameSources.usePlant]);
+  }, [query, mode, toolForm, routed, clearHit, hubTyped, submittedQuery, plantNames, nameSources.useBuiltin, nameSources.usePlant, selection.scope]);
   // Step 59a: a question that uses a FORMER name of a department ("CHRD", "Training Department") is answered with the CURRENT name first: shown above the results, whatever the kind of answer.
   const nameNotice = useMemo(() => formerNameNotice(submittedQuery || ""), [submittedQuery]);
 
@@ -410,6 +447,10 @@ export function OmnibarModal({
   // has said he is an executive); `declinedAsk` is the question for which he said No (the simple answer was shown, so the sign-in advice is not repeated above it).
   const [executiveAsk, setExecutiveAsk] = useState<ExecutiveAsk | null>(null);
   const [declinedAsk, setDeclinedAsk] = useState<string | null>(null);
+  // THE ADMIN BUTTON (More tools): a signed-out visitor is asked "Are you authorised to access them?" (Yes opens the sign-in window; No goes back to Everything); a signed-in person goes straight to the check.
+  // `adminWant` asks for the management page once the Admin selection and the login are both in place: the server says who the login is, and answers the management page or the red "not authorised" card.
+  const [adminAsk, setAdminAsk] = useState<{ said: "yes" | null } | null>(null);
+  const [adminWant, setAdminWant] = useState(false);
   const askRef = useRef<ExecutiveAsk | null>(null);
   askRef.current = executiveAsk;
   const wasExecutiveAskRef = useRef(isExecutive);
@@ -417,6 +458,7 @@ export function OmnibarModal({
     const was = wasExecutiveAskRef.current;
     wasExecutiveAskRef.current = isExecutive;
     const ask = askRef.current;
+    if (ask && ask.query === "" && isExecutive) setExecutiveAsk(null); // signed in as an executive after pressing the EDS button: the question is asked of the box, nothing is waiting to resume
     if (ask && resumeAskedEds({ ask, wasExecutive: was, isExecutive, isOpen, query, edsEnabled: autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) })) {
       setExecutiveAsk(null);
       triggerSearch("intellectual", { auto: true, query: ask.query });
@@ -424,13 +466,33 @@ export function OmnibarModal({
     // only a change of isExecutive is the trigger; the other values are read as they are at that moment
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExecutive]);
+  // a visitor pressed the EDS button, said Yes and signed in as someone who is NOT an executive: the card goes and the note says what EDS is for
+  useEffect(() => {
+    if (executiveAsk && executiveAsk.query === "" && authStatus === "authenticated" && !isExecutive) {
+      setExecutiveAsk(null);
+      setEdsNote(EDS_NOT_EXECUTIVE);
+    }
+  }, [authStatus, isExecutive, executiveAsk]);
+  // signed in while the Admin question is on the screen (after Yes, or when the sign-in state arrived late): the question goes and the check is made
+  useEffect(() => {
+    if (selection.scope === "admin" && authStatus === "authenticated" && adminAsk) { setAdminAsk(null); setAdminWant(true); }
+  }, [selection.scope, authStatus, adminAsk]);
+  useEffect(() => {
+    if (adminWant && selection.scope === "admin" && authStatus === "authenticated") { setAdminWant(false); triggerSearch("semantic", { query: "management" }); }
+    // triggerSearch is read as it is at that moment
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminWant, selection.scope, authStatus]);
+  // the Admin question goes when something is typed
+  useEffect(() => {
+    if (adminAsk && query.trim() !== "") setAdminAsk(null);
+  }, [query, adminAsk]);
   // the question is dropped when the text is edited, and when the window closes
   useEffect(() => {
     if (executiveAsk && query.trim() !== executiveAsk.query) setExecutiveAsk(null);
     if (declinedAsk !== null && query.trim() !== declinedAsk) setDeclinedAsk(null);
   }, [query, executiveAsk, declinedAsk]);
   useEffect(() => {
-    if (!isOpen) { setExecutiveAsk(null); setDeclinedAsk(null); }
+    if (!isOpen) { setExecutiveAsk(null); setDeclinedAsk(null); setAdminAsk(null); setAdminWant(false); }
   }, [isOpen]);
   // A reveal the user clicked while logged out; retried after they log in.
   const pendingRevealRef = useRef<{ empId: string; field: RevealField } | null>(null);
@@ -439,7 +501,7 @@ export function OmnibarModal({
   // static list, so this needs no server round-trip. Shown pinned above the
   // circular/announcement results. Skipped in Executive synthesis mode.
   const siteResults = useMemo(() => {
-    if (mode === "intellectual") return [];
+    if (mode === "intellectual" || selection.scope !== "auto") return []; // a chosen selection shows its own answers only: no intranet-site links beside them
     const q = (query || "").trim();
     if (q.length < 2) return [];
     let hits = searchSites(q, 6);
@@ -458,7 +520,7 @@ export function OmnibarModal({
       }
     }
     return hits;
-  }, [query, mode]);
+  }, [query, mode, selection.scope]);
 
   // ---- Employee (People) search --------------------------------------------
   // Live exact-ID lookups (ticket / mobile / SAIL PNO) as the user types, and
@@ -543,7 +605,9 @@ export function OmnibarModal({
   // Live: run ID lookups as the user types (debounced). Names wait for Enter.
   useEffect(() => {
     const q = (query || "").trim();
-    if (mode === "intellectual" || !isIdQuery(q)) {
+    // the live lookup of a number belongs to Everything and to People > Name or number; under any other selection a number is not a person
+    const idLive = selection.scope === "auto" || (selection.scope === "people" && selection.facet === "find");
+    if (!idLive || mode === "intellectual" || !isIdQuery(q)) {
       // Clear employee results unless a name-search populated them (Enter path
       // sets them directly and should persist until the query changes).
       return;
@@ -569,7 +633,7 @@ export function OmnibarModal({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, mode]);
+  }, [query, mode, selection.scope, selection.facet]);
 
   // When the query is cleared or becomes an id/name, keep employee list sane.
   useEffect(() => {
@@ -606,6 +670,101 @@ export function OmnibarModal({
     if (q.length < 2) return;
     await fetchEmployees("name", q);
   }, [query, fetchEmployees]);
+
+  // THE FIXED SELECTIONS (src/records). A line under a chosen selection is answered by that selection's own engines only. People > Name or number is looked up by the directory's own routes (no AI);
+  // the server is still asked once (it answers an empty list at once) so the screen knows a search was made and can say "No results found".
+  const runScoped = (line: string) => {
+    const text = line.trim();
+    if (text.length < 2) return;
+    if (selection.scope === "people" && selection.facet === "find") {
+      void fetchEmployees(isIdQuery(text) ? "id" : "name", text);
+    } else {
+      employeeReq.current++;
+      setEmployeeResults([]);
+    }
+    triggerSearch("semantic", { query: text });
+  };
+  // People > Department & designation: the two picked lists (and an optional part of a name) are the whole question; the box shows the words that stand for it
+  const runFinder = (labels: { deptName: string | null; gradeName: string | null }) => {
+    if (!finderReady(selection)) return;
+    employeeReq.current++;
+    setEmployeeResults([]);
+    triggerSearch("semantic", { query: finderLabel({ ...labels, nm: selection.nm }) });
+  };
+  // choosing another selection (or another way of looking for a person) leaves nothing of the old one on the screen
+  const changeSelection = (next: Selection) => {
+    const moved = next.scope !== selection.scope || next.facet !== selection.facet;
+    setSelection(next);
+    if (moved) {
+      employeeReq.current++;
+      setEmployeeResults([]);
+      clearSearch();
+      setQuery(""); // the words written for one choice are not carried over to another: the box starts empty
+      setEdsNote(null);
+      setToolForm(null);
+      forgetRoute();
+      setExecutiveAsk(null);
+      setAdminAsk(null);
+      // Executive Deep Search pressed: a visitor is asked at once "Are you an executive?" (Yes: sign in; No: the circulars), a signed-in person who is not an executive is told, an executive just gets the box
+      if (next.scope === "eds") {
+        if (authStatus === "unauthenticated") { setExecutiveAsk({ query: "", said: null }); setDeclinedAsk(null); }
+        else if (authStatus === "authenticated" && !isExecutive) setEdsNote(EDS_NOT_EXECUTIVE);
+      }
+      textareaRef.current?.focus();
+    }
+    // Admin pressed (again too): a signed-in person goes straight to the check of their authority; anyone else is asked first
+    if (next.scope === "admin") {
+      if (authStatus === "authenticated") setAdminWant(true);
+      else setAdminAsk((cur) => cur ?? { said: null });
+    }
+  };
+  // Executive Deep Search, chosen on purpose: an executive's question goes straight to it; a visitor is asked the usual "Are you an executive?"; a signed-in person who is not one is told so
+  const [edsNote, setEdsNote] = useState<string | null>(null);
+  const EDS_NOT_EXECUTIVE = "Executive Deep Search is for signed-in executives. To search the circulars, choose Circulars & Notices.";
+  const runEds = (line: string) => {
+    const text = line.trim();
+    if (text.length < 3) return;
+    setEdsNote(null);
+    if (authStatus === "loading") return;
+    if (authStatus === "unauthenticated") {
+      setExecutiveAsk({ query: text, said: null });
+      setDeclinedAsk(null);
+      return;
+    }
+    if (!isExecutive) {
+      setEdsNote(EDS_NOT_EXECUTIVE);
+      return;
+    }
+    employeeReq.current++;
+    setEmployeeResults([]);
+    triggerSearch("intellectual", { query: text });
+  };
+  // the cross of the management page (or of its "not authorised" card): the page goes; if it came from the Admin button the Admin choice goes with it, the box is wiped and the choice returns to Everything (every way back lands there)
+  const closeManagement = () => { if (selection.scope === "admin") changeSelection({ ...AUTO_SELECTION }); else clearSearch(); };
+  // the Utility Services button: the page of all the utilities, with the box and any answer cleared
+  const openUtilities = () => {
+    setUtilityShellOn(true);
+    employeeReq.current++;
+    setEmployeeResults([]);
+    clearSearch();
+    setQuery("");
+    setEdsNote(null);
+    setExecutiveAsk(null);
+    setAdminAsk(null);
+    forgetRoute();
+    setSelection(AUTO_SELECTION);
+    setToolForm("services");
+  };
+  // what the box says while a selection is chosen
+  const placeholderText = useMemo(() => {
+    if (selection.scope === "eds") return EDS_CHOICE.placeholder;
+    if (selection.scope === "admin") return ADMIN_CHOICE.placeholder;
+    if (selection.scope === "auto") return "Search people, departments, circulars, announcements & sites — press Enter…";
+    if (selection.scope === "people") return selection.facet === "roster" ? "Pick a department and a designation below, then press “List the people”…" : facetById(selection.facet)?.placeholder ?? "";
+    return domainById(selection.scope)?.placeholder ?? "";
+  }, [selection.scope, selection.facet]);
+  // under Everything: what the typed words look like they are for (pure, in the browser; only a hint)
+  const suggestion = useMemo(() => (selection.scope === "auto" ? suggestDomain(query || "") : null), [query, selection.scope]);
 
   // Reveal a masked contact field: unmask inline + server writes the audit row.
   const doReveal = useCallback(
@@ -702,7 +861,7 @@ export function OmnibarModal({
   // A comparison table of 4+ columns on the screen widens the box; it is a pure function of the answer being shown, so it narrows again the moment that answer goes
   // (a new query, an edit of the text, a narrower answer). The text scale (omniK) deliberately stays that of the normal width: the extra room is for the table, not bigger text.
   // A calculator page that asks for the wide box (its ui says `wide`: the PF page, with three boxes in a row and a table of years) gets exactly the same width, and the same rule: it goes the moment the form is closed.
-  const wideModal = (mode === "intellectual" && needsWideModal(synthesis)) || toolFormIsWide(toolForm);
+  const wideModal = (mode === "intellectual" && needsWideModal(synthesis)) || (!isLoading && answerNeedsWideModal(analytics)) || toolFormIsWide(toolForm);
   // the normal box: its own width, but never wider than the page. The wide box: the page's width, nothing more, nothing less (100% = the room the row gives it, for a narrow screen).
   const normalMaxWidth = `min(max(${(mode === "intellectual" ? BASE_MODAL_WIDTH_REM * EXECUTIVE_SCALE : BASE_MODAL_WIDTH_REM).toFixed(2)}rem, ${mode === "intellectual" ? (BASE_MODAL_WIDTH_VW * EXECUTIVE_SCALE).toFixed(2) : String(BASE_MODAL_WIDTH_VW)}vw), ${MODAL_MAX_PX}px, 92vw, ${PAGE_WIDTH_VAR}, 100%)`;
   // a page that asks for a width of its own (`wide: { maxRem }`) gets that many rem, but never more than the page; every other wide box is the page's width
@@ -892,6 +1051,10 @@ export function OmnibarModal({
               style={{ "--omni-k": Number((omniK * MODAL_TEXT_FACTOR).toFixed(4)) } as React.CSSProperties}
               className="omni-scale relative w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-neutral-200 flex flex-col max-h-[calc(100vh-5.5rem)]"
             >
+              {pageAlone && <span data-escape-back="true" hidden />}
+              {/* the box, the choices and what hangs under them are left out while the Utility Services page stands alone (utilityFocus) */}
+              {!pageAlone && (
+              <>
               {/* Multiline Search Input Header */}
               <div className="flex items-start px-4 py-3.5 border-b border-neutral-200 gap-3">
                 <Search className="h-5 w-5 text-neutral-400 mt-2 shrink-0" />
@@ -923,10 +1086,23 @@ export function OmnibarModal({
 
                       // A calculator: a sum, a conversion or a date question already shows its answer (as you type); a request for a calculator form opens it now. Either way the line
                       // is NEVER sent to the search: a figure of someone's loan, pay or savings is not logged anywhere.
+                      // under a chosen button no utility opens from the typed words (the Utility Services page is a button of its own)
                       const tool = detectTool(qTrim);
-                      if (tool) {
+                      if (tool && selection.scope === "auto") {
                         if (tool.kind === "form") setToolForm(tool.form);
                         else if (isListPage(tool.kind)) setToolForm(tool.kind);
+                        return;
+                      }
+
+                      // A FIXED SELECTION (src/records/): the line is answered by that selection's own engines and nowhere else (no utility is guessed, no other record is tried). Circulars & Notices
+                      // keep the ordinary path below, minus the people name search and the utility guesses. (No utility opens from typed words under a chosen button: Utility Services is a button of its own.)
+                      if (selection.scope === "eds") {
+                        runEds(qTrim);
+                        return;
+                      }
+                      if (selection.scope !== "auto" && selection.scope !== "documents") {
+                        if (selection.scope === "people" && selection.facet === "roster") return; // the two lists and their button (RecordsScopeBar) run it
+                        runScoped(qTrim);
                         return;
                       }
 
@@ -948,10 +1124,13 @@ export function OmnibarModal({
                       // WHAT THE LINE MEANS, when no exact reader has it. First what the app can tell by itself (instant, nothing leaves the browser): a utility the line is clearly about opens, and the
                       // line is not searched. Then, for a whole sentence that could be neither a name nor an ID, the AI is asked which utility it means (only the line goes, src/lib/tools/intentAi.ts);
                       // its answer is a utility id or none. Failing both, or on none, the line is searched as it always was.
-                      const understood = clearIntent(qTrim);
-                      if (understood) {
-                        openRouted(understood.id, "local");
-                        return;
+                      // a chosen button (Circulars & Notices too) is not second-guessed: no utility is guessed from its words
+                      if (selection.scope === "auto") {
+                        const understood = clearIntent(qTrim);
+                        if (understood) {
+                          openRouted(understood.id, "local");
+                          return;
+                        }
                       }
                       // AN EDS-KIND QUESTION FROM A VISITOR WHO IS SIGNED OUT: nothing is searched yet; the bar asks "Are you an executive?" (Yes: sign in to get the EDS reply; No: the simple reply).
                       if (shouldAskExecutive({ authStatus, query: qTrim, edsEnabled: autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) })) {
@@ -977,7 +1156,7 @@ export function OmnibarModal({
                           if (!isLoading) triggerSearch("intellectual", { auto: true });
                         } else {
                           // the people name search is for what can be a NAME (one to four words, not a question): a sentence only burned 1 to 7 s of database time (step 61a)
-                          if (query.trim().length >= 2 && looksLikeNameSearch(query)) {
+                          if (selection.scope === "auto" && query.trim().length >= 2 && looksLikeNameSearch(query)) {
                             runEmployeeNameSearch();
                           } else {
                             setEmployeeResults([]);
@@ -986,7 +1165,7 @@ export function OmnibarModal({
                         }
                       };
                       const synthesis = isExecutive && autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) && detectSynthesisIntent(query).synthesis;
-                      if (!synthesis && worthAsking(qTrim)) {
+                      if (!synthesis && worthAsking(qTrim) && selection.scope === "auto") {
                         const mine = ++routeReq.current;
                         setUnderstanding(true);
                         const ctl = new AbortController();
@@ -1002,7 +1181,7 @@ export function OmnibarModal({
                       proceed();
                     }
                   }}
-                  placeholder="Search people, departments, circulars, announcements & sites — press Enter…"
+                  placeholder={placeholderText}
                   className="flex-1 bg-transparent text-sm sm:text-base text-neutral-900 placeholder-neutral-400 focus:outline-none resize-none leading-relaxed overflow-y-auto max-h-24 py-1"
                 />
                 {isLoading && mode !== "intellectual" && (
@@ -1030,12 +1209,17 @@ export function OmnibarModal({
 
               {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
 
+              {/* The fixed selections (src/records): Everything, People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices. */}
+              <RecordsScopeBar selection={selection} onChange={changeSelection} suggestion={selection.scope === "auto" ? suggestion : null} onExample={selection.scope === "eds" ? runEds : runScoped} onRunFinder={runFinder} utilitiesOpen={toolForm === "services"} onUtilities={openUtilities} notice={edsNote} edsReady={authStatus === "authenticated" && isExecutive} adminReady={authStatus === "authenticated"} onAdminHint={() => { if (authStatus === "authenticated") prefetchSearch("semantic", "management", { ...AUTO_SELECTION, scope: "admin" }); }} />
+
               {nameNotice && <FormerNameNotice notice={nameNotice} />}
               {executiveAsk && (
                 <OmniExecutiveAsk
                   ask={executiveAsk}
-                  onYes={() => setExecutiveAsk({ ...executiveAsk, said: "yes" })}
+                  onYes={() => { setExecutiveAsk({ ...executiveAsk, said: "yes" }); openModal(); }} // Yes is the click on Sign in: the login window opens at once
                   onNo={() => {
+                    // the EDS button pressed with no question yet: No goes back to the default choice, Everything, with the box empty (every way back lands on Everything)
+                    if (executiveAsk.query === "") { changeSelection({ ...AUTO_SELECTION }); return; }
                     // No: the simple reply, exactly as for any other question
                     const q = executiveAsk.query;
                     setExecutiveAsk(null);
@@ -1043,10 +1227,18 @@ export function OmnibarModal({
                     if (looksLikeNameSearch(q)) runEmployeeNameSearch(); else setEmployeeResults([]);
                     triggerSearch("semantic");
                   }}
-                  onSignIn={openModal}
+                />
+              )}
+              {adminAsk && (
+                <OmniAdminAsk
+                  said={adminAsk.said}
+                  onYes={() => { setAdminAsk({ said: "yes" }); openModal(); }} // Yes is the click on Sign in: the login window opens at once; once signed in, the authority is checked
+                  onNo={() => changeSelection({ ...AUTO_SELECTION })} // every way back lands on Everything
                 />
               )}
               {loginHint && <OmniLoginHint hint={loginHint} onSignIn={openModal} />}
+              </>
+              )}
 
               <div className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">
                 {isLoading && mode === "intellectual" ? (
@@ -1120,7 +1312,7 @@ export function OmnibarModal({
                         <span>Press <kbd className="rounded-md border border-sky-300 bg-white px-2 py-0.5 text-xs font-bold shadow-sm">Enter</kbd> to open the management page.</span>
                       </div>
                     )}
-                    <ToolPanel query={routedQuery ?? query} form={toolForm} onForm={setToolForm} />
+                    <ToolPanel query={routedQuery ?? (selection.scope === "auto" ? query : "")} form={toolForm} onForm={setToolForm} />
 
                     {error && (
                       <div className="p-4 text-center text-red-600 text-sm font-medium">
@@ -1166,9 +1358,9 @@ export function OmnibarModal({
                               <ManagementBack onBack={() => triggerSearch("semantic", { query: "management" })} />
                             )}
                             {analytics.managementGate ? (
-                              <ManagementGatePanel gate={analytics.managementGate} onSignIn={openModal} onClose={() => clearSearch()} />
+                              <ManagementGatePanel gate={analytics.managementGate} onSignIn={openModal} onClose={closeManagement} />
                             ) : analytics.managementHub ? (
-                              <ManagementHubPanel open={analytics.managementHub} onOpen={(phrase) => triggerSearch("semantic", { query: phrase })} onPrefetch={(phrase) => prefetchSearch("semantic", phrase)} onClose={() => clearSearch()} />
+                              <ManagementHubPanel open={analytics.managementHub} onOpen={(phrase) => triggerSearch("semantic", { query: phrase })} onPrefetch={(phrase) => prefetchSearch("semantic", phrase)} onClose={closeManagement} />
                             ) : analytics.paxAdmin ? (
                               <PaxAdminPanel open={analytics.paxAdmin} />
                             ) : analytics.employeeAdmin ? (
@@ -1182,7 +1374,7 @@ export function OmnibarModal({
                             ) : analytics.accessLogAdmin ? (
                               <AccessLogAdminPanel open={analytics.accessLogAdmin} />
                             ) : analytics.hospital ? (
-                              <HospitalAnswerCard answer={analytics.hospital} />
+                              <HospitalAnswerCard answer={analytics.hospital} onAsk={(text) => triggerSearch("semantic", { query: text })} />
                             ) : analytics.holidayCompare ? (
                               <HolidayCompareCard view={analytics.holidayCompare} />
                             ) : analytics.holidayDetails && analytics.holidayDetails.length > 0 ? (

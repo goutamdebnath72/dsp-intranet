@@ -34,6 +34,9 @@ export interface Trace {
   gate: string | null;
   /** The synthesis-intent verdict for the question (synthesisIntent.ts), "level;score", e.g. "synthesis;7". null = not asked. */
   synth: string | null;
+  /** What the umbrella's planner (src/records/plan.ts) would have chosen for the line, and the selection the reader made ("auto" when none): the shadow comparison. null = not recorded. */
+  plan: string | null;
+  scope: string | null;
   steps: Map<string, number>;
   calls: ModelCall[];
   /** Milliseconds spent sleeping because Groq said "too many tokens this minute". */
@@ -45,6 +48,8 @@ export interface TraceSummary {
   kind: string | null;
   gate: string | null;
   synth: string | null;
+  plan?: string | null;
+  scope?: string | null;
   totalMs: number;
   steps: { name: string; ms: number }[];
   modelCalls: number;
@@ -55,7 +60,7 @@ export interface TraceSummary {
 const store = new AsyncLocalStorage<Trace>();
 
 export function startTrace(now: number = Date.now()): Trace {
-  return { startedAt: now, route: null, kind: null, gate: null, synth: null, steps: new Map(), calls: [], waitedMs: 0 };
+  return { startedAt: now, route: null, kind: null, gate: null, synth: null, plan: null, scope: null, steps: new Map(), calls: [], waitedMs: 0 };
 }
 
 /** Run `fn` with `trace` as the current request's trace (everything it awaits sees it). */
@@ -102,6 +107,11 @@ export function setTraceSynth(level: string, score: number): void {
   if (t) t.synth = `${level};${score}`;
 }
 
+export function setTracePlan(plan: string, scope: string): void {
+  const t = store.getStore();
+  if (t) { t.plan = plan; t.scope = scope; }
+}
+
 export function summarizeTrace(t: Trace, now: number = Date.now()): TraceSummary {
   const tokens = { prompt: 0, completion: 0, total: 0, cached: 0 };
   for (const c of t.calls) {
@@ -115,6 +125,8 @@ export function summarizeTrace(t: Trace, now: number = Date.now()): TraceSummary
     kind: t.kind,
     gate: t.gate,
     synth: t.synth,
+    plan: t.plan,
+    scope: t.scope,
     totalMs: Math.max(0, now - t.startedAt),
     steps: Array.from(t.steps, ([name, ms]) => ({ name, ms })),
     modelCalls: t.calls.length,
@@ -153,6 +165,8 @@ export function traceHeaders(s: TraceSummary): Record<string, string> {
   if (s.kind) h["x-omni-kind"] = s.kind;
   if (s.gate) h["x-omni-gate"] = s.gate;
   if (s.synth) h["x-omni-synth"] = s.synth;
+  if (s.plan) h["x-omni-plan"] = s.plan;
+  if (s.scope) h["x-omni-scope"] = s.scope;
   const timing = [...s.steps.map((x) => `${x.name};dur=${Math.round(x.ms)}`), `total;dur=${Math.round(s.totalMs)}`];
   h["server-timing"] = timing.join(", ");
   return h;
@@ -170,5 +184,7 @@ export function traceLine(s: TraceSummary, query: string): string {
   const gate = s.gate ? ` | gate ${s.gate}` : "";
   // only worth a mention when the question looks like a synthesis one
   const synth = s.synth && !s.synth.startsWith("none") ? ` | synth ${s.synth.replace(";", " ")}` : "";
-  return `[front-path] ${s.route}${s.kind ? `/${s.kind}` : ""} ${fixed(s.totalMs)}s | ${model}${waited}${steps}${gate}${synth} | q="${shown}"`;
+  // the umbrella's shadow comparison, only when it says something: a chosen selection, or a line the planner has a reading of
+  const records = s.scope && (s.scope !== "auto" || (s.plan && s.plan !== "-")) ? ` | scope ${s.scope} plan ${s.plan ?? "-"}` : "";
+  return `[front-path] ${s.route}${s.kind ? `/${s.kind}` : ""} ${fixed(s.totalMs)}s | ${model}${waited}${steps}${gate}${synth}${records} | q="${shown}"`;
 }

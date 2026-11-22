@@ -5,6 +5,7 @@ import { acknowledgementCovers, describeLine, findConflicts, placeKey, savedLine
 import { detectPaxAdminIntent } from "./intent";
 import { cleanInput, composeLabel, PAX_NUMBER_RULE, validateEntry } from "./validate";
 import type { PaxArea, PaxRow } from "../matcher";
+import { DEPARTMENT_CHOICE, departmentsOf, pickDepartment } from "./store";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => {
@@ -96,6 +97,15 @@ ok("the number typed is picked out to save typing: 'add pax 42555 for Garage' ->
 ok("a number that is not a PAX number is NOT picked out (52555)", intent("add pax 52555")?.prefill?.number === undefined);
 ok("modify and delete get a search word, not a department: 'edit the pax of fire service' -> query 'fire service'", intent("edit the pax of fire service")?.prefill?.query === "fire service" && intent("delete pax 42046")?.prefill?.number === "42046");
 ok("a plain 'add new pax number' prefills nothing", JSON.stringify(intent("add new pax number")) === JSON.stringify({ op: "add" }));
+
+// ---- the department is CHOSEN from the plant's departments (public.sail_department), never typed (owner, 23 Nov 2026) ----
+{
+  const list = departmentsOf(["FIRE SERVICE", "GARAGE", "garage ", "CENTRAL STORES", "ACVS", "ACVS", "BLAST FURNACE (CAST HOUSE)", "", null, undefined]);
+  ok("the departments are every distinct name of the register as the app shows it (the Central Stores rule applied), A to Z, once each", list.join("|") === "ACVS|BLAST FURNACE (CAST HOUSE)|CENTRAL STORES (Marketing)|FIRE SERVICE|GARAGE", list.join("|"));
+  ok("a chosen name gets the listed spelling, whatever its capitals or spaces", pickDepartment(list, "  fire   service ") === "FIRE SERVICE" && pickDepartment(list, "garage") === "GARAGE" && pickDepartment(list, "ACVS") === "ACVS");
+  ok("a name that is not in the list is refused: a new name, a typo, a part of a name, an empty box", pickDepartment(list, "Stores") === null && pickDepartment(list, "Fire Servic") === null && pickDepartment(list, "BLAST FURNACE") === null && pickDepartment(list, "") === null);
+  ok("the refusal says what to do", DEPARTMENT_CHOICE === "Choose the department from the list.");
+}
 
 console.log(`pax admin selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

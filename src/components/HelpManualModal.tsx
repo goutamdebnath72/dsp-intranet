@@ -30,6 +30,8 @@ import {
   ArrowRight,
   Zap,
   Calculator,
+  GraduationCap,
+  MousePointerClick,
 } from "lucide-react";
 import {
   SAMPLE_SECTIONS,
@@ -65,6 +67,7 @@ type Props = {
 export type GuideTab = "samples" | "utility" | "how" | "eds";
 
 const SECTION_ICONS: Record<SectionIcon, React.ReactNode> = {
+  graduation: <GraduationCap size={17} />,
   calculator: <Calculator size={17} />,
   lightbulb: <Lightbulb size={17} />,
   users: <Users size={17} />,
@@ -166,13 +169,19 @@ function SampleBlock({ s, open, onToggle, onTry }: { s: SampleSection; open: boo
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700">{SECTION_ICONS[s.icon]}</span>
         <span className="min-w-0 flex-1">
           <span className="block text-[15px] font-bold text-slate-800">{s.title}</span>
-          <span className="block text-[12px] text-slate-500">{count} sample questions</span>
+          <span className="block text-[12px] text-slate-500">{count} sample questions{s.choice && <> · <span data-choice-chip className="rounded-full bg-sky-50 px-2 py-0.5 font-semibold text-sky-700">{s.choice}</span></>}</span>
         </span>
         <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <div className="space-y-3 border-t border-slate-100 bg-slate-50/50 px-4 py-4">
           <p className="text-[13px] leading-relaxed text-slate-600">{s.covers}</p>
+          {s.choose && (
+            <p data-choose className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] leading-snug text-sky-950">
+              <MousePointerClick size={15} className="mt-0.5 shrink-0 text-sky-700" />
+              <span><span className="mr-1 font-bold uppercase tracking-wide text-sky-700">Where to look:</span>{s.choose}</span>
+            </p>
+          )}
           <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] font-semibold leading-snug text-amber-900">
             <Zap size={15} className="mt-0.5 shrink-0" />
             <span>
@@ -221,9 +230,9 @@ function UtilitySamples({ onTry }: { onTry?: (q: string) => void }) {
 }
 
 /** The "Sample questions" tab: how to ask, then every area of the search with questions to try. */
-function SamplesTab({ onTry, onOpenUtility }: { onTry?: (q: string) => void; onOpenUtility?: () => void }) {
+function SamplesTab({ onTry, onOpenUtility, onOpenEds }: { onTry?: (q: string) => void; onOpenUtility?: () => void; onOpenEds?: () => void }) {
   const [text, setText] = useState("");
-  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(["titles"]));
+  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(["people"]));
   const shown = useMemo(() => filterSections(text), [text]);
   const searching = text.trim().length >= 2;
   const toggle = (id: string) =>
@@ -235,7 +244,7 @@ function SamplesTab({ onTry, onOpenUtility }: { onTry?: (q: string) => void; onO
     });
   return (
     <div className="space-y-4">
-      <SearchBarIntro onOpenUtility={onOpenUtility} />
+      <SearchBarIntro onOpenUtility={onOpenUtility} onOpenEds={onOpenEds} />
       <div className="overflow-hidden rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 p-[2px] shadow-md">
         <div className="rounded-[10px] bg-white px-4 py-3.5">
           <p className="flex items-center gap-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-orange-600">
@@ -245,7 +254,7 @@ function SamplesTab({ onTry, onOpenUtility }: { onTry?: (q: string) => void; onO
             Everything on this page is a <span className="rounded bg-orange-100 px-1.5 text-orange-700">sample</span> — it shows the kind of question our search engine can handle.
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
-            Read how each one is worded, press <strong>Try it</strong> to put it in the search bar (change any <span className="rounded bg-amber-100 px-1 text-amber-800">[blank]</span>), then ask your own question in the same shape.
+            The areas stand in the order of the buttons under the box. Read how each one is worded, press <strong>Try it</strong> to put it in the search bar (change any <span className="rounded bg-amber-100 px-1 text-amber-800">[blank]</span>), then ask your own question in the same shape.
           </p>
           <p className="mt-2.5 flex flex-wrap items-center gap-2 text-[12.5px] text-slate-700">
             <span className="font-semibold">Every question is marked:</span>
@@ -394,7 +403,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     DSP Intranet — User Guide
                   </h2>
                   <p className="mt-0.5 text-sm text-sky-100">
-                    What the search bar can do, questions to try, the Utility Services, the short and long commands that open each feature, and what the markers mean
+                    What the search bar can do, button by button, with questions to try; how the answers behave; the Utility Services; the Executive Deep Search; the short and long commands that open each feature; and what the markers mean
                   </p>
                 </div>
                 <button
@@ -431,31 +440,59 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
             {/* Body */}
             <div className="max-h-[70vh] space-y-6 overflow-y-auto overscroll-contain p-6">
               {tab === "samples" ? (
-                <SamplesTab onTry={onTry} onOpenUtility={() => setTab("utility")} />
+                <SamplesTab onTry={onTry} onOpenUtility={() => setTab("utility")} onOpenEds={() => setTab("eds")} />
               ) : tab === "utility" ? (
                 <UtilityServicesTab onTry={onTry}><UtilitySamples onTry={onTry} /></UtilityServicesTab>
               ) : tab === "eds" ? (
                 <EdsTab isExecutive={isExecutive} onTry={onTry} />
               ) : (
               <>
-              {/* How search works: what the Samples tab does not say. The areas are in the introduction and the sample questions; the two ways to run a question are explained once, above the samples. */}
+              {/* How the bar answers: what the first tab (the buttons, one by one) does not say. */}
               <Section
                 icon={<Search size={17} />}
-                title="How search works — just press Enter"
+                title="How the search bar answers"
               >
                 <p>
-                  There are no search-mode buttons to choose. One{" "}
-                  <Pill>Enter</Pill> works out what you are asking (a person, a
-                  doctor, a holiday, a circular, a calculation&hellip;) and uses
-                  the right source. The areas it covers, and a question to try
-                  for each, are on the <strong>Sample questions</strong> tab; the
-                  services that open from a few words, such as the news, prices and calculators, are on the <strong>Utility Services</strong> tab; the commands that open every feature, short and long, are in the <strong>What to type</strong> list at the end of this tab.
+                  The buttons under the box, one by one, are on the <strong>Sample questions</strong> tab. This is what to expect once you press <Pill>Enter</Pill>.
                 </p>
-                <p>
-                  The best answer leads. If a name is also{" "}
-                  <em>mentioned in circulars</em>, you get the person first and
-                  those circulars below.
-                </p>
+                <ul data-bar-behaviour className="list-disc space-y-1 pl-5">
+                  <li>
+                    <strong>On Everything,</strong> one <Pill>Enter</Pill> works out what you are asking (a person, a doctor, a holiday, a circular, a calculation&hellip;) and uses the right source. The best answer leads: if a name is also <em>mentioned in circulars</em>, you get the person first and those circulars below.
+                  </li>
+                  <li>
+                    <strong>On any other button,</strong> the bar completes your line for that button, so you need not type its cue word (<Pill>fire service</Pill> under PAX is asked as &ldquo;pax number of fire service&rdquo;, <Pill>medicine</Pill> under Hospital OPD as &ldquo;medicine opd&rdquo;, <Pill>dnb</Pill> under Degrees as &ldquo;what is dnb&rdquo;). The management pages stay open under every button for those who may use them.
+                  </li>
+                  <li>
+                    <strong>It tells you how it read your line.</strong> A misspelt OPD department is read as the nearest one and the answer says so; the Department &amp; designation finder says in one line what it understood; a PAX place that is not listed shows its related entries with their numbers, marked as related.
+                  </li>
+                  <li>
+                    <strong>Buttons inside answers.</strong> In an OPD list each department name is a button that opens that department&rsquo;s own OPD. In a people card the masked ticket number, personal number, mobile and e-mail are buttons too (see Contact details below).
+                  </li>
+                  <li>
+                    <strong>A wide table makes the window wider.</strong> An answer with a table of four or more columns (the weekly OPD schedule, a deep-search comparison) opens the window to the width of the page and narrows it again when the answer goes.
+                  </li>
+                  <li>
+                    <strong>Nothing found is said, not hidden.</strong> A chosen button never falls through to something else; it says &ldquo;I found nothing for &hellip; under &hellip;&rdquo; and offers Everything.
+                  </li>
+                </ul>
+              </Section>
+
+              {/* More tools, step by step: the second row, how it behaves */}
+              <Section icon={<Layers size={17} />} title="More tools: the second row">
+                <ul data-more-tools className="list-disc space-y-1 pl-5">
+                  <li>
+                    <strong>Utility Services</strong> opens the page of every service on its own: the box and the buttons above it make way, and a <strong>Back</strong> button at the top right (or <Pill>Esc</Pill>) returns you to the search on Everything. The services are on the <strong>Utility Services</strong> tab.
+                  </li>
+                  <li>
+                    <strong>Executive Deep Search</strong> is always shown. If you have not signed in, pressing it first asks <em>Are you an executive?</em>: <strong>Yes</strong> opens the sign-in window at once (that is the click on Sign in), <strong>No</strong> returns you to Everything. A signed-in executive gets the box ready for a deep question, with a hint and examples; a signed-in person who is not an executive is told it is for executives. The <strong>Deep search (EDS)</strong> tab tells all.
+                  </li>
+                  <li>
+                    <strong>Admin</strong> is always shown too. Signed in, pressing it checks your authority at once: an authorised person gets the admin home page (the management pages they may open, as when you type <Pill>management</Pill>), anyone else a red message that they are not authorised to access it. If you have not signed in it first asks <em>Are you authorised to access them?</em>: <strong>Yes</strong> opens the sign-in window and, once you are in, your authority is checked; <strong>No</strong> returns you to Everything. The pages and who may open them are under Management pages below.
+                  </li>
+                  <li>
+                    <strong>Every way back lands on Everything:</strong> No to the executive question or the admin question, Back from the Utility Services page, closing and opening the window again.
+                  </li>
+                </ul>
               </Section>
 
               {/* Short and long commands: how to avail a feature */}
@@ -561,7 +598,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   <li className="rounded-lg border border-slate-200 px-3 py-2">
                     <strong>PAX directory editor</strong> &mdash; add, edit or
                     delete a PAX (telephone extension) number with its
-                    department and location. If a line clashes with a saved
+                    department and location. The department is chosen from the plant's list of departments; it is never typed. If a line clashes with a saved
                     one, it asks whether to edit the saved line or whether you
                     made a mistake. Type <Pill>add new pax number</Pill>{" "}
                     <Pill>edit pax number</Pill> <Pill>manage pax directory</Pill>.
@@ -842,7 +879,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                     search box
                   </li>
                   <li>
-                    <Pill>Esc</Pill> — close search or this guide
+                    <Pill>Esc</Pill> — go back from the Utility Services page, or close the search or this guide
                   </li>
                 </ul>
               </Section>

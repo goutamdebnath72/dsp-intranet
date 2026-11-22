@@ -37,10 +37,17 @@ import { resolveDisplay, formatCell, type ResolvedDisplay } from "./display";
 import { PAGE_SIZE } from "./paging";
 import type { QueryResultData } from "./types";
 import { answerFromVerified, answerQuestion, type PipelineExtra } from "./pipeline";
-import { loadLogRow } from "./log";
+import { loadLogRow, logResult } from "./log";
+import { guardSql } from "./guard";
+import { runReadOnly } from "./executor";
+import { computeDepartmentScope } from "./scope";
+import { finderUnderstoodAs, planFinder, type FinderInput } from "./rosterFinder";
 import { isReasonCode, retryHint, verifiedMinConfirms, type AnswerSource, type ReasonCode } from "./learning";
 import { friendlyUnanswerable } from "@/lib/search/dataGapRule";
 import { maskPno } from "@/lib/security/maskPno";
+import { stepAllowed } from "@/records/scope";
+import { doctorDegreesAsked, domainById } from "@/records/domains";
+import type { ScopeId } from "@/records/types";
 
 export type OmnibarPayload = AnalyticsPayload & {
   nl2sql?: Nl2SqlExtras;
@@ -120,6 +127,8 @@ export interface OmnibarDeps {
   skipModel?: boolean;
   /** The tickets of the PhD holders (employees/honorific.ts DR_TICKETS when absent); the tests give their own (step 56b). */
   phdTickets?: readonly string[];
+  /** The FIXED SELECTION the reader made (src/records/scope.ts): "auto" (default) lets every path run as before; a chosen one runs only its own paths, with the line made its own by the domain's cue word. */
+  scope?: ScopeId;
 }
 
 // Columns the person card already shows (the codes appear in brackets after the designation / department).
@@ -362,6 +371,19 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
     if (retry.attempt >= MAX_ATTEMPTS) return { kind: "clarify", answer: GIVE_UP_MESSAGE, source: "none", attempt };
   }
 
+  // THE READER'S FIXED SELECTION (src/records): under "Everything" every path below runs as it always did; under a chosen selection only that selection's own paths run, on the line made its own
+  const scope: ScopeId = deps.scope ?? "auto";
+  const may = (step: Parameters<typeof stepAllowed>[1]) => stepAllowed(scope, step);
+  const ownLines = (line: string): string[] => domainById(scope)?.scopeLines(line) ?? [line];
+  // the forms of the line the selection's engine is given, in order, until one answers
+  const firstAnswer = async <T,>(line: string, fn: (l: string) => Promise<T | null>): Promise<T | null> => {
+    for (const l of ownLines(line)) {
+      const r = await fn(l).catch(() => null);
+      if (r) return r;
+    }
+    return null;
+  };
+
   if (!retry) {
     // 0-----. the MANAGEMENT PAGE: "management", "admin", "management page". It comes first: the page lists the tools, and each tool's own request below is checked again when a title is opened.
     const managementHub = deps.managementHub ? await deps.managementHub(q, userKey).catch(() => null) : null;
@@ -372,7 +394,7 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
     if (employeeAdmin) return { ...employeeAdmin, source: "holiday", attempt };
 
     // 0---. the date of birth / date of joining of an employee (step 65b): ONLY the HOD of C&IT; everybody else gets a plain refusal and the database is not asked for the dates. It comes FIRST: a question about somebody's dates is settled before any other route sees it.
-    const dates = deps.dates ? await deps.dates(q, userKey).catch(() => null) : null;
+    const dates = may("dates") && deps.dates ? await deps.dates(q, userKey).catch(() => null) : null;
     if (dates) return { ...dates, source: "holiday", attempt };
 
     // 0--. a request to CHANGE the PAX directory (step 64a): the sentence is read first (pure); only such a sentence asks who the person is. It comes before the question about the directory below.
@@ -398,40 +420,43 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
     // 0-. a question about the PAX directory (step 63a): "pax number of fire service", "who has 42046", "pax numbers outside plant", "pax not working": answered from Telecom's list, no model call.
     //     It comes BEFORE the hospital route because the word "pax" is explicit ("pax number of hospital opd" is a PAX question, not an OPD one); it takes nothing without a clear PAX signal (src/lib/pax/matcher.ts).
     //     Tagged "holiday" for the feedback record, like the hospital's: the feedback table's list of sources has no PAX entry.
-    const pax = deps.pax ? await deps.pax(q).catch(() => null) : null;
+    const pax = may("pax") && deps.pax ? await firstAnswer(q, deps.pax) : null;
     if (pax) return { ...pax, source: "holiday", attempt };
 
     // 0. a question about the hospital OPD: answered from the hospital data, no model call (step 51a). It needs an explicit OPD cue, so it does not take holiday or employee questions.
     //    Tagged "holiday" for the feedback record: the feedback table's list of sources has no "hospital" yet.
-    const hospital = deps.hospital ? await deps.hospital(q).catch(() => null) : null;
+    // under Degrees the hospital's list of doctors and their qualifications answers ONE kind of line, and only that: the degrees of the doctors ("list the degrees of the doctors"); nothing else of the hospital runs there
+    const hospital = (may("hospital") || (scope === "degrees" && doctorDegreesAsked(q))) && deps.hospital ? await firstAnswer(q, deps.hospital) : null;
     if (hospital) return { ...hospital, source: "holiday", attempt };
 
     // 0b. "who are the PhD holders": answered from the list of PhD holders kept by hand (employees/honorific.ts), no model call, never in the words of a circular (step 56b)
-    const phd = await answerPhd(q, { withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.phdTickets).catch(() => null);
+    const phd = !may("phd") ? null : await answerPhd(q, { withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.phdTickets).catch(() => null);
     if (phd?.kind === "none") return { kind: "count", count: 0, answer: phd.text, source: "nl2sql", attempt };
     if (phd?.kind === "people") return okToPayload(phd.res, userKey, deps, attempt, phd.note);
 
     // 0c. a question about the DEGREES themselves ("what are the post graduate degrees in engineering", "is MD a postgraduate degree", "what is mtech"): answered from the table of degrees, no model call, never about people (step 61a)
-    const degrees = answerDegreeQuestion(q);
+    const degrees = may("degrees") ? ownLines(q).map((l) => answerDegreeQuestion(l)).find((r) => r) ?? null : null;
     if (degrees) return { kind: "count", answer: degrees.summary, hospital: degrees.card, source: "nl2sql", attempt };
 
     // 1. holiday questions keep their deterministic answer
-    const holiday = await deps.holiday(q).catch(() => null);
+    const holiday = may("holiday") ? await firstAnswer(q, deps.holiday) : null;
     if (holiday) return { ...holiday, source: "holiday", attempt };
 
     // 1b. a department word with more than one meaning is RESOLVED, not asked (step 55a): "refractory" = its three rows, "garage" = the Plant Garage, the township garage is closed
-    const words = resolveDepartmentWords(q);
+    const words = may("departmentWords") ? resolveDepartmentWords(q) : null;
     if (words?.closed) return { kind: "count", count: 0, answer: words.closed, source: "nl2sql", attempt };
     if (words?.question) q = words.question;
     departmentWords = words;
 
     // 2. a VERIFIED answer (confirmed at least once, never rejected): re-run it, no model call
-    const verified = await answerFromVerified(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.verifiedMin).catch(() => null);
+    const verified = !may("verified") ? null : await answerFromVerified(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.verifiedMin).catch(() => null);
     if (verified) return okToPayload(verified, userKey, deps, attempt, await noteFor(departmentWords, deps));
   }
 
   // 2b. front-path gate: not an employee question, so do not spend a model call on it (the app continues with circular search)
   if (deps.skipModel && !retry) return null;
+  // a chosen selection that is not about people never reaches the model that writes employee SQL
+  if (!may("model")) return null;
 
   // a RETRY searches the original question again: its department words are resolved the same way (step 55a)
   if (retry) {
@@ -526,6 +551,40 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
 }
 
 /**
+ * THE DEPARTMENT & DESIGNATION FINDER (src/lib/nl2sql/rosterFinder.ts): the reader picked a department and/or a designation, so the list is a fixed SQL template with no model call. It takes the SAME road as a model-written
+ * answer from the guard onward (the read-only executor, the log row, the people cards, the masking at the route's boundary, "Show more" paging), so it behaves like every other list of people.
+ */
+export async function runRosterFinder(input: FinderInput, userKey: string | null, deps: Pick<OmnibarDeps, "withClient">): Promise<OmnibarPayload> {
+  const started = Date.now();
+  const plan = planFinder(input);
+  if (!plan.ok) return { kind: "clarify", answer: plan.reason, source: "none", attempt: 1 };
+  const g = guardSql(plan.sql);
+  if (!g.ok) return { kind: "clarify", answer: "That list could not be prepared.", source: "none", attempt: 1 };
+  const w = plan.wanted;
+  // the names (for the sentence), the rows and the departments covered are independent: asked TOGETHER, not one after the other (each trip to the database is ~100 ms)
+  const namesP = deps
+    .withClient(async (c) => {
+      const d = w.departmentId !== null ? (await c.query(`SELECT name FROM nlq.departments WHERE id = ${w.departmentId}`)).rows[0] : null;
+      const t = w.gradeId !== null ? (await c.query(`SELECT title FROM nlq.designations WHERE id = ${w.gradeId}`)).rows[0] : null;
+      return { departmentName: d?.name ? formatDepartmentDisplay(String(d.name)) : null, gradeTitle: t?.title ? String(t.title) : null };
+    })
+    .catch(() => ({ departmentName: null as string | null, gradeTitle: null as string | null }));
+  const dataP = deps.withClient((c) => runReadOnly(c, g.sql, { rowLimit: PAGE_SIZE }));
+  const scopeP = deps.withClient((c) => computeDepartmentScope(c, g.sql)).catch(() => null);
+  dataP.catch(() => undefined); // an early return below must not leave a rejection unhandled
+  const names = await namesP;
+  if ((w.departmentId !== null && !names.departmentName) || (w.gradeId !== null && !names.gradeTitle)) return { kind: "clarify", answer: "That department or designation is not in the directory.", source: "none", attempt: 1 };
+  const understoodAs = finderUnderstoodAs({ ...names, name: w.name });
+  const question = [names.gradeTitle ?? "Employees", names.departmentName ? `in ${names.departmentName}` : "", w.name ? `named like ${w.name}` : ""].filter(Boolean).join(" ");
+  const [data, scope] = await Promise.all([dataP, scopeP]);
+  const logId = await deps
+    .withClient((c) => logResult(c, { userKey, question, sql: g.sql, understoodAs, confidence: "high", ok: true, error: null, rowTotal: data.total, elapsedMs: Date.now() - started, attempts: 0, source: "nl2sql" }))
+    .catch(() => null);
+  if (data.total === 0) return { kind: "count", count: 0, answer: `Nobody was found for "${question}". Try another designation, or leave one of the two lists on "Any".`, source: "nl2sql", attempt: 1, feedbackLogId: logId };
+  return okToPayload({ ok: true, question, sql: g.sql, understoodAs, confidence: "high", data, scope, source: "nl2sql", attempts: 0, elapsedMs: Date.now() - started, logId }, userKey, deps as OmnibarDeps, 1);
+}
+
+/**
  * THE MANAGEMENT REQUESTS, in one place: the management page ("management", "admin") and the six management tools' own requests (employee, PAX directory, holiday, circular, announcement, contact access log). Each reads the
  * sentence first (pure) and asks the database who is asking only for a sentence that IS its request. The search route tries them FIRST (answerAdminFast below), before anything slow: the name checks and the language-model
  * router would otherwise make a page that is only a list wait for them. The chain still has them too, for a request that got past the early try (a retry).
@@ -591,13 +650,14 @@ export async function answerAdminFast(q: string, userKey: string | null): Promis
 }
 
 /** Entry point used by the search route: wires the real model, database and existing engines. */
-export async function answerOmnibar(q: string, userKey: string | null, retry: RetryInfo | null = null, opts: { skipModel?: boolean } = {}): Promise<OmnibarPayload | null> {
+export async function answerOmnibar(q: string, userKey: string | null, retry: RetryInfo | null = null, opts: { skipModel?: boolean; scope?: ScopeId } = {}): Promise<OmnibarPayload | null> {
   const { chatLlm } = await import("./llm");
   const { withDefaultClient } = await import("./db");
   return runOmnibar(q, userKey, {
     enabled: process.env.NL2SQL_OMNIBAR_ENABLED !== "false",
     verifiedMin: verifiedMinConfirms(),
     skipModel: opts.skipModel,
+    scope: opts.scope,
     llm: chatLlm(),
     withClient: withDefaultClient,
     ...adminResponders(),

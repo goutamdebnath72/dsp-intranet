@@ -17,6 +17,7 @@ import { EMPTY_LOCATION } from "@/lib/pax/answer";
 import { describeLine } from "@/lib/pax/admin/conflicts";
 import { placeName } from "@/lib/pax/display";
 import { NONEXEC_ROW, NonExecutiveChip } from "./facility/NonExecutive";
+import { ToolSelect } from "./tools/toolKit";
 import { PAX_NUMBER_RULE, validateEntry, type FieldErrors } from "@/lib/pax/admin/validate";
 
 export interface FormValues { department: string; location: string; number: string }
@@ -272,8 +273,13 @@ export function EntryFormView(props: {
   onCancel?: () => void;
   /** What belongs just above the action bar: the question asked when the entry clashes with a saved line. */
   children?: React.ReactNode;
+  /**
+   * THE DEPARTMENTS TO CHOOSE FROM (owner, 23 Nov 2026): the department is picked from this list (the departments the directory already holds), never typed. null = the list is on its way; undefined = no list is given and the
+   * department is a text box (only the older tests draw it so).
+   */
+  departments?: string[] | null;
 }) {
-  const { idPrefix, values, errors, busy, submitLabel, submitDisabled = false, submitHint, editing = false, onChange, onSubmit, onCancel, children } = props;
+  const { idPrefix, values, errors, busy, submitLabel, submitDisabled = false, submitHint, editing = false, onChange, onSubmit, onCancel, children, departments } = props;
   const done = doneOf(values);
   const enter = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -320,7 +326,21 @@ export function EntryFormView(props: {
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${done.all ? "bg-emerald-50 text-emerald-700" : "bg-teal-50 text-teal-700"}`}>{done.all ? "Complete" : "In progress"}</span>
           </header>
           <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
-            {field("department", "Department", "For example CISF, Weigh Bridge, Fire Service.", <Building2 className="h-[18px] w-[18px]" aria-hidden="true" />, { placeholder: "Department", maxLength: 80 })}
+            {departments === undefined ? field("department", "Department", "For example CISF, Weigh Bridge, Fire Service.", <Building2 className="h-[18px] w-[18px]" aria-hidden="true" />, { placeholder: "Department", maxLength: 80 }) : (
+              <div className="min-w-0" data-pax-department-select>
+                <label htmlFor={`${idPrefix}-department`} className="mb-1.5 block text-xs font-semibold text-slate-700">Department</label>
+                <ToolSelect
+                  id={`${idPrefix}-department`}
+                  ariaLabel="Department"
+                  tone="emerald"
+                  value={(departments ?? []).find((d) => d.toLowerCase() === values.department.trim().toLowerCase()) ?? ""}
+                  options={(departments ?? []).map((d) => ({ id: d, label: d }))}
+                  onChange={(id) => onChange({ ...values, department: id })}
+                  placeholder={departments === null ? "Loading the departments…" : departments.length === 0 ? "No department to choose from" : "Choose the department"}
+                />
+                <p className={`mt-1.5 min-h-4 text-xs ${errors.department ? "font-medium text-rose-600" : "text-slate-500"}`} role={errors.department ? "alert" : undefined}>{errors.department ?? "Choose the department from the plant's list."}</p>
+              </div>
+            )}
             {field("location", "Location", `Leave empty if there is none: the table then shows ${EMPTY_LOCATION}.`, <MapPin className="h-[18px] w-[18px]" aria-hidden="true" />, { placeholder: "Location (optional)", maxLength: 80 })}
             <div className="sm:col-span-2">
               {field("number", "PAX number", PAX_NUMBER_RULE, <Phone className="h-[18px] w-[18px]" aria-hidden="true" />, { placeholder: "4xxxx", inputMode: "numeric", maxLength: 5, className: "font-mono text-base font-bold tracking-[0.3em]" })}
@@ -330,7 +350,8 @@ export function EntryFormView(props: {
         <aside className="order-first xl:order-none xl:sticky xl:top-3"><LinePlate values={values} editing={editing} /></aside>
       </div>
       {children}
-      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-3 rounded-b-3xl border-t border-white/80 bg-white/75 px-4 py-3 backdrop-blur-xl sm:-mx-5 sm:-mb-5 sm:px-5" data-pax-actions="true">
+      {/* THE ACTION BAR IS DOCKED, NOT FLOATING (owner, 23 Nov 2026): solid white, square, with a rule and a soft upward shadow, flush with the bottom of the scrolling area (-bottom-2 cancels the 0.5rem padding of that area, so nothing of the form shows beneath it); the form scrolls above it */}
+      <div className="sticky -bottom-2 z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-4 py-3 shadow-[0_-10px_14px_-12px_rgba(15,23,42,0.35)] sm:-mx-5 sm:-mb-5 sm:px-5" data-pax-actions="true">
         <button type="button" className={PRIMARY} disabled={busy || submitDisabled} onClick={onSubmit} aria-describedby={submitDisabled && submitHint ? `${idPrefix}-submit-hint` : undefined}>
           {submitLabel}<ArrowRight className="h-4 w-4" aria-hidden="true" />
         </button>

@@ -20,10 +20,6 @@ export interface ExecOptions {
   role?: string | null;
 }
 
-function quoteIdent(s: string): string {
-  return '"' + s.replace(/"/g, '""') + '"';
-}
-
 function jsonSafe(v: unknown): unknown {
   if (typeof v === "bigint") return Number(v);
   if (v instanceof Date) return v.toISOString();
@@ -49,11 +45,17 @@ export async function runReadOnly(client: SqlClient, sql: string, opts: ExecOpti
 
   await client.query("BEGIN READ ONLY");
   try {
-    await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
-    await client.query("SET LOCAL lock_timeout = 1000");
-    await client.query("SET LOCAL idle_in_transaction_session_timeout = 15000");
-    if (role) await client.query(`SET LOCAL ROLE ${quoteIdent(role)}`);
-    await client.query("SET LOCAL search_path = nlq, pg_catalog");
+    // ONE round trip for the whole setup (it was five: the database is ~100 ms away, so four trips were ~0.4 s on every answer). set_config(name, value, true) is the transaction-local form of SET LOCAL and takes
+    // the role like SET LOCAL ROLE does (proved identical on the real database: same role, search path, timeouts, read-only state, the same refusal on public tables, and all of it gone after the ROLLBACK).
+    // The order is kept: the timeouts first, the role, then the search path. Every value is a bound parameter, none is spliced into the text.
+    const settings: Array<[string, string]> = [
+      ["statement_timeout", String(timeoutMs)],
+      ["lock_timeout", "1000"],
+      ["idle_in_transaction_session_timeout", "15000"],
+      ...(role ? ([["role", role]] as Array<[string, string]>) : []),
+      ["search_path", "nlq, pg_catalog"],
+    ];
+    await client.query(`SELECT ${settings.map((_, i) => `set_config($${2 * i + 1}, $${2 * i + 2}, true)`).join(", ")}`, settings.flat());
 
     const res = await client.query(`SELECT * FROM (${inner}) AS nl2sql_q OFFSET ${offset} LIMIT ${rowLimit + 1}`);
     const truncated = res.rows.length > rowLimit;

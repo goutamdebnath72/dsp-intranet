@@ -234,6 +234,8 @@ export function TopBar() {
       if (e.key === "Escape" || e.code === "Escape") {
         // an open dropdown of the calculators takes this Escape for itself (it closes the list, not the search window); so does a picture opened over the page (src/components/ImageLightbox.tsx)
         if (e.target instanceof Element && e.target.closest('[data-select-open="true"], [data-escape-own="true"]')) return;
+        // the Utility Services page standing alone in the search window takes this Escape for itself: it goes back one step, to the ordinary window (OmnibarModal.tsx marks itself with data-escape-back)
+        if (document.querySelector('[data-escape-back="true"]')) return;
         setIsOmnibarOpen(false);
       }
     };

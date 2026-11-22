@@ -38,7 +38,7 @@ export function isSameOrigin(origin: string | null | undefined, host: string | n
   }
 }
 
-const OPS = new Set(["me", "list", "add", "modify", "delete", "delegates", "find-executive", "grant", "revoke", "audit"]);
+const OPS = new Set(["me", "list", "departments", "add", "modify", "delete", "delegates", "find-executive", "grant", "revoke", "audit"]);
 const HOD_OPS = new Set(["delegates", "find-executive", "grant", "revoke"]);
 
 const text = (v: unknown, max = 200): string => String(v ?? "").slice(0, max);
@@ -94,6 +94,7 @@ export async function handlePaxAdmin(body: unknown, ctx: ApiContext): Promise<Ap
   if (HOD_OPS.has(op) && authority !== "hod") return reply(403, { error: "Only the HOD of C&IT can authorise or withdraw an executive." });
 
   if (op === "list") return reply(200, { entries: await store.listEntries(ctx.db, text(b.q, 80)) });
+  if (op === "departments") return reply(200, { departments: await store.listDepartments(ctx.db) });
   if (op === "audit") {
     const history = await store.recentAudit(ctx.db, 50);
     // the editor's post comes from the people directory (the history keeps ticket and name only); one look-up per person, a failing look-up leaves the post empty

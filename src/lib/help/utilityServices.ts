@@ -58,7 +58,7 @@ export const CALCULATORS_LINE: { before: string; command: string; after: string;
 export const SERVICES_LINE: { before: string; command: string; after: string } = {
   before: "Type",
   command: "utility services",
-  after: "and press Enter: a page of cards, one for every service here and for each calculator, sorted A to Z and filtered as calculators and readers or information and guides. A card opens its service, with a Back arrow to the page.",
+  after: "and press Enter, or press the Utility Services button under the box (the second row, More tools): a page of cards, one for every service here and for each calculator, sorted A to Z and filtered as calculators and readers or information and guides. A card opens its service, with a Back arrow to the page.",
 };
 
 export const UTILITY_SERVICES: UtilityService[] = [

@@ -221,7 +221,7 @@ function renderCell(cell: string, column: string, columnIndex: number) {
   );
 }
 
-function TableView({ table }: { table: HospitalTable }) {
+function TableView({ table, onAsk }: { table: HospitalTable; onAsk?: (question: string) => void }) {
   const isLargeTable = table.rows.length > 8;
   return (
     <div
@@ -259,7 +259,14 @@ function TableView({ table }: { table: HospitalTable }) {
                     keepOnOneLine(cell, ci) ? "whitespace-nowrap " : ""
                   }`}
                 >
-                  {renderCell(cell, table.columns[ci], ci)}
+                  {ci === 0 && onAsk && table.asks?.[ri] ? (
+                    // a department of the list: pressing its name asks for its own OPD
+                    <button type="button" data-table-ask={table.asks[ri]} title={`Show the OPD of ${cell}`} onClick={() => onAsk(table.asks![ri] as string)} className="rounded-full text-left transition hover:ring-2 hover:ring-blue-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+                      {renderCell(cell, table.columns[ci], ci)}
+                    </button>
+                  ) : (
+                    renderCell(cell, table.columns[ci], ci)
+                  )}
                 </td>
               ))}
             </tr>
@@ -301,7 +308,7 @@ function formatStatusSentence(text: string) {
   );
 }
 
-export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
+export function HospitalAnswerCard({ answer, onAsk }: { answer: HospitalAnswer; onAsk?: (question: string) => void }) {
   const suggestion = answer.suggestion ? answer.suggestion.split("\n").filter(Boolean) : [];
   return (
     <div className="space-y-2" data-hospital-answer="true">
@@ -351,7 +358,7 @@ export function HospitalAnswerCard({ answer }: { answer: HospitalAnswer }) {
           <span>{answer.highlight}</span>
         </div>
       )}
-      {answer.table && answer.table.rows.length > 0 && <TableView table={answer.table} />}
+      {answer.table && answer.table.rows.length > 0 && <TableView table={answer.table} onAsk={onAsk} />}
       {answer.extraTables?.map((x, i) =>
         x.table.rows.length > 0 ? (
           <div key={i} className="space-y-1" data-extra-table="true">

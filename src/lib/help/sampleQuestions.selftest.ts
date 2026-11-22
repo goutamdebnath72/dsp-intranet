@@ -8,6 +8,11 @@ import { detectSynthesisIntent } from "../search/synthesisIntent";
 import { isIdQuery } from "../search/idQuery";
 import { searchSites } from "../search/siteSearch";
 import { detectTool, isLive } from "../tools/detect";
+import { DateTime } from "luxon";
+import { DOMAINS, domainById, doctorDegreesAsked } from "../../records/domains";
+import { planPaxQuery } from "../pax/matcher";
+import { answerHospital } from "../hospital/engine";
+import { answerDegreeQuestion } from "../../lib/qualifications/degreeAnswer";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -18,7 +23,7 @@ const all = allSamples();
 ok("the guide has many questions (more than 80) in at least nine sections", all.length > 80 && EVERY.length >= 9, `${all.length} / ${EVERY.length}`);
 ok("section ids are unique and every section says what it covers and how to ask", new Set(EVERY.map((s) => s.id)).size === EVERY.length && EVERY.every((s) => s.covers.length > 20 && s.tips.length >= 2 && s.title.length > 3));
 ok("no question is written twice in one section", EVERY.every((s) => { const qs = s.questions.map((x) => x.q); return new Set(qs.map((q) => q.toLowerCase())).size === qs.length; }));
-ok("the recipe and the weak/good pairs exist", RECIPE.length === 4 && WEAK_VS_GOOD.length >= 4 && WEAK_VS_GOOD.every((p) => p.weak.length > 2 && p.good.length > p.weak.length));
+ok("the recipe and the weak/good pairs exist", RECIPE.length === 5 && /^Choose where to look/.test(RECIPE[0]) && WEAK_VS_GOOD.length >= 4 && WEAK_VS_GOOD.every((p) => p.weak.length > 2 && p.good.length > p.weak.length));
 
 // routing: no ordinary sample is sent to the deep search
 const plainBad = all.filter((x) => !x.either && !/\[[^\]]+\]/.test(x.q) && detectSynthesisIntent(x.q).synthesis);
@@ -39,8 +44,15 @@ ok("no sample that needs Enter is an identifier (those appear on their own)", ne
 ok("every area says how to run it, and says Enter or 'as you type'", EVERY.every((s) => s.howToRun.length > 15 && /Enter|AS YOU TYPE/.test(s.howToRun)));
 
 // the first tab lists the MAIN features, in the owner's order, and the Utility Services' sample questions are not among them (17 Nov 2026)
-ok("the first tab's sections are the main features, in order: circulars by title, circulars by content, employees, departments, holidays, hospital, PAX, announcements and sites; none of them is the utility block", SAMPLE_SECTIONS.map((s) => s.id).join() === "titles,content,people,roster,holidays,doctors,pax,announcements" && !SAMPLE_SECTIONS.some((s) => s.id === TOOLS_SECTION.id) && TOOLS_SECTION.id === "tools");
-ok("the department section is named for what it is, and the utility block still carries the calculators, converters and live cards", /^Department search/.test(SAMPLE_SECTIONS.find((s) => s.id === "roster")!.title) && /Calculators, converters and live cards/.test(TOOLS_SECTION.title) && TOOLS_SECTION.questions.length > 20);
+ok("the first tab's sections follow the buttons under the box (23 Nov 2026): people (two sections), PAX, hospital, holidays, degrees, then circulars & notices (three sections); none of them is the utility block", SAMPLE_SECTIONS.map((s) => s.id).join() === "people,roster,pax,doctors,holidays,degrees,titles,content,announcements" && !SAMPLE_SECTIONS.some((s) => s.id === TOOLS_SECTION.id) && TOOLS_SECTION.id === "tools");
+{
+  // each section names its button and says what to press; the buttons come in the bar's own order (src/records/domains.ts)
+  const labels = DOMAINS.map((d) => d.label);
+  const first = SAMPLE_SECTIONS.map((s) => labels.findIndex((l) => (s.choice ?? "").startsWith(l)));
+  ok("every section has a choice that begins with a button of the bar and a sentence saying which one to press; the buttons follow the bar's order", SAMPLE_SECTIONS.every((s) => !!s.choice && !!s.choose && s.choose.length > 30) && first.every((x, i) => x >= 0 && (i === 0 || x >= first[i - 1])), JSON.stringify(first));
+  ok("every button of the bar has a section in the guide", labels.every((l) => SAMPLE_SECTIONS.some((s) => (s.choice ?? "").startsWith(l))));
+}
+ok("the department section is named for what it is (people by department and designation), and the utility block still carries the calculators, converters and live cards", /^People by department/.test(SAMPLE_SECTIONS.find((s) => s.id === "roster")!.title) && /Calculators, converters and live cards/.test(TOOLS_SECTION.title) && TOOLS_SECTION.questions.length > 20);
 
 // people: a template, never a real name; blanks are bracketed
 const peopleQs = SAMPLE_SECTIONS.find((s) => s.id === "people")!.questions.map((x) => x.q);
@@ -67,5 +79,27 @@ ok("the search bar types a prefilled question into its box", /OMNIBAR_PREFILL_EV
   const names = EVERY.flatMap((x) => x.questions).find((q) => /similar-sounding/.test(q.note ?? ""));
   ok("the similar-sounding example names Goutam, Gautam and Gautham", !!names && /Goutam/.test(names.note!) && /Gautam\b/.test(names.note!) && /Gautham/.test(names.note!), JSON.stringify(names));
 }
-console.log(`sampleQuestions selftest: ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+// ---- a question shown under a button is one that button really answers (the engines that run offline: PAX, Hospital OPD, Degrees), each with the line-making of its own button
+(async () => {
+  const NOW = DateTime.fromISO("2026-10-25T10:00:00", { zone: "Asia/Kolkata" });
+  const noHolidays = async () => ({ yearLoaded: false, hits: [] });
+  const ask = (id: string) => SAMPLE_SECTIONS.find((x) => x.id === id)!.questions.map((x) => x.q).filter((q) => !/\[[^\]]+\]/.test(q));
+  const pax = domainById("pax")!, hosp = domainById("hospital")!, deg = domainById("degrees")!;
+  const badPax = ask("pax").filter((q) => planPaxQuery(pax.scopeLines(q)[0]) === null);
+  ok("every PAX sample is understood by the PAX engine under the PAX button", badPax.length === 0, JSON.stringify(badPax));
+  const badHosp: string[] = [];
+  for (const q of ask("doctors")) { const r = await answerHospital(hosp.scopeLines(q)[0], { now: NOW, holidaysOn: noHolidays as never }); if (!r || r.card.status?.tone === "unknown") badHosp.push(q); }
+  ok("every Hospital OPD sample is answered by the hospital engine under the Hospital OPD button", badHosp.length === 0, JSON.stringify(badHosp));
+  const badDeg: string[] = [];
+  for (const q of ask("degrees")) {
+    const line = deg.scopeLines(q)[0];
+    const viaTable = answerDegreeQuestion(line) !== null;
+    const viaDoctors = doctorDegreesAsked(line) && !!(await answerHospital(line, { now: NOW, holidaysOn: noHolidays as never }));
+    if (!viaTable && !viaDoctors && !/phd holders/i.test(q)) badDeg.push(q);
+  }
+  ok("every Degrees sample is answered by the table of degrees or the hospital's list of doctors' qualifications under the Degrees button (the PhD holders come from the directory, checked in the browser)", badDeg.length === 0, JSON.stringify(badDeg));
+  ok("the Degrees section carries the bar's own examples", deg.examples.every((e) => SAMPLE_SECTIONS.find((x) => x.id === "degrees")!.questions.some((x) => x.q === e)));
+  ok("the Hospital OPD section carries the bar's own examples that are questions of a doctor and a day", SAMPLE_SECTIONS.find((x) => x.id === "doctors")!.questions.some((x) => x.q === "dr karmakar opd tuesday") && hosp.examples.includes("dr karmakar opd tuesday"));
+  console.log(`sampleQuestions selftest: ${pass} passed, ${fail} failed`);
+  process.exit(fail ? 1 : 0);
+})();

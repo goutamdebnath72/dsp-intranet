@@ -28,6 +28,9 @@ export const SCOPE = {
   who: "It is for signed-in executives (a six-digit ticket starting with 4). A visitor who has not signed in is asked \"Are you an executive?\" and, if not, gets the simple answer of the normal search.",
 };
 
+/** THE TWO WAYS IN (23 Nov 2026): typing a deep question, and the Executive Deep Search button of the bar's second row ("More tools") */
+export const WAYS_IN = "There are two ways in. Type a deep question and press Enter, or press the Executive Deep Search button under the box (the second row, More tools). The button is there for everyone: if you have not signed in it first asks \"Are you an executive?\", Yes opens the sign-in window at once and No takes you back to Everything. Signed in as an executive, the box is ready for a deep question and shows a hint and examples.";
+
 export interface Example { kind: string; question: string; gets: string }
 export const WHAT_IS = {
   lead: "A normal search finds the circular that answers one question. A deep search (EDS) is for a question that no single circular can answer, because the answer has to be built from several circulars (and announcements), years or versions put side by side.",

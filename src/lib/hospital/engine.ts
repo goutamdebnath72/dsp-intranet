@@ -559,9 +559,48 @@ function overviewAnswer(depts: Department[]): HospitalResult {
   return done(title, { title, lines, suggestion, table, notes: [...new Set([...notes, ...timingNotes()])] });
 }
 
+/** the number of edits (insert, delete, change, swap of two neighbours) between two words, or max + 1 when it is more than max */
+function slips(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 0; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+
+/**
+ * The department a MISSPELT word means: only a word of five letters or more (a short one is too easily another word), at most one slip for five letters and two for six or more, against the words of the
+ * departments' own names (ALIASES), and only when ONE department is that near (two equally near is an ask, not a guess: the list is shown instead).
+ */
+function nearestDepartment(words: string[]): { dept: Department; word: string } | null {
+  const hits = new Map<Department, { word: string; d: number }>();
+  for (const w of words) {
+    if (w.length < 5 || !/^[a-z]+$/.test(w)) continue;
+    const max = w.length >= 6 ? 2 : 1;
+    for (const { alias, dept } of ALIASES) {
+      for (const aw of plain(alias).split(" ")) {
+        if (aw.length < 4 || aw === w) continue;
+        const d = slips(w, aw, max);
+        if (d <= max && d > 0) { const cur = hits.get(dept); if (!cur || d < cur.d) hits.set(dept, { word: w, d }); }
+      }
+    }
+  }
+  if (hits.size === 0) return null;
+  const best = Math.min(...[...hits.values()].map((h) => h.d));
+  const top = [...hits.entries()].filter(([, h]) => h.d === best);
+  return top.length === 1 ? { dept: top[0][0], word: top[0][1].word } : null;
+}
+
 function opdListAnswer(): HospitalResult {
   const rows = SCHEDULE.departments.map((d) => [d.name, d.units.map((u) => u.label).join(", ")]);
-  const card: HospitalAnswer = { title: "OPD departments and OPD numbers", table: { columns: ["Department", "OPD / clinic"], rows }, lines: ["Ask for one department, for example \"orthopaedics OPD\", for its days and doctors."], notes: timingNotes() };
+  // each department's name is pressable: it asks for that department's OPD ("Gynae & Obs opd"), which the engine answers with its days, units and doctors
+  const asks = SCHEDULE.departments.map((d) => `${d.name} opd`);
+  const card: HospitalAnswer = { title: "OPD departments and OPD numbers", table: { columns: ["Department", "OPD / clinic"], rows, asks }, lines: ["Ask for one department, for example \"orthopaedics OPD\", for its days and doctors."], notes: timingNotes() };
   return done(card.title, card);
 }
 
@@ -973,8 +1012,7 @@ function departmentDoctorsAnswer(e: Entities): HospitalResult {
 /** The ticket cell of the LONG doctor lists (qualification, level, specialisation): the number only: a ticket, or the list number of a non-permanent doctor ("DTN0766"). With the words "(non-permanent)" the cell was twice as
  *  wide and broke over two lines in the real font (Poppins); one footnote says what the letters mean (step 59b). The shorter department tables keep their wording. */
 const listTicket = (p: Person): string => p.ticket ?? p.doctorListId ?? "not recorded";
-const NP_FOOTNOTE = "A number that starts with letters (D…, DTN…) is the list number of a non-permanent doctor.";
-const hasListNumber = (ps: Person[]): boolean => ps.some((p) => !p.ticket && !!p.doctorListId);
+// (no footnote under the long doctor lists about a number that starts with letters: the owner asked for it to go, 23 Nov 2026, until the permanent / non-permanent status of each doctor is confirmed)
 
 // ---------------------------------------------------------------- doctors by qualification (step 56a)
 // "list of DNB doctors": the model once took the word DNB to mean EVERY doctor (52 people). A qualification is a fact the HR directory does not hold; the hospital's staff list prints it for
@@ -1040,7 +1078,6 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[], opts?: { perma
     const dr = pool.filter((p) => /\bDR\.?\s?NB\b/.test(qualOf(p)));
     if (dr.length) lines.push(`${joinAnd(dr.map((p) => `${docName(p)} (${p.qualification})`))} ${dr.length === 1 ? "holds" : "hold"} DrNB, the National Board's super-specialty degree: a different qualification, not counted as DNB.`);
   }
-  if (hasListNumber(hits)) lines.push(NP_FOOTNOTE);
   const details = unknown.length ? [{ summary: `The ${unknown.length} ${kindWord}doctors whose qualification is not recorded${anyQual ? "" : ` (any of them may hold ${label})`}`, text: joinAnd(unknown.map(docName)) }] : [];
   const card: HospitalAnswer = { title: anyQual ? `${KindTitle} and their qualifications${where}` : `${KindTitle} with ${label}${where}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines, details };
   if (hits.length) {
@@ -1121,7 +1158,7 @@ function doctorsByLevelAnswer(e: Entities, ask: LevelAsk, opts?: { permanentOnly
     ...(unknown.length ? [{ summary: `The ${unknown.length} ${kindWord}doctors whose qualification is not recorded`, text: joinAnd(unknown.map(docName)) }] : []),
     { summary: T.explainSummary, text: T.explain },
   ];
-  const card: HospitalAnswer = { title: `${KindTitle} with ${T.title}${inDepts ? ` (${deptNames})` : ""}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines: hasListNumber(hits) ? [NP_FOOTNOTE] : [], details };
+  const card: HospitalAnswer = { title: `${KindTitle} with ${T.title}${inDepts ? ` (${deptNames})` : ""}`, headline: { text: headline, tone: hits.length ? "info" : "unknown" }, status: { tone: hits.length ? "info" : "unknown", text: sentence }, lines: [], details };
   if (hits.length) card.table = { columns: ["Doctor", "Ticket", "Qualification (as printed)", "Discipline", "Department"], rows: hits.map((p) => [docLabel(p), listTicket(p), p.qualification ?? "—", p.discipline ?? npOf(p)?.specialization ?? "—", p.department ? deptLabel(p.department) : "not recorded"]) };
   return done(text, card);
 }
@@ -1210,7 +1247,6 @@ function specialisationAnswer(e: Entities, opts?: { permanentOnly?: boolean; con
   if (groups.length) lines.push(`By specialisation: ${groups.map(([sp, n]) => `${sp} ${n}`).join(", ")}.`);
   if (none.length) lines.push(`${none.length} ${kindPrefix}doctor${none.length === 1 ? "" : "s"} with MBBS alone ${none.length === 1 ? "has" : "have"} no specialisation (not listed).`);
   if (noSubject.length) lines.push(`${joinAnd(noSubject.map((x) => `${docName(x.p)} (${x.p.qualification})`))}: postgraduate, but the subject is not stated (not guessed).`);
-  if (hasListNumber(listed.map((x) => x.p))) lines.push(NP_FOOTNOTE);
   const details = [{ summary: "How is a specialisation decided?", text: SPEC_RULE }, ...(unknown.length ? [{ summary: `The ${unknown.length} ${kindPrefix}doctors whose qualification is not recorded`, text: joinAnd(unknown.map((x) => docName(x.p))) }] : [])];
   const card: HospitalAnswer = { title: `Specialisations of ${kindPrefix}doctors${where}`, headline: { text: stated.length ? `${groups.length} specialisation${groups.length === 1 ? "" : "s"}` : "None", tone: stated.length ? "info" : "unknown" }, status: { tone: stated.length ? "info" : "unknown", text: sentence }, lines, details };
   if (listed.length) card.table = { columns: ["Doctor", "Ticket", "Specialisation", "Qualification (as printed)", "Department"], rows: listed.map((x) => [docLabel(x.p), listTicket(x.p), x.spec ?? "not stated", x.p.qualification ?? "—", x.p.department ? deptLabel(x.p.department) : "not recorded"]) };
@@ -1545,5 +1581,12 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   if (timingWords && !e.depts.length) return timingsAnswer();
   if (e.depts.length && timingWords) return timingsAnswer();
   if (e.depts.length) return overviewAnswer(e.depts);
+  // a department spelt with a slip ("gaynea opd"): read as the one department that is a letter or two away, and SAID, never silently
+  const near = nearestDepartment(e.leftover);
+  if (near && !e.doctors.length) {
+    const r = overviewAnswer([near.dept]);
+    r.card.lines = [`Read “${near.word}” as ${near.dept.name}.`, ...(r.card.lines ?? [])];
+    return r;
+  }
   return opdListAnswer();
 }

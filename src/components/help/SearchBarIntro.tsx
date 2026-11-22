@@ -4,11 +4,38 @@
 "use client";
 
 import React from "react";
-import { CircleAlert, Search, Sparkles, Wrench } from "lucide-react";
-import { AREAS, INTRO_LEAD, INTRO_TITLE, LIMITS, START, UTILITY_POINTER } from "@/lib/help/searchBarIntro";
+import { CircleAlert, Layers, MousePointerClick, Search, ShieldCheck, Wrench } from "lucide-react";
+import { ADMIN_POINTER, AREAS, CHOICE_RULES, EDS_POINTER, INTRO_LEAD, INTRO_TITLE, LIMITS, ROW_TITLES, START, UTILITY_POINTER } from "@/lib/help/searchBarIntro";
+import { ADMIN_CHOICE, DOMAINS, EDS_CHOICE } from "@/records/domains";
 
-/** `onOpenUtility` takes the reader to the Utility Services tab (the pointer under the list of the main features is a button when it is given). */
-export function SearchBarIntro({ onOpenUtility }: { onOpenUtility?: () => void } = {}) {
+/** THE BAR AS IT IS DRAWN, in small: the two rows of buttons under the box, from the same lists the bar reads (so the picture cannot differ from the bar). Nothing here is pressable. */
+function BarPicture() {
+  const chip = "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[12px] font-semibold";
+  const rows: Array<{ title: string; chips: string[]; first?: boolean }> = [
+    { title: ROW_TITLES.searchIn, chips: ["Everything", ...DOMAINS.map((d) => d.label)], first: true },
+    { title: ROW_TITLES.moreTools, chips: [UTILITY_POINTER.term, EDS_CHOICE.label, ADMIN_CHOICE.label] },
+  ];
+  return (
+    <div data-bar-picture aria-label="The buttons under the box, in small" className="mt-3 rounded-lg border border-slate-200 bg-white/90 px-3 py-2.5">
+      <div className="mb-2 flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[12.5px] text-slate-400"><Search size={14} aria-hidden="true" /> Type here and press Enter…</div>
+      <div className="grid grid-cols-1 gap-y-1.5 sm:grid-cols-[max-content_minmax(0,1fr)] sm:gap-x-3">
+        {rows.map((r) => (
+          <div key={r.title} className="contents">
+            <span className="self-start whitespace-nowrap pt-[0.3em] text-[11px] font-bold uppercase tracking-wider text-slate-400">{r.title}</span>
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {r.chips.map((c, i) => (
+                <span key={c} data-bar-chip={c} className={`${chip} ${r.first && i === 0 ? "border-sky-700 bg-sky-700 text-white" : "border-slate-300 bg-white text-slate-700"}`}>{c}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** `onOpenUtility` and `onOpenEds` take the reader to the Utility Services and Deep search (EDS) tabs (the pointers under More tools are buttons when they are given). */
+export function SearchBarIntro({ onOpenUtility, onOpenEds }: { onOpenUtility?: () => void; onOpenEds?: () => void } = {}) {
   return (
     <section aria-label={INTRO_TITLE} className="overflow-hidden rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-indigo-50 shadow-sm">
       <div className="px-4 py-3.5">
@@ -19,10 +46,11 @@ export function SearchBarIntro({ onOpenUtility }: { onOpenUtility?: () => void }
             <li key={s} className="flex items-start gap-1.5"><span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold text-white">{i + 1}</span><span>{s}</span></li>
           ))}
         </ol>
-        <p className="mb-1.5 mt-3.5 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-slate-500"><Sparkles size={13} aria-hidden="true" /> What you can ask: <span data-main-features-mark className="font-extrabold text-orange-600">the main features</span></p>
+        <BarPicture />
+        <p className="mb-1.5 mt-3.5 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-slate-500"><MousePointerClick size={13} aria-hidden="true" /> What each button searches: <span data-search-in-mark className="font-extrabold text-orange-600">{ROW_TITLES.searchIn}</span></p>
         <ul className="grid gap-1.5 sm:grid-cols-2">
-          {AREAS.map((a) => (
-            <li key={a.label} className={`rounded-lg border border-slate-100 bg-white/80 px-2.5 py-1.5 text-[12.5px] leading-snug text-slate-600${a.parts ? " sm:col-span-2" : ""}`}><strong className="text-slate-800">{a.label}</strong>: {a.detail}
+          {AREAS.map((a, i) => (
+            <li key={a.label} className={`rounded-lg border border-slate-100 bg-white/80 px-2.5 py-1.5 text-[12.5px] leading-snug text-slate-600${a.parts || i === 0 || i === AREAS.length - 1 ? " sm:col-span-2" : ""}`}><strong className="text-slate-800">{a.label}</strong>: {a.detail}
               {a.parts && (
                 <ol className="mt-1.5 space-y-1" data-area-parts>
                   {a.parts.map((p, i) => (
@@ -33,7 +61,27 @@ export function SearchBarIntro({ onOpenUtility }: { onOpenUtility?: () => void }
             </li>
           ))}
         </ul>
-        <p data-utility-pointer className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[13px] leading-snug text-slate-700">
+        <ul data-choice-rules className="mt-3 list-disc space-y-1 rounded-lg border border-sky-200 bg-sky-50/70 py-2 pl-7 pr-3 text-[13px] leading-snug text-slate-700">
+          {CHOICE_RULES.map((r) => <li key={r}>{r}</li>)}
+        </ul>
+        <p className="mb-1.5 mt-3.5 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-slate-500"><Layers size={13} aria-hidden="true" /> The second row: <span data-more-tools-mark className="font-extrabold text-orange-600">{ROW_TITLES.moreTools}</span></p>
+        <p data-eds-pointer className="flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50/70 px-3 py-2 text-[13px] leading-snug text-slate-700">
+          <Layers size={15} className="mt-0.5 shrink-0 text-violet-700" aria-hidden="true" />
+          <span>
+            {EDS_POINTER.before}{" "}
+            {onOpenEds ? (
+              <button type="button" onClick={onOpenEds} className="font-bold text-violet-800 underline decoration-violet-400 underline-offset-2 hover:text-violet-900">{EDS_POINTER.term}</button>
+            ) : (
+              <strong className="text-violet-800">{EDS_POINTER.term}</strong>
+            )}{" "}
+            {EDS_POINTER.after}
+          </span>
+        </p>
+        <p data-admin-pointer className="mb-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-[13px] leading-snug text-slate-700">
+          <ShieldCheck size={15} className="mt-0.5 shrink-0 text-amber-700" aria-hidden="true" />
+          <span>{ADMIN_POINTER.before} <strong className="text-amber-800">{ADMIN_POINTER.term}</strong> {ADMIN_POINTER.after}</span>
+        </p>
+        <p data-utility-pointer className="mt-2 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[13px] leading-snug text-slate-700">
           <Wrench size={15} className="mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
           <span>
             {UTILITY_POINTER.before}{" "}

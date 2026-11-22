@@ -749,6 +749,23 @@ async function main() {
     try { await ask(q); } catch { threw = true; }
     ok(`never throws: "${q.slice(0, 20)}"`, !threw);
   }
+  // ---- a department spelt with a slip, and the list whose names open their own OPD (owner, 23 Nov 2026: "gaynea opd")
+  {
+    for (const [typed, dept] of [["gaynea opd", "Gynae & Obs"], ["gynea opd", "Gynae & Obs"], ["paediatrcs opd", "Paediatrics"], ["psychatry opd", "Psychiatry"], ["dentel opd", "Dental"]] as const) {
+      const r = await ask(typed);
+      ok(`"${typed}" is read as ${dept} and the card SAYS so`, !!r && r.card.title.startsWith(dept) && (r.card.lines ?? []).some((l) => l.startsWith("Read “") && l.includes(dept)), r?.card.title);
+    }
+    for (const typed of ["karmkar opd", "xyzabc opd", "opd", "cardiology opd", "abcd opd"]) {
+      const r = await ask(typed);
+      ok(`"${typed}" is NOT mistaken for a department (the list is shown, or the doctor engine answers)`, !!r && !(r.card.lines ?? []).some((l) => l.startsWith("Read “")), r?.card.title);
+    }
+    const list = await ask("opd");
+    const asks = list?.card.table?.asks ?? [];
+    ok("the list of OPD departments has one question per row, 'NAME opd'", !!list && asks.length === list.card.table!.rows.length && asks.every((a, i) => a === `${list.card.table!.rows[i][0]} opd`));
+    let every = true;
+    for (let i = 0; i < asks.length; i++) { const r = await ask(asks[i] as string); if (!r || !r.card.title.toLowerCase().includes(String(list!.card.table!.rows[i][0]).toLowerCase().split(" ")[0])) { every = false; console.log("  press fails for", asks[i], r?.card.title); } }
+    ok("pressing any department's name asks a question the engine answers with THAT department's OPD", every);
+  }
   console.log(`hospital engine selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

@@ -29,8 +29,8 @@ export function UtilityServicesPage({ onClose, onOpen }: { onClose: () => void; 
       subtitle={`${cards.length} helpers beside the main search, A to Z. Open one, or type its words in the search bar`}
       tone="emerald"
       icon={<Wrench size={20} />}
-      onClose={onClose}
-      closeLabel="Close the utility services"
+      onBack={onClose}
+      backLabel="Back to the search"
       notice={false}
     >
       <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Show" data-service-filters>

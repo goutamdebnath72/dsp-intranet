@@ -39,7 +39,7 @@ ok("the page is called Utility Services and says how many there are", /Utility S
 ok("three filters: all, calculators and readers, information and guides, with their counts", /data-service-filter="all"/.test(html) && html.includes(`data-service-filter="${GROUP_FORMS.replace("&", "&amp;")}"`) && html.includes(`data-service-filter="${GROUP_INFO.replace("&", "&amp;")}"`) && /aria-pressed="true"[^>]*data-service-filter="all"/.test(html));
 ok("every card names the words that open it", (html.match(/data-service-type/g) ?? []).length === cards.length);
 ok("a card is a button (the keyboard works)", (html.match(/<button[^>]*data-service-card/g) ?? []).length === cards.length);
-ok("the page has a cross that closes it and points to the calculators list in its tip", /aria-label="Close the utility services"/.test(html) && /data-service-tip/.test(html) && /calculators<\/code>/.test(html));
+ok("the page has a Back button (top right, with the arrow) that returns to the search, and no cross; its tip still points to the calculators list", /aria-label="Back to the search"/.test(html) && />Back</.test(html) && !/aria-label="Close the utility services"/.test(html) && /data-service-tip/.test(html) && /calculators<\/code>/.test(html));
 ok("no privacy notice about typing (there is nothing to type into here)", !/data-tool-notice|approximate/i.test(html));
 
 // ---- the search bar opens it

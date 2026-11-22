@@ -4,6 +4,8 @@
 export interface HospitalTable {
   columns: string[];
   rows: string[][];
+  /** Optional, one per row: the question to ask when the FIRST cell of that row is pressed (a department of the list opens its own OPD). null = not pressable. */
+  asks?: (string | null)[];
 }
 
 import type { DepartmentAsk } from "../nl2sql/departmentAsk";

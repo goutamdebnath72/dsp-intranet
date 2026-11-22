@@ -140,11 +140,20 @@ async function main() {
   ok("...NO red note about the number on two names (owner, 31 Oct 2026: removed); the two lines are simply both in the table", !a?.card.notes && (a?.card.table?.rows.length ?? 0) === 2, JSON.stringify(a?.card.notes));
   // not found, honestly
   a = await ask("pax water pump");
-  ok("'pax water pump': amber 'Not found', no number invented", head(a) === "Not found" && tone(a) === "unknown" && !a?.card.table, JSON.stringify(a?.card));
+  ok("'pax water pump': amber, said to be NOT an exact match, and only the related entry's own numbers (Water Supply) are shown: no number is invented", /related entr/.test(head(a) ?? "") && tone(a) === "unknown" && /No PAX entry is named/.test(a?.card.status?.text ?? "") && !!a?.card.table && a.card.table.rows.every((r) => /Water Supply/i.test(r[0])), JSON.stringify(a?.card));
   a = await ask("pax fire brigade");
-  ok("'pax fire brigade': not found, and the CLOSEST name is offered as a line (never as the answer)", head(a) === "Not found" && (a?.card.lines ?? []).some((l) => /Closest names.*Fire Service/.test(l)) && !a?.card.table, JSON.stringify(a?.card));
+  ok("'pax fire brigade': no exact entry, so the related entry (Fire Service) is shown WITH its numbers, marked related", /related entr/.test(head(a) ?? "") && !!a?.card.table && a.card.table.rows.some((r) => /Fire Service/i.test(r[0])) && /No PAX entry is named/.test(a?.card.status?.text ?? ""), JSON.stringify(a?.card));
+  // the owner's case (23 Nov 2026): "central store" is no entry, but the sub-departments "Store House - SH # nn" share "store": ALL of them are shown with their numbers, said to be related
+  {
+    const sh = ["08", "11", "29", "31", "33", "40"].map((n, i): PaxRow => ({ label: `Store House - SH # ${n}`, deptName: "Store House", location: `SH # ${n}`, number: String(41100 + i), note: "", area: "plant" }));
+    const other: PaxRow[] = [{ label: "Fire Service", deptName: "Fire Service", location: "", number: "42050", note: "", area: "plant" }];
+    const b = buildPaxAnswer(planPaxQuery("pax number of central store")!, [...sh, ...other]);
+    ok("'central store': every related Store House line is shown with its own number (all six, not four), the unrelated Fire Service is not", b?.card.table?.rows.length === 6 && b.card.table.rows.every((r) => /Store House/.test(r[0]) && /^411\d\d$/.test(r[2])) && /6 related entries/.test(b.card.headline?.text ?? ""), JSON.stringify(b?.card.table));
+    ok("...and it says plainly that no entry is named so and which word the related ones share", /No PAX entry is named “central store”\. 6 entries share “store”; their numbers are shown\./.test(b?.card.status?.text ?? ""), b?.card.status?.text);
+    ok("...amber (not an exact answer), never the green tone of a found entry", b?.card.headline?.tone === "unknown");
+  }
   a = await ask("pax water pump");
-  ok("'pax water pump': the closest name is Water Supply (it shares 'water'); Tumla Gate is NOT offered ('water' is not near 'gate')", (a?.card.lines ?? []).some((l) => /Water Supply/.test(l)) && !(a?.card.lines ?? []).some((l) => /Tumla|Weigh/.test(l)), JSON.stringify(a?.card.lines));
+  ok("'pax water pump': the related entry is Water Supply (it shares 'water'); Tumla Gate is NOT offered ('water' is not near 'gate')", (a?.card.table?.rows ?? []).some((r) => /Water Supply/.test(r[0])) && !(a?.card.table?.rows ?? []).some((r) => /Tumla|Weigh/.test(r[0])), JSON.stringify(a?.card.table));
   a = await ask("pax rajesh kumar");
   ok("'pax rajesh kumar': a person has no PAX: not found, nothing more said", head(a) === "Not found" && !a?.card.details && !a?.card.notes);
   // ---- a number to its name ----
@@ -215,7 +224,7 @@ async function main() {
   // a department and its location are written together ONE way: "Weigh Bridge - 60T" (owner, 31 Oct 2026), whatever dash or bracket the printed list used
   ok("the sentence of a lookup writes it 'Weigh Bridge - 60T', not with the printed en dash", (await ask("pax 60t", REAL))?.summary === "Weigh Bridge - 60T — PAX 40173." && (await ask("pax main gate in", REAL))?.summary === "CISF - Main Gate (IN) — PAX 40385.", (await ask("pax 60t", REAL))?.summary);
   ok("a name from a number is written the same way: 'who has 42746' -> Weigh Bridge - Gate 5(Oxy); a department with no location stays alone: Fire Service", (await ask("who has 42746", REAL))?.summary === "PAX 42746 is Weigh Bridge - Gate 5(Oxy)." && (await ask("who has 42050", REAL))?.summary === "PAX 42050 is Fire Service.");
-  ok("the 'closest names' line uses it too (and never the printed en dash)", /Closest names in the directory: Weigh Bridge - /.test((await ask("pax weigh bridge pump", REAL))?.card.lines?.[0] ?? "") && !((await ask("pax weigh bridge pump", REAL))?.card.lines?.[0] ?? "").includes("–"));
+  ok("the related entries are written the same way (department and location apart, never the printed en dash)", ((await ask("pax weigh bridge pump", REAL))?.card.table?.rows ?? []).length > 0 && ((await ask("pax weigh bridge pump", REAL))?.card.table?.rows ?? []).every((r) => /^Weigh Bridge/.test(r[0]) && !r.join(" ").includes("\u2013")), JSON.stringify((await ask("pax weigh bridge pump", REAL))?.card.table));
   ok("'pax weigh bridge tumla gate' names ONE line (Weigh Bridge | Tumla Gate), not the CISF one", JSON.stringify((await ask("pax weigh bridge tumla gate", REAL))?.card.table?.rows) === JSON.stringify([["Weigh Bridge", "Tumla Gate", "42043"]]));
   ok("a short number is part of a name ('gate 5'), a group of three to five digits is a number", JSON.stringify((planPaxQuery("pax gate 5") as { tokens: string[] }).tokens) === JSON.stringify(["gate", "5"]) && planPaxQuery("pax gate 42746")?.kind === "number");
   ok("a trailing 'in' is only a narrowing word: 'pax numbers in plant' is still the area, not a name", (planPaxQuery("pax numbers in plant") as { area: string }).area === "plant" && planPaxQuery("pax numbers in plant")?.kind === "list");
@@ -305,7 +314,7 @@ async function main() {
 
   reset();
   o = (await runOmnibar("pax number of hospital opd", "U1", deps())) as P;
-  ok("'pax number of hospital opd' is a PAX question (the word pax), NOT the hospital OPD", o?.hospital?.headline?.text === "Not found" && calls.hospital === 0);
+  ok("'pax number of hospital opd' is a PAX question (the word pax), NOT the hospital OPD", /^(Not found|\d+ related entr)/.test(o?.hospital?.headline?.text ?? "") && calls.hospital === 0);
 
   reset();
   o = (await runOmnibar("is opd open today", "U1", deps())) as P;

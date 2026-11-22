@@ -7,6 +7,8 @@ import useSWR, { mutate as globalMutate, preload } from "swr";
 import type { SynthesisResult } from "@/lib/search/executiveSynthesis";
 import type { Nl2SqlExtras } from "@/lib/nl2sql/clientTypes";
 import { markWeakMatches } from "@/lib/search/weakMatch";
+import { AUTO_SELECTION, selectionQuery } from "@/records/scope";
+import type { Selection } from "@/records/types";
 
 export type SearchMode = "title" | "semantic" | "intellectual" | null;
 
@@ -125,8 +127,8 @@ const fetcher = async (url: string) => {
 type SearchRetry = { attempt: number; reason: string; note: string; logId: number | null };
 
 /** the address of one search: the SWR key of the answer on screen and of an answer fetched ahead are this same text, so a fetched-ahead answer is found at once */
-export function searchKey(text: string, mode: SearchMode, ticketNo?: string, retry?: SearchRetry | null): string {
-  return `/api/ai-search?q=${encodeURIComponent(text)}&mode=${mode}${ticketNo ? `&ticket=${ticketNo}` : ""}${
+export function searchKey(text: string, mode: SearchMode, ticketNo?: string, retry?: SearchRetry | null, sel?: Selection): string {
+  return `/api/ai-search?q=${encodeURIComponent(text)}&mode=${mode}${ticketNo ? `&ticket=${ticketNo}` : ""}${selectionQuery(sel)}${
     retry
       ? `&ra=${retry.attempt}&rr=${encodeURIComponent(retry.reason)}${retry.logId ? `&rl=${retry.logId}` : ""}${
           retry.note ? `&rn=${encodeURIComponent(retry.note)}` : ""
@@ -144,6 +146,8 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   const [attempt, setAttempt] = useState(1); // the attempt number of the answer now on screen
   // true when the ENTER KEY (not the old button) sent the question to Executive Deep Synthesis (step 27a)
   const [autoRouted, setAutoRouted] = useState(false);
+  // THE READER'S FIXED SELECTION (src/records): "auto" = Everything, exactly as before. It is part of the address of every search, so an answer found under one selection is never shown under another.
+  const [selection, setSelection] = useState<Selection>(AUTO_SELECTION);
 
   const clearSearch = useCallback(() => {
     setSubmittedQuery("");
@@ -163,6 +167,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     if (!isOpen) {
       setQuery("");
       clearSearch();
+      setSelection(AUTO_SELECTION); // every opening starts on Everything
     }
   }, [isOpen, clearSearch]);
 
@@ -185,10 +190,10 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
 
   // FETCH AHEAD: ask for an answer before it is wanted (the management page does it when a title is pointed at, so pressing it shows the page at once). Same address as triggerSearch makes, so the answer is
   // found when asked for; a request already on its way is shared, not repeated. Nothing is shown and nothing changes on screen.
-  const prefetchSearch = (selectedMode: SearchMode, text: string) => {
+  const prefetchSearch = (selectedMode: SearchMode, text: string, sel: Selection = selection) => {
     const t = text.trim();
     if (!isOpen || !selectedMode || t.length < 3) return;
-    preload(searchKey(t, selectedMode, ticketNo), fetcher).catch(() => undefined);
+    preload(searchKey(t, selectedMode, ticketNo, null, sel), fetcher).catch(() => undefined);
   };
 
   // STRICT: SWR only fetches if modal is open, a button was clicked (mode !== null), and text is submitted
@@ -200,7 +205,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     error,
     isLoading: isSwrLoading,
   } = useSWR<OmniSearchResponse | OmniSearchResult[]>(
-    shouldFetch ? searchKey(submittedQuery, mode, ticketNo, retry) : null,
+    shouldFetch ? searchKey(submittedQuery, mode, ticketNo, retry, selection) : null,
     fetcher,
     {
       keepPreviousData: false,
@@ -268,6 +273,8 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     mode: synthesis ? ("intellectual" as SearchMode) : mode,
     triggerSearch,
     prefetchSearch,
+    selection,
+    setSelection,
     results,
     synthesis,
     analytics,
