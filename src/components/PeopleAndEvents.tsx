@@ -5,12 +5,15 @@ import React, { useState, useEffect, useMemo, useRef } from "react"; // Added us
 import { motion, AnimatePresence, useInView } from "framer-motion"; // Added useInView
 import { DateTime } from "luxon";
 import { Loader2 } from "lucide-react";
-import ReactConfetti from "react-confetti"; // Added ReactConfetti
 
 // Import child components
 import { PeopleScrollList } from "./PeopleScrollList";
 import { usePeopleEvents } from "./usePeopleEvents";
-import { EventCalendar } from "./EventCalendar";
+import { lazyComponent } from "@/lib/ui/lazyLoad";
+import { PERF } from "@/lib/perf/switches";
+// the calendar (a date-picker library) and the confetti are not on the screen at first: fetched once the page is interactive, not with it (src/lib/perf/switches.js: homeWidgetsLoad)
+const ReactConfetti = lazyComponent(() => import("react-confetti"), "default", PERF.homeWidgetsLoad);
+const EventCalendar = lazyComponent(() => import("./EventCalendar"), "EventCalendar", PERF.homeWidgetsLoad);
 import { DIRECTION } from "@/lib/SCROLL_CONFIG";
 import { ZONE } from "@/lib/peopleEvents/rules";
 import { SAMPLE_BIRTHDAYS, USE_SAMPLE_LISTS, sampleRetirements } from "@/lib/peopleEvents/sampleLists";
@@ -62,7 +65,12 @@ export function PeopleAndEvents() {
   // --- End Confetti Logic ---
 
   // --- This is your existing, correct logic for fetching holidays ---
+  // The holidays are only drawn on the Calendar tab, so they are asked for when that tab is first opened (src/lib/perf/switches.js: holidaysOnCalendarTab); before, on every page load although Birthdays shows first
+  const holidaysAsked = useRef(false);
+  const holidaysWanted = !PERF.holidaysOnCalendarTab || activeTab === "Calendar";
   useEffect(() => {
+    if (!holidaysWanted || holidaysAsked.current) return;
+    holidaysAsked.current = true;
     const fetchHolidays = async () => {
       setIsLoading(true);
       setError(null);
@@ -92,7 +100,7 @@ export function PeopleAndEvents() {
     };
 
     fetchHolidays();
-  }, []); // Empty dependency array means this runs once on mount
+  }, [holidaysWanted]); // runs once: on mount, or when the Calendar tab is first opened
 
   return (
     // --- ADDED: ref={cardRef} and overflow-hidden ---

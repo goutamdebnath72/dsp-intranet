@@ -23,6 +23,7 @@ import { Link } from "./models/link.model";
 import { Session } from "./models/session.model";
 import { User } from "./models/user.model";
 import { VerificationToken } from "./models/verification-token.model";
+import { PERF } from "@/lib/perf/switches";
 
 // Consolidation array of all active structural database entities
 const entities = [
@@ -183,6 +184,8 @@ export async function getDb(): Promise<DataSource> {
       url: process.env.DATABASE_URL, // Directly utilizes Supabase optimized pool connection strings
       logging: false,
       synchronize: false, // Multi-tenant environment schema safety protection switch locked on
+      // TypeORM would run `CREATE EXTENSION IF NOT EXISTS "vector"` at every cold start (the entities have vector columns): one more round trip to the database before the first answer. The extension is installed (the vector search runs on it), so it is not asked for again.
+      installExtensions: PERF.installPgExtensionsAtStart, // src/lib/perf/switches.js
       entities: entities,
       extra: {
         max: 5, // Safety connection ceiling limits to protect Supabase transaction slots

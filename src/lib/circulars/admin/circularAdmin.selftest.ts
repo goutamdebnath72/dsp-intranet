@@ -122,7 +122,7 @@ async function runTests() {
   const modalContent = fs.readFileSync(modalPath, "utf-8");
   ok(
     "OmnibarModal imports CircularAdminPanel",
-    modalContent.includes('import { CircularAdminPanel } from "@/components/CircularAdminPanel";'),
+    /import \{[^}]*\bCircularAdminPanel\b[^}]*\} from "@\/components\/managementPanels"/.test(modalContent),
   );
   ok(
     "OmnibarModal renders CircularAdminPanel on analytics.circularAdmin",

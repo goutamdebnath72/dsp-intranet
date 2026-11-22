@@ -21,11 +21,18 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogoModal } from "./LogoModal";
-import { OmnibarModal } from "./OmnibarModal";
-import HelpManualModal, { type GuideTab } from "./HelpManualModal";
+import { lazyComponent } from "@/lib/ui/lazyLoad";
+import { PERF } from "@/lib/perf/switches"; // when the search window and the guide are fetched is chosen there
+import type { GuideTab } from "./HelpManualModal";
 import { OMNIBAR_PREFILL_EVENT, OPEN_GUIDE_EVENT } from "@/lib/help/sampleQuestions";
 import { HolidayNotificationToast } from "./HolidayNotificationToast";
 import { getFriendlyFirstName, getInitials } from "@/lib/utils/nameHelper";
+
+// The search window and the guide are the two biggest pieces of the page and nobody sees them before a click: they are fetched AFTER the page is interactive (the search window once the browser is idle, the guide when the pointer reaches its button)
+const loadOmnibar = () => import("./OmnibarModal");
+const loadHelp = () => import("./HelpManualModal");
+const OmnibarModal = lazyComponent(loadOmnibar, "OmnibarModal", PERF.searchWindowLoad);
+const HelpManualModal = lazyComponent(loadHelp, "default", PERF.guideLoad);
 
 // --- DspLogoVibrant ---
 const DspLogoVibrant: React.FC<{ onClick: () => void }> = ({ onClick }) => {
@@ -37,8 +44,8 @@ const DspLogoVibrant: React.FC<{ onClick: () => void }> = ({ onClick }) => {
       <Image
         src="/sail-logo-bw.png"
         alt="SAIL Logo"
-        width={878}
-        height={861}
+        width={PERF.rightSizedLogos ? 96 : 878} // drawn 48 px high (src/lib/perf/switches.js: rightSizedLogos)
+        height={PERF.rightSizedLogos ? 103 : 861}
         className="h-12 w-auto transition-transform duration-200 group-hover:scale-110"
         priority
       />
@@ -218,7 +225,8 @@ export function TopBar() {
   const tryQuestion = (question: string) => {
     setIsHelpOpen(false);
     setIsOmnibarOpen(true);
-    window.setTimeout(() => window.dispatchEvent(new CustomEvent(OMNIBAR_PREFILL_EVENT, { detail: { query: question } })), 120);
+    // the search window is fetched lazily: the sample is handed over once its code is here (at once when it is already), so it is never sent to a window that is not listening yet
+    void loadOmnibar().then(() => window.setTimeout(() => window.dispatchEvent(new CustomEvent(OMNIBAR_PREFILL_EVENT, { detail: { query: question } })), 120));
   };
 
   // Single, clean keyboard listener with capture mode for robust global interception
@@ -279,6 +287,7 @@ export function TopBar() {
           <button
             className="p-1 hover:bg-gray-700 rounded-full"
             aria-label="Help"
+            onPointerEnter={() => void loadHelp()}
             onClick={() => { setGuideTab("samples"); setIsHelpOpen(true); }}
           >
             <HelpCircle size={22} />

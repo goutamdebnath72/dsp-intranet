@@ -33,7 +33,6 @@ import { askIntent } from "@/lib/tools/intentClient";
 import { answerNeedsWideModal, needsWideModal } from "@/lib/search/edsLayout";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { useModal } from "@/context/ModalContext";
-import { ExecutiveBriefing } from "@/components/ExecutiveBriefing";
 import { InterpretationNote, PatternFeedbackBar } from "@/components/AnalyticsFeedback";
 import { Nl2SqlAnswerExtras } from "@/components/Nl2SqlAnswerExtras";
 import { AnswerResult } from "@/components/AnswerResult";
@@ -58,12 +57,7 @@ import { withTitle } from "@/lib/employees/honorific";
 import { PersonBadges } from "@/components/PersonBadges";
 import { ClarifyChoices } from "@/components/ClarifyChoices";
 import { HospitalAnswerCard } from "@/components/HospitalAnswerCard";
-import { PaxAdminPanel } from "@/components/PaxAdminPanel";
-import { EmployeeAdminPanel } from "@/components/EmployeeAdminPanel";
-import { HolidayAdminPanel } from "@/components/HolidayAdminPanel";
-import { CircularAdminPanel } from "@/components/CircularAdminPanel";
-import { AnnouncementAdminPanel } from "@/components/AnnouncementAdminPanel";
-import { AccessLogAdminPanel } from "@/components/AccessLogAdminPanel";
+import { AccessLogAdminPanel, AnnouncementAdminPanel, CircularAdminPanel, EmployeeAdminPanel, ExecutiveBriefing, HolidayAdminPanel, PaxAdminPanel, preloadManagementPanels } from "@/components/managementPanels"; // loaded on first need, not with the search window
 import { ManagementBack, ManagementGatePanel, ManagementHubPanel } from "@/components/ManagementHubPanel";
 import { detectManagementHubIntent } from "@/lib/facility/hub";
 import { TicketText } from "@/components/OriginSwitch";
@@ -1210,7 +1204,7 @@ export function OmnibarModal({
               {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
 
               {/* The fixed selections (src/records): Everything, People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices. */}
-              <RecordsScopeBar selection={selection} onChange={changeSelection} suggestion={selection.scope === "auto" ? suggestion : null} onExample={selection.scope === "eds" ? runEds : runScoped} onRunFinder={runFinder} utilitiesOpen={toolForm === "services"} onUtilities={openUtilities} notice={edsNote} edsReady={authStatus === "authenticated" && isExecutive} adminReady={authStatus === "authenticated"} onAdminHint={() => { if (authStatus === "authenticated") prefetchSearch("semantic", "management", { ...AUTO_SELECTION, scope: "admin" }); }} />
+              <RecordsScopeBar selection={selection} onChange={changeSelection} suggestion={selection.scope === "auto" ? suggestion : null} onExample={selection.scope === "eds" ? runEds : runScoped} onRunFinder={runFinder} utilitiesOpen={toolForm === "services"} onUtilities={openUtilities} notice={edsNote} edsReady={authStatus === "authenticated" && isExecutive} adminReady={authStatus === "authenticated"} onAdminHint={() => { if (authStatus === "authenticated") preloadManagementPanels(); if (authStatus === "authenticated") prefetchSearch("semantic", "management", { ...AUTO_SELECTION, scope: "admin" }); }} />
 
               {nameNotice && <FormerNameNotice notice={nameNotice} />}
               {executiveAsk && (

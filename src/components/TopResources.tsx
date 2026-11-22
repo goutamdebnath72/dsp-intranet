@@ -1,6 +1,7 @@
 // src/components/TopResources.tsx
 "use client";
 
+import { useOnScreen } from "@/hooks/useOnScreen"; // the list stands still while it is off the screen
 import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { links } from "@/lib/links";
@@ -216,6 +217,7 @@ export function TopResources() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const isHoveringRef = useRef(false);
+  const onScreen = useOnScreen(scrollRef);
   const listHeightRef = useRef(0);
 
   const direction = SCROLL_CONFIG.topResourcesDirection;
@@ -258,7 +260,7 @@ export function TopResources() {
       const dt = Math.min(40, ts - lastTs);
       lastTs = ts;
 
-      if (!isHoveringRef.current) {
+      if (!isHoveringRef.current && onScreen.current) {
         const h = listHeightRef.current;
         if (h > 0 && scrollEl.scrollHeight > scrollEl.clientHeight) {
           accumulated += (speedPxPerSec * dt * direction) / 1000;

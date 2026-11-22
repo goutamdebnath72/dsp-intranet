@@ -6,6 +6,8 @@
 // external (the model, the database) is injected so the whole flow can be
 // tested without either.
 
+import { PERF } from "@/lib/perf/switches";
+import { ttlMemo } from "@/lib/perf/ttlMemo";
 import type { LlmFn, PipelineResult, SqlClient } from "./types";
 import { guardSql } from "./guard";
 import { runReadOnly, type ExecOptions } from "./executor";
@@ -26,6 +28,10 @@ import { checkHealthColumns, checkPersonIdentity } from "./identityCheck";
 import { spellingRetry } from "./nameSpelling";
 
 /** Context for a second attempt after a "No", and other optional inputs. */
+// The two lists of example queries are read from the log table (200 rows each) on every question: remembered for a short while instead (src/lib/perf/switches.js: nl2sqlExamplesCacheSeconds; 0 = read every time)
+const confirmedExamples = ttlMemo(() => PERF.nl2sqlExamplesCacheSeconds, (c: SqlClient) => loadConfirmedExamples(c));
+const negativeExamples = ttlMemo(() => PERF.nl2sqlExamplesCacheSeconds, (c: SqlClient) => loadNegativeExamples(c));
+
 export interface PipelineExtra {
   /** The log row of the answer that was rejected (stored on the new row as retry_of). */
   retryOf?: number | null;
@@ -76,9 +82,9 @@ export async function answerQuestion(question: string, userKey: string | null, d
   try {
     prep = await deps.withClient(async (c) => ({
       ctx: await loadDynamicContext(c),
-      confirmed: await loadConfirmedExamples(c),
+      confirmed: await confirmedExamples(c),
       rejected: await loadRejectedSql(c, userKey, q),
-      negatives: await loadNegativeExamples(c),
+      negatives: await negativeExamples(c),
     }));
   } catch (e) {
     return { ok: false, kind: "error", question: q, message: `Could not prepare the query environment: ${firstLine(e)}`, attempts: 0, elapsedMs: elapsed(), logId: null };

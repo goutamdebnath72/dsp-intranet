@@ -7,6 +7,7 @@
 // What is new: real people; the initials when a person has no photo (or the photo does not load); a sentence when the list is empty; and the list is repeated for the seamless loop ONLY
 // when it really is taller than its box (with one or two people the repeat would show as a second, identical card).
 
+import { useOnScreen } from "@/hooks/useOnScreen"; // the list stands still while it is off the screen
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { DateTime } from "luxon";
 import { DIRECTION, SCROLL_CONFIG, type Direction } from "@/lib/SCROLL_CONFIG";
@@ -59,6 +60,7 @@ export function PeopleScrollList({ people, direction, kind, emptyText }: { peopl
   const boxRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const isHoveringRef = useRef(false);
+  const onScreen = useOnScreen(boxRef);
   const listHeightRef = useRef(0);
   const [loop, setLoop] = useState(false);
   const { speedPxPerSec, gapHeight } = SCROLL_CONFIG;
@@ -93,7 +95,7 @@ export function PeopleScrollList({ people, direction, kind, emptyText }: { peopl
       if (!el || !listRef.current) return;
       const dt = Math.min(40, ts - lastTs);
       lastTs = ts;
-      if (!isHoveringRef.current) {
+      if (!isHoveringRef.current && onScreen.current) {
         const h = listHeightRef.current;
         if (h > 0 && el.scrollHeight > el.clientHeight) {
           accumulated += (speedPxPerSec * dt * direction) / 1000;

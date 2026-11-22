@@ -126,7 +126,7 @@ async function runTests() {
     path.resolve(process.cwd(), "src/components/OmnibarModal.tsx"),
     "utf-8",
   );
-  ok("OmnibarModal imports HolidayAdminPanel", modalSource.includes('import { HolidayAdminPanel } from "@/components/HolidayAdminPanel";'));
+  ok("OmnibarModal imports HolidayAdminPanel", /import \{[^}]*\bHolidayAdminPanel\b[^}]*\} from "@\/components\/managementPanels"/.test(modalSource));
   ok("OmnibarModal renders HolidayAdminPanel on analytics.holidayAdmin", modalSource.includes("<HolidayAdminPanel open={analytics.holidayAdmin} />"));
 
   console.log("\n==========================================");

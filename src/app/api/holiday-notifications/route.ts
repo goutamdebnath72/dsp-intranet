@@ -16,6 +16,7 @@
 //   DELETE -- complete unsubscribe. Deletes the row outright -- see the
 //             model's header comment for why this is a delete, not a flag.
 
+import { PERF } from "@/lib/perf/switches";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
@@ -71,9 +72,10 @@ export async function GET() {
   try {
     const dataSource = await getDb();
     const repo = dataSource.getRepository(HolidayNotificationSubscription);
-    const sub = await repo.findOne({ where: { userId } });
-
-    const upcoming = await getUpcomingHolidaysForNotification();
+    // the two reads do not depend on each other: asked together (src/lib/perf/switches.js: parallelReads)
+    const [sub, upcoming] = PERF.parallelReads
+      ? await Promise.all([repo.findOne({ where: { userId } }), getUpcomingHolidaysForNotification()])
+      : [await repo.findOne({ where: { userId } }), await getUpcomingHolidaysForNotification()];
 
     if (!sub) {
       // Never registered -- the frontend shows the registration prompt,

@@ -20,6 +20,9 @@ import {
   dashboardContainerVariants,
 } from "./ProductionDashboard";
 import { motion } from "framer-motion";
+import { PERF } from "@/lib/perf/switches"; // which speed changes run: src/lib/perf/switches.js
+import { HERO_SRC } from "@/lib/perf/heroPicture";
+import { whenIdle } from "@/lib/ui/lazyLoad";
 import { getFriendlyFirstName } from "@/lib/utils/nameHelper"; // ✅ Imported our smart name helper
 
 // --- 2. ADDED NEW LINK TYPE ---
@@ -49,18 +52,21 @@ const newsItems = [
     title: "Record Tonnage Shipped from SMS-II",
     summary: "Congratulations to the team for exceeding quarterly targets.",
     imageUrl: "https://placehold.co/80x80/3B82F6/FFFFFF?text=PROD",
+    tile: { bg: "#3B82F6", fg: "#FFFFFF", label: "PROD" },
   },
   {
     id: 1,
     title: "New PPE Guidelines Effective Nov 1st",
     summary: "All plant personnel must review the updated safety protocols.",
     imageUrl: "https://placehold.co/80x80/E2E8F0/4A5568?text=SAFETY",
+    tile: { bg: "#E2E8F0", fg: "#4A5568", label: "SAFETY" },
   },
   {
     id: 3,
     title: "Annual DSP Family Day Registration",
     summary: "Join us for a day of fun and community. Register by Oct 28th.",
     imageUrl: "https://placehold.co/80x80/10B981/FFFFFF?text=EVENT",
+    tile: { bg: "#10B981", fg: "#FFFFFF", label: "EVENT" },
   },
 ];
 
@@ -80,6 +86,16 @@ export function HomepageNew({
   const [isPaused, setIsPaused] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // the plant video (4.4 MB) starts once the page has loaded, so it does not compete with the scripts and the hero picture for the line; the hero picture shows (as the poster) until it plays
+  const [videoReady, setVideoReady] = useState(!PERF.deferHomeVideo);
+  useEffect(() => {
+    if (videoReady) return;
+    if (document.readyState === "complete") return whenIdle(() => setVideoReady(true), 2000);
+    let cancelIdle: (() => void) | null = null;
+    const onLoad = () => { cancelIdle = whenIdle(() => setVideoReady(true), 2000); };
+    window.addEventListener("load", onLoad, { once: true });
+    return () => { window.removeEventListener("load", onLoad); cancelIdle?.(); };
+  }, [videoReady]);
   const [isCircularModalOpen, setIsCircularModalOpen] = useState(false);
   const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
     null,
@@ -131,7 +147,7 @@ export function HomepageNew({
       {/* --- Hero Section --- */}
       <div
         className="w-full md:w-[var(--content-width)] mx-auto bg-cover bg-center relative h-[455px]"
-        style={{ backgroundImage: "url('/steel-plant1.jpg')" }}
+        style={{ backgroundImage: `url('${HERO_SRC}')` }}
       >
         <div className="absolute inset-0 bg-black/30" />
         <div
@@ -184,7 +200,8 @@ export function HomepageNew({
                 <div className="absolute inset-0 top-[-20px] bottom-[-20px] rounded-b-none overflow-hidden shadow-lg">
                   <video
                     ref={videoRef}
-                    src="/Steel_Plant_Video.mp4"
+                    src={videoReady ? "/Steel_Plant_Video.mp4" : undefined}
+                    poster={PERF.deferHomeVideo ? HERO_SRC : undefined}
                     autoPlay
                     loop
                     muted
@@ -192,10 +209,10 @@ export function HomepageNew({
                     className="w-full h-full object-cover"
                   />
                   <div
-                    className="absolute inset-0 bg-black/20 flex items-center justify-center cursor-pointer"
+                    className="group absolute inset-0 bg-black/20 flex items-center justify-center cursor-pointer"
                     onClick={handlePlayPause}
-                    onMouseEnter={() => setIsHovering(true)}
-                    onMouseLeave={() => setIsHovering(false)}
+                    onMouseEnter={PERF.cssVideoHover ? undefined : () => setIsHovering(true)}
+                    onMouseLeave={PERF.cssVideoHover ? undefined : () => setIsHovering(false)}
                   >
                     {isPaused ? (
                       <PlayCircle
@@ -207,7 +224,8 @@ export function HomepageNew({
                       <PauseCircle
                         size={64}
                         className={`text-white/80 transition-opacity duration-300 ${
-                          isHovering ? "opacity-100" : "opacity-0"
+                          // by CSS alone (group-hover) the page is not drawn again at each mouse move over the video
+                          PERF.cssVideoHover ? "opacity-0 group-hover:opacity-100" : isHovering ? "opacity-100" : "opacity-0"
                         }`}
                         strokeWidth={1}
                       />
@@ -225,14 +243,26 @@ export function HomepageNew({
                         href="#"
                         className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 transition-colors group h-[90px]"
                       >
-                        <Image
-                          src={item.imageUrl}
-                          alt={item.title}
-                          width={80}
-                          height={80}
-                          className="rounded-md w-20 h-20 object-cover flex-shrink-0"
-                          unoptimized
-                        />
+                        {PERF.localNewsThumbs ? (
+                          // drawn here, not fetched from placehold.co (an outside site: with no internet out of the plant the request hangs)
+                          <div
+                            role="img"
+                            aria-label={item.title}
+                            className="rounded-md w-20 h-20 flex-shrink-0 flex items-center justify-center text-[13px] font-bold tracking-wide"
+                            style={{ backgroundColor: item.tile.bg, color: item.tile.fg }}
+                          >
+                            {item.tile.label}
+                          </div>
+                        ) : (
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.title}
+                            width={80}
+                            height={80}
+                            className="rounded-md w-20 h-20 object-cover flex-shrink-0"
+                            unoptimized
+                          />
+                        )}
                         <div>
                           <h3 className="font-bold text-neutral-800 text-sm leading-tight group-hover:text-primary-700">
                             {item.title}

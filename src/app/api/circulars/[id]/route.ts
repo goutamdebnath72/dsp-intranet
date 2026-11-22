@@ -1,4 +1,5 @@
 // src/app/api/circulars/[id]/route.ts
+import { PERF } from "@/lib/perf/switches";
 import { NextResponse } from "next/server";
 import { del } from "@vercel/blob";
 import { getDb } from "@/lib/db";
@@ -29,7 +30,11 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const circularRepository = dataSource.getRepository(Circular);
-    const circular = await circularRepository.findOne({ where: { id } });
+    // the viewer reads only the headline and the pages: the 768-number embedding and the whole extracted text stay in the database (src/lib/perf/switches.js: slimCircularReads)
+    const circular = await circularRepository.findOne({
+      where: { id },
+      ...(PERF.slimCircularReads ? { select: { id: true, headline: true, fileUrls: true, publishedAt: true, uploadedAt: true, serialNumber: true, authorTicketNo: true } } : {}),
+    });
 
     if (!circular) {
       return NextResponse.json(

@@ -197,7 +197,7 @@ ok("every request has a time limit, and a failing one becomes a sentence, never 
 ok("the panel never decides who may do what: no ticket, no role is sent, only the fields", !/ticket:\s*me|role:\s*role|actor/.test(src.slice(src.indexOf("const save = async"), src.indexOf("// ---- the search"))));
 ok("dates are drawn with Luxon only (no built-in Date)", !/new Date\(|toLocaleDateString|getFullYear/.test(src));
 const modal = readFileSync("src/components/OmnibarModal.tsx", "utf8");
-ok("the search modal draws the manager from analytics.employeeAdmin, after the PAX editor and before the hospital card", modal.includes('import { EmployeeAdminPanel } from "@/components/EmployeeAdminPanel";') && modal.indexOf("analytics.employeeAdmin ? (") > modal.indexOf("analytics.paxAdmin ? (") && modal.indexOf("analytics.employeeAdmin ? (") < modal.indexOf("analytics.hospital ? ("));
+ok("the search modal draws the manager from analytics.employeeAdmin, after the PAX editor and before the hospital card", /import \{[^}]*\bEmployeeAdminPanel\b[^}]*\} from "@\/components\/managementPanels"/.test(modal) && modal.indexOf("analytics.employeeAdmin ? (") > modal.indexOf("analytics.paxAdmin ? (") && modal.indexOf("analytics.employeeAdmin ? (") < modal.indexOf("analytics.hospital ? ("));
 
 // ---- STEP 69a: the typed confirmation of a deletion ----
 const delSrc = readFileSync("src/components/EmployeeAdminPanel.tsx", "utf8");

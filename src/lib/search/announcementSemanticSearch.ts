@@ -1,4 +1,5 @@
 // src/lib/search/announcementSemanticSearch.ts
+import { PERF } from "@/lib/perf/switches";
 import { DataSource } from "typeorm";
 import { generateEmbedding, normalizeVector } from "@/lib/ai/embedding.service";
 import {
@@ -123,6 +124,57 @@ export async function executeAnnouncementSemanticSearch(
     const queryVector = normalizeVector(raw);
     const vectorString = `[${queryVector.join(",")}]`;
 
+    // The four queries below (title and body, the words in title and body, the PDFs' passages, the words in the passages) need only the vector and the words, never each other's rows: they are started TOGETHER and read in the
+    // original order afterwards, so the answer is the same and the search waits for the slowest one instead of the sum of the four (each is a round trip to the database).
+    const tokens = mode.isQuoted ? [] : lexicalTokens(safeQ);
+    const tsq = orTsQuery(tokens);
+    const litChunk = mode.wholeWord ? `c.text ~* $2` : `c.text ILIKE $2`;
+    // a query that fails is read as "no rows" by the part that reads it (null), exactly as each part's own catch did; the .catch here only keeps a failure from being unhandled before it is read.
+    // `later(f)` starts f NOW when the queries run together, and only when it is first read (as before) when src/lib/perf/switches.js says parallelAnnouncementSearch: false
+    const later = <T,>(f: () => Promise<T | null>): (() => Promise<T | null>) => {
+      if (PERF.parallelAnnouncementSearch) { const p = f(); return () => p; }
+      let p: Promise<T | null> | null = null;
+      return () => (p ??= f());
+    };
+    const lexQuery = tsq
+      ? later(() => dataSource
+          .query<any[]>(
+            `SELECT a.id, a.title, a."contentText", a.date, COALESCE(1 - (a.embedding <=> $1::vector(768)), 0) AS base_similarity
+             FROM public.announcement a
+            WHERE to_tsvector('english', a.title || ' ' || COALESCE(a."contentText", '')) @@ to_tsquery('english', $2)
+            ORDER BY ts_rank_cd(to_tsvector('english', a.title || ' ' || COALESCE(a."contentText", '')), to_tsquery('english', $2)) DESC
+            LIMIT 10`,
+            [vectorString, tsq],
+          )
+          .catch(() => null))
+      : null;
+    const chunkQuery = later(() => dataSource
+      .query<any[]>(
+        `SELECT c.announcement_id AS id, c.source, a.title, a.date, c.page, c.text,
+                (1 - (c.embedding <=> $1::vector(768))) AS similarity,
+                (${litChunk}) AS literal
+           FROM public.announcement_chunk c
+           JOIN public.announcement a ON a.id = c.announcement_id
+          WHERE (c.embedding IS NOT NULL AND (1 - (c.embedding <=> $1::vector(768))) > 0.50) OR ${litChunk}
+          ORDER BY ((CASE WHEN ${litChunk} THEN 2.0 ELSE 0 END) + COALESCE((1 - (c.embedding <=> $1::vector(768))), 0)) DESC
+          LIMIT 20`,
+        [vectorString, literalParam],
+      )
+      .catch(() => null));
+    const lexChunkQuery = tsq
+      ? later(() => dataSource
+          .query<any[]>(
+            `SELECT c.announcement_id AS id, c.source, a.title, a.date, c.page, c.text, COALESCE(1 - (c.embedding <=> $1::vector(768)), 0) AS similarity
+             FROM public.announcement_chunk c
+             JOIN public.announcement a ON a.id = c.announcement_id
+            WHERE to_tsvector('english', c.text) @@ to_tsquery('english', $2)
+            ORDER BY ts_rank_cd(to_tsvector('english', c.text), to_tsquery('english', $2)) DESC
+            LIMIT 20`,
+            [vectorString, tsq],
+          )
+          .catch(() => null))
+      : null;
+
     // Only rows that have an embedding participate in the vector clause; the
     // literal clause can still match rows that somehow lack one.
     const sql = `
@@ -170,18 +222,9 @@ export async function executeAnnouncementSemanticSearch(
     }
 
     // The words of the question found in the title and body (not as the typed phrase: "OTP valid for five minutes" in "OTPs remain valid for only five minutes"). A failure here leaves the rows as they were.
-    const tokens = mode.isQuoted ? [] : lexicalTokens(safeQ);
-    const tsq = orTsQuery(tokens);
     if (tsq) {
       try {
-        const lexRows = await dataSource.query<any[]>(
-          `SELECT a.id, a.title, a."contentText", a.date, COALESCE(1 - (a.embedding <=> $1::vector(768)), 0) AS base_similarity
-             FROM public.announcement a
-            WHERE to_tsvector('english', a.title || ' ' || COALESCE(a."contentText", '')) @@ to_tsquery('english', $2)
-            ORDER BY ts_rank_cd(to_tsvector('english', a.title || ' ' || COALESCE(a."contentText", '')), to_tsquery('english', $2)) DESC
-            LIMIT 10`,
-          [vectorString, tsq],
-        );
+        const lexRows = await lexQuery!(); // null: the query failed, the rows stand
         for (const m of lexRows || []) {
           if (!isLexicalHit(tokens, `${m.title} ${m.contentText ?? ""}`)) continue;
           const rawSim = Number(m.base_similarity) || 0;
@@ -198,18 +241,8 @@ export async function executeAnnouncementSemanticSearch(
     // The PDFs' own text: passages of announcement_chunk (a PDF-only announcement has nothing else to be found by). A missing table or a failure here leaves the title and body results as they were.
     let chunkHits: PdfChunkHit[] = [];
     try {
-      const litChunk = mode.wholeWord ? `c.text ~* $2` : `c.text ILIKE $2`;
-      const chunkRows = await dataSource.query<any[]>(
-        `SELECT c.announcement_id AS id, c.source, a.title, a.date, c.page, c.text,
-                (1 - (c.embedding <=> $1::vector(768))) AS similarity,
-                (${litChunk}) AS literal
-           FROM public.announcement_chunk c
-           JOIN public.announcement a ON a.id = c.announcement_id
-          WHERE (c.embedding IS NOT NULL AND (1 - (c.embedding <=> $1::vector(768))) > 0.50) OR ${litChunk}
-          ORDER BY ((CASE WHEN ${litChunk} THEN 2.0 ELSE 0 END) + COALESCE((1 - (c.embedding <=> $1::vector(768))), 0)) DESC
-          LIMIT 20`,
-        [vectorString, literalParam],
-      );
+      const chunkRows = await chunkQuery();
+      if (chunkRows === null) throw new Error("announcement_chunk query failed"); // as before: the passages are left out
       chunkHits = (chunkRows || []).map((c) => ({
         source: c.source === "pdf" ? ("pdf" as const) : ("body" as const),
         id: Number(c.id),
@@ -222,15 +255,8 @@ export async function executeAnnouncementSemanticSearch(
       }));
       // ... and the words of the question found in a passage (any order, any inflection): the passage counts when it holds most of them
       if (tsq) {
-        const lexChunks = await dataSource.query<any[]>(
-          `SELECT c.announcement_id AS id, c.source, a.title, a.date, c.page, c.text, COALESCE(1 - (c.embedding <=> $1::vector(768)), 0) AS similarity
-             FROM public.announcement_chunk c
-             JOIN public.announcement a ON a.id = c.announcement_id
-            WHERE to_tsvector('english', c.text) @@ to_tsquery('english', $2)
-            ORDER BY ts_rank_cd(to_tsvector('english', c.text), to_tsquery('english', $2)) DESC
-            LIMIT 20`,
-          [vectorString, tsq],
-        );
+        const lexChunks = await lexChunkQuery!();
+        if (lexChunks === null) throw new Error("announcement_chunk words query failed"); // as before: a failure here drops every passage
         for (const c of lexChunks || []) {
           if (!isLexicalHit(tokens, String(c.text ?? ""))) continue;
           chunkHits.push({

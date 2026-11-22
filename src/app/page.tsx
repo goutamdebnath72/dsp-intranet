@@ -6,12 +6,15 @@ export const dynamic = "force-dynamic";
 // user name rendered from here could belong to someone who is no longer logged in.
 
 import React from "react";
+import ReactDOM from "react-dom";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/db";
 import { withDbRetry } from "@/lib/db/resilience";
 import { Link } from "@/lib/db/models";
 import { getRecentCircularIds } from "@/lib/circulars/newStatus";
 import { ACTIVE_UI_DESIGN } from "@/lib/config";
+import { PERF } from "@/lib/perf/switches";
+import { HERO_SRC } from "@/lib/perf/heroPicture";
 import HomePageClient from "@/components/HomePageClient";
 import { HomepageNew } from "@/components/HomepageNew";
 
@@ -41,6 +44,8 @@ const fetchLinks = (category: string) =>
   });
 
 export default async function Home() {
+  // the hero picture is the biggest thing above the fold: the browser is told to fetch it at once, before it has read the page's styles
+  if (PERF.optimisedHeroPicture) ReactDOM.preload(HERO_SRC, { as: "image", fetchPriority: "high" });
   // Which circulars are NEW (uploaded in the last 24 hours) does not depend on who is looking, so no login session is needed to know it. It is asked
   // for at the same time as the links below, and handed to the page so that a logged-out visitor sees the red badge at once instead of waiting for a
   // separate request. If it fails, the page simply falls back to asking for it afterwards, as before.
@@ -52,9 +57,9 @@ export default async function Home() {
     .some((c) => c.name.includes("next-auth.session-token"));
   const recentCircularIdsPromise = withDbRetry(async () => getRecentCircularIds(await getDb())).catch(() => null);
 
-  const quickLinksFromDb = await fetchLinks("quicklink");
-  const departmentDataFromDb = await fetchLinks("department");
-  const sailSitesDataFromDb = await fetchLinks("sail");
+  // the three lists are independent: asked for together, the page waits for the slowest one, not for the sum of the three. The new home page does not draw them (its menus have their own source), so they are not read at all there: three queries less on every visit
+  const [quickLinksFromDb, departmentDataFromDb, sailSitesDataFromDb]: Link[][] =
+    ACTIVE_UI_DESIGN === "new" && PERF.skipUnusedHomeLinks ? [[], [], []] : await Promise.all([fetchLinks("quicklink"), fetchLinks("department"), fetchLinks("sail")]);
 
   const quickLinksData = cleanAndSortData(quickLinksFromDb);
   const departmentData = cleanAndSortData(departmentDataFromDb);

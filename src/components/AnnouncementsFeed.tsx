@@ -1,6 +1,8 @@
 // src/components/AnnouncementsFeed.tsx
 "use client";
 
+import { PERF } from "@/lib/perf/switches";
+import { useOnScreen } from "@/hooks/useOnScreen"; // the list stands still while it is off the screen
 import React, { useState, useRef, useEffect } from "react";
 import AnnouncementModal from "./AnnouncementModal";
 import {
@@ -55,6 +57,7 @@ export function AnnouncementsFeed() {
       keepPreviousData: false,
       revalidateOnFocus: true,
       revalidateOnMount: true,
+      focusThrottleInterval: PERF.feedFocusThrottleSeconds * 1000, // asked again on a return to the window, at most once in this time (src/lib/perf/switches.js)
     },
   );
 
@@ -63,6 +66,7 @@ export function AnnouncementsFeed() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const isHoveringRef = useRef(false);
+  const onScreen = useOnScreen(scrollRef);
   const listHeightRef = useRef(0);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const direction = SCROLL_CONFIG.announcementsDirection;
@@ -113,7 +117,7 @@ export function AnnouncementsFeed() {
       if (!scrollEl) return;
       const dt = Math.min(40, ts - lastTs);
       lastTs = ts;
-      if (!isHoveringRef.current && !isLoading && announcementsData) {
+      if (!isHoveringRef.current && onScreen.current && !isLoading && announcementsData) {
         const h = listHeightRef.current;
         if (h > 0 && scrollEl.scrollHeight > scrollEl.clientHeight) {
           accumulated += (speedPxPerSec * dt * direction) / 1000;

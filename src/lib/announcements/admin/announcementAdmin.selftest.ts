@@ -136,7 +136,7 @@ async function runTests() {
   const modalContent = fs.readFileSync(modalPath, "utf-8");
   ok(
     "OmnibarModal imports AnnouncementAdminPanel",
-    modalContent.includes('import { AnnouncementAdminPanel } from "@/components/AnnouncementAdminPanel";'),
+    /import \{[^}]*\bAnnouncementAdminPanel\b[^}]*\} from "@\/components\/managementPanels"/.test(modalContent),
   );
   ok(
     "OmnibarModal renders AnnouncementAdminPanel on analytics.announcementAdmin",

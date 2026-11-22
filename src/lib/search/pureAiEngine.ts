@@ -15,6 +15,8 @@
 // a doctor name must match whole name parts, and several matches ask "which doctor?"; a qualification
 // matches as a whole word ("MD" is not "MDS"), the same rule as the hospital engine.
 
+import { PERF } from "@/lib/perf/switches";
+import { ttlMap } from "@/lib/perf/ttlMemo";
 import { SCHEDULE, PERSON, OPD_DAYS, WEEKDAY_NAME, type Person, type Weekday } from "../hospital/opdData";
 import { DOCTOR_POOL, holdsQualification, nice, specialisationOf, timingNotes } from "../hospital/engine";
 import type { HospitalAnswer, HospitalResult } from "../hospital/types";
@@ -143,6 +145,23 @@ const DAY_IN_TEXT = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday
  * `opts.llm` lets a test supply the model's raw JSON text.
  */
 export async function parseQueryWithLlm(
+  query: string,
+  opts: { llm?: (system: string, user: string) => Promise<string> } = {},
+): Promise<ToolCall | null> {
+  // The same question asked again (a retry, a second person, a second try) gets the same decision from memory instead of another 1-5 s call to the model (src/lib/perf/switches.js: routerCacheSeconds; 0 = always ask).
+  // A test that supplies its own model text is never answered from memory, and a question the model could not place (null) is never remembered.
+  if (opts.llm) return parseQueryWithLlmFresh(query, opts);
+  const key = (query || "").trim();
+  const known = routerMemory.get(key);
+  if (known) return structuredClone(known);
+  const fresh = await parseQueryWithLlmFresh(query, opts);
+  if (fresh) routerMemory.set(key, structuredClone(fresh));
+  return fresh;
+}
+
+const routerMemory = ttlMap<ToolCall>(() => PERF.routerCacheSeconds, 200);
+
+async function parseQueryWithLlmFresh(
   query: string,
   opts: { llm?: (system: string, user: string) => Promise<string> } = {},
 ): Promise<ToolCall | null> {

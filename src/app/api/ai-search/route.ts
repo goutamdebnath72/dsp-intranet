@@ -1,4 +1,6 @@
 // src/app/api/ai-search/route.ts
+import { generateEmbedding } from "@/lib/ai/embedding.service";
+import { PERF } from "@/lib/perf/switches";
 import { assembleEdsSources } from "@/lib/search/edsSources";
 import { fetchAnnouncementFullText } from "@/lib/announcements/searchIndex/edsSources";
 import { NextResponse } from "next/server";
@@ -354,6 +356,9 @@ async function handleSearch(request: Request) {
     // pipeline below answers: a wrong guess must never replace a right answer.
     const retrievalOnly = process.env.NODE_ENV !== "production" && searchParams.get("retrievalOnly") === "1";
     const retryInfo = parseRetry(searchParams);
+    // While the language model decides where the question belongs (1-5 s), the question's embedding is already being made, for the circular search that usually follows: the result is cached by text, so it is simply there when asked for
+    // (src/lib/perf/switches.js: prefetchQueryEmbedding). Not for a name-shaped line, which goes to the people search.
+    if (PERF.prefetchQueryEmbedding && recordsOpen && mode === "semantic" && !retrievalOnly && !retryInfo && !looksLikeName) void generateEmbedding(q.trim(), "search_query").catch(() => undefined);
     const toolCall = recordsOpen && mode === "semantic" && !retrievalOnly && !retryInfo ? await parseQueryWithLlm(q).catch(() => null) : null;
     const agentDecision = toolCall;
 

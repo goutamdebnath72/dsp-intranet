@@ -222,5 +222,12 @@ ok("the PAX tab and the list button are called MODIFY too (the two tools read al
   ok("the departments are asked from the server with their own request, answered only to a person who may use the editor (after the authority check)", /"departments", "add"/.test(api2) && api2.indexOf('if (op === "departments")') > api2.indexOf("if (!authority) return reply(403"));
 }
 
+// ---- the change form's button: any real change saves (owner, 23 Nov 2026); the number-only rule of 31 Oct is one constant away ----
+{
+  const panelSrc = readFileSync("src/components/PaxAdminPanel.tsx", "utf8");
+  ok("the change form saves when the department, the location or the number has changed (CHANGE_NEEDS_NEW_NUMBER = false); true brings back the number-only rule of 31 Oct", /const CHANGE_NEEDS_NEW_NUMBER = false;/.test(panelSrc) && /editClean\.department !== editing\.department \|\| editClean\.location !== editing\.location/.test(panelSrc) && /CHANGE_NEEDS_NEW_NUMBER \? editNumberChanged : editChanged\) && editValid\.ok/.test(panelSrc));
+  ok("with nothing changed the hint says so in words, and the old number-only hint stays for the old rule", panelSrc.includes("To save, change the department, the location or the PAX number.") && panelSrc.includes("To save, change the PAX number to a different number"));
+}
+
 console.log(`PaxAdminPanel selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

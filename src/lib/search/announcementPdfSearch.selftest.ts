@@ -56,7 +56,8 @@ async function main() {
   // the query itself: a failure of it must not take the title and body results down
   const src = readFileSync("src/lib/search/announcementSemanticSearch.ts", "utf8");
   ok("the PDF passages come from announcement_chunk, with the same literal rule (whole word when quoted, else substring) and the same 0.50 vector floor", /FROM public\.announcement_chunk c/.test(src) && /c\.source/.test(src) && /c\.text ~\* \$2/.test(src) && /c\.text ILIKE \$2/.test(src) && /> 0\.50/.test(src));
-  ok("that query is in a try of its own: a missing table or a failure leaves the title and body results as they were", /try \{\s*const litChunk[\s\S]*?\} catch \{\s*chunkHits = \[\];/.test(src));
+  ok("that query is in a try of its own: a missing table or a failure leaves the title and body results as they were", /try \{\s*const chunkRows = await chunkQuery\(\);[\s\S]*?\} catch \{\s*chunkHits = \[\];/.test(src) && /\.catch\(\(\) => null\)/.test(src));
+  ok("the four queries are started together (one round trip of waiting, not four), each read afterwards in the original order; src/lib/perf/switches.js (parallelAnnouncementSearch: false) starts each only when it is read, as before", /const lexQuery = tsq/.test(src) && /const chunkQuery = later\(\(\) => dataSource/.test(src) && /const lexChunkQuery = tsq/.test(src) && src.indexOf("const lexQuery") < src.indexOf("const matches = await dataSource.query") && /PERF\.parallelAnnouncementSearch/.test(src));
   ok("everything is parameterised (the typed words never go into the SQL text)", !/\$\{cleanQ\}|\$\{safeQ\}|\$\{q\}/.test(src.slice(src.indexOf("FROM public.announcement_chunk") - 400, src.indexOf("FROM public.announcement_chunk") + 600)));
 
   // the route: the deep summary reads circulars AND announcements, the announcements under moved numbers (edsAnnouncements.selftest.ts tests that)

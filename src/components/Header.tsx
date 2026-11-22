@@ -2,6 +2,7 @@
 
 "use client";
 
+import { PERF } from "@/lib/perf/switches";
 import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -53,8 +54,8 @@ export default function Header() {
               <Image
                 src="/vibrant-logo.webp"
                 alt="DSP Intranet Logo"
-                width={1024}
-                height={1024}
+                width={PERF.rightSizedLogos ? 96 : 1024} // the logo is drawn 40-48 px high: ask for a picture that size (src/lib/perf/switches.js: rightSizedLogos), not 1024 px
+                height={PERF.rightSizedLogos ? 96 : 1024}
                 className="h-10 lg-custom:h-12 w-auto"
               />
             </button>

@@ -83,7 +83,7 @@ async function main() {
   ok("...never to the model's client (withClient, nlq_reader, NL2SQL_DATABASE_URL)", !/withClient|withDefaultClient|nlq_reader|NL2SQL_DATABASE_URL/.test(code(wiring)));
   ok("...and the editor route comes BEFORE the PAX search in runOmnibar", src.indexOf("deps.paxAdmin ?") > 0 && src.indexOf("deps.paxAdmin ?") < src.indexOf("deps.pax ?"));
   const modal = readFileSync("src/components/OmnibarModal.tsx", "utf8");
-  ok("the modal draws the editor when the answer carries it, before the other cards", modal.includes('import { PaxAdminPanel } from "@/components/PaxAdminPanel"') && modal.indexOf("analytics.paxAdmin ?") > 0 && modal.indexOf("analytics.paxAdmin ?") < modal.indexOf("analytics.hospital ?"));
+  ok("the modal draws the editor when the answer carries it, before the other cards", /import \{[^}]*\bPaxAdminPanel\b[^}]*\} from "@\/components\/managementPanels"/.test(modal) && modal.indexOf("analytics.paxAdmin ?") > 0 && modal.indexOf("analytics.paxAdmin ?") < modal.indexOf("analytics.hospital ?"));
   const route = readFileSync("src/app/api/pax/admin/route.ts", "utf8");
   ok("the request route takes the person from the login (sessionActor), checks the origin, and never reads a ticket from the body", route.includes("sessionActor") && route.includes("isSameOrigin") && !/body\.ticket|b\.actor/.test(route));
   ok("...its code never touches the model's client either", !/withClient|withDefaultClient|nlq_reader/.test(code(route)) && !/withClient|withDefaultClient|nlq_reader/.test(code(readFileSync("src/lib/pax/admin/access.ts", "utf8"))));

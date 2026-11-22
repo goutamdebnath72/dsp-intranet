@@ -61,6 +61,9 @@ async function call(payload: Json): Promise<{ ok: boolean; status: number; body:
 const emptyForm = (p?: PaxAdminOpen["prefill"]): FormValues => ({ department: p?.department ?? "", location: "", number: p?.number ?? "" });
 const tabFor = (op: PaxAdminOpen["op"]): Tab => (op === "modify" ? "modify" : op === "delete" ? "delete" : op === "delegate" ? "people" : "add");
 
+/** true = the change form saves only when the PAX NUMBER has been changed (the rule of 31 Oct 2026); false = it saves when the department, the location or the number has been changed (23 Nov 2026) */
+const CHANGE_NEEDS_NEW_NUMBER = false;
+
 export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen; /** the departments to choose from, when they are known already (the tests, which draw the panel once and run no request) */ initialDepartments?: string[] }) {
   const isHod = open.role === "hod";
   const [tab, setTab] = useState<Tab>(tabFor(open.op));
@@ -220,15 +223,19 @@ export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen
     setNotice(null);
     setTab("modify");
   }
-  /** The change form saves only when the PAX number has been changed to ANOTHER number that satisfies the whole rule (owner, 31 Oct 2026), and the rest is valid too. */
+  /** The change form saves when something has been changed (the department, the location or the number) and the whole line is valid. The server already accepted any such change; only this button refused it unless the NUMBER had been changed (owner, 31 Oct 2026),
+   *  which blocked a change of department or location alone (owner, 23 Nov 2026). The old rule is one constant away: CHANGE_NEEDS_NEW_NUMBER = true. */
   const editClean = cleanInput(editForm);
   const editValid = validateEntry(editForm);
   const editNumberChanged = editing !== null && editClean.number !== editing.number;
-  const canSaveEdit = editing !== null && editNumberChanged && editValid.ok;
+  const editChanged = editing !== null && (editNumberChanged || editClean.department !== editing.department || editClean.location !== editing.location);
+  const canSaveEdit = editing !== null && (CHANGE_NEEDS_NEW_NUMBER ? editNumberChanged : editChanged) && editValid.ok;
   const editHint = !editing || canSaveEdit
     ? undefined
-    : !editNumberChanged
-      ? "To save, change the PAX number to a different number: exactly 5 digits, starting with 4."
+    : !(CHANGE_NEEDS_NEW_NUMBER ? editNumberChanged : editChanged)
+      ? CHANGE_NEEDS_NEW_NUMBER
+        ? "To save, change the PAX number to a different number: exactly 5 digits, starting with 4."
+        : "To save, change the department, the location or the PAX number."
       : editValid.ok
         ? undefined
         : editValid.errors.number ?? editValid.errors.department ?? editValid.errors.location;

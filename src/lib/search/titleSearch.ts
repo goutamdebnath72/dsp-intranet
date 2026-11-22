@@ -1,4 +1,5 @@
 // src/lib/search/titleSearch.ts
+import { PERF } from "@/lib/perf/switches";
 import { DataSource, ILike } from "typeorm";
 import { Circular } from "@/lib/db/models/circular.model";
 import { Announcement } from "@/lib/db/models/announcement.model";
@@ -43,11 +44,14 @@ export async function executeTitleSearch(
       where: { headline: ILike(`%${q}%`) },
       order: { publishedAt: "DESC" },
       take: 5,
+      // only what is shown (src/lib/perf/switches.js: slimCircularReads): not the embedding and the extracted text of each row
+      ...(PERF.slimCircularReads ? { select: { id: true, headline: true, fileUrls: true, publishedAt: true } } : {}),
     }),
     announcementRepository.find({
       where: { title: ILike(`%${q}%`) },
       order: { date: "DESC" },
       take: 5,
+      ...(PERF.slimCircularReads ? { select: { id: true, title: true, date: true } } : {}),
     }),
   ]);
 

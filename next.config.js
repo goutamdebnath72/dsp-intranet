@@ -5,6 +5,8 @@
    convert to import syntax. */
 const fs = require("fs");
 const path = require("path");
+// the speed switches (src/lib/perf/switches.js): which of the audit's changes run
+const { PERF } = require("./src/lib/perf/switches.js");
 
 /** @type {import('next').NextConfig} */
 
@@ -65,7 +67,17 @@ const nextConfig = {
   // the response no longer says which framework (and so which version's weaknesses) is behind it
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      // The fonts and the plant video are plain files of /public that Next serves with "max-age=0": the browser asked the server about them again on every visit. A week in the browser, and a longer stale-while-revalidate, means a
+      // return visit reads them from the disk. (The pictures are NOT listed: a picture must be asked of the server each time, so that src/middleware.ts can refuse to hand it to a browser that opens it by itself.)
+      ...(PERF.browserCacheFontsAndVideo
+        ? [
+            { source: "/fonts/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" }] },
+            { source: "/Steel_Plant_Video.mp4", headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" }] },
+          ]
+        : []),
+    ];
   },
 
   // (the old `swcMinify: false` option is gone in Next 16; minification is switched off for the webpack build below, which is what keeps TypeORM's class names)
@@ -82,9 +94,10 @@ const nextConfig = {
       });
     }
 
-    // 3. ✅ DISABLE WEBPACK MINIFICATION ENTIRELY FOR PRODUCTION
-    // This stops Webpack/Terser from renaming "User" to "l" or "p", making TypeORM 100% stable!
-    if (!dev) {
+    // 3. ✅ DISABLE WEBPACK MINIFICATION FOR THE SERVER BUNDLE ONLY
+    // This stops Webpack/Terser from renaming "User" to "l" or "p", making TypeORM 100% stable! Only the server runs TypeORM: the browser's bundle has no entity classes, so it IS minified
+    // (measured on a production build: the home page's JavaScript fell from 10.4 MB to 3.3 MB, 2.3 MB to 1.0 MB compressed, from this one condition).
+    if (!dev && (isServer || !PERF.minifyBrowserCode)) {
       config.optimization.minimize = false;
     }
 
