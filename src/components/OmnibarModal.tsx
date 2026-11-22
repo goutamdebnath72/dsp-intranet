@@ -234,6 +234,9 @@ function PersonRow({
   );
 }
 
+/** the two pages that list things: the calculators, and every utility service */
+const isListPage = (k: string): k is "menu" | "services" => k === "menu" || k === "services";
+
 export function OmnibarModal({
   isOpen,
   setIsOpen,
@@ -259,7 +262,7 @@ export function OmnibarModal({
   } = useOmniSearch(isOpen, ticketNo);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // The calculator form (or the menu of them) opened with Enter. Sums, conversions and date questions need no state: they answer as you type (src/components/tools/ToolPanel.tsx).
-  const [toolForm, setToolForm] = useState<FormKind | "menu" | null>(null);
+  const [toolForm, setToolForm] = useState<FormKind | "menu" | "services" | null>(null);
   // A utility found from a line that used none of its words (src/lib/tools/intent.ts for what the app can tell by itself, intentAi.ts for what the AI is asked): the utility's id and who found it. The line itself
   // is NEVER sent to the search then (a figure of someone's loan or pay is not logged); `routedQuery` is the sample line that makes the utility's card, for a utility that is a card and not a form.
   const [routed, setRouted] = useState<{ id: string; via: "local" | "ai" } | null>(null);
@@ -923,7 +926,7 @@ export function OmnibarModal({
                       const tool = detectTool(qTrim);
                       if (tool) {
                         if (tool.kind === "form") setToolForm(tool.form);
-                        else if (tool.kind === "menu") setToolForm("menu");
+                        else if (isListPage(tool.kind)) setToolForm(tool.kind);
                         return;
                       }
 

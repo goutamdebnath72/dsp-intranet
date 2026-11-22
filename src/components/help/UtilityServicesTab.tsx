@@ -5,9 +5,9 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Calculator, CircleAlert, CornerDownLeft, Wrench, Zap } from "lucide-react";
+import { Calculator, CircleAlert, CornerDownLeft, LayoutGrid, Wrench, Zap } from "lucide-react";
 import { allReferenceStrings } from "@/lib/help/quickReference";
-import { CALCULATORS_LINE, UTILITY_HOW, UTILITY_LEAD, UTILITY_LIMITS, UTILITY_SERVICES, UTILITY_TITLE } from "@/lib/help/utilityServices";
+import { CALCULATORS_LINE, SERVICES_LINE, UTILITY_HOW, UTILITY_LEAD, UTILITY_LIMITS, UTILITY_SERVICES, UTILITY_TITLE } from "@/lib/help/utilityServices";
 
 /** whether the words show their answer as you type (true) or need the Enter key, as the "What to type" list says of the same words */
 function useInstant(): (q: string) => boolean {
@@ -53,6 +53,14 @@ export function UtilityServicesTab({ onTry, children }: { onTry?: (q: string) =>
               <code className="rounded bg-white px-1.5 py-0.5 font-bold text-sky-800">{CALCULATORS_LINE.command}</code>{" "}
               {CALCULATORS_LINE.after}{" "}
               <strong className="text-slate-900">{CALCULATORS_LINE.tools.join("; ")}</strong>.
+            </span>
+          </p>
+          <p data-services-line className="mt-2 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[13px] leading-snug text-slate-700">
+            <LayoutGrid size={15} className="mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
+            <span>
+              {SERVICES_LINE.before}{" "}
+              <code className="rounded bg-white px-1.5 py-0.5 font-bold text-emerald-800">{SERVICES_LINE.command}</code>{" "}
+              {SERVICES_LINE.after}
             </span>
           </p>
         </div>

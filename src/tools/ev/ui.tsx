@@ -15,7 +15,7 @@ export const evUi: TopicUi = {
     title: "Electric car charging time",
     tone: "emerald",
     icon: <BatteryCharging size={18} />,
-    menu: { title: "Electric car charging", text: "Battery and charger words; time from 10% to 90%" },
+    menu: { title: "Electric car charging", text: "Time and cost of a charge, 10% to 90%; battery and charger words" },
     render: () => <EvForm />,
   },
 };

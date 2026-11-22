@@ -10,6 +10,7 @@
 import type { DateTime } from "luxon";
 import { TOPICS, type FormKind, type LiveTopic, type TopicHit } from "@/tools/registry";
 import { MENU_KEYS, MENU_RANK, MENU_WORDS } from "@/tools/menu";
+import { SERVICES_KEYS, SERVICES_RANK, SERVICES_WORDS } from "@/tools/services";
 import type { FormCtx, TopicLogic } from "@/tools/types";
 
 export type { FormKind, LiveTopic };
@@ -18,10 +19,12 @@ export type ToolHit =
   | TopicHit
   | { kind: "live"; topic: LiveTopic; /** for the news: the tab or language the line asked for ("hindi news", "business news") */ lang?: string }
   | { kind: "form"; form: FormKind }
-  | { kind: "menu" };
+  | { kind: "menu" }
+  /** the page of every utility service, A to Z */
+  | { kind: "services" };
 
 /** the kinds that answer as the user types (the others open on Enter) */
-export const isLive = (h: ToolHit | null): h is Exclude<ToolHit, { kind: "form" | "menu" }> => !!h && h.kind !== "form" && h.kind !== "menu";
+export const isLive = (h: ToolHit | null): h is Exclude<ToolHit, { kind: "form" | "menu" | "services" }> => !!h && h.kind !== "form" && h.kind !== "menu" && h.kind !== "services";
 
 /** where the calculator forms are tried among the typed-line answers: after the readers of a tyre, a rim, a BH number and a VIN (ranks below), before the dates, conversions and sums (ranks above) */
 const FORM_RANK = 50;
@@ -38,16 +41,19 @@ const words = (q: string): string[] => q.toLowerCase().replace(/[?.!,]/g, " ").r
 /** the topics, walked as plain TopicLogic (their exact types are kept in registry.ts for FormKind, LiveTopic and ToolHit) */
 const TOPIC_LIST: readonly TopicLogic[] = TOPICS;
 
-type FormRule = { id: FormKind | "menu"; rank: number; nouns: string[]; wants: (c: FormCtx) => boolean };
+type FormRule = { id: FormKind | "menu" | "services"; rank: number; nouns: string[]; wants: (c: FormCtx) => boolean };
 const MENU_RULE: FormRule = { id: "menu", rank: MENU_RANK, nouns: MENU_WORDS, wants: (c) => c.w.every((x) => MENU_WORDS.includes(x)) && c.w.some((x) => MENU_KEYS.includes(x)) };
+const SERVICES_RULE: FormRule = { id: "services", rank: SERVICES_RANK, nouns: SERVICES_WORDS, wants: (c) => c.w.every((x) => SERVICES_WORDS.includes(x)) && c.w.some((x) => SERVICES_KEYS.includes(x)) };
 const FORM_RULES: FormRule[] = [
   ...TOPIC_LIST.flatMap((t): FormRule[] => (t.form ? [{ id: t.id as FormKind, ...t.form }] : [])),
   // the list of all the calculators: "calculators", "all tools", "calculator menu"
   MENU_RULE,
+  // the page of all the utility services: "utility services", "utilities", "all utilities"
+  SERVICES_RULE,
 ].sort((a, b) => a.rank - b.rank);
 
 /** A calculator form requested in a few plain words: every word is a noun of the tool or a filler. */
-export function detectForm(raw: string): FormKind | "menu" | null {
+export function detectForm(raw: string): FormKind | "menu" | "services" | null {
   const w = words(raw);
   if (w.length === 0 || w.length > 7) return null;
   const has = (set: string[]) => w.some((x) => set.includes(x));
@@ -90,6 +96,7 @@ const formStep: Step = {
   run: (q) => {
     const form = detectForm(q);
     if (form === "menu") return { kind: "menu" };
+    if (form === "services") return { kind: "services" };
     return form ? { kind: "form", form } : null;
   },
 };

@@ -7,6 +7,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { TOPICS } from "./registry";
 import { TOPIC_UIS } from "./registry.ui";
 import { MENU_SAMPLES } from "./menu";
+import { SERVICES_SAMPLES } from "./services";
 import { detectForm, detectTool } from "@/lib/tools/detect";
 import type { TopicLogic } from "./types";
 
@@ -50,11 +51,12 @@ for (const t of topics) {
 }
 ok("every sample question is answered by the topic that lists it: instant ones as you type, the others by opening its form", bad.length === 0, bad.join("\n"));
 ok("the list of calculators answers its own sample", MENU_SAMPLES.every((s) => detectForm(s.q) === "menu"));
+ok("the page of all the utility services answers its own sample, and the two lists never answer for each other", SERVICES_SAMPLES.every((s) => detectForm(s.q) === "services") && detectForm("calculators") === "menu" && detectForm("utility services") === "services" && detectForm("utilities") === "services" && detectForm("all utilities") === "services" && detectForm("list of utilities") === "services");
 ok("every kind of answer a topic gives has a card (every sample that is answered as you type can be drawn)", topics.flatMap((t) => (t.samples ?? []).filter((s) => s.instant)).every((s) => { const h = detectTool(s.q); return !!h && (h.kind === "live" ? !!TOPIC_UIS.find((u) => u.id === h.topic)?.live : TOPIC_UIS.some((u) => u.hits?.some((x) => x.kind === h.kind))); }));
 
 // the shared files name no topic
 const SHARED = ["src/lib/tools/detect.ts", "src/components/tools/ToolPanel.tsx", "src/lib/help/sampleQuestions.ts"];
-const SHARED_OK = /^@\/tools\/(registry|registry\.ui|menu|types|uiTypes|converter\/useRates)$/;
+const SHARED_OK = /^@\/tools\/(registry|registry\.ui|menu|services|types|uiTypes|converter\/useRates)$/;
 const importsOf = (src: string) => [...src.matchAll(/from\s+["'](@\/tools\/[^"']+)["']/g)].map((m) => m[1]);
 ok("detect.ts, ToolPanel.tsx and sampleQuestions.ts import only the registries and the contract (plus the one rate-table hook): they name no topic", SHARED.every((f) => importsOf(strip(f)).every((i) => SHARED_OK.test(i))), SHARED.flatMap((f) => importsOf(strip(f)).filter((i) => !SHARED_OK.test(i)).map((i) => `${f}: ${i}`)).join("\n"));
 ok("the shared files do not mention a topic by its words either (no 'tyre', 'vin', 'gratuity'... in detect.ts or ToolPanel.tsx outside comments)", ["src/lib/tools/detect.ts", "src/components/tools/ToolPanel.tsx"].every((f) => !/\b(tyre|vin|gratuity|encashment|bharat|emi|pf)\b/i.test(strip(f).replace(/"[^"]*"/g, '""'))), "");

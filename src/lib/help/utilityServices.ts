@@ -54,6 +54,13 @@ export const CALCULATORS_LINE: { before: string; command: string; after: string;
   ],
 };
 
+/** THE ONE LINE ABOUT THE "UTILITY SERVICES" COMMAND (22 Nov 2026): it opens a page of cards, one for every service, A to Z. */
+export const SERVICES_LINE: { before: string; command: string; after: string } = {
+  before: "Type",
+  command: "utility services",
+  after: "and press Enter: a page of cards, one for every service here and for each calculator, sorted A to Z and filtered as calculators and readers or information and guides. A card opens its service, with a Back arrow to the page.",
+};
+
 export const UTILITY_SERVICES: UtilityService[] = [
   { label: "News", detail: "current headlines: business, English, Hindi and Bengali papers, and sports", type: ["news feed", "hindi news", "bengali news", "sports headlines"] },
   { label: "Petrol, diesel and LPG prices", detail: "with a one-year trend graph", type: ["fuel price", "lpg cylinder price"] },
@@ -71,7 +78,7 @@ export const UTILITY_SERVICES: UtilityService[] = [
   { label: "Vehicles", detail: "five things to know about a vehicle, each with its own command:", parts: [
     { title: "National number plate", detail: "the all-India Bharat BH-series plate: what it is, who can have it, how to apply, the road tax with an estimate, and any BH number read out part by part (type bh series, or a plate such as 26 BH 1234 AA).", type: ["bh series", "26 BH 1234 AA"] },
     { title: "Tyre and rim specifications", detail: "what a tyre marking such as 205/55 R16 91V says (width, aspect ratio, rim size, load index and speed symbol) and what a wheel marking such as 8Jx20 says, with the load-index and speed tables (type tyre size).", type: ["tyre size", "205/55 R16 91V"] },
-    { title: "EV cars: battery and charger (AC and DC) specifications", detail: "the words of an electric car's spec sheet in plain words (kWh, kW, volts, LFP and the Blade battery, AC and DC charging, the CCS2 socket, C-rate), and how long a charge takes from your own charger (type ev charging; the second tab is the guide).", type: ["ev charging", "ev specifications"] },
+    { title: "EV cars: battery and charger (AC and DC) specifications", detail: "the words of an electric car's spec sheet in plain words (kWh, kW, volts, LFP and the Blade battery, AC and DC charging, the CCS2 socket, C-rate), and how long a charge takes and what it costs from your own charger (type ev charging; the second tab is the guide).", type: ["ev charging", "ev specifications"] },
     { title: "Engine power: PS, bhp and kW", detail: "petrol and diesel engines give their power in bhp or PS, electric cars in kW, and one line shows all three together (type 100 bhp). An electric car is usually described by two numbers: the battery in kWh, the size of its tank, which decides the range, and the power in kW, which is the actual power of the car, that of the motor (or motors) turning the wheels. Many makers print the bhp or PS beside the kW so that you can compare.", type: ["100 bhp"] },
     { title: "VIN (vehicle identification number), simplified", detail: "the 17-character code that identifies one vehicle, stamped on its chassis and given in its papers (the letters I, O and Q are never used). It has three blocks: the first 3 characters give the country and the maker, the next 6 the type of vehicle in the maker's own code, and the last 8 the model year (the 10th character: K is 2019), the plant and the vehicle's own serial number. Type vin number to see each block explained, or type a VIN such as MALBM51BLKM000001 and it is read as you type.", type: ["vin number", "MALBM51BLKM000001"] },  ] },
 ];

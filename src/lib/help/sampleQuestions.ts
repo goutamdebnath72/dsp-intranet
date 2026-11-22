@@ -11,6 +11,7 @@
 
 import { TOPICS } from "@/tools/registry";
 import { MENU_SAMPLES } from "@/tools/menu";
+import { SERVICES_SAMPLES } from "@/tools/services";
 import type { TopicLogic } from "@/tools/types";
 
 export type SectionIcon = "calculator" | "lightbulb" | "users" | "chart" | "stethoscope" | "phone" | "calendar" | "title" | "content" | "layers" | "sparkles" | "megaphone";
@@ -280,7 +281,7 @@ export const TOOLS_SECTION: SampleSection = {
     "Money results are approximations: please double-check them. The forms start with usual rates; change them to the figures of your own case.",
   ],
   // the questions are written by the topics themselves (src/tools/<topic>/topic.ts), in the order of the registry; the list of calculators is last
-  questions: [...(TOPICS as readonly TopicLogic[]).flatMap((t) => [...(t.samples ?? [])]), ...MENU_SAMPLES],
+  questions: [...(TOPICS as readonly TopicLogic[]).flatMap((t) => [...(t.samples ?? [])]), ...MENU_SAMPLES, ...SERVICES_SAMPLES],
 };
 
 /** Every question of the guide, with the section it belongs to (the guide's search box and the selftest read this). */

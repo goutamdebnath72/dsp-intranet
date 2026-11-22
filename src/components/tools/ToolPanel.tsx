@@ -7,14 +7,15 @@
 // topics' own topic.ts. All of it runs in the browser. Nothing typed here is stored or sent; the only thing downloaded is the public exchange-rate table, and only when a topic asks for it.
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Calculator } from "lucide-react";
+import { ArrowRight, Calculator, Wrench } from "lucide-react";
 import { detectTool, type FormKind } from "@/lib/tools/detect";
 import { useRates } from "@/tools/converter/useRates";
 import { TOPIC_UIS } from "@/tools/registry.ui";
 import type { LiveUi, FormUi, RatesState, UiCtx } from "@/tools/uiTypes";
 import { ToolShell, type Tone } from "./toolKit";
+import { UtilityServicesPage } from "./UtilityServicesPage";
 
 export type { RatesState };
 
@@ -29,14 +30,39 @@ const TILE: Record<Tone, string> = {
   violet: "bg-gradient-to-br from-violet-500 via-indigo-500 to-sky-500", rose: "bg-gradient-to-br from-rose-500 via-pink-500 to-fuchsia-500",
 };
 
-export function ToolPanel({ query, form, onForm }: { query: string; form: FormKind | "menu" | null; onForm: (f: FormKind | "menu" | null) => void }) {
+export function ToolPanel({ query, form, onForm }: { query: string; form: FormKind | "menu" | "services" | null; onForm: (f: FormKind | "menu" | "services" | null) => void }) {
   const hit = useMemo(() => detectTool(query), [query]);
+  // where a calculator page's Back arrow goes: the list of calculators, or the page of all the utility services when it was opened from there
+  const [from, setFrom] = useState<"menu" | "services">("menu");
+  // a live card opened in place from the utility services page (the page's Back arrow closes it)
+  const [liveOpen, setLiveOpen] = useState<string | null>(null);
+  useEffect(() => { if (form === null) setFrom("menu"); }, [form]);
+  useEffect(() => { if (form !== "services") setLiveOpen(null); }, [form]);
   const wantsRates = TOPIC_UIS.some((t) => t.needsRates?.(hit, form));
   const { rates, state } = useRates(wantsRates);
   const ctx: UiCtx = { rates, ratesState: state, openForm: onForm, query };
 
   // the form opened with Enter
   if (form) {
+    if (form === "services") {
+      const open = liveOpen ? LIVE_BY_ID[liveOpen] : null;
+      if (open) {
+        return (
+          <ToolShell title={open.title} subtitle={open.subtitle} tone={open.tone} icon={open.icon} instant notice={open.notice !== false} rates="only public figures from the source named below are downloaded; what you typed is not sent" onBack={() => setLiveOpen(null)} backLabel="Back to the utility services">
+            {open.card()}
+          </ToolShell>
+        );
+      }
+      return (
+        <UtilityServicesPage
+          onClose={() => onForm(null)}
+          onOpen={(c) => {
+            if (c.kind === "live") setLiveOpen(c.id);
+            else { setFrom("services"); onForm(c.id as FormKind); }
+          }}
+        />
+      );
+    }
     if (form === "menu") {
       return (
         <ToolShell title="Calculators" subtitle="Open one, or type a sum, a conversion or a date question: the answer appears as you type" tone="sky" icon={<Calculator size={20} />} onClose={() => onForm(null)}>
@@ -45,7 +71,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
               <motion.button
                 key={m.id}
                 type="button"
-                onClick={() => onForm(m.id)}
+                onClick={() => { setFrom("menu"); onForm(m.id); }}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.04 * i, type: "spring", stiffness: 260, damping: 24 }}
@@ -68,13 +94,25 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
     }
     const f = FORM_BY_ID[form];
     return (
-      <ToolShell title={f.title} tone={f.tone} icon={f.icon} onBack={() => onForm("menu")} rates={f.rates}>
+      <ToolShell title={f.title} tone={f.tone} icon={f.icon} onBack={() => onForm(from)} backLabel={from === "services" ? "Back to the utility services" : undefined} rates={f.rates}>
         {f.render(ctx)}
       </ToolShell>
     );
   }
 
   if (!hit) return null;
+
+  // the page of all the utility services typed but not yet sent
+  if (hit.kind === "services") {
+    return (
+      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-3 flex items-center gap-3 rounded-2xl border border-dashed border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-sm text-emerald-900 shadow-sm" data-services-hint>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white"><Wrench size={16} /></span>
+        <span>
+          Press <kbd className="rounded-md border border-emerald-300 bg-white px-2 py-0.5 text-xs font-bold shadow-sm">Enter</kbd> to open all the utility services, A to Z.
+        </span>
+      </motion.div>
+    );
+  }
 
   // a form or the menu typed but not yet sent: a hint, so the reader knows Enter opens it
   if (hit.kind === "form" || hit.kind === "menu") {

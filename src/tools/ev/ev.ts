@@ -1,6 +1,6 @@
 // src/tools/ev/ev.ts
 //
-// ELECTRIC-CAR CHARGING: an approximate idea of how long a battery of a given size takes to charge (say from 10% to 90%) from AC and DC chargers of various ratings, and what
+// ELECTRIC-CAR CHARGING (the cost of a charge is in tariff.ts): an approximate idea of how long a battery of a given size takes to charge (say from 10% to 90%) from AC and DC chargers of various ratings, and what
 // the battery and charger specifications mean. Pure; nothing is stored or sent anywhere.
 //
 // The method is the plain one, and the answer is marked as approximate everywhere it is shown:

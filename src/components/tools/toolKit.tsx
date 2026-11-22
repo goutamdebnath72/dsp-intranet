@@ -119,6 +119,8 @@ export interface ToolShellProps {
   badge?: React.ReactNode;
   /** the back arrow: a page opened from a list goes back to it. A cross would say "close", and this does not close anything */
   onBack?: () => void;
+  /** what the back arrow says it goes to, for the screen reader and the tooltip (the calculators list when not said) */
+  backLabel?: string;
   /** the card downloads the public rate table (said in the notice) */
   rates?: boolean | string;
   /** false: the card leaves out the privacy and approximation notice (a card that has nothing to type into and no sums, such as a reading card); true when not said */
@@ -146,7 +148,7 @@ export function CloseButton({ label, onClick }: { label: string; onClick: () => 
 }
 
 /** The frame of a calculator card. */
-export function ToolShell({ title, subtitle, icon, tone = "sky", instant, badge, closeLabel = "Close this calculator", onClose, onBack, rates, notice = true, children }: ToolShellProps) {
+export function ToolShell({ title, subtitle, icon, tone = "sky", instant, badge, closeLabel = "Close this calculator", onClose, onBack, backLabel = "Back to the calculators list", rates, notice = true, children }: ToolShellProps) {
   const t = TONES[tone];
   const calm = useReducedMotion();
   return (
@@ -176,7 +178,7 @@ export function ToolShell({ title, subtitle, icon, tone = "sky", instant, badge,
         )}
         {badge}
         {onBack && (
-          <BackButton label="Back to the calculators list" onClick={onBack} />
+          <BackButton label={backLabel} onClick={onBack} />
         )}
         {onClose && (
           <CloseButton label={closeLabel} onClick={onClose} />

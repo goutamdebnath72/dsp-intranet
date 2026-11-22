@@ -15,7 +15,7 @@ export interface UiCtx {
   rates: Rates | null;
   ratesState: RatesState;
   /** opens a form (or the list of calculators), or closes it with null */
-  openForm: (f: FormKind | "menu" | null) => void;
+  openForm: (f: FormKind | "menu" | "services" | null) => void;
   /** the line typed in the search bar when the form was opened (a page with tabs may start on the tab the line is about: "pf loan emi") */
   query?: string;
 }
@@ -58,7 +58,7 @@ export interface TopicUi {
   hits?: readonly HitUi[];
   live?: LiveUi;
   /** true when this topic needs the exchange-rate table for what is typed or opened */
-  needsRates?: (hit: ToolHit | null, form: FormKind | "menu" | null) => boolean;
+  needsRates?: (hit: ToolHit | null, form: FormKind | "menu" | "services" | null) => boolean;
 }
 
 /** Declares a hit card for one kind and gives its render the exact type of that hit */
