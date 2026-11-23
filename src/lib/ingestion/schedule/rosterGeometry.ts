@@ -1,7 +1,7 @@
 // src/lib/ingestion/schedule/rosterGeometry.ts
 //
-// The GEOMETRY of a roster page (image analysis only, no OCR): the table frame, the merged DATE cells, the ruled line under every row, and a clean crop of each date cell's
-// printed text. The geometry decides which rows belong to which date; Gemini only reads the words and the printed dates.
+// This is the GEOMETRY of a roster page (image analysis only, no OCR): the table frame, the merged DATE cells, the ruled line under every row, and a clean crop of each date cell's
+// printed text. I let the geometry decide which rows belong to which date; Gemini only reads the words and the printed dates.
 import { clusterLines, findHorizontalLines, loadGray, type Gray } from "./lines";
 import { deskewPng, estimateTilt } from "./deskew";
 import { findDateCells, findFrame, type DateCell, type Frame } from "./dateCells";
@@ -12,11 +12,11 @@ export interface RosterGeometry {
   frame: Frame;
   band: { xL: number; xR: number };
   cells: DateCell[];
-  /** the y of every ruled line between rows of the table (the frame's top and bottom included), top to bottom */
+  /** The y of every ruled line between rows of the table (the frame's top and bottom included), top to bottom. */
   rowEdges: number[];
 }
 
-/** The geometry of a roster page, or null when the page has no ruled table with a date column. */
+/** Returns the geometry of a roster page, or null when the page has no ruled table with a date column. */
 export async function rosterPageGeometry(pngIn: Buffer): Promise<RosterGeometry | null> {
   const tilt = estimateTilt(await loadGray(pngIn));
   const { png } = await deskewPng(pngIn, tilt.k);
@@ -25,7 +25,7 @@ export async function rosterPageGeometry(pngIn: Buffer): Promise<RosterGeometry 
   if (!frame) return null;
   const dc = findDateCells(g, frame);
   if (!dc) return null;
-  // the rows are separated by rules in the columns beside the date column (the date column itself is cut into merged cells)
+  // Here the rows are separated by rules in the columns beside the date column (the date column itself is cut into merged cells).
   const n = frame.rules.length;
   const xL = frame.rules[n - 3], xR = frame.rules[n - 2];
   const width = xR - xL;
@@ -39,8 +39,8 @@ export async function rosterPageGeometry(pngIn: Buffer): Promise<RosterGeometry 
 }
 
 /**
- * The printed text of a date cell, cut out on its own: long vertical strokes (a cell rule that wandered into the cell) are painted out first,
- * then a tight box around what is left, enlarged. `cy` is the vertical centre of the text. null = nothing printed in the cell.
+ * The printed text of a date cell, cut out on its own: I paint out long vertical strokes (a cell rule that wandered into the cell) first,
+ * then take a tight box around what is left, enlarged. `cy` is the vertical centre of the text. null = nothing printed in the cell.
  */
 export async function cropCellText(g: Gray, band: { xL: number; xR: number }, cell: DateCell, binarize = false): Promise<{ png: Buffer; cy: number } | null> {
   const x0 = Math.round(band.xL + 6);
@@ -52,13 +52,13 @@ export async function cropCellText(g: Gray, band: { xL: number; xR: number }, ce
   if (h < 30 || w < 30) return null;
   const px = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px[y * w + x] = g.data[(y0 + y) * g.width + (x0 + x)];
-  // paint out long vertical strokes: a column that is dark over most of the cell's height is a rule, not text
+  // I paint out long vertical strokes: a column that is dark over most of the cell's height is a rule, not text.
   for (let x = 0; x < w; x++) {
     let dark = 0;
     for (let y = 0; y < h; y++) if (px[y * w + x] < 150) dark++;
     if (dark > 0.55 * h) for (let xx = Math.max(0, x - 2); xx <= Math.min(w - 1, x + 2); xx++) for (let y = 0; y < h; y++) px[y * w + xx] = 255;
   }
-  // The ink as connected blobs. Specks (a few pixels of scanner dust) must not stretch the box: only the blobs on the text's own line count.
+  // I take the ink as connected blobs. Specks (a few pixels of scanner dust) must not stretch the box: only the blobs on the text's own line count.
   const INK = 165;
   const label = new Int32Array(w * h).fill(-1);
   const blobs: Array<{ minX: number; maxX: number; minY: number; maxY: number; ink: number }> = [];
@@ -89,11 +89,11 @@ export async function cropCellText(g: Gray, band: { xL: number; xR: number }, ce
     }
   }
   const big = blobs.filter((b) => b.ink >= 40); // digits are big blobs; dust and the odd stray mark are not
-  if (big.length < 2) return null; // blank: the date of this group is printed on the other side of the page break
+  if (big.length < 2) return null; // blank means the date of this group is printed on the other side of the page break
   const hs = big.map((b) => b.maxY - b.minY + 1).sort((a, b2) => a - b2);
   const H = hs[Math.floor(hs.length / 2)]; // a digit's height
   const midY = big.map((b) => (b.minY + b.maxY) / 2).sort((a, b2) => a - b2)[Math.floor(big.length / 2)];
-  // blobs on the text's line (the dashes and dots are small but sit on it)
+  // I keep the blobs on the text's line: the dashes and dots are small but sit on it.
   const onLine = blobs.filter((b) => b.ink >= 6 && Math.abs((b.minY + b.maxY) / 2 - midY) <= 0.9 * H);
   if (onLine.length < 2) return null;
   const minX = Math.min(...onLine.map((b) => b.minX));
@@ -106,14 +106,14 @@ export async function cropCellText(g: Gray, band: { xL: number; xR: number }, ce
   const cw = Math.min(w - left, maxX - minX + 1 + 2 * pad);
   const ch = Math.min(h - top, maxY - minY + 1 + 2 * pad);
   if (cw < 40 || ch < 30) return null; // a few specks, not a printed date (the OCR would only complain "image too small")
-  // only the line's own ink goes into the crop: everything else is painted white
+  // Only the line's own ink goes into the crop; I paint everything else white.
   const sub = new Uint8Array(cw * ch).fill(255);
   for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
     const sx2 = left + x, sy2 = top + y;
     const lb = label[sy2 * w + sx2];
     if (lb >= 0 && onLine.includes(blobs[lb])) sub[y * cw + x] = px[sy2 * w + sx2];
   }
-  // enlarge so that a digit is ~50 px high: the OCR reads that best (thin small print needs more, bold large print less)
+  // I enlarge so that a digit is ~50 px high, because the OCR reads that best (thin small print needs more, bold large print less).
   const scale = Math.min(4, Math.max(1, 50 / H));
   const sharp = (await import("sharp")).default;
   let img = sharp(Buffer.from(sub), { raw: { width: cw, height: ch, channels: 1 } }).resize({ width: Math.round(cw * scale) });

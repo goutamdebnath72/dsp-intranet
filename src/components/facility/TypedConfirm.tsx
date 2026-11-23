@@ -2,23 +2,23 @@
 
 // src/components/facility/TypedConfirm.tsx
 //
-// THE "TYPE IT TO CONFIRM" BOX of a deletion, one for every tool (the employee manager and the PAX editor; the tools to come use it too).
-// Owner, 2 Nov 2026: what has to be typed is NOT written anywhere on the confirmation card, and pasting or dropping into the box is switched off: the person has to KNOW it and type it, not copy it.
-// (He still saw the value in the list he picked from; this only stops a confirmation that is a copy of what is on the screen.)
+// The "type it to confirm" box of a deletion, one for every tool (the employee manager and the PAX editor; the tools to come use it too).
+// My rule (2 Nov 2026): what has to be typed is NOT written anywhere on the confirmation card, and pasting or dropping into the box is switched off: the person has to KNOW it and type it, not copy it.
+// He still saw the value in the list he picked from; I only want to stop a confirmation that is a copy of what is on the screen.
 
 import React from "react";
 
 export interface TypedConfirmProps {
   id: string;
-  /** What to type, in words, WITHOUT the value itself: "Type his ticket number to confirm". */
+  /** Say what to type in words, WITHOUT the value itself: "Type his ticket number to confirm". */
   label: string;
   value: string;
   onChange: (value: string) => void;
-  /** The look of the box (each tool has its own family of colours). */
+  /** The look of the box; each tool passes its own family of colours. */
   className: string;
   inputMode?: "numeric" | "text";
   maxLength?: number;
-  /** A data attribute for the tests and the scripts of the tool: { name: "data-emp-field", value: "confirm" }. */
+  /** Optional data attribute for the tests and the scripts of the tool: { name: "data-emp-field", value: "confirm" }. */
   mark?: { name: string; value: string };
 }
 

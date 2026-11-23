@@ -1,7 +1,7 @@
 // src/app/api/dev/console/route.ts
 //
 // POST /api/dev/console   { entries: [{ t, l, p, m }] }   DEVELOPMENT ONLY (404 in production).
-// The browser's console, written to `.browser-console.log` in the project folder (see src/lib/dev/consoleBridge.ts). Started afresh when the dev server starts (the first write of a server process empties the file).
+// This writes the browser's console to `.browser-console.log` in the project folder (see src/lib/dev/consoleBridge.ts). It starts afresh when the dev server starts: the first write of a server process empties the file.
 
 import { appendFile, stat, writeFile } from "fs/promises";
 import path from "path";
@@ -11,7 +11,7 @@ import { cleanEntries, formatEntries, MAX_BODY_CHARS, MAX_FILE_BYTES } from "@/l
 export const dynamic = "force-dynamic";
 
 const FILE = path.join(process.cwd(), ".browser-console.log");
-// on globalThis: a hot reload of this file must not empty the log in the middle of a session
+// I keep this on globalThis: a hot reload of this file must not empty the log in the middle of a session.
 const g = globalThis as unknown as { __dspBrowserLogStarted?: boolean };
 
 export async function POST(request: Request) {

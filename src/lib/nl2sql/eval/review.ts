@@ -1,6 +1,6 @@
 // src/lib/nl2sql/eval/review.ts
 //
-// REVIEW RUN: take a text file of REAL questions (one per line), ask the real model about each, and
+// REVIEW RUN: I take a text file of REAL questions (one per line), ask the real model about each, and
 // write a review sheet: the question, what the model says it understood, the exact SQL, and the
 // result size. Unlike run-live.ts there is no reference answer -- a person (or a reviewer reading the
 // sheet) judges whether each reading and SQL is right. It is how real wording gets tested.
@@ -10,7 +10,7 @@
 //   npx tsx --env-file=.env.local src/lib/nl2sql/eval/review.ts nl2sql-eval-questions.txt --resume
 //
 // The questions file: one question per line; blank lines and lines starting with # are ignored.
-// By DEFAULT the sheet contains no employee data (no names, no rows): only the question, the model's
+// By DEFAULT I keep employee data out of the sheet (no names, no rows): only the question, the model's
 // reading, the SQL, and the number of rows. --rows=N adds the first N result rows to the sheet.
 // Results are saved after every question; if the provider's daily token allowance runs out the run
 // stops cleanly and --resume continues later. Only the read-only nlq_reader role touches your data.

@@ -1,7 +1,7 @@
 // src/tools/markets/ui.tsx
 //
 // HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the live-data card (Sensex, Nifty and shares). The card, its source and its self-checks stay in src/components/tools/live and src/lib/live.
-// What the search line needs to know is in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// What the search line needs to know is in topic.ts. I list it once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";

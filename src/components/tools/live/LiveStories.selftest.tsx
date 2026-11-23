@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/tools/live/LiveStories.selftest.tsx
-// The live news list and its status line: what a refresh does (nothing, hold, or take in), how a story is shown (newest, recent, new), and that the screen's rules are in the code
+// This test covers the live news list and its status line: what a refresh does (nothing, hold, or take in), how a story is shown (newest, recent, new), and that the screen's rules are in the code
 // (rows keyed by link, arrivals held while reading, the pill taking no room, quiet refresh with no loading box, checking only while the page is visible).
 import React from "react";
 import { readFileSync } from "node:fs";
@@ -23,7 +23,7 @@ ok("arrivals while someone reads: HELD, with the count (2 new, 0 updated)", (() 
 ok("a refresh that only removes stories waits while someone reads, and is taken in when nobody does", planRefresh(A, A.slice(0, 2), true).kind === "idle" && (() => { const p = planRefresh(A, A.slice(0, 2), false); return p.kind === "apply" && p.added.length === 0; })());
 ok("a first fill of an empty list is all arrivals", (() => { const p = planRefresh([], A, false); return p.kind === "apply" && p.added.length === 3; })());
 
-// a DEVELOPMENT: the same story (same id), a later headline
+// A development: the same story (same id) with a later headline.
 const dev = (id: string, link: string, t = "dev") => ({ ...st(t), id, link: `https://x.com/${link}` });
 const S1 = [dev("a", "a1", "story A"), dev("b", "b1", "story B")];
 const S2 = [dev("a", "a2", "story A, later"), dev("b", "b1", "story B")];
@@ -51,7 +51,7 @@ ok("every link opens in a NEW TAB with noopener noreferrer, and nothing but http
 ok("the page language is set on the list, and an empty list says so", /lang="en"/.test(html) && /none/.test(renderToStaticMarkup(<LiveStories items={[]} empty="none" />)));
 const alsoHtml = renderToStaticMarkup(<LiveStories items={[{ ...st("Gamma story", "2026-11-13T06:30:00Z", "The Hindu"), also: ["Times of India", "Hindustan Times"] }, st("Delta story")]} empty="none" />);
 ok("a story several papers carried is ONE row from the first, naming the others: 'also in Times of India, Hindustan Times'; a story of one paper names none", /also in Times of India, Hindustan Times/.test(text(alsoHtml)) && (text(alsoHtml).match(/also in/g) ?? []).length === 1 && (alsoHtml.match(/<li/g) ?? []).length === 2);
-// times counted back from now, so that the test does not depend on the day it is run ("3 h ago", never a date)
+// Times are counted back from now, so the test does not depend on the day it is run ("3 h ago", never a date).
 const hoursAgo = (h: number) => DateTime.utc().minus({ hours: h }).toISO() as string;
 const devHtml = renderToStaticMarkup(<LiveStories items={[{ ...st("Later headline of the story", hoursAgo(2), "The Hindu"), id: "https://x.com/first", firstAt: hoursAgo(3), firstSource: "Hindustan Times", also: ["Hindustan Times", "Times of India"] }]} empty="none" />);
 ok("a developed card says Updated and where the story began ('first reported by Hindustan Times ...') and also names the third paper; the 'also in' line is only for cards that have not developed", /Updated/.test(text(devHtml)) && /first reported by Hindustan Times (\d+ (min|h|d) ago|yesterday)/.test(text(devHtml)) && /also Times of India/.test(text(devHtml)) && !/also in/.test(text(devHtml)));

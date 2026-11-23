@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/omnibarIntent.selftest.ts
-// How the search box uses what a line means: the ORDER of what Enter does, that the line of a found utility is never searched, what is said to the user, and that nothing but the line can reach the AI.
+// This checks how the search box uses what a line means: the ORDER of what Enter does, that the line of a found utility is never searched, what is said to the user, and that nothing but the line can reach the AI.
 import { readFileSync } from "node:fs";
 
 let pass = 0, fail = 0;

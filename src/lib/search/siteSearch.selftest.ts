@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/search/siteSearch.selftest.ts
-// Step 60a: the intranet link of the Centre for L & D shows its OFFICIAL current name (owner, 26 Oct 2026: "the intranet link and the menu still say CHRD: it must officially show the current name as link"), and
+// Step 60a: I want the intranet link of the Centre for L & D to show its OFFICIAL current name (my words, 26 Oct 2026: "the intranet link and the menu still say CHRD: it must officially show the current name as link"), and
 // the old names stay searchable: the site search matches the `aliases` of a link, and the result always carries the official title. Renaming the title alone would have made "chrd" find nothing.
 
 import { readFileSync } from "node:fs";
@@ -22,7 +22,7 @@ ok("the old names, the full forms and the short forms are its aliases: CHRD, C.H
 ok("no link is still titled just 'CHRD'; Bhilai's 'BSP CHRD' is a different department and stays", !all.some((l) => l.title === "CHRD") && all.some((l) => l.title === "BSP CHRD" && l.category === "sail"));
 ok("'Centre for HRD' is not an alias (it is not used at the plant)", !(cld[0].aliases ?? []).some((a) => /\bhrd\b/i.test(a) && !/^c\.?h\.?r\.?d$/i.test(a)));
 
-// ---- the old and the new names all find it, and the result carries the OFFICIAL title
+// ---- every old and new name finds it, and the result carries the OFFICIAL title
 for (const q of ["chrd", "CHRD", "c.h.r.d", "training department", "Training Dept", "training deptt", "cl&d", "CL & D", "l&d", "L & D", "centre for l&d", "centre for human resource development", "Centre for Learning and Development", "learning and development", "list the employees of chrd", "executives in the training department"]) {
   const r = searchSites(q);
   ok(`"${q}" finds the link first, as "${OFFICIAL}"`, r[0]?.title === OFFICIAL && r[0].href === "http://10.141.4.76/chrd/home/", JSON.stringify(r.map((x) => x.title)));
@@ -30,13 +30,13 @@ for (const q of ["chrd", "CHRD", "c.h.r.d", "training department", "Training Dep
 ok("a link is ONE result however many of its names match: 'chrd' and 'cl&d' list it once", ["chrd", "cl&d", "training department", "centre for l&d"].every((q) => searchSites(q).filter((x) => x.title === OFFICIAL).length === 1));
 ok("Bhilai's CHRD is still found first by 'bsp chrd' (the DSP department comes second, as before)", searchSites("bsp chrd")[0]?.title === "BSP CHRD");
 
-// ---- step 60d: another plant's CHRD is not the Durgapur link (the owner's check of 26 Oct 2026 showed our CL&D site under "list the employees of bhilai chrd")
+// ---- step 60d: another plant's CHRD is not the Durgapur link (my check of 26 Oct 2026 showed our CL&D site under "list the employees of bhilai chrd")
 for (const q of ["list the employees of bhilai chrd", "bsp chrd", "rourkela chrd", "bokaro chrd staff", "iisco chrd", "training department of bhilai", "bhilai centre for human resource development"])
   ok(`another plant: "${q}" does not show the CL&D link`, !searchSites(q).some((x) => x.title === OFFICIAL), JSON.stringify(searchSites(q).map((x) => x.title)));
 ok("...and 'bsp chrd' still finds Bhilai's own entry first", searchSites("bsp chrd")[0]?.title === "BSP CHRD");
 ok("Durgapur's own wording still finds it", searchSites("list the employees of chrd")[0]?.title === OFFICIAL);
 
-// ---- no noise: common words of the history line or of the aliases do not bring the link into every question
+// ---- no noise: common words of the history line or of the aliases must not bring the link into every question
 for (const q of ["department", "dept", "deptt", "the", "formerly", "earlier", "hr", "it", "list of employees", "holiday list", "leave rules"]) ok(`"${q}" does not show the link`, !searchSites(q).some((x) => x.title === OFFICIAL), JSON.stringify(searchSites(q).map((x) => x.title)));
 
 // ---- nothing else changed: every other link is still found by its own title

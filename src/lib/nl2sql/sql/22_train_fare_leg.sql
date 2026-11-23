@@ -1,6 +1,6 @@
 -- 22_train_fare_leg.sql
 --
--- The saved fares from Durgapur to EVERY STOP after Durgapur on a train's route (src/lib/live/fareLegStore.ts): one row per train and stop, with the fares of each class the train sells between the two, as the railway's
+-- Here I save the fares from Durgapur to EVERY STOP after Durgapur on a train's route (src/lib/live/fareLegStore.ts): one row per train and stop, with the fares of each class the train sells between the two, as the railway's
 -- reservation system gave them through RailRadar's paid fare service (for a local MEMU train: the hint from the railway's published fare table), and THE TIME THEY WERE RECEIVED (fetched_at). Collected by
 -- scripts/harvest-legs.ts while the paid month lasts (to 14 Dec 2026); after it the rows stay as they are and the card says so. The end-of-run fare of each train is in public.train_fare (21_train_fare.sql).
 --

@@ -1,7 +1,7 @@
 // src/lib/search/edsStoreLive.selftest.ts
 //
-// LIVE test of the briefing store's real SQL against the real schema, in a transaction that is ALWAYS rolled back (the table it creates and the rows it
-// writes are not kept). Skipped unless ADMIN_LIVE_TEST_URL is set:
+// This is a LIVE test of the briefing store's real SQL against the real schema, in a transaction that is ALWAYS rolled back (the table it creates and the rows it
+// writes are not kept). It is skipped unless ADMIN_LIVE_TEST_URL is set:
 //   ADMIN_LIVE_TEST_URL="$DATABASE_URL" npx tsx src/lib/search/edsStoreLive.selftest.ts
 
 export {}; // a module: the live tests share local names
@@ -37,13 +37,13 @@ async function main() {
     const f2 = await store.fingerprint();
     ok("the archive fingerprint is a stable text", typeof f1 === "string" && f1.split(".").length === 5 && f1 === f2, f1);
 
-    // first use creates the table when it is missing (and does nothing when it exists)
+    // First use creates the table when it is missing (and does nothing when it exists).
     const none = await store.get("k-live-1");
     ok("an unknown question has no stored briefing (and the table is there)", none === null);
     const now = (await client.query(`SELECT to_regclass('public.eds_briefing') AS t, relrowsecurity AS rls FROM pg_class WHERE oid = to_regclass('public.eds_briefing')`)).rows[0];
     ok("the table exists after first use, with row-level security on (no public API reads)", !!now?.t && now.rls === true, JSON.stringify(now));
 
-    // jsonb keeps the same data but not the order of an object's keys: compare by content
+    // jsonb keeps the same data but not the order of an object's keys, so I compare by content.
     const canon = (v: any): any => (Array.isArray(v) ? v.map(canon) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])])) : v);
     const same = (x: unknown, y: unknown) => JSON.stringify(canon(x)) === JSON.stringify(canon(y));
     const result: any = { overview: "o", keyFindings: [{ text: "t", sources: [6] }], table: { columns: ["a", "b"], rows: [["1", "2"]] }, charts: [], citations: [] };
@@ -57,7 +57,7 @@ async function main() {
     ok("a briefing made for an OLDER archive is replaced by one for the new archive", c.result.overview === "NEW ARCHIVE" && c.fingerprint === "FP-B");
     const d = await store.put({ key: "k-live-1", fingerprint: "FP-B", result: { ...result, overview: "again" }, score: 95, query: "the question", engine: "test" });
     ok("...and that one then stands", d.result.overview === "NEW ARCHIVE");
-    // dead rows (another engine version) are removed when a current briefing is stored
+    // Dead rows (another engine version) are removed when a current briefing is stored.
     await store.put({ key: "k-old-engine", fingerprint: "FP-B", result, score: 80, query: "an older question", engine: "OLD-ENGINE" });
     const beforeTidy = Number((await client.query(`SELECT count(*)::int n FROM public.eds_briefing WHERE engine = 'OLD-ENGINE'`)).rows[0].n);
     await store.put({ key: "k-live-3", fingerprint: "FP-B", result, score: 90, query: "a current question", engine: "test" });

@@ -1,12 +1,12 @@
 // src/lib/search/abbreviations.ts
 //
 // Abbreviations that a circular DEFINES ITSELF ("financial assistance (FA)"), shared by the engine (server) and the briefing (screen).
-// A definition is accepted only if the initials of the words before the bracket spell the abbreviation, so a loose phrase ("RFID Card Biometric (RFID)")
+// I accept a definition only if the initials of the words before the bracket spell the abbreviation, so a loose phrase ("RFID Card Biometric (RFID)")
 // is never taken for an expansion.
 
 /**
- * "Contactless Face Recognition System (CFRS)": the words before the bracket are accepted as the expansion only if the INITIALS of the last words spell the
- * abbreviation, and then only those words are used. Returns null when they do not.
+ * "Contactless Face Recognition System (CFRS)": I accept the words before the bracket as the expansion only if the INITIALS of the last words spell the
+ * abbreviation, and then I use only those words. Returns null when they do not.
  */
 export function expansionFromPhrase(abbr: string, phrase: string): string | null {
   const letters = abbr.replace(/[^A-Za-z]/g, "").toLowerCase();
@@ -22,7 +22,7 @@ export function expansionFromPhrase(abbr: string, phrase: string): string | null
 
 const title = (s: string) => s.replace(/\b([a-z])/g, (c) => c.toUpperCase());
 
-/** Every "Full Phrase (ABBR)" of the text whose initials spell the abbreviation: { FA: "Financial Assistance" }. The first definition of an abbreviation stands. */
+/** Returns every "Full Phrase (ABBR)" of the text whose initials spell the abbreviation: { FA: "Financial Assistance" }. The first definition of an abbreviation stands. */
 export function definedAbbreviations(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const m of (text || "").matchAll(/([A-Za-z][A-Za-z\s&/-]{2,80}?)\s*\(\s*([A-Z]{2,6})\s*\)/g)) {
@@ -34,7 +34,7 @@ export function definedAbbreviations(text: string): Record<string, string> {
   return out;
 }
 
-/** The definitions (from definedAbbreviations) of the abbreviations a piece of text actually uses, as whole capital words. */
+/** Returns the definitions (from definedAbbreviations) of the abbreviations a piece of text actually uses, as whole capital words. */
 export function usedDefinitions(defined: Record<string, string>, shown: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [a, e] of Object.entries(defined)) if (new RegExp(`(?:^|[^A-Za-z])${a}s?(?![A-Za-z])`).test(shown)) out[a] = e;

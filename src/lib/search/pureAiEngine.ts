@@ -1,15 +1,15 @@
 // src/lib/search/pureAiEngine.ts
 //
 // The Pure AI Assistant Engine for DSP Intranet.
-// Eliminates regex language parsing and stopword patchwork completely.
+// My aim here is to get rid of regex language parsing and stopword patchwork completely.
 // Architecture:
-//   1. The LLM (Groq LLaMA 3.3 70B / gpt-oss-120b) does 100% of Natural Language Understanding:
-//      understands any human phrasing, pronouns ("I", "we"), synonyms, typos, and extracts clean parameters.
-//   2. The Code does 100% of Data Access:
-//      executes pure deterministic queries against data tables (hospital, employee SQL, circular embeddings, holidays, PAX).
+//   1. I leave 100% of Natural Language Understanding to the LLM (Groq LLaMA 3.3 70B / gpt-oss-120b):
+//      it understands any human phrasing, pronouns ("I", "we"), synonyms, typos, and extracts clean parameters.
+//   2. My code does 100% of Data Access:
+//      it executes pure deterministic queries against data tables (hospital, employee SQL, circular embeddings, holidays, PAX).
 
 //
-// Hardening (review of 7 Nov 2026): the router returns NULL whenever the model is unavailable, slow or
+// Hardening (review of 7 Nov 2026): I made the router return NULL whenever the model is unavailable, slow or
 // answers something invalid, so the ORIGINAL pipeline (answerOmnibar + circular search) answers instead of a
 // keyword guess; hospital answers state only what data/opd_schedule.json says (no invented hours or rules);
 // a doctor name must match whole name parts, and several matches ask "which doctor?"; a qualification
@@ -113,10 +113,10 @@ Respond strictly in JSON format:
 const TOOLS = new Set<ToolName>(["hospital", "employee_roster", "circular_search", "executive_synthesis", "holiday_calendar", "pax_directory", "conversational"]);
 const HOSPITAL_ACTIONS = new Set(["doctor_schedule", "list_doctors", "department_opd", "timings", "doctor_qualification", "doctor_employment"]);
 const EMPLOYMENT = new Set(["permanent", "contractual", "all"]);
-/** A ticket, a P.No or a phone number in the question: never sent to a third party just to be routed; the employee engine handles these. */
+/** I never send a ticket, a P.No or a phone number in the question to a third party just to be routed; the employee engine handles these. */
 const ID_LIKE = /\b\d{6}\b|\b\d{10}\b|\bd\d{6}\b/i;
 /**
- * A line that really is small talk or a question about the assistant itself. The model's word "conversational" is believed ONLY for such a line: a line about a notice, a rule or a fact ("OTP valid for five minutes") that
+ * A line that really is small talk or a question about the assistant itself. I believe the model's word "conversational" ONLY for such a line: a line about a notice, a rule or a fact ("OTP valid for five minutes") that
  * the model misreads as chatter must go on to the search, which answers it from the documents ("a wrong guess must never replace a right answer").
  */
 export const CHATTY_LINE = new RegExp(
@@ -127,7 +127,7 @@ const GREETING_ONLY = /^\s*(hi|hello|hey|namaste|good\s+(morning|afternoon|eveni
 
 const cap = (v: unknown, n = 120): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : null);
 
-/** Weekday name from "thu", "Thursday", "thursdays"; null when it is not a day. */
+/** Returns the weekday name from "thu", "Thursday", "thursdays"; null when it is not a day. */
 export function dayFrom(v: unknown): string | null {
   const s = String(v ?? "").toLowerCase().trim();
   if (s.length < 3) return null;
@@ -139,7 +139,7 @@ const DAY_IN_TEXT = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday
 /**
  * Natural-language understanding by the language model (Gemini). Returns null when it cannot give a VALID
  * answer (no key, timeout, bad JSON, unknown tool): the caller then continues with the original pipeline,
- * which has its own tested understanding. It must never guess a tool from keywords: an earlier keyword
+ * which has its own tested understanding. I never let it guess a tool from keywords: an earlier keyword
  * fallback sent "MD approval for gate pass" to the hospital doctor list and "what is dr reddys policy" to a
  * doctor schedule.
  * `opts.llm` lets a test supply the model's raw JSON text.
@@ -148,8 +148,8 @@ export async function parseQueryWithLlm(
   query: string,
   opts: { llm?: (system: string, user: string) => Promise<string> } = {},
 ): Promise<ToolCall | null> {
-  // The same question asked again (a retry, a second person, a second try) gets the same decision from memory instead of another 1-5 s call to the model (src/lib/perf/switches.js: routerCacheSeconds; 0 = always ask).
-  // A test that supplies its own model text is never answered from memory, and a question the model could not place (null) is never remembered.
+  // I give the same question asked again (a retry, a second person, a second try) the same decision from memory instead of another 1-5 s call to the model (src/lib/perf/switches.js: routerCacheSeconds; 0 = always ask).
+  // A test that supplies its own model text is never answered from memory, and I never remember a question the model could not place (null).
   if (opts.llm) return parseQueryWithLlmFresh(query, opts);
   const key = (query || "").trim();
   const known = routerMemory.get(key);
@@ -186,7 +186,7 @@ async function parseQueryWithLlmFresh(
           await geminiGenerate(user, {
             system: TOOL_DISPATCH_PROMPT,
             json: true,
-            models: [chatModels()[0]], // one model only: this call is on the path of every question
+            models: [chatModels()[0]], // I use one model only, because this call is on the path of every question
             maxOutputTokens: 400,
             thinking: "low",
             attemptTimeoutMs: 5000,
@@ -206,10 +206,10 @@ async function parseQueryWithLlmFresh(
     return null;
   }
   if (!parsed || typeof parsed !== "object" || !TOOLS.has(parsed.tool)) return null;
-  // small talk is believed only when the line is small talk; otherwise the original pipeline (the search) answers it
+  // I believe small talk only when the line is small talk; otherwise the original pipeline (the search) answers it
   if (parsed.tool === "conversational" && !CHATTY_LINE.test(q)) return null;
 
-  // Only known parameters, as short strings: nothing the model returns is trusted further than this.
+  // I keep only known parameters, as short strings: I trust nothing the model returns further than this.
   const p = parsed.params && typeof parsed.params === "object" ? parsed.params : {};
   const params: Record<string, any> = { rawQuery: q };
   for (const k of ["doctorName", "department", "qualification", "festival", "month", "place", "topic", "prompt", "query"]) {
@@ -239,14 +239,14 @@ const isGone = (p: Person) => p.status === "retired" || p.status === "transferre
 const deptLabel = (dep: string): string =>
   SCHEDULE.departments.find((d) => d.staffDepartment.toUpperCase() === dep.toUpperCase())?.name ?? nice(dep);
 
-/** Words that are never part of a doctor's name (pronouns, filler, the title, time and token words). */
+/** I list here the words that are never part of a doctor's name (pronouns, filler, the title, time and token words). */
 const NAME_STOP = new Set([
   "dr", "doc", "doctor", "sir", "madam", "mr", "mrs", "ms", "i", "me", "my", "we", "you", "is", "are", "am", "was", "there", "available",
   "can", "could", "see", "meet", "visit", "consult", "with", "without", "a", "an", "the", "token", "after", "before", "please", "at", "in",
   "on", "of", "to", "for", "and", "opd", "today", "tomorrow", "evening", "morning", "pm", "from", "which", "day", "days", "when", "where",
 ]);
 
-/** The name words a person typed, lower-case, without filler. [] means no usable name was given. */
+/** Returns the name words a person typed, lower-case, without filler; [] means no usable name was given. */
 export function nameTokens(raw: unknown): string[] {
   return String(raw ?? "")
     .toLowerCase()
@@ -266,7 +266,7 @@ const nameParts = (p: Person) => p.name.toLowerCase().split(/[^a-z]+/).filter(Bo
 
 /**
  * Doctors whose name matches EVERY typed word as a whole name part (a word of 4+ letters may be the start of a part:
- * "rajeev" = "rajeev", "karma" = "karmakar"; a short word must be exact). No substring matching: "rohit" must not
+ * "rajeev" = "rajeev", "karma" = "karmakar"; a short word must be exact). I do no substring matching: "rohit" must not
  * find "Sarohit". Current doctors win over retired/transferred ones when both match.
  */
 export function findDoctors(raw: unknown): Person[] {
@@ -278,7 +278,7 @@ export function findDoctors(raw: unknown): Person[] {
   return current.length ? current : found;
 }
 
-/** Several doctors fit what was typed: ask which one (never pick the first). */
+/** Several doctors fit what was typed: I ask which one and never pick the first. */
 function whichDoctor(typed: unknown, cands: Person[]): HospitalResult {
   const shown = cands.slice(0, 8);
   const text = `${cands.length} doctors match "${String(typed).trim()}". Please type the full name.`;
@@ -295,12 +295,12 @@ function whichDoctor(typed: unknown, cands: Person[]): HospitalResult {
   };
 }
 
-/** One doctor, or the answer to give instead (not found / which doctor). */
+/** Returns one doctor, or the answer I give instead (not found / which doctor). */
 function resolveDoctor(typed: unknown): { doc: Person } | { answer: HospitalResult } {
   const cands = findDoctors(typed);
   if (cands.length === 1) return { doc: cands[0] };
   if (cands.length > 1) {
-    // the typed words may be the doctor's whole name: then it is exactly one even if another doctor shares a word
+    // the typed words may be the doctor's whole name: then I take it as exactly one even if another doctor shares a word
     const tokens = nameTokens(typed);
     const exact = cands.filter((p) => nameParts(p).length === tokens.length && tokens.every((w) => nameParts(p).includes(w)));
     if (exact.length === 1) return { doc: exact[0] };
@@ -312,18 +312,18 @@ function resolveDoctor(typed: unknown): { doc: Person } | { answer: HospitalResu
 
 /**
  * Hospital executor: clean parameters in, a card out, read only from the hospital data (data/opd_schedule.json and
- * the staff list). It states only what that data says: it never invents hours, rules or room numbers.
+ * the staff list). It states only what that data says: I never let it invent hours, rules or room numbers.
  */
 export function executePureHospital(params: Record<string, any>): HospitalResult | null {
   const { action, employment, qualification, department } = params;
   let { doctorName } = params;
-  // The model may return a name made only of filler ("I"): that is no doctor at all.
+  // The model may return a name made only of filler ("I"): I treat that as no doctor at all.
   if (doctorName && nameTokens(doctorName).length === 0) doctorName = null;
   const raw = String(params.rawQuery || "");
   const askedDayName: string | null = dayFrom(params.weekday) ?? (DAY_IN_TEXT.exec(raw) ? dayFrom(DAY_IN_TEXT.exec(raw)![0]) : null);
   const askedDay = askedDayName ? askedDayName[0].toUpperCase() + askedDayName.slice(1) : null; // "Thursday"
 
-  // 1. A named doctor: schedule, employment or qualification
+  // Step 1: a named doctor: schedule, employment or qualification
   if (doctorName) {
     const r = resolveDoctor(doctorName);
     if ("answer" in r) return r.answer;
@@ -386,7 +386,7 @@ export function executePureHospital(params: Record<string, any>): HospitalResult
     const lines: string[] = [];
 
     if (askedDay) {
-      // the day is checked against EVERY unit the doctor sits in (a doctor may sit in two units on different days)
+      // I check the day against EVERY unit the doctor sits in (a doctor may sit in two units on different days)
       const sits = sittingEntries.some((e) => e.days.includes(askedDay));
       if (sits) {
         const e = sittingEntries.find((x) => x.days.includes(askedDay))!;
@@ -399,7 +399,7 @@ export function executePureHospital(params: Record<string, any>): HospitalResult
     }
     if (timeAsked || askedDay) {
       // Hours and rules exactly as the schedule data states them. The schedule lists the days a doctor sits, NOT
-      // which session (morning / afternoon) of that day, so no yes/no is given for a time of day.
+      // which session (morning / afternoon) of that day, so I give no yes/no for a time of day.
       lines.push(...timingNotes());
       if (timeAsked) lines.push("The schedule lists the days a doctor sits, not the session of the day: please confirm the time at the OPD counter.");
     }
@@ -418,7 +418,7 @@ export function executePureHospital(params: Record<string, any>): HospitalResult
     };
   }
 
-  // 2. Department OPD at a glance
+  // Step 2: Department OPD at a glance
   if (department && (action === "department_opd" || action !== "list_doctors")) {
     const deptStr = String(department).toLowerCase();
     const deptObj = SCHEDULE.departments.find(
@@ -431,7 +431,7 @@ export function executePureHospital(params: Record<string, any>): HospitalResult
     if (deptObj) {
       const dayCode = askedDay ? (askedDay.slice(0, 3).toUpperCase() as Weekday) : null;
       const anyDoctor = deptObj.units.some((u) => OPD_DAYS.some((d) => u.week[d]?.doctors?.length));
-      // A department that has no doctor on any day (the Chest OPD today): say so from the data and point to the
+      // A department that has no doctor on any day (the Chest OPD today): I say so from the data and point to the
       // general OPD the schedule names, instead of printing a table of empty days.
       if (!anyDoctor) {
         const general = SCHEDULE.generalOpd ? ` For general care the schedule lists ${SCHEDULE.generalOpd.name}.` : "";
@@ -520,7 +520,7 @@ export function executePureHospital(params: Record<string, any>): HospitalResult
     }
   }
 
-  // 3. OPD and token timings: exactly as the schedule data states them
+  // Step 3: OPD and token timings, exactly as the schedule data states them
   if (action === "timings") {
     const title = "OPD hours and card registration (tokens)";
     return {
@@ -537,7 +537,7 @@ export function executePureHospital(params: Record<string, any>): HospitalResult
     };
   }
 
-  // 4. Doctor list (permanent / contractual / all), optionally by department and qualification
+  // Step 4: doctor list (permanent / contractual / all), optionally by department and qualification
   if (action === "list_doctors" || !action) {
     let pool = DOCTOR_POOL.filter((p) => !isGone(p));
     if (employment === "permanent") pool = pool.filter((p) => p.employment !== "contractual" && p.status !== "not_on_list");
@@ -546,7 +546,7 @@ export function executePureHospital(params: Record<string, any>): HospitalResult
       const dKey = String(department).toUpperCase();
       pool = pool.filter((p) => (p.department ?? "").toUpperCase().includes(dKey));
     }
-    // Whole-word match on the PRINTED qualification (the hospital engine's rule): "MD" does not match "MDS".
+    // I match the PRINTED qualification as a whole word (the hospital engine's rule): "MD" does not match "MDS".
     if (qualification && qualification !== "any") pool = pool.filter((p) => holdsQualification(p, String(qualification)));
 
     pool.sort((a, b) => (a.department ?? "").localeCompare(b.department ?? "") || a.name.localeCompare(b.name));

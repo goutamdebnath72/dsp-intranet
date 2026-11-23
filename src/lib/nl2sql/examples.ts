@@ -1,9 +1,9 @@
 // src/lib/nl2sql/examples.ts
 //
-// Worked examples shown to the model. SEED_EXAMPLES are hand-written and are
+// These are the worked examples shown to the model. SEED_EXAMPLES are hand-written and are
 // verified by the self-test (each must pass the guard AND run on the test
 // database). CONFIRMED examples are real questions a person ticked as correct
-// (public.nl2sql_log, verdict = 'confirm'); the most similar ones are added to
+// (public.nl2sql_log, verdict = 'confirm'); I add the most similar ones to
 // every prompt -- that is how the system improves with use, with no code change.
 
 import type { SqlClient } from "./types";
@@ -13,9 +13,9 @@ export interface Example {
   question: string;
   sql: string | null;
   understood_as: string;
-  /** Set for "cannot be answered" examples (sql is null). */
+  /** I set this for "cannot be answered" examples (sql is null). */
   unanswerable_reason?: string;
-  /** Set for "not about employees" examples (sql is null). */
+  /** I set this for "not about employees" examples (sql is null). */
   out_of_scope?: boolean;
   source: "seed" | "confirmed";
 }
@@ -284,7 +284,7 @@ function tokens(q: string): Set<string> {
   );
 }
 
-/** Jaccard similarity of the meaningful words of two questions. */
+/** Returns the Jaccard similarity of the meaningful words of two questions. */
 export function similarity(a: string, b: string): number {
   const A = tokens(a);
   const B = tokens(b);
@@ -294,14 +294,16 @@ export function similarity(a: string, b: string): number {
   return inter / (A.size + B.size - inter);
 }
 
-/** Choose up to `k` examples: always the best seeds (they teach the grammar)
- *  plus the most similar confirmed ones (they teach this database's usage). */
+/**
+ * I choose up to `k` examples: always the best seeds (they teach the grammar)
+ *  plus the most similar confirmed ones (they teach this database's usage).
+ */
 export function pickExamples(question: string, confirmed: Example[], k = 5): Example[] {
   const scored = [...SEED_EXAMPLES, ...confirmed]
     .map((e) => ({ e, s: similarity(question, e.question) + (e.source === "confirmed" ? 0.05 : 0) }))
     .sort((x, y) => y.s - x.s);
   const chosen = scored.slice(0, k).map((x) => x.e);
-  // Always keep the two "no SQL" exemplars so the model knows null is legal and when to use each.
+  // I always keep the two "no SQL" exemplars so the model knows null is legal and when to use each.
   const unans = SEED_EXAMPLES.find((e) => e.sql === null && !e.out_of_scope);
   const oos = SEED_EXAMPLES.find((e) => e.sql === null && e.out_of_scope);
   if (unans && !chosen.includes(unans)) chosen[chosen.length - 1] = unans;
@@ -309,7 +311,7 @@ export function pickExamples(question: string, confirmed: Example[], k = 5): Exa
   return chosen;
 }
 
-/** Ticked question/SQL pairs from the log, newest first (best-effort). */
+/** Loads the ticked question/SQL pairs from the log, newest first (best-effort). */
 export async function loadConfirmedExamples(client: SqlClient, limit = 200): Promise<Example[]> {
   try {
     const res = await client.query(

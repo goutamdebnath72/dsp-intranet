@@ -5,23 +5,23 @@
 // The hospital (M&HS) has two cadres of executives with PARALLEL designations. Checked on the live data, 24 Oct 2026, on the main hospital's 63 executives:
 //   medical (40):    Director(M&HS) 1, Joint Director 11, Sr. Deputy Director 13, Asst. Director/Sr. Consultant 4, DMO/Consultant 3, ADMO/Specialist 1, Medical Officer 7
 //   managerial (23): Director In-charge 1, Dy. General Manager 1, Asst. General Manager 4, Sr. Manager 12, Dy. Manager 2, Asst. Manager 3
-//   "Dr" at the start of a name: 0 of the 63. The data does NOT carry the title, so a doctor is never found by name: nlq.employees.is_doctor (the medical track OR doctor_override, step 48b) is the signal.
+//   "Dr" at the start of a name: 0 of the 63. The data does NOT carry the title, so I never find a doctor by name: nlq.employees.is_doctor (the medical track OR doctor_override, step 48b) is the signal.
 // Nothing here knows a title: the track comes from the designation table (dg.track), so a new medical title needs no change.
 
-/** A question about doctors or non-medical executives (the search model then gets DOCTOR_DOC; every other question's prompt is untouched: the prompt has a size limit). */
+/** This is a question about doctors or non-medical executives; only then does the search model get DOCTOR_DOC. I leave every other question's prompt untouched, because the prompt has a size limit. */
 export const isDoctorQuestion = (q: string): boolean =>
   /\b(doctors?|physicians?|non[- ]?medical|not (?:a )?doctors?|medical (?:staff|executives?|cadre)|dnb|drnb|mbbs)\b/i.test(q || "") || /\bdr\b\.?\s*[a-z]/i.test(q || "");
 
 /**
  * A question that names a QUALIFICATION or a LEVEL (DNB, MD, MS, MBBS, B.Tech, MBA, "post graduate", a degree): only then does the model get QUALIFICATION_DOC (the doctor prompt has only about 60 characters of
- * budget to spare, see medicalCadre.selftest.ts). In a doctor question the short letters (MD, MS, DM ...) count; in any other question only words that cannot be a designation do: NOT "graduate" or "diploma"
+ * budget to spare, see medicalCadre.selftest.ts). In a doctor question the short letters (MD, MS, DM ...) count; in any other question I count only words that cannot be a designation: NOT "graduate" or "diploma"
  * alone ("Graduate Engineer Trainee", "Diploma Trainee" are designations of the directory).
  */
 export const isQualificationQuestion = (q: string): boolean =>
   (isDoctorQuestion(q) && /\b(dnb|drnb|mbbs|mch|dm|md|ms|mds|dgo|dpm|dih|mrcog|qualif\w*|degrees?|diplomas?|post[\s-]?graduat\w*|under[\s-]?graduat\w*|graduates?|pg|ug)\b/i.test(q || "")) ||
   /\b(qualif\w*|degrees?|post[\s-]?graduat\w*|under[\s-]?graduat\w*|btech|mtech|mba|mca|bca|llb|llm|bsc|msc|bcom|mcom|phd|dnb|drnb|mbbs)\b/i.test(q || "");
 
-/** "DNB doctors" once came back as ALL 52 doctors (the model used is_doctor): the directory holds no qualification and no degree level. */
+/** "DNB doctors" once came back as ALL 52 doctors (the model used is_doctor), but the directory holds no qualification and no degree level. */
 export const QUALIFICATION_DOC = `QUALIFICATIONS and DEGREE LEVELS (B.Tech, MBA, MCA, graduate, post graduate, PhD, DNB, MD, MS, MBBS ...) are NOT in the directory, and is_doctor is not one: "DNB doctors" is NOT "doctors". Return sql = null with unanswerable_reason = "The employee directory does not record qualifications."
 `;
 
@@ -47,13 +47,13 @@ function isPersonExecutive(p: unknown): boolean {
 }
 
 /**
- * The first line of a list of people:
+ * This is the first line of a list of people:
  * - When both cohorts are present (e.g. C&IT with 18 execs and 7 non-execs):
  *   "25 people found: 18 executives and 7 non-executives."
  * - When only executives are present and doctors/non-medical are mixed (main hospital):
  *   "63 people found: 40 doctors and 23 non-medical."
  * - When a single cohort is present with no sub-cadre: "16 people found."
- * A partly loaded list (more than the page holds) never gets a split: it would count only what is on screen.
+ * I never give a split to a partly loaded list (more than the page holds): it would count only what is on screen.
  */
 export function peopleHeadline(total: number, truncated: boolean, people: ReadonlyArray<unknown> | null | undefined): string {
   const base = `${total.toLocaleString()} ${total === 1 ? "person" : "people"} found`;
@@ -65,7 +65,7 @@ export function peopleHeadline(total: number, truncated: boolean, people: Readon
   const nonExecs = people.length - execs;
   const doctors = people.filter((p) => (p as { isDoctor?: unknown } | null)?.isDoctor === true).length;
 
-  // Split 1: Both executives and non-executives present across the department or plant
+  // Split 1: both executives and non-executives are present across the department or plant
   if (execs > 0 && nonExecs > 0) {
     if (doctors > 0) {
       const nonMedicalExec = execs - doctors;
@@ -75,7 +75,7 @@ export function peopleHeadline(total: number, truncated: boolean, people: Readon
     return `${base}: ${execs} ${execs === 1 ? "executive" : "executives"} and ${nonExecs} non-executive${nonExecs === 1 ? "" : "s"}.`;
   }
 
-  // Split 2: Only executives present, with doctors and non-medical executives
+  // Split 2: only executives are present, with doctors and non-medical executives among them
   if (execs > 0 && doctors > 0 && execs - doctors > 0) {
     const others = execs - doctors;
     return `${base}: ${doctors} ${doctors === 1 ? "doctor" : "doctors"} and ${others} non-medical.`;

@@ -1,6 +1,6 @@
 // src/lib/nl2sql/executor.ts
 //
-// FIRST line of defence: run LLM-written SQL inside a READ ONLY transaction,
+// This is my FIRST line of defence: I run LLM-written SQL inside a READ ONLY transaction,
 // as the nlq_reader role (which can SELECT only from three views), with a
 // statement timeout, a row cap, and an unconditional ROLLBACK. Even if the SQL
 // guard (guard.ts) had a hole, the database itself refuses writes and refuses
@@ -12,11 +12,13 @@ import { stableOrderSql } from "./paging";
 
 export interface ExecOptions {
   rowLimit?: number;
-  /** Rows to skip (for "Show more"): page N starts at N * rowLimit. */
+  /** Rows to skip, used by "Show more": page N starts at N * rowLimit. */
   offset?: number;
   timeoutMs?: number;
-  /** Role to assume for the query. Default "nlq_reader". Pass null only when
-   *  the connection itself already logs in as a restricted role. */
+  /**
+   * Role to assume for the query. The default is "nlq_reader". Pass null only when
+   *  the connection itself already logs in as a restricted role.
+   */
   role?: string | null;
 }
 
@@ -27,9 +29,9 @@ function jsonSafe(v: unknown): unknown {
 }
 
 export async function runReadOnly(client: SqlClient, sql: string, opts: ExecOptions = {}): Promise<QueryResultData> {
-  // Independent of the guard: the SQL is spliced into a wrapper query below,
-  // so text that could close the wrapper early and start a second statement
-  // (semicolon, comment) is refused here too.
+  // This check is independent of the guard: the SQL is spliced into a wrapper query below,
+  // so I refuse here too any text that could close the wrapper early and start a second statement
+  // (semicolon, comment).
   const bare = stripLiterals(sql);
   if (bare.includes(";") || bare.includes("--") || bare.includes("/*")) {
     throw new Error("Only a single statement without comments is allowed.");
@@ -37,7 +39,7 @@ export async function runReadOnly(client: SqlClient, sql: string, opts: ExecOpti
 
   const rowLimit = opts.rowLimit ?? 200;
   const offset = Math.max(0, Math.floor(opts.offset ?? 0));
-  // a total order, so that every page is cut from the same sequence (see paging.ts); the SQL as written when that is impossible
+  // I want a total order, so that every page is cut from the same sequence (see paging.ts); when that is impossible I keep the SQL as written.
   const ordered = stableOrderSql(sql);
   const inner = ordered ?? sql;
   const timeoutMs = Math.max(100, Math.floor(opts.timeoutMs ?? 5000));
@@ -45,9 +47,9 @@ export async function runReadOnly(client: SqlClient, sql: string, opts: ExecOpti
 
   await client.query("BEGIN READ ONLY");
   try {
-    // ONE round trip for the whole setup (it was five: the database is ~100 ms away, so four trips were ~0.4 s on every answer). set_config(name, value, true) is the transaction-local form of SET LOCAL and takes
+    // I do the whole setup in ONE round trip (it was five: the database is ~100 ms away, so four trips were ~0.4 s on every answer). set_config(name, value, true) is the transaction-local form of SET LOCAL and takes
     // the role like SET LOCAL ROLE does (proved identical on the real database: same role, search path, timeouts, read-only state, the same refusal on public tables, and all of it gone after the ROLLBACK).
-    // The order is kept: the timeouts first, the role, then the search path. Every value is a bound parameter, none is spliced into the text.
+    // I keep the order: the timeouts first, the role, then the search path. Every value is a bound parameter, and none is spliced into the text.
     const settings: Array<[string, string]> = [
       ["statement_timeout", String(timeoutMs)],
       ["lock_timeout", "1000"],

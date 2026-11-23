@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/calculator/calcBase.selftest.ts
-// The number bases of the scientific calculator: BIN, OCT, HEX and DEC; whole numbers only, nothing rounded; the keys a base does not have do nothing; the typed line that opens the calculator on a number in a base.
+// This tests the number bases of the scientific calculator: BIN, OCT, HEX and DEC; whole numbers only, nothing rounded; the keys a base does not have do nothing; the typed line that opens the calculator on a number in a base.
 import { initialState, press, setBase, setMode, startAt, enabled, keyFor, recall, inAllBases, displayNumber, pendingText, historyResult, toBaseText, type Base, type CalcState, type Key } from "./calcEngine";
 import { parseBaseLine } from "./numberBase";
 import { detectTool } from "@/lib/tools/detect";
@@ -8,7 +8,7 @@ let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 
 const MAP: Record<string, Key> = { "+": "add", "-": "sub", "*": "mul", "/": "div", "=": "eq", "(": "lp", ")": "rp", "^": "pow", "~": "neg", ".": "." };
-/** press a run of keys: digits, A-F (as digits when the calculator is in HEX), the signs, and words for the others */
+/** Presses a run of keys: digits, A-F (as digits when the calculator is in HEX), the signs, and words for the others. */
 function run(keys: string, from: CalcState): CalcState {
   let s = from;
   for (const tok of keys.trim().split(/\s+/)) {
@@ -55,7 +55,7 @@ ok("the history keeps the line in its own base: HEX FF + 1 = is 'FF + 1 =' with 
 ok("a decimal history line is shown as before (the Indian grouping)", (() => { const s = run("1 0 0 0 0 0 0 + 1 =", sci()); return historyResult(s.history[0]) === "10,00,001"; })());
 ok("a history result put back in another base is written in it (256 in HEX is 100); a fraction put back in BIN is an error", recall(sci(16), "256").entry === "100" && recall(sci(2), "2.5").error === "Whole numbers only" && recall(initialState("sci"), "256").entry === "256");
 
-// the calculator opened on a value
+// Checks the calculator opened on a value.
 ok("startAt opens the scientific calculator on the value in the base: 255 in HEX is FF; a value that does not fit the base opens in decimal", (() => { const a = startAt(16, 255), b = startAt(2, 2.5); return a.mode === "sci" && a.base === 16 && a.entry === "FF" && b.base === 10 && b.entry === "2.5"; })());
 ok("DEC is unchanged by all this: 12 + 30 = 42 and 0.1 + 0.2 = 0.3 in decimal, as before", run("1 2 + 3 0 =", sci()).entry === "42" && press(press(press(press(press(press(sci(), "0"), "."), "1"), "add"), "0"), ".").entry === "0.");
 

@@ -1,6 +1,6 @@
 // src/lib/circulars/admin/store.ts
 //
-// CIRCULAR MANAGER DATABASE OPERATIONS (Modular Facility Kit).
+// The CIRCULAR MANAGER DATABASE OPERATIONS live here (Modular Facility Kit).
 // Protected by:
 //   - pg_advisory_xact_lock(hashtext('circulars'))
 //   - authorityOf / begin (HOD or authorised delegate)

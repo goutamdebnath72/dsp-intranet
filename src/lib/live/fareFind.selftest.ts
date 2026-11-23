@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/fareFind.selftest.ts
-// "Find a fare": the trains that go from Durgapur to a station, from the saved fares and the timetable.
+// This tests "Find a fare": the trains that go from Durgapur to a station, from the saved fares and the timetable.
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
 import { buildFind, cheapest, trainsOf } from "./fareFind";
@@ -27,7 +27,7 @@ const noTable = buildFind({ code: "ASN", name: "A" }, [row("13005", "Amritsar Ma
 ok("with no timetable the trains still show with the names saved with their fares, without times, in number order", noTable.trains.map((t) => t.number).join() === "12019,13005,22303" && noTable.trains[1].name === "Amritsar Mail (saved)" && noTable.trains.every((t) => t.departure === null && t.label === "" && t.endsAt === null));
 ok("a station nobody has a saved fare to has no answer", buildFind({ code: "XXX", name: "X" }, [], rw, cov, now) === null);
 ok("the cheapest fare of a train is its lowest class; a train with none sorts last (Infinity)", cheapest(a.trains.find((t) => t.number === "12019")!) === 400 && cheapest(a.trains.find((t) => t.number === "13005")!) === 150 && cheapest({ ...a.trains[0], classes: [] }) === Infinity);
-// the Asansol tab's finder: the same logic over Asansol's timetable (two lists, not groups by direction)
+// The Asansol tab's finder: the same logic over Asansol's timetable (two lists, not groups by direction).
 const as = parseAsansol(JSON.parse(readFileSync("src/lib/live/fixtures/railradar-asn-sample.json", "utf8")), JSON.parse(readFileSync("src/lib/live/fixtures/railradar-dgr-all-sample.json", "utf8")), { minAsn: 1, minDgr: 1, minPass: 1 });
 const asnRows = [row("12302", "Rajdhani saved", [cl("3A", 965)]), row("13287", "South Bihar saved", [cl("SL", 400)]), row("63541", "MEMU saved", [cl("UR", 20, "table")])];
 const fa = buildFind({ code: "HWH", name: "Howrah Junction" }, asnRows, as, cov, now)!;

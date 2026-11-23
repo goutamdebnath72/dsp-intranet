@@ -2,9 +2,9 @@
 
 // src/hooks/useCircularAnswer.ts
 //
-// ANSWER FIRST (step 29a). When the plain search has found documents, ask /api/ai-search/answer to read them and write the answer
+// Answer first (step 29a). When the plain search has found documents, I ask /api/ai-search/answer to read them and write the answer
 // (verified word for word on the server). The documents are shown at once; the answer appears above them when it is ready, or
-// nothing appears if the text does not prove an answer. Off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true.
+// nothing appears if the text does not prove an answer. This is off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pickAnswerItems, type CircularAnswer, type PassageType } from "@/lib/search/circularAnswer";
@@ -14,19 +14,19 @@ export type AnswerStatus = "idle" | "loading" | "done";
 export interface AnswerState {
   status: AnswerStatus;
   answer: CircularAnswer | null;
-  /** the summary a reply carries when no precise answer could be proved (documentSummary.ts); null while loading or when there is no document text */
+  /** The summary a reply carries when I could not prove a precise answer (documentSummary.ts); null while loading or when there is no document text. */
   summary?: DocSummary | null;
 }
 
 const IDLE: AnswerState = { status: "idle", answer: null };
 
-/** The documents a reply is summarised from when the match is not strong enough to read for an answer: the best one or two circulars or announcements, whatever their match. */
+/** These are the documents I summarise a reply from when the match is not strong enough to read for an answer: the best one or two circulars or announcements, whatever their match. */
 export function pickSummaryItems(results: { id: number; type: string }[], max = 2): { type: PassageType; id: number }[] {
   return results.filter((r) => r.type === "circular" || r.type === "announcement").slice(0, max).map((r) => ({ type: r.type as PassageType, id: r.id }));
 }
 const TIMEOUT_MS = 50_000;
 
-/** The browser reads this literal, so Next can replace it when the page is built. */
+/** I write this as a literal because the browser reads it, so Next can replace it when the page is built. */
 export function answerFirstEnabled(): boolean {
   return (process.env.NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST ?? "").trim().toLowerCase() === "true";
 }
@@ -36,7 +36,7 @@ export function useCircularAnswer(input: {
   query: string;
   results: { id: number; type: string; matchPercentage?: unknown; similarity?: number | null }[];
   mode: string | null;
-  /** false for a search for a person (the circulars that mention a name are not what was asked for): no summary is made for it */
+  /** false for a search for a person (the circulars that mention a name are not what was asked for): I make no summary for it */
   allowSummary?: boolean;
 }): AnswerState {
   const { enabled, query, results, mode } = input;
@@ -44,7 +44,7 @@ export function useCircularAnswer(input: {
   const picked = useMemo(() => {
     if (!enabled || mode !== "semantic") return { items: [] as { type: PassageType; id: number }[], strong: false };
     const strongItems = pickAnswerItems(results);
-    // a strong match is read for a precise answer; any other reply that found a circular or an announcement is summarised (mandatory: no reply shows a bare title)
+    // My rule: a strong match is read for a precise answer; any other reply that found a circular or an announcement is summarised (mandatory: no reply shows a bare title)
     return strongItems.length ? { items: strongItems, strong: true } : { items: allowSummary ? pickSummaryItems(results) : [], strong: false };
   }, [enabled, mode, results, allowSummary]);
   const items = picked.items;
@@ -71,7 +71,7 @@ export function useCircularAnswer(input: {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setState({ key, value: { status: "done", answer: data?.answer ?? null, summary: data?.summary ?? null } }))
       .catch(() => {
-        // an abort caused by a NEW search must not overwrite the new search's state; a timeout or a real failure ends this one quietly
+        // An abort caused by a NEW search must not overwrite the new search's state; I let a timeout or a real failure end this one quietly.
         if (timedOut || !ctl.signal.aborted) setState({ key, value: { status: "done", answer: null } });
       })
       .finally(() => clearTimeout(timer));

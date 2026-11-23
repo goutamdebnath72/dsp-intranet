@@ -5,15 +5,15 @@ import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
 import { Announcement, AnnouncementReadStatus } from "@/lib/db/models";
 import { DateTime } from "luxon";
-import { ANNOUNCEMENT_NEW_THRESHOLD_DAYS } from "@/lib/constants"; // ✅ Single source of truth
+import { ANNOUNCEMENT_NEW_THRESHOLD_DAYS } from "@/lib/constants"; // This stays the single source of truth
 
-// 🚨 MAXIMUM CACHE DESTRUCTION:
+// Important: maximum cache destruction.
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
 /**
- * GET: Fetch all announcements and calculate "New" chip status securely.
+ * GET: I fetch all announcements and calculate the "New" chip status securely.
  */
 export async function GET(request: Request) {
   const authOptions = await getAuthOptions();
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       readIds = new Set(readStatuses.map((r) => r.announcementId));
     }
 
-    // The PDFs of the announcements: name and size only (never the address in storage). A database with no table for them yet simply has none.
+    // For the PDFs of the announcements I take the name and size only, never the address in storage. A database with no table for them yet simply has none.
     const files = new Map<number, { name: string; bytes: number }>();
     try {
       const rows = (await dataSource.query(`SELECT announcement_id, name, bytes FROM public.announcement_file`)) as Array<Record<string, unknown>>;
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     }
 
     const now = DateTime.now();
-    // ✅ Uses the token from lib/constants.ts
+    // I use the token from lib/constants.ts.
     const thresholdDate = now.minus({ days: ANNOUNCEMENT_NEW_THRESHOLD_DAYS });
 
     const data = announcements.map((ann) => {
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
       else if (rawDate instanceof Date)
         parsedDate = DateTime.fromJSDate(rawDate);
 
-      // Logic: Hide chip if expired (older than threshold) OR if already read by user
+      // My logic: hide the chip if it is expired (older than the threshold) OR if the user has already read it.
       const isExpired = parsedDate < thresholdDate;
       const hasUserReadIt = userId ? readIds.has(ann.id) : false;
 
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
 }
 
 /**
- * POST: moved to the Announcement Manager (src/lib/announcements/admin). The old handler only tested the database role
+ * POST: I moved it to the Announcement Manager (src/lib/announcements/admin). The old handler only tested the database role
  * "admin": no facility authority, no lock, no audit row. Publishing now happens only there.
  */
 export async function POST(_request: Request) {

@@ -33,37 +33,37 @@ function world(o: { answers?: "all" | "none" | "firstThenAway"; savedRows?: stri
 }
 
 void (async () => {
-// 1. everything answers: fresh figures, no 'saved', and every quote saved
+// 1. Everything answers: I expect fresh figures, no 'saved', and every quote saved.
 {
   const w = world();
   const d = await marketsAnswer(w.deps);
   ok("when Yahoo answers, the figures are fresh, nothing is marked saved, and every quote is saved for later", d.saved === undefined && d.indices.length === 3 && d.stocks.length === WATCHLIST.length && d.missing.length === 0 && w.puts.length === 1 && w.puts[0].length === ALL.length);
 }
-// 2. the source turns us away at the first symbol: the saved copy fills the card; no more symbols are asked
+// 2. The source turns us away at the first symbol: the saved copy fills the card, and no more symbols are asked.
 {
   const w = world({ answers: "none", savedRows: ALL.map((x) => x.symbol) });
   const d = await marketsAnswer(w.deps);
   ok("when Yahoo turns us away the saved copy is shown, all of it marked saved with the time it was received; Yahoo is asked once, not for every symbol", d.saved?.names.length === ALL.length && d.saved?.at === "2026-11-13T10:30:00.000Z" && d.indices[0].price === 50 && w.asked.length === 1 && w.puts.length === 0 && d.missing.length === 0, JSON.stringify({ n: d.saved?.names.length, asked: w.asked.length }));
 }
-// 3. a mix: the first symbol fresh, the others from the saved copy; the oldest copy time is given
+// 3. A mix: the first symbol is fresh, the others come from the saved copy, and the oldest copy time is given.
 {
   const w = world({ answers: "firstThenAway", savedRows: ALL.slice(1).map((x) => x.symbol) });
   const d = await marketsAnswer(w.deps);
   ok("a mix of fresh and saved: only the saved ones are named, the fresh one is kept and saved", d.saved?.names.length === ALL.length - 1 && !d.saved?.names.includes("Sensex") && d.indices[0].price === 200 && d.indices[1].price === 50 && w.puts[0]?.length === 1);
 }
-// 4. a quote in memory that is older than five minutes counts as a copy; one younger than five minutes is used without asking
+// 4. A quote in memory that is older than five minutes counts as a copy; one younger than five minutes is used without asking.
 {
   const w = world({ answers: "none", kept: { "^BSESN": { price: 77, ageMs: 10 * 60 * 1000 }, "^NSEI": { price: 88, ageMs: 60 * 1000 } }, savedRows: ["^NSEBANK"] });
   const d = await marketsAnswer(w.deps);
   ok("memory: a quote younger than five minutes is used as fresh without asking; an older one is a copy (marked); a saved row fills another; the rest are missing", d.indices.find((x) => x.name === "Nifty 50")?.price === 88 && !d.saved?.names.includes("Nifty 50") && !!d.saved?.names.includes("Sensex") && !!d.saved?.names.includes("Nifty Bank") && d.missing.length === WATCHLIST.length && QUOTE_TTL_MS === 5 * 60 * 1000, JSON.stringify(d.saved));
 }
-// 5. the newer of a memory copy and a saved row wins
+// 5. The newer of a memory copy and a saved row wins.
 {
   const w = world({ answers: "none", kept: { "^BSESN": { price: 77, ageMs: 10 * 60 * 1000 } }, savedRows: ["^BSESN"] });
   const d = await marketsAnswer(w.deps);
   ok("the newer of the copy in memory (10 minutes old) and the saved row (two days old) is shown", d.indices[0].price === 77);
 }
-// 6. nothing at all is an error; a store that fails does not break the answer
+// 6. Nothing at all is an error, but a store that fails must not break the answer.
 {
   let threw = "";
   try { await marketsAnswer(world({ answers: "none" }).deps); } catch (e) { threw = (e as Error).message; }

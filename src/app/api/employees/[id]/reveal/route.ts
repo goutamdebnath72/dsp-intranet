@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  *
  * Returns the UNMASKED value of one field of one employee (mobile, e-mail, SAIL P.No., ticket number) AND writes an audit row
  * recording who revealed it (viewer ticket), the viewer's IP, and the time (the field is logged as mobile, email, sailpno or ticket).
- * Login-gated. The P.No. is also the first password, so its reveals have a cap of their own (src/lib/security/revealCap.ts).
+ * Login-gated. The P.No. is also the first password, so I gave its reveals a cap of their own (src/lib/security/revealCap.ts).
  */
 export async function POST(
   request: Request,
@@ -49,17 +49,17 @@ export async function POST(
   try {
     const ds = await getDb();
 
-    // A CAP, so that the directory cannot be copied out one reveal at a time: the audit table is the counter (src/lib/security/revealCap.ts)
+    // A CAP, so that the directory cannot be copied out one reveal at a time: the audit table is the counter (src/lib/security/revealCap.ts).
     if (!(await mayReveal((sql, params) => ds.query(sql, params as never[]), String(viewerTicketNo)))) {
       return NextResponse.json({ error: "You have revealed a great many contact details in the last hour. Please try again later." }, { status: 429, headers: { "Retry-After": "600", "Cache-Control": "no-store" } });
     }
 
-    // The P.No. is the first password: a cap of its own, far below the general one.
+    // The P.No. is the first password, so it gets a cap of its own, far below the general one.
     if (field === "sailpno" && !(await mayRevealPno((sql, params) => ds.query(sql, params as never[]), String(viewerTicketNo)))) {
       return NextResponse.json({ error: "You have revealed a great many personal numbers in the last hour. Please try again later." }, { status: 429, headers: { "Retry-After": "900", "Cache-Control": "no-store" } });
     }
 
-    // Fetch the target employee's contact, ticket and P.No. A card with no login account behind it has the id "roster:<n>" (the roster row), which has a ticket and a P.No. but no contact.
+    // I fetch the target employee's contact, ticket and P.No. A card with no login account behind it has the id "roster:<n>" (the roster row), which has a ticket and a P.No. but no contact.
     const rosterId = /^roster:(\d{1,9})$/.exec(viewedUserId)?.[1];
     const rows = rosterId
       ? await ds.query(`SELECT NULL::text AS id, ticket_no AS "ticketNo", NULL::text AS "contactNo", NULL::text AS email, sail_pno AS "sailPNo" FROM public.employee_roster WHERE id = $1 LIMIT 1`, [Number(rosterId)])
@@ -74,7 +74,7 @@ export async function POST(
     const emp = rows[0];
     const value = field === "mobile" ? emp.contactNo : field === "email" ? emp.email : field === "sailpno" ? emp.sailPNo : emp.ticketNo;
 
-    // Write the audit row. A mobile or e-mail reveal is not blocked by a log failure (we try, and say so in the server log); a P.No. reveal IS: it is the first password, and the log is also what counts the cap.
+    // Write the audit row. A log failure does not block a mobile or e-mail reveal (I try, and say so in the server log); a P.No. reveal IS blocked: it is the first password, and the log is also what counts the cap.
     let logged = true;
     try {
       await ds.query(
@@ -99,7 +99,7 @@ export async function POST(
       return NextResponse.json({ error: "The personal number could not be shown just now. Please try again." }, { status: 503, headers: { "Cache-Control": "no-store" } });
     }
 
-    // Retention is handled by a scheduled pg_cron job (see setup SQL), so no
+    // A scheduled pg_cron job handles retention (see setup SQL), so I do no
     // per-request purge here.
 
     return NextResponse.json({ field, value: value || null });

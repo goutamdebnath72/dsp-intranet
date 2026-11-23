@@ -1,4 +1,4 @@
-// src/lib/nl2sql/feedback.ts -- a Yes/No on any omnibar answer (best-effort; never breaks the page).
+// src/lib/nl2sql/feedback.ts -- a Yes/No on any omnibar answer. It is best-effort and I never let it break the page.
 import type { SqlClient } from "./types";
 import { normalizeQuestion } from "./text";
 import { recordVerdict } from "./log";
@@ -11,9 +11,9 @@ export interface FeedbackInput {
   verdict: "yes" | "no";
   reasonCode?: ReasonCode | null;
   note?: string | null;
-  /** The nl2sql_log row of the answer, when a model-written (or cached) answer was rated. */
+  /** Holds the nl2sql_log row of the answer, when a model-written (or cached) answer was rated. */
   nl2sqlLogId?: number | null;
-  /** 1 for the first answer, 2 for the second attempt after a "No", ... */
+  /** 1 for the first answer, 2 for the second attempt after a "No", and so on. */
   attempt?: number;
 }
 
@@ -38,7 +38,7 @@ export function parseFeedback(body: any, userKey: string | null): FeedbackInput 
   };
 }
 
-/** Stores the click; for model-written / cached answers it also sets the verdict on the log row (the learning loop reads that). */
+/** Stores the click; for model-written / cached answers it also sets the verdict on the log row, because the learning loop reads that. */
 export async function recordFeedback(client: SqlClient, f: FeedbackInput): Promise<{ id: number | null; verdictRecorded: boolean }> {
   let id: number | null = null;
   try {
@@ -58,7 +58,7 @@ export async function recordFeedback(client: SqlClient, f: FeedbackInput): Promi
   return { id, verdictRecorded };
 }
 
-/** At most this many votes per person per hour (a brake on accidents and on abuse). */
+/** I allow at most this many votes per person per hour (a brake on accidents and on abuse). */
 export const VOTES_PER_HOUR = 30;
 
 export async function countRecentVotes(client: SqlClient, userKey: string): Promise<number> {
@@ -74,8 +74,8 @@ export async function countRecentVotes(client: SqlClient, userKey: string): Prom
 }
 
 /**
- * Takes back a vote. Only the person who cast it can: their feedback row is removed and the verdict
- * on the answer's log row is cleared, so the vote stops counting (votes.ts only counts rows with a verdict).
+ * Takes back a vote. Only the person who cast it can: I remove their feedback row and clear the verdict
+ * on the answer's log row, so the vote stops counting (votes.ts only counts rows with a verdict).
  */
 export async function undoFeedback(
   client: SqlClient,

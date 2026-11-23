@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-// --- Ensure all relevant icons are imported ---
+// --- All the relevant icons are imported here ---
 import {
   BookUser,
   Fingerprint,
@@ -36,13 +36,13 @@ import {
   MonitorSmartphone,
 } from "lucide-react";
 import { motion } from "framer-motion";
-// --- REMOVE: No longer importing from links.js ---
+// --- Removed: I no longer import from links.js ---
 // import { links } from "@/lib/links";
 
-// --- MODIFIED: Define the LinkType based on the error message (Prisma type) ---
+// --- I define the LinkType from the error message (Prisma type) ---
 type LinkType = {
   id: number;
-  createdAt: Date; // Keep or remove based on whether you actually use it
+  createdAt: Date; // Keep or remove this depending on whether you actually use it
   title: string;
   subtitle: string | null; // Allow null
   href: string;
@@ -50,7 +50,7 @@ type LinkType = {
   category: string;
 };
 
-// --- Update iconMap ---
+// --- I update iconMap ---
 const iconMap: { [key: string]: React.ElementType } = {
   BookUser,
   Fingerprint,
@@ -86,16 +86,16 @@ const iconMap: { [key: string]: React.ElementType } = {
 };
 
 type QuickLinksProps = {
-  // Use the explicitly defined LinkType
+  // I use the explicitly defined LinkType
   quickLinksData: LinkType[];
-  onCircularsClick: () => void; // Function to open the modal
+  onCircularsClick: () => void; // The function that opens the modal
 };
 
 const QuickLinks: React.FC<QuickLinksProps> = ({
   quickLinksData,
   onCircularsClick,
 }) => {
-  // Filter for quick links directly here if not pre-filtered by parent
+  // I filter for quick links directly here in case the parent has not pre-filtered them
   const filteredLinks = quickLinksData.filter(
     (link) => link.category === "quicklink"
   );
@@ -113,18 +113,18 @@ const QuickLinks: React.FC<QuickLinksProps> = ({
 
       <nav className="flex-1 overflow-y-auto group scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent hover:scrollbar-thumb-neutral-400/50 scroll-smooth pr-2">
         {" "}
-        {/* Added pr-2 */}
+        {/* I added pr-2 */}
         <ul className="space-y-2 pb-2">
           {filteredLinks.map((link) => {
-            // --- MODIFIED: Handle potentially null icon ---
+            // --- I handle an icon that may be null ---
             const IconComponent = link.icon
               ? iconMap[link.icon as keyof typeof iconMap]
               : null;
 
-            // Special handling for the "Circular" button
+            // I handle the "Circular" button as a special case
             if (link.title === "Circular") {
               return (
-                // Use title as key since ID might not be unique if data source changes
+                // I use the title as the key because the ID might not be unique if the data source changes
                 <li key={link.title}>
                   <button
                     onClick={onCircularsClick}
@@ -139,7 +139,7 @@ const QuickLinks: React.FC<QuickLinksProps> = ({
                     )}
                     <span>
                       {link.title}
-                      {/* Check if subtitle is not null before rendering */}
+                      {/* I check that the subtitle is not null before rendering */}
                       {link.subtitle && (
                         <span className="text-xs text-neutral-500 ml-1">
                           {link.subtitle}
@@ -151,11 +151,11 @@ const QuickLinks: React.FC<QuickLinksProps> = ({
               );
             }
 
-            // Render all other links as standard anchor tags
+            // All other links I render as standard anchor tags
             return (
               <li key={link.title}>
                 {" "}
-                {/* Use title as key */}
+                {/* I use the title as the key */}
                 <a
                   href={link.href}
                   target={link.href.startsWith("http") ? "_blank" : "_self"}
@@ -171,7 +171,7 @@ const QuickLinks: React.FC<QuickLinksProps> = ({
                   )}
                   <span>
                     {link.title}
-                    {/* Check if subtitle is not null before rendering */}
+                    {/* I check that the subtitle is not null before rendering */}
                     {link.subtitle && (
                       <span className="text-xs text-neutral-500 ml-1">
                         {link.subtitle}

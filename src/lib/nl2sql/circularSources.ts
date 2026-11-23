@@ -1,9 +1,9 @@
 // src/lib/nl2sql/circularSources.ts
 //
-// The "Source" line under a health check-up answer: which circular(s) the rows were read from, and on which page each listed person stands, so that
-// a click opens the circular in the viewer at that page. The question-answering model is not asked for any of this (it would be one more thing for it
-// to forget); the SYSTEM looks it up from what the answer returned: the circular label is a column of every check-up answer, and the page comes
-// from the same view. Anything that goes wrong gives NO source line; the answer itself is never affected.
+// This builds the "Source" line under a health check-up answer: which circular(s) the rows were read from, and on which page each listed person stands,
+// so that a click opens the circular in the viewer at that page. I do not ask the question-answering model for any of this (it would be one more thing for it to forget);
+// the SYSTEM looks it up from what the answer returned: the circular label is a column of every check-up answer, and the page comes from the same view.
+// Anything that goes wrong gives NO source line; the answer itself is never affected.
 import type { CircularSource } from "./clientTypes";
 import { circularLabel } from "../search/circularLabels";
 
@@ -11,11 +11,11 @@ export type RunQuery = (sql: string, params: unknown[]) => Promise<Array<Record<
 
 export interface SourceInfo {
   sources: CircularSource[];
-  /** names of the people in the answer that HR does not know (their ticket is shown as printed), in the order of the answer */
+  /** Names of the people in the answer that HR does not know (their ticket is shown as printed), in the order of the answer. */
   unconfirmed: string[];
 }
 
-/** The sentence under the Source line when someone listed is not confirmed against HR; null when everybody is. */
+/** Builds the sentence under the Source line for when someone listed is not confirmed against HR; returns null when everybody is. */
 export function unconfirmedNote(unconfirmed: string[], listed: number): string | null {
   const n = unconfirmed.length;
   if (n === 0) return null;
@@ -35,7 +35,7 @@ export async function buildSourceInfo(columns: string[], rows: Array<Record<stri
   const none: SourceInfo = { sources: [], unconfirmed: [] };
   try {
     if (!columns.includes("circular") || rows.length === 0) return none;
-    // the circulars in the answer, in the order they first appear
+    // The circulars in the answer, kept in the order they first appear.
     const labels: string[] = [];
     for (const r of rows) {
       const l = str(r.circular);
@@ -54,7 +54,7 @@ export async function buildSourceInfo(columns: string[], rows: Array<Record<stri
       if (label && Number.isInteger(id) && id > 0 && !byLabel.has(label)) byLabel.set(label, { id, title: str(m.circular_title) ?? label });
     }
 
-    // the page of each person in the answer: found by ticket when the answer has one, else by name
+    // I find the page of each person in the answer by ticket when the answer has one, else by name.
     const tickets = [...new Set(rows.map((r) => str(r.ticket_no)).filter((x): x is string => !!x))];
     const names = [...new Set(rows.map((r) => str(r.name)).filter((x): x is string => !!x))];
     let found: Array<Record<string, unknown>> = [];
@@ -99,8 +99,8 @@ export async function buildSourceInfo(columns: string[], rows: Array<Record<stri
 }
 
 /**
- * A sentence for when an answer is empty: health check-up schedules whose circular was uploaded but whose rows are NOT in the system (the upload
- * could not finish reading them, see circular_ingest_log), so a person is told why instead of being left to wonder. null when there are none, and when
+ * I use this sentence when an answer is empty: health check-up schedules whose circular was uploaded but whose rows are NOT in the system (the upload
+ * could not finish reading them, see circular_ingest_log), so a person is told why instead of being left to wonder. Returns null when there are none, and when
  * anything goes wrong (the log table may not exist yet).
  */
 export async function pendingScheduleNote(run: RunQuery): Promise<string | null> {
@@ -126,7 +126,7 @@ export async function pendingScheduleNote(run: RunQuery): Promise<string | null>
 
 /**
  * The ticket numbers a health check-up question is about: the ones the SQL that ran filters on (ticket_no = '228757', or an IN list), and, when the
- * SQL has none, six-digit numbers in the question itself. At most three.
+ * SQL has none, I take six-digit numbers from the question itself. At most three.
  */
 export function ticketsAsked(question: string, sql: string): string[] {
   const out: string[] = [];
@@ -140,7 +140,7 @@ export function ticketsAsked(question: string, sql: string): string[] {
 
 const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-/** The schedule a question asked about, as the schedules are named ("January 2025"), read from the SQL that ran; null when the SQL does not name one. */
+/** The schedule a question asked about, named the way the schedules are named ("January 2025") and read from the SQL that ran; returns null when the SQL does not name one. */
 export function scheduleAsked(sql: string): string | null {
   const text = sql || "";
   const named = /\bschedule\s*=\s*'([A-Za-z]+ \d{4})'/i.exec(text);
@@ -153,9 +153,9 @@ export function scheduleAsked(sql: string): string | null {
 }
 
 /**
- * For an EMPTY health check-up answer about a ticket: said the way a person would say it. What was asked comes first ("Ticket 228757 is not on the
- * January 2025 health check-up list."), then who the ticket belongs to (the HR directory) and every list it IS on, so that an empty answer is never a
- * dead end. null when there is nothing to say or anything goes wrong (the reason is written to the server log; the answer then stays as it was).
+ * I use this for an EMPTY health check-up answer about a ticket, so that it is said the way a person would say it. What was asked comes first ("Ticket 228757 is not on the
+ * January 2025 health check-up list."), then who the ticket belongs to (the HR directory) and every list it IS on, so an empty answer is never a
+ * dead end. Returns null when there is nothing to say or anything goes wrong (the reason is written to the server log; the answer then stays as it was).
  */
 export async function ticketLookupNote(run: RunQuery, tickets: string[], askedLabel: string | null = null): Promise<string | null> {
   try {
@@ -177,7 +177,7 @@ export async function ticketLookupNote(run: RunQuery, tickets: string[], askedLa
     }
     return parts.length ? parts.join(" ") : null;
   } catch (e) {
-    // The answer stays as it was, but the reason is written to the server log: a silent failure here once hid a wrong query.
+    // The answer stays as it was, but I write the reason to the server log: a silent failure here once hid a wrong query.
     console.warn(`TICKET LOOKUP: could not add who the ticket belongs to (${String((e as Error)?.message ?? e).split("\n")[0]})`);
     return null;
   }
@@ -185,7 +185,7 @@ export async function ticketLookupNote(run: RunQuery, tickets: string[], askedLa
 
 /**
  * The whole text of an EMPTY health check-up answer. `person` is the ticket sentence (or null), `askedLabel` the schedule the question named (or null),
- * `have` the schedules that exist. The list of schedules is given only when it helps: when the month asked about does not exist, or when nothing
+ * `have` the schedules that exist. I give the list of schedules only when it helps: when the month asked about does not exist, or when nothing
  * else can be said.
  */
 export function emptyScheduleAnswer(args: { person: string | null; askedLabel: string | null; have: string[] }): string {

@@ -1,8 +1,8 @@
 // src/tools/railway/Fares.tsx
 //
-// THE FARES OF ONE TRAIN, opened from the "Fares" button on its row. FareBox asks the server (src/app/api/live/railway-fare) only when it is opened: the answer is the SAVED fares of the train (database, src/lib/live/fareStore.ts) with the date they were received, said first by ReceivedLine, because the paid fare service is used for one month only; FareTable is the
-// plain picture of an answer. The words are the point: the figures are the railway reservation system's own for the day named, called APPROXIMATE (they can differ on the day), the source is named and linked, the unreserved
-// fare is said to be missing (never made up) and a class the train does not have is not listed.
+// THE FARES OF ONE TRAIN, opened from the "Fares" button on its row. FareBox asks the server (src/app/api/live/railway-fare) only when it is opened: the answer is the SAVED fares of the train (database, src/lib/live/fareStore.ts) with the date they were received, said first by ReceivedLine, because I use the paid fare service for one month only; FareTable is the
+// plain picture of an answer. The words are the point: the figures are the railway reservation system's own for the day named, called APPROXIMATE (they can differ on the day), the source is named and linked, I say the unreserved
+// fare is missing (and never make it up), and a class the train does not have is not listed.
 "use client";
 
 import React, { useState } from "react";
@@ -16,27 +16,27 @@ import { RAILRADAR_SITE } from "@/lib/live/railway";
 import { stationLabel } from "./stations";
 
 export const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
-/** the starting station of a fare: Durgapur, or Asansol for the trains of the Asansol tab */
+/** The starting station of a fare: Durgapur, or Asansol for the trains of the Asansol tab */
 export type FareFrom = "DGR" | "ASN";
 export const originName = (from: string | undefined): string => (from === "ASN" ? "Asansol" : "Durgapur");
 const fromQuery = (from: FareFrom) => (from === "ASN" ? "&from=ASN" : "");
 
 const when = (iso: string) => DateTime.fromISO(iso, { zone: "Asia/Kolkata" }).toFormat("ccc d LLL yyyy");
 
-/** how long ago the fares were received, in whole days of Indian time ("today", "yesterday", "5 days ago") */
+/** How long ago the fares were received, in whole days of Indian time ("today", "yesterday", "5 days ago") */
 export function daysAgo(receivedAt: string, now: DateTime = DateTime.now()): { n: number; text: string } {
   const a = DateTime.fromISO(receivedAt).setZone("Asia/Kolkata").startOf("day");
   const n = Math.max(0, Math.round(now.setZone("Asia/Kolkata").startOf("day").diff(a, "days").days));
   return { n, text: n === 0 ? "today" : n === 1 ? "yesterday" : `${n} days ago` };
 }
 
-/** fares older than this many days are called old on the card, even while the service is refreshing them */
+/** Fares older than this many days I call old on the card, even while the service is refreshing them */
 export const OLD_AFTER_DAYS = 7;
 
-/** THE DATE THE FARES WERE LAST RECEIVED, said first and plainly (the paid service is used for one month and the fares are saved): green while they are fresh, amber when they are old or are no longer refreshed */
+/** THE DATE THE FARES WERE LAST RECEIVED, said first and plainly (the paid service is used for one month and the fares are saved): I show it green while they are fresh, amber when they are old or are no longer refreshed */
 export function ReceivedLine({ receivedAt, frozen, now, hint = false }: { receivedAt: string; frozen: boolean; now?: DateTime; hint?: boolean }) {
   const ago = daysAgo(receivedAt, now);
-  // a hint is worked out from a fixed table and a distance, which do not age as a fare does: it is never called old or frozen
+  // A hint is worked out from a fixed table and a distance, which do not age as a fare does, so I never call it old or frozen
   const old = !hint && (frozen || ago.n > OLD_AFTER_DAYS);
   return (
     <div className={`mt-2 rounded-lg border px-2.5 py-1.5 text-xs ${old ? "border-amber-300 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`} data-fares-received data-old={old ? "true" : "false"}>
@@ -52,7 +52,7 @@ export function FareDisclaimer() {
   return <p className="mt-2 text-[11px] text-slate-500" data-fare-disclaimer>Approximate: may differ when you book. Check IRCTC.</p>;
 }
 
-/** THE SOURCE, in the fewest words: where the figures come from, linked (the date they were received is said above the fares) */
+/** I give THE SOURCE in the fewest words: where the figures come from, linked (the date they were received is said above the fares) */
 export function FareSource({ reservation = true, table = false }: { reservation?: boolean; table?: boolean }) {
   const link = (href: string, text: string, title?: string) => <a href={href} target="_blank" rel="noopener noreferrer" title={title} className="font-semibold text-slate-600 underline">{text}</a>;
   return (
@@ -64,15 +64,15 @@ export function FareSource({ reservation = true, table = false }: { reservation?
   );
 }
 
-/** THE DISCLAIMER OF A HINT (local trains): worked out from the railway's published table, not looked up; says where the distance comes from and why a range may be shown */
+/** THE DISCLAIMER OF A HINT (local trains): the fare is worked out from the railway's published table, not looked up; I say where the distance comes from and why a range may be shown */
 export function HintDisclaimer({ number }: { number: string }) {
   return <p className="mt-2 text-[11px] text-slate-500" data-hint-disclaimer>Estimate, not a lookup: the ticket counter&apos;s fare applies.{!number.startsWith("6") && " An express-numbered MEMU may cost more."}</p>;
 }
 
 export function FareTable({ set, now, local = false }: { set: FareSet & { receivedAt?: string; frozen?: boolean }; now?: DateTime; local?: boolean }) {
   const to = stationLabel(set.to, set.to);
-  // a HINT (local train) is a table estimate; the other fares are the reservation system's own
-  const noHint = local && set.classes.length === 0; // a local train for which no hint can be made: none of the fare wording applies
+  // I treat a HINT (local train) as a table estimate; the other fares are the reservation system's own
+  const noHint = local && set.classes.length === 0; // a local train for which I can make no hint: none of the fare wording applies
   const hint = noHint || set.classes.some((c) => c.basis === "table");
   return (
     <div className="min-w-0 max-w-full" data-fares-table>
@@ -103,7 +103,7 @@ export function FareTable({ set, now, local = false }: { set: FareSet & { receiv
   );
 }
 
-/** the full names of the short class codes, as the railway writes them */
+/** The full names of the short class codes, as the railway writes them */
 export const CLASS_FULL: Record<string, string> = {
   "2S": "Second Sitting",
   SL: "Sleeper",
@@ -116,7 +116,7 @@ export const CLASS_FULL: Record<string, string> = {
   UR: "Unreserved (ordinary) second class",
 };
 
-/** the short forms in a table, written out under it (a phone has no hover): "SL Sleeper · 3A AC 3 Tier" */
+/** I write the short forms in a table out in full under it (a phone has no hover): "SL Sleeper · 3A AC 3 Tier" */
 export function ClassKey({ codes, from = "DGR" }: { codes: string[]; from?: FareFrom }) {
   return (
     <p className="mt-1.5 text-[11px] leading-snug text-slate-500" data-class-key>
@@ -126,7 +126,7 @@ export function ClassKey({ codes, from = "DGR" }: { codes: string[]; from?: Fare
   );
 }
 
-/** every short form the card uses, written out once at the bottom of the whole card */
+/** Every short form the card uses, written out once at the bottom of the whole card */
 export function ShortForms() {
   const items: Array<[string, string]> = [
     ...Object.entries(CLASS_FULL).filter(([c]) => c !== "UR"),
@@ -145,7 +145,7 @@ export function ShortForms() {
   );
 }
 
-/** the classes found in the legs, cheapest class first (the order of CLASSES, the local hint last) */
+/** The classes found in the legs, cheapest class first (the order of CLASSES, the local hint last) */
 export function legClasses(legs: LegsAnswer["legs"]): Array<{ code: string; name: string }> {
   const seen = new Map<string, string>();
   for (const l of legs) for (const c of l.classes) if (!seen.has(c.code)) seen.set(c.code, c.name);
@@ -153,7 +153,7 @@ export function legClasses(legs: LegsAnswer["legs"]): Array<{ code: string; name
   return [...seen.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([code, name]) => ({ code, name }));
 }
 
-/** THE FARE TO EVERY STOP AFTER THE STARTING STATION (Durgapur, or Asansol on the Asansol tab): one row per stop (name, code, distance from it) and one column per class the train has; a dash where the train does not sell that class between the two */
+/** THE FARE TO EVERY STOP AFTER THE STARTING STATION (Durgapur, or Asansol on the Asansol tab): I draw one row per stop (name, code, distance from it) and one column per class the train has; a dash where the train does not sell that class between the two */
 export function LegsTable({ answer, now, from = "DGR" }: { answer: LegsAnswer; now?: DateTime; from?: FareFrom }) {
   const cols = legClasses(answer.legs);
   const cell = (l: LegsAnswer["legs"][number], code: string) => {
@@ -196,7 +196,7 @@ export function LegsTable({ answer, now, from = "DGR" }: { answer: LegsAnswer; n
   );
 }
 
-/** the fares to every stop, asked for (from the database) when the button is pressed */
+/** The fares to every stop, asked for (from the database) when the button is pressed */
 export function LegsBox({ number, from = "DGR" }: { number: string; from?: FareFrom }) {
   const { state, env, error, reload } = useLive<LegsAnswer>(`/api/live/railway-fare-legs?train=${number}${fromQuery(from)}`, true);
   return (
@@ -208,7 +208,7 @@ export function LegsBox({ number, from = "DGR" }: { number: string; from?: FareF
   );
 }
 
-/** the open panel of a train: asks for the fares as it appears */
+/** The open panel of a train: it asks for the fares as it appears */
 export function FareBox({ number, local = false, from = "DGR" }: { number: string; local?: boolean; from?: FareFrom }) {
   const { state, env, error, reload } = useLive<FareAnswer>(`/api/live/railway-fare?train=${number}${fromQuery(from)}`, true);
   return (
@@ -227,7 +227,7 @@ export function FareBox({ number, local = false, from = "DGR" }: { number: strin
   );
 }
 
-/** the button under a train's fares that opens the fare to every stop on its route */
+/** The button under a train's fares that opens the fare to every stop on its route */
 function StopsToggle({ number, from }: { number: string; from: FareFrom }) {
   const [open, setOpen] = useState(false);
   return (

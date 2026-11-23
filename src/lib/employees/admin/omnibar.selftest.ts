@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/employees/admin/omnibar.selftest.ts
-// Step 66a: the search bar and the employee manager: who gets the panel, who gets a plain sentence, and that nothing but a change request ever reaches the authority check. No database.
+// Step 66a: I test the search bar and the employee manager: who gets the panel, who gets a plain sentence, and that nothing but a change request ever reaches the authority check. No database.
 
 import { readFileSync } from "node:fs";
 import { runOmnibar } from "../../nl2sql/omnibar";

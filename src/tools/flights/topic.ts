@@ -1,7 +1,7 @@
 // src/tools/flights/topic.ts
 //
 // WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words of the Andal Airport flights card ("andal airport flights to and from"). The data, its source and its checks are in
-// src/lib/live/flights.ts; how it looks is in FlightsCard.tsx and ui.tsx. It is listed once, in src/tools/registry.ts.
+// src/lib/live/flights.ts; how it looks is in FlightsCard.tsx and ui.tsx. I list it once, in src/tools/registry.ts.
 // A line is this card's when it has a key word and every word is a key word, an extra word or a filler: "flights" alone opens it, "ltc flight booking rules" does not.
 import { defineTopic } from "@/tools/types";
 

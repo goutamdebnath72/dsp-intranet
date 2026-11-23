@@ -1,8 +1,8 @@
 // src/lib/facility/authority.ts
 //
-// WHO MAY USE A TOOL, in one place (it was written twice, once for the employee manager and once for the PAX editor, word for word).
-// The HOD is known by ticket (SUPERADMIN_TICKETS); every other person only if the HOD authorised him for THIS tool (a row in public.facility_delegate that is not withdrawn). Asked from the database on every request:
-// a withdrawal takes effect at once.
+// Who may use a tool, in one place (it was written twice, once for the employee manager and once for the PAX editor, word for word).
+// The HOD is known by ticket (SUPERADMIN_TICKETS); every other person only if the HOD authorised him for THIS tool (a row in public.facility_delegate that is not withdrawn). I ask the database on every request,
+// so a withdrawal takes effect at once.
 
 import { isSuperAdmin } from "@/lib/superAdmin";
 import { toIsoInstant } from "@/lib/dates";
@@ -13,7 +13,7 @@ import type { Actor, Authority, DelegateResult, DelegateView, FacilityDb, QueryF
 export class Forbidden extends Error {}
 
 const EXECUTIVE = /^4\d{5}$/;
-/** Any employee's ticket: six digits, not starting with 0. */
+/** I accept the ticket of any employee: six digits, not starting with 0. */
 const ANY_TICKET = /^[1-9]\d{5}$/;
 const str = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
 const isUnique = (e: unknown): boolean => (e as { code?: string })?.code === "23505";
@@ -22,7 +22,7 @@ function must(facility: string): asserts facility is FacilityKey {
   if (!isFacilityKey(facility)) throw new Error(`unknown tool: ${String(facility)}`);
 }
 
-/** HOD, delegate, or null for this ticket and this tool. */
+/** Returns HOD, delegate, or null for this ticket and this tool. */
 export async function authorityOf(q: QueryFn, facility: FacilityKey, ticket: string | null | undefined): Promise<Authority | null> {
   must(facility);
   const t = String(ticket ?? "").trim();
@@ -32,7 +32,7 @@ export async function authorityOf(q: QueryFn, facility: FacilityKey, ticket: str
   return r.length > 0 ? "delegate" : null;
 }
 
-/** HOD or delegate, for EVERY tool at once (one question to the database: the tools this ticket holds and has not had withdrawn). The same rule as authorityOf, for the management page. */
+/** Gives HOD or delegate for EVERY tool at once, with one question to the database (the tools this ticket holds and has not had withdrawn). I use the same rule as authorityOf, here for the management page. */
 export async function authoritiesOfAll(q: QueryFn, ticket: string | null | undefined): Promise<Record<FacilityKey, Authority | null>> {
   const t = String(ticket ?? "").trim();
   const none = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, null])) as Record<FacilityKey, Authority | null>;
@@ -44,7 +44,7 @@ export async function authoritiesOfAll(q: QueryFn, ticket: string | null | undef
   return held;
 }
 
-/** The start of every write of a tool: take the tool's global write lock, then decide who is acting. Throws Forbidden when this person may not (or, with needHod, is not the HOD). */
+/** Every write of a tool starts here: I take the tool's global write lock, then decide who is acting. Throws Forbidden when this person may not act (or, with needHod, is not the HOD). */
 export async function begin(q: QueryFn, facility: FacilityKey, actor: Actor, needHod = false): Promise<Authority> {
   must(facility);
   await q(lockSql(facility));
@@ -60,7 +60,7 @@ export async function listDelegates(db: FacilityDb, facility: FacilityKey): Prom
 }
 
 /**
- * Only the HOD authorises. An executive at once; a NON-executive (a ticket that does not start with 4) only when the HOD has confirmed it (`confirmNonExecutive`), and only for a tool that allows it.
+ * Only the HOD authorises. I let an executive in at once; a NON-executive (a ticket that does not start with 4) only when the HOD has confirmed it (`confirmNonExecutive`), and only for a tool that allows it.
  * Authorising someone who already is authorised changes nothing ("already").
  */
 export async function grantDelegate(db: FacilityDb, facility: FacilityKey, actor: Actor, target: { ticket: string; name: string; confirmNonExecutive?: boolean }): Promise<DelegateResult> {
@@ -89,7 +89,7 @@ export async function grantDelegate(db: FacilityDb, facility: FacilityKey, actor
   }
 }
 
-/** Only the HOD withdraws. The row stays as history. */
+/** Only the HOD withdraws, and I keep the row as history. */
 export async function revokeDelegate(db: FacilityDb, facility: FacilityKey, actor: Actor, ticketNo: string): Promise<DelegateResult> {
   must(facility);
   const ticket = String(ticketNo ?? "").trim();
@@ -108,8 +108,8 @@ export async function revokeDelegate(db: FacilityDb, facility: FacilityKey, acto
 }
 
 /**
- * Withdraw EVERY active authorisation of one person, in every tool at once (owner, 2 Nov 2026: an employee who is deleted must lose the authority of every tool, not only of the employee manager).
- * One history line per tool, in that tool's own history, in the SAME transaction as what caused it (the deletion): both happen or neither. Returns the tools he lost (empty when he had none).
+ * Withdraws EVERY active authorisation of one person, in every tool at once. My rule (2 Nov 2026): an employee who is deleted must lose the authority of every tool, not only of the employee manager.
+ * I write one history line per tool, in that tool's own history, in the SAME transaction as what caused it (the deletion): both happen or neither. Returns the tools he lost (empty when he had none).
  */
 export async function revokeEverywhere(q: QueryFn, actor: Actor, role: Authority, ticket: string, note: string): Promise<Array<{ facility: string; name: string }>> {
   const t = String(ticket ?? "").trim();

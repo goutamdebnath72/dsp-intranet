@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/markets.selftest.ts
-// The sample below is HAND-MADE in the documented shape of the feed (chart.result[0].meta, timestamp, indicators.quote[0].close): it tests our reading of that shape, not the live source.
+// The sample below is HAND-MADE in the documented shape of the feed (chart.result[0].meta, timestamp, indicators.quote[0].close), so it tests my reading of that shape, not the live source.
 import { DateTime } from "luxon";
 import { parseYahooChart, buildMarkets, movers, sessionState, INDICES, WATCHLIST, type Quote } from "./markets";
 

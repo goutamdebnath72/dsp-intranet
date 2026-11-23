@@ -1,11 +1,11 @@
 // src/lib/holidays/admin/holidayLive.selftest.ts
 //
-// LIVE test of the Holiday manager's real store code against the real schema, in a transaction that is ALWAYS rolled
-// back. Uses the year 2099 (no real data). Skipped unless ADMIN_LIVE_TEST_URL is set:
+// LIVE test of the Holiday manager's real store code against the real schema, in a transaction that I ALWAYS roll
+// back. It uses the year 2099 (no real data). Skipped unless ADMIN_LIVE_TEST_URL is set:
 //   ADMIN_LIVE_TEST_URL="$DATABASE_URL" npx tsx src/lib/holidays/admin/holidayLive.selftest.ts
 // (needs GEMINI_API_KEY too: seeding a note makes a policy chunk, which is embedded.)
 
-export {}; // a module (not a global script): the live tests share local names
+export {}; // I make this a module, not a global script, because the live tests share local names
 
 const url = process.env.ADMIN_LIVE_TEST_URL;
 if (!url) {
@@ -75,7 +75,7 @@ async function main() {
     const again = await store.seedYear(h.db, actor, { rawContent: FILE, expectedYear: 2099, sentVersion: v0!.version });
     ok("seeding again with the OLD version: stale, and it names who changed it last", again.status === "stale" && (again as any).last?.actorTicket === "498301", JSON.stringify((again as any).last));
 
-    // a file without rhQuota keeps the year's quota (re-seed with the current version)
+    // A file without rhQuota keeps the year's quota (re-seed with the current version).
     const noQuota = JSON.stringify({ year: 2099, holidays: [{ name: "ZZ Test Day One", date: "2099-01-26", type: "CH" }] });
     const re = await store.seedYear(h.db, actor, { rawContent: noQuota, expectedYear: 2099, sentVersion: v1!.version });
     ok("re-seed without rhQuota: ok", re.status === "ok");
@@ -83,7 +83,7 @@ async function main() {
     ok("...the existing RH quota is kept", v2!.rhQuotaCount === 2, String(v2!.rhQuotaCount));
     ok("...and the policy chunks were replaced by the (empty) new set", v2!.policyChunkCount === 0, String(v2!.policyChunkCount));
 
-    // a change of a NOTE or a quota VALUE (not date/name/type) must change the version
+    // I want a change of a NOTE or a quota VALUE (not date/name/type) to change the version.
     await h.q(`UPDATE public.holiday_rh_quota SET quota = quota + 1 WHERE year = 2099 AND category = 'A'`);
     const v3 = await store.getYearView(h.db, 2099);
     ok("a quota value edit changes the version (it used to be invisible)", v3!.version !== v2!.version);

@@ -2,7 +2,7 @@
 //
 // THE LOGIC OF THE STEEL CARD (pure, no React): the retail prices as chart points and month-on-month changes, the steel CPSEs month by month with the same month a year earlier, and India's and the world's production.
 // The figures are in mos.ts (the Ministry of Steel's reports) and companies.ts (the companies' own results); how they are drawn is in SteelCard.tsx. Tested in steel.selftest.ts.
-// Nothing is estimated here: a change is computed from two published figures, and a figure that is not published is null and is drawn as a gap.
+// I estimate nothing here: a change is computed from two published figures, and a figure that is not published is null and is drawn as a gap.
 import { DateTime } from "luxon";
 import type { TrendPoint } from "@/components/tools/live/LivePieces";
 import { IRON_ORE, RETAIL, SAIL_MONTHLY, WSA_MONTHLY, type CpseMonth, type RetailPoint } from "./mos";
@@ -18,17 +18,17 @@ export const PRODUCTS: ReadonlyArray<{ id: Product; name: string; spec: string; 
 /** "2026-09" -> "Sep 2026" */
 export const monthLabel = (ym: string): string => DateTime.fromISO(`${ym}-01`, { zone: "Asia/Kolkata" }).toFormat("LLL yyyy");
 export const monthShort = (ym: string): string => DateTime.fromISO(`${ym}-01`, { zone: "Asia/Kolkata" }).toFormat("LLL");
-/** the last day of a month, as the reports date their prices ("2026-09-30") */
+/** The last day of a month, as the reports date their prices ("2026-09-30") */
 export const monthEnd = (ym: string): string => DateTime.fromISO(`${ym}-01`, { zone: "Asia/Kolkata" }).endOf("month").toISODate() as string;
 export const monthShift = (ym: string, k: number): string => DateTime.fromISO(`${ym}-01`, { zone: "Asia/Kolkata" }).plus({ months: k }).toFormat("yyyy-MM");
 
-/** percent change from `then` to `now`, one decimal; null when either is missing or `then` is zero */
+/** Percent change from `then` to `now`, to one decimal; I return null when either is missing or `then` is zero */
 export function pct(now: number | null | undefined, then: number | null | undefined): number | null {
   if (now === null || now === undefined || then === null || then === undefined || then === 0) return null;
   return Math.round(((now - then) / then) * 1000) / 10;
 }
 
-/** Rs 65,750 -> "₹65,750" in the Indian way of grouping (65,750; 1,05,000) */
+/** Formats Rs 65,750 as "₹65,750", grouped in the Indian way (65,750; 1,05,000) */
 export const inr = (n: number): string => `₹${Math.round(n).toLocaleString("en-IN")}`;
 /** "+15.5%" / "-5.7%" / "0.0%" */
 export const signed = (p: number): string => `${p > 0 ? "+" : p < 0 ? "−" : ""}${Math.abs(p).toFixed(1)}%`;
@@ -42,18 +42,18 @@ export function retailPoints(id: Product): TrendPoint[] {
   return RETAIL.map((p) => ({ label: monthShort(p.month), full: `${DateTime.fromISO(monthEnd(p.month), { zone: "Asia/Kolkata" }).toFormat("d LLL yyyy")}`, iso: monthEnd(p.month), value: retailValue(p, id) }));
 }
 export const latestRetail = (): RetailPoint => RETAIL[RETAIL.length - 1];
-/** the change over the month before (computed from the two published figures) and over the first month in the record */
+/** I compute the change over the month before (from the two published figures) and over the first month in the record */
 export function retailChange(id: Product): { month: number | null; since: number | null; previous: RetailPoint | null } {
   const last = latestRetail(), prev = RETAIL.length > 1 ? RETAIL[RETAIL.length - 2] : null, first = RETAIL[0];
   return { month: prev ? pct(last[id], prev[id]) : null, since: pct(last[id], first[id]), previous: prev };
 }
-/** the highest and lowest month-end price in the record */
+/** The highest and lowest month-end price in the record */
 export function retailRange(id: Product): { hi: RetailPoint; lo: RetailPoint } {
   let hi = RETAIL[0], lo = RETAIL[0];
   for (const p of RETAIL) { if (p[id] >= hi[id]) hi = p; if (p[id] <= lo[id]) lo = p; }
   return { hi, lo };
 }
-/** HR coil over TMT: how much dearer the flat product is than the long one (percent of the TMT price) */
+/** I measure how much dearer HR coil, the flat product, is than TMT, the long one, as a percent of the TMT price */
 export const flatPremium = (p: RetailPoint): number => Math.round(((p.hrc - p.tmt) / p.tmt) * 1000) / 10;
 export const ironOreLatest = (): { month: string; lumps: number } | null => {
   for (let i = IRON_ORE.length - 1; i >= 0; i--) { const v = IRON_ORE[i].lumps; if (v !== null) return { month: IRON_ORE[i].month, lumps: v }; }
@@ -62,7 +62,7 @@ export const ironOreLatest = (): { month: string; lumps: number } | null => {
 
 // ---- THE STEEL CPSES (million tonnes, MT: the unit the steel trade uses; the Ministry's own table is in lakh tonnes and is divided by 10 when the file is written)
 export const cpseByMonth = (rows: readonly CpseMonth[]): Map<string, CpseMonth> => new Map(rows.map((r) => [r.month, r]));
-/** a month's figure and the same month a year earlier, with the change; null when either month is not in the record */
+/** A month's figure and the same month a year earlier, with the change; I return null when either month is not in the record */
 export function yearOnYear(rows: ReadonlyArray<{ month: string }>, month: string, pick: (r: never) => number | null): { now: number; then: number; change: number } | null {
   const by = new Map(rows.map((r) => [r.month, r]));
   const a = by.get(month), b = by.get(monthShift(month, -12));
@@ -70,7 +70,7 @@ export function yearOnYear(rows: ReadonlyArray<{ month: string }>, month: string
   const change = pct(now, then);
   return now !== null && then !== null && change !== null ? { now, then, change } : null;
 }
-/** the total of a figure over the months of a financial year to date (April to the month), or null when a month is missing */
+/** I add up a figure over the months of a financial year to date (April to the month) and return null when a month is missing */
 export function fyToDate(rows: ReadonlyArray<{ month: string }>, lastMonth: string, pick: (r: never) => number | null): number | null {
   const y = Number(lastMonth.slice(0, 4)), m = Number(lastMonth.slice(5));
   const fyStart = m >= 4 ? y : y - 1;

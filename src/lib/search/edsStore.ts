@@ -1,16 +1,16 @@
 // src/lib/search/edsStore.ts
 //
-// THE PERMANENT STORE OF EXECUTIVE BRIEFINGS (table public.eds_briefing, src/lib/nl2sql/sql/20_eds_briefing.sql).
+// This is the permanent store of executive briefings (table public.eds_briefing, src/lib/nl2sql/sql/20_eds_briefing.sql).
 //
 // Why it exists: a model gives a different briefing at every call, and a server's own memory is no help on Vercel (every instance and every
-// cold start has its own, empty one). So the first GOOD briefing of a question is written to the database, and every later ask of the same
+// cold start has its own, empty one). So I write the first GOOD briefing of a question to the database, and every later ask of the same
 // question, on any server, reads that one. It stays valid until the archive of circulars changes (`fingerprint()`), or the prompt / rules of
 // the engine change (the key carries a signature of both).
 //
 // Two servers generating the same question at the same moment cannot both win: the insert keeps the FIRST row (ON CONFLICT DO NOTHING) and
 // both servers show the row that stands.
 //
-// Nothing here may break an answer: any database trouble is logged once and the engine carries on without the store.
+// My rule: nothing here may break an answer. Any database trouble is logged once and the engine carries on without the store.
 
 import type { SynthesisResult } from "./executiveSynthesis";
 
@@ -22,10 +22,10 @@ export interface EdsRow {
 }
 
 export interface EdsStore {
-  /** a short text that changes whenever a circular is added, removed, renamed or re-read */
+  /** A short text that changes whenever a circular is added, removed, renamed or re-read. */
   fingerprint(): Promise<string>;
   get(key: string): Promise<EdsRow | null>;
-  /** stores the briefing unless a current one already stands; returns the row that stands afterwards */
+  /** Stores the briefing unless a current one already stands, and returns the row that stands afterwards. */
   put(row: EdsRow & { query: string; engine: string }): Promise<EdsRow>;
 }
 
@@ -55,7 +55,7 @@ export function typeormEdsStore(ds: Queryable): EdsStore {
   let warned = false;
 
   const ensure = (): Promise<boolean> => {
-    // a good (or still pending) check stands; a failed one is not repeated for 10 minutes
+    // A good (or still pending) check stands; I do not repeat a failed one for 10 minutes.
     if (ready && (failedAt === 0 || Date.now() - failedAt < 10 * 60 * 1000)) return ready;
     failedAt = 0;
     ready = (async () => {
@@ -104,7 +104,7 @@ export function typeormEdsStore(ds: Queryable): EdsStore {
 
     async put(row) {
       if (!(await ensure())) return row;
-      // A row for an OLDER archive is replaced; a row for the CURRENT archive is never overwritten (the first good briefing stands).
+      // A row for an OLDER archive is replaced; I never overwrite a row for the CURRENT archive (the first good briefing stands).
       await ds.query(
         `INSERT INTO public.eds_briefing (key, query_text, fingerprint, engine, score, result)
               VALUES ($1, $2, $3, $4, $5, $6::jsonb)
@@ -114,8 +114,8 @@ export function typeormEdsStore(ds: Queryable): EdsStore {
              WHERE public.eds_briefing.fingerprint <> EXCLUDED.fingerprint`,
         [row.key, row.query.slice(0, 2000), row.fingerprint, row.engine, Math.round(row.score), JSON.stringify(row.result)],
       );
-      // Tidy: a row made by ANOTHER engine version (an older prompt or rules) can never be served again (its key carries the engine signature), so it is
-      // removed as soon as a current one is stored. The table never fills with dead rows.
+      // Tidy-up: a row made by ANOTHER engine version (an older prompt or rules) can never be served again (its key carries the engine signature), so I remove it
+      // as soon as a current one is stored. That way the table never fills with dead rows.
       await ds.query(`DELETE FROM public.eds_briefing WHERE engine <> $1`, [row.engine]).catch(() => undefined);
       const r = rowsOf(await ds.query(`SELECT key, fingerprint, score, result FROM public.eds_briefing WHERE key = $1`, [row.key]));
       return r[0] ? fromRow(r[0]) : row;
@@ -123,7 +123,7 @@ export function typeormEdsStore(ds: Queryable): EdsStore {
   };
 }
 
-// One store per database connection, so the "does the table exist" check is made once per server and not once per request.
+// I keep one store per database connection, so the "does the table exist" check is made once per server and not once per request.
 const stores = new WeakMap<object, EdsStore>();
 export function edsStoreFor(ds: Queryable): EdsStore {
   let st = stores.get(ds);

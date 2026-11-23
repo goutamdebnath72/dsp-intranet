@@ -1,18 +1,13 @@
 // src/lib/employees/sailDepartments.ts
 //
 // DB-backed department resolution, built on `public.sail_department`.
-// NAMING NOTE (28 Sep 2026): this table only actually holds DSP's own
-// departments -- SAIL is the parent body over 4 separate plants with only
-// partly-overlapping structures, so the name is a known imprecision. Renaming
-// the live table was considered and deliberately deferred (real, unverifiable
-// blast radius: every Stage 8 migration script and any external tool that
-// references `sail_department` by name would need to be found and updated in
-// lockstep) -- this module keeps the table's name rather than half-renaming
-// just the code layer. Resolution is a live, normalized lookup against that
-// table (300 rows) for anything typed in full or by its real code, plus a
-// small, EXPLICIT alias table for short/cryptic forms a plain name match
-// can't catch. Alias entries are added only once confirmed directly (never
-// guessed) -- see chat for how each one below was established.
+// NAMING NOTE (28 Sep 2026): this table only actually holds DSP's own departments. SAIL is the parent body over 4 separate plants with
+// only partly-overlapping structures, so the name is a known imprecision. I considered renaming the live table and deliberately deferred
+// it (real, unverifiable blast radius: every Stage 8 migration script and any external tool that references `sail_department` by name
+// would need to be found and updated in lockstep). So this module keeps the table's name rather than half-renaming just the code layer.
+// Resolution is a live, normalized lookup against that table (300 rows) for anything typed in full or by its real code, plus a small,
+// EXPLICIT alias table for short/cryptic forms a plain name match can't catch. I add alias entries only once confirmed directly (never
+// guessed); see chat for how each one below was established.
 
 import { getDb } from "@/lib/db";
 import { OTHER_PLANT } from "@/lib/search/formerNames";
@@ -63,10 +58,10 @@ export function normDept(s: string): string {
 }
 
 /**
- * The department name as shown to people. Central Stores (CSD) is an administrative sub-department of Marketing, so it
- * is shown with that: "CENTRAL STORES DEPTT. (Marketing)"; a name that already ends in a bracket gets it inside the same
- * bracket: "CENTRAL STORES (OFFICE, Marketing)" (never "(OFFICE) (Marketing)"). Null / blank gives null. It is the ONE
- * place this rule lives; every screen that shows a department name from the roster goes through it.
+ * The department name as shown to people. Central Stores (CSD) is an administrative sub-department of Marketing, so I show it with
+ * that: "CENTRAL STORES DEPTT. (Marketing)"; a name that already ends in a bracket gets it inside the same bracket:
+ * "CENTRAL STORES (OFFICE, Marketing)" (never "(OFFICE) (Marketing)"). Null / blank gives null. This rule lives in this ONE place;
+ * every screen that shows a department name from the roster goes through it.
  */
 export function formatDepartmentDisplay(dept: string | null | undefined): string | null {
   if (!dept) return null;
@@ -80,17 +75,16 @@ export function formatDepartmentDisplay(dept: string | null | undefined): string
 
 export interface DeptGroup {
   name: string;
-  ids: number[]; // sail_department.id members -- what queries actually filter on
+  ids: number[]; // sail_department.id members, which is what queries actually filter on
   codes: number[];
 }
 
-// Confirmed groups only -- every code here was verified directly against a
-// real sail_department row in chat (28 Sep 2026), never guessed. Extend this
-// list the same way: a real code/name pair confirmed by the user, then added.
+// I keep confirmed groups only: every code here was verified directly against a real sail_department row in chat (28 Sep 2026),
+// never guessed. Extend this list the same way: a real code/name pair confirmed by the user, then added.
 const CONFIRMED_GROUPS: { name: string; codes: number[]; aliases: string[]; unlessText?: RegExp }[] = [
   {
-    // step 60c: the Training Department -> CHRD -> Centre for L & D (CL&D): the five L & D rows of the owner's list of 26 Oct 2026 (107 L & D, 9001 L & D OFFICE, 9003 L & D, 10770 L & D (TECH), 9008 L & D IND).
-    // Full forms CONFIRMED by the owner (26 Oct 2026): L & D = Learning and Development, CHRD = Centre for Human Resource Development; "Centre for HRD" is not used. The same names as in nl2sql/departmentAliases.ts.
+    // step 60c: the Training Department -> CHRD -> Centre for L & D (CL&D): the five L & D rows of my list of 26 Oct 2026 (107 L & D, 9001 L & D OFFICE, 9003 L & D, 10770 L & D (TECH), 9008 L & D IND).
+    // Full forms CONFIRMED by me (26 Oct 2026): L & D = Learning and Development, CHRD = Centre for Human Resource Development; I do not use "Centre for HRD". The same names as in nl2sql/departmentAliases.ts.
     // Another plant's CHRD is not this department (unlessText).
     name: "CL&D",
     codes: [107, 9001, 9003, 10770, 9008],
@@ -98,11 +92,9 @@ const CONFIRMED_GROUPS: { name: string; codes: number[]; aliases: string[]; unle
     unlessText: OTHER_PLANT,
   },
   {
-    // 98500 = ALL C&IT executives (one code, no split); 98530/98540 = the
-    // department's non-exec sections ("COMPUTER and IT STAFF", "C & IT
-    // (TECH)"). Granular non-exec section codes generally have no executives
-    // of their own -- they belong to the department's one broad exec code
-    // instead (confirmed as the general DSP pattern, not specific to C&IT).
+    // 98500 = ALL C&IT executives (one code, no split); 98530/98540 = the department's non-exec sections ("COMPUTER and IT STAFF",
+    // "C & IT (TECH)"). Granular non-exec section codes generally have no executives of their own; they belong to the department's one
+    // broad exec code instead (confirmed as the general DSP pattern, not specific to C&IT).
     name: "C & IT",
     codes: [98500, 98530, 98540],
     aliases: ["c&it", "cit", "c and it", "computer and it", "it department"],
@@ -119,7 +111,7 @@ const CONFIRMED_GROUPS: { name: string; codes: number[]; aliases: string[]; unle
   },
   {
     // Central Stores Department (CSD) is an administrative sub-department of Marketing (Marketing Division).
-    // Codes: 95000 (CENTRAL STORES DEPTT.), 95030 (CENTRAL STORES (OFFICE)), 95070 (CENTRAL STORES (TECH)).
+    // Its codes: 95000 (CENTRAL STORES DEPTT.), 95030 (CENTRAL STORES (OFFICE)), 95070 (CENTRAL STORES (TECH)).
     name: "Central Stores (CSD)",
     codes: [95000, 95030, 95070],
     aliases: [
@@ -153,7 +145,7 @@ async function resolveConfirmedGroup(term: string): Promise<DeptGroup | null> {
   return null;
 }
 
-/** Resolve a typed department term to its member sail_department ids. */
+/** I resolve a typed department term to its member sail_department ids. */
 export async function resolveSailDepartment(term: string): Promise<DeptGroup | null> {
   const n = normDept(term);
   if (!n) return null;
@@ -163,34 +155,28 @@ export async function resolveSailDepartment(term: string): Promise<DeptGroup | n
 
   const all = await loadSailDepartments();
 
-  // Exact normalized-name match against the live table -- works immediately
-  // for any of the 300 rows typed in full, no alias needed.
+  // Exact normalized-name match against the live table: it works immediately for any of the 300 rows typed in full, no alias needed.
   const exact = all.filter((d) => normDept(d.name) === n);
   if (exact.length) return { name: exact[0].name, ids: exact.map((d) => d.id), codes: exact.map((d) => d.code) };
 
-  // Raw SAIL department code, typed directly.
+  // The person typed a raw SAIL department code directly.
   const codeNum = Number(term.trim());
   if (Number.isInteger(codeNum) && String(codeNum) === term.trim()) {
     const byCode = all.filter((d) => d.code === codeNum);
     if (byCode.length) return { name: byCode[0].name, ids: byCode.map((d) => d.id), codes: byCode.map((d) => d.code) };
   }
 
-  // Unambiguous substring match only -- mirrors the old departments.ts rule.
-  // Multiple partial hits means the term is too vague to guess; caller should
-  // treat it as unresolved rather than silently picking one.
+  // I accept an unambiguous substring match only, which mirrors the old departments.ts rule. Multiple partial hits mean the term is too
+  // vague to guess, so the caller should treat it as unresolved rather than silently picking one.
   const hits = all.filter((d) => normDept(d.name).includes(n));
   if (hits.length === 1) return { name: hits[0].name, ids: [hits[0].id], codes: [hits[0].code] };
 
-  // Final fallback: the OLD departments.ts, used PURELY as an alias
-  // dictionary (28 Sep 2026) -- it already has ~90 hand-curated short forms
-  // ("etl", "be", "csd", "cocc", "lrs", "mm", "mt", "rcl", "wrs", etc.) built
-  // up over many sessions. Its own `codes` are a different, incompatible
-  // numbering scheme and are NEVER used here -- only its canonical `name`
-  // (e.g. "etl" -> "ELECTRICAL TECHNICAL LAB") is taken and looked up for
-  // real against the LIVE sail_department table below. If the live table's
-  // naming has diverged too far to match (the way C&IT's did), this
-  // correctly resolves to nothing rather than guessing -- no new alias is
-  // ever hardcoded here on the strength of this bridge alone.
+  // Final fallback: the OLD departments.ts, used PURELY as an alias dictionary (28 Sep 2026). It already has ~90 hand-curated short forms
+  // ("etl", "be", "csd", "cocc", "lrs", "mm", "mt", "rcl", "wrs", etc.) built up over many sessions. Its own `codes` are a different,
+  // incompatible numbering scheme and are NEVER used here; I take only its canonical `name` (e.g. "etl" -> "ELECTRICAL TECHNICAL LAB") and
+  // look it up for real against the LIVE sail_department table below. If the live table's naming has diverged too far to match (the way
+  // C&IT's did), this correctly resolves to nothing rather than guessing. I never hardcode a new alias here on the strength of this
+  // bridge alone.
   const legacy = resolveLegacyDepartment(term);
   if (legacy) {
     const legacyName = normDept(legacy.name);
@@ -208,13 +194,10 @@ export async function resolveSailDepartment(term: string): Promise<DeptGroup | n
 }
 
 /**
- * Find a department mentioned ANYWHERE in free text (order-independent),
- * matching a confirmed alias or a real stored name as a whole phrase. Longest
- * match wins. NOTE: this is now ASYNC (DB-backed) -- the old departments.ts
- * export was synchronous, so OmnibarModal.tsx's `findDepartmentInText(q)`
- * call site (used to feed the "Intranet Sites" card) needs to become
- * `await findSailDepartmentInText(q)` inside its existing async search
- * handler. Flagging this explicitly rather than leaving it silently broken.
+ * Find a department mentioned ANYWHERE in free text (order-independent), matching a confirmed alias or a real stored name as a whole
+ * phrase. Longest match wins. NOTE: this is now ASYNC (DB-backed); the old departments.ts export was synchronous, so OmnibarModal.tsx's
+ * `findDepartmentInText(q)` call site (used to feed the "Intranet Sites" card) needs to become `await findSailDepartmentInText(q)`
+ * inside its existing async search handler. I flag this explicitly rather than leave it silently broken.
  */
 export async function findSailDepartmentInText(
   query: string,
@@ -243,9 +226,8 @@ export async function findSailDepartmentInText(
   }
   if (best) return { group: best.group, phrase: best.phrase };
 
-  // Same legacy-dictionary bridge as resolveSailDepartment above (see its
-  // comment) -- only the old file's canonical NAME is used as a lookup key
-  // against the live table, never its codes.
+  // This is the same legacy-dictionary bridge as in resolveSailDepartment above (see its comment): I use only the old file's canonical
+  // NAME as a lookup key against the live table, never its codes.
   const legacy = findLegacyDepartmentInText(query);
   if (legacy) {
     const legacyName = normDept(legacy.group.name);

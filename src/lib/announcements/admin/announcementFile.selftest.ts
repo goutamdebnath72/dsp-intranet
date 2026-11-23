@@ -1,10 +1,10 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/announcements/admin/announcementFile.selftest.ts
-// The PDF of an announcement, through the Announcement Manager's REAL store and API code, on a fake database that behaves like the real one where it matters: the file table may not exist yet (and a failed
-// read must not poison the transaction), a failed transaction is undone, and the PDF in storage is added and taken away with the announcement. (The same code against the real schema is the live test,
+// Here the PDF of an announcement goes through the Announcement Manager's REAL store and API code, on a fake database that behaves like the real one where it matters: the file table may not exist yet (and a failed
+// read must not poison the transaction), a failed transaction is undone, and the PDF in storage is added and taken away with the announcement. (For the same code against the real schema, see the live test,
 // announcementLive.selftest.ts, which needs ADMIN_LIVE_TEST_URL.)
 
-export {}; // a module: the tests of this folder share local names
-process.env.SUPERADMIN_TICKETS = "498301"; // before the facility code is loaded (it reads this once)
+export {}; // Makes this a module, because the tests of this folder share local names.
+process.env.SUPERADMIN_TICKETS = "498301"; // This is set before the facility code is loaded, because it reads this once.
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -78,7 +78,7 @@ async function main() {
   const store = await import("./store");
   const { handleAnnouncementAdmin, errorReply } = await import("./api");
   const { memoryFileStorage } = await import("../attachment");
-  console.error = () => {}; // the Gemini embedding of a new announcement is not reachable here and says so; that is not what this tests
+  console.error = () => {}; // The Gemini embedding of a new announcement is not reachable here and says so; that is not what I test here.
 
   // ---- publish with a PDF and no body text (a title and a PDF: the DARPAN FAQ, the sexual-harassment policy)
   {
@@ -247,7 +247,7 @@ async function main() {
       ok("the manager's list tells how each part went", list[0].searchIndex?.pdf?.status === "ready" && list[0].searchIndex?.pdf?.pages === 2 && list[0].searchIndex?.body?.status === "ready" && !JSON.stringify(list).includes("memory://"));
     }
 
-    // a PDF with scanned pages: the ones read by AI are counted
+    // A PDF with scanned pages: I count the ones read by AI.
     {
       const { st, db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();
@@ -257,7 +257,7 @@ async function main() {
       ok("an announcement with no body has no body passage and no body state", chunkSummary(st, 1, "body") === "" && !st.idx.get(1)?.body_status);
     }
 
-    // text only: the body is prepared, there is no PDF part
+    // Text only: the body is prepared and there is no PDF part.
     {
       const { st, db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();
@@ -266,7 +266,7 @@ async function main() {
       ok("an announcement with only text is prepared too (its body passages), and the reader of PDFs is not used", (res.body as any).indexing?.status === "ready" && chunkSummary(st, 1, "body") === "0" && m.calls.reads === 0 && pics(storage).length === 0 && !/PDF/.test((res.body as any).indexing.message));
     }
 
-    // a PDF that cannot be read never fails the publish: the announcement and its text are saved, the failure is recorded with its reason
+    // I never let a PDF that cannot be read fail the publish: the announcement and its text are saved, and the failure is recorded with its reason.
     {
       const { st, db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();
@@ -279,7 +279,7 @@ async function main() {
       ok("the list shows the PDF as failed with the reason", list[0].searchIndex?.pdf?.status === "failed" && /could not be opened/.test(String(list[0].searchIndex?.pdf?.note)));
     }
 
-    // a vector that cannot be made: nothing of that part is saved, and no picture is kept
+    // A vector that cannot be made: nothing of that part is saved, and no picture is kept.
     {
       const { st, db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();
@@ -289,7 +289,7 @@ async function main() {
       ok("the same for the text: it is recorded as failed and says its words are still found literally", st.idx.get(1)?.body_status === "failed" && chunkSummary(st, 1, "body") === "" && /still found literally/.test((res.body as any).indexing.message));
     }
 
-    // a failed save takes the pictures back out of storage
+    // A failed save takes the pictures back out of storage.
     {
       const { st, db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();
@@ -300,7 +300,7 @@ async function main() {
       ok("when the write fails, the pictures put in storage for it are taken out again and the PDF is recorded as not prepared", (res.body as any).indexing?.status === "failed" && pics(storage).length === 0 && res.status === 200);
     }
 
-    // pages not read are named; a long PDF says how many were read; a blank PDF is a failure
+    // Pages not read are named; a long PDF says how many were read; a blank PDF is a failure.
     {
       const { st, db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();
@@ -314,7 +314,7 @@ async function main() {
       ok("a PDF with no text at all is a failure, not an empty success", (blank.body as any).indexing?.status === "failed" && /no text|no page/.test(String((blank.body as any).indexing.message)));
     }
 
-    // tables missing and the database user may not create them: the reply says which SQL file to run
+    // Tables are missing and the database user may not create them: the reply says which SQL file to run.
     {
       const { db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();
@@ -325,14 +325,14 @@ async function main() {
       ok("when the tables are missing and cannot be created, the publish still succeeds and the note says which SQL file to run", res.status === 200 && (res.body as any).indexing?.status === "failed" && /29_announcement_search_index\.sql/.test((res.body as any).indexing.message) && pics(storage).length === 0);
     }
 
-    // no preparation wanted (the other tests of this file): nothing happens and the reply has no `indexing`
+    // No preparation wanted (the other tests of this file): nothing happens and the reply has no `indexing`.
     {
       const { db } = fakeDb({ tableExists: true });
       const res = await handleAnnouncementAdmin({ op: "publish", title: "Quiet" }, base(db, memoryFileStorage(), pdf()));
       ok("with no preparation given the publish prepares nothing and says nothing of it", res.status === 200 && !("indexing" in (res.body as object)));
     }
 
-    // edit: the text is prepared again; a kept PDF keeps its index; a replaced PDF drops the old text and pictures; a removed PDF drops everything of it
+    // On edit I prepare the text again; a kept PDF keeps its index; a replaced PDF drops the old text and pictures; a removed PDF drops everything of it.
     {
       const { st, db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();
@@ -350,7 +350,7 @@ async function main() {
       ok("removing the PDF drops its passages, its state and its page pictures; the text's passage stays", rem.status === 200 && chunkSummary(st, 1, "pdf") === "" && !st.idx.get(1)?.pdf_status && pics(storage).length === 0 && !st.pages.has(1) && chunkSummary(st, 1, "body") === "0");
     }
 
-    // deleting an announcement takes its page pictures out of storage with its PDF
+    // Deleting an announcement takes its page pictures out of storage together with its PDF.
     {
       const { st, db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();
@@ -361,7 +361,7 @@ async function main() {
       ok("a delete takes the PDF and every page picture out of storage", del.status === "ok" && storage.urls().length === 0 && st.rows.size === 0);
     }
 
-    // "Index again": the text comes from the database and the PDF from storage; unknown announcements are refused; without the means it is said so
+    // For "Index again" the text comes from the database and the PDF from storage; unknown announcements are refused, and without the means the reply says so.
     {
       const { st, db } = fakeDb({ tableExists: true });
       const storage = memoryFileStorage();

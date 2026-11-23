@@ -1,15 +1,15 @@
 // src/components/HolidayNotificationToast.tsx
 //
-// Mounted once, in TopBar (present on every authenticated page). Runs once
+// Mounted once, in TopBar (present on every authenticated page). It runs once
 // per browser session (sessionStorage-gated) rather than on every route
-// navigation -- "at every fresh login" is interpreted as "once per new
+// navigation: I read "at every fresh login" as "once per new
 // session," not "every single page you click to." A genuinely new login
 // (new session) always re-triggers this, since sessionStorage doesn't
 // survive that.
 //
 // The suppress/should-show DECISION is made server-side (see the GET
-// handler in api/holiday-notifications/route.ts) -- this component only
-// decides whether it's ALREADY checked this session, never whether it's
+// handler in api/holiday-notifications/route.ts). This component only
+// decides whether it has ALREADY checked this session, never whether it is
 // "allowed" to show something the server said not to.
 
 "use client";
@@ -19,9 +19,9 @@ import { useEffect, useState } from "react";
 import { useVerifiedSession } from "@/components/SessionGuard";
 import { X, Bell, BellOff } from "lucide-react";
 
-// Keyed per-user, not just per-tab: on a shared terminal, User A logging
+// I key the flag per user, not just per tab: on a shared terminal, User A logging
 // out and User B logging into the SAME tab right after must still get
-// checked fresh -- a flag scoped only to the tab would otherwise silently
+// checked fresh. A flag scoped only to the tab would otherwise silently
 // swallow User B's own notification because User A already "used up" the
 // tab-wide flag.
 const SESSION_FLAG_PREFIX = "holidayNotifCheckedThisSession:";
@@ -58,7 +58,7 @@ export function HolidayNotificationToast() {
   useEffect(() => {
     // Verified session status: this can only ever be "authenticated" once
     // SessionGuard has confirmed it against this tab's own liveness marker,
-    // so there is no leftover-cookie flash left to worry about here.
+    // so there is no leftover-cookie flash left for me to worry about here.
     if (sessionStatus !== "authenticated" || !userId) return;
     if (typeof window === "undefined") return;
     const sessionFlagKey = SESSION_FLAG_PREFIX + userId;
@@ -81,8 +81,8 @@ export function HolidayNotificationToast() {
             upcoming: data.upcoming,
             suppressAfterFirstView: data.suppressAfterFirstView,
           });
-          // If this showing is the ONE allowed showing (suppress mode),
-          // tell the server it's been seen so it won't show again on the
+          // If this showing is the ONE allowed showing (suppress mode), I
+          // tell the server it has been seen so it won't show again on the
           // next login until re-enabled.
           if (data.suppressAfterFirstView) {
             fetch("/api/holiday-notifications", {
@@ -92,10 +92,10 @@ export function HolidayNotificationToast() {
             }).catch(() => {});
           }
         }
-        // registered && !shouldShowNotification -- correctly suppressed,
-        // stay hidden.
+        // registered && !shouldShowNotification: correctly suppressed,
+        // so I keep it hidden.
       } catch {
-        /* best-effort; a failed check should never block the page */
+        /* Best-effort: I never let a failed check block the page. */
       }
     })();
 

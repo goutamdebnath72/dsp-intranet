@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/designationFilter.selftest.ts
-// The filter box of a people list understands designations (gm, dgm, agm, Sr. Mgr ...), in any case, with or without dots.
+// This test checks that the filter box of a people list understands designations (gm, dgm, agm, Sr. Mgr ...), in any case, with or without dots.
 
 import { filterRows, type DisplayColumn } from "./display";
 import { canonicalTitle, isDesignationColumn, isTicketColumn, originOfTicket, splitAlternatives, tidyDesignation } from "./designationFilter";
@@ -17,7 +17,7 @@ const columns: DisplayColumn[] = [
   { key: "department", label: "Department", kind: "text" },
   { key: "ticket_no", label: "Ticket", kind: "code" },
 ];
-// the titles as the HR tool stores them: note "Asst.General Manager" has no space
+// The titles as the HR tool stores them; note that "Asst.General Manager" has no space.
 const rows = [
   { name: "A ROY", designation: "General Manager", department: "C&IT", ticket_no: "490001" },
   { name: "B SEN", designation: "General Manager", department: "BF", ticket_no: "420133" },
@@ -43,7 +43,7 @@ eq("GM in capitals, Gm mixed: the same", [names("GM"), names("Gm")], ["A ROY,B S
 eq("dgm shows the Dy. General Managers only", names("dgm"), "C DAS,D ROY");
 eq("agm shows the Asst. General Managers only (stored without a space)", names("agm"), "E BOSE");
 eq("cgm, ed, dic, mo", [names("cgm"), names("ed"), names("dic"), names("mo")], ["F RAO", "G NATH", "H GHOSH", "N SAHA"]);
-// ---- JO is a DESIGNATION (the first 18 months of a promotee), found by its title; the list may have none
+// ---- I treat JO as a DESIGNATION (the first 18 months of a promotee), found by its title; the list may have none
 const rowsWithJo = [...rows, { name: "P JUNIOR", designation: "Junior Officer", department: "BF", ticket_no: "470001" }, { name: "Q TRAINEE", designation: "Jr. Officer", department: "SMS", ticket_no: "480002" }];
 const namesJo = (q: string) => filterRows(rowsWithJo, columns, q).map((r) => r.name).join(",");
 eq("jo is the designation Junior Officer (in any case; Jr. Officer is the same title), and no other", [namesJo("jo"), namesJo("JO"), namesJo("junior officer"), namesJo("jr officer")], Array(4).fill("P JUNIOR,Q TRAINEE"));
@@ -82,7 +82,7 @@ eq("a department word, any case", names("sms"), "C DAS,L MITRA,O NONEX");
 eq("an empty or blank box shows every row", [names("").split(",").length, names("   ").split(",").length, names(" , ; ").split(",").length], [15, 15, 15]);
 eq("nothing found shows no row", names("zzz"), "");
 
-// ---- the ORIGIN of an executive, read from the ticket (second digit 9 = direct recruit, any other = promotee), whatever the designation is today
+// ---- I read the ORIGIN of an executive from the ticket (second digit 9 = direct recruit, any other = promotee), whatever the designation is today
 const PROMOTEES = "B SEN,C DAS,E BOSE,I PAL,J ROY,K DEY,L MITRA,N SAHA";
 const DIRECT = "A ROY,D ROY,F RAO,G NATH,H GHOSH,M REDDY";
 eq("promotee shows the promotee officers, any designation (a promotee DGM, AGM, GM ... is among them)", names("promotee"), PROMOTEES);

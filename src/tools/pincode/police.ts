@@ -2,34 +2,34 @@
 //
 // THE FOUR POLICE STATIONS THAT THE ROLL NAMES for the wards and gram panchayats of Durgapur, with what the Asansol-Durgapur Police Commissionerate's own site says about each (address, zone, its page).
 // Which areas are under which station is in data.ts (the "থানা" line of each roll part); this file holds what is true of a station itself: its address, its telephone numbers as the Commissionerate and the Municipal
-// Corporation publish them, whom it reports to, and the investigation centres and outposts that work under it. The name of an officer is NOT kept (they change); a telephone number can change too, so the card says where
+// Corporation publish them, whom it reports to, and the investigation centres and outposts that work under it. I do NOT keep the name of an officer (they change); a telephone number can change too, so the card says where
 // each was read and when (POLICE_SOURCES) and links the station's own page. Pure data, no React.
 import type { Police } from "./data";
 
-/** an investigation centre (IC) or an outpost (OP / TOP): a small post that works under a station. `src` says which publication names it and, for the station it is under, which one says so. */
-export interface PoliceUnit { name: string; kind: "Investigation centre" | "Outpost"; address: string; phone: string; src: SourceId[]; /** worth saying for a reader from the Steel Plant */ note?: string }
+/** An investigation centre (IC) or an outpost (OP / TOP): a small post that works under a station. `src` says which publication names it and, for the station it is under, which one says so. */
+export interface PoliceUnit { name: string; kind: "Investigation centre" | "Outpost"; address: string; phone: string; src: SourceId[]; /** A note on what is worth saying for a reader from the Steel Plant */ note?: string }
 export type SourceId = "dmc" | "state" | "wiki" | "adpc";
 
 export interface PoliceStation {
   id: Police;
   /** "Durgapur Police Station" */
   name: string;
-  /** the address on the Commissionerate's page */
+  /** I take the address from the Commissionerate's page */
   address: string;
-  /** the Commissionerate's zone for it */
+  /** The zone the Commissionerate gives the station */
   zone: "East Zone" | "West Zone";
-  /** the station's page on the Commissionerate's site */
+  /** Link to the station's page on the Commissionerate's site */
   page: string;
-  /** the station's landline (Durgapur Municipal Corporation's emergency page and the state police directory agree on these) and the mobile number the Commissionerate publishes for the station; "" when none is published */
+  /** The station's landline (Durgapur Municipal Corporation's emergency page and the state police directory agree on these) and the mobile number the Commissionerate publishes for the station; I leave it "" when none is published */
   phone: string;
   mobile: string;
-  /** whom it reports to, as its page on the Commissionerate's site and the Commissionerate's organisation chart say */
+  /** Whom the station reports to, as its page on the Commissionerate's site and the Commissionerate's organisation chart say */
   reportsTo: string;
-  /** the office number of its Assistant Commissioner, as its page gives it */
+  /** The office number of its Assistant Commissioner, as its page gives it */
   acpOffice: string;
-  /** the investigation centres and outposts that work under it */
+  /** The investigation centres and outposts that work under the station */
   units: PoliceUnit[];
-  /** colours: a solid colour, a soft background, a dark ink, a gradient for the header (Tailwind classes) */
+  /** Colours, all Tailwind classes: a solid colour, a soft background, a dark ink, a gradient for the header */
   color: string;
   soft: string;
   ink: string;
@@ -55,10 +55,10 @@ export const POLICE: Readonly<Record<Police, PoliceStation>> = {
   K: { id: "K", name: "Kanksa Police Station", address: "Kanksa Road, P.O. Panagarh, PIN 713148", zone: "East Zone", page: `${SITE}/ps-detail/17`, phone: "", mobile: "9147889428", reportsTo: "ACP Kanksa, DCP East", acpOffice: "0343-2999056", units: [], color: "#475569", soft: "#f1f5f9", ink: "#1e293b", gradient: "from-slate-600 via-slate-700 to-slate-800" },
 };
 
-/** the stations in the order they are shown: the one with the most roll parts (polling areas) first: Durgapur 325, Coke Oven 111, Kanksa 81, New Township 80 */
+/** I show the stations in this order: the one with the most roll parts (polling areas) first: Durgapur 325, Coke Oven 111, Kanksa 81, New Township 80 */
 export const POLICE_ORDER: Police[] = ["D", "C", "K", "N"];
 
-/** where the numbers and the units were read, and when: shown on the card */
+/** Where the numbers and the units were read, and when; I show this on the card */
 export const POLICE_SOURCES: Readonly<Record<SourceId, { name: string; url: string; note: string }>> = {
   adpc: { name: "Asansol-Durgapur Police Commissionerate", url: SITE, note: "the station pages and the organisation chart, read on 15 Nov 2026" },
   dmc: { name: "Durgapur Municipal Corporation, emergency numbers", url: "https://www.durgapurmunicipalcorporation.org/emergency.php", note: "read on 15 Nov 2026" },
@@ -66,13 +66,13 @@ export const POLICE_SOURCES: Readonly<Record<SourceId, { name: string; url: stri
   wiki: { name: "Wikipedia, Durgapur (police stations)", url: "https://en.wikipedia.org/wiki/Durgapur", note: "from the West Bengal District Statistical Handbook of 2014 and the police's own station finder of that time: which centre works under which station can have changed" },
 };
 
-/** units that the sources name for Durgapur but do not say which station they are under: shown apart, not put under a station by guess */
+/** Units that the sources name for Durgapur but do not say which station they are under: I show them apart and never put them under a station by guess */
 export const OTHER_UNITS: readonly PoliceUnit[] = [
   { name: "A-Zone Investigation Centre", kind: "Investigation centre", address: "A Zone", phone: "0343-2564024", src: ["dmc"], note: "the Municipal Corporation lists it; the state directory lists an A-Zone outpost (TOP) at 0343-2570924" },
   { name: "Banbahal Outpost", kind: "Outpost", address: "Banbahal", phone: "", src: ["state"], note: "named in the state directory, whose number for it is in an old form and is not shown" },
 ];
 
-/** stations that serve the whole subdivision or the country round the city, and are not "under" a ward in the roll */
+/** Stations that serve the whole subdivision or the country round the city; the roll does not put them "under" a ward */
 export const ALSO_SERVING: ReadonlyArray<{ id: string; name: string; what: string; address: string; mobile: string; page: string }> = [
   { id: "women", name: "Durgapur Women Police Station", what: "women's complaints for the whole Durgapur subdivision", address: "City Centre, near Disha Eye Hospital, Polashdiha, Durgapur - 713204", mobile: "9147889396", page: `${SITE}/ps-detail/12` },
   { id: "faridpur", name: "Faridpur Police Station", what: "the Faridpur-Durgapur block round the city (its centre inside the city is the Faridpur Investigation Centre under Durgapur PS)", address: "Loudha, P.O. Loudha - 713385", mobile: "9147889408", page: `${SITE}/ps-detail/14` },

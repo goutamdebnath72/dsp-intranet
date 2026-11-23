@@ -1,7 +1,7 @@
 // src/components/OmniExecutiveAsk.tsx
 //
-// "ARE YOU AN EXECUTIVE?": shown above the results when a signed-out visitor asks a question of the EDS kind (the rule and the two answers are in src/lib/search/loginHints.ts). Yes: he is told to sign in and offered the
-// the sign-in window opens at once (Yes IS the click on Sign in: there is no second card and no second click; the caller opens the window); No: the simple answer is shown at once. Nothing is searched until he has answered.
+// "ARE YOU AN EXECUTIVE?": shown above the results when a signed-out visitor asks a question of the EDS kind (the rule and the two answers are in src/lib/search/loginHints.ts). Yes: he is told to sign in and
+// the sign-in window opens at once (Yes IS the click on Sign in: there is no second card and no second click; the caller opens the window). No: the simple answer is shown at once. I search nothing until he has answered.
 "use client";
 
 import React from "react";
@@ -9,7 +9,7 @@ import { UserCheck } from "lucide-react";
 import type { ExecutiveAsk } from "@/lib/search/loginHints";
 
 export function OmniExecutiveAsk({ ask, onYes, onNo }: { ask: ExecutiveAsk; onYes: () => void; onNo: () => void }) {
-  // the Executive Deep Search BUTTON was pressed by a visitor who is not signed in: there is no question yet (an empty one), so the card says what EDS is and where "No" leads
+  // the Executive Deep Search BUTTON was pressed by a visitor who is not signed in: there is no question yet (an empty one), so I let the card say what EDS is and where "No" leads
   const chosen = ask.query === "";
   return (
     <div role="group" aria-label="Are you an executive?" data-executive-ask className="mx-2 mb-1 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 text-xs text-violet-950">

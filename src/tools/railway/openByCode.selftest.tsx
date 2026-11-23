@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/railway/openByCode.selftest.tsx
-// THE STATION CODES OPEN THE TRAINS CARD AS YOU TYPE, in any case, without Enter: "dgr" on the Durgapur tab, "asn" on the Asansol tab. Drawn from the same detector and card the search bar uses.
+// THE STATION CODES OPEN THE TRAINS CARD AS YOU TYPE, in any case, without Enter: "dgr" on the Durgapur tab, "asn" on the Asansol tab. This test uses the same detector and card the search bar uses.
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { detectTool } from "../../lib/tools/detect";
@@ -24,8 +24,8 @@ ok("a line naming both stations (asn dgr) opens the Durgapur tab: the first tab 
 ok("the Durgapur tab is selected when no tab is asked for, and when the line is dgr", selected(card()) === "dgr" && selected(card(undefined)) === "dgr");
 ok("the Asansol tab is selected when the line asked for it, and its panel is drawn (asked for at once, not on a click)", selected(card("asn")) === "asn" && /id="railway-panel-asn"[^>]*>(?!<\/div>)/.test(card("asn")));
 ok("any other language value is ignored: the card opens on Durgapur", selected(card("hi")) === "dgr");
-// ordinary lines are not taken for the card
-// "what is asn" is the same as "what is dgr": the live-card rule treats "what", "is" as fillers, so a question that is only the code and fillers opens the card (it is a question about the station)
+// Ordinary lines must not be taken for the card.
+// "what is asn" is the same as "what is dgr": the live-card rule treats "what", "is" as fillers, so a question that is only the code and fillers opens the card, which is right because it is a question about the station.
 ok("\"what is asn\" behaves exactly like \"what is dgr\": both open the card", (hit("what is dgr")?.topic === "railway") === (hit("what is asn")?.topic === "railway") && hit("what is asn")?.lang === "asn");
 for (const q of ["asn", "asn number", "asn code of the invoice", "dgr plant", "dgrx", "asnx", "advance shipping notice asn"]) {
   const h = hit(q);

@@ -1,8 +1,8 @@
 // src/lib/perf/ttlMemo.ts
 //
-// REMEMBER AN ANSWER FOR A WHILE: the one small cache the speed work uses (a router decision, the list of example queries). Per server instance, in memory, so a new deploy or a cold start begins empty.
+// REMEMBER AN ANSWER FOR A WHILE: this is the one small cache the speed work uses (a router decision, the list of example queries). It lives per server instance, in memory, so a new deploy or a cold start begins empty.
 //  - ttlMemo(seconds, load): one value, reloaded when it is older than `seconds`. seconds <= 0 = no memory at all (every call loads: the previous way).
-//  - ttlMap(seconds, max): values by key, at most `max` of them (the oldest leaves first). Only what the caller puts is kept, so a failed answer is never remembered by mistake.
+//  - ttlMap(seconds, max): values by key, at most `max` of them (the oldest leaves first). Only what the caller puts is kept, so I never remember a failed answer by mistake.
 // A failed load is never kept: the next call tries again.
 
 export function ttlMemo<A extends unknown[], T>(seconds: () => number, load: (...args: A) => Promise<T>): (...args: A) => Promise<T> {

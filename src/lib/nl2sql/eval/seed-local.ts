@@ -1,7 +1,7 @@
 // src/lib/nl2sql/eval/seed-local.ts
-// TEST ONLY: deterministic synthetic roster for the local self-test. Contains
+// TEST ONLY: a deterministic synthetic roster for my local self-test. It contains
 // the tricky names from the real conversations (Kumar/Nath/Debnath families,
-// initials, Roy/Ray/Rai) so the taught phonetic recipes are exercised.
+// initials, Roy/Ray/Rai) so that the taught phonetic recipes are exercised.
 
 export const GRADES: [number, number, string, string, number][] = [
   [1, 227, "Director In-charge", "managerial", 1], [2, 223, "Executive Director", "managerial", 2],
@@ -31,7 +31,7 @@ export const DEPARTMENTS: [number, number, string, string][] = [
   [13, 20006, "POWER MANAGEMENT DEPTT.", "shared"], [14, 103, "P.R.O.", "executive"], [15, 103, "LAW", "nonexecutive"],
 ];
 
-// Fixed edge-case people: [name, gradeId, deptId]
+// I fix the edge-case people here: [name, gradeId, deptId]
 const EDGE: [string, number, number][] = [
   ["SANJAY DEBNATH", 5, 9], ["BIMAL DEBNATH", 5, 13], ["SUKANTA DEBNATH", 5, 13], ["CHINMAY SARAN NATH", 5, 8],
   ["NIRUPAM NATH", 5, 11], ["PRANAB NATH", 10, 12], ["AMAR NATH DEBNATH", 13, 7], ["AMAR NATH BANERJEE", 13, 7],

@@ -1,7 +1,7 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/pax/contact.selftest.ts
-// Step 63b: "pax number", "phone number" and "contact number" are ONE keyword; the SUBJECT decides what number is meant. A department or other non-human subject gives its PAX number; a person who is an executive
-// (ticket 4xxxxx) gives his or her CUG mobile number, masked, with the existing card and Reveal button; a non-executive person is not answered here (the question goes on unchanged).
-// The REAL route code (route.ts, people.ts, answer.ts, matcher.ts) runs with stand-ins for the two database reads. The people are INVENTED; the directory rows are the same invented fixture as pax.selftest.ts.
+// Step 63b: "pax number", "phone number" and "contact number" are ONE keyword, and the SUBJECT decides what number is meant. A department or other non-human subject gives its PAX number; a person who is an executive
+// (ticket 4xxxxx) gives his or her CUG mobile number, masked, with the existing card and Reveal button. A non-executive person is not answered here: the question goes on unchanged.
+// The REAL route code (route.ts, people.ts, answer.ts, matcher.ts) runs here with stand-ins for the two database reads. The people are INVENTED; the directory rows are the same invented fixture as pax.selftest.ts.
 
 import { runOmnibar } from "../nl2sql/omnibar";
 import type { EmployeeResult } from "../search/employeeSearch";
@@ -27,7 +27,7 @@ const person = (name: string, ticketNo: string, over: Partial<EmployeeResult> = 
   mobileMasked: "943479xxxx", emailMasked: "xxxxxx@sail.in", hasMobile: true, hasEmail: true, isExecutive: isExecutiveTicket(ticketNo), matchKind: "name-exact", score: 1, ...over,
 });
 const PEOPLE: EmployeeResult[] = [
-  person("SANJAY KUMAR ROY", "412345"), person("SANJAY ROY", "123456", { designation: "Sr. Technician" }), // one executive, one non-executive of nearly the same name
+  person("SANJAY KUMAR ROY", "412345"), person("SANJAY ROY", "123456", { designation: "Sr. Technician" }), // one executive and one non-executive with nearly the same name
   person("ANIL DAS", "498301", { hasMobile: false, mobileMasked: null }),
   person("RAJESH KUMAR", "450001"), person("RAJESH KUMAR SINGH", "450002"),
   person("MEENA GUPTA", "440777", { title: "Dr." }),
@@ -39,7 +39,7 @@ const PEOPLE: EmployeeResult[] = [
 const calls = { name: [] as string[], ticket: [] as string[], loadPax: 0 };
 const deps = (over: Partial<ContactDeps> = {}): ContactDeps => ({
   loadPax: async () => { calls.loadPax++; return ROWS; },
-  // like the real directory search: fuzzy, it returns everybody who sounds alike; the route must not trust it
+  // This behaves like the real directory search: it is fuzzy and returns everybody who sounds alike, so the route must not trust it.
   findByName: async (n) => { calls.name.push(n); return PEOPLE; },
   findByTicket: async (t) => { calls.ticket.push(t); return PEOPLE.filter((p) => p.ticketNo === t); },
   ...over,
@@ -87,7 +87,7 @@ async function main() {
   ok("two executives of one name: 'Rajesh Kumar' is both RAJESH KUMAR and RAJESH KUMAR SINGH (every typed word is a word of the name): 2 executives, 2 cards", ph(p) === "2 executives match" && p?.people?.length === 2 && p.count === 2, JSON.stringify(p?.headline));
   p = await run("phone number of kumar");
   ok("one common word: 'kumar' is many executives: the first 10 are shown, the total is said, the list is marked truncated", /^1\d executives match$/.test(ph(p) ?? "") && p?.people?.length === 10 && p.listTruncated === true && /first 10 are shown/.test(p.answer), JSON.stringify(p?.headline));
-  // "phone number of departments": the same list as "pax number of departments", no person is looked up
+  // "phone number of departments" gives the same list as "pax number of departments", and no person is looked up.
   for (const q of ["phone number of departments", "contact number of all departments", "pax number of departments"]) {
     const x = await run(q);
     ok(`"${q}": the whole PAX list (the number of numbers is the headline, the table is the directory), and no person is looked up`, /^\d+ PAX numbers$/.test(x?.hospital?.headline?.text ?? "") && (x?.hospital?.table?.rows.length ?? 0) === ROWS.length && !x?.people && calls.name.length === 0, JSON.stringify(x?.hospital?.headline));

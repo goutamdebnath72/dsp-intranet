@@ -1,8 +1,8 @@
 // src/app/api/announcements/admin/route.ts
 //
 // POST /api/announcements/admin
-// The Announcement Manager facility endpoint (Modular Facility Kit).
-// Protected by same-origin, session verification, and granular authority.
+// This is the endpoint of the Announcement Manager facility (Modular Facility Kit).
+// I protect it with a same-origin check, session verification and granular authority.
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
@@ -13,7 +13,7 @@ import { MAX_PDF_BYTES, readUploadForm, type UploadedPdf } from "@/lib/announcem
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
-// a PDF of up to 10 MB is read and put into storage in this request, and is then read page by page for the search bar (the circular upload's own reading): up to the platform's ceiling for this plan
+// In this request a PDF of up to 10 MB is read and put into storage, and is then read page by page for the search bar (the circular upload's own reading), so I set it up to the platform's ceiling for this plan
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // JSON for everything; a multipart form when a publish or an edit carries a PDF (fields op, title, content, date, id, version, removeFile and the file called "file").
+  // I use JSON for everything, and a multipart form when a publish or an edit carries a PDF (fields op, title, content, date, id, version, removeFile and the file called "file").
   let body: unknown;
   let upload: UploadedPdf | null = null;
   if ((request.headers.get("content-type") || "").toLowerCase().startsWith("multipart/form-data")) {

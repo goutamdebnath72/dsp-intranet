@@ -1,25 +1,25 @@
 // src/lib/search/conditionFinding.ts
 //
 // A CONDITION THE PROSE LEAVES OUT. The table of a briefing carries a note on a row ("[under exceptional circumstances, provided no employee is waiting]" on the 7th to 12th month),
-// and the overview and the findings said "up to 12 months" without it (query 1, 11 Nov 2026): not false, but a reader of the sentences alone is told the 12 months are his to take. A
-// condition the table gives to a row is said in the sentences at least once. Plain code, from the table's own words (no new figure, no model): when the words of such a note are not in
-// the overview or a finding, the note becomes one finding, "<row>, <column>: <the note>". Pure.
+// and the overview and the findings said "up to 12 months" without it (query 1, 11 Nov 2026): not false, but a reader of the sentences alone is told the 12 months are his to take.
+// My rule: a condition the table gives to a row is said in the sentences at least once. This is plain code, working from the table's own words (no new figure, no model): when the words of such a note are not in
+// the overview or a finding, I turn the note into one finding, "<row>, <column>: <the note>". Pure.
 import type { SynthesisFinding, SynthesisResult, SynthesisTable } from "./executiveSynthesis";
 import { stemsOf } from "./edsQuality";
 
-/** at most this many findings are added for conditions: more would bury the answer */
+/** I add at most this many findings for conditions, because more would bury the answer */
 const MAX_ADDED = 2;
 /** a note counts as already said when this share of its content words is in the overview or the findings */
 const SAID_SHARE = 1 / 3;
 /** a bracket (not a [condition]) is a condition only when it begins like one */
 const CONDITIONAL = /^\s*(?:under|provided|subject to|only (?:if|in|when)|except|unless|if|when|in case)\b/i;
 
-/** A tag ("Category B", a pay scale, "w.e.f.") is not a condition: a note is one when it begins like one or says it in four words or more. */
+/** A tag ("Category B", a pay scale, "w.e.f.") is not a condition. I treat a note as one when it begins like one or says it in four words or more. */
 const isCondition = (note: string): boolean => CONDITIONAL.test(note) || note.trim().split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length >= 4;
 
 export interface Condition { row: string; column: string; note: string }
 
-/** The notes the table gives to its rows: a trailing [condition], or a trailing (bracket) that begins like a condition. */
+/** Returns the notes the table gives to its rows: a trailing [condition], or a trailing (bracket) that begins like a condition. */
 export function tableConditions(t: SynthesisTable | null | undefined): Condition[] {
   const out: Condition[] = [];
   if (!t) return out;
@@ -38,7 +38,7 @@ const sentence = (c: Condition): string => {
   return `${c.row}, ${c.column}: ${note[0].toUpperCase()}${note.slice(1)}.`;
 };
 
-/** The conditions of the tables that the sentences do not say, as findings (at most two). */
+/** Returns the conditions of the tables that the sentences do not say, as findings (at most two). */
 export function conditionFindings(r: SynthesisResult): SynthesisFinding[] {
   const prose = stemsOf([r.overview, ...(r.keyFindings ?? []).map((f) => f.text)].join(" "));
   const out: SynthesisFinding[] = [];
@@ -58,7 +58,7 @@ export function conditionFindings(r: SynthesisResult): SynthesisFinding[] {
   return out;
 }
 
-/** The result with those findings added when there is room (eight at most). The result is not changed in place. */
+/** Returns the result with those findings added when there is room (eight at most). I do not change the result in place. */
 export function withConditionFindings(r: SynthesisResult, max = 8): SynthesisResult {
   const add = conditionFindings(r).slice(0, Math.max(0, max - (r.keyFindings?.length ?? 0)));
   return add.length ? { ...r, keyFindings: [...r.keyFindings, ...add] } : r;

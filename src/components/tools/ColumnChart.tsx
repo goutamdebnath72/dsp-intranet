@@ -1,25 +1,25 @@
 // src/components/tools/ColumnChart.tsx
 //
-// A COLUMN CHART, shared by the cards that draw one (the CPI and inflation card, the steel card): one bar for each point, round values on the left, the value on top of each bar when there are few of them (otherwise
-// on hover or touch), a short text under it. It knows no topic: the card hands it the bars, the starting line and how to write a value. Moved here, unchanged, from the CPI card's own file (which still exports it).
+// A column chart, shared by the cards that draw one (the CPI and inflation card, the steel card): one bar for each point, round values on the left, the value on top of each bar when there are few of them (otherwise
+// on hover or touch), a short text under it. It knows no topic: the card hands it the bars, the starting line and how to write a value. I moved it here, unchanged, from the CPI card's own file (which still exports it).
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { niceTicks } from "@/components/tools/live/LivePieces";
 
-/** the width a figure on a bar needs, in pixels ("104.00" in 11-pixel bold, and a little air) */
+/** The width a figure on a bar needs, in pixels ("104.00" in 11-pixel bold, and a little air). */
 export const VALUE_PX = 40;
 
 export interface Bar {
-  /** what the hover read-out says: "Oct 2026: 110.05" */
+  /** The text of the hover read-out: "Oct 2026: 110.05". */
   tip: string;
-  /** the short text under the bar ("Oct", or the year at January); empty for none */
+  /** The short text under the bar ("Oct", or the year at January); empty for none. */
   axis: string;
   value: number | null;
 }
 
-/** the scale of a column chart: where the bars start, the top, and the round values on the left */
+/** I compute the scale of a column chart here: where the bars start, the top, and the round values on the left. */
 export function scaleOf(values: number[], from: "zero" | number, room = 0): { lo: number; hi: number; ticks: number[]; base: number } {
   const base = from === "zero" ? 0 : from;
   const lo0 = Math.min(base, ...values), hi0 = Math.max(base, ...values);
@@ -30,7 +30,7 @@ export function scaleOf(values: number[], from: "zero" | number, room = 0): { lo
   return { lo, hi, ticks: niceTicks(lo, hi, 4), base };
 }
 
-/** which bars get their text under the axis: those that have one, never closer than `gap` pixels (the first of two that would touch is kept) */
+/** Picks which bars get their text under the axis: those that have one, never closer than `gap` pixels; I keep the first of two that would touch. */
 export function axisKept(bars: Bar[], width: number, gap = 34): number[] {
   const slot = width > 0 ? width / bars.length : 40;
   const out: number[] = [];
@@ -43,7 +43,7 @@ export function axisKept(bars: Bar[], width: number, gap = 34): number[] {
 }
 
 /**
- * A column chart: one bar for each month, round values on the left, the value on top of each bar when there are few of them (otherwise on hover or touch), the month (or the year) under it.
+ * I draw one bar for each month, with round values on the left, the value on top of each bar when there are few of them (otherwise on hover or touch), and the month (or the year) under it.
  * `from` is where the bars start: "zero" (the rate hangs under it when below zero), or a number (the index, from 100).
  */
 export function ColumnChart({ bars, from, format, valueFormat, color, negativeColor = "#e11d48", ariaLabel, showValues }: { bars: Bar[]; from: "zero" | number; format: (v: number) => string; valueFormat?: (v: number) => string; color: string; negativeColor?: string; ariaLabel: string; showValues: boolean }) {
@@ -62,7 +62,7 @@ export function ColumnChart({ bars, from, format, valueFormat, color, negativeCo
   const sc = useMemo(() => scaleOf(bars.flatMap((b) => (b.value === null ? [] : [b.value])), from, showValues ? 0.35 : 0.12), [bars, from, showValues]);
   const pct = (v: number) => ((sc.hi - v) / (sc.hi - sc.lo)) * 100;
   const kept = useMemo(() => axisKept(bars, width), [bars, width]);
-  // the figure on a bar is about 40 px wide: on a narrow screen only every second (third...) bar carries one, always the latest; the rest are read by touch
+  // The figure on a bar is about 40 px wide: on a narrow screen I let only every second (third...) bar carry one, always the latest; the rest are read by touch.
   const every = showValues && width > 0 ? Math.max(1, Math.ceil(VALUE_PX / (width / n))) : 1;
   if (!bars.some((b) => b.value !== null)) return <p className="text-sm text-slate-500">No figures to draw.</p>;
   const at = (e: React.PointerEvent) => {

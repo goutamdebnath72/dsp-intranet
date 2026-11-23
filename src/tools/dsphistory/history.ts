@@ -1,48 +1,48 @@
 // src/tools/dsphistory/history.ts
 //
-// THE DATA OF THE DSP STORY CARD (pure, no React): how the Durgapur Steel Plant came to be, who made it, what it made at the start, who has headed it, and the family of SAIL it belongs to.
-// Every fact carries its SOURCE. The sources, in order of weight:
+// This is the data of the DSP story card (pure, no React): how the Durgapur Steel Plant came to be, who made it, what it made at the start, who has headed it, and the family of SAIL it belongs to.
+// Every fact carries its SOURCE. I rank the sources in this order of weight:
 //   * SAIL's own publications: "Steel Cities" (2020), the Background & History page and its History Tree of dated photographs, the plant's page and its RTI manual, the annual reports.
 //   * The Ministry of Steel (a 2002 backgrounder; the 2025-26 annual report; a Lok Sabha reply), the Government's and SAIL's own records.
 //   * The plant's and SAIL's JO Manuals 2022 (the five manuals read for this card; the page is given).
 //   * A MEMOIR by M S Srinivasan, who served Hindustan Steel and SAIL for over thirty years and was part of the team that built Durgapur ("Durgapur - fifty years ago", 2010). It is the only source for the early heads' order and
-//     for some colour; it is a personal account, so wherever it is used the card says so, and where SAIL's captions confirm a name or a date the card says that too. Its remarks on persons are not repeated.
-// A date is the date the source gives; where two sources differ BOTH are shown (the card says "the sources differ"). A name or year that no source gives is left out: the card has gaps and says so, it never fills one.
+//     for some colour. It is a personal account, so wherever I use it the card says so, and where SAIL's captions confirm a name or a date the card says that too. I do not repeat its remarks on persons.
+// A date is the date the source gives; where two sources differ I show BOTH (the card says "the sources differ"). A name or year that no source gives I leave out: the card has gaps and says so, it never fills one.
 // The pictures are SAIL's own photographs (SAIL's History Tree and its Steel Cities book), kept in public/dsp-history/ with the SAIL caption; their credit is on the card. Tested in history.selftest.ts.
 
 /**
- * A source, as the card shows it so that it can be CHECKED against the document:
+ * A source, as the card shows it, so that the reader can CHECK it against the document:
  *   name   the document; url  where it is (none for the plant's internal JO manuals, which are named by file);
- *   pages  the PRINTED page numbers cited (what the reader sees at the foot of the page), `page` is the same as text ("p. 67", "pp. 65, 87");
- *   spread the document prints two pages on each page of the PDF (SAIL's Steel Cities does), so that printed p. 87 is PDF page 44 and the link must say #page=44, not #page=87;
- *   offset the PDF page is the printed page plus this (the annual reports have two or six covers and contents pages before page 1), so that printed p. 54 of SAIL's 2024-25 report is PDF page 56;
- *   quote  the words of the document that carry the claim, verbatim (the reader can match them with the text on the page);
+ *   pages  the PRINTED page numbers cited (what the reader sees at the foot of the page); `page` is the same as text ("p. 67", "pp. 65, 87");
+ *   spread the document prints two pages on each page of the PDF (SAIL's Steel Cities does), so printed p. 87 is PDF page 44 and the link must say #page=44, not #page=87;
+ *   offset the PDF page is the printed page plus this (the annual reports have two or six covers and contents pages before page 1), so printed p. 54 of SAIL's 2024-25 report is PDF page 56;
+ *   quote  the words of the document that carry the claim, verbatim, so the reader can match them with the text on the page;
  *   find   for a web page (no page numbers): the sentence to highlight when the link is opened (a "text fragment", which Chrome, Edge and Safari follow; other browsers open the page and the quote is there to search for).
  */
 export interface Source { name: string; url?: string; doc?: string; page?: string; pages?: number[]; spread?: boolean; offset?: number; quote?: string; find?: string }
 
-/** the page of the PDF (the number in the viewer, which `#page=` takes) for a printed page */
+/** Gives the page of the PDF (the number in the viewer, which `#page=` takes) for a printed page. */
 export const pdfPage = (s: Source, printed: number): number => (s.spread ? Math.floor(printed / 2) + 1 : printed + (s.offset ?? 0));
 
-/** "p. 67" or "pp. 65, 87" */
+/** Gives "p. 67" or "pp. 65, 87". */
 export const pageText = (pages: number[]): string => (pages.length === 1 ? `p. ${pages[0]}` : `pp. ${pages.join(", ")}`);
 
-/** a text fragment must have these escaped as well as the usual ones */
+/** A text fragment needs these escaped as well as the usual ones, so I escape the hyphen too. */
 const fragment = (t: string): string => encodeURIComponent(t).replace(/-/g, "%2D");
 
-/** the link to the cited page of a PDF (or the top of a web page, or the highlighted sentence on it); undefined without a url */
+/** I build the link to the cited page of a PDF (or the top of a web page, or the highlighted sentence on it); it is undefined without a url. */
 export function pageHref(s: Source, printed?: number): string | undefined {
   if (!s.url) return undefined;
   if (printed !== undefined) return `${s.url}#page=${pdfPage(s, printed)}`;
   return s.find ? `${s.url}#:~:text=${fragment(s.find)}` : s.url;
 }
 
-/** the source cited on certain printed pages, with the words that carry the claim: `at(SRC.cities, [67], "…")` */
+/** This gives the source cited on certain printed pages, with the words that carry the claim: `at(SRC.cities, [67], "…")` */
 export const at = (s: Source, pages: number | number[], quote?: string): Source => {
   const list = Array.isArray(pages) ? pages : [pages];
   return { ...s, pages: list, page: pageText(list), ...(quote ? { quote } : {}) };
 };
-/** a web page cited at a sentence of it (the link highlights it): `on(SRC.rti, "…")` */
+/** This gives a web page cited at a sentence of it (the link highlights it): `on(SRC.rti, "…")` */
 export const on = (s: Source, find: string, quote?: string): Source => ({ ...s, find, quote: quote ?? find });
 
 export const SRC = {
@@ -84,7 +84,7 @@ export const SRC = {
   dspPost: { name: "SAIL Durgapur Steel Plant's post on X, September 2019", url: "https://x.com/dspsail1/status/1176062193638395905" },
 } as const satisfies Record<string, Source>;
 
-// short forms for the citations below: the document, the PRINTED page(s), the words that carry the claim
+// Short forms I use for the citations below: the document, the PRINTED page(s), the words that carry the claim.
 const city = (p: number | number[], q: string): Source => at(SRC.cities, p, q);
 const dsp = (p: number | number[], q: string): Source => at(SRC.dspManual, p, q);
 const jo = (p: number | number[], q: string): Source => at(SRC.sailManual, p, q);
@@ -94,17 +94,17 @@ const memo = (find: string): Source => on(SRC.memoir, find);
 // ---------------------------------------------------------------- PICTURES
 export type PhotoId =
   | "panorama" | "coates" | "bf1" | "senCoke" | "queenNiyogi" | "queenClub" | "nehruSection" | "royMerchant" | "nehruWheel" | "shastriBell" | "indiraWadhera" | "sathe" | "mishra" | "bajaj" | "pksingh" | "rath" | "dasgupta" | "kamlakar" | "bpsingh";
-export interface Photo { id: PhotoId; file: string; caption: string; date: string | null; credit: string; /** where the credit line leads: the exact page of the book (or the web page) that carries the picture, so that anyone can check it; none for a picture supplied without a recorded source */ creditHref?: string; /** a tall picture: drawn whole, never cropped to a landscape frame */ portrait?: boolean }
+export interface Photo { id: PhotoId; file: string; caption: string; date: string | null; credit: string; /** Where the credit line leads: the exact page of the book (or the web page) that carries the picture, so that anyone can check it. It is none for a picture supplied without a recorded source. */ creditHref?: string; /** A tall picture: I draw it whole and never crop it to a landscape frame. */ portrait?: boolean }
 const SAIL_PHOTO = "Photograph: SAIL (History Tree, sail.co.in)";
 const SUPPLIED = "Photograph: as supplied for this card (the original source is not recorded)";
 const SAIL_BOOK = "Photograph: SAIL, Steel Cities (2020)";
-/** the picture as the BOOK prints it (whole, not cropped, at its own size), with the printed page; the History Tree shows the same picture, cropped and enlarged */
+/** The picture as the BOOK prints it (whole, not cropped, at its own size), with the printed page. The History Tree shows the same picture, cropped and enlarged. */
 const SAIL_BOOK_P = (page: number) => `${SAIL_BOOK}, p. ${page} (the History Tree, sail.co.in, shows the same picture cropped and enlarged)`;
-/** the link to a printed page of Steel Cities (the PDF page it is on) */
+/** The link to a printed page of Steel Cities (the PDF page it is on). */
 const BOOK = (printed: number): string => pageHref(SRC.cities, printed)!;
-/** the same, opened on the whole page (the viewer's `view=Fit` shows the page entire, so the reader does not have to scroll to the picture; a viewer that does not know it ignores it) */
+/** The same link, opened on the whole page. I use the viewer's `view=Fit` so the reader does not have to scroll to the picture; a viewer that does not know it ignores it. */
 const BOOK_FIT = (printed: number): string => `${BOOK(printed)}&view=Fit`;
-/** a picture the BOOK prints but whose copy on the card is the History Tree's (the History Tree is a slideshow with no address for a slide, so the exact place is the book's page) */
+/** For a picture the BOOK prints but whose copy on the card is the History Tree's. The History Tree is a slideshow with no address for a slide, so I give the book's page as the exact place. */
 const SAIL_TREE_COPY = (page: number) => `${SAIL_BOOK}, p. ${page} (the card's copy is from the History Tree, sail.co.in)`;
 export const PHOTOS: Readonly<Record<PhotoId, Photo>> = {
   panorama: { id: "panorama", file: "panorama-inception.jpg", caption: "Panoramic view of Durgapur Steel Plant during its inception phase", date: null, credit: `${SAIL_BOOK}, p. 4 (the card's copy is from the History Tree, sail.co.in; a larger copy was supplied for this card)`, creditHref: BOOK_FIT(4) },
@@ -130,7 +130,7 @@ export const PHOTOS: Readonly<Record<PhotoId, Photo>> = {
 export const photoSrc = (id: PhotoId): string => `/dsp-history/${PHOTOS[id].file}`;
 
 // ---------------------------------------------------------------- THE STORY IN A STRIP
-/** the five dates every DSP person knows */
+/** The five dates every DSP person knows. */
 export const KEY_DATES: ReadonlyArray<{ when: string; what: string; note: string; sources: Source[] }> = [
   { when: "October 1956", what: "Contract signed", note: "with the Indian Steel Works Construction Company (ISCON), the British consortium that built the plant",
     sources: [city(65, "After negotiation, a contract was signed with them in October 1956.")] },
@@ -144,8 +144,8 @@ export const KEY_DATES: ReadonlyArray<{ when: string; what: string; note: string
     sources: [jo(34, "The company was incorporated on January 24, 1973 with an authorised capital of Rs.2,000 crores."), on(SRC.history, "incorporated on January 24, 1973 with an authorized capital of Rs. 2000 crore")] },
 ];
 
-/** the plant in a few facts, each with its source */
-/** `differsAt`: where the sources of an entry DISAGREE (its note says so), the places in `sources` of the ones on the other side: the card then shows the first source and these, so that a reader can open both sides */
+/** The plant in a few facts, each with its source. */
+/** `differsAt`: where the sources of an entry DISAGREE (its note says so), it holds the places in `sources` of the ones on the other side. The card then shows the first source and these, so a reader can open both sides. */
 export const FACTS: ReadonlyArray<{ label: string; value: string; sources: Source[]; note?: string; differsAt?: number[] }> = [
   { label: "Technology came from", value: "Britain: the Indian Steel Works Construction Company (ISCON), a consortium of British companies (Rourkela's technology came from Germany, Bhilai's from the USSR)", sources: [city(65, "With the earlier steel plants being aided by Germany and the USSR, respectively, the Government of India looked towards Britain to support the Durgapur project.")] },
   { label: "Where", value: "Durgapur, West Bengal, on the banks of the Damodar River, on the Grand Trunk Road (NH-19) and the Kolkata-Delhi main line. SAIL gives its distance from Kolkata as 158 km; road distances quoted elsewhere are longer, about 170 to 180 km", sources: [on(SRC.about, "located at a distance of 158 KM from Kolkata"), on(SRC.about, "NH-19 (erstwhile GT road)")] },
@@ -158,7 +158,7 @@ export const FACTS: ReadonlyArray<{ label: string; value: string; sources: Sourc
 ];
 
 // ---------------------------------------------------------------- THE TIMELINE
-export interface TimelineEvent { id: string; when: string; sort: string; title: string; text: string; photo?: PhotoId; /** further pictures of the same event, shown under the first */ morePhotos?: PhotoId[]; note?: string; differsAt?: number[]; sources: Source[] }
+export interface TimelineEvent { id: string; when: string; sort: string; title: string; text: string; photo?: PhotoId; /** Further pictures of the same event, shown under the first. */ morePhotos?: PhotoId[]; note?: string; differsAt?: number[]; sources: Source[] }
 export const EVENTS: readonly TimelineEvent[] = [
   { id: "hsl", when: "January 19, 1954", sort: "1954-01-19", title: "Hindustan Steel Limited is set up", text: "The company was formed to manage the new plants. At first it was to manage only Rourkela; in April 1957 it was given charge of Bhilai and Durgapur too.", sources: [hist("Hindustan Steel Limited was set up on January 19, 1954."), jo(33, "Thus Hindustan Steel Limited was set up on January 19, 1954. To start with, Hindustan Steel was designed to manage with only one plant that was coming up at Rourkela.")] },
   { id: "birla", when: "1954", sort: "1954-06-01", title: "A private proposal is turned down; a British mission is invited", text: "The Birlas proposed a steel plant with British help in 1954; the Government declined under its policy of the time, but invited a British technical mission to study a third steel plant.", sources: [city(65, "In 1954, the Birlas put forward a proposal for the establishment of a steel plant with British help, but the Indian Government rejected the proposal in accordance with the prevailing policy.")] },
@@ -251,14 +251,14 @@ export const FIRST_ITEMS: readonly FirstItem[] = [
   { when: "January 24, 1962", what: "Railway wheels and axles", detail: "The Wheel and Axle Plant is inaugurated, with a capacity of 45,000 sets a year, later raised to 75,000 sets. It was first meant for broad-gauge coach wheels. SAIL says its commissioning completed the 1 MT stage of Durgapur in January 1962.",
     source: [hist("inauguration of Wheel Plant at Durgapur", "Pandit Nehru on the occasion of inauguration of Wheel Plant at Durgapur Steel Plant."), dsp(40, "Wheel & Axle Plant was commissioned in 1962 with a capacity to produce 45,000 sets per year. Subsequently, its capacity was raised further to 75,000 sets/year."), dsp(40, "Wheel & Axle plant was initially conceived for BG Coach Wheel manufacturing."), jo(33, "The 1 MT phase of Durgapur was completed in January 1962 after commissioning of wheel and axle plant.")] },
 ];
-/** the one account that lists early products, kept apart because it is a personal recollection: it is shown in its own words and is not counted among the items above */
+/** The one account that lists early products. I keep it apart because it is a personal recollection: it is shown in its own words and is not counted among the items above. */
 export const FIRST_MEMOIR = {
   heading: "One personal account of the product mix",
   text: "The memoir's author, who was on the team that built the plant, writes that the early product mix was \"heavily loaded in favour of railway requirements\" and that \"the rest of the product-mix were longs-billets, blooms and bars and commercial sections sold at uneconomical prices, to re-rollers\".",
   caution: "This is a recollection, written long afterwards. No SAIL or Ministry document read lists the early products, and the manual ties plain rounds and TMT bars to the 1992 modernisation of the Merchant Mill, so the card does not list bars, rounds, billets or blooms among the first products.",
   source: [memo("Durgapur's product-mix was heavily loaded in favour of railway requirements."), memo("The rest of the product-mix were longs-billets, blooms and bars and commercial sections sold at uneconomical prices, to re-rollers")] as Source[],
 };
-/** what is NOT known, said once */
+/** Here I say once what is NOT known. */
 export const FIRST_UNKNOWN = "No document read lists what Durgapur rolled in 1959-62: the plant manual, SAIL's pages, the Ministry's 2002 backgrounder and the Steel Cities book give the dates the units opened (Section Mill, Merchant Mill, Wheel and Axle Plant), not their first products, nor DSP's own tonnes, which are not in any source. The only early figure is Hindustan Steel's, for Rourkela, Bhilai and Durgapur together: 0.158 MT of crude steel in 1959-60 and 1.6 MT in 1961-62 (SAIL JO Manual, p. 33).";
 
 // ---------------------------------------------------------------- THE HEADS
@@ -274,20 +274,20 @@ export const ERAS: readonly Era[] = [
 export type Basis = "SAIL record" | "SAIL report" | "Annual report" | "Press report" | "Obituary" | "Company report" | "Memoir";
 export interface Head {
   id: string; name: string; era: EraId;
-  /** the tenure as (start – end) for the brackets after the name: each end only if a source gives it, else "not known"; "start and end not known" where a head is known only from one dated sighting or from no date at all (that sighting stays in `when`); written month first like every date of the card */
+  /** The tenure as (start – end) for the brackets after the name. I give each end only if a source gives it, else "not known"; where a head is known only from one dated sighting or from no date at all it is "start and end not known" (that sighting stays in `when`). It is written month first like every date of the card. */
   tenure: string;
-  /** what the head is called in that source, as printed */
+  /** What the head is called in that source, as printed. */
   title: string;
-  /** a display of the period as the source gives it; empty when the sources give none */
+  /** A display of the period as the source gives it; empty when the sources give none. */
   when: string;
-  /** an ISO date or year used only to order the list */
+  /** An ISO date or year, used only to order the list. */
   sort: string;
   photo: PhotoId | null;
   note: string;
   basis: Basis;
   sources: Source[];
 }
-/** THE HEADS, in any order of typing: a new name can be written anywhere in this list (after its predecessor, or at the end); `HEADS` below puts every head in the order of its `sort` date, and the number each one carries on the card is its place in that order, so nothing is ever numbered by hand */
+/** THE HEADS, in any order of typing: a new name can be written anywhere in this list (after its predecessor, or at the end). `HEADS` below puts every head in the order of its `sort` date, and the number each one carries on the card is its place in that order, so I never number anything by hand. */
 const HEAD_LIST: readonly Head[] = [
   { id: "sen", tenure: "start and end not known", name: "Karunaketan Sen", era: "gm", title: "General Manager", when: "General Manager in November and December 1959", sort: "1959-11", photo: "senCoke", basis: "SAIL record",
     note: "The General Manager of 1959, an **ICS officer** from the senior ranks of the West Bengal Government and, the memoir says, a student of history and literature. He lit Coke Oven Battery No. 1 on November 23, 1959, and sat among the dignitaries at the first blast furnace's inauguration. His Deputy General Manager was A N Banerjee; P C Neogi succeeded him. SAIL's captions print Mr KK Sen; the memoir prints it as K Sen and, once, as Karunaketan Sen.", sources: [hist("lighting Up Coke Oven battery", "General Manager Mr KK Sen lighting Up Coke Oven battery #1 at Durgapur Steel Plant."), city(89, "November 23, 1959: General Manager Mr KK Sen lighting up Coke Oven Battery # 1 at Durgapur Steel Plant"), memo("General Manager, K Sen and Indian Steel Consortium (ISCON) representatives"), memo("K Sen, one of the senior-most ICS officers of West Bengal Government"), memo("a sketch of K Sen, ICS. Karunaketan Sen"), memo("A student of history and literature"), memo("his Deputy General Manager, A.N. Banerjee"), memo("P C Neogi succeeded K Sen as General Manager")] },
@@ -328,12 +328,12 @@ const HEAD_LIST: readonly Head[] = [
   { id: "mishra", tenure: "July 15, 2025 – present", name: "Surajit Mishra", era: "dic2", title: "Director In-charge (Burnpur and Durgapur Steel Plants)", when: "from July 15, 2025", sort: "2025-07", photo: "mishra", basis: "Annual report",
     note: "Appointed Director (In-charge, Burnpur and Durgapur Steel Plants) from July 15, 2025. Before this, Chief General Manager (Maintenance) at Durgapur Steel Plant from July 1, 2022, and leader of the revival of VISL.", sources: [at(SRC.ar26, 49, "has been appointed as Director (In-charge, Burnpur and Durgapur Steel Plants) w.e.f. 15th July, 2025."), at(SRC.ar25, 408, "Shri Mishra was assigned the responsibility of Chief General Manager (Maintenance), Durgapur Steel Plant starting 1st July, 2022."), at(SRC.ar25, 408, "As GM in-charge at VISL, Shri Mishra revived operations at the Plant")] },
 ];
-/** the heads in the order of their dates (a stable sort: two with the same `sort` keep the order they were typed in) */
+/** Returns the heads in the order of their dates. The sort is stable: two with the same `sort` keep the order they were typed in. */
 export function orderedHeads(list: readonly Head[]): Head[] {
   return list.map((h, i) => ({ h, i })).sort((a, b) => (a.h.sort < b.h.sort ? -1 : a.h.sort > b.h.sort ? 1 : a.i - b.i)).map((x) => x.h);
 }
-/** the sequence number a head carries on the card: its place in the order of dates, from 1 */
-/** the sources the card shows for an entry: the first, and (where the sources disagree) the ones on the other side, each once */
+/** The sequence number a head carries on the card: its place in the order of dates, from 1. */
+/** The sources the card shows for an entry: the first, and (where the sources disagree) the ones on the other side, each once. */
 export const shownSources = (sources: readonly Source[], differsAt?: readonly number[]): Source[] => {
   const out: Source[] = [];
   for (const s of [sources[0], ...(differsAt ?? []).map((i) => sources[i])]) if (s && !out.includes(s)) out.push(s);
@@ -341,8 +341,8 @@ export const shownSources = (sources: readonly Source[], differsAt?: readonly nu
 };
 export const sequenceOf = (list: readonly Head[], id: string): number => list.findIndex((h) => h.id === id) + 1;
 export const HEADS: readonly Head[] = orderedHeads(HEAD_LIST);
-/** where the sources leave a gap between two heads: said in words, never filled */
-/** `missing`: heads who certainly served in the span (it is far too long for one man) but whose names no source read for this card gives; the card marks the place and does not fill it */
+/** Where the sources leave a gap between two heads, I say it in words and never fill it. */
+/** `missing`: heads who certainly served in the span (it is far too long for one man) but whose names no source read for this card gives. The card marks the place and does not fill it. */
 export const HEAD_GAPS: ReadonlyArray<{ after: string; text: string; missing?: boolean }> = [
   { after: "paul", missing: true, text: "Managing Directors are missing here. Between P K Paul (the 1970s) and Shyam Bahadur Singh (from 1993), about eighteen years, the plant had other Managing Directors; no further names were found in the sources read. DSP's own records (the heads' board) would fill this." },
   { after: "bhattacharyya", text: "No name or date was found for the time between December 2005 and V Shyamsundar's handover on October 31, 2009; when he took charge is not in the sources read." },
@@ -350,12 +350,12 @@ export const HEAD_GAPS: ReadonlyArray<{ after: string; text: string; missing?: b
   { after: "rath", text: "How long A K Rath served, and who followed him until October 2018, is not in the sources read." },
   { after: "kamlakar", text: "From late 2019 to April 2022, no further name was found." },
 ];
-/** the pictures of the heads: where the plant has a face to show, it is a photograph, SAIL's own or one supplied for this card; elsewhere the card shows initials and says no picture was found */
+/** The pictures of the heads: where the plant has a face to show, it is a photograph, SAIL's own or one supplied for this card. Elsewhere I show initials and the card says no picture was found. */
 export const initials = (name: string): string => {
   const words = name.replace(/\(.*?\)/g, " ").replace(/\band\b.*$/i, "").replace(/\./g, " ").split(/\s+/).filter((w) => /^[A-Z]/.test(w) && !/^(Major|General|Shri|Dr|Smt|Mr)$/.test(w));
   return words.length === 0 ? "" : words.length === 1 ? words[0][0] : words[0][0] + words[words.length - 1][0];
 };
-/** which of a head's sources the chip beside the name ("SAIL record", "Memoir", "Obituary"...) stands for: the kind of document that chip names */
+/** Which of a head's sources the chip beside the name ("SAIL record", "Memoir", "Obituary"...) stands for: the kind of document that chip names. */
 const BASIS_SOURCE: Record<Basis, RegExp> = {
   "SAIL record": /Steel Cities|Background & History/,
   "SAIL report": /^SAIL(?! Annual Report)(?!, Steel Cities)(?!, Background)/,
@@ -365,12 +365,12 @@ const BASIS_SOURCE: Record<Basis, RegExp> = {
   "Company report": /Skipper/,
   "Memoir": /memoir/i,
 };
-/** the source the chip opens: of the head's sources of the kind it names, the one that is a cited PDF page (the exact page), else the first (a web page at its sentence) */
+/** The source the chip opens. Of the head's sources of the kind it names, I take the one that is a cited PDF page (the exact page), else the first (a web page at its sentence). */
 export function basisSource(h: Head): Source | undefined {
   const of = h.sources.filter((s) => s.url && BASIS_SOURCE[h.basis].test(s.name));
   return of.find((s) => s.pages && s.pages.length > 0) ?? of[0];
 }
-/** where the chip leads: the page of the document that carries the claim (a PDF is opened on that page, shown whole so that nothing has to be scrolled), or the web page at its sentence */
+/** Where the chip leads: the page of the document that carries the claim (a PDF is opened on that page, shown whole so that nothing has to be scrolled), or the web page at its sentence. */
 export function basisHref(h: Head): string | undefined {
   const s = basisSource(h);
   if (!s) return undefined;
@@ -392,8 +392,8 @@ export const SAIL_STORY: ReadonlyArray<{ when: string; what: string; source: Sou
   { when: "February 16, 2006", what: "IISCO is amalgamated with SAIL and renamed IISCO Steel Plant (ISP).", source: [jo(41, "was amalgamated with SAIL on 16th February 2006 and renamed IISCO Steel Plant (ISP)")] },
   { when: "July 12, 2011", what: "Chandrapur Ferro Alloy Plant becomes a unit of SAIL.", source: [jo(34, "has become a Unit of SAIL w.e.f. 12/7/2011")] },
 ];
-/** a unit of SAIL: its full name, its SHORT FORM as SAIL prints it (shown to the right of the name, in brackets), the town if the name leaves it out, and the state */
-export interface Unit { id: string; name: string; short: string; town?: string; also?: string; /** where the unit stands now, when it is not simply running (disinvestment, closure), with its sources */ status?: { text: string; sources: Source[] }; where: string; kind: "Integrated steel plant" | "Special steel plant" | "Ferro alloy plant" | "Other unit"; partner: string | null; began: string; today: string; source: Source[]; dsp?: boolean }
+/** A unit of SAIL: its full name, its SHORT FORM as SAIL prints it (shown to the right of the name, in brackets), the town if the name leaves it out, and the state. */
+export interface Unit { id: string; name: string; short: string; town?: string; also?: string; /** Where the unit stands now, when it is not simply running (disinvestment, closure), with its sources. */ status?: { text: string; sources: Source[] }; where: string; kind: "Integrated steel plant" | "Special steel plant" | "Ferro alloy plant" | "Other unit"; partner: string | null; began: string; today: string; source: Source[]; dsp?: boolean }
 export const UNITS: readonly Unit[] = [
   { id: "bsp", name: "Bhilai Steel Plant", short: "BSP", where: "Chhattisgarh", kind: "Integrated steel plant", partner: "USSR (agreement signed February 2, 1955)", began: "Coke Oven Battery No. 1 on January 31, 1959; Blast Furnace No. 1 on February 4, 1959", today: "Hot metal 7.5, crude steel 7.0, saleable steel 6.56 MT a year after expansion; heavy rails, structurals, wire rods, plates", source: [jo(35, "An agreement was signed in New Delhi on February 2, 1955 between the Government of India and Soviet Union to set up an integrated steel plant at Bhilai"), jo(35, "The plant began its operation on January 31, 1959 when Coke Battery No. 1 was commissioned. Production of Pig Iron at Bhilai began on February 4, 1959 when Blast Furnace No. 1 was commissioned."), jo(36, "Hot Metal – 7.5 MT (Million Tonnes) Crude Steel – 7 MT Saleable Steel – 6.56 MT"), jo(35, "Bhilai Steel Plant (BSP)")] },
   { id: "rsp", name: "Rourkela Steel Plant", short: "RSP", where: "Odisha", kind: "Integrated steel plant", partner: "Germany (a consortium of Thyssen and Demag; agreement signed December 31, 1953)", began: "Coke Oven Battery No. 1 on December 3, 1958; Blast Furnace No. 1 on February 3, 1959", today: "Hot metal 4.5, crude steel 4.2, saleable steel 3.9 MT a year after expansion; the first plant in Asia with the basic oxygen process; flat products and pipes", source: [jo(36, "On December 31, 1953, an agreement was made between the Government of India and a Consortium consisting of Thyssen & Demag"), jo(36, "The Coke Oven Battery No.1 was commissioned on 3rd December, 1958 and the first of the three Blast Furnaces was commissioned on 3rd February, 1959."), jo(37, "Pre-Expansion Post-Expansion Hot Metal 2 4.5 Crude Steel 1.9 4.2 Saleable Steel 1.67 3.9"), jo(36, "Rourkela Steel Plant (RSP)")] },
@@ -410,8 +410,8 @@ export const UNITS: readonly Unit[] = [
     source: [on(SRC.visPlant, "Established in 1918 as the Mysore Wood Distillation and Iron Works"), on(SRC.visPlant, "In 1976, it was rechristened as Visvesvaraya Iron & Steel Limited (VISL) in honor of its founder. The plant became a unit of SAIL in 1989"), on(SRC.visSite, "founded by the Engineer Statesman of the erstwhile State of Mysore, Sir. M. Visvesvaraya in 1923, as a small pig iron unit"), on(SRC.visSite, "The Company achieved the distinction of being the First Alloy Steel Plant in India."), city(6, "August 18, 1989: Visvesvarya Iron & Steel Limited becomes a SAIL subsidiary"), jo(44, "Visvesvaraya Iron & Steel Plant (VISP) Visvesvaraya Iron and Steel Plant (VISL) is a pioneer"), at(SRC.lsReply, 1, "VISP has produced 13000 tonnes of saleable steel in the year 2023-24.")] },
   { id: "cfp", name: "Chandrapur Ferro Alloy Plant", short: "CFP", where: "Maharashtra", kind: "Ferro alloy plant", partner: null, began: "A unit of SAIL from July 12, 2011 (earlier Maharashtra Elektrosmelt Ltd, MEL)", today: "The only public-sector maker of manganese-based ferro alloys in the country", source: [jo(34, "has become a Unit of SAIL w.e.f. 12/7/2011"), jo(44, "only Public Sector Unit engaged in production of Manganese based Ferro Alloys"), jo(44, "Chandrapur Ferro Alloy Plant (CFP)"), jo(44, "erstwhile Maharashtra Elektrosmelt Ltd. (MEL)")] },
 ];
-/** SAIL's other bodies, as the SAIL manual lists them */
-/** a body of SAIL other than a plant: its full name, its short form, WHERE it is (town and state, from SAIL's annual report 2025-26, printed pp. 206-207, "The Company's Plants/Units/Subsidiaries are located at"), what it is, and its sources */
+/** SAIL's other bodies, as the SAIL manual lists them. */
+/** A body of SAIL other than a plant: its full name, its short form, WHERE it is (town and state, from SAIL's annual report 2025-26, printed pp. 206-207, "The Company's Plants/Units/Subsidiaries are located at"), what it is, and its sources. */
 export const OTHER_BODIES: ReadonlyArray<{ name: string; short?: string; where: string; detail: string; source: Source[] }> = [
   { name: "Captive mines", where: "Jharkhand, Odisha and Chhattisgarh", detail: "SAIL has the second largest mining outfit in the country after Coal India (the manual still writes Madhya Pradesh for Chhattisgarh)", source: [jo(45, "SAIL has the second largest mining outfit in the country after Coal India Ltd. Spread over the mineral rich states of Jharkhand, Odisha and Madhya Pradesh"), on(SRC.minesPage, "a network of 15 iron ore mines in the States of Jharkhand, Odisha and Chhattisgarh")] },
   { name: "SAIL Refractory Unit", short: "SRU", where: "Bokaro, Jharkhand", detail: "formerly Bharat Refractory Limited (BRL), merged with SAIL from April 2007; four production units, three in Jharkhand and one at Bhilai, Chhattisgarh", source: [jo(44, "SAIL Refractory Unit (SRU) The erstwhile Bharat Refractory Limited (BRL) has been merged with SAIL with effect from April 2007."), jo(44, "SRU has four production units, out of which three are situated in Jharkhand and one in Chhatisgarh."), at(SRC.ar26, 207, "SAIL Refractory Unit, Bokaro-827004, Jharkhand.")] },

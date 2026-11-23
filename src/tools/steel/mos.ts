@@ -1,15 +1,15 @@
 // src/tools/steel/mos.ts
 //
 // THE OFFICIAL FIGURES OF THE STEEL CARD: everything here is copied from the Ministry of Steel's "Monthly Economic Report" (one PDF a month, https://steel.gov.in/monthly-summary) and its "An Overview of Steel
-// Sector" (September 2026). Nothing is fetched while the card is open: this is a reviewed file with its sources. Generated from the ten reports of December 2025 to September 2026 and checked:
+// Sector" (September 2026). I fetch nothing while the card is open: this is a reviewed file with its sources. Generated from the ten reports of December 2025 to September 2026 and checked:
 //   * RETAIL: the month-end retail prices in Mumbai (Rs per tonne, GST included) that each report states in words (TMT 10 mm, HR coil 2.50 mm, CR coil 0.63 mm). The month-on-month changes the reports state agree with the
-//     figures for every month except July 2026 hot-rolled coil (the July report says -0.3%; its own figures, and the August report's +0.6%, give +1.2%: the figure 68,990 is kept, and the slip is in the report's percentage).
+//     figures for every month except July 2026 hot-rolled coil (the July report says -0.3%; its own figures, and the August report's +0.6%, give +1.2%: I keep the figure 68,990, and the slip is in the report's percentage).
 //   * IRON_ORE: NMDC lump ore price (Rs per tonne) as the reports say it; the April 2026 report does not say it in words, so April is empty.
 //   * CPSE: SAIL, RINL and NMDC Steel (NSL), in million tonnes (MT; the Ministry's table is in lakh tonnes and the script divides by 10), month by month: each report gives its month, the month before and the same month a year earlier. Where a month
-//     appears in two reports the NEWER report's figure is kept (it is the revised one); the differences are in the second decimal.
-//   * WSA: crude steel production by country (million tonnes) from the World Steel Association's figures as the reports quote them (a month behind the report), newest report's figure kept.
+//     appears in two reports I keep the NEWER report's figure (it is the revised one); the differences are in the second decimal.
+//   * WSA: crude steel production by country (million tonnes) from the World Steel Association's figures as the reports quote them (a month behind the report); I keep the newest report's figure.
 //   * ANNUAL: the Joint Plant Committee's figures in the Overview and in Annexure I of the September 2026 report.
-// The reports are provisional ("P") and are revised: the card says so. THIS FILE IS WRITTEN BY scripts/steel/refresh-mos.py: do not edit it by hand.
+// The reports are provisional ("P") and are revised: the card says so. Important: this file is written by scripts/steel/refresh-mos.py, so do not edit it by hand.
 
 export interface Report { month: string; url: string }
 export const MOS_REPORTS: Report[] = [
@@ -27,7 +27,7 @@ export const MOS_REPORTS: Report[] = [
 export const MOS_SITE = "https://steel.gov.in/monthly-summary";
 export const MOS_OVERVIEW = "https://steel.gov.in/overview-steel-sector";
 
-/** month-end retail prices in Mumbai, Rs per tonne including GST: TMT 10 mm, HR coil 2.50 mm, CR coil 0.63 mm */
+/** I store the month-end retail prices in Mumbai, Rs per tonne including GST: TMT 10 mm, HR coil 2.50 mm, CR coil 0.63 mm */
 export interface RetailPoint { month: string; tmt: number; hrc: number; crc: number }
 export const RETAIL: readonly RetailPoint[] = [
   { month: "2025-12", tmt: 52700, hrc: 54760, crc: 64970 },
@@ -42,7 +42,7 @@ export const RETAIL: readonly RetailPoint[] = [
   { month: "2026-09", tmt: 65750, hrc: 76900, crc: 89670 },
 ];
 
-/** NMDC lump iron ore (Chhattisgarh, 6-40 mm, Fe 65.5%), Rs per tonne; null where the report does not say it in words */
+/** NMDC lump iron ore (Chhattisgarh, 6-40 mm, Fe 65.5%), Rs per tonne; I leave it null where the report does not say it in words */
 export const IRON_ORE: ReadonlyArray<{ month: string; lumps: number | null }> = [
   { month: "2025-12", lumps: 5500 },
   { month: "2026-01", lumps: 4600 },
@@ -56,7 +56,7 @@ export const IRON_ORE: ReadonlyArray<{ month: string; lumps: number | null }> = 
   { month: "2026-09", lumps: 5400 },
 ];
 
-/** the steel CPSEs, in million tonnes (MT), month by month */
+/** I keep the steel CPSEs in million tonnes (MT), month by month */
 export interface CpseMonth { month: string; crude: number | null; saleable: number | null; sales: number | null; hotMetal: number | null }
 export const SAIL_MONTHLY: readonly CpseMonth[] = [
   { month: "2024-12", crude: 1.691, saleable: 1.557, sales: 1.544, hotMetal: 1.764 },
@@ -130,7 +130,7 @@ export const NSL_MONTHLY: ReadonlyArray<{ month: string; crude: number | null; s
   { month: "2026-09", crude: 0.234, second: 0.229 },
 ];
 
-/** crude steel production by country, million tonnes, month by month (World Steel Association) */
+/** Crude steel production by country in million tonnes, month by month, from the World Steel Association */
 export const WSA_MONTHLY: Readonly<Record<string, ReadonlyArray<readonly [month: string, mt: number]>>> = {
   "China": [["2024-11", 78.42], ["2024-12", 76.01], ["2025-01", 87.38], ["2025-02", 78.94], ["2025-03", 92.89], ["2025-04", 86.04], ["2025-05", 86.7], ["2025-06", 83.34], ["2025-07", 79.8], ["2025-08", 77.48], ["2025-10", 72.0], ["2025-11", 69.87], ["2025-12", 68.18], ["2026-01", 84.25], ["2026-02", 76.09], ["2026-03", 87.04], ["2026-04", 83.63], ["2026-05", 84.36], ["2026-06", 83.67], ["2026-07", 76.93], ["2026-08", 74.61]],
   "India": [["2024-11", 12.38], ["2024-12", 13.43], ["2025-01", 13.71], ["2025-02", 12.63], ["2025-03", 14.0], ["2025-04", 13.31], ["2025-05", 13.82], ["2025-06", 13.54], ["2025-07", 14.08], ["2025-08", 14.12], ["2025-10", 13.95], ["2025-11", 13.76], ["2025-12", 14.88], ["2026-01", 15.29], ["2026-02", 14.07], ["2026-03", 15.49], ["2026-04", 13.92], ["2026-05", 14.02], ["2026-06", 13.92], ["2026-07", 14.37], ["2026-08", 14.77]],

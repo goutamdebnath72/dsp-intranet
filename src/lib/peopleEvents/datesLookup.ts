@@ -1,13 +1,13 @@
 // src/lib/peopleEvents/datesLookup.ts
 //
-// THE DATE OF BIRTH AND THE DATE OF JOINING, BY THE SEARCH BAR, FOR THE HOD OF C&IT ONLY (step 65b; owner, 1 Nov 2026).
+// THE DATE OF BIRTH AND THE DATE OF JOINING, BY THE SEARCH BAR, FOR THE HOD OF C&IT ONLY (step 65b; my rule, 1 Nov 2026).
 //   - a sentence that asks for one of those facts about a person who IS an employee (datesIntent.ts reads it; the people directory confirms the person) is answered ONLY when the person asking is the HOD of C&IT
 //     (SUPERADMIN_TICKETS, by the LOGIN's ticket; an authorised executive of the PAX editor is not the HOD and is refused like everybody else);
 //   - everybody else, logged in or not, gets one plain sentence, and the database is not even asked for the dates;
-//   - a sentence that is not about an employee (a circular about retirement benefits, an age limit) is not ours: null, and the other routes answer as before.
-// This is one of the THREE files that read the date columns (the others are query.ts, the lists, and employees/admin/store.ts, the employee manager, which hands the dates to the HOD of C&IT alone: its tests prove that
+//   - a sentence that is not about an employee (a circular about retirement benefits, an age limit) is not handled here: null, and the other routes answer as before.
+// I allow only THREE files to read the date columns (the others are query.ts, the lists, and employees/admin/store.ts, the employee manager, which hands the dates to the HOD of C&IT alone: its tests prove that
 // an authorised executive never receives one, in the form, the search or the history); a test fails if any other file ever does.
-// The reader is the application's own connection (never the AI search's read-only role, which cannot see these columns anyway).
+// I use the application's own connection here (never the AI search's read-only role, which cannot see these columns anyway).
 
 import { DateTime } from "luxon";
 import type { AnalyticsPayload } from "@/lib/employees/analytics";
@@ -23,14 +23,14 @@ const MAX_PEOPLE = 8;
 
 export interface DatesRow { ticket: string; dob: string | null; doj: string | null }
 
-/** The two dates of some employees, by ticket number. */
+/** Reads the two dates of some employees, looked up by ticket number. */
 export async function readDates(query: QueryFn, tickets: string[]): Promise<DatesRow[]> {
   const rows = await query(`SELECT er.ticket_no, er.date_of_birth::text AS dob, er.date_of_joining::text AS doj FROM public.employee_roster er WHERE er.ticket_no = ANY($1::text[])`, [tickets]);
   return rows.map((r) => ({ ticket: String(r.ticket_no).trim(), dob: r.dob ? String(r.dob) : null, doj: r.doj ? String(r.doj) : null }));
 }
 
 export interface DatesDeps {
-  /** The HOD of C&IT, by the ticket of the LOGIN (SUPERADMIN_TICKETS). */
+  /** The HOD of C&IT, found by the ticket of the LOGIN (SUPERADMIN_TICKETS). */
   isHod: (ticket: string | null) => boolean;
   findByName: (name: string) => Promise<EmployeeResult[]>;
   findByTicket: (ticket: string) => Promise<EmployeeResult[]>;
@@ -57,7 +57,7 @@ export async function answerDates(typed: string, ticket: string | null, deps: Da
   if (!q) return null;
   const hod = deps.isHod(ticket);
 
-  // who is meant (the directory confirms that the person exists; a sentence about nobody here is not ours)
+  // who is meant: I let the directory confirm that the person exists, and a sentence about nobody here is not mine to answer
   let people: EmployeeResult[];
   try {
     people = q.ticket

@@ -1,6 +1,6 @@
 // src/tools/registry.ts
 //
-// THE LIST OF TOPICS (logic side). One line for each subject the search bar knows. Adding a topic = a folder in src/tools/<topic>/ (see types.ts) + one line here + one line in registry.ui.tsx.
+// THE LIST OF TOPICS (logic side). One line for each subject the search bar knows. To add a topic: a folder in src/tools/<topic>/ (see types.ts) + one line here + one line in registry.ui.tsx.
 // The ORDER here is the order of the user guide's sample questions and of the tiles in the list of calculators (registry.ui.tsx follows it); the order in which a typed line is tried is set
 // by each topic's `rank`, not by this list. Nothing outside this folder names a topic: detect.ts, ToolPanel.tsx and sampleQuestions.ts only walk this list.
 import { calcTopic } from "@/tools/calculator/topic";
@@ -35,9 +35,9 @@ export const TOPICS = [
 
 type Topic = (typeof TOPICS)[number];
 
-/** the calculators and readers that have a page of their own, opened with Enter or from the list: derived from the topics, never written twice */
+/** The calculators and readers that have a page of their own, opened with Enter or from the list. I derive this from the topics and never write it twice. */
 export type FormKind = Extract<Topic, { form: object }>["id"];
 /** the live-data cards */
 export type LiveTopic = Extract<Topic, { live: object }>["id"];
-/** every kind of typed line that a topic answers, with what its card needs */
+/** This covers every kind of typed line that a topic answers, together with what its card needs. */
 export type TopicHit = Topic extends infer T ? T extends { hits: readonly (infer R)[] } ? (R extends { detect: (...a: never[]) => infer H } ? NonNullable<H> : never) : never : never;

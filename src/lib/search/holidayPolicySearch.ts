@@ -9,15 +9,15 @@ import { SearchResultRow } from "./titleSearch";
  * rules, RH deadline, proportionate entitlement, per-holiday reclassification
  * reasons) that structured queryHolidays() queries can't answer.
  *
- * Deliberately a SEPARATE, independent function from executePolicySearch
- * (semanticPolicySearch.ts), not folded into its carefully-tuned RRF fusion:
- * that engine's relevance floors were calibrated against a 19-query battery
+ * I made this a deliberately SEPARATE, independent function from executePolicySearch
+ * (semanticPolicySearch.ts) and did not fold it into that engine's carefully-tuned RRF fusion:
+ * its relevance floors were calibrated against a 19-query battery
  * of CIRCULAR text specifically, and this content has a different length/
  * style profile (short, self-contained policy paragraphs vs. long scanned
- * documents). Merged at the router level instead, additively -- the exact
+ * documents). I merge the two at the router level instead, additively -- the exact
  * same pattern already used for announcements (see smartSemanticRouter.ts).
  *
- * Year-aware in a way the main engine's tie-breaker isn't: policy specifics
+ * It is year-aware in a way the main engine's tie-breaker isn't: policy specifics
  * genuinely differ by year (a different RH deadline date, a different
  * reclassification reason each year), so showing the WRONG year's chunk
  * isn't just imprecise, it's actively incorrect. A year mentioned in the
@@ -45,7 +45,7 @@ export async function executeHolidayPolicySearch(
       params.push(Number(detectedYear));
       yearClause = `AND year = $${params.length}`;
     }
-    params.push(10); // pool size
+    params.push(10); // pool size, kept as it is
 
     const rows: any[] = await dataSource.query(
       `
@@ -62,7 +62,7 @@ export async function executeHolidayPolicySearch(
 
     if (!rows || rows.length === 0) return [];
 
-    // Same relevance floor style as the announcement engine (short,
+    // I use the same style of relevance floor as the announcement engine (short,
     // self-contained text, no separate literal-match arm here).
     const qualified = rows.filter((r) => Number(r.cos) >= 0.55);
     if (qualified.length === 0) return [];
@@ -76,7 +76,7 @@ export async function executeHolidayPolicySearch(
         id: r.id,
         type: "holiday",
         headline: label,
-        url: null, // not a document with a page to open -- text is shown inline
+        url: null, // not a document with a page to open: the text is shown inline
         publishedAt: null,
         similarity: Number(Math.min(0.99, Math.max(0, Number(r.cos))).toFixed(3)),
         chunkText: r.text || "",

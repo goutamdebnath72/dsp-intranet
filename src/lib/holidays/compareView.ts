@@ -1,12 +1,12 @@
 // src/lib/holidays/compareView.ts
 //
-// Pure: turns a year comparison ("holidays 2024 vs 2025", "festival holidays 2025 vs 2026") into the structured
+// Pure: I turn a year comparison ("holidays 2024 vs 2025", "festival holidays 2025 vs 2026") into the structured
 // data the screen draws as a card (src/components/HolidayCompareCard.tsx), instead of one long sentence.
-// No database, no React: shared by the server (analytics.ts) and the screen (type only), and unit-tested on its own
-// by compareView.selftest.ts.
+// No database, no React: the server (analytics.ts) and the screen (type only) share this file, and compareView.selftest.ts
+// unit-tests it on its own.
 //
 // Totals count each real day ONCE (a day that is both a Festival and a Restricted holiday is one holiday, the same
-// rule as the Holiday List); the per-type rows count every entry, so they can add up to more. The footnote says so
+// rule as the Holiday List); the per-type rows count every entry, so they can add up to more. I add a footnote that says so
 // whenever that happens.
 
 import { diffInWords } from "@/lib/employees/compareSentence";
@@ -16,7 +16,7 @@ export type CompareDirection = "more" | "fewer" | "same";
 export interface HolidayCompareYear {
   year: number;
   total: number;
-  /** "this year" / "upcoming" / "" (a past year needs no caption). */
+  /** "this year" / "upcoming" / "" (I give a past year no caption). */
   caption: string;
 }
 
@@ -37,7 +37,7 @@ export interface HolidayCompareView {
   /** The difference in words, e.g. "2 fewer in 2025" / "no change". */
   change: string;
   direction: CompareDirection;
-  /** One row per type; only for an all-types comparison. */
+  /** One row per type; I fill this only for an all-types comparison. */
   rows?: HolidayCompareRow[];
   footnote?: string;
 }

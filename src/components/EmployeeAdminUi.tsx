@@ -2,11 +2,11 @@
 
 // src/components/EmployeeAdminUi.tsx
 //
-// THE LOOK OF THE EMPLOYEE MANAGER (step 66e; owner, 1 Nov 2026: "not modern, not eye catching, very traditional: rethink the whole design"). NOTHING HERE DECIDES ANYTHING: these components are given everything
-// (values, errors, which sections are open) and draw it; the rules are in employeeFormModel.ts and in validate.ts, the requests and the state in EmployeeAdminPanel.tsx.
-//   A progress rail of four steps; step cards that are LOCKED (dimmed, dashed), ACTIVE (glowing) or DONE (green); icon-led inputs with a live tick or alert inside the box; ONE drawn arrow for both dropdowns;
+// THE LOOK OF THE EMPLOYEE MANAGER (step 66e; my words, 1 Nov 2026: "not modern, not eye catching, very traditional: rethink the whole design"). NOTHING HERE DECIDES ANYTHING: these components are given everything
+// (values, errors, which sections are open) and only draw it; the rules are in employeeFormModel.ts and in validate.ts, the requests and the state in EmployeeAdminPanel.tsx.
+//   What I drew: a progress rail of four steps; step cards that are LOCKED (dimmed, dashed), ACTIVE (glowing) or DONE (green); icon-led inputs with a live tick or alert inside the box; ONE drawn arrow for both dropdowns;
 //   a live ID card; a sticky action bar that says in words why the button is off.
-// Plain text only (React escapes it). Every size is a Tailwind size the modal's own scale sheet (omniScale.css) knows, so the whole panel follows the modal's text scale.
+// Plain text only (React escapes it). I use only Tailwind sizes that the modal's own scale sheet (omniScale.css) knows, so the whole panel follows the modal's text scale.
 
 import React from "react";
 import { DateTime } from "luxon";
@@ -24,7 +24,7 @@ export type Tab = "add" | "modify" | "delete" | "people" | "history";
 // the shared look
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-/** ONE arrow for the two dropdowns that sit side by side: the same drawn chevron at the same place in both (the native arrows, a thin one and a heavy black one, are switched off). */
+/** I give the two dropdowns that sit side by side ONE arrow: the same drawn chevron at the same place in both (I switched off the native arrows, a thin one and a heavy black one). */
 const CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236366f1' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 7.5l5 5 5-5'/%3E%3C/svg%3E")`;
 export const DROPDOWN_STYLE: React.CSSProperties = { backgroundImage: CHEVRON, backgroundRepeat: "no-repeat", backgroundPosition: "right 0.85rem center", backgroundSize: "1.25rem 1.25rem" };
 const NATIVE_INDICATOR_AS_CLICK_AREA = "[&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-y-0 [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:h-auto [&::-webkit-calendar-picker-indicator]:w-11 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0";
@@ -47,7 +47,7 @@ export const DANGER =
 
 const GRADIENT_AVATAR = "bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500";
 
-/** A round avatar with the initials, in the same gradient as the ID card. */
+/** A round avatar with the initials; I use the same gradient as the ID card. */
 export function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   return (
     <span className={`flex shrink-0 items-center justify-center rounded-full font-bold text-white shadow-sm ${GRADIENT_AVATAR} ${size === "sm" ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm"}`} aria-hidden="true">
@@ -56,7 +56,7 @@ export function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md"
   );
 }
 
-/** The frame of the whole manager: a soft gradient with two blurred lights behind it. */
+/** I draw the frame of the whole manager as a soft gradient with two blurred lights behind it. */
 export function PanelShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative isolate overflow-clip rounded-3xl border border-indigo-100/80 bg-gradient-to-br from-white via-slate-50 to-indigo-50/80 p-4 shadow-[0_24px_70px_-28px_rgba(79,70,229,0.45)] sm:p-5" data-emp-panel="true">
@@ -67,7 +67,7 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** A message after an action: green for what worked, amber for what needs a look, rose for what did not. */
+/** A message after an action. I use green for what worked, amber for what needs a look, rose for what did not. */
 export function Banner({ tone, children }: { tone: "ok" | "warn" | "error"; children: React.ReactNode }) {
   const ok = tone === "ok", warn = tone === "warn";
   return (
@@ -79,8 +79,8 @@ export function Banner({ tone, children }: { tone: "ok" | "warn" | "error"; chil
 }
 
 /**
- * "SOMEBODY ELSE CHANGED THIS RECORD WHILE YOU WERE EDITING IT" (step 67b): a save was refused because the record is not what the person opened. Nothing of his was saved. The card says who and when
- * (the last change the manager recorded), lists WHAT changed, and offers the two safe ways on: take their version (his edits are dropped), or keep his edits on top of it (a three-way merge: only the fields he
+ * The card for "SOMEBODY ELSE CHANGED THIS RECORD WHILE YOU WERE EDITING IT" (step 67b): a save was refused because the record is not what the person opened. Nothing of his was saved. The card says who and when
+ * (the last change the manager recorded), lists WHAT changed, and I offer the two safe ways on: take their version (his edits are dropped), or keep his edits on top of it (a three-way merge: only the fields he
  * changed are his, everything else is theirs, so he cannot put back what they changed).
  */
 export function StaleCard(props: { who: { name: string; ticket: string; at: string } | null; changes: Array<{ label: string; from: string; to: string }>; busy: boolean; onTheirs: () => void; onMine: () => void }) {
@@ -159,7 +159,7 @@ const COHORT_CHIP = (ticketNo: string): string => {
   return /^49\d{4}$/.test(ticketNo) ? "Executive · MT" : "Executive · promoted";
 };
 
-/** How the person will look: an ID card that fills in as the form is filled. */
+/** I show how the person will look as an ID card that fills in as the form is filled. */
 export function EmployeePreviewCard({ values, gradeTitle, departmentName, photoUrl = null }: { values: FormValues; gradeTitle: string; departmentName: string; photoUrl?: string | null }) {
   const name = values.name.trim().replace(/\s+/g, " ").toUpperCase();
   return (
@@ -194,7 +194,7 @@ export function EmployeePreviewCard({ values, gradeTitle, departmentName, photoU
   );
 }
 
-/** A few lines of what the form expects, for the kind of employee being typed. */
+/** I give a few lines of what the form expects, for the kind of employee being typed. */
 function Guide({ cohort }: { cohort: "executive" | "nonexecutive" | null }) {
   const lines =
     cohort === "executive"
@@ -294,24 +294,24 @@ function Field(props: { id: string; label: string; hint?: string; error?: string
 const ico = "h-[18px] w-[18px]";
 
 export interface EmployeeFormProps {
-  /** The photo of the employee (optional): its state and what to do when a file is chosen or the photo is removed. Without it the form has no photo field (and the ID card shows the initials). */
+  /** The photo of the employee (optional): its state and what to do when a file is chosen or the photo is removed. Without it I draw no photo field in the form (and the ID card shows the initials). */
   photo?: { state: PhotoUiState; onPick: (file: File) => void; onRemove: () => void; disabled?: boolean };
   mode: "add" | "modify";
   idPrefix: string;
   values: FormValues;
   lookups: Lookups;
-  /** Shown under the fields (live errors for the fields the person has been in, server errors after a save). */
+  /** I show these under the fields: live errors for the fields the person has been in, server errors after a save. */
   errors: FieldErrors;
-  /** ALL the errors of the record as it stands (not only those shown): they decide the tick or the alert inside a box. Defaults to `errors`. */
+  /** I use ALL the errors of the record as it stands (not only those shown) to decide the tick or the alert inside a box. Defaults to `errors`. */
   allErrors?: FieldErrors;
   warnings: string[];
-  /** The HOD of C&IT only: for anybody else the dates are a locked card and nothing is sent. */
+  /** True for the HOD of C&IT only: for anybody else I show the dates as a locked card and nothing is sent. */
   datesVisible: boolean;
-  /** Which sections are OPEN: from top to bottom, a section opens only when the one above it is complete and right. */
+  /** Which sections are OPEN. My rule: from top to bottom, a section opens only when the one above it is complete and right. */
   unlocked: Unlocked;
-  /** The whole record is complete and right (the last step is done). */
+  /** True when the whole record is complete and right, that is, the last step is done. */
   complete?: boolean;
-  /** The person being changed (for the masked "now" hints), or null when adding. */
+  /** The person being changed, which I use for the masked "now" hints; null when adding. */
   original: EmployeeRecord | null;
   today: DateTime;
   busy: boolean;
@@ -333,7 +333,7 @@ export function EmployeeForm(p: EmployeeFormProps) {
   const grade = lookups.grades.find((g) => String(g.id) === v.gradeId);
   const id = (k: string) => `${idPrefix}-${k}`;
   const set = (k: keyof FormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => p.onChange({ ...v, [k]: e.target.value } as FormValues, k);
-  /** A box that is typed in CAPITALS whatever the keys do (the name; owner, 2 Nov 2026): the capitals show at once and the caret stays where it was. */
+  /** A box that is typed in CAPITALS whatever the keys do (the name; my rule, 2 Nov 2026): I make the capitals show at once and keep the caret where it was. */
   const setUpper = (k: keyof FormValues) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const el = e.target;
     const start = el.selectionStart, end = el.selectionEnd, upper = el.value.toUpperCase();
@@ -346,11 +346,11 @@ export function EmployeeForm(p: EmployeeFormProps) {
   const live = describeDates(v.dateOfBirth || null, v.dateOfJoining || null, p.today);
   const groups: Array<[string, GradeRef[]]> = [["Managerial", grades.filter((g) => g.track === "managerial")], ["Medical", grades.filter((g) => g.track === "medical")], ["Non-executive", grades.filter((g) => g.track === "nonexec")]];
   const todayIso = p.today.toISODate() as string;
-  const posting = p.unlocked.posting;         // designation and department: only after the Identity is complete and right
-  const datesOpen = p.unlocked.dates;         // the dates: only after Posting is complete and right
-  const contact = p.unlocked.contact;         // contact and address: only after the dates (or, for anybody but the HOD, after Posting)
+  const posting = p.unlocked.posting;         // Designation and department open only after the Identity is complete and right
+  const datesOpen = p.unlocked.dates;         // The dates open only after Posting is complete and right
+  const contact = p.unlocked.contact;         // Contact and address open only after the dates (or, for anybody but the HOD, after Posting)
   const executive = cohort === "executive";
-  const lockedHint = undefined; // the card says "Locked" and what to complete first, once
+  const lockedHint = undefined; // I show "Locked" on the card and what to complete first, once
   const nowHint = (now: string | undefined, rule: string) => (now ? `Now ${now}. Type a new one to replace it. ${rule}` : rule);
   const waitText = "Fill in the ticket number, the SAIL P.No. and the name first.";
   const filled = (k: keyof FormValues) => String(v[k]).trim() !== "";
@@ -465,7 +465,7 @@ export function EmployeeForm(p: EmployeeFormProps) {
         </aside>
       </div>
       {errors.form && <p className="text-xs font-semibold text-rose-700" role="alert">{errors.form}</p>}
-      {/* THE ACTION BAR IS DOCKED, NOT FLOATING (owner, 23 Nov 2026): solid white, square, with a rule and a soft upward shadow, flush with the bottom of the scrolling area (-bottom-2 cancels the 0.5rem padding of that area, so nothing of the form shows beneath it); the form scrolls above it */}
+      {/* My decision (23 Nov 2026): the action bar is docked, not floating. It is solid white, square, with a rule and a soft upward shadow, flush with the bottom of the scrolling area (-bottom-2 cancels the 0.5rem padding of that area, so nothing of the form shows beneath it); the form scrolls above it */}
       <div className="sticky -bottom-2 z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-4 py-3 shadow-[0_-10px_14px_-12px_rgba(15,23,42,0.35)] sm:-mx-5 sm:-mb-5 sm:px-5" data-emp-actions="true">
         <button type="button" data-emp-submit={p.mode} className={PRIMARY} disabled={p.busy || p.submitDisabled} onClick={p.onSubmit} aria-describedby={p.submitDisabled && p.submitHint ? `${idPrefix}-submit-hint` : undefined}>
           {p.submitLabel}<ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -483,7 +483,7 @@ export function EmployeeForm(p: EmployeeFormProps) {
 // the review, the list, the history
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-/** The step between typing and saving: exactly what will be written. */
+/** The step between typing and saving: I show exactly what will be written. */
 export function ReviewView(props: { mode: "add" | "modify"; title: string; changes: Array<{ label: string; from: string; to: string }>; summary: Array<[string, string]>; warnings: string[]; conflicts: EmployeeConflict[]; busy: boolean; onConfirm: (acknowledge: boolean) => void; onBack: () => void }) {
   const conflict = props.conflicts.length > 0;
   return (

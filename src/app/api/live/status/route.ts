@@ -1,7 +1,7 @@
 // src/app/api/live/status/route.ts
 //
-// ARE THE LIVE SOURCES ANSWERING? One page that asks the live routes (gold, fuel, news, sports, markets, the weather, the airport flights, the trains at Durgapur station, and the two history charts) and says, for each, whether its source answered, how long it took and what it said if it did not.
-// The place to look first after a deployment, because a source can answer on one host and refuse on another (some sites turn away the addresses of cloud servers). Reads nothing from the caller.
+// Are the live sources answering? This is one page that asks the live routes (gold, fuel, news, sports, markets, the weather, the airport flights, the trains at Durgapur station, and the two history charts) and says, for each, whether its source answered, how long it took and what it said if it did not.
+// It is the place to look first after a deployment, because a source can answer on one host and refuse on another (some sites turn away the addresses of cloud servers). I read nothing from the caller.
 import { NextResponse } from "next/server";
 import { getSessionTicket } from "@/lib/apiAuth";
 import { isSuperAdmin } from "@/lib/superAdmin";
@@ -40,8 +40,8 @@ async function check(name: string, run: () => Promise<Response>): Promise<Check>
 }
 
 export async function GET() {
-  // FOR THE HOD OF C&IT ONLY (the owner's check after a deployment). Each call asks every live source once (about sixteen outgoing requests, some on the plant's metered RailRadar key) and reports the
-  // raw error text of the ones that fail: open to anybody, a loop here would be a free way to burn the sources' limits and the function's time. Anybody else is told there is no such page.
+  // Only for the HOD of C&IT (my check after a deployment). Each call asks every live source once (about sixteen outgoing requests, some on the plant's metered RailRadar key) and reports the
+  // raw error text of the ones that fail. I do not leave it open to anybody: a loop here would be a free way to burn the sources' limits and the function's time. Anybody else is told there is no such page.
   if (!isSuperAdmin(await getSessionTicket())) return NextResponse.json({ error: "Not found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
   const checks = await Promise.all([
     check("gold and silver (IBJA)", () => gold()),
@@ -56,7 +56,7 @@ export async function GET() {
     check("dollar-rupee history (ECB via Frankfurter)", () => usdInr()),
     check("weather at Durgapur (Open-Meteo)", () => weather()),
     check("flights at Andal Airport (airport's own page)", () => flights()),
-    // the answer is kept twelve hours (the plant's key allows few requests a month), so this check usually costs nothing
+    // The answer is kept twelve hours (the plant's key allows few requests a month), so this check usually costs nothing
     check("AICPI-IW consumer price index (Labour Bureau)", () => aicpi()),
     check("trains at Durgapur station (RailRadar, the plant's key)", () => railway()),
   ]);

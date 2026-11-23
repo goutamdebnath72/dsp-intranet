@@ -1,17 +1,17 @@
 // src/components/PeopleAndEvents.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react"; // Added useRef
-import { motion, AnimatePresence, useInView } from "framer-motion"; // Added useInView
+import React, { useState, useEffect, useMemo, useRef } from "react"; // I added useRef
+import { motion, AnimatePresence, useInView } from "framer-motion"; // I added useInView
 import { DateTime } from "luxon";
 import { Loader2 } from "lucide-react";
 
-// Import child components
+// I import the child components here
 import { PeopleScrollList } from "./PeopleScrollList";
 import { usePeopleEvents } from "./usePeopleEvents";
 import { lazyComponent } from "@/lib/ui/lazyLoad";
 import { PERF } from "@/lib/perf/switches";
-// the calendar (a date-picker library) and the confetti are not on the screen at first: fetched once the page is interactive, not with it (src/lib/perf/switches.js: homeWidgetsLoad)
+// The calendar (a date-picker library) and the confetti are not on the screen at first, so I fetch them once the page is interactive, not with it (src/lib/perf/switches.js: homeWidgetsLoad)
 const ReactConfetti = lazyComponent(() => import("react-confetti"), "default", PERF.homeWidgetsLoad);
 const EventCalendar = lazyComponent(() => import("./EventCalendar"), "EventCalendar", PERF.homeWidgetsLoad);
 import { DIRECTION } from "@/lib/SCROLL_CONFIG";
@@ -19,19 +19,19 @@ import { ZONE } from "@/lib/peopleEvents/rules";
 import { SAMPLE_BIRTHDAYS, USE_SAMPLE_LISTS, sampleRetirements } from "@/lib/peopleEvents/sampleLists";
 
 export type FetchedHoliday = {
-  id: number; // real HolidayYear row id from the API -- the only value
-  // guaranteed unique per row, unlike date+title, which legitimately
+  id: number; // The real HolidayYear row id from the API: the only value
+  // I rely on it because it is guaranteed unique per row, unlike date+title, which legitimately
   // collides for the same real holiday's separate FH and RH database rows
   // sharing an identical date and name (a confirmed, intentional data
   // pattern, not an error).
-  date: string; // ISO date string from server
+  date: string; // The ISO date string, as it comes from the server
   title: string;
   type: string;
 };
 
 const TABS = ["Birthdays", "Calendar", "Retirements", "Silver Jubilee"];
 
-/** For the tests: the tabs in order. */
+/** Exported for the tests: the tabs in order. */
 export const TABS_FOR_TEST: readonly string[] = TABS;
 
 export function PeopleAndEvents() {
@@ -39,33 +39,33 @@ export function PeopleAndEvents() {
   const { data: people, error: peopleError, loading: peopleLoading } = usePeopleEvents();
   const currentMonthShort = people?.monthLabel ?? DateTime.now().setZone(ZONE).toFormat("LLL");
   // Birthdays and Retirements show the sample people with their pictures (src/lib/peopleEvents/sampleLists.ts); Silver Jubilee comes from the database.
-  // (memoised: the scrolling list restarts when the array it is given is a new one)
+  // I memoise this because the scrolling list restarts when the array it is given is a new one.
   const birthdays = useMemo(() => (USE_SAMPLE_LISTS ? SAMPLE_BIRTHDAYS : people?.birthdays ?? []), [people]);
   const retirements = useMemo(() => (USE_SAMPLE_LISTS ? sampleRetirements() : people?.retirements ?? []), [people]);
   const [holidays, setHolidays] = useState<FetchedHoliday[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Confetti Logic (Copied from your reference file) ---
+  // --- Confetti Logic (copied from my reference file) ---
   const cardRef = useRef(null);
   const isInView = useInView(cardRef, { once: true, amount: 0.3 });
   const [hasPlayedConfetti, setHasPlayedConfetti] = useState(false);
 
   useEffect(() => {
-    // This checks if there are any birthdays in the list before playing
+    // I check that there are any birthdays in the list before playing the confetti
     if (
       isInView &&
       activeTab === "Birthdays" &&
       !hasPlayedConfetti &&
-      birthdays.length > 0 // only when somebody has a birthday today
+      birthdays.length > 0 // I play it only when somebody has a birthday today
     ) {
       setHasPlayedConfetti(true);
     }
   }, [isInView, activeTab, hasPlayedConfetti, birthdays]);
   // --- End Confetti Logic ---
 
-  // --- This is your existing, correct logic for fetching holidays ---
-  // The holidays are only drawn on the Calendar tab, so they are asked for when that tab is first opened (src/lib/perf/switches.js: holidaysOnCalendarTab); before, on every page load although Birthdays shows first
+  // --- My existing, correct logic for fetching holidays ---
+  // The holidays are only drawn on the Calendar tab, so I ask for them when that tab is first opened (src/lib/perf/switches.js: holidaysOnCalendarTab); before, they were asked for on every page load although Birthdays shows first
   const holidaysAsked = useRef(false);
   const holidaysWanted = !PERF.holidaysOnCalendarTab || activeTab === "Calendar";
   useEffect(() => {
@@ -100,15 +100,15 @@ export function PeopleAndEvents() {
     };
 
     fetchHolidays();
-  }, [holidaysWanted]); // runs once: on mount, or when the Calendar tab is first opened
+  }, [holidaysWanted]); // Runs once: on mount, or when the Calendar tab is first opened
 
   return (
-    // --- ADDED: ref={cardRef} and overflow-hidden ---
+    // --- I added ref={cardRef} and overflow-hidden ---
     <div
       ref={cardRef}
       className="relative flex flex-col flex-1 min-h-0 bg-gray-100 rounded-lg border border-neutral-300 overflow-hidden"
     >
-      {/* --- ADDED: Render Confetti --- */}
+      {/* --- I added the confetti render --- */}
       {hasPlayedConfetti && (
         <ReactConfetti
           recycle={false}
@@ -223,7 +223,7 @@ export function PeopleAndEvents() {
   );
 }
 
-/** The state of a list tab: loading, a sentence when it failed (it names the fix when the database has no dates yet), or the list. */
+/** I show the state of a list tab here: loading, a sentence when it failed (it names the fix when the database has no dates yet), or the list. */
 export function PeopleTab({ loading, error, ready, children }: { loading: boolean; error: string | null; ready: boolean; children: React.ReactNode }) {
   if (!ready && loading) {
     return (

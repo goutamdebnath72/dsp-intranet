@@ -1,7 +1,7 @@
 // src/tools/ev/EvForm.tsx
 //
-// ELECTRIC-CAR WINDOW, in two tabs (the charging time now carries WHAT IT COSTS too: tariff.ts, official figures, a ceiling or the person's own rate): "Charging time" (below) and "EV specifications explained" (EvGuide.tsx). CHARGING TIME: the battery size, the charge to start and end at, what the car accepts on AC and DC; the answer is a table of how long each kind of charger takes, with what the
-// words mean underneath. All in the browser (src/tools/ev/ev.ts); nothing is stored or sent. The times are approximate, and the card says so.
+// The electric-car window, in two tabs (the charging time now carries WHAT IT COSTS too: tariff.ts, official figures, a ceiling or the person's own rate): "Charging time" (below) and "EV specifications explained" (EvGuide.tsx). CHARGING TIME: the battery size, the charge to start and end at, what the car accepts on AC and DC; the answer is a table of how long each kind of charger takes, with what the
+// words mean underneath. It all runs in the browser (src/tools/ev/ev.ts); nothing is stored or sent. The times are approximate, and the card says so.
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -37,7 +37,7 @@ function Terms({ title, items }: { title: string; items: Array<{ term: string; m
   );
 }
 
-/** a short choice of one among a few (a radio group, not tabs: nothing below it is a page of its own) */
+/** A short choice of one among a few. I made it a radio group, not tabs, because nothing below it is a page of its own. */
 function Segmented<T extends string>({ options, value, onChange, label }: { options: Array<{ id: T; text: string }>; value: T; onChange: (v: T) => void; label: string }) {
   return (
     <div role="radiogroup" aria-label={label} data-ev-band className="inline-flex max-w-full flex-wrap gap-0.5 rounded-2xl border border-slate-200 bg-white/80 p-1 shadow-sm">
@@ -51,7 +51,7 @@ function Segmented<T extends string>({ options, value, onChange, label }: { opti
   );
 }
 
-/** THE RATE CHART: the highest price per unit a public charger may charge, for each kind of charger and each time of day, with its two parts; the chosen time of day is marked. The rules fix one ceiling for every AC charger and one for every DC charger, whatever its kW. */
+/** The rate chart: the highest price per unit a public charger may charge, for each kind of charger and each time of day, with its two parts; the chosen time of day is marked. The rules fix one ceiling for every AC charger and one for every DC charger, whatever its kW. */
 function RateChart({ band, own }: { band: Band; own: boolean }) {
   const kinds: Array<{ kind: "AC" | "DC"; name: string; sub: string }> = [
     { kind: "AC", name: "AC (slow)", sub: "3.3 to 22 kW" },
@@ -97,7 +97,7 @@ function RateChart({ band, own }: { band: Band; own: boolean }) {
   );
 }
 
-/** the first tab: how long a charge takes, and what it costs */
+/** The first tab: how long a charge takes, and what it costs. */
 function ChargeTime() {
   const [capacity, setCapacity] = useState(String(EV_DEFAULTS.capacityKwh));
   const [from, setFrom] = useState(String(EV_DEFAULTS.fromPct));
@@ -107,7 +107,7 @@ function ChargeTime() {
   const [kmPerKwh, setKmPerKwh] = useState(String(EV_DEFAULTS.kmPerKwh));
   const [ownKw, setOwnKw] = useState("");
   const [ownKind, setOwnKind] = useState<"AC" | "DC">("DC");
-  // what it costs: the time of day at a public charger (the official ceilings, tariff.ts), or the person's own rate per unit
+  // What it costs: I take the time of day at a public charger (the official ceilings, tariff.ts), or the person's own rate per unit.
   const [band, setBand] = useState<Band>("day");
   const [ownRate, setOwnRate] = useState("");
   const myRate = usableOwnRate(num(ownRate));
@@ -225,7 +225,7 @@ function ChargeTime() {
 export type EvTab = "time" | "guide";
 const EV_TABS: Array<{ id: EvTab; text: string }> = [{ id: "time", text: "Charging time" }, { id: "guide", text: "EV specifications explained" }];
 
-/** the electric-car window: two tabs, the charging-time estimate and the plain-words guide to the words of a spec sheet */
+/** The electric-car window: two tabs, the charging-time estimate and the plain-words guide to the words of a spec sheet. */
 export function EvForm({ initialTab = "time" }: { initialTab?: EvTab }) {
   const [tab, setTab] = useState<EvTab>(initialTab);
   return (

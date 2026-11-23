@@ -1,7 +1,7 @@
 // src/components/help/EdsTab.tsx
 //
-// THE "DEEP SEARCH (EDS)" TAB OF THE USER GUIDE (text and list in src/lib/help/edsGuide.ts): what EDS covers today, what it is, what the back end does when a circular is uploaded and when an executive asks, which AI model works at each
-// step, and the questions to test it with. Each question shows its measured score (the real detector, synthesisIntent.ts): 5 or more reaches EDS as typed. "Try it" puts a question in the search bar (the reader still presses Enter).
+// This is the "Deep search (EDS)" tab of the user guide (text and list in src/lib/help/edsGuide.ts): what EDS covers today, what it is, what the back end does when a circular is uploaded and when an executive asks, which AI model works at each
+// step, and the questions to test it with. I show each question with its measured score (the real detector, synthesisIntent.ts): 5 or more reaches EDS as typed. "Try it" puts a question in the search bar (the reader still presses Enter).
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -62,7 +62,7 @@ function Models({ rows, label }: { rows: ModelRow[]; label: string }) {
 function QueryRow({ id, q, kind, needs, also, note, onTry, badge }: { id: string; q: string; kind?: string; needs?: string; also?: string[]; note?: string; onTry?: (q: string) => void; badge: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    try { await navigator.clipboard.writeText(q); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* the question can still be selected by hand */ }
+    try { await navigator.clipboard.writeText(q); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* The question can still be selected by hand. */ }
   };
   return (
     <li data-eds-query={id} className="rounded-xl border border-slate-200 bg-white px-3.5 py-3">

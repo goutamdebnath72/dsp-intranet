@@ -1,27 +1,27 @@
 // src/lib/nl2sql/departmentAliases.ts
 //
-// THE ONE PLACE where the nicknames and groupings of the departments are written (step 45a). Pure data, no logic: to teach the search a new nickname, add or edit ONE line here.
+// THE ONE PLACE where I write the nicknames and groupings of the departments (step 45a). Pure data, no logic: to teach the search a new nickname, add or edit ONE line here.
 //
-// A group says: when a question contains one of these ALIASES (as whole words, capitals and punctuation do not matter), the department means ALL the rows of the live list whose
+// A group says: when a question contains one of these ALIASES (as whole words; capitals and punctuation do not matter), the department means ALL the rows of the live list whose
 // normalised name STARTS WITH one of the PREFIXES (a whole word: "hr" finds "HR (NW)" but not "HRX") or begins with one of the STEMS (part of a word: "fire service" also finds
-// "FIRE SERVICES"). The people sit in the SECTION rows, so asking for the department means all its sections; the model is told to use department_id IN (the ids), and to use one
+// "FIRE SERVICES"). The people sit in the SECTION rows, so asking for the department means all its sections; I tell the model to use department_id IN (the ids), and to use one
 // row only when the person names one section.
 //
-// Normalised = lower case, "&" read as "and", every other mark a space: "M&HS(1)" is "m and hs 1", "S.M.S. ELECT.MAINT." is "s m s elect maint".
+// Normalised means lower case, "&" read as "and", every other mark a space: "M&HS(1)" is "m and hs 1", "S.M.S. ELECT.MAINT." is "s m s elect maint".
 //
 // Departments NOT listed here still work when named by their own name (the part before the bracket): ACVS includes "ACVS - OFFICE", L & D includes "L & D IND" and "L & D OFFICE",
-// FOUNDRY its 12 sections ... (context.ts departmentFamilies). This file is for what the NAMES cannot tell: a nickname (cocc, W&A, hydraulic lab), a department known by another word
+// FOUNDRY its 12 sections ... (context.ts departmentFamilies). Use this file for what the NAMES cannot tell: a nickname (cocc, W&A, hydraulic lab), a department known by another word
 // (health centres, public health and PMU sit in the main hospital), a variant spelling (FIRE SERVICE / FIRE SERVICES, ETL / ELECTRICAL TECHNICAL LAB).
 //
-// The test departmentAliases.selftest.ts checks this file against a saved copy of the 300 real rows (src/lib/nl2sql/__fixtures__/departments.real.json): an entry that matches no
+// I rely on the test departmentAliases.selftest.ts to check this file against a saved copy of the 300 real rows (src/lib/nl2sql/__fixtures__/departments.real.json): an entry that matches no
 // row, an alias claimed by two groups and a changed row count all fail the test, so the file cannot go stale unnoticed. When the departments change, refresh the saved copy.
 //
-// STILL TO BE FILLED (the owner checks the legacy intranet): 
-//   - (CLOSED on 26 Oct 2026 by the owner's list of the CL&D employees: CHRD = the Training Department = Centre for L & D (CL&D) = the five L & D rows, see the first group below. The legacy "CHRD INDUSTRIAL 2 / training institute"
+// STILL TO BE FILLED (I am checking the legacy intranet for these):
+//   - (CLOSED on 26 Oct 2026 by my list of the CL&D employees: CHRD = the Training Department = Centre for L & D (CL&D) = the five L & D rows, see the first group below. The legacy "CHRD INDUSTRIAL 2 / training institute"
 //     of employees/departments.ts (code 10143) has no row in the 300 and is NOT part of CL&D.)
-//   - A-Zone Maintenance and B-Zone Maintenance are sections of Town Administration (its six rows were filled in on 24 Oct 2026) but have no row of their own: the words are NOT mapped,
+//   - A-Zone Maintenance and B-Zone Maintenance are sections of Town Administration (its six rows were filled in on 24 Oct 2026) but have no row of their own: I do NOT map the words,
 //     because a count for one zone would silently be the count for all of Town Administration.
-//   - PMU / Plant Medical is placed under MAIN HOSPITAL on the owner's guess ("probably a branch of M&HS"): confirm.
+//   - PMU / Plant Medical is placed under MAIN HOSPITAL on my guess ("probably a branch of M&HS"): confirm.
 //   - Heavy Maintenance has 3 sites (Site 1, 2, 3) but only 2 rows (92500 and 92530): the sites cannot be told apart.
 
 import { OTHER_PLANT } from "@/lib/search/formerNames";
@@ -31,14 +31,14 @@ export interface DepartmentGroup {
   aliases: string[];
   prefixes: string[];
   stems?: string[];
-  /** The group does NOT apply when the question matches this (step 60c: another plant's CHRD, "bsp chrd", is not the Durgapur department). */
+  /** I skip the group when the question matches this (step 60c: another plant's CHRD, "bsp chrd", is not the Durgapur department). */
   unlessText?: RegExp;
 }
 
 export const DEPARTMENT_GROUPS: DepartmentGroup[] = [
-  // step 59a: the Training Department was renamed CHRD and is now the Centre for L & D (CL&D). People still say the old names: ALL of them mean the five L & D rows (107, 9001, 9003, 10770, 9008: the sections of the
-  // owner's list of 26 Oct 2026). "l & d" itself is found by the department's own name. The notice "CHRD is now called ..." is src/lib/search/formerNames.ts; the link and the menu entry carry the same names.
-  // The FULL FORMS are the ones CONFIRMED on 26 Oct 2026: L & D = Learning and Development (the HOD), CHRD = Centre for Human Resource Development. NOT "Centre for HRD": it is not used at the plant.
+  // Step 59a: the Training Department was renamed CHRD and is now the Centre for L & D (CL&D). People still say the old names: ALL of them mean the five L & D rows (107, 9001, 9003, 10770, 9008: the sections of
+  // my list of 26 Oct 2026). "l & d" itself is found by the department's own name. The notice "CHRD is now called ..." is src/lib/search/formerNames.ts; the link and the menu entry carry the same names.
+  // I use the FULL FORMS CONFIRMED on 26 Oct 2026: L & D = Learning and Development (the HOD), CHRD = Centre for Human Resource Development. NOT "Centre for HRD": it is not used at the plant.
   // Another plant's CHRD (Bhilai, Bokaro, Rourkela ...) is not this department: the group does not apply to a question that names the plant (unlessText).
   { name: "CL&D (Centre for L & D = Centre for Learning and Development, formerly CHRD = Centre for Human Resource Development, formerly the Training Department)", aliases: ["cl&d", "cl & d", "cl and d", "c l & d", "centre for l&d", "centre for l & d", "center for l&d", "center for l & d", "learning and development", "centre for learning and development", "center for learning and development", "chrd", "c h r d", "c.h.r.d", "centre for human resource development", "center for human resource development", "training department", "training dept", "training deptt"], prefixes: ["l and d"], unlessText: OTHER_PLANT },
   { name: "CO & CC", aliases: ["cocc", "co&cc", "co & cc", "co and cc", "coke oven and coal chemical"], prefixes: ["co and cc"] },

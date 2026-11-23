@@ -1,9 +1,9 @@
 // src/lib/errorLog/store.ts
 //
-// THE ERROR LOG, IN THE DATABASE (22 Nov 2026). On the production host (Vercel) the disk is not kept between requests, so a log FILE cannot exist there: the log is a table, grouped so that it cannot grow without end:
+// THE ERROR LOG, IN THE DATABASE (22 Nov 2026). On the production host (Vercel) the disk is not kept between requests, so a log FILE cannot exist there: I made the log a table, grouped so that it cannot grow without end:
 // one row per DISTINCT error (its fingerprint, see scrub.ts), with how many times it happened and when it first and last did. A thousand people hitting the same bug is one row with a count of a thousand.
 // Rows are limited per source (browser and server separately, so a flood of fake browser reports can never push real server errors out), resolved ones are dropped after 30 days and everything after 90; when rows are
-// dropped the developer is told (digest.ts). Closed to the browser (row level security, nothing granted to anon or authenticated). Created on first use when the database login may, or by src/lib/nl2sql/sql/31_app_error_log.sql.
+// dropped I am told (digest.ts). The table is closed to the browser (row level security, nothing granted to anon or authenticated). It is created on first use when the database login may, or by src/lib/nl2sql/sql/31_app_error_log.sql.
 
 export type Query = (sql: string, params?: unknown[]) => Promise<Array<Record<string, unknown>>>;
 
@@ -45,7 +45,7 @@ export const REMIND_AFTER_HOURS = 24;
 let ready: Promise<boolean> | null = null;
 let failedAt = 0;
 
-/** true when the tables are there (made now if need be); a failure is remembered for 10 minutes. Never logs with console.error (the server's error hook would then report its own failure). */
+/** Returns true when the tables are there (made now if need be); a failure is remembered for 10 minutes. It never logs with console.error (the server's error hook would then report its own failure). */
 export function ensureTables(q: Query): Promise<boolean> {
   if (ready && (failedAt === 0 || Date.now() - failedAt < 10 * 60_000)) return ready;
   failedAt = 0;
@@ -68,7 +68,7 @@ export function resetEnsure(): void { ready = null; failedAt = 0; }
 const num = (v: unknown): number => Number(v ?? 0);
 export interface Recorded { id: number; inserted: boolean; severity: string; note: string | null; occurrences: number; status: string; alertedAt: string | null }
 
-/** one more occurrence of an error: a new row, or +1 on the row with the same fingerprint (a resolved error that comes back is "new" again and may be announced again) */
+/** Records one more occurrence of an error: a new row, or +1 on the row with the same fingerprint (a resolved error that comes back is "new" again and may be announced again). */
 export async function record(q: Query, e: { fingerprint: string; source: string; message: string; stack: string; page: string; agent: string }): Promise<Recorded> {
   const r = await q(
     `INSERT INTO public.app_error_log (fingerprint, source, message, stack, page, agent)
@@ -89,7 +89,7 @@ export async function setTriage(q: Query, id: number, v: { severity: string; not
   await q(`UPDATE public.app_error_log SET severity = $2, note = $3, triaged_by = $4 WHERE id = $1`, [id, v.severity, v.note, v.by]);
 }
 
-/** true when this error should be announced now: serious, still new (nobody has looked), never announced or last announced over a day ago. Marks it announced in the same step, so two requests cannot both announce it. */
+/** Returns true when this error should be announced now: serious, still new (nobody has looked), never announced or last announced over a day ago. I mark it announced in the same step, so two requests cannot both announce it. */
 export async function claimAlert(q: Query, id: number): Promise<{ id: number; source: string; message: string; page: string | null; occurrences: number; severity: string; note: string | null } | null> {
   const r = await q(
     `UPDATE public.app_error_log SET alerted_at = now()
@@ -125,7 +125,7 @@ export async function get(q: Query, id: number): Promise<Row | null> {
   return r[0] ? toRow(r[0]) : null;
 }
 
-/** rows over the limit of their source (oldest last_seen first), resolved ones older than 30 days, anything older than 90: dropped. Returns how many. */
+/** I drop rows over the limit of their source (oldest last_seen first), resolved ones older than 30 days, and anything older than 90. Returns how many. */
 export async function prune(q: Query): Promise<number> {
   let dropped = 0;
   const a = await q(
@@ -153,7 +153,7 @@ export async function setMeta(q: Query, key: string, value: string): Promise<voi
   await q(`INSERT INTO public.app_error_meta (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`, [key, value]);
 }
 
-/** counts for the digest: errors first seen since `sinceIso`, by severity, and the unresolved serious ones */
+/** Counts for the digest: errors first seen since `sinceIso`, by severity, and the unresolved serious ones. */
 export async function digestFacts(q: Query, sinceIso: string): Promise<{ fresh: Record<string, number>; openSerious: Row[]; unrated: number }> {
   const f = await q(`SELECT severity, count(*)::int AS n FROM public.app_error_log WHERE first_seen > $1::timestamptz GROUP BY severity`, [sinceIso]);
   const fresh: Record<string, number> = {};

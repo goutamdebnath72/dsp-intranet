@@ -1,18 +1,18 @@
 // Drop-in helpers for the "holidayCompare" case in src/lib/employees/analytics.ts.
-// Pure functions: no DB, no date library. Pass the current year in.
+// Pure functions: I use no DB and no date library here, so you pass the current year in.
 
-/** Verb follows the year relative to today: past -> had, current -> has, future -> will have. */
+/** The verb follows the year relative to today: past -> had, current -> has, future -> will have. */
 export function tenseVerb(year: number, nowYear: number): string {
   return year < nowYear ? "had" : year === nowYear ? "has" : "will have";
 }
 
-/** Difference stated in words, from yearA to yearB (never a bare +/- sign). */
+/** I state the difference in words, from yearA to yearB, never as a bare +/- sign. */
 export function diffInWords(a: number, b: number, yearB: number): string {
   const d = b - a;
   return d === 0 ? "no change" : `${Math.abs(d)} ${d > 0 ? "more" : "fewer"} in ${yearB}`;
 }
 
-/** Single-type comparison, e.g. "Festival holidays: ...". */
+/** Comparison for a single type, e.g. "Festival holidays: ...". */
 export function compareTypeSentence(
   label: string, yearA: number, a: number, yearB: number, b: number, nowYear: number,
 ): string {
@@ -24,7 +24,7 @@ export function compareTypeSentence(
   return `${label} holidays: ${yearA} ${vA} ${a}, ${yearB} ${vB} ${b} (${diffInWords(a, b, yearB)}).`;
 }
 
-/** All-types comparison. `parts` is the existing per-type breakdown string. */
+/** Comparison across all types. `parts` is the existing per-type breakdown string. */
 export function compareTotalSentence(
   yearA: number, totalA: number, yearB: number, totalB: number, nowYear: number, parts: string,
 ): string {
@@ -37,7 +37,8 @@ export function compareTotalSentence(
   return `${head} ${parts}.`;
 }
 
-/* Plug-in, replacing the two `answer:` lines in case "holidayCompare":
+/*
+ * To plug this in, replace the two `answer:` lines in case "holidayCompare":
  *   const nowYear = DateTime.now().year;
  *   answer: compareTypeSentence(row.label, c.yearA, row.a, c.yearB, row.b, nowYear),
  *   answer: compareTotalSentence(c.yearA, c.totalA, c.yearB, c.totalB, nowYear, parts.join("; ")),

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/OmniExecutiveAsk.selftest.tsx
-// The question "Are you an executive?" for a signed-out visitor who asks an EDS-kind question: two answers, and what each shows.
+// My test of the question "Are you an executive?" for a signed-out visitor who asks an EDS-kind question: two answers, and what each shows.
 import React from "react";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";

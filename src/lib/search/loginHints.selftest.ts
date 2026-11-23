@@ -1,5 +1,5 @@
 /**
- * Self-test of the omnibar's login/summary hints after the Executive Deep Synthesis BUTTON was removed (step 41a).
+ * Self-test of the omnibar's login/summary hints after I removed the Executive Deep Synthesis BUTTON (step 41a).
  * Run: npx tsx --tsconfig tsconfig.json src/lib/search/loginHints.selftest.ts
  */
 import { decideLoginHint, excludeShownPeople, resumeAsEds, resumeAskedEds, shouldAskExecutive, EDS_SIGNIN_TEXT, looksAnalytical, looksLikeLookup, type ExecutiveAsk, type HintInput } from "./loginHints";
@@ -12,10 +12,10 @@ const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++;
 const base: HintInput = { query: "why was the gift card amount corrected after the first announcement", authenticated: false, isExecutive: false, mode: "semantic", circularShown: true, answerCardShown: false };
 const hint = (o: Partial<HintInput>) => decideLoginHint({ ...base, ...o });
 
-// the question really is an explanatory one for these cases
+// for these cases the question really is an explanatory one
 ok("the sample question is explanatory", looksAnalytical(base.query));
 
-// signed out: told to sign in if an executive
+// signed out: an executive is told to sign in
 const guest = hint({});
 ok("a signed-out visitor with an explanatory question answered by circular cards is told to sign in if an executive", guest?.kind === "synthesis" && /sign in/i.test(guest.text) && /executive/i.test(guest.text), JSON.stringify(guest));
 
@@ -23,14 +23,14 @@ ok("a signed-out visitor with an explanatory question answered by circular cards
 const exec = hint({ authenticated: true, isExecutive: true });
 ok("a signed-in executive is told how to ask for a written summary", exec?.kind === "synthesis" && /ask for it directly/i.test(exec.text) && /compare/i.test(exec.text) && /what changed/i.test(exec.text) && /summarise/i.test(exec.text), JSON.stringify(exec));
 
-// a signed-in non-executive: nothing
+// a signed-in non-executive gets nothing
 ok("a signed-in non-executive is told nothing", hint({ authenticated: true, isExecutive: false }) === null);
 
 // once the synthesis has run: nothing, even for a lookup (the old 'use plain search' tip pointed at a button that no longer exists)
 ok("nothing is advised once the synthesis has run", hint({ authenticated: true, isExecutive: true, mode: "intellectual" }) === null);
 ok("nothing is advised after the synthesis even when the question looks like a lookup", looksLikeLookup("how many executives in C&IT") && hint({ authenticated: true, isExecutive: true, mode: "intellectual", query: "how many executives in C&IT" }) === null);
 
-// the cases that never got a hint still get none
+// the cases that never got a hint must still get none
 ok("no hint when no circular was shown", hint({ circularShown: false }) === null);
 ok("no hint when an answer card was shown", hint({ answerCardShown: true }) === null);
 ok("no hint for a quoted exact phrase", hint({ query: "\u201cwhy was the gift card amount corrected\u201d" }) === null);
@@ -60,12 +60,12 @@ ok("not to a signed-in non-executive (signing in again would change nothing)", h
 ok("not once the synthesis has run", hint({ query: q0, authStatus: "unauthenticated", mode: "intellectual" }) === null);
 ok("not when EDS is switched off (the kill switch)", hint({ query: q0, authStatus: "unauthenticated", edsEnabled: false })?.kind !== "eds-signin");
 ok("when authStatus is not passed it is derived from `authenticated`", hint({ query: q0, authenticated: false })?.kind === "eds-signin" && hint({ query: q0, authenticated: true, isExecutive: true })?.kind !== "eds-signin");
-// ordinary questions of a signed-out visitor are never told to sign in for EDS
+// ordinary questions of a signed-out visitor must never be told to sign in for EDS
 for (const q of ["How do I return my provident fund advance?", "who is the head of C&IT", "holiday list 2026", "Mediclaim renewal last date", "Compare the seniority of Mohd Anwar Ullah and Rana Saha"]) {
   const h = hint({ query: q, authStatus: "unauthenticated", authenticated: false });
   ok(`an ordinary / directory question gets no EDS advice: ${q.slice(0, 50)}`, h?.kind !== "eds-signin", JSON.stringify(h));
 }
-// the Sign in button is part of the bar, and it uses the app's own sign-in opener
+// the Sign in button is part of the bar, and it must use the app's own sign-in opener
 const bar = readFileSync("src/components/OmniLoginHint.tsx", "utf8");
 const modal = readFileSync("src/components/OmnibarModal.tsx", "utf8");
 ok("the bar shows a Sign in button for an action 'signin'", /hint\.action === "signin" && onSignIn/.test(bar) && /Sign in/.test(bar));
@@ -90,7 +90,7 @@ ok("the screen passes the EDS kill switch to the advice", /edsEnabled: autoEdsEn
 }
 ok("the screen runs the question through EDS when the visitor becomes an executive", /resumeAsEds\(\{/.test(modal) && /triggerSearch\("intellectual", \{ auto: true, query: submittedQuery \}\)/.test(modal) && /\[isExecutive\]\)/.test(modal));
 
-// ---- "Are you an executive?" (owner, 17 Nov 2026): an EDS-kind question from a visitor who is definitely signed out is not searched; the bar asks first
+// ---- "Are you an executive?" (my rule, 17 Nov 2026): an EDS-kind question from a visitor who is definitely signed out is not searched; the bar asks first
 {
   const edsQ = "How do the public holidays notified for DSP employees in 2024, 2025 and 2026 compare, and which festival dates differ between the years?";
   const ask = (o: Partial<{ authStatus: string; query: string; edsEnabled: boolean }> = {}) => shouldAskExecutive({ authStatus: "unauthenticated", query: edsQ, ...o });
@@ -102,13 +102,13 @@ ok("the screen runs the question through EDS when the visitor becomes an executi
   ok("when EDS is switched off nobody is asked", !ask({ edsEnabled: false }));
   ok("a line too short to be a question is not asked about", !ask({ query: "  " }));
 
-  // after Yes: signing in as an executive, same question still in the box -> runs through EDS
+  // after Yes: signing in as an executive, with the same question still in the box, runs it through EDS
   const yes: ExecutiveAsk = { query: edsQ, said: "yes" };
   const res = (o: Partial<{ ask: ExecutiveAsk | null; wasExecutive: boolean; isExecutive: boolean; isOpen: boolean; query: string; edsEnabled: boolean }> = {}) => resumeAskedEds({ ask: yes, wasExecutive: false, isExecutive: true, isOpen: true, query: edsQ, ...o });
   ok("after Yes, signing in as an executive with the question still in the box runs it through EDS by itself", res());
   ok("it does NOT run when he has not said Yes (the question was only asked), when he had no answer, or when he said No (no ask is kept)", !res({ ask: { query: edsQ, said: null } }) && !res({ ask: null }));
   ok("it does not run when he was already an executive, is not one now, the window is closed, EDS is off, or the question was edited", !res({ wasExecutive: true }) && !res({ isExecutive: false }) && !res({ isOpen: false }) && !res({ edsEnabled: false }) && !res({ query: edsQ + " and more" }));
-  // after No: the simple answer is shown and the sign-in advice is not repeated above it
+  // after No: the simple answer is shown and I do not repeat the sign-in advice above it
   const withHint = decideLoginHint({ ...base, query: edsQ, authStatus: "unauthenticated", authenticated: false, circularShown: true });
   ok("without an answer the old advice stands for a signed-out visitor (kind eds-signin)", withHint?.kind === "eds-signin");
   ok("after he answered No for this question no sign-in advice of any kind is repeated above the simple answer (neither the eds-signin nor the synthesis hint)", decideLoginHint({ ...base, query: edsQ, authStatus: "unauthenticated", authenticated: false, circularShown: true, executiveAskAnsweredNo: true }) === null);
@@ -118,7 +118,7 @@ ok("the search bar asks BEFORE it searches: the gate sits in the Enter handler a
 ok("Yes IS the click on Sign in (it sets the answer and opens the sign-in window at once, with no second card); No runs the normal search and remembers the answer; the question is dropped when the text is edited or the window closes", /onYes=\{\(\) => \{ setExecutiveAsk\(\{ \.\.\.executiveAsk, said: "yes" \}\); openModal\(\); \}/.test(omniSrc) && /setDeclinedAsk\(q\);[\s\S]{0,200}triggerSearch\("semantic"\)/.test(omniSrc) && /query\.trim\(\) !== executiveAsk\.query/.test(omniSrc) && /if \(!isOpen\) \{ setExecutiveAsk\(null\)/.test(omniSrc));
 ok("after signing in the question runs through EDS by itself (the asked question, not the old submitted one)", /resumeAskedEds\(\{ ask, wasExecutive: was, isExecutive, isOpen, query/.test(omniSrc) && /triggerSearch\("intellectual", \{ auto: true, query: ask\.query \}\)/.test(omniSrc));
 
-// one person is printed once: the answer card and the directory search are matched by ticket number, or by record id when a list has no ticket number
+// one person is printed once: I match the answer card and the directory search by ticket number, or by record id when a list has no ticket number
 const shown = [{ id: "u1", ticketNo: "498880" }];
 ok("a person in both lists is printed once (same ticket number)", excludeShownPeople(shown, [{ id: "u1", ticketNo: "498880" }, { id: "u2", ticketNo: "412345" }]).map((p) => p.id).join() === "u2");
 ok("a person in both lists is printed once even when one list carries no ticket number (same record id)", excludeShownPeople(shown, [{ id: "u1", ticketNo: "" }, { id: "u2", ticketNo: "" }]).map((p) => p.id).join() === "u2");

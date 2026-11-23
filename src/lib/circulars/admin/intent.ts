@@ -1,7 +1,7 @@
 // src/lib/circulars/admin/intent.ts
 //
 // Omnibar intent detection for Circular Management facility.
-// Identifies when an authorised user wants to post, upload, manage, or delegate circular tools.
+// I identify here when an authorised user wants to post, upload, manage, or delegate circular tools.
 
 import type { CircularAdminOp } from "./types";
 
@@ -17,15 +17,15 @@ export function detectCircularAdminIntent(typed: string): CircularAdminIntent | 
   const norm = typed.toLowerCase().trim();
   if (!norm) return null;
 
-  // Must mention circular and an administrative action word
+  // A message must mention circular and an administrative action word
   if (!CUE.test(norm) || !ADMIN_WORDS.test(norm)) {
-    // Also catch direct phrases like "circular admin", "manage circulars", "circular management", "post circular"
+    // I also catch direct phrases like "circular admin", "manage circulars", "circular management", "post circular"
     if (!/\bcirculars?\s+(?:admin|manager|management|dashboard|upload|post)\b/i.test(norm)) {
       return null;
     }
   }
 
-  // Pure questions about circular content ("what is the circular on pf", "how to apply under circular 12") are NOT admin intents
+  // I do not treat pure questions about circular content ("what is the circular on pf", "how to apply under circular 12") as admin intents
   if (/^(?:what|which|where|when|how\s+to|tell\s+me|show|display|find|search|list\s+all)\b/i.test(norm) &&
       !/^(?:how\s+to\s+(?:upload|post|publish)|where\s+to\s+(?:upload|post))\b/i.test(norm)) {
     return null;
@@ -43,7 +43,7 @@ export function detectCircularAdminIntent(typed: string): CircularAdminIntent | 
     op = "upload";
   }
 
-  // Check if headline was suggested in quotes from original typed string to preserve casing: post circular "Festival Advance Scheme 2026"
+  // I check if the headline was suggested in quotes in the original typed string, to preserve casing: post circular "Festival Advance Scheme 2026"
   const quoted = /"([^"]+)"|'([^']+)'/.exec(typed);
   const headline = quoted ? (quoted[1] || quoted[2]).trim() : undefined;
 

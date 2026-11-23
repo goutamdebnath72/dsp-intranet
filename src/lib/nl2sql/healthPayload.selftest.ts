@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/healthPayload.selftest.ts
-// Step 61a: the REAL payload builder (toPayload) gives a health check-up lookup of one person its clean answer first: the date asked for, or the department asked for.
+// Step 61a: I check that the REAL payload builder (toPayload) gives a health check-up lookup of one person its clean answer first: the date asked for, or the department asked for.
 
 import { toPayload } from "./omnibar";
 

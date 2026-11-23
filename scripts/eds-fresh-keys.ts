@@ -1,5 +1,5 @@
 // scripts/eds-fresh-keys.ts: FIVE questions never run on the engine before (11 Nov 2026), with their answer keys written from the circulars' own text BEFORE any run,
-// so the score cannot be shaped by the output. Same shape and matching as eds-gold-keys.ts (normalised answer: lower case, no thousands commas, "24th" -> "24", "Rs." -> "rs ").
+// so that the output cannot shape the score. Same shape and matching as eds-gold-keys.ts (normalised answer: lower case, no thousands commas, "24th" -> "24", "Rs." -> "rs ").
 //   GOLD_KEYS=./scripts/eds-fresh-keys.ts npx tsx --env-file=.env.local scripts/eds-gold.ts
 // The circulars used (ids in the archive) were used by no earlier panel or gold question: 6, 21 + 82, 73 + 74, 39 + 40, 3.
 import type { GoldFact, GoldQuestion } from "./eds-gold-keys";

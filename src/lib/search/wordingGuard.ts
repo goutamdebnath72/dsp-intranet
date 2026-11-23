@@ -1,17 +1,17 @@
 // src/lib/search/wordingGuard.ts
 //
-// TWO PLAIN-CODE GUARDS on what the model writes, found on the Zero Tolerance answer (11 Nov 2026), both general:
+// I keep these plain-code guards on what the model writes. They came from the Zero Tolerance answer (11 Nov 2026), and all of them are general:
 //
 // 1. fixDiscretionIssuers: an authority the circular names only as the holder of a DISCRETION ("... / Discretion of Head of Safety") is not the one who ISSUES. The model put "Head of Safety" in
-//    the "Issued through" column and dropped the words "Discretion of". Where every place the circular names that authority is "discretion of <authority>", the issuer cell says "Not stated in
-//    circular" and the words go back into the consequence cell (the cell just left of the issuer column), where the circular has them.
+//    the "Issued through" column and dropped the words "Discretion of". Where every place the circular names that authority is "discretion of <authority>", I make the issuer cell say "Not stated in
+//    circular" and put the words back into the consequence cell (the cell just left of the issuer column), where the circular has them.
 // 2. stripUnsupportedForce: "immediately", "automatically", "directly", "instantly" add speed or force the circular did not write ("the penalty is imposed DIRECTLY on the contractor" for "imposed on
-//    the contractor"). When the circulars never use the word, it is taken out of a sentence (the rest of the sentence is untouched). A word the circular uses is left alone.
+//    the contractor"). When the circulars never use the word, I take it out of a sentence (the rest of the sentence is untouched). A word the circular uses is left alone.
 // 3. fixItemCount: the overview said "Ten distinct schemes are compared" over a table of twelve (Motivational Award Schemes answer, 11 Nov 2026). A count the text gives for the items the table
-//    COMPARES is the table's own row count: said in the table's own noun (its first column's header or its title: "Name of the Scheme" -> "schemes"), only in the plain shapes
-//    "<count> <noun> are compared/listed/covered ..." and "compares/lists/covers <count> <noun>". Any other number in the text (grades, rupees, "three for executives") is never touched.
+//    COMPARES must be the table's own row count: I say it in the table's own noun (its first column's header or its title: "Name of the Scheme" -> "schemes"), only in the plain shapes
+//    "<count> <noun> are compared/listed/covered ..." and "compares/lists/covers <count> <noun>". I never touch any other number in the text (grades, rupees, "three for executives").
 // 4. restoreTruncatedAbbreviations: "900 sq. f." for the circular's "sq. ft." (a model slip, 11 Nov 2026). Two abbreviations in a row whose second is a CUT form of a longer abbreviation that the
-//    circulars print after the same first one ("sq. ft.", "Asst. Mgr.", "Dy. Gen.") go back to the circular's form. Only when the circulars never print the cut form, print exactly one
+//    circulars print after the same first one ("sq. ft.", "Asst. Mgr.", "Dy. Gen.") go back to the circular's form. I do this only when the circulars never print the cut form, print exactly one
 //    longer form, and that form adds at most three letters. Any other text is never touched.
 // Pure: no I/O, no model.
 
@@ -33,7 +33,7 @@ export function fixDiscretionIssuers(table: SynthesisTable, sourceText: string):
   const rows = table.rows.map((row) => {
     const cell = clip(row[col] ?? "");
     if (!cell || NOT_NAMED.test(cell)) return row;
-    // the name, without a bracket; a cell that itself reads "Discretion of Head of Safety" (seen live, 11 Nov 2026) names the same holder of a discretion
+    // I take the name without a bracket; a cell that itself reads "Discretion of Head of Safety" (seen live, 11 Nov 2026) names the same holder of a discretion
     const saysDiscretion = /^discretion\s+of\s+(?:the\s+)?/i.test(cell);
     const authority = cell.replace(/^discretion\s+of\s+(?:the\s+)?/i, "").replace(/\s*[(\[].*$/, "").trim();
     const v = flat(authority);
@@ -43,7 +43,7 @@ export function fixDiscretionIssuers(table: SynthesisTable, sourceText: string):
       n++;
       if (/discretion\s+of\s+(?:the\s+)?$/.test(src.slice(Math.max(0, at - 30), at))) disc++;
     }
-    if (n === 0 || (disc < n && !saysDiscretion)) return row; // named somewhere as more than a discretion holder (or not found: not this guard's business)
+    if (n === 0 || (disc < n && !saysDiscretion)) return row; // I leave it when the authority is named somewhere as more than a discretion holder (or not found): that is not this guard's business
     const out = [...row];
     out[col] = "Not stated in circular";
     const left = col - 1;
@@ -58,7 +58,7 @@ export function fixDiscretionIssuers(table: SynthesisTable, sourceText: string):
   return fixes.length ? { table: { ...table, rows }, fixes } : { table, fixes };
 }
 
-/** word → what the circular must contain for the word to be its own */
+/** each word, with what the circular must contain before I let the word stand as its own */
 const FORCE_WORDS: Array<{ word: string; supported: RegExp }> = [
   { word: "immediately", supported: /\bimmediate/i },
   { word: "automatically", supported: /\bautomatic/i },
@@ -66,13 +66,13 @@ const FORCE_WORDS: Array<{ word: string; supported: RegExp }> = [
   { word: "instantly", supported: /\binstant/i },
 ];
 
-/** Takes out the force words the circulars never use. Returns the text and the words removed. */
+/** I take out the force words the circulars never use. Returns the text and the words removed. */
 export function stripUnsupportedForce(text: string, sourceText: string): { text: string; removed: string[] } {
   let out = text || "";
   const removed: string[] = [];
   for (const { word, supported } of FORCE_WORDS) {
     if (supported.test(sourceText || "")) continue;
-    // only in the middle of a sentence: a sentence that STARTS with the word is left as it is (taking it out would need a new capital letter)
+    // I do this only in the middle of a sentence: a sentence that STARTS with the word is left as it is (taking it out would need a new capital letter)
     const re = new RegExp(`(?<=\\S)\\s+${word}\\b(?=[\\s,.;:)])`, "gi");
     if (re.test(out)) { out = out.replace(re, ""); removed.push(word); }
   }
@@ -84,18 +84,18 @@ const countWord = "(?:" + WORDS.slice(2).join("|") + "|\\d{1,3})";
 const ADJ = "(?:(?:distinct|different|separate|individual|various|unique)\\s+)?";
 const STOP = new Set(["name", "names", "item", "items", "title", "sl", "sno", "the", "of", "and", "for", "type", "types", "particulars", "details", "description", "no", "dsp", "sail"]);
 
-/** the singular forms of the nouns the table is made of: the first column's header and the title ("Name of the Scheme", "Motivational Award Schemes of DSP" -> scheme, award, motivational). */
+/** Returns the singular forms of the nouns the table is made of: the first column's header and the title ("Name of the Scheme", "Motivational Award Schemes of DSP" -> scheme, award, motivational). */
 function tableNouns(table: SynthesisTable): string[] {
   const words = `${table.columns[0] || ""} ${table.title || ""}`.toLowerCase().match(/\p{L}{4,}/gu) || [];
   return [...new Set(words.map((w) => w.replace(/s$/, "")).filter((w) => !STOP.has(w) && w.length >= 4))];
 }
 
-/** Puts the table's row count where the text counts the items compared. Returns the text and the counts changed ("ten -> 12"). */
+/** I put the table's row count where the text counts the items compared. Returns the text and the counts changed ("ten -> 12"). */
 export function fixItemCount(text: string, table: SynthesisTable | null | undefined): { text: string; changed: string[] } {
   if (!text || !table || table.rows.length < 2) return { text, changed: [] };
   const labels = table.rows.map((r) => flat(r[0] ?? "")).filter(Boolean);
   const n = new Set(labels).size;
-  if (n < 2 || n !== labels.length) return { text, changed: [] }; // rows that repeat their first cell are not one item each: not this guard's business
+  if (n < 2 || n !== labels.length) return { text, changed: [] }; // rows that repeat their first cell are not one item each, so I skip them: not this guard's business
   const nouns = tableNouns(table);
   if (!nouns.length) return { text, changed: [] };
   const noun = `(?:${nouns.map((w) => `${w}s?`).join("|")})`;
@@ -116,17 +116,17 @@ export function fixItemCount(text: string, table: SynthesisTable | null | undefi
 
 const escRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** One text: a cut abbreviation after another abbreviation put back as the circulars print it. */
+/** In one text I put a cut abbreviation that follows another abbreviation back as the circulars print it. */
 export function restoreTruncatedAbbreviations(text: string, sourceText: string): { text: string; changed: string[] } {
   const src = (sourceText || "").toLowerCase().replace(/\s+/g, " ");
   const changed: string[] = [];
   const out = (text || "").replace(/\b([A-Za-z]{1,5}\.)\s+([A-Za-z]{1,3})\./g, (m, a: string, b: string) => {
     const a0 = a.toLowerCase(), b0 = b.toLowerCase();
-    if (src.includes(`${a0} ${b0}.`)) return m; // the circulars print it so
+    if (src.includes(`${a0} ${b0}.`)) return m; // I accept the longer form because the circulars print it so
     const re = new RegExp(`${escRe(a0)}\\s+(${escRe(b0)}[a-z]{1,3})\\.`, "g");
     const found = new Set<string>();
     for (let x = re.exec(src); x; x = re.exec(src)) found.add(x[1]);
-    if (found.size !== 1) return m; // none, or two different longer forms: not sure, so not touched
+    if (found.size !== 1) return m; // none, or two different longer forms: I am not sure, so I do not touch it
     const ext = [...found][0];
     const shown = b === b.toUpperCase() && b.length > 1 ? ext.toUpperCase() : b[0] === b[0].toUpperCase() ? ext[0].toUpperCase() + ext.slice(1) : ext;
     changed.push(`${a} ${b}. -> ${a} ${shown}.`);
@@ -135,7 +135,7 @@ export function restoreTruncatedAbbreviations(text: string, sourceText: string):
   return { text: out, changed };
 }
 
-/** The briefing with `fix` applied to every text of it (overview, headline, findings, tables, charts). The result is not changed in place. */
+/** I apply `fix` to every text of the briefing (overview, headline, findings, tables, charts). I do not change the result in place. */
 export function mapBriefingTexts(r: SynthesisResult, fix: (t: string) => string): SynthesisResult {
   const f = (t: string | undefined): string => fix(t ?? "");
   const fixTable = (t: SynthesisTable | null | undefined): SynthesisTable | null | undefined =>
@@ -156,14 +156,14 @@ export function mapBriefingTexts(r: SynthesisResult, fix: (t: string) => string)
   };
 }
 
-/** Every text of a briefing with cut abbreviations restored. The result is not changed in place. */
+/** Restores the cut abbreviations in every text of a briefing. I do not change the result in place. */
 export function restoreAllAbbreviations(r: SynthesisResult, sourceText: string): { result: SynthesisResult; changed: string[] } {
   const changed: string[] = [];
   const result = mapBriefingTexts(r, (t) => { const o = restoreTruncatedAbbreviations(t, sourceText); changed.push(...o.changed); return o.text; });
   return { result, changed };
 }
 
-/** Every text of a briefing with the separators taken out of identifiers (account, policy, cheque numbers): src/lib/ui/identifiers.ts. The result is not changed in place. */
+/** I take the separators out of identifiers (account, policy, cheque numbers) in every text of a briefing: src/lib/ui/identifiers.ts. The result is not changed in place. */
 export function normaliseIdentifiers(r: SynthesisResult): { result: SynthesisResult; changed: string[] } {
   const changed: string[] = [];
   const result = mapBriefingTexts(r, (t) => { const o = stripIdentifierSeparators(t); changed.push(...o.changed); return o.text; });
@@ -171,9 +171,9 @@ export function normaliseIdentifiers(r: SynthesisResult): { result: SynthesisRes
 }
 
 /**
- * "NOT APPLICABLE" IS A CLAIM. A table cell that says a case does not apply says something the circular must say; a case the circular's table merely does not list (an item given for
+ * My view: "Not applicable" is a claim. A table cell that says a case does not apply says something the circular must say; a case the circular's table merely does not list (an item given for
  * one duration only, a row given for one grade) is "Not stated in circular", not "Not applicable". When the circulars nowhere print "not applicable", "N/A", "not allowed",
- * "not permitted", "nil" or the like, a cell "Not applicable" becomes "Not stated in circular".
+ * "not permitted", "nil" or the like, I turn a cell "Not applicable" into "Not stated in circular".
  */
 export function fixUnprintedNotApplicable(r: SynthesisResult, sourceText: string): { result: SynthesisResult; changed: number } {
   if (/\bnot\s+applicable\b|\bn\/a\b|\bnot\s+(?:allowed|permitted|admissible|eligible|payable|available|entitled|required|applicable)\b|\bnil\b|\bno\s+(?:such|separate)\b/i.test(sourceText)) return { result: r, changed: 0 };

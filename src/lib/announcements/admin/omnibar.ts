@@ -1,7 +1,7 @@
 // src/lib/announcements/admin/omnibar.ts
 //
 // Omnibar responder for Announcement Management.
-// Detects announcement admin intent and returns the payload to render AnnouncementAdminPanel in the modal.
+// Here I detect announcement admin intent and return the payload that renders AnnouncementAdminPanel in the modal.
 
 import type { AnalyticsPayload } from "@/lib/employees/analytics";
 import type { HospitalAnswer } from "@/lib/hospital/types";

@@ -1,6 +1,6 @@
 // src/lib/nl2sql/rankingCheck.ts
 //
-// Three ways an otherwise-correct answer can quietly mislead, read from the model's SQL (not asked of a model):
+// Three ways an otherwise-correct answer can quietly mislead. I read them from the model's SQL; I do not ask a model:
 //   1. LIMIT over GROUPS ("which department has the most ..." as ORDER BY count DESC LIMIT 1). If two departments
 //      tie for first, one silently disappears. Ranking with rank() keeps every row tied for the place.
 //   2. A grouped result with no ORDER BY: the rows come back in an arbitrary order.
@@ -13,7 +13,7 @@
 //   6. Ranking BEFORE the population is decided: the outer WHERE holds both the rank cut (r <= 10) and another condition
 //      (nonexec_count = 0). The rank was computed over ALL rows, so the top 10 of everyone is cut first and then thinned:
 //      fewer than 10 rows come back. The condition that decides who competes belongs in HAVING/WHERE of the ranking query.
-// The pipeline gives the model ONE chance to fix it (first attempt only) and never fails a question over it.
+// I made the pipeline give the model ONE chance to fix it (first attempt only); it never fails a question over this.
 
 import { parse } from "pgsql-ast-parser";
 
@@ -55,12 +55,12 @@ const hasWindowCall = (expr: any): boolean => {
   return found;
 };
 
-/** The column name an ORDER BY key refers to (qualified or not), or null for any other kind of expression. */
+/** Returns the column name an ORDER BY key refers to (qualified or not), or null for any other kind of expression. */
 function refName(e: any): string | null {
   return e && e.type === "ref" && typeof e.name === "string" ? e.name.toLowerCase() : null;
 }
 
-/** ticket_no = '<one literal>', alone or ANDed with other conditions (never OR, never IN: those can return several people). */
+/** Matches ticket_no = '<one literal>', alone or ANDed with other conditions. Never OR, never IN: those can return several people. */
 function pinsOneTicket(w: any): boolean {
   if (!w || w.type !== "binary") return false;
   if (w.op === "AND") return pinsOneTicket(w.left) || pinsOneTicket(w.right);
@@ -90,7 +90,7 @@ export function checkRankingAndOrder(sql: string): string | null {
     );
   }
 
-  // Rule 4: ranking in a sub-query, then a window total in the OUTER query (a share of the total becomes 100%).
+  // Rule 4 catches ranking in a sub-query followed by a window total in the OUTER query, where a share of the total becomes 100%.
   if (Array.isArray(st.from) && st.from.length === 1 && st.from[0].type === "statement" && st.where) {
     const inner: any = st.from[0].statement;
     const windowAliases: string[] = (Array.isArray(inner?.columns) ? inner.columns : [])
@@ -105,7 +105,7 @@ export function checkRankingAndOrder(sql: string): string | null {
     }
   }
 
-  // Rule 6: the rank cut and ANOTHER condition together in the outer WHERE (the other condition is applied after ranking).
+  // Rule 6 catches the rank cut and ANOTHER condition together in the outer WHERE, because the other condition is applied after ranking.
   if (Array.isArray(st.from) && st.from.length === 1 && st.from[0].type === "statement" && st.where) {
     const inner: any = st.from[0].statement;
     const windowAliases: string[] = (Array.isArray(inner?.columns) ? inner.columns : [])
@@ -127,7 +127,7 @@ export function checkRankingAndOrder(sql: string): string | null {
     }
   }
 
-  // Rule 5: names collected into one cell must be in seniority order.
+  // Rule 5: I require names collected into one cell to be in seniority order.
   let unorderedList = false;
   walk(st, (x) => {
     if (x.type === "call" && ["array_agg", "string_agg"].includes(String(x.function?.name).toLowerCase()) && !x.over && !(Array.isArray(x.orderBy) && x.orderBy.length > 0)) unorderedList = true;
@@ -136,19 +136,19 @@ export function checkRankingAndOrder(sql: string): string | null {
     return "Names collected into one cell must be in seniority order: array_agg(name ORDER BY global_seniority_rank) (or string_agg(name, ', ' ORDER BY global_seniority_rank)).";
   }
 
-  // A list of people: judged only when the columns can be resolved (no sub-query in FROM).
+  // I judge a list of people only when the columns can be resolved (no sub-query in FROM).
   const cols: any[] = Array.isArray(st.columns) ? st.columns : [];
   const isPeopleList =
     !grouped &&
     cols.some((c) => (c.alias?.name ?? refName(c.expr)) === "ticket_no") &&
     Array.isArray(st.from) &&
     st.from.length > 0 &&
-    // (the check-up schedule view has no seniority column: its rows come in date order, not seniority order)
+    // The check-up schedule view has no seniority column, so its rows come in date order, not seniority order.
     st.from.every((f: any) => f.type === "table" && String(f.name?.name ?? "").toLowerCase() !== "health_checkups");
-  // ONE person looked up by an exact ticket number (ticket_no = '228757') can return at most one row: there is no order to get wrong.
+  // ONE person looked up by an exact ticket number (ticket_no = '228757') can return at most one row, so there is no order to get wrong.
   if (isPeopleList && pinsOneTicket(st.where)) return null;
   if (isPeopleList) {
-    // aliases of the SELECT list that really are global_seniority_rank (e.g.  e.global_seniority_rank AS sr)
+    // I collect the aliases in the SELECT list that really are global_seniority_rank (e.g.  e.global_seniority_rank AS sr)
     const rankAliases = new Set(
       cols.filter((c) => refName(c.expr) === "global_seniority_rank" && c.alias?.name).map((c) => String(c.alias.name).toLowerCase()),
     );
@@ -166,8 +166,8 @@ export function checkRankingAndOrder(sql: string): string | null {
 
 /**
  * "Who is more senior, A or B?" answered with ORDER BY ... LIMIT 1 shows ONE person: nobody can see whether the other
- * was found, or either rank. The answer must show BOTH people with their global_seniority_rank (lower = more senior).
- * Judged only when the QUESTION is an explicit comparison ("more/less senior", "who is senior/junior", "senior/junior
+ * was found, or either rank. I require the answer to show BOTH people with their global_seniority_rank (lower = more senior).
+ * I judge this only when the QUESTION is an explicit comparison ("more/less senior", "who is senior/junior", "senior/junior
  * between/among", "which of ... senior"), so "the most senior Roy or Ray" (a genuine LIMIT 1) is left alone.
  */
 const COMPARISON_CUE =
@@ -194,11 +194,11 @@ export function checkComparison(question: string, sql: string): string | null {
 }
 
 // ---------------------------------------------------------------------------------------------------
-// The sentence that STATES the answer of a comparison, in plain words. Computed from the data by code, never by the model.
+// This is the sentence that STATES the answer of a comparison, in plain words. Code computes it from the data, never the model.
 //   global_seniority_rank = grade level x 10,000 + position within that grade (lower = more senior). The number itself means
-//   nothing to a reader, so the sentence speaks of grades and of position in the grade's seniority list instead.
+//   nothing to a reader, so I make the sentence speak of grades and of position in the grade's seniority list instead.
 //   Domain rule: among EXECUTIVES the order within a grade is real (earlier in HR's list = more senior). Among
-//   NON-EXECUTIVES only the grade order is meaningful, so two non-executives of one grade are never ranked against each other.
+//   NON-EXECUTIVES only the grade order is meaningful, so I never rank two non-executives of one grade against each other.
 // ---------------------------------------------------------------------------------------------------
 const JUNIOR_CUE =
   /\b(?:more\s+junior|less\s+senior)\b|\bwho\s+is\s+junior\b|\bjunior\s+(?:between|among|out\s+of)\b|\bwhich\s+of\b[^?]*\bjunior\b/i;
@@ -218,7 +218,7 @@ export function comparisonVerdict(
 ): string | null {
   const q = question || "";
   if (!JUNIOR_CUE.test(q) && !SENIOR_CUE.test(q)) return null;
-  if (!Array.isArray(rows) || rows.length !== 2) return null; // 1 or 3+ people: the ambiguity must stay visible
+  if (!Array.isArray(rows) || rows.length !== 2) return null; // with 1 or 3+ people I keep the ambiguity visible
   const info = rows.map((r) => {
     const p = people.find((x) => String(x?.ticketNo ?? "").trim() === String(r?.ticket_no ?? "").trim());
     const rank = Number(r?.global_seniority_rank);
@@ -237,7 +237,7 @@ export function comparisonVerdict(
   const asksJunior = JUNIOR_CUE.test(q) && !SENIOR_CUE.test(q);
 
   if (a.level === b.level) {
-    if (a.exec === null || b.exec === null) return null; // cannot tell executives from non-executives: say nothing rather than guess
+    if (a.exec === null || b.exec === null) return null; // I cannot tell executives from non-executives here, so I say nothing rather than guess
     if (!a.exec && !b.exec) {
       const same = a.desig && a.desig === b.desig ? ` (${a.desig})` : "";
       return `${a.name} and ${b.name} are in the same grade${same}. Within a non-executive grade there is no individual seniority order, so neither is more senior.`;

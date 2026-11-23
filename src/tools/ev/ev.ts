@@ -1,6 +1,6 @@
 // src/tools/ev/ev.ts
 //
-// ELECTRIC-CAR CHARGING (the cost of a charge is in tariff.ts): an approximate idea of how long a battery of a given size takes to charge (say from 10% to 90%) from AC and DC chargers of various ratings, and what
+// Electric-car charging (the cost of a charge is in tariff.ts): I give an approximate idea of how long a battery of a given size takes to charge (say from 10% to 90%) from AC and DC chargers of various ratings, and what
 // the battery and charger specifications mean. Pure; nothing is stored or sent anywhere.
 //
 // The method is the plain one, and the answer is marked as approximate everywhere it is shown:
@@ -30,7 +30,7 @@ export const CHARGERS: Charger[] = [
 
 export const AC_EFFICIENCY = 0.9;
 export const DC_EFFICIENCY = 0.95;
-/** average share of the peak power over each stretch of the battery's state of charge (DC) */
+/** The average share of the peak power over each stretch of the battery's state of charge (DC). */
 export const DC_BANDS: Array<{ from: number; to: number; share: number }> = [
   { from: 0, to: 50, share: 0.75 },
   { from: 50, to: 80, share: 0.5 },
@@ -41,11 +41,11 @@ export interface EvInput {
   capacityKwh: number;
   fromPct: number;
   toPct: number;
-  /** the most the car's on-board charger takes on AC, kW */
+  /** The most the car's on-board charger takes on AC, kW. */
   carAcKw: number;
-  /** the most the car takes on DC at its peak, kW */
+  /** The most the car takes on DC at its peak, kW. */
   carDcKw: number;
-  /** how far one kWh takes the car, km (for the range added) */
+  /** How far one kWh takes the car, km (I use it for the range added). */
   kmPerKwh: number;
 }
 
@@ -53,7 +53,7 @@ export const EV_DEFAULTS: EvInput = { capacityKwh: 40, fromPct: 10, toPct: 90, c
 
 export interface ChargeEstimate {
   hours: number;
-  /** the power the car actually takes at its peak, kW */
+  /** The power the car actually takes at its peak, kW. */
   pace: number;
   limitedBy: "charger" | "car";
   addedKwh: number;
@@ -73,7 +73,7 @@ export function validateEv(i: EvInput): EvProblem | null {
   return null;
 }
 
-/** The time for one charger. */
+/** Returns the time for one charger. */
 export function estimateCharge(i: EvInput, c: { kind: "AC" | "DC"; kw: number }): ChargeEstimate | EvProblem {
   const bad = validateEv(i);
   if (bad) return bad;

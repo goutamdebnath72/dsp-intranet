@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/departmentAliases.selftest.ts
-// The alias file against the 300 REAL department rows (a saved copy in __fixtures__/departments.real.json): no entry may match nothing, no alias may belong to two DIFFERENT groups,
-// the row counts are what the real list holds, and the questions the owner named find the rows they should.
+// This tests the alias file against the 300 REAL department rows (a saved copy in __fixtures__/departments.real.json): no entry may match nothing, no alias may belong to two DIFFERENT groups,
+// the row counts must be what the real list holds, and the questions I named must find the rows they should.
 
 import real from "./__fixtures__/departments.real.json";
 import { DEPARTMENT_GROUPS } from "./departmentAliases";
@@ -35,7 +35,7 @@ for (const g of DEPARTMENT_GROUPS) {
 }
 ok("group names are unique", new Set(DEPARTMENT_GROUPS.map((g) => g.name)).size === DEPARTMENT_GROUPS.length);
 
-// ---- the row counts of the real list (the saved copy of 24 Oct 2026)
+// ---- the row counts of the real list, from the saved copy of 24 Oct 2026
 const EXPECT: [string, number][] = [
   ["CO & CC", 8],
   ["BLAST FURNACE (BF)", 12],
@@ -63,14 +63,14 @@ for (const [name, n] of EXPECT) {
   eq(`${name}: ${n} rows`, hits.length, n);
 }
 
-// ---- no old short form points to nothing
+// ---- no old short form may point to nothing
 for (const [name] of DEPARTMENT_SHORT_FORMS) {
   const n = norm(name);
   ok(`short form ${name} points to a real row`, all.some((d) => norm(d.name) === n || norm(d.name).startsWith(n + " ")));
 }
 ok("the dead short forms are gone (CHRD INDUSTRIAL 2, MANAGEMENT TRAINEE) and plant medical no longer points to IPU", !DEPARTMENT_SHORT_FORMS.some(([n, al]) => /CHRD INDUSTRIAL|MANAGEMENT TRAINEE/.test(n) || al.includes("plant medical")));
 
-// ---- the questions the owner named
+// ---- the questions I named
 const ids = (re: RegExp) => all.filter((d) => re.test(d.name)).map((d) => d.id).sort((a, b) => a - b);
 eq("cocc: all 8 CO & CC rows, the two COAL CHEMICALS rows of the same name included", rowsOf("how many executives are there in cocc, list them?"), ids(/^CO & CC/));
 ok("...both rows named CO & CC (COAL CHEMICALS)", [63, 115].every((i) => rowsOf("executives in cocc").includes(i)));
@@ -91,7 +91,7 @@ eq("csd, central stores, central stores department: the 3 Central Stores rows (9
 ok("...but not ESTATE-ACCOUNTS, and the words A-Zone / B-Zone are NOT mapped (the data has no zone rows: a count for one zone would silently be all of Town Administration)", !rowsOf("executives in ta building").some((i) => /^ESTATE-ACCOUNTS/.test(all.find((d) => d.id === i)!.name)) && rowsOf("executives in a-zone maintenance").length === 0 && rowsOf("executives in b zone maintenance").length === 0);
 ok("ta building also reaches it through the old short form", selectRelevantDepartments("executives in ta building", all).some((d) => d.code === 650));
 
-// ---- the other departments, by their own name (automatic)
+// ---- the other departments, found by their own name (automatic)
 eq("acvs: ACVS (executive), ACVS and ACVS - OFFICE", rowsOf("executives in acvs"), ids(/^ACVS/));
 eq("l & d, l&d: all 5 L & D rows", [rowsOf("executives in l & d"), rowsOf("executives in l&d")], Array(2).fill(ids(/^L & D/)));
 eq("foundry: all 13 rows", rowsOf("executives in foundry"), ids(/^FOUNDRY/));

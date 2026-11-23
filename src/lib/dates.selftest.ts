@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/dates.selftest.ts      (also under TZ=UTC and TZ=America/New_York: the answers must not change)
-// Step 65c: "Luxon is the date and time library throughout the app". Every place that used the built-in Date for date handling now uses Luxon; for each one the OLD code is kept below as a REFERENCE and the new
+// Step 65c: "Luxon is the date and time library throughout the app". Every place that used the built-in Date for date handling now uses Luxon; for each one I keep the OLD code below as a REFERENCE and the new
 // behaviour is compared with it over many inputs. Two places had a latent zone bug and are DELIBERATELY different (marked). A guard fails if native date handling or another date library comes back.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/pax/admin/admin.selftest.ts
-// Step 64a: the rules of the PAX admin panel: what a line may hold, when it clashes with a saved one, and which sentences open the editor. PURE: no database.
+// Step 64a: the rules of the PAX admin panel as I test them: what a line may hold, when it clashes with a saved one, and which sentences open the editor. PURE: no database.
 
 import { acknowledgementCovers, describeLine, findConflicts, placeKey, savedLines } from "./conflicts";
 import { detectPaxAdminIntent } from "./intent";
@@ -20,7 +20,7 @@ ok("the location may be empty", v("Stores", "", "42555").ok);
 ok("a PAX number is five digits starting with 4: 42046, 40000, 49999 pass", v("A1", "", "42046").ok && v("A1", "", "40000").ok && v("A1", "", "49999").ok);
 for (const bad of ["52046", "4204", "420460", "4204a", "42 046", "42-046", "04204", "", "abcde", "4.2046", "42046 ", "４２０４６", "٤٢٠٤٦"]) {
   const r = v("Stores", "", bad);
-  // "42046 " is tidied to 42046 and passes (a trailing space is not the number's fault); full-width digits are made plain by NFKC and pass; other scripts' digits are refused (safer)
+  // I tidy "42046 " to 42046 and let it pass (a trailing space is not the number's fault); NFKC makes full-width digits plain, so they pass; I refuse other scripts' digits (safer)
   const shouldPass = bad === "42046 " || bad === "４２０４６";
   ok(`number "${bad}" ${shouldPass ? "is tidied and passes" : "is refused"}`, r.ok === shouldPass, JSON.stringify(r));
 }
@@ -98,7 +98,7 @@ ok("a number that is not a PAX number is NOT picked out (52555)", intent("add pa
 ok("modify and delete get a search word, not a department: 'edit the pax of fire service' -> query 'fire service'", intent("edit the pax of fire service")?.prefill?.query === "fire service" && intent("delete pax 42046")?.prefill?.number === "42046");
 ok("a plain 'add new pax number' prefills nothing", JSON.stringify(intent("add new pax number")) === JSON.stringify({ op: "add" }));
 
-// ---- the department is CHOSEN from the plant's departments (public.sail_department), never typed (owner, 23 Nov 2026) ----
+// ---- my rule (23 Nov 2026): the department is CHOSEN from the plant's departments (public.sail_department), never typed ----
 {
   const list = departmentsOf(["FIRE SERVICE", "GARAGE", "garage ", "CENTRAL STORES", "ACVS", "ACVS", "BLAST FURNACE (CAST HOUSE)", "", null, undefined]);
   ok("the departments are every distinct name of the register as the app shows it (the Central Stores rule applied), A to Z, once each", list.join("|") === "ACVS|BLAST FURNACE (CAST HOUSE)|CENTRAL STORES (Marketing)|FIRE SERVICE|GARAGE", list.join("|"));

@@ -1,4 +1,4 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/currency.selftest.ts
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/currency.selftest.ts
 import { readFileSync } from "node:fs";
 import { parseCurrency, convertCurrency, currencyOf, validRates, CURRENCIES, type Rates } from "./currency";
 import { parseConversion } from "./units";

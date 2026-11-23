@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/announcements/searchIndex/searchIndex.selftest.ts
-// The pure parts of the announcement PDF index: the passages an announcement offers to a question, the text its own vector is made from, and the sentence the manager reads.
+// Here I test the pure parts of the announcement PDF index: the passages an announcement offers to a question, the text its own vector is made from, and the sentence the manager reads.
 
 export {};
 import { readFileSync } from "node:fs";

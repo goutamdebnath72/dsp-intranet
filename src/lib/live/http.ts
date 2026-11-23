@@ -1,8 +1,8 @@
 // src/lib/live/http.ts
 //
-// THE SERVER'S WAY OF ASKING A PUBLIC WEBSITE FOR ITS NUMBERS (gold rates, fuel prices, news feeds, share indices). Used only by the /api/live routes, which read nothing from the user:
-// the question put to the other site is always the same fixed address, never anything typed in the search window.
-// A time limit on every call, an honest browser-like User-Agent, no cookies kept, and any answer that is not a success is an error (the routes then fall back to the last good answer).
+// This is the server's way of asking a public website for its numbers (gold rates, fuel prices, news feeds, share indices). Only the /api/live routes use it, and they read nothing from the user:
+// I always put the same fixed address to the other site, never anything typed in the search window.
+// Every call has a time limit, an honest browser-like User-Agent and no cookies kept, and any answer that is not a success is an error (the routes then fall back to the last good answer).
 
 export const BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
@@ -32,7 +32,7 @@ export async function getText(url: string, opts: GetOptions = {}): Promise<strin
   }
 }
 
-/** A public file (a PDF) as bytes, with a time limit and a ceiling on its size (a download that is larger than the ceiling is refused, not read). */
+/** Gets a public file (a PDF) as bytes, with a time limit and a ceiling on its size. A download larger than the ceiling is refused, not read. */
 export async function getBuffer(url: string, opts: GetOptions & { maxBytes?: number } = {}): Promise<Buffer> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 15000);

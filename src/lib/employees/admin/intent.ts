@@ -1,12 +1,12 @@
 // src/lib/employees/admin/intent.ts
 //
-// "I WANT TO CHANGE EMPLOYEE DATA" (step 66a; owner, 1 Nov 2026). Typed into the search bar in the person's own words; this reads which change he means. PURE.
+// "I WANT TO CHANGE EMPLOYEE DATA" (step 66a; my request, 1 Nov 2026). Typed into the search bar in the person's own words; here I read which change he means. PURE.
 //   add       "add new employee", "add an employee", "new employee", "register a new employee", "create employee record", "employee addition"
 //   modify    "edit employee record", "update employee goutam debnath", "modify employee 498880", "change dob of goutam debnath", "correct the date of joining of 498880"
 //   delete    "delete employee 498880", "remove employee Anil Das", "employee deletion"
 //   delegate  "delegate employee editing to Rakesh Ojha", "give employee access to X", "authorise X for employee records", "revoke employee access", "who can edit employee records"
 //   manage    "manage employees", "employee admin", "employee management"
-// A QUESTION is never a change ("how many employees", "show employees of C&IT", "who is Rakesh Ojha", "employees with a birthday today", "new employees this month"): an action word has to LEAD the
+// My rule: a QUESTION is never a change ("how many employees", "show employees of C&IT", "who is Rakesh Ojha", "employees with a birthday today", "new employees this month"): an action word has to LEAD the
 // sentence (or the sentence is "new employee" in the singular), and the sentence has to be about employees (the word employee, or a date of birth / joining). Words of a NAME further in never act.
 
 import { normalizePax } from "@/lib/pax/matcher";
@@ -36,7 +36,7 @@ export function detectEmployeeAdminIntent(typed: string): EmployeeAdminIntent | 
   if (words.length === 0) return null;
   const first = words[0];
   const prePreposition = norm.split(/\b(?:for|of|to|in|at)\b/)[0].replace(POLITE, "").split(" ").filter(Boolean);
-  // "employee addition", "employee deletion", "employee roster management": the noun after or within employee phrase
+  // "employee addition", "employee deletion", "employee roster management": here I take the noun after or within the employee phrase
   const has = (set: Set<string>) =>
     set.has(first) ||
     (/^(?:employee|employees|personnel)$/.test(first) && set.has(words[1] ?? "")) ||
@@ -54,16 +54,16 @@ export function detectEmployeeAdminIntent(typed: string): EmployeeAdminIntent | 
   else if (has(MANAGE)) op = "manage";
   if (!op) return null;
 
-  // a QUESTION is a search, not a change
+  // I treat a QUESTION as a search, not a change
   if (/^(?:how many|what|which|whose|when|where|list|show|display|tell|count|number of)\b/.test(norm) && !askAboutPrivilege) return null;
-  // a sentence that only names the dates, with an action word that is just a verb of the sentence ("change" in "change dob"), must name a person or a ticket to be a change request of a person
+  // A sentence that only names the dates, with an action word that is just a verb of the sentence ("change" in "change dob"), must name a person or a ticket before I count it as a change request of a person
   const ticket = /\b[1-9]\d{5}\b/.exec(norm)?.[0];
   const hint = words
     .slice(1)
     .filter((w) => w && !FIELD_WORDS.has(w) && !/^\d+$/.test(w) && !ADD.has(w) && !MODIFY.has(w) && !DELETE.has(w) && !DELEGATE.has(w) && !REVOKE.has(w) && !MANAGE.has(w))
     .join(" ")
     .slice(0, 60);
-  // "edit employee record" names nobody: the panel opens on its search; "update employee directory"-style sentences open the first tab
+  // "edit employee record" names nobody, so the panel opens on its search; "update employee directory"-style sentences open the first tab
   const prefill: NonNullable<EmployeeAdminIntent["prefill"]> = {};
   if (ticket) prefill.ticket = ticket;
   if (hint && op === "add") prefill.name = hint.toUpperCase();

@@ -2,7 +2,7 @@
 //
 // A FacilityDb for LIVE tests: every `run` is a SAVEPOINT inside ONE outer transaction that is always rolled back,
 // so a test can drive the REAL store code (publish -> modify -> delete, audit rows, locks) against the REAL schema
-// and persist nothing. Reason: the first Gemini-built tools were tested only with a fake database
+// and persist nothing. I wrote it because the first Gemini-built tools were tested only with a fake database
 // (`fn(async () => [])`), which cannot see a wrong table name or `FOR UPDATE` on a LEFT JOIN: both made the
 // announcement edit and delete fail on every call.
 //

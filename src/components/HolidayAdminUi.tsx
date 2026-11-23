@@ -3,7 +3,7 @@
 // src/components/HolidayAdminUi.tsx
 //
 // Presentational UI for the Holiday Manager Facility (Modular Facility Kit).
-// Matches the visual language of the Employee Manager and PAX Directory Editor:
+// I match the visual language of the Employee Manager and PAX Directory Editor:
 // glass cards, live validation, underline tabs, amber/emerald festive styling,
 // sticky action bars, TypedConfirm integration, and NonExecutive delegation cards.
 

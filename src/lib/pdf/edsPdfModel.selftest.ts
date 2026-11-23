@@ -1,5 +1,5 @@
 // src/lib/pdf/edsPdfModel.selftest.ts  (run: npx tsx --tsconfig tsconfig.selftest.json src/lib/pdf/edsPdfModel.selftest.ts)
-// The rules of the EDS PDF: text and scripts, symbols the fonts lack, table cells, chart geometry, file name, and the guards that keep the button on the EDS reply only.
+// Here I test the rules of the EDS PDF: text and scripts, symbols the fonts lack, table cells, chart geometry, file name, and the guards that keep the button on the EDS reply only.
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { DateTime } from "luxon";
@@ -128,13 +128,13 @@ check("a source is named by its label, else the year, else 'Source'", sourceName
 }
 
 {
-  // fonts guard: the Indic fonts need an italic registration (a Hindi/Bengali question is printed in italics; without it the library stops), and Bengali must not go back to the font it mis-shapes
+  // Fonts guard: the Indic fonts need an italic registration, because a Hindi or Bengali question is printed in italics and without it the library stops. Bengali must not go back to the font that mis-shapes it.
   const fonts = readFileSync(new URL("./edsPdfFonts.ts", import.meta.url), "utf8");
   check("the Indic fonts are also registered as italic (upright files), so an italic paragraph with Hindi or Bengali cannot stop the PDF", /fontStyle: "italic"/.test(fonts) && /upright\("baloo-da-2-bengali-400-normal\.woff"/.test(fonts) && /upright\("noto-sans-devanagari-devanagari-400-normal\.woff"/.test(fonts));
   check("Bengali is drawn in Baloo Da 2 (the PDF library mis-shapes conjuncts such as স্ক in Noto Sans Bengali)", !/noto-sans-bengali/.test(fonts) && /baloo-da-2-bengali-700-normal/.test(fonts));
 }
 {
-  // painter guard: a page-level lineHeight makes the PDF library drop the footer ("Page x of y" and the AI note) from EVERY page; the line height lives on the body wrapper
+  // Painter guard: a page-level lineHeight makes the PDF library drop the footer ("Page x of y" and the AI note) from EVERY page, so I keep the line height on the body wrapper.
   const painter = readFileSync(new URL("./edsPdfDocument.tsx", import.meta.url), "utf8");
   const pageStyle = (painter.match(/\n\s*page: \{[^}]*\}/) ?? [""])[0];
   check("the page style has no lineHeight (it would hide the footer)", pageStyle.length > 0 && !/lineHeight/.test(pageStyle), pageStyle);
@@ -146,7 +146,7 @@ check("a source is named by its label, else the year, else 'Source'", sourceName
   check("a reference tag starts with ONE space (two made the library put a hyphen at the end of the line)", /<PdfText key=\{`r\$\{j\}`\} style=\{s\.ref\}>\{` \[\$\{n\}\]`\}<\/PdfText>/.test(painter) && !/`  \[\$\{n\}\]`/.test(painter));
   check("the Sources heading travels with the first source (never alone at the foot of a page)", /<Section title="Sources" ahead=\{0\} \/>/.test(painter));
 }
-// a table is kept whole only if it FITS a page: found when an 11-row table of long rows (the Zero Tolerance answer) was taller than a page and the library drew the page on top of itself
+// I keep a table whole only if it FITS a page: this was found when an 11-row table of long rows (the Zero Tolerance answer) was taller than a page and the library drew the page on top of itself.
 {
   const long = "Disciplinary action in accordance with CDA Rules-1977/ Standing Orders-1997: As per applicability";
   const rule = "No person should work/get work done on or Near running machine without guard /Cover.";

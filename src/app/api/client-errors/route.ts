@@ -1,7 +1,7 @@
 // src/app/api/client-errors/route.ts
 //
 // POST /api/client-errors   { message, stack, page }   the browser's uncaught errors, PRODUCTION ONLY (src/lib/errorLog/clientReport.ts; in development it answers 204 and keeps nothing).
-// Open to a person who has not signed in (an error on the sign-in page matters too), so it is guarded like a public form: same origin only, 8 KB at most, 10 reports a minute per address and 120 a minute in all
+// I left it open to a person who has not signed in (an error on the sign-in page matters too), so I guard it like a public form: same origin only, 8 KB at most, 10 reports a minute per address and 120 a minute in all
 // from this server copy, every text masked before it is stored (scrub.ts), and always the same empty answer, so nothing can be learned from it. Rows are grouped by fingerprint and capped per source (store.ts):
 // a flood of invented errors makes at most 1,000 browser rows and cannot push a server error out.
 
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     keepAlive(work);
     await work;
   } catch {
-    /* a bad body is dropped without a word */
+    /* I drop a bad body without a word. */
   }
   return done();
 }

@@ -54,8 +54,8 @@ async function runTests() {
   // ----------------------------------------------------
   console.log("\n--- Intent Detection Tests ---");
 
-  // User requirement: "All six forms must open with the keyword 'management'."
-  // User requirement: "yes like circular admin, the keyword admin should work with all the six."
+  // My requirement: "All six forms must open with the keyword 'management'."
+  // My requirement: "yes like circular admin, the keyword admin should work with all the six."
   ok("contact access log management -> op: logs", detectAccessLogAdminIntent("contact access log management")?.op === "logs");
   ok("contact access log admin -> op: logs", detectAccessLogAdminIntent("contact access log admin")?.op === "logs");
   ok("access log management -> op: logs", detectAccessLogAdminIntent("access log management")?.op === "logs");
@@ -87,13 +87,13 @@ async function runTests() {
   const mobilePrefill = detectAccessLogAdminIntent("contact access log mobile reveals");
   ok("prefill field mobile and action reveal", mobilePrefill?.prefill?.field === "mobile" && mobilePrefill?.prefill?.action === "reveal");
 
-  // The SAIL P.No. and the ticket number are fields of the log too (a card reveals them on a press, and each press is logged)
+  // The SAIL P.No. and the ticket number are fields of the log too: a card reveals them on a press, and each press is logged.
   ok("prefill field sailpno: 'access log p.no reveals'", detectAccessLogAdminIntent("access log p.no reveals")?.prefill?.field === "sailpno");
   ok("prefill field sailpno: 'contact access log personal number'", detectAccessLogAdminIntent("contact access log personal number")?.prefill?.field === "sailpno");
   ok("prefill field ticket: 'access log ticket number reveals'", detectAccessLogAdminIntent("access log ticket number reveals")?.prefill?.field === "ticket");
   ok("'access log by ticket 498301' is a viewer, not the ticket field", detectAccessLogAdminIntent("access log by ticket 498301")?.prefill?.field === undefined);
 
-  // The panel and the row: two more filter buttons, two more counters, a badge for each field
+  // In the panel and the row I add two more filter buttons, two more counters, and a badge for each field.
   const panelSrc = (await import("node:fs")).readFileSync("src/components/AccessLogAdminPanel.tsx", "utf8");
   const uiSrc = (await import("node:fs")).readFileSync("src/components/AccessLogAdminUi.tsx", "utf8");
   const storeSrc = (await import("node:fs")).readFileSync("src/lib/accessLog/admin/store.ts", "utf8");
@@ -155,7 +155,7 @@ async function runTests() {
     ],
   };
 
-  // Attempting to grant to a non-executive (e.g. ticket 123456)
+  // Here I attempt to grant to a non-executive (e.g. ticket 123456)
   const nonExecGrant = await handleAccessLogAdmin(
     { op: "grant", ticket: "123456", name: "NON-EXEC USER" },
     mockContext,

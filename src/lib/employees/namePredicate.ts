@@ -1,28 +1,21 @@
 // src/lib/employees/namePredicate.ts
 //
-// Replaces the flat `mode: "surname"|"firstname"|"anyword"|"contains"|"auto"`
-// + `excludePositions` scheme (29 Sep 2026) with a genuinely compositional
-// representation: a small, FIXED set of primitive checks, combined via
-// AND/OR/NOT. This is the actual fix to the "still patchwork" problem
-// raised in chat -- a flat enum requires a new field/value every time a new
-// LOGICAL COMBINATION shows up (which is unbounded), whereas composition
-// via AND/OR/NOT is recursive and covers any combination of the EXISTING
-// primitives for free. Only a genuinely new PRIMITIVE (a new kind of atomic
-// check the backend can't already express) should ever require touching
-// this file again -- combining existing primitives never should.
+// This replaces the flat `mode: "surname"|"firstname"|"anyword"|"contains"|"auto"`
+// + `excludePositions` scheme (29 Sep 2026). I made it genuinely compositional: a small, FIXED set of primitive checks, combined via
+// AND/OR/NOT. This is my actual fix for the "still patchwork" problem raised in chat: a flat enum needs a new field/value every time a new
+// LOGICAL COMBINATION shows up (which is unbounded), whereas composition via AND/OR/NOT is recursive and covers any combination of the EXISTING
+// primitives for free. Only a genuinely new PRIMITIVE (a new kind of atomic check the backend can't already express) should ever make you touch
+// this file again; combining existing primitives never should.
 
 export type NamePredicate =
-  // `exact: true` (29 Sep 2026) switches a leaf to LITERAL matching: the
-  // whole word/phrase, case-insensitive, with NO phonetic or synonym
-  // matching. Without it a leaf is phonetic-aware, so e.g. "nath" as the last
-  // word also matches "debnath" (they are the same surname). exact is set by
-  // markExactLeaves below, never by the LLM: a value the person put in double
-  // quotes, or two values they explicitly contrasted, must stay separable.
-  | { type: "wordEquals"; value: string; exact?: boolean } // whole word, anywhere in the name (phonetic-aware unless exact)
-  | { type: "wordIsFirst"; value: string; exact?: boolean } // exact word, specifically the first token
-  | { type: "wordIsLast"; value: string; exact?: boolean } // exact word, specifically the last token (surname position)
-  | { type: "substring"; value: string; exact?: boolean } // plain substring anywhere, not a whole-word requirement
-  | { type: "fuzzy"; value: string } // loosest: phonetic-only, no word-boundary or position meaning
+  // `exact: true` (29 Sep 2026) switches a leaf to LITERAL matching: the whole word/phrase, case-insensitive, with NO phonetic or synonym
+  // matching. Without it a leaf is phonetic-aware, so e.g. "nath" as the last word also matches "debnath" (they are the same surname).
+  // markExactLeaves below sets exact, never the LLM: a value the person put in double quotes, or two values they explicitly contrasted, must stay separable.
+  | { type: "wordEquals"; value: string; exact?: boolean } // a whole word, anywhere in the name (phonetic-aware unless exact)
+  | { type: "wordIsFirst"; value: string; exact?: boolean } // an exact word, only the first token
+  | { type: "wordIsLast"; value: string; exact?: boolean } // an exact word, only the last token (surname position)
+  | { type: "substring"; value: string; exact?: boolean } // a plain substring anywhere, not a whole-word requirement
+  | { type: "fuzzy"; value: string } // the loosest check: phonetic-only, no word-boundary or position meaning
   | { type: "and"; clauses: NamePredicate[] }
   | { type: "or"; clauses: NamePredicate[] }
   | { type: "not"; clause: NamePredicate };
@@ -31,10 +24,11 @@ function escapeForRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Regex fragment for a literal word/phrase: each word escaped, joined by
- *  \s+ so a multi-word quoted phrase tolerates irregular spacing. Used by BOTH
- *  the SQL compiler and the JS verifier, so exact matching is identical on
- *  each side by construction (same pattern, same case-insensitivity). */
+/**
+ * I build the regex fragment for a literal word/phrase this way: each word escaped, joined by
+ *  \s+ so a multi-word quoted phrase tolerates irregular spacing. BOTH the SQL compiler and the JS verifier use it, so exact matching is identical on
+ *  each side by construction (same pattern, same case-insensitivity).
+ */
 function exactPhrasePattern(value: string): string {
   return value.trim().split(/\s+/).filter(Boolean).map(escapeForRegex).join("\\s+");
 }
@@ -48,7 +42,7 @@ function exactRegexSource(kind: ExactKind, value: string): string | null {
   return `(^|\\s)${p}(\\s|$)`;
 }
 
-/** All the leaf string values referenced anywhere in a predicate tree. */
+/** Returns all the leaf string values referenced anywhere in a predicate tree. */
 export function leafValues(pred: NamePredicate): string[] {
   switch (pred.type) {
     case "and":
@@ -61,20 +55,20 @@ export function leafValues(pred: NamePredicate): string[] {
   }
 }
 
-/** True when every leaf in the tree references the same single value --
- *  the common case (a query is "about" one name), needed so the learned-
- *  pattern cache can safely substitute one {name} placeholder throughout
- *  the whole tree. Trees referencing more than one distinct value are
- *  deliberately NOT cached (see queryOrchestrator.ts) -- safer to re-run
- *  the LLM than risk substituting the wrong value into the wrong leaf. */
+/**
+ * True when every leaf in the tree references the same single value, the common case (a query is "about" one name). I need this so the learned-
+ *  pattern cache can safely substitute one {name} placeholder throughout the whole tree. I deliberately do NOT cache trees that reference more than
+ *  one distinct value (see queryOrchestrator.ts): it is safer to re-run the LLM than to risk substituting the wrong value into the wrong leaf.
+ */
 export function singleValue(pred: NamePredicate): string | null {
   const values = Array.from(new Set(leafValues(pred).map((v) => v.toLowerCase())));
   return values.length === 1 ? leafValues(pred)[0] : null;
 }
 
-/** Replace every leaf's value with `to`, preserving tree structure --
- *  used both to build a cacheable template (value -> "{name}") and to fill
- *  a matched template back in (the "{name}" placeholder -> a real value). */
+/**
+ * Replaces every leaf's value with `to` and keeps the tree structure. I use it both to build a cacheable template (value -> "{name}") and to fill
+ *  a matched template back in (the "{name}" placeholder -> a real value).
+ */
 export function substituteValue(pred: NamePredicate, to: string): NamePredicate {
   switch (pred.type) {
     case "and":
@@ -89,11 +83,9 @@ export function substituteValue(pred: NamePredicate, to: string): NamePredicate 
 }
 
 /**
- * Compile a NamePredicate into a parameterized SQL boolean expression.
- * `params` is mutated (pushed to) as the source of truth for $N positions,
- * matching the calling convention already used throughout rosterQuery.ts.
- * Assumes the query has `er` (employee_roster) and `u` (public."user",
- * for name_phonetic) already in scope/joined.
+ * Compiles a NamePredicate into a parameterized SQL boolean expression.
+ * `params` is mutated (pushed to) as the source of truth for $N positions, matching the calling convention already used throughout rosterQuery.ts.
+ * It assumes the query already has `er` (employee_roster) and `u` (public."user", for name_phonetic) in scope/joined.
  */
 export function compileNamePredicate(pred: NamePredicate, params: any[]): string {
   switch (pred.type) {
@@ -141,10 +133,8 @@ export function compileNamePredicate(pred: NamePredicate, params: any[]): string
     }
     case "wordIsFirst":
     case "wordIsLast": {
-      // Both use the same position-aware EXISTS shape (verified live in
-      // chat, 29 Sep 2026) -- it composes correctly under NOT, unlike a
-      // regex anchor, since "NOT EXISTS(word X at position 1)" is exactly
-      // "X is not the first word", a clean, unambiguous negation.
+      // Both use the same position-aware EXISTS shape (verified live in chat, 29 Sep 2026). I chose it because it composes correctly under NOT,
+      // unlike a regex anchor: "NOT EXISTS(word X at position 1)" is exactly "X is not the first word", a clean, unambiguous negation.
       const isFirst = pred.type === "wordIsFirst";
       if (pred.exact) {
         const src = exactRegexSource(isFirst ? "first" : "last", pred.value);
@@ -187,29 +177,22 @@ export function compileNamePredicate(pred: NamePredicate, params: any[]): string
 }
 
 // ============================================================================
-// INDEPENDENT VERIFICATION LAYER (added 29 Sep 2026, per explicit request):
-// every result the SQL query returns is re-checked here, in plain
-// deterministic code, against the SAME predicate tree -- before anything
-// reaches the browser. This is NOT "ask the LLM to double check" (that
-// isn't independent -- the same fallible model can rationalize the same
-// mistake twice); it's a mechanical re-evaluation of the exact logical
-// condition against the actual returned name string.
+// INDEPENDENT VERIFICATION LAYER (added 29 Sep 2026, on my explicit request):
+// every result the SQL query returns is re-checked here, in plain deterministic code, against the SAME predicate tree, before anything
+// reaches the browser. This is NOT "ask the LLM to double check" (that isn't independent: the same fallible model can rationalize the same
+// mistake twice); it is a mechanical re-evaluation of the exact logical condition against the actual returned name string.
 //
-// HONEST LIMIT, stated plainly: this guarantees PRECISION (everything shown
-// to the person genuinely satisfies the condition) -- it cannot by itself
-// guarantee RECALL (that the SQL fetch didn't miss a genuine match; a
-// filter can only remove wrong rows, never recover ones the query never
-// fetched in the first place). Recall depends on the SQL compiler being a
-// correct superset, which is why compileNamePredicate above is still
-// written carefully and tested directly against real data -- this
-// evaluator is the second, independent gate on top of that, not a
-// replacement for getting the SQL right in the first place.
+// The honest limit, stated plainly: this guarantees PRECISION (everything shown to the person genuinely satisfies the condition). It cannot by itself
+// guarantee RECALL (that the SQL fetch didn't miss a genuine match; a filter can only remove wrong rows, never recover ones the query never
+// fetched in the first place). Recall depends on the SQL compiler being a correct superset, which is why I still write compileNamePredicate above
+// carefully and test it directly against real data. This evaluator is the second, independent gate on top of that, not a replacement for getting
+// the SQL right in the first place.
 // ============================================================================
 
-/** Plain-JS port of the `indic_fold` Postgres function (see chat, 28 Sep
- *  2026, for the original) -- needed here so verification is a genuinely
- *  independent code path, not another round-trip to Postgres. Must be kept
- *  in sync with the live SQL function if that function is ever changed. */
+/**
+ * A plain-JS port of the `indic_fold` Postgres function (see chat, 28 Sep 2026, for the original). I need it here so verification is a genuinely
+ *  independent code path, not another round-trip to Postgres. Keep it in sync with the live SQL function if that function is ever changed.
+ */
 function indicFoldJs(wordRaw: string): string {
   let w = (wordRaw || "").toUpperCase().replace(/[^A-Z]/g, "");
   if (!w) return "";
@@ -241,8 +224,10 @@ function indicFoldJs(wordRaw: string): string {
   return w;
 }
 
-/** Plain-JS port of name_synonym_normalize -- must stay in sync with the
- *  live SQL function (patternCache-adjacent migrations) if extended. */
+/**
+ * A plain-JS port of name_synonym_normalize. Keep it in sync with the
+ *  live SQL function (patternCache-adjacent migrations) if that is extended.
+ */
 function nameSynonymNormalizeJs(tok: string, isLast: boolean): string {
   const t = tok.toLowerCase();
   if (t === "nath" && isLast) return "debnath";
@@ -250,12 +235,12 @@ function nameSynonymNormalizeJs(tok: string, isLast: boolean): string {
     ray: "roy", mazumdar: "majumdar", mazumder: "majumdar",
     surinder: "surendra", aggrawal: "aggarwal", ghose: "ghosh",
     basu: "bose", bosu: "bose", dutt: "dutta", dut: "dutta",
-    // Datta is the same Bengali surname as Dutta (the owner, 22 Nov 2026); the database side is nlq.spelling_fix (sql/06_spelling_families.sql)
+    // My ruling (22 Nov 2026): Datta is the same Bengali surname as Dutta. The database side is nlq.spelling_fix (sql/06_spelling_families.sql)
     datta: "dutta", datt: "dutta",
     singha: "sinha", bandyopadhyay: "banerjee", bandopadhyay: "banerjee",
     chattopadhyay: "chatterjee", mukhopadhyay: "mukherjee", gangopadhyay: "ganguly",
   };
-  // an OWN property only: a typed word like "constructor" or "__proto__" is a word, not something every object already has
+  // Look up an OWN property only: a typed word like "constructor" or "__proto__" is a word, not something every object already has
   return Object.prototype.hasOwnProperty.call(map, t) ? map[t] : tok;
 }
 
@@ -270,12 +255,9 @@ function exactTest(kind: ExactKind, value: string, name: string): boolean {
 }
 
 /**
- * Evaluate a NamePredicate against one real employee's name (and their
- * precomputed phonetic code array, if available) -- the independent,
- * mechanical verification gate. Returns false (never throws) for a
- * primitive type it doesn't recognize, so an unrecognized/future predicate
- * type fails CLOSED (excludes the row) rather than silently passing
- * everything through unchecked.
+ * Evaluates a NamePredicate against one real employee's name (and their precomputed phonetic code array, if available). This is my independent,
+ * mechanical verification gate. It returns false (never throws) for a primitive type it doesn't recognize, so an unrecognized/future predicate
+ * type fails CLOSED (excludes the row) rather than silently passing everything through unchecked.
  */
 export function evaluateNamePredicate(pred: NamePredicate, name: string, phoneticCodes: string[] | null): boolean {
   const tokens = (name || "").trim().split(/\s+/).filter(Boolean);
@@ -294,11 +276,8 @@ export function evaluateNamePredicate(pred: NamePredicate, name: string, phoneti
       if (!phoneticCodes || !phoneticCodes.length) return false;
       const qCodeA = foldToken(pred.value, true);
       const qCodeB = foldToken(pred.value, false);
-      // Loosest: any overlap between the query's own possible codes and any
-      // code in the stored name -- mirrors phonetic_subseq_match's intent
-      // for a single-word query (a real subsequence check is unnecessary
-      // here since we're only verifying a single leaf value, not a whole
-      // multi-word phrase).
+      // Loosest check: any overlap between the query's own possible codes and any code in the stored name. It mirrors phonetic_subseq_match's intent
+      // for a single-word query; a real subsequence check is unnecessary here since I only verify a single leaf value, not a whole multi-word phrase.
       return phoneticCodes.includes(qCodeA) || phoneticCodes.includes(qCodeB);
     }
     case "wordEquals": {
@@ -325,19 +304,16 @@ export function evaluateNamePredicate(pred: NamePredicate, name: string, phoneti
       return phoneticCodes[phoneticCodes.length - 1] === foldToken(pred.value, true);
     }
     default:
-      return false; // unrecognized primitive -- fail CLOSED, never pass silently
+      return false; // unrecognized primitive: fail CLOSED, never pass silently
   }
 }
 
 // ---------------------------------------------------------------------------
 // Plain-language description of a predicate (29 Sep 2026).
 //
-// Why this exists: the JS verifier above proves the returned rows satisfy
-// the predicate the LLM produced -- it cannot prove the predicate is what
-// the person MEANT. The only defence against a misread question (e.g. "kumar
-// at the middle" silently becoming a plain "has the word kumar") is making
-// the interpretation visible, so the person can spot it at a glance instead
-// of guessing from a list of names. This renders the tree as a sentence.
+// Why I added it: the JS verifier above proves the returned rows satisfy the predicate the LLM produced, but it cannot prove the predicate is what
+// the person MEANT. The only defence against a misread question (e.g. "kumar at the middle" silently becoming a plain "has the word kumar") is to make
+// the interpretation visible, so the person can spot it at a glance instead of guessing from a list of names. This renders the tree as a sentence.
 // It is display-only: nothing in the search path reads its output.
 // ---------------------------------------------------------------------------
 
@@ -382,7 +358,7 @@ function describeClause(pred: NamePredicate, parentType: "and" | "or" | null): s
       if (!pred.clauses.length) return pred.type === "and" ? "(anything)" : "(nothing)";
       const joiner = pred.type === "and" ? " and " : " or ";
       const body = pred.clauses.map((c) => describeClause(c, pred.type)).join(joiner);
-      // Parenthesize only where mixing and/or would otherwise be ambiguous.
+      // I parenthesize only where mixing and/or would otherwise be ambiguous.
       return parentType && parentType !== pred.type ? `(${body})` : body;
     }
     case "not":
@@ -401,11 +377,9 @@ export function describeNamePredicate(pred: NamePredicate): string {
 }
 
 /**
- * One-sentence reminder shown under the interpretation when at least one
- * word/substring condition is NOT exact -- i.e. similar spellings (Nath /
- * Debnath, Ray / Roy ...) are being counted -- so the person knows the
- * behaviour exists and how to switch it off. Null when everything is exact
- * or the tree has no such condition.
+ * One-sentence reminder shown under the interpretation when at least one word/substring condition is NOT exact, i.e. similar spellings
+ * (Nath / Debnath, Ray / Roy ...) are being counted, so the person knows the behaviour exists and how to switch it off. It is null when everything
+ * is exact or the tree has no such condition.
  */
 export function describeSimilarityNote(pred: NamePredicate): string | null {
   const loose = (p: NamePredicate): boolean => {
@@ -427,21 +401,18 @@ export function describeSimilarityNote(pred: NamePredicate): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Deciding which leaves are EXACT (29 Sep 2026). Deterministic, done in code
-// after the LLM classifies, never left to the model:
+// Deciding which leaves are EXACT (29 Sep 2026). I do this deterministically in code after the LLM classifies, never leave it to the model:
 //
-//  1. Quoted: a value the person typed inside double quotes is literal --
+//  1. Quoted: a value the person typed inside double quotes is literal:
 //     whole word, case-insensitive, no phonetic/synonym matching.
-//  2. Contrasted: if one value is required and a DIFFERENT value is
-//     excluded, and the two would otherwise be treated as the same name
-//     (e.g. "ends with debnath but not nath"), the person is plainly
-//     separating them -- both become exact. Without this, "not nath" also
+//  2. Contrasted: if one value is required and a DIFFERENT value is excluded, and the two would otherwise be treated as the same name
+//     (e.g. "ends with debnath but not nath"), the person is plainly separating them, so both become exact. Without this, "not nath" also
 //     matches every Debnath and the answer is always empty.
 // ---------------------------------------------------------------------------
 
 const stripQuotes = (v: string) => v.replace(/^[\s"\u201C\u201D]+|[\s"\u201C\u201D]+$/g, "");
 
-/** Every value the person put inside double quotes (straight or curly). */
+/** Returns every value the person put inside double quotes (straight or curly). */
 export function extractQuotedValues(query: string): string[] {
   const out: string[] = [];
   const re = /["\u201C\u201D]([^"\u201C\u201D]{1,60})["\u201C\u201D]/g;
@@ -470,7 +441,7 @@ function sameName(a: string, b: string): boolean {
 export function markExactLeaves(pred: NamePredicate, quotedValues: string[]): NamePredicate {
   const quoted = new Set(quotedValues.map((v) => stripQuotes(v).toLowerCase()).filter(Boolean));
 
-  // Collect required (positive) and excluded (negated) values.
+  // Here I collect the required (positive) and excluded (negated) values.
   const pos = new Set<string>();
   const neg = new Set<string>();
   const walk = (p: NamePredicate, negated: boolean) => {
@@ -523,7 +494,7 @@ export function markExactLeaves(pred: NamePredicate, quotedValues: string[]): Na
   return rewrite(pred);
 }
 
-/** True if any leaf in the tree is exact -- such intents are never cached. */
+/** True if any leaf in the tree is exact; I never cache such intents. */
 export function hasExactLeaf(pred: NamePredicate): boolean {
   switch (pred.type) {
     case "and":

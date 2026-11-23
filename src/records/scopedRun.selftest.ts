@@ -1,5 +1,5 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/records/scopedRun.selftest.ts </dev/null
-// The fixed selections through the REAL runOmnibar with spying engines: a chosen selection runs only its own paths, on the line made its own; "Everything" runs them all in the old order; a chosen
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/records/scopedRun.selftest.ts </dev/null
+// I run the fixed selections through the REAL runOmnibar with spying engines: a chosen selection runs only its own paths, on the line made its own; "Everything" runs them all in the old order; a chosen
 // selection that finds nothing returns null (the route then says "nothing found under ..." and never goes to the circulars).
 
 import { runOmnibar, type OmnibarDeps } from "@/lib/nl2sql/omnibar";
@@ -45,11 +45,11 @@ const only = (c: string[], ...allowed: string[]) => c.every((x) => allowed.some(
   x = await run("holidays", "durga puja 2026", {});
   ok("Holidays: when the line as typed finds nothing, 'when is ...' is tried next, then it gives up (null, no model)", x.calls.filter((c) => c.startsWith("holiday:")).join() === "holiday:durga puja 2026,holiday:when is durga puja 2026" && x.r === null && only(x.calls, "hub", "employeeAdmin", "holiday"), x.calls.join(" | "));
 
-  // Degrees: the real table, no engine of ours is called
+  // Degrees: I use the real table, and none of our engines is called
   x = await run("degrees", "mtech");
   ok("Degrees: 'mtech' becomes 'what is mtech' and the table of degrees answers it, with no model, database or other path", /postgraduate/i.test(JSON.stringify(x.r ?? {})) && only(x.calls, "hub", "employeeAdmin"), x.calls.join(" | ") + JSON.stringify(x.r)?.slice(0, 120));
 
-  // Degrees: the degrees of the doctors reach the hospital's list of doctors and qualifications, and NOTHING else of the hospital does
+  // Degrees: the degrees of the doctors must reach the hospital's list of doctors and qualifications, and NOTHING else of the hospital may.
   x = await run("degrees", "list the degrees of the doctors", { hospital: "Doctors and their qualifications" });
   ok("Degrees: 'list the degrees of the doctors' is given to the hospital engine as typed, and answered; no other path runs", x.calls.includes("hospital:list the degrees of the doctors") && x.r?.answer === "Doctors and their qualifications" && only(x.calls, "hub", "employeeAdmin", "hospital"), x.calls.join(" | "));
   x = await run("degrees", "is opd open today", { hospital: "must not be asked" });
@@ -65,7 +65,7 @@ const only = (c: string[], ...allowed: string[]) => c.every((x) => allowed.some(
   x = await run("people", "how many dgms in mechanical", { pax: "no", hospital: "no", holiday: "no" });
   ok("People: the PAX, hospital and holiday paths are never tried; the model path is (it fails here, so the old engine is the last resort)", !x.calls.some((c) => /^(pax|hospital|holiday):/.test(c)) && x.calls.includes("legacy") && x.calls.includes("dates"), x.calls.join(" | "));
 
-  // Everything: the old chain, in the old order
+  // Everything: the old chain runs, in the old order
   x = await run("auto", "fire service", { pax: "42046" });
   ok("Everything: the PAX path gets the line AS TYPED (no cue added)", x.calls.includes("pax:fire service") && !x.calls.some((c) => c.startsWith("pax:pax number")), x.calls.join(" | "));
   x = await run("auto", "zzz", {});
@@ -74,7 +74,7 @@ const only = (c: string[], ...allowed: string[]) => c.every((x) => allowed.some(
   const noScope = await (async () => { calls.length = 0; const d = mk("auto"); delete (d as { scope?: ScopeId }).scope; await runOmnibar("zzz", "T", d).catch(() => null); return [...calls]; })();
   ok("a missing scope behaves exactly as Everything", noScope.join("|") === x.calls.join("|"), noScope.join(" | "));
 
-  // management requests stay reachable under every selection
+  // Management requests must stay reachable under every selection.
   for (const s of ["people", "pax", "hospital", "holidays", "degrees", "documents"] as const) {
     x = await run(s, "management");
     ok(`${s}: the management page's own words are still offered to the management responders`, x.calls.some((c) => c.startsWith("hub:")), x.calls.join(" | "));

@@ -1,8 +1,8 @@
 // src/lib/errorLog/alert.ts
 //
-// TELLING THE DEVELOPER (22 Nov 2026). One outgoing channel, off until the owner sets it: ERROR_ALERT_WEBHOOK_URL, a web address that accepts a JSON POST (Slack, Teams, Discord, ntfy, a Telegram bridge, a mail relay's
+// TELLING THE DEVELOPER (22 Nov 2026). There is one outgoing channel, off until I set it: ERROR_ALERT_WEBHOOK_URL, a web address that accepts a JSON POST (Slack, Teams, Discord, ntfy, a Telegram bridge, a mail relay's
 // webhook ...). The body is {"text": "...", "content": "..."} (two names for one text, so the common services all read it). The notice is short and made of masked text only (scrub.ts): the rank, the count, the page's
-// path, the first line of the masked message and the log id; never a ticket, a name, an address or a stack. Until the address is set nothing leaves the application and the developer reads the log by `npm run errors`.
+// path, the first line of the masked message and the log id; never a ticket, a name, an address or a stack. Until the address is set nothing leaves the application and I read the log with `npm run errors`.
 // The closed intranet has no mail or SMS gateway yet (see the security assessment, decision on OTP); when it has, this is the one place to add it.
 
 import { scrubText } from "./scrub";
@@ -13,7 +13,7 @@ export function alertConfigured(): boolean {
   return !!(process.env.ERROR_ALERT_WEBHOOK_URL || "").trim();
 }
 
-/** posts the notice; false when no address is set or the service did not accept it. Never throws, waits at most 5 seconds. */
+/** Posts the notice; returns false when no address is set or the service did not accept it. Never throws, and I wait at most 5 seconds. */
 export const sendAlert: Send = async (text) => {
   const url = (process.env.ERROR_ALERT_WEBHOOK_URL || "").trim();
   if (!url || !/^https:\/\//i.test(url)) return false;

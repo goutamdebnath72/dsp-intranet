@@ -1,5 +1,5 @@
 // Run (from the project root):  npx tsx --tsconfig tsconfig.json src/lib/employees/photo/photo.selftest.ts
-// Step 70: the square around a face (arithmetic, 800 random cases), what the server does with the square it receives (real generated pictures: JPEG, PNG, WebP, phone rotation, camera data, sizes, rubbish),
+// Step 70: this tests the square around a face (arithmetic, 800 random cases), what the server does with the square it receives (real generated pictures: JPEG, PNG, WebP, phone rotation, camera data, sizes, rubbish),
 // and what the browser side says to the person (with stand-ins for the three parts that need a real browser).
 
 import sharp from "sharp";
@@ -61,7 +61,7 @@ async function main() {
   ok("a file over 4 MB is refused before anything is decoded", await (async () => { const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(PHOTO.serverMaxBytes + 10)]); const r = await normalisePhoto(big); return !r.ok && /too large/.test(r.reason); })());
   const rot = await normalisePhoto(await pic(700, 700, "jpeg", 6));
   ok("a phone picture marked 'rotate' is turned upright first and the marking is gone", rot.ok && (await sharp(rot.master).metadata()).orientation === undefined);
-  // a square picture whose LEFT half is red and RIGHT half blue, marked 'rotate 90 degrees clockwise' (what a phone held sideways writes): upright, its TOP is red and its BOTTOM blue
+  // A square picture whose LEFT half is red and RIGHT half blue, marked 'rotate 90 degrees clockwise' (what a phone held sideways writes): upright, its TOP is red and its BOTTOM blue.
   const raw = Buffer.alloc(700 * 700 * 3);
   for (let y = 0; y < 700; y++) for (let x = 0; x < 700; x++) { const o = (y * 700 + x) * 3; if (x < 350) { raw[o] = 230; raw[o + 1] = 20; raw[o + 2] = 20; } else { raw[o] = 20; raw[o + 1] = 20; raw[o + 2] = 230; } }
   const marked = await sharp(raw, { raw: { width: 700, height: 700, channels: 3 } }).jpeg({ quality: 95 }).withMetadata({ orientation: 6 }).toBuffer();

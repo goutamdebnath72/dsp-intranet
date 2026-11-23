@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/announcements/contentProcessing.selftest.ts
-// What an announcement's body keeps when it is saved, and what the editor does to pasted text: the five palette colours stay, any other colour goes (it dimmed the body), nothing else of the markup survives.
+// What I check here: what an announcement's body keeps when it is saved, and what the editor does to pasted text: the five palette colours stay, any other colour goes (it dimmed the body), nothing else of the markup survives.
 import { readFileSync } from "node:fs";
 import { htmlToPlainText, sanitizeAnnouncementHtml } from "./contentProcessing";
 import { TEXT_COLOURS, paletteColourPatterns } from "./palette";

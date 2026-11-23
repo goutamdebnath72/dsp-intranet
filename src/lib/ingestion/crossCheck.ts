@@ -1,12 +1,12 @@
 // src/lib/ingestion/crossCheck.ts
 //
-// THE LANGUAGES OF ONE CIRCULAR CHECK EACH OTHER (step 40a, made trilingual in step 42a). A circular of this plant comes in English and Hindi, and
-// sometimes in Bengali too: the pages say the same thing with the same numbers and dates. OCR reads each page on its own, so when two pages have the
-// same number it is read twice, independently: that is a second reading, free, offline, and it works on the text already stored. When one page has a
+// The languages of one circular check each other (step 40a, made trilingual in step 42a). A circular of this plant comes in English and Hindi, and
+// sometimes in Bengali too: the pages say the same thing with the same numbers and dates. OCR reads each page on its own, so a number that stands on two pages
+// is read twice, independently. I use that as a second reading: it is free, offline, and works on the text already stored. When one page has a
 // number that another page has a little differently (seen: `20-0802` on the Hindi page and `20-08-2026` on the English page; `(215,000)` for
 // `(Rs 15,000)`, the rupee sign read as a 2), at least one reading is wrong.
 //
-// WHAT IS FOUND. Pages are put in a GROUP when they are in different scripts (English, Hindi, Bengali) and have the same important numbers (at least 2 in
+// What is found. I put pages in a GROUP when they are in different scripts (English, Hindi, Bengali) and have the same important numbers (at least 2 in
 // common and at least half of their union). A group holds 2 or 3 pages: English + Hindi, English + Bengali, English + Hindi + Bengali (Hindi and Bengali
 // pages join through the English page when they do not share enough numbers with each other). In a group:
 //   - a number that stands on this page AND on another page of the group is CONFIRMED (two independent readings);
@@ -14,17 +14,17 @@
 //     one page against one (`20.0802` on the Hindi page, `20.08.2026` on the English page), or one page against two that agree with each other;
 //   - a number on this page only that is a longer form of a number this page has elsewhere and another page confirms is a VARIANT (`215000` next to
 //     `15000`: a stray digit in front);
-//   - any other number on one page only is a SINGLE: nothing is concluded about it.
+//   - any other number on one page only is a SINGLE: I conclude nothing about it.
 //
-// WHAT IS RECORDED (the checks of the answer card's gate, circularAnswer.ts, which REFUSES an answer whose value holds an unconfirmed number): the
+// What is recorded (the checks of the answer card's gate, circularAnswer.ts, which REFUSES an answer whose value holds an unconfirmed number): the
 // confirmed numbers of each page, and as UNCONFIRMED only the readings the evidence points at: both sides of a disagreement between one page and one other
-// page (at least one of them is wrong and nothing says which), the lone page when two pages agree against it, and a variant. The owner's rule is that an
-// honest "not found" is better than a confident wrong answer, so neither side is trusted by its language (English-page OCR does read numbers far better
+// page (at least one of them is wrong and nothing says which), the lone page when two pages agree against it, and a variant. My rule is that an
+// honest "not found" is better than a confident wrong answer, so I trust neither side by its language (English-page OCR does read numbers far better
 // than Hindi or Bengali OCR: in the first archive report almost all the garbage was on the Indic pages; set TRUST_ENGLISH to true to keep a lone English
-// reading in a one-against-one disagreement). A second reading that confirms a number lifts it again (combineChecks). A single is never marked: a number
+// reading in a one-against-one disagreement). A second reading that confirms a number lifts it again (combineChecks). I never mark a single: a number
 // that stands on one page only is often right.
 //
-// Pure; unit-tested by crossCheck.selftest.ts.
+// This file is pure; crossCheck.selftest.ts unit-tests it.
 
 import { storedPageTexts, type NewCheck, type NewCheckRow } from "../search/pageChecks";
 import type { JunkSlot, Suspect } from "./currency";
@@ -40,7 +40,7 @@ export type Script = "latin" | "devanagari" | "bengali" | "mixed" | "none";
 const LANGUAGE: Record<string, string> = { latin: "English", devanagari: "Hindi", bengali: "Bengali" };
 const LANGUAGE_ORDER = ["latin", "devanagari", "bengali"];
 
-/** The script a page is mainly written in; "mixed" when neither the Indic scripts nor Latin dominate, "none" when there is too little text to say. */
+/** Gives the script a page is mainly written in: "mixed" when neither the Indic scripts nor Latin dominate, "none" when there is too little text to say. */
 export function scriptOf(text: string): Script {
   const t = String(text ?? "");
   const dev = (t.match(/[\u0900-\u097F]/g) ?? []).length;
@@ -53,16 +53,16 @@ export function scriptOf(text: string): Script {
   return ben > dev ? "bengali" : "devanagari";
 }
 
-/** The important numbers of a page (4 or more digits, or one with a point), in one canonical form. What a second reader wrote in [handwritten: ...] is not part of the page. */
+/** I take the important numbers of a page to be those with 4 or more digits, or with a point, and I write each in one canonical form. What a second reader wrote in [handwritten: ...] is not part of the page. */
 export function majorNumbers(text: string): Set<string> {
   return new Set([...numbersOf(text, false)].filter(isMajor));
 }
 
-/** Not worth concluding about when it stands on one page only: a clause number (2.3, 4.91) or a bare year of our time (written 2025 on one page and JAN-25 on the other). */
+/** I do not conclude anything about a number like this when it stands on one page only: a clause number (2.3, 4.91) or a bare year of our time (written 2025 on one page and JAN-25 on the other). */
 const isNoise = (n: string) => /^\d{1,2}\.\d{1,2}$/.test(n) || /^(199\d|20[0-3]\d)$/.test(n);
 const digitsOf = (n: string) => n.replace(/\D/g, "");
 
-/** Edit distance between two digit strings (insert, delete, change one digit). */
+/** Edit distance between two digit strings: one step is an insert, a delete or a change of one digit. */
 function editDistance(a: string, b: string): number {
   let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
@@ -76,7 +76,7 @@ function editDistance(a: string, b: string): number {
 export const MIN_SHARED = 2;
 export const MIN_OVERLAP = 0.5;
 export const TWIN_READER = "twin-pages";
-/** false (the owner's rule: honest "not found" over a confident wrong answer): in a disagreement between one page and one other page, both readings are unconfirmed. true: an English reading is kept. */
+/** My rule is an honest "not found" over a confident wrong answer, so this is false: in a disagreement between one page and one other page, both readings are unconfirmed. Set it to true and an English reading is kept. */
 export const TRUST_ENGLISH = false;
 
 export interface Side {
@@ -86,22 +86,22 @@ export interface Side {
   context: string;
 }
 export interface Disagreement {
-  /** The page whose number differs from a number the other pages have. */
+  /** The page whose number differs from a number that the other pages have. */
   a: Side;
   /** One of the pages that have the other number. */
   b: Side;
-  /** How many pages have the other number (1: page against page; 2: page against two that agree). */
+  /** Counts the pages that have the other number (1: page against page; 2: page against two that agree). */
   support: number;
 }
 export interface Variant extends Side {
-  /** The number this one is a longer form of. */
+  /** The number that this one is a longer form of. */
   base: string;
 }
 export interface Group {
   pages: { page: number; script: Script }[];
   /** e.g. "English + Hindi + Bengali". */
   languages: string;
-  /** Per page: its important numbers that stand on another page of the group too. */
+  /** Per page, I keep its important numbers that stand on another page of the group too. */
   confirmed: Record<number, string[]>;
   disagreements: Disagreement[];
   variants: Variant[];
@@ -115,7 +115,7 @@ interface Info {
   nums: Set<string>;
 }
 
-/** Pages with the same important numbers in different scripts, joined into groups (a page joins through any page it matches). */
+/** Here I join pages with the same important numbers in different scripts into groups (a page joins through any page it matches). */
 function groupPages(pages: PageText[]): Info[][] {
   const info: Info[] = pages.map((p) => ({ page: p.page, text: p.text, script: scriptOf(p.text), nums: majorNumbers(p.text) }));
   const usable = info.filter((p) => p.script === "latin" || p.script === "devanagari" || p.script === "bengali");
@@ -136,7 +136,7 @@ function groupPages(pages: PageText[]): Info[][] {
   return [...byRoot.values()].filter((g) => g.length >= 2).map((g) => g.sort((x, y) => x.page - y.page)).sort((x, y) => x[0].page - y[0].page);
 }
 
-/** `215000` is a longer form of `15000`: the same digits with one to three stray digits in front. */
+/** `215000` counts as a longer form of `15000`: the same digits with one to three stray digits in front. */
 const isLongerForm = (n: string, base: string) => {
   const dn = digitsOf(n), db = digitsOf(base);
   return db.length >= 4 && dn.length > db.length && dn.length - db.length <= 3 && dn.endsWith(db);
@@ -145,7 +145,7 @@ const isLongerForm = (n: string, base: string) => {
 const languagesOf = (scripts: Script[]) =>
   LANGUAGE_ORDER.filter((s) => scripts.includes(s as Script)).map((s) => LANGUAGE[s]).join(" + ");
 
-/** Cross-checks every group of pages of one circular. */
+/** I cross-check every group of pages of one circular here. */
 export function crossCheck(pages: PageText[]): Group[] {
   return groupPages(pages).map((g) => {
     const text = new Map(g.map((p) => [p.page, p.text]));
@@ -159,7 +159,7 @@ export function crossCheck(pages: PageText[]): Group[] {
     const scriptOfPage = new Map(g.map((p) => [p.page, p.script]));
     const side = (page: number, value: string): Side => ({ page, script: scriptOfPage.get(page) as Script, value, context: numberContext(text.get(page) ?? "", value) ?? "" });
 
-    // disagreements: a number on this page only against the numbers the other pages have and this page lacks
+    // disagreements: I collect a number on this page only against the numbers the other pages have and this page lacks
     const disagreements: Disagreement[] = [];
     const used = new Set<string>(); // "page:value"
     for (const x of g) {
@@ -182,12 +182,12 @@ export function crossCheck(pages: PageText[]): Group[] {
         disagreements.push({ a: side(x.page, n), b: side(holder.page, best.m), support: best.holders.length });
       }
     }
-    // variants: a number on one page only that is a longer form of a number the page has elsewhere and another page confirms
+    // variants: I collect a number on one page only that is a longer form of a number the page has elsewhere and another page confirms
     const variants: Variant[] = [];
     for (const p of g) {
       for (const n of only.get(p.page) ?? []) {
         if (used.has(`${p.page}:${n}`)) continue;
-        const base = confirmed[p.page].find((m) => !isNoise(m) && isLongerForm(n, m)); // never a bare year: 931.2025 is a reference number that ends with one
+        const base = confirmed[p.page].find((m) => !isNoise(m) && isLongerForm(n, m)); // I never use a bare year: 931.2025 is a reference number that ends with one
         if (base) { used.add(`${p.page}:${n}`); variants.push({ ...side(p.page, n), base }); }
       }
     }
@@ -201,17 +201,17 @@ export function crossCheck(pages: PageText[]): Group[] {
 
 // ------------------------------------------------------------------------------------------------ the same circular in another language, as a separate file
 // A circular can come as THREE FILES with the same title and content, only the language differing (the Merit Award Scheme amendment: English, Hindi and a fully
-// Bengali one, titled "... (Eng)", "... (Hin)", "... (Beng)"). Their pages are witnesses to each other. The title only chooses the CANDIDATES; whether two pages
+// Bengali one, titled "... (Eng)", "... (Hin)", "... (Beng)"). Their pages are witnesses to each other. I let the title choose only the CANDIDATES; whether two pages
 // are twins is still decided by groupPages (different scripts, the same important numbers), so a re-upload or a revised version (the same script) is never one.
 
 const LANGUAGE_TAG = /[(\[]\s*(?:eng(?:lish)?|hin(?:di)?|beng(?:ali)?|ben(?:gali)?|bangla)\.?\s*[)\]]|\s[-\u2013\u2014]\s*(?:english|hindi|bengali|bangla)\s*$|\bin\s+(?:english|hindi|bengali)\b/gi;
 
-/** A title without its language tag ("(Eng)", "(Hin)", "(Beng)", "- Hindi" ...), in lower case, with punctuation and spacing flattened: the circulars of one family have the same one. "" when nothing is left. */
+/** I strip the language tag ("(Eng)", "(Hin)", "(Beng)", "- Hindi" ...) from a title, make it lower case and flatten punctuation and spacing: the circulars of one family end up with the same one. "" when nothing is left. */
 export function titleFamily(headline: string): string {
   return String(headline ?? "").replace(LANGUAGE_TAG, " ").toLowerCase().replace(/[^a-z0-9\u0900-\u09ff]+/g, " ").trim();
 }
 
-/** For each circular, the ids of the OTHER circulars of its family (the same title apart from the language tag). A circular with none is left out. */
+/** For each circular, this gives the ids of the OTHER circulars of its family (the same title apart from the language tag). I leave out a circular that has none. */
 export function siblingsOf(circulars: { id: number; headline: string }[]): Map<number, number[]> {
   const byFamily = new Map<string, number[]>();
   for (const c of circulars) {
@@ -230,14 +230,14 @@ export interface WitnessPage {
   text: string;
 }
 const WITNESS_BASE = 100000;
-/** The page number a witness page has inside a group: from WITNESS_BASE up (a circular's own pages are below it). */
+/** The page number a witness page has inside a group: from WITNESS_BASE up, so it never clashes with a circular's own pages, which are below it. */
 export const witnessPage = (circular: number, page: number) => WITNESS_BASE + circular * 1000 + page;
 export const isWitness = (page: number) => page >= WITNESS_BASE;
 export function decodeWitness(page: number): { circular: number; page: number } | null {
   return isWitness(page) ? { circular: Math.floor((page - WITNESS_BASE) / 1000), page: (page - WITNESS_BASE) % 1000 } : null;
 }
 
-/** Cross-checks the pages of ONE circular with the pages of its family as witnesses. Only the groups that hold a page of this circular are returned. */
+/** Cross-checks the pages of ONE circular with the pages of its family as witnesses. I return only the groups that hold a page of this circular. */
 export function crossCheckWithWitnesses(own: PageText[], witnesses: WitnessPage[]): Group[] {
   const ownPages = new Set(own.map((p) => p.page));
   const all = [...own, ...witnesses.map((w) => ({ page: witnessPage(w.circular, w.page), text: w.text }))];
@@ -246,7 +246,7 @@ export function crossCheckWithWitnesses(own: PageText[], witnesses: WitnessPage[
 
 // ------------------------------------------------------------------------------------------------ the checks the answer card's gate uses
 
-/** What the groups record per page: the confirmed numbers, and as unconfirmed only a non-English side of a disagreement and a non-English variant. */
+/** Here I record per page the confirmed numbers, and as unconfirmed only a non-English side of a disagreement and a non-English variant. */
 export function twinChecks(groups: Group[], keep: (page: number) => boolean = () => true): NewCheck[] {
   const out: NewCheck[] = [];
   for (const g of groups) {
@@ -255,7 +255,7 @@ export function twinChecks(groups: Group[], keep: (page: number) => boolean = ()
       const confirmed = g.confirmed[p.page] ?? [];
       const unconfirmed = new Set<string>();
       for (const d of g.disagreements) {
-        // two other pages agree against this one: this one is the odd one out. One page against one: nothing says which is wrong, so both.
+        // When two other pages agree against this one, this one is the odd one out. One page against one: nothing says which is wrong, so I take both.
         const trusted = (s: Side) => TRUST_ENGLISH && s.script === "latin";
         if (d.a.page === p.page && (d.support >= 2 || !trusted(d.a))) unconfirmed.add(d.a.value);
         if (d.support === 1 && d.b.page === p.page && !trusted(d.b)) unconfirmed.add(d.b.value);
@@ -277,7 +277,7 @@ export function twinChecksFor(chunks: { page: number | null; index: number; text
 
 const union = (a: string[], b: string[]) => [...new Set([...a, ...b])];
 
-/** Two sets of checks of the same circular (the second reading's and the twin checks; then those and the rupee-slot checks) as one: a page's confirmed numbers are those either one confirmed; a number is unconfirmed only if neither confirmed it. The reader of the second set is added to the reader name. */
+/** I merge two sets of checks of the same circular (the second reading's and the twin checks; then those and the rupee-slot checks) into one: a page's confirmed numbers are those either set confirmed, and a number is unconfirmed only if neither confirmed it. The reader of the second set is added to the reader name. */
 export function combineChecks(second: NewCheck[], twin: NewCheck[]): NewCheck[] {
   const by = new Map<number, NewCheck>(second.map((c) => [c.page, c]));
   for (const t of twin) {
@@ -306,7 +306,7 @@ export interface StoredCheck {
   textHash: string;
 }
 
-/** For the archive: a twin check merged into what is already stored for the page. A stored check about OTHER text (its fingerprint differs) is replaced, never kept. */
+/** For the archive: I merge a twin check into what is already stored for the page. A stored check about OTHER text (its fingerprint differs) is replaced, never kept. */
 export function mergeIntoStored(existing: StoredCheck | null, twin: NewCheck, textHash: string): NewCheckRow {
   const fresh = existing && existing.textHash === textHash ? existing : null;
   if (!fresh) return { ...twin, textHash };
@@ -316,7 +316,7 @@ export function mergeIntoStored(existing: StoredCheck | null, twin: NewCheck, te
 
 // ------------------------------------------------------------------------------------------------ the report
 
-/** The script of each page of a circular, grouped or not (for the report: are there Bengali pages at all, and did they find a twin?). */
+/** The script of each page of a circular, grouped or not, for the report: I want to see whether there are Bengali pages at all, and whether they found a twin. */
 export function pageScripts(pages: PageText[]): { page: number; script: Script }[] {
   return pages.map((p) => ({ page: p.page, script: scriptOf(p.text) }));
 }
@@ -339,7 +339,7 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}\u202
 const langOf = (s: Script) => LANGUAGE[s] ?? s;
 
 /** Counts over a whole archive, and what recording the twin checks would do. */
-/** A group with pages of several circulars (a family) is listed and counted once: under the lowest circular it touches that is IN the report (a run restricted with --ids has only some of them). */
+/** I list and count a group with pages of several circulars (a family) once: under the lowest circular it touches that is IN the report (a run restricted with --ids has only some of them). */
 const ownedBy = (item: CircularFindings, g: Group, present: Set<number>) =>
   Math.min(item.id, ...g.pages.flatMap((p) => { const w = decodeWitness(p.page); return w && present.has(w.circular) ? [w.circular] : []; })) === item.id;
 const hasWitness = (g: Group) => g.pages.some((p) => isWitness(p.page));
@@ -355,7 +355,7 @@ export function summarize(items: CircularFindings[]) {
     const slot: NewCheck[] = (item.rupee ?? []).filter((r) => r.suspects.length > 0).map((r) => ({ page: r.page, status: "slot", confirmed: [], unconfirmed: r.suspects.map((x) => x.value), secondOnly: [], reader: "rupee-slot" }));
     return combineChecks(twinChecks(item.groups), slot);
   });
-  // pages by script, and how many of each stand in a group
+  // pages by script, with how many of each stand in a group
   const pagesByScript = new Map<string, { total: number; grouped: number }>();
   for (const item of items) {
     const grouped = new Set(item.groups.flatMap((g) => g.pages.map((p) => p.page)));
@@ -393,7 +393,7 @@ export function pagesByScriptLine(m: Map<string, { total: number; grouped: numbe
 }
 
 const ctx = (s: Side) => `...${cut(s.context, 80)}...`;
-/** "page 1", or, in a group with pages of several circulars, "circular 85 page 1" (a witness page number is internal: it is never shown). */
+/** "page 1", or, in a group with pages of several circulars, "circular 85 page 1". I never show a witness page number: it is internal. */
 const pageName = (item: CircularFindings, g: Group, page: number) => {
   const w = decodeWitness(page);
   return hasWitness(g) ? `circular ${w ? w.circular : item.id} page ${w ? w.page : page}` : `page ${page}`;
@@ -401,7 +401,7 @@ const pageName = (item: CircularFindings, g: Group, page: number) => {
 /** "Hindi page 1", or "Hindi circular 85 page 1". */
 const whereIn = (item: CircularFindings, g: Group) => (s: Side) => `${langOf(s.script)} ${pageName(item, g, s.page)}`;
 
-/** The report as Markdown: the readings that disagree or look garbled first (they are what gets recorded as unconfirmed), then the numbers on one page only. */
+/** I write the report as Markdown: the readings that disagree or look garbled first (they are what gets recorded as unconfirmed), then the numbers on one page only. */
 export function renderReport(items: CircularFindings[]): string {
   const s = summarize(items);
   const out: string[] = [

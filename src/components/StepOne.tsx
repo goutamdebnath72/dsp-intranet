@@ -7,7 +7,7 @@ import { AnimatedInput } from './AnimatedInput';
 
 export const StepOne = ({ ticketNo, setTicketNo, onNext, error }: any) => {
     return (
-        // Corrected className to use flex-grow and padding for proper layout
+        // I corrected the className to use flex-grow and padding for a proper layout
         <motion.div key="step1" exit={{ x: '-50%', opacity: 0 }} className="flex flex-col flex-grow p-8">
             <div>
                 <h2 className="mb-2 text-2xl font-bold font-heading text-neutral-800">Welcome Back</h2>

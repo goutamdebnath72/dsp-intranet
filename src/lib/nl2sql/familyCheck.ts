@@ -1,17 +1,17 @@
 // src/lib/nl2sql/familyCheck.ts
 //
-// A question that names a large department (CO & CC, main hospital, L & D ...) must be answered for ALL its rows (step 45b).
+// My rule (step 45b): a question that names a large department (CO & CC, main hospital, L & D ...) must be answered for ALL its rows.
 //
 // The model is told the ids (context.ts departmentFamilies), but a model can ignore a hint, and a confident wrong answer is worse than none. Live, 24 Oct 2026:
 //   "main hospital"  -> LIKE '%hospital%'       found 2 of the 6 medical rows and counted 0 executives
 //   "hydraulic lab"  -> LIKE '%hydraulic lab%'  found no row and counted 0
 //   "l&d"            -> LIKE '%l d%'            also matches the text "contro[l d]eptt": it counted ENVIRONMENT CONTROL DEPTT and called it L&D
-// This check works out WHICH ROWS the model's SQL selects (by id, by code, or by a LIKE or = on the name, read against the live department list), and if they are not the
-// family, it sends the model back with the exact ids. It looks at the RESULT, not the form: LIKE '%co and cc%' passes (it selects exactly the CO & CC rows), code IN (92500, 92530)
+// So I work out WHICH ROWS the model's SQL selects (by id, by code, or by a LIKE or = on the name, read against the live department list), and if they are not the
+// family, I send the model back with the exact ids. I look at the RESULT, not the form: LIKE '%co and cc%' passes (it selects exactly the CO & CC rows), code IN (92500, 92530)
 // passes, department_id IN (...) passes. A named SECTION is respected: when the question carries a word that only the selected rows have ("sms ccp", "hospital office"), a part of
-// the family is accepted. Like the other soft rules of the pipeline it is used on the first two attempts only: a question is never failed over it.
+// the family is accepted. Like the other soft rules of the pipeline it is used on the first two attempts only: I never fail a question over it.
 //
-// Step 48a: when the mistake is one we can mend with certainty, the SQL is mended instead (repairFamilies), at once and with no
+// Step 48a: when the mistake can be mended with certainty, I mend the SQL instead (repairFamilies), at once and with no
 // second model call: live, 24 Oct 2026 17:41, the model wrote code IN (135,180,161,126,89,1), the row IDS as department CODES, three times in a row, the check sent it back twice and the
 // third attempt (never checked) showed 0 -- after 80 seconds, because every extra model call spends about 6,000 tokens and Groq's per-minute limit made the next one wait 23 and 45 seconds.
 
@@ -20,11 +20,11 @@ import { DEPARTMENT_FAMILIES } from "./aliasHints";
 
 const norm = (s: string) => s.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
 const LIST = String.raw`\(\s*(\d+(?:\s*,\s*\d+)*)\s*\)`;
-/** Little words that are in many department names and in many questions: they never tell which SECTION a question means. */
+/** Little words that are in many department names and in many questions: they never tell which SECTION a question means, so I ignore them. */
 const STOP = new Set(["and", "of", "the", "in", "at", "for", "to", "a", "an", "on", "by", "with", "or", "dept", "deptt", "department", "departments", "section", "sections"]);
 const numbers = (s: string) => s.split(",").map((x) => Number(x.trim()));
 
-/** The numbers an SQL puts after "code IN (...)" or "code = ..." (department_code too). */
+/** Returns the numbers an SQL puts after "code IN (...)" or "code = ..." (department_code too). */
 function codeNumbers(sql: string): number[] {
   const out: number[] = [];
   for (const m of sql.matchAll(new RegExp(String.raw`\b(?:\w+\.)?(?:department_)?code\s+IN\s*` + LIST, "gi"))) out.push(...numbers(m[1]));
@@ -32,7 +32,7 @@ function codeNumbers(sql: string): number[] {
   return out;
 }
 
-/** The rows of the live list that an SQL selects through its department conditions (none when it has no department condition we can read). */
+/** Returns the rows of the live list that an SQL selects through its department conditions (none when it has no department condition I can read). */
 export function rowsSelectedBy(sql: string, departments: DepartmentRow[]): DepartmentRow[] {
   const ids = new Set<number>();
   const codes = new Set(codeNumbers(sql));
@@ -54,14 +54,14 @@ export function rowsSelectedBy(sql: string, departments: DepartmentRow[]): Depar
   );
 }
 
-/** The words that name the family itself (its nicknames, or its own name): a row word NOT in here tells which section a row is ("ccp" is not a nickname of SMS, it is a section of it). */
+/** Returns the words that name the family itself (its nicknames, or its own name). A row word NOT in here tells which section a row is ("ccp" is not a nickname of SMS, it is a section of it). */
 function genericWords(familyName: string): Set<string> {
   const g = DEPARTMENT_FAMILIES.find((x) => x.name === familyName);
   const phrases = g ? g.aliases : [familyName];
   return new Set(phrases.flatMap((p) => norm(p).split(" ")).filter(Boolean));
 }
 
-/** A sentence for the model when its SQL does not cover a department family the question names; null when it does (or when the question names none). */
+/** Returns a sentence for the model when its SQL does not cover a department family the question names; null when it does (or when the question names none). */
 export function checkFamilies(question: string, sql: string, departments: DepartmentRow[]): string | null {
   const families = departmentFamilies(question, departments);
   if (!families.length) return null;
@@ -73,12 +73,12 @@ export function checkFamilies(question: string, sql: string, departments: Depart
     if (f.rows.every((r) => selIds.has(r.id))) continue;
     const inside = f.rows.filter((r) => selIds.has(r.id));
     const generic = genericWords(f.name);
-    // the person named ONE section ("sms ccp", "hospital office"): a part of the family is right when the question carries a word only those rows have
+    // The person named ONE section ("sms ccp", "hospital office"): I treat a part of the family as right when the question carries a word only those rows have.
     if (inside.length && inside.some((r) => norm(r.name).split(" ").some((w) => !STOP.has(w) && !generic.has(w) && qWords.has(w)))) continue;
     const famIds = new Set(f.rows.map((r) => r.id));
     const outside = [...new Set(selected.filter((r) => !famIds.has(r.id)).map((r) => r.name))].slice(0, 2);
     const got = inside.length ? `only ${inside.length} of its ${f.rows.length} rows` : "none of its rows";
-    // the live mistake of 24 Oct: the row ids written as codes (code IN (135, 180, ...)): say so in so many words
+    // The live mistake of 24 Oct: the row ids written as codes (code IN (135, 180, ...)). I say so in so many words.
     const asCodes = codeNumbers(sql);
     const confusion = asCodes.length > 0 && asCodes.every((n) => famIds.has(n)) && !f.rows.some((r) => asCodes.includes(r.code))
       ? " Careful: the numbers you put in code IN (...) are department IDs (the row numbers), not department codes: use them as department_id IN (...)."
@@ -94,15 +94,15 @@ export function checkFamilies(question: string, sql: string, departments: Depart
 /**
  * Mends the SQL when it covers the department family a question names wrongly (ids written as codes, a LIKE on the name that finds other rows or none, one row of several ...): the first
  * department_id IN (...) / department_code IN (...) -- a list or a sub-query, found by matching the brackets -- becomes department_id IN (the family's ids). Returns the mended SQL, or null
- * when nothing needs mending or the mistake is not one we can mend with certainty:
- *   - the question names two or more families (a comparison): the model's own grouping would be lost, so it is sent back instead;
+ * when nothing needs mending or the mistake is not one I can mend with certainty:
+ *   - the question names two or more families (a comparison): the model's own grouping would be lost, so I send it back instead;
  *   - the SQL has no department_id IN / department_code IN to put the ids into;
  *   - the mended SQL would not pass checkFamilies again.
  */
 export function repairFamilies(question: string, sql: string, departments: DepartmentRow[]): string | null {
   const families = departmentFamilies(question, departments);
   if (families.length !== 1) return null;
-  // the person named ONE section ("BLAST FURNACE (OPERATION)", "main hospital office"): widening it to the whole department would be a wrong answer, so it is not mended (the model is sent back)
+  // The person named ONE section ("BLAST FURNACE (OPERATION)", "main hospital office"): widening it to the whole department would be a wrong answer, so I do not mend it (the model is sent back).
   const generic = genericWords(families[0].name);
   const qWords = new Set(norm(question).split(" "));
   if (families[0].rows.some((r) => norm(r.name).split(" ").some((w) => !STOP.has(w) && !generic.has(w) && qWords.has(w)))) return null;
@@ -113,7 +113,7 @@ export function repairFamilies(question: string, sql: string, departments: Depar
 }
 
 /**
- * The SQL with its first department_id / department_code IN (...) -- a list or a sub-query, found by matching the brackets -- replaced by department_id IN (the ids); null when the SQL has no such
+ * Returns the SQL with its first department_id / department_code IN (...) -- a list or a sub-query, found by matching the brackets -- replaced by department_id IN (the ids); null when the SQL has no such
  * list (or its brackets do not close). Shared by repairFamilies (step 48a) and repairNamedRows (step 49b, namedRows.ts).
  */
 export function withDepartmentIds(sql: string, ids: number[]): string | null {

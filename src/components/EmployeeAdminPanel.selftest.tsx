@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/EmployeeAdminPanel.selftest.tsx
-// Step 66a/66b: the employee manager's panel as it is drawn. (The clicks, the requests and StrictMode are covered by the click-through described in STATUS.)
+// Step 66a/66b: here I test the employee manager's panel as it is drawn. (The clicks, the requests and StrictMode are covered by the click-through described in STATUS.)
 
 import { readFileSync } from "node:fs";
 import React from "react";
@@ -131,7 +131,7 @@ ok("a locked card does not repeat 'inactive' under every field (the card says it
 ok("the progress rail counts the complete sections and says when everything is ready", form(EMPTY_FORM, { unlocked: ALL_LOCKED }).includes("0 of 4 sections complete") && stageB.includes("1 of 4 sections complete") && stageC.includes("2 of 4 sections complete") && form(FILLED, { unlocked: ALL_OPEN }).includes("3 of 4 sections complete") && stageD.includes("4 of 4 sections complete · ready to review") && (stageD.match(/data-emp-step="done"/g) ?? []).length === 4 && stageA.includes('data-emp-step="current"') && (stageA.match(/data-emp-step="locked"/g) ?? []).length === 3);
 ok("for an authorised executive the dates card is a neutral 'HOD only' lock (not a green tick) and does not hold up Contact", (() => { const d = form(FILLED, { datesVisible: false, unlocked: { posting: true, dates: true, contact: true } }); return sec(d, "Service dates").includes("HOD only") && sec(d, "Service dates").includes('data-emp-dates-locked="true"') && sec(d, "Service dates").includes("border-slate-200") && !sec(d, "Service dates").includes("border-emerald") && !disabledField(d, "mobile"); })());
 
-// ---- THE TWO DROPDOWNS LOOK ALIKE (owner: two different arrows in different places) ----
+// ---- THE TWO DROPDOWNS LOOK ALIKE (my complaint: two different arrows in different places) ----
 const arrowStyle = (html: string, field: string) => new RegExp(`data-emp-field="${field}"[^>]*style="([^"]*)"`).exec(html)?.[1] ?? new RegExp(`style="([^"]*)"[^>]*data-emp-field="${field}"`).exec(html)?.[1] ?? "";
 const classOf = (html: string, field: string) => new RegExp(`<(?:input|select)[^>]*class="([^"]*)"[^>]*data-emp-field="${field}"`).exec(html)?.[1] ?? new RegExp(`data-emp-field="${field}"[^>]*class="([^"]*)"`).exec(html)?.[1] ?? "";
 ok("the designation list and the department list draw the SAME arrow at the SAME place (one drawn chevron, the same style on both)", arrowStyle(fx, "gradeId") !== "" && arrowStyle(fx, "gradeId") === arrowStyle(fx, "departmentCode") && /background-image:url/.test(arrowStyle(fx, "gradeId")) && /right 0\.85rem center/.test(arrowStyle(fx, "gradeId")) && /1\.25rem 1\.25rem/.test(arrowStyle(fx, "gradeId")), arrowStyle(fx, "gradeId"));

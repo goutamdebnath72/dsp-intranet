@@ -1,6 +1,6 @@
 // src/lib/hospital/dates.ts
 // Dates in a question: "today", "tomorrow", "yesterday", "sunday", "next friday", "25 december", "25 dec 2026", "25/12/2026", "2026-12-25".
-// A date written without a year is the CURRENT year (the same decision as the holiday questions). A date that cannot exist ("31 february") is reported, never guessed.
+// A date written without a year is the CURRENT year (my decision, the same as for the holiday questions). A date that cannot exist ("31 february") is reported, never guessed.
 
 import { DateTime } from "luxon";
 import { WEEKDAY_BY_ISO, type Weekday } from "./opdData";
@@ -19,12 +19,12 @@ const DAY_WORDS: Record<string, Weekday> = {
 };
 const DAY_RE = Object.keys(DAY_WORDS).sort((a, b) => b.length - a.length).join("|");
 
-/** Lower-case, "1st" -> "1", punctuation (except / - :) to spaces. */
+/** Lower-cases the text, turns "1st" into "1", and turns punctuation (except / - :) into spaces. */
 export function plain(s: string): string {
   return s.toLowerCase().replace(/&/g, " and ").replace(/(\d)(st|nd|rd|th)\b/g, "$1").replace(/[^a-z0-9/:\- ]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** The weekdays named in a question, in the order of the week ("on monday and thursday"). */
+/** Returns the weekdays named in a question, in the order of the week ("on monday and thursday"). */
 export function weekdaysIn(q: string): Weekday[] {
   const found = new Set<Weekday>();
   for (const m of plain(q).matchAll(new RegExp(`\\b(${DAY_RE})\\b`, "g"))) found.add(DAY_WORDS[m[1]]);
@@ -36,7 +36,7 @@ const mk = (now: DateTime, y: number, m: number, d: number): DateTime | null => 
   return dt.isValid ? dt : null;
 };
 
-/** The one date a question is about, or null when it names none. */
+/** Returns the one date a question is about, or null when it names none. */
 export function parseDateRef(q: string, now: DateTime): DateRef | null {
   const n = plain(q);
   const today = now.startOf("day");

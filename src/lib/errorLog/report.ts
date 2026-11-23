@@ -17,7 +17,7 @@ export interface Deps { query: Query; ask?: ((prompt: string) => Promise<string>
 const aiBudget = createLimiter({ max: 20, windowMs: 3_600_000 });
 const defaultAiAllowed = (): boolean => aiBudget.take("ai").ok;
 
-/** how many reports are being handled right now: the server's console.error hook ignores errors raised meanwhile (they would be the report's own) */
+/** counts how many reports are being handled right now: the server's console.error hook ignores errors raised meanwhile, because they would be the report's own */
 let handling = 0;
 export const isReporting = (): boolean => handling > 0;
 

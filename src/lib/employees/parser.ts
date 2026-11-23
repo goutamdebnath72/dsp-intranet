@@ -1,28 +1,22 @@
 // src/lib/employees/parser.ts
 //
-// Deterministic intent parser: a typed question -> a structured analytics
-// intent (or null). No AI. Fully DB-driven (Stage 8 overhaul, 28 Sep 2026):
-// designation matching goes through designationGrades.ts (backed by
-// `designation_grade`), department matching through sailDepartments.ts
-// (backed by `sail_department`). No hardcoded RANKS/DEPARTMENTS/HIERARCHY
-// arrays survive from the pre-overhaul version.
+// The deterministic intent parser: a typed question -> a structured analytics intent (or null). No AI. Fully DB-driven (Stage 8 overhaul, 28 Sep 2026):
+// designation matching goes through designationGrades.ts (backed by `designation_grade`), department matching through sailDepartments.ts
+// (backed by `sail_department`). No hardcoded RANKS/DEPARTMENTS/HIERARCHY arrays survive from the pre-overhaul version.
 //
-// Rules (unchanged in spirit from before, fixed in substance):
+// My rules (unchanged in spirit from before, fixed in substance):
 //   - a holiday-domain question -> a holiday intent (Stage 2), checked FIRST.
 //   - designation (+ optional department) with a count/list word, or a terse
 //     "just designation [in dept]" form -> { people } (count [+ list]).
 //   - the bare word "employees"/"staff"/etc with no specific designation
-//     means BOTH cohorts combined -- this used to silently fall through to a
-//     bare department count even when "list" was typed; fixed below.
+//     means BOTH cohorts combined. This used to silently fall through to a bare department count even when "list" was typed; fixed below.
 //   - "officer(s)" -> executives, "non-ex"/"nonex"/"non ex" -> non-executives
-//     -- previously only recognised by the (unused-for-routing) count layer,
-//     never by this parser, which is why they mis-routed to circular search.
+//     (previously only recognised by the unused-for-routing count layer, never by this parser, which is why they mis-routed to circular search).
 //   - total / headcount [in dept]                     -> { total | deptTotal }
 //   - breakdown / distribution [of dept]              -> { breakdown | deptBreakdown }
 //   - nothing recognised                              -> null (hand off)
-//   - keywords may appear ANYWHERE in the query string, never position-bound
-//     -- both findDesignationInText and findSailDepartmentInText scan the
-//     whole normalized string rather than anchoring to a fixed slot.
+//   - keywords may appear ANYWHERE in the query string, never position-bound:
+//     both findDesignationInText and findSailDepartmentInText scan the whole normalized string rather than anchoring to a fixed slot.
 
 import { DateTime } from "luxon";
 import {
@@ -34,7 +28,7 @@ import {
 import { findSailDepartmentInText, type DeptGroup } from "./sailDepartments";
 import { parseHolidayIntent, type HolidayIntent } from "@/lib/holidays/parser";
 
-// Local normalizer kept identical to the old designations.ts's normTerm so
+// Local normalizer, kept identical to the old designations.ts's normTerm so
 // every existing regex/constant below keeps working unchanged.
 export function normTerm(s: string): string {
   return (s || "")
@@ -66,10 +60,8 @@ export type AnalyticsIntent =
       exact: boolean;
       /**
        * REPLACED 29 Sep 2026 (matchMode/excludePositions -> namePredicate):
-       * a compositional predicate tree, set only by the LLM orchestrator
-       * (queryOrchestrator.ts) -- see namePredicate.ts. Absent/undefined
-       * for intents built by THIS file's own deterministic candidate logic,
-       * which continues to use the plain fragment/exact fields below,
+       * a compositional predicate tree, set only by the LLM orchestrator (queryOrchestrator.ts); see namePredicate.ts. It is absent/undefined
+       * for intents built by THIS file's own deterministic candidate logic, which continues to use the plain fragment/exact fields below,
        * unchanged.
        */
       namePredicate?: import("./namePredicate").NamePredicate;
@@ -102,9 +94,8 @@ function esc(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// "workers" only signals the non-executive designation when it isn't
-// qualified by another noun ("contract workers" etc are a different category
-// entirely and must fall through to search, not be reinterpreted).
+// "workers" only signals the non-executive designation when another noun doesn't qualify it:
+// "contract workers" etc are a different category entirely and must fall through to search, not be reinterpreted.
 const WORKERS_NEUTRAL_PRECEDER = new Set([
   "the", "our", "all", "these", "those", "total", "current", "many", "how",
   "dsp", "sail", "plant", "company",
@@ -120,29 +111,19 @@ function hasBareWorkersTerm(nq: string): boolean {
   return false;
 }
 
-// Department scope, now order-independent (FIXED 28 Sep 2026): department
-// mentions are found ANYWHERE in the query via findSailDepartmentInText's
-// scan-anywhere match -- "in c&it list executives", "list executives in
-// c&it", and "c&it executives list" all resolve identically now. This is
-// the same rule already applied to designations; department detection had
-// been left on the old position-bound (after a preposition, through the end
-// of the string) behavior by mistake until this fix.
+// Department scope, now order-independent (FIXED 28 Sep 2026): I find department mentions ANYWHERE in the query via findSailDepartmentInText's
+// scan-anywhere match, so "in c&it list executives", "list executives in c&it", and "c&it executives list" all resolve identically now.
+// This is the same rule I already applied to designations; department detection had been left on the old position-bound (after a preposition,
+// through the end of the string) behavior by mistake until this fix.
 //
 async function findDeptScope(original: string): Promise<{ group: DeptGroup; phrase: string } | null> {
-  // FIXED (29 Sep 2026), per explicit direction: this used to fall back to
-  // a preposition regex (in/at/for/under/within + trailing words) whenever
-  // findSailDepartmentInText found nothing, and surfaced THAT as an
-  // "I couldn't identify the department X" error -- even when the trailing
-  // text plainly wasn't a department attempt at all ("any position", "any
-  // location", "between the name" all misfired this way, confirmed live).
-  // findSailDepartmentInText already checks the COMPLETE, verified
-  // department list (all real sail_department rows, confirmed aliases, and
-  // the legacy departments.ts bridge) -- so when it finds nothing, that is
-  // now treated as confident proof the phrase is NOT a department mention,
-  // not as "an unresolved one". No more manufactured department-shaped
-  // error from arbitrary leftover text; a non-match here just means no
-  // department was mentioned, and the rest of the query is free to carry
-  // whatever OTHER meaning it actually has.
+  // FIXED (29 Sep 2026), on my explicit direction: this used to fall back to a preposition regex (in/at/for/under/within + trailing words) whenever
+  // findSailDepartmentInText found nothing, and surfaced THAT as an "I couldn't identify the department X" error, even when the trailing
+  // text plainly wasn't a department attempt at all ("any position", "any location", "between the name" all misfired this way, confirmed live).
+  // findSailDepartmentInText already checks the COMPLETE, verified department list (all real sail_department rows, confirmed aliases, and
+  // the legacy departments.ts bridge), so when it finds nothing I now treat that as confident proof the phrase is NOT a department mention,
+  // not as "an unresolved one". No more manufactured department-shaped error from arbitrary leftover text; a non-match here just means no
+  // department was mentioned, and the rest of the query is free to carry whatever OTHER meaning it actually has.
   const hit = await findSailDepartmentInText(original);
   return hit ? { group: hit.group, phrase: hit.phrase } : null;
 }
@@ -153,7 +134,7 @@ function mapResolutionToPeople(
   if (res.kind === "grade") return { gradeIds: res.gradeIds, cohort: null };
   if (res.kind === "exec") return { gradeIds: null, cohort: "executive" };
   if (res.kind === "nonexec") return { gradeIds: null, cohort: "nonexecutive" };
-  return { gradeIds: null, cohort: null }; // "combined" -- both, no filter
+  return { gradeIds: null, cohort: null }; // "combined": both, no filter
 }
 
 export async function parseAnalytics(query: string): Promise<AnalyticsIntent | null> {
@@ -163,16 +144,13 @@ export async function parseAnalytics(query: string): Promise<AnalyticsIntent | n
 
   const q = normTerm(query);
   const hasCount = COUNT_WORDS.some((w) => q.includes(normTerm(w)));
-  // A count phrase ("how many", "number of", "count of", "total number of")
-  // maps directly onto "list them" -- there is no separate bare-count-only
-  // response anymore. hasCount is folded straight into hasList here, once,
-  // rather than added as a parallel OR-condition in every branch below.
+  // A count phrase ("how many", "number of", "count of", "total number of") maps directly onto "list them"; there is no separate
+  // bare-count-only response anymore. I fold hasCount straight into hasList here, once, rather than add a parallel OR-condition in every branch below.
   const hasList = LIST_WORDS.some((w) => q.includes(normTerm(w))) || / them$/.test(q) || hasCount;
   const hasBreakdown = BREAKDOWN_WORDS.some((w) => q.includes(normTerm(w)));
   const hasPeopleWord = PEOPLE_RE.test(q);
 
-  // Real designation match (a specific title, S-grade, exec, or non-exec) --
-  // scanned anywhere in the text, DB-driven (see designationGrades.ts).
+  // A real designation match (a specific title, S-grade, exec, or non-exec), scanned anywhere in the text and DB-driven (see designationGrades.ts).
   let desigMatch = await findDesignationInText(query);
   const nq = ` ${q} `;
   if (!desigMatch && hasBareWorkersTerm(nq)) {
@@ -187,7 +165,7 @@ export async function parseAnalytics(query: string): Promise<AnalyticsIntent | n
     scopePhrase = scope.phrase;
   }
 
-  // Terse = the query is essentially just "designation [in dept]" — nothing else.
+  // Terse means the query is essentially just "designation [in dept]" and nothing else.
   let leftover = q;
   if (desigMatch) leftover = leftover.replace(new RegExp(`${esc(desigMatch.term)}(s|es)?`, "g"), " ");
   if (scopePhrase) leftover = leftover.split(normTerm(scopePhrase)).join(" ");
@@ -204,17 +182,12 @@ export async function parseAnalytics(query: string): Promise<AnalyticsIntent | n
   if (hasBreakdown)
     return dept ? { kind: "deptBreakdown", deptName: dept.name, deptIds: dept.ids } : { kind: "breakdown" };
 
-  // Strips a single trailing colloquial "s" from an unquoted name fragment's
-  // LAST word ("mazumdars" -> "mazumdar", "list all sens" -> "... sen") --
-  // NEVER applied to a quoted/exact fragment, where the person deliberately
-  // typed the string verbatim and it should be searched as-is. Safe for the
-  // ILIKE side (stripping only ever WIDENS a substring match -- "%mazumdar%"
-  // still matches a real "MAZUMDARS" surname if one existed, via substring
-  // inclusion) and fixes the phonetic side, where the stored name's fold
-  // code has no plural "s" to match against. Guarded to length >= 4 before
-  // stripping so short, already-terminal names ending in s ("Das", "Bose")
-  // are left alone rather than truncated to something too short to mean
-  // anything ("Da", "Bo").
+  // Strips a single trailing colloquial "s" from the LAST word of an unquoted name fragment ("mazumdars" -> "mazumdar", "list all sens" -> "... sen").
+  // I NEVER apply it to a quoted/exact fragment, where the person deliberately typed the string verbatim and it should be searched as-is.
+  // It is safe for the ILIKE side (stripping only ever WIDENS a substring match: "%mazumdar%" still matches a real "MAZUMDARS" surname if one
+  // existed, via substring inclusion) and it fixes the phonetic side, where the stored name's fold code has no plural "s" to match against.
+  // I guard it to length >= 4 before stripping, so short names that already end in s ("Das", "Bose") are left alone rather than truncated to
+  // something too short to mean anything ("Da", "Bo").
   function stripColloquialPlural(frag: string): string {
     const words = frag.split(" ");
     const last = words[words.length - 1];
@@ -225,22 +198,19 @@ export async function parseAnalytics(query: string): Promise<AnalyticsIntent | n
   }
 
   // ---- Person-name count/list ("how many \"goutam\"", "people named debnath") ----
-  // Only when no real designation was found (a designation always wins).
+  // I do this only when no real designation was found (a designation always wins).
   if (!desigMatch) {
     const qm = query.match(/["'“”‘’]([^"'“”‘’]{2,40})["'“”‘’]/);
     const namedM = q.match(/\b(?:named|called)\s+([a-z][a-z ]{1,38})\b/);
     let fragment: string | null = null;
     let strong = false;
     let exact = false;
-    // A quoted phrase is only a plain "count/list this exact name" request
-    // when NOTHING else meaningful is in the query. Previously it took the
-    // first quoted phrase and silently ignored everything else ("ends with
-    // \"debnath\" but not \"nath\"" became just "debnath" anywhere). Any
-    // unrecognized extra word now sends the query to the LLM tier instead.
+    // A quoted phrase is only a plain "count/list this exact name" request when NOTHING else meaningful is in the query. Previously it took the
+    // first quoted phrase and silently ignored everything else ("ends with \"debnath\" but not \"nath\"" became just "debnath" anywhere).
+    // Now any unrecognized extra word sends the query to the LLM tier instead.
     let quotedIsSimple = false;
     if (qm && (hasCount || hasList)) {
-      // normTerm keeps quote characters, so drop the quote marks themselves
-      // too -- otherwise even a plain `list "debnath"` leaves stray `"` tokens
+      // normTerm keeps quote characters, so I drop the quote marks themselves too; otherwise even a plain `list "debnath"` leaves stray `"` tokens
       // behind and is wrongly treated as having extra content.
       let rest = q.split(normTerm(qm[1])).join(" ").replace(/["'“”‘’]/g, " ");
       for (const w of [...COUNT_WORDS, ...LIST_WORDS]) rest = rest.split(normTerm(w)).join(" ");
@@ -292,7 +262,7 @@ export async function parseAnalytics(query: string): Promise<AnalyticsIntent | n
     }
   }
 
-  // A real designation (specific grade, exec, or non-exec) -> people intent.
+  // A real designation (specific grade, exec, or non-exec) gives a people intent.
   if (desigMatch && (hasCount || hasList || terse)) {
     const list = hasList || (terse && !!dept);
     const mapped = mapResolutionToPeople(desigMatch.resolution);
@@ -307,25 +277,16 @@ export async function parseAnalytics(query: string): Promise<AnalyticsIntent | n
     };
   }
 
-  // Bare "employees"/"staff"/etc, no specific designation -- BOTH cohorts
-  // combined. This is the fix for "list of employees in c&it" silently
-  // returning a bare count: previously there was no designation match at
-  // all for a generic people-word, so control fell straight to the
-  // dept-total branch below with no way to see `hasList`. Now it's treated
-  // as a first-class combined intent that respects list/count the same way
-  // a real designation does. hasList already carries the count-phrase
-  // meaning (see above), so no separate hasCount check is needed here.
+  // The bare "employees"/"staff"/etc with no specific designation means BOTH cohorts combined. This is the fix for "list of employees in c&it" silently
+  // returning a bare count: previously there was no designation match at all for a generic people-word, so control fell straight to the
+  // dept-total branch below with no way to see `hasList`. Now I treat it as a first-class combined intent that respects list/count the same way
+  // a real designation does. hasList already carries the count-phrase meaning (see above), so no separate hasCount check is needed here.
   //
-  // FIXED (29 Sep 2026): this used to fire whenever hasPeopleWord AND
-  // (hasCount OR hasList) were true, with NO check on whatever else was in
-  // the query -- meaning "list the employees whose name ends with debnath"
-  // matched here too (since it has "list" and "employees"), swallowing the
-  // query as a generic "list all 6,489 employees" BEFORE the LLM
-  // orchestrator (queryOrchestrator.ts) ever got a chance to run, since
-  // Tier 1 returning a non-null payload short-circuits the whole pipeline.
-  // Requiring leftoverClean here means this branch now only fires when
-  // there's genuinely nothing else unrecognized in the query -- anything
-  // with real extra content (like "whose name ends with X") correctly
+  // FIXED (29 Sep 2026): this used to fire whenever hasPeopleWord AND (hasCount OR hasList) were true, with NO check on whatever else was in
+  // the query, meaning "list the employees whose name ends with debnath" matched here too (since it has "list" and "employees"), swallowing the
+  // query as a generic "list all 6,489 employees" BEFORE the LLM orchestrator (queryOrchestrator.ts) ever got a chance to run, since
+  // Tier 1 returning a non-null payload short-circuits the whole pipeline. Requiring leftoverClean here means this branch only fires when
+  // there is genuinely nothing else unrecognized in the query; anything with real extra content (like "whose name ends with X") correctly
   // returns null instead, falling through to the pattern cache / LLM tiers.
   if (hasPeopleWord && leftoverClean && (hasCount || hasList || !!dept)) {
     return {

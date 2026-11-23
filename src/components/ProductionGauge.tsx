@@ -4,8 +4,8 @@
 import React, { useEffect } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 
-// Fira Code is now self-hosted via @font-face in globals.css
-// (see --font-fira-code); nothing is fetched from Google Fonts here anymore.
+// I self-host Fira Code through @font-face in globals.css (see --font-fira-code),
+// so nothing is fetched from Google Fonts here anymore.
 interface ProductionGaugeProps {
   value: number;
   max: number;
@@ -39,9 +39,9 @@ export function ProductionGauge({ value, max, label, unit }: ProductionGaugeProp
   // === Motion values ===
   const numberMV = useMotionValue(0);
   const roundedNumber = useTransform(numberMV, Math.round);
-  const needleMV = useMotionValue(-90); // Needle range is -90deg to +90deg
+  const needleMV = useMotionValue(-90); // The needle sweeps from -90deg to +90deg
 
-  // Corrected useEffect dependency array
+  // I corrected the useEffect dependency array
   useEffect(() => {
     const nAnim = animate(numberMV, value, {
       type: "spring",
@@ -62,7 +62,7 @@ export function ProductionGauge({ value, max, label, unit }: ProductionGaugeProp
       nAnim.stop();
       needleAnim.stop();
     };
-  }, [value, progress]); // Corrected dependency array
+  }, [value, progress]); // I corrected the dependency array
 
   return (
     <motion.div
@@ -90,7 +90,7 @@ export function ProductionGauge({ value, max, label, unit }: ProductionGaugeProp
           className="w-full h-full block"
         >
           <defs>
-            {/* Gradient restored to Green -> Yellow -> Red */}
+            {/* I restored the gradient to Green -> Yellow -> Red */}
             <linearGradient id="gaugeGradient" x1="0%" x2="100%">
               <stop offset="0%" stopColor="#22c55e" />
               <stop offset="50%" stopColor="#facc15" />
@@ -108,26 +108,26 @@ export function ProductionGauge({ value, max, label, unit }: ProductionGaugeProp
             vectorEffect="non-scaling-stroke"
           />
 
-          {/* --- THIS IS THE FIX --- */}
-          {/* <foreignObject> renders on top of the <path> */}
+          {/* --- The fix starts here --- */}
+          {/* I rely on <foreignObject> rendering on top of the <path> */}
           <foreignObject
             x="0"
             y="0"
             width={W}
             height={W / 2 + 20}
-          // We remove pointerEvents: "none" because the needle *is* the pointer now
+          // I remove pointerEvents: "none" because the needle *is* the pointer now
           >
-            {/* This div becomes the new relative container for HTML elements */}
+            {/* Here this div is the new relative container for the HTML elements */}
             <div
               {...{ xmlns: "http://www.w3.org/1999/xhtml" }}
-              className="w-full h-full relative" // Use SVG's aspect ratio
+              className="w-full h-full relative" // I use the SVG's aspect ratio
             >
               {/* 1. The Text (z-0) */}
-              {/* Positioned lower, at 75% from the top of the *viewBox* */}
+              {/* I position it lower, at 75% from the top of the *viewBox* */}
               <div
                 className="absolute left-1/2 top-[50%] flex -translate-x-1/2 -translate-y-1/2"
                 style={{
-                  pointerEvents: "none", // Text shouldn't block
+                  pointerEvents: "none", // The text must not block
                   fontFamily: "var(--font-fira-code)",
                 }}
               >
@@ -137,14 +137,14 @@ export function ProductionGauge({ value, max, label, unit }: ProductionGaugeProp
               </div>
 
               {/* 2. The Needle (z-10) */}
-              {/* This is the HTML needle from your old file, adapted to the new logic */}
+              {/* This is the HTML needle from my old file, adapted to the new logic */}
               <motion.div
                 className="absolute inset-0 z-10"
-                // We use the new 180-degree motion value
+                // I use the new 180-degree motion value
                 style={{
                   rotate: needleMV,
-                  // We must redefine the pivot point for the HTML div
-                  // It's not (cx, cy) but the center of the viewBox
+                  // I must redefine the pivot point for the HTML div:
+                  // it is not (cx, cy) but the center of the viewBox
                   transformOrigin: `${W / 2}px ${cy}px`,
                 }}
               >
@@ -152,10 +152,10 @@ export function ProductionGauge({ value, max, label, unit }: ProductionGaugeProp
                 <div
                   className="absolute left-1/2 w-1 bg-neutral-700 rounded-t-full"
                   style={{
-                    // Position relative to the new pivot point
+                    // I position it relative to the new pivot point
                     top: `${cy}px`,
-                    height: `${outerR * 0.85}px`, // 35% was for a different container
-                    transform: "translate(-50%, -100%)", // Move up from pivot
+                    height: `${outerR * 0.85}px`, // The old 35% was for a different container
+                    transform: "translate(-50%, -100%)", // It moves up from the pivot
                     transformOrigin: "bottom center",
                   }}
                 />
@@ -163,16 +163,16 @@ export function ProductionGauge({ value, max, label, unit }: ProductionGaugeProp
                 <div
                   className="absolute left-1/2 w-3 h-3 bg-neutral-800 rounded-full border-2 border-white shadow-md"
                   style={{
-                    top: `${cy}px`, // Place at the pivot
+                    top: `${cy}px`, // It sits at the pivot
                     transform: "translate(-50%, -50%)", // Center it
                   }}
                 />
               </motion.div>
             </div>
           </foreignObject>
-          {/* --- END OF FIX --- */}
+          {/* --- The fix ends here --- */}
 
-          {/* The SVG needle <motion.g> is now GONE */}
+          {/* I removed the SVG needle <motion.g>; it is gone */}
         </svg>
       </div>
 

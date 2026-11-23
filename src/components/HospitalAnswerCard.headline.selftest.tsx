@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/HospitalAnswerCard.headline.selftest.tsx
-// Step 57b (owner, 26 Oct 2026): the CLEAN ANSWER FIRST. A big bold headline is the first thing on the card: the value asked for ("DNB(MEDICINE)"), a green Yes or a red No, a name, a count. The title
+// Step 57b (26 Oct 2026): I want the CLEAN ANSWER FIRST. A big bold headline is the first thing on the card: the value asked for ("DNB(MEDICINE)"), a green Yes or a red No, a name, a count. The title
 // becomes a small caption under it, then one plain sentence, the table, the bullets that matter; long explanations are folded away (a <details> line). A card without a headline looks as it did.
 
 import React from "react";
@@ -46,7 +46,7 @@ ok("details text is plain text (escaped)", /&lt;script&gt;/.test(html({ title: "
 // ---- the order: answer, caption, sentence, table, bullets, folded details
 const order = ["data-headline", "data-title", "data-sentence", "<table", 'data-points="true"', "<details"].map((n) => at(full, n));
 ok("the order: headline, caption, sentence, table, bullets, folded details", order.every((p) => p > 0) && order.every((p, i) => i === 0 || order[i - 1] < p), JSON.stringify(order));
-// ---- a folded line opened on one answer must be closed again on the next one (26 Oct 2026: it stayed open): the <details> element is keyed by the answer as well as the position, so React never reuses it
+// ---- a folded line opened on one answer must be closed again on the next one (26 Oct 2026: it stayed open). I key the <details> element by the answer as well as the position, so React never reuses it
 import { readFileSync } from "node:fs";
 const source = readFileSync("src/components/HospitalAnswerCard.tsx", "utf8");
 ok("the folded lines are keyed by the answer's title, the position and the summary (not by the position alone)", /<details key=\{`\$\{answer\.title\}\|\$\{i\}\|\$\{d\.summary\}`\}/.test(source) && !/<details key=\{i\}/.test(source));

@@ -1,7 +1,7 @@
 // src/tools/dsphistory/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the DSP story card (the story, who made it, the first products, the heads, SAIL and its units). What the search line needs to know is in topic.ts. It is listed once,
-// in src/tools/registry.ui.tsx. The card carries its pictures, so it is loaded only when it is asked for.
+// This is how this topic looks in the panel of the search bar: the DSP story card (the story, who made it, the first products, the heads, SAIL and its units). What the search line needs to know is in topic.ts. It is listed once,
+// in src/tools/registry.ui.tsx. The card carries its pictures, so I load it only when it is asked for.
 "use client";
 
 import dynamic from "next/dynamic";
@@ -15,7 +15,7 @@ const DspHistoryCard = dynamic(() => import("@/tools/dsphistory/DspHistoryCard")
   loading: () => <div className="h-40 animate-pulse rounded-2xl bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100" aria-busy="true" aria-label="Loading the story of the Durgapur Steel Plant" />,
 });
 
-/** "heads|" -> the tab (the part before the bar); anything else is the story tab */
+/** "heads|" gives the tab (the part before the bar); anything else is the story tab. */
 export function readLang(lang?: string): DspHistoryTab {
   const t = (lang ?? "story|").split("|")[0];
   return t === "makers" || t === "first" || t === "heads" || t === "sail" ? t : "story";

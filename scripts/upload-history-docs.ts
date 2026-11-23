@@ -1,12 +1,12 @@
 // scripts/upload-history-docs.ts
 //
-// Puts every document the DSP history card opens in its own viewer into Vercel Blob (the list is src/tools/dsphistory/docs.ts): the two JO Manuals, read from a folder on this computer, and the published PDFs
-// (SAIL's Steel Cities book, the annual reports, the Lok Sabha replies, the obituary), downloaded from their own addresses with curl (curl is used because sail.co.in's certificate chain is incomplete and Node refuses it).
+// This puts every document the DSP history card opens in its own viewer into Vercel Blob (the list is src/tools/dsphistory/docs.ts): the two JO Manuals, read from a folder on this computer, and the published PDFs
+// (SAIL's Steel Cities book, the annual reports, the Lok Sabha replies, the obituary), downloaded from their own addresses with curl (I use curl because sail.co.in's certificate chain is incomplete and Node refuses it).
 // The app's own route (GET /api/history-docs/<id>) then serves them: the JO Manuals to signed-in readers only, the published PDFs to anyone.
 // Run from the project root:   npx tsx --tsconfig tsconfig.selftest.json scripts/upload-history-docs.ts [folder] [id ...]
 //   folder   the folder that holds the JO Manual PDFs (default ~/Downloads/jo)
 //   id ...   only these documents (default: all); e.g. `... scripts/upload-history-docs.ts ~/Downloads/jo steel-cities`
-// Needs BLOB_READ_WRITE_TOKEN in .env.local (the same one the circulars use). Running it again replaces the copies (the old ones are deleted after the new ones are in), so it is safe to repeat.
+// It needs BLOB_READ_WRITE_TOKEN in .env.local (the same one the circulars use). Running it again replaces the copies (the old ones are deleted after the new ones are in), so it is safe to repeat.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";

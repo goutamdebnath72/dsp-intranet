@@ -1,5 +1,5 @@
 // src/components/EventCalendar.selftest.tsx
-// Verification test for EventCalendar header enhancement:
+// Verification test for the EventCalendar header enhancement. What I check:
 // 1. Clickable month showing vertical list of 12 full month names
 // 2. Clickable year showing vertical list of previous years with vertical scrollbar
 // 3. Full year calendar modal button

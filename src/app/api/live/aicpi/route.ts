@@ -1,8 +1,9 @@
 // src/app/api/live/aicpi/route.ts
 //
-// THE ALL-INDIA CONSUMER PRICE INDEX FOR INDUSTRIAL WORKERS (AICPI-IW), from the Labour Bureau's own pages (src/lib/live/aicpi.ts): the CPI-IW page, whose chart holds the last twelve months, and the home page, whose
-// box holds the latest two (the newest month is there first). Reads nothing from the caller: the two addresses are fixed. The home page failing is not an error (the chart alone is a year); the CPI-IW page failing or
-// changing is, and then the last good answer is returned and marked as such. The index changes once a month, so an answer is kept for six hours.
+// The All-India Consumer Price Index for Industrial Workers (AICPI-IW), taken from the Labour Bureau's own pages (src/lib/live/aicpi.ts): the CPI-IW page, whose chart holds the last twelve months,
+// and the home page, whose box holds the latest two (the newest month is there first). I read nothing from the caller: the two addresses are fixed.
+// The home page failing is not an error (the chart alone is a year); the CPI-IW page failing or changing is, and then I return the last good answer and mark it as such.
+// The index changes once a month, so I keep an answer for six hours.
 import { DateTime } from "luxon";
 import { getText } from "@/lib/live/http";
 import { liveRoute } from "@/lib/live/envelope";

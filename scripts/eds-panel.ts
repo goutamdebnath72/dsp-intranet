@@ -1,5 +1,5 @@
 // scripts/eds-panel.ts: runs the PANEL of new questions through the real engine (no store: every question is generated fresh) and writes a
-// compact report, so a change to the engine can be judged on MANY kinds of question at once, not on the last one that looked wrong.
+// compact report, so that I can judge a change to the engine on MANY kinds of question at once, not on the last one that looked wrong.
 //   npx tsx --env-file=.env.local scripts/eds-panel.ts [P01 P05 ...]        (no ids: all)   EDS_OUT=path writes the full JSON
 import { Client } from "pg";
 import { writeFileSync } from "node:fs";

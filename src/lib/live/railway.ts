@@ -1,13 +1,13 @@
 // src/lib/live/railway.ts
 //
-// THE TRAINS THAT STOP AT DURGAPUR RAILWAY STATION (DGR), from RailRadar's station timetable (https://api.railradar.in/v1/stations/DGR/trains, an API that needs a key: the plant's own key, kept on the server only, in
+// The trains that stop at Durgapur railway station (DGR), from RailRadar's station timetable (https://api.railradar.in/v1/stations/DGR/trains, an API that needs a key: the plant's own key, kept on the server only, in
 // RAILRADAR_API_KEY). Each train has its number, name, kind, where it starts and ends, its arrival and departure at Durgapur, and the days it runs.
-// It is the TIMETABLE, not live running status (the card says so). This reads the answer, CHECKS it and sorts it; nothing is guessed:
-//   * THE DAYS. RailRadar gives the days a train leaves its STARTING station; a train that starts far away reaches Durgapur on a later day ("arrivalDay": 2 means the day after it started). The days shown are therefore
+// It is the TIMETABLE, not live running status (the card says so). Here I read the answer, CHECK it and sort it; nothing is guessed:
+//   * THE DAYS. RailRadar gives the days a train leaves its STARTING station; a train that starts far away reaches Durgapur on a later day ("arrivalDay": 2 means the day after it started). The days I show are therefore
 //     the days AT DURGAPUR: each day of the list moved on by (arrivalDay - 1). (checked against a third-party list on 13 Nov 2026: Jaynagar Weekly 13135 leaves Kolkata on Saturdays at 20:55 and is at Durgapur at 00:04 on Sundays.)
 //   * THE DIRECTION. The answer does not say which way a train runs past Durgapur, only where it starts and ends. A train that ends at Howrah, Kolkata, Sealdah, Shalimar, Dankuni or Barddhaman runs TOWARDS HOWRAH; one that
 //     starts at any of them runs AWAY from it. A train with neither end among these is placed when one end is a station known to lie beyond Asansol (Patna, Barauni, Delhi...), or from its own route (the ROUTE_HEADING table
-//     below); every other train goes in a third list ("other through trains") with where it starts and ends, rather than being given a direction the data does not support. "Towards Barddhaman" includes the few trains that go on
+//     below). Every other train goes in a third list ("other through trains") with where it starts and ends, rather than being given a direction the data does not support. "Towards Barddhaman" includes the few trains that go on
 //     from Durgapur to Suri and Malda instead of Howrah.
 //   * THE KIND. "MEMU" is the local train; "Train on Demand" is a special (festival, Puja, Chhath); the rest are mail and express trains of every class.
 // A reply that is not the expected shape, or in which too many trains cannot be read, is an error, never a guess.
@@ -28,17 +28,17 @@ export interface Train {
   number: string;
   name: string;
   kind: Kind;
-  /** the class in words: "Superfast", "Vande Bharat", "Rajdhani", "Express", "Special", "MEMU (local)" */
+  /** The class in words: "Superfast", "Vande Bharat", "Rajdhani", "Express", "Special", "MEMU (local)". */
   label: string;
-  /** where it starts and ends, as RailRadar names them, with the station codes */
+  /** Where it starts and ends, as RailRadar names them, with the station codes. */
   from: string;
   fromCode: string;
   to: string;
   toCode: string;
-  /** "HH:mm" at Durgapur; a train that starts here has no arrival, one that ends here no departure */
+  /** "HH:mm" at Durgapur. A train that starts here has no arrival, and one that ends here has no departure. */
   arrival: string | null;
   departure: string | null;
-  /** the days it is at Durgapur (already moved on from the starting station's days) */
+  /** The days it is at Durgapur (already moved on from the starting station's days). */
   days: Day[];
   heading: Heading;
 }
@@ -46,7 +46,7 @@ export interface Train {
 export interface Group { east: Train[]; west: Train[]; other: Train[] }
 export interface Railway {
   station: string;
-  /** mail and express trains of every class, and the specials among them */
+  /** Mail and express trains of every class, and the specials among them. */
   express: Group;
   /** the local (MEMU) trains */
   local: Group;
@@ -56,16 +56,16 @@ export interface Railway {
 
 export class RailwayError extends Error {}
 
-/** the stations on the Howrah side of Durgapur (a train that ends at one of them runs towards Howrah; one that starts at one runs away from it) */
+/** The stations on the Howrah side of Durgapur: a train that ends at one of them runs towards Howrah, and one that starts at one runs away from it. */
 const HOWRAH_SIDE = new Set(["HWH", "SHM", "KOAA", "SDAH", "DKAE", "BWN"]);
-/** stations certain to lie beyond Durgapur on the Asansol side, used only when neither end is on the Howrah side */
+/** Stations certain to lie beyond Durgapur on the Asansol side. I use them only when neither end is on the Howrah side. */
 const ASANSOL_SIDE = new Set(["ASN", "DHN", "PNBE", "BJU", "MFP", "DBG", "GKP", "RXL", "SMI", "JYG", "NDLS", "ANVT", "ASR", "BNRS", "LKU", "CNB", "AGC", "GWL", "KWP", "BKN", "ADI"]);
 
 /**
- * THE DIRECTION OF THE TRAINS THE ENDS DO NOT SETTLE (neither end on the Howrah side or beyond Asansol): read once from each train's full route (RailRadar's /v1/trains/{number}: the order of the stops, Asansol
- * before Durgapur = the train is moving towards Barddhaman, Asansol after it = moving towards Asansol), on 13 Nov 2026, one train of each pair; the other number of a pair runs the opposite way (checked: its two ends
- * are the first one's reversed). NOT worked out from the train number: the odd = down, even = up custom depends on each zone's headquarters, and on this very list it fails for 14 of 238 trains (13417 and 15629 are odd and
- * run towards Barddhaman). A train that is not in this table and whose ends do not settle it is shown in the "other through trains" list; the table is for the trains that run all the year, check it when the railway renumbers one.
+ * THE DIRECTION OF THE TRAINS THE ENDS DO NOT SETTLE (neither end on the Howrah side or beyond Asansol): I read it once from each train's full route (RailRadar's /v1/trains/{number}: the order of the stops, Asansol
+ * before Durgapur = the train is moving towards Barddhaman, Asansol after it = moving towards Asansol), on 13 Nov 2026, one train of each pair. The other number of a pair runs the opposite way (checked: its two ends
+ * are the first one's reversed). I do NOT work it out from the train number: the odd = down, even = up custom depends on each zone's headquarters, and on this very list it fails for 14 of 238 trains (13417 and 15629 are odd and
+ * run towards Barddhaman). A train that is not in this table and whose ends do not settle it is shown in the "other through trains" list. The table is for the trains that run all the year; check it when the railway renumbers one.
  */
 const ROUTE_HEADING: Record<string, Heading> = {
   "12551": "east", "12552": "west", "08409": "west", "08410": "east", "13417": "east", "13418": "west", "13425": "west", "13426": "east", "15629": "east", "15630": "west",
@@ -104,13 +104,13 @@ const mins = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5)
 const isDay = (d: unknown): d is Day => typeof d === "string" && (DAYS as string[]).includes(d);
 const str = (x: unknown, max = 120): string | null => (typeof x === "string" && x.trim() && x.length <= max ? x.trim() : null);
 
-/** the days moved on by `offset` days (a train that starts on Saturday and reaches Durgapur the next day is at Durgapur on Sunday) */
+/** The days moved on by `offset` days (a train that starts on Saturday and reaches Durgapur the next day is at Durgapur on Sunday). */
 export function shiftDays(days: Day[], offset: number): Day[] {
   const set = new Set(days.map((d) => (DAYS.indexOf(d) + offset) % 7));
   return DAYS.filter((_, i) => set.has(i));
 }
 
-/** "Daily", "Mon–Fri", "Mon, Wed, Sat"; the title spells the days out */
+/** "Daily", "Mon–Fri", "Mon, Wed, Sat"; the title spells the days out. */
 export function daysChip(days: Day[]): { text: string; title: string } {
   const have = DAYS.filter((d) => days.includes(d));
   const title = have.length === 7 ? "Every day of the week" : `Runs on ${have.map((d) => DAY_LONG[d]).join(", ")}`;
@@ -120,12 +120,12 @@ export function daysChip(days: Day[]): { text: string; title: string } {
   return { text: have.map((d) => DAY_SHORT[d]).join(", "), title };
 }
 
-/** the minute of the day a train is at Durgapur (the departure, or the arrival for a train that ends here), for ordering */
+/** The minute of the day a train is at Durgapur (the departure, or the arrival for a train that ends here), used for ordering. */
 export const clock = (t: Train): string => (t.departure ?? t.arrival) as string;
 
 const byClock = (a: Train, b: Train) => mins(clock(a)) - mins(clock(b)) || a.number.localeCompare(b.number);
 
-/** One row of a station timetable (a train and its stop there) read and checked: the train, or null when anything in it cannot be read (the caller counts those, and refuses an answer in which too many are bad). */
+/** Reads and checks one row of a station timetable (a train and its stop there). It returns the train, or null when anything in it cannot be read: the caller counts those, and refuses an answer in which too many are bad. */
 export function readRow(r: Record<string, any>): Train | null {
   const t = r?.train, s = r?.stop;
   const number = typeof t?.number === "string" && /^\d{5}$/.test(t.number) ? t.number : null;
@@ -166,17 +166,17 @@ export function parseRailway(json: unknown, opts: { min?: number } = {}): Railwa
 
 export interface Moment { hm: string; day: Day }
 
-/** the next train of a list that is at Durgapur today at or after `now`, among those that run today */
+/** The next train of a list that is at Durgapur today at or after `now`, among those that run today. */
 export function nextTrain(list: Train[], now: Moment): Train | null {
   return list.find((t) => t.days.includes(now.day) && clock(t) >= now.hm) ?? null;
 }
 
-/** the trains of a list that pass the filters: only those that run on `day`, and without the specials */
+/** The trains of a list that pass the filters: only those that run on `day`, and without the specials. */
 export function filterTrains(list: Train[], opts: { today?: Day | null; specials: boolean }): Train[] {
   return list.filter((t) => (opts.specials || t.kind !== "special") && (!opts.today || t.days.includes(opts.today)));
 }
 
-/** whether a saved answer of the Durgapur route is the shape the card draws (the groups of trains, each with its times and days): a saved copy that is not is never shown */
+/** Tells whether a saved answer of the Durgapur route is the shape the card draws (the groups of trains, each with its times and days). I never show a saved copy that is not. */
 export function looksLikeRailway(x: unknown): x is Railway {
   const r = x as Railway | null;
   const group = (g: Group | undefined) => !!g && ["east", "west", "other"].every((k) => Array.isArray((g as unknown as Record<string, unknown>)[k]));

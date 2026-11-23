@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/calculator/CalculatorCard.selftest.tsx
-// The calculator's card with its number bases: the DEC/BIN/OCT/HEX switch (scientific only), A-F in the place of the six trig keys in HEX, the keys a base does not have greyed, the other bases under the number,
-// and, above all, that the panel is the same size and has the same keys in the same places in every base.
+// This tests the calculator's card with its number bases: the DEC/BIN/OCT/HEX switch (scientific only), A-F in the place of the six trig keys in HEX, the keys a base does not have greyed, the other bases under the number,
+// and, above all, that I get the same size of panel and the same keys in the same places in every base.
 import fs from "node:fs";
 import path from "node:path";
 import React from "react";

@@ -1,6 +1,6 @@
 // src/lib/search/circularLabels.selftest.ts
 // Run:  TEST_DATABASE_URL=postgres://user:pass@host:5432/dbname npx tsx src/lib/search/circularLabels.selftest.ts
-// Creates a throwaway public.circulars and DROPS it; REFUSES to run if public.circulars already exists (a real database).
+// This test creates a throwaway public.circulars and DROPS it. It REFUSES to run if public.circulars already exists (a real database).
 import { Client } from "pg";
 import { fetchCircularLabels } from "./circularLabels";
 
@@ -38,7 +38,7 @@ const check = (label: string, ok: boolean, detail = "") => {
       (92, 'Published on the first day of the year', 1, '2026-01-01 00:00:00'),
       (93, 'A circular with a three-digit serial', 123, '2024-06-06')`);
 
-    // the real node-postgres client returns { rows }
+    // the real node-postgres client returns { rows }, so I test that shape first
     const m = await fetchCircularLabels(c, [49, 51, 7, 90, 91, 92, 93, 4040]);
     check("id 49 -> 'Circular 007 (2026)' and id 51 -> 'Circular 008 (2026)' (what the 2026 list shows)", m.get(49) === "Circular 007 (2026)" && m.get(51) === "Circular 008 (2026)", JSON.stringify([...m]));
     check("an older year keeps ITS year: id 7 -> 'Circular 005 (2022)' (the serial 5 of 2022, not the id 7)", m.get(7) === "Circular 005 (2022)");
@@ -47,7 +47,7 @@ const check = (label: string, ok: boolean, detail = "") => {
     check("a circular with no serial number and an id that does not exist are simply absent (they will be named by title)", !m.has(90) && !m.has(4040) && m.size === 6, String(m.size));
     check("no empty list, duplicates or junk ids cause an error", (await fetchCircularLabels(c, [])).size === 0 && (await fetchCircularLabels(c, [49, 49, 49])).size === 1 && (await fetchCircularLabels(c, [NaN as unknown as number, 1.5])).size === 0);
 
-    // TypeORM's DataSource.query returns the rows themselves, not { rows }: the same code must work with that shape
+    // TypeORM's DataSource.query returns the rows themselves, not { rows }: I need the same code to work with that shape
     const typeormLike = { query: async (t: string, p?: unknown[]) => (await c.query(t, p as any[])).rows };
     const m2 = await fetchCircularLabels(typeormLike, [49, 51]);
     check("works with TypeORM's return shape (an array of rows) as well", m2.get(49) === "Circular 007 (2026)" && m2.size === 2);

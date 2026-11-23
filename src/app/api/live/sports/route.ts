@@ -1,6 +1,6 @@
 // src/app/api/live/sports/route.ts
 //
-// SPORTS HEADLINES (India's own, and the world's big events) from ESPNcricinfo, The Hindu Sport and BBC Sport (src/lib/live/sports.ts). Reads nothing from the caller.
+// Sports headlines (India's own, and the world's big events) from ESPNcricinfo, The Hindu Sport and BBC Sport (src/lib/live/sports.ts). I read nothing from the caller.
 import { DateTime } from "luxon";
 import { getText } from "@/lib/live/http";
 import { liveRoute } from "@/lib/live/envelope";

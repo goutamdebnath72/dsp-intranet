@@ -1,10 +1,10 @@
 // src/lib/accessLog/admin/accessLogLive.selftest.ts
 //
-// LIVE test of the Contact Access Log's real store and API code against the real schema, in a transaction that is ALWAYS
-// rolled back (the "view" audit rows it writes are not kept). Skipped unless ADMIN_LIVE_TEST_URL is set:
+// Live test of the Contact Access Log's real store and API code against the real schema, in a transaction that I ALWAYS roll back
+// (the "view" audit rows it writes are not kept). It is skipped unless ADMIN_LIVE_TEST_URL is set:
 //   ADMIN_LIVE_TEST_URL="$DATABASE_URL" npx tsx src/lib/accessLog/admin/accessLogLive.selftest.ts
 
-export {}; // a module (not a global script): the live tests share local names
+export {}; // keep this a module (not a global script): the live tests share local names
 
 const url = process.env.ADMIN_LIVE_TEST_URL;
 if (!url) {
@@ -33,7 +33,7 @@ async function main() {
   await client.connect();
   const h = rollbackDb(client);
   await h.start();
-  // queryAccessLogs only needs `ds.query(sql, params)`
+  // I give it only `ds.query(sql, params)`, since queryAccessLogs needs nothing else
   const ds: any = { query: async (sql: string, params?: unknown[]) => (await client.query(sql, params as unknown[])).rows };
   const actor = { ticket: "498301", name: "TEST HOD" };
   const ctx: any = { actor, db: h.db, ds, findByName: async () => [], findByTicket: async () => [] };
@@ -53,7 +53,7 @@ async function main() {
     const underscore = await store.queryAccessLogs(ds, { viewed: "_" });
     ok("a typed _ is a letter, not 'any character'", underscore.total < all.total || all.total === 0);
 
-    // IST day bounds: a line at 23:30 IST on 3 Oct is "3 Oct", not "4 Oct"
+    // Checks the IST day bounds: a line at 23:30 IST on 3 Oct is "3 Oct", not "4 Oct"
     await h.q(`INSERT INTO public.contact_access_log (id, "viewerTicketNo", "viewedUserId", "viewedTicketNo", field, "ipAddress", "userAgent", "accessedAt", action)
                VALUES ('zz-test-ist-1', '498301', 'x', '498301', 'mobile', '0', 'test', '2099-10-03 23:30:00+05:30', 'reveal')`);
     const d3 = await store.queryAccessLogs(ds, { from: "2099-10-03", to: "2099-10-03" });

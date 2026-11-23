@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/cpiService.selftest.ts
-// When MoSPI is asked: when nothing is saved (everything), when a month that should be out is not saved (only that month), never otherwise; what is saved is shown when MoSPI does not answer.
+// This checks when MoSPI is asked: when nothing is saved (everything), when a month that should be out is not saved (only that month), never otherwise. What is saved is shown when MoSPI does not answer.
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
 import { parseRows, type CpiRow } from "./cpi";
@@ -17,7 +17,7 @@ function store(initial: CpiRow[]): CpiStore & { saved: CpiRow[][] } {
   const saved: CpiRow[][] = [];
   return { saved, async all() { return [...rows]; }, async put(r) { saved.push(r); rows.push(...r); } };
 }
-/** a MoSPI that answers each query from the sample (the new series by month, the old by year) and records the questions */
+/** A stand-in MoSPI that answers each query from the sample (the new series by month, the old by year) and records the questions. */
 function mospi(opts: { fail?: boolean; newest?: string } = {}) {
   const urls: string[] = [];
   const get = async (url: string) => {

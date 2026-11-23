@@ -1,31 +1,31 @@
 // src/lib/live/fareLegStore.ts
 //
-// THE SAVED FARES TO EVERY STOP AFTER DURGAPUR (table public.train_fare_leg, src/lib/nl2sql/sql/22_train_fare_leg.sql). One row per train and stop, each with the time it was received. Same pattern as fareStore.ts:
-// database trouble is logged once and the store then answers "nothing saved" (list) or does nothing (put); a row that is not the shape written is not shown.
+// THE SAVED FARES TO EVERY STOP AFTER DURGAPUR (table public.train_fare_leg, src/lib/nl2sql/sql/22_train_fare_leg.sql). I keep one row per train and stop, each with the time it was received. I follow the same pattern as fareStore.ts:
+// database trouble is logged once and the store then answers "nothing saved" (list) or does nothing (put); I never show a row that is not the shape written.
 import { DateTime } from "luxon";
 import type { ClassFare, LegFare } from "./fare";
 import { FARE_TABLES, type FareStation } from "./fareStore";
 
 export interface LegRow {
   leg: LegFare;
-  /** when the leg's fares were received (ISO, UTC) */
+  /** The time the leg's fares were received (ISO, UTC). */
   receivedAt: string;
 }
 
-/** a station that has saved fares to it, and how many trains go there */
+/** A station that has saved fares to it, with the number of trains that go there. */
 export interface StopInfo { code: string; name: string; trains: number }
-/** one train's saved fare to a station, with the train's name */
+/** One train's saved fare to a station, with the train's name. */
 export interface StopTrainRow { number: string; trainName: string; leg: LegFare; receivedAt: string }
-/** how much has been collected: trains that have fares to their end station, and trains that have fares to their stops */
+/** How much I have collected so far: trains that have fares to their end station, and trains that have fares to their stops. */
 export interface Coverage { withFares: number; withLegs: number }
 
 export interface LegStore {
-  /** every saved stop of a train, in route order */
+  /** Returns every saved stop of a train, in route order. */
   list(number: string): Promise<LegRow[]>;
   put(number: string, leg: LegFare, receivedAt: Date): Promise<void>;
-  /** every station that has a saved fare to it (for the search), with its name and the number of trains */
+  /** Returns every station that has a saved fare to it (for the search), with its name and the number of trains. */
   stops(): Promise<StopInfo[]>;
-  /** every train's saved fare to one station */
+  /** Returns every train's saved fare to one station. */
   toStop(code: string): Promise<StopTrainRow[]>;
   coverage(): Promise<Coverage>;
 }
@@ -34,7 +34,7 @@ interface Queryable {
   query(sql: string, params?: unknown[]): Promise<any>;
 }
 
-/** the leg tables: Durgapur's, and the one of the Asansol tab's trains (see FareStation in fareStore.ts) */
+/** I keep two leg tables: Durgapur's, and one for the Asansol tab's trains (see FareStation in fareStore.ts). */
 export const LEG_TABLES: Record<FareStation, string> = { DGR: "train_fare_leg", ASN: "train_fare_leg_asn" };
 export const legTableStatements = (st: FareStation): string[] => {
   const t = LEG_TABLES[st];

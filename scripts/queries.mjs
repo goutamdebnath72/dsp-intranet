@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // scripts/queries.mjs - ONE PLACE for every question the omnibar must answer.
 //
-// The questions live in eval/router-acceptance.json (the file scripts/omnibar-acceptance.mjs also runs). This tool keeps that file and a readable
-// checklist, eval/QUERIES.md, in step, so that you never edit 90 KB of JSON by hand and never keep a second list somewhere else.
+// The questions live in eval/router-acceptance.json (the file scripts/omnibar-acceptance.mjs also runs). I wrote this tool to keep that file and a readable
+// checklist, eval/QUERIES.md, in step, so that I never edit 90 KB of JSON by hand and never keep a second list somewhere else.
 //
 //   node scripts/queries.mjs                      rewrite eval/QUERIES.md (the checklist: every question, what a correct answer is, its last known result)
 //   node scripts/queries.mjs mark ID STATUS [--answer] [note ...]
@@ -18,7 +18,7 @@
 //   node scripts/queries.mjs selftest             tests of this tool on a scratch copy; touches nothing
 //
 // An ANSWER CARD expectation sits in a record's  "answer": { "facts": [[..alternatives..], ..], "forbidden": [..], "status": "✅", "note": "..." }.
-// The facts are what the card must show; they are meant for the answer stage of the acceptance run (to be added to scripts/omnibar-acceptance.mjs).
+// The facts are what the card must show; I meant them for the answer stage of the acceptance run (to be added to scripts/omnibar-acceptance.mjs).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -95,7 +95,7 @@ export function checkSet(s) {
     const n = norm(r.query);
     if (qs.has(n) && qs.get(n) !== r.id) {
       const other = s.data.records.find((x) => x.id === qs.get(n));
-      // the same words may be asked in two MODES on purpose (the plain search and the synthesis button); that is not a duplicate
+      // The same words may be asked in two MODES on purpose (the plain search and the synthesis button), so I do not treat that as a duplicate.
       if (JSON.stringify(other?.run ?? null) === JSON.stringify(r.run ?? null)) problems.push(`the same question is in ${qs.get(n)} and ${r.id}`);
     } else qs.set(n, r.id);
     if (r.answer) {
@@ -122,7 +122,7 @@ export function buildMarkdown(s) {
   L.push("Try a question: type it into the omnibar, compare with the expected facts, then record it:", "",
     "```", `node scripts/queries.mjs mark ID ok --answer "what you saw"`, `node scripts/queries.mjs mark ID fail --answer "what was wrong"`, `node scripts/queries.mjs add "a new question" --route CIRCULAR --facts "15,000|15000; 14,999|14999"`, "```", "");
   const areas = [...new Set(recs.map((r) => r.area || "other"))].sort((a, b) => (AREA_ORDER.indexOf(a) + 1 || 99) - (AREA_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b));
-  // the ones with an answer card expectation first: they are the ones being worked through
+  // I put the ones with an answer card expectation first, because they are the ones being worked through.
   const withAnswer = recs.filter((r) => r.answer);
   if (withAnswer.length) {
     L.push(`## Answer card: questions with an expected answer (${withAnswer.length})`, "", "| id | question | the card must show | must NOT show | card result | note |", "|---|---|---|---|---|---|");
@@ -145,7 +145,7 @@ export function buildMarkdown(s) {
 export function importSession(s) {
   const done = [];
   const byId = (id) => s.data.records.find((r) => r.id === id);
-  // 1. queries that lived only in scripts/test-search.mjs (its unquoted cases); its quoted ones are in the set already
+  // Step 1: queries that lived only in scripts/test-search.mjs (its unquoted cases); its quoted ones are already in the set.
   const stray = [
     { id: "TS-D1", q: "टेबल टेनिस टीम के खिलाड़ियों का चयन", facts: [["TABLE TENNIS"]], note: "from scripts/test-search.mjs group D: a Hindi question must find the English table tennis circular" },
     { id: "TS-D2", q: "How much deposit is required to keep a 2-bedroom quarter in Delhi after retirement?", facts: [["Retention of Company"]], note: "from scripts/test-search.mjs group D: a conversational question must find the quarter-retention circular" },
@@ -157,7 +157,7 @@ export function importSession(s) {
     s.data.records.push({ id: x.id, query: x.q, area: "circular", expectedRoute: "CIRCULAR", expectedFacts: x.facts, source: "TS", lastKnown: "❓", notes: x.note });
     done.push(`added ${x.id}`);
   }
-  // 2. what the answer card must show for the questions we worked on (the facts are from the printed circulars, see STATUS.md)
+  // Step 2: what the answer card must show for the questions I worked on (the facts are from the printed circulars, see STATUS.md).
   const answers = [
     { id: "A-C4", answer: { facts: [["808"], ["740"], ["809"]], forbidden: ["1924530"], status: "✅", note: "2026-10-18 on screen: Works 808, Projects 740, Town Serv(Elect) 809 under 'Daily Wages (Rs. Per Day of duty)', source: Notice for Contract Workers - Daily Rate of Wages, page 1" },
       lastKnown: "✅", notes: "2026-10-18: the wage notice (circular id 82) was re-read and applied; the search finds it at 99% and the answer card shows the three daily wages." },

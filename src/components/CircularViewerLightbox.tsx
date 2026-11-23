@@ -18,9 +18,9 @@ type Circular = {
 type Props = {
   circularId: number | null;
   onClose: () => void;
-  /** 1-based page to scroll to once the pages render (e.g. a search match). */
+  /** The 1-based page I scroll to once the pages render (e.g. a search match). */
   scrollToPage?: number | null;
-  /** All 1-based pages that contain a match — each gets a margin marker. */
+  /** All 1-based pages that contain a match; each gets a margin marker. */
   matchPages?: number[];
 };
 
@@ -36,9 +36,9 @@ export function CircularViewerLightbox({
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const didScrollRef = useRef(false);
-  const tookOverRef = useRef(false); // the person scrolled by themselves: the automatic scroll has stopped
-  const pinIdxRef = useRef<number | null>(null); // the page being kept in place while the pages above it load
-  // Pages whose image has arrived. Until then a page holds a page-shaped (A4) space, so the pages do not jump around while they load.
+  const tookOverRef = useRef(false); // the person scrolled by themselves, so I stop the automatic scroll
+  const pinIdxRef = useRef<number | null>(null); // the page I keep in place while the pages above it load
+  // Pages whose image has arrived. Until then I give a page a page-shaped (A4) space, so the pages do not jump around while they load.
   const [loadedPages, setLoadedPages] = useState<Set<number>>(() => new Set());
   const markLoaded = (i: number) => setLoadedPages((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
 
@@ -65,14 +65,14 @@ export function CircularViewerLightbox({
   // Scroll to the matched page once the circular is loaded.
   //
   // On a FIRST visit the page images all load at the same time and a page has no height until its image arrives, so every page above the target pushes
-  // it down as it loads (a second visit is cached and works). So the page is not scrolled to once and left: it lands at once, using the page-shaped
-  // spaces reserved for the pages that have not arrived, and is then KEPT in place (the effect below) as the pages above it load. When every image at and
-  // above the target has loaded (or failed) the position is checked a last time. The images below the target cannot move it and are not waited for.
+  // it down as it loads (a second visit is cached and works). So I do not scroll to the page once and leave it: it lands at once, using the page-shaped
+  // spaces reserved for the pages that have not arrived, and I then KEEP it in place (the effect below) as the pages above it load. When every image at and
+  // above the target has loaded (or failed) I check the position a last time. The images below the target cannot move it, so I do not wait for them.
   // If the person scrolls (wheel, touch, mouse, keys) the automatic scroll stops at once and never fights them.
   useEffect(() => {
     if (!circular || didScrollRef.current) return;
     const page = scrollToPage ?? 0;
-    if (!page || page <= 1) return; // no target, or page 1 -> stay at the top (page 1 is already in view)
+    if (!page || page <= 1) return; // no target, or page 1: I stay at the top (page 1 is already in view)
     const idx = Math.min(page, circular.fileUrls.length) - 1;
     const scroller = scrollerRef.current;
     const target = pageRefs.current[idx];
@@ -82,7 +82,7 @@ export function CircularViewerLightbox({
       .slice(0, idx + 1)
       .map((w) => w?.querySelector("img"))
       .filter((i): i is HTMLImageElement => !!i);
-    const cached = imgs.every((i) => i.complete); // everything is already there (a second visit): nothing will shift, so a smooth scroll is fine
+    const cached = imgs.every((i) => i.complete); // everything is already there (a second visit), so nothing will shift and a smooth scroll is fine
 
     tookOverRef.current = false;
     const takeOver = () => {
@@ -103,9 +103,9 @@ export function CircularViewerLightbox({
 
     let verifyTimer: ReturnType<typeof setTimeout> | undefined;
     const cancelWait = whenImagesSettled(imgs, () => {
-      pinIdxRef.current = null; // every page that can move the target has arrived
+      pinIdxRef.current = null; // by now every page that can move the target has arrived
       if (tookOverRef.current) return;
-      // a last look once the page has been laid out (and, after a smooth scroll, once it has ended)
+      // I take a last look once the page has been laid out (and, after a smooth scroll, once it has ended)
       verifyTimer = setTimeout(() => {
         if (tookOverRef.current) return;
         const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
@@ -127,8 +127,8 @@ export function CircularViewerLightbox({
     };
   }, [circular, scrollToPage]);
 
-  // Keeps the target page in place while the pages above it load: each time a page arrives (its reserved space is replaced by the real page, which may
-  // be a little taller or shorter) the target is put back at the top if it moved.
+  // This keeps the target page in place while the pages above it load: each time a page arrives (its reserved space is replaced by the real page, which may
+  // be a little taller or shorter) I put the target back at the top if it moved.
   useEffect(() => {
     const idx = pinIdxRef.current;
     if (idx === null || tookOverRef.current) return;
@@ -205,10 +205,12 @@ export function CircularViewerLightbox({
                       />
                       {isMatch && (
                         <>
-                          {/* Left-edge accent bar — a margin highlight that
-                              flags this as a match page without covering text. */}
+                          {/*
+                           * Left-edge accent bar: a margin highlight that
+                           * flags this as a match page without covering text.
+                           */}
                           <span className="pointer-events-none absolute left-0 top-0 h-full w-1.5 rounded-l-md bg-yellow-400" />
-                          {/* "Match" tab pinned to the page's top-left corner. */}
+                          {/* I pin the "Match" tab to the page's top-left corner. */}
                           <span className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-yellow-400 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-yellow-950 shadow-lg">
                             <Sparkles size={12} strokeWidth={2.5} />
                             Match

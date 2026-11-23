@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/ev/EvForm.selftest.tsx
-// The electric-car window as it is drawn: two tabs, the charging time first, the guide second with its six sections and its worked example.
+// This checks the electric-car window as it is drawn: two tabs, the charging time first, the guide second with its six sections and its worked example.
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { EvForm } from "./EvForm";

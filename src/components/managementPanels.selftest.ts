@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/managementPanels.selftest.ts </dev/null
-// The management pages and the written-summary view are fetched on first need, not carried by the search window; the lazy tools are written once (src/lib/ui/lazyLoad.tsx).
+// This checks that the management pages and the written-summary view are fetched on first need, not carried by the search window, and that the lazy tools are written once (src/lib/ui/lazyLoad.tsx).
 import { readFileSync } from "node:fs";
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };

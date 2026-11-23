@@ -57,7 +57,7 @@ import { withTitle } from "@/lib/employees/honorific";
 import { PersonBadges } from "@/components/PersonBadges";
 import { ClarifyChoices } from "@/components/ClarifyChoices";
 import { HospitalAnswerCard } from "@/components/HospitalAnswerCard";
-import { AccessLogAdminPanel, AnnouncementAdminPanel, CircularAdminPanel, EmployeeAdminPanel, ExecutiveBriefing, HolidayAdminPanel, PaxAdminPanel, preloadManagementPanels } from "@/components/managementPanels"; // loaded on first need, not with the search window
+import { AccessLogAdminPanel, AnnouncementAdminPanel, CircularAdminPanel, EmployeeAdminPanel, ExecutiveBriefing, HolidayAdminPanel, PaxAdminPanel, preloadManagementPanels } from "@/components/managementPanels"; // I load this on first need, not with the search window
 import { ManagementBack, ManagementGatePanel, ManagementHubPanel } from "@/components/ManagementHubPanel";
 import { detectManagementHubIntent } from "@/lib/facility/hub";
 import { TicketText } from "@/components/OriginSwitch";
@@ -77,8 +77,8 @@ import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 import { searchSites } from "@/lib/search/siteSearch";
 import { findDepartmentInText } from "@/lib/employees/departments";
 import { ExternalLink, Globe, UserRound, Phone, Mail, ShieldCheck, Copy, Check, AlertTriangle, ArrowLeft } from "lucide-react";
-import { EdsExamples } from "@/components/EdsExamples"; // the shelf of proven questions under Executive Deep Search
-import { ElapsedTimer } from "@/components/ElapsedTimer"; // the digital timer of an Executive Deep Search answer
+import { EdsExamples } from "@/components/EdsExamples"; // my shelf of proven questions under Executive Deep Search
+import { ElapsedTimer } from "@/components/ElapsedTimer"; // the digital timer that goes with an Executive Deep Search answer
 
 interface OmnibarModalProps {
   isOpen: boolean;
@@ -87,20 +87,20 @@ interface OmnibarModalProps {
   ticketNo?: string;
 }
 
-const BASE_MODAL_WIDTH_REM = 52; // the floor: never narrower than this
-const BASE_MODAL_WIDTH_VW = 60; // the width on a laptop or a desktop: a share of the screen (the page itself is 80vw), so it holds at any zoom
-const MODAL_MAX_PX = 1600; // never wider than this, even on a very large monitor
+const BASE_MODAL_WIDTH_REM = 52; // the floor: I never let the box get narrower than this
+const BASE_MODAL_WIDTH_VW = 60; // my width for a laptop or a desktop: a share of the screen (the page itself is 80vw), so it holds at any zoom
+const MODAL_MAX_PX = 1600; // I never go wider than this, even on a very large monitor
 const EXECUTIVE_SCALE = 1.08;
-// The box while an answer shows a table of 4+ columns (src/lib/search/edsLayout.ts) is exactly as wide as the PAGE behind it: --omni-page-width (globals.css) is the page's own width
+// I make the box exactly as wide as the PAGE behind it while an answer shows a table of 4+ columns (src/lib/search/edsLayout.ts): --omni-page-width (globals.css) is the page's own width
 // (--content-width from the md breakpoint up, the full width below), so the two cannot differ at any screen size or zoom, and NO box ever crosses it.
 const PAGE_WIDTH_VAR = "var(--omni-page-width)";
-// Every text in the box is this much smaller than the size the screen gives it (owner, 10 Nov 2026, for the widest box, a table of 4+ columns: "a very small amount"; the same lowering
-// for the normal width on 11 Nov 2026): 3%, so a 15 px text is drawn at 14.5 px. The factor multiplies the text scale (--omni-k) of the card, which every text size and line height of
-// the modal already follows (omniScale.css), so nothing can escape it and the proportions stay as they were. This is the only place the amount is written: change it here.
+// Every text in the box is this much smaller than the size the screen gives it. I asked for it on 10 Nov 2026 for the widest box, a table of 4+ columns ("a very small amount"), and for the normal width
+// on 11 Nov 2026: 3%, so a 15 px text is drawn at 14.5 px. The factor multiplies the text scale (--omni-k) of the card, which every text size and line height of
+// the modal already follows (omniScale.css), so nothing can escape it and the proportions stay as they were. The amount is written only here: change it here.
 const MODAL_TEXT_FACTOR = 0.97;
-const MD_BREAKPOINT_PX = 768; // where the page changes from full width to --content-width (Tailwind md)
+const MD_BREAKPOINT_PX = 768; // the point where the page goes from full width to --content-width (Tailwind md)
 
-/** what can be revealed on a card, each time a signed-in person presses it (the server logs it): the mobile number, the e-mail, the SAIL P.No. and the ticket number */
+/** these are the fields I let a signed-in person reveal on a card, each time they press it (the server logs it): the mobile number, the e-mail, the SAIL P.No. and the ticket number */
 type RevealField = "mobile" | "email" | "ticket" | "sailpno";
 type Revealed = Partial<Record<RevealField, string>>;
 const MASK_BUTTON = "cursor-pointer rounded px-0.5 underline decoration-dotted underline-offset-2 hover:bg-neutral-200 hover:text-emerald-700";
@@ -120,9 +120,9 @@ function PersonRow({
   copiedId: string | null;
   onReveal: (id: string, field: RevealField) => void;
   onCopy: (emp: any) => void;
-  /** a refused or failed reveal for this person (the hourly cap, a log fault): said under the card */
+  /** if a reveal is refused or fails for this person (the hourly cap, a log fault), I say so under the card */
   notice?: string | null;
-  /** Kept for the callers; the department (name and code) is now shown on every card, also under a department heading. */
+  /** I keep this for the callers; the department (name and code) is now shown on every card, also under a department heading. */
   hideDepartment?: boolean;
 }) {
   const [tint] = useOriginTint();
@@ -138,7 +138,7 @@ function PersonRow({
         </p>
         <p className="text-xs text-neutral-500 truncate">
           {(() => {
-            // The ticket number and the SAIL P.No. arrive MASKED; pressing one asks the server for the real value (a sign-in is asked for first, and the press is logged).
+            // The ticket number and the SAIL P.No. arrive MASKED. Pressing one asks the server for the real value: a sign-in is asked for first, and the press is logged.
             const parts: React.ReactNode[] = [];
             if (emp.ticketNo)
               parts.push(
@@ -236,7 +236,7 @@ function PersonRow({
   );
 }
 
-/** the two pages that list things: the calculators, and every utility service */
+/** these are the two pages that list things: the calculators, and every utility service */
 const isListPage = (k: string): k is "menu" | "services" => k === "menu" || k === "services";
 
 export function OmnibarModal({
@@ -265,14 +265,14 @@ export function OmnibarModal({
     error,
   } = useOmniSearch(isOpen, ticketNo);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // The calculator form (or the menu of them) opened with Enter. Sums, conversions and date questions need no state: they answer as you type (src/components/tools/ToolPanel.tsx).
+  // Holds the calculator form (or the menu of them) opened with Enter. I keep no state for sums, conversions and date questions: they answer as you type (src/components/tools/ToolPanel.tsx).
   const [toolForm, setToolForm] = useState<FormKind | "menu" | "services" | null>(null);
-  // THE UTILITY SERVICES BUTTON opens the page ALONE: the box and the choices above it go away (they would only take height), and the page's own Back returns to the ordinary window of the search.
+  // The Utility Services button opens the page ALONE: I take away the box and the choices above it (they would only take height), and the page's own Back returns to the ordinary window of the search.
   // The page stays alone while a calculator opened from it is open, and ends when the page is closed.
   const [utilityShellOn, setUtilityShellOn] = useState(false);
   const utilityFocus = utilityShellOn && toolForm !== null;
   useEffect(() => { if (toolForm === null) setUtilityShellOn(false); }, [toolForm]);
-  // Escape on the page alone goes back to the ordinary window (it does not close the search); heard before the window's own handler
+  // Escape on the page alone goes back to the ordinary window and does not close the search; I listen for it before the window's own handler
   useEffect(() => {
     if (!utilityFocus) return;
     const onKey = (e: KeyboardEvent) => {
@@ -281,9 +281,9 @@ export function OmnibarModal({
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [utilityFocus, toolForm]);
-  // A MANAGEMENT TOOL'S OWN PAGE (Employee manager, PAX directory editor, Holiday, Circular and Announcement managers, Contact access log) stands alone exactly like the Utility Services page: the box and the choices go away
+  // I let a management tool's own page (Employee manager, PAX directory editor, Holiday, Circular and Announcement managers, Contact access log) stand alone exactly like the Utility Services page: the box and the choices go away
   // (they would only take height), the page has the whole height of the window, and its Back button (ManagementBack) returns to the management page with the ordinary window around it. Escape on the page goes back the same way.
-  // It is a pure function of the answer on screen, so it is gone the moment that answer goes (Back, a new search, a closed window).
+  // I derive it purely from the answer on screen, so it is gone the moment that answer goes (Back, a new search, a closed window).
   const adminFocus = !isLoading && !!analytics && !!(analytics.employeeAdmin || analytics.paxAdmin || analytics.holidayAdmin || analytics.circularAdmin || analytics.announcementAdmin || analytics.accessLogAdmin);
   const pageAlone = utilityFocus || adminFocus;
   useEffect(() => {
@@ -296,8 +296,8 @@ export function OmnibarModal({
     // triggerSearch is read as it is at that moment
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminFocus]);
-  // A utility found from a line that used none of its words (src/lib/tools/intent.ts for what the app can tell by itself, intentAi.ts for what the AI is asked): the utility's id and who found it. The line itself
-  // is NEVER sent to the search then (a figure of someone's loan or pay is not logged); `routedQuery` is the sample line that makes the utility's card, for a utility that is a card and not a form.
+  // Holds a utility found from a line that used none of its words (src/lib/tools/intent.ts for what the app can tell by itself, intentAi.ts for what the AI is asked): the utility's id and who found it. I NEVER send the line itself
+  // to the search then (a figure of someone's loan or pay is not logged); `routedQuery` is the sample line that makes the utility's card, for a utility that is a card and not a form.
   const [routed, setRouted] = useState<{ id: string; via: "local" | "ai" } | null>(null);
   const [routedQuery, setRoutedQuery] = useState<string | null>(null);
   const [understanding, setUnderstanding] = useState(false);
@@ -315,18 +315,19 @@ export function OmnibarModal({
     if ("form" in e.open) { setRoutedQuery(null); setToolForm(id as FormKind); } else { setToolForm(null); setRoutedQuery(e.open.query); }
     setRouted({ id, via });
   };
-  // while typing: the utility the line is CLEARLY about, when no exact reader has it (the hint says Enter opens it). Only on Everything: under a chosen button the reader said where to look, so no utility is guessed and no hint is shown (owner, 23 Nov 2026: "pf loan repayment" under Circulars & Notices showed "Press Enter to open the provident fund")
+  // While typing: the utility the line is CLEARLY about, when no exact reader has it (the hint says Enter opens it). I do this only on Everything: under a chosen button the reader said where to look,
+  // so I guess no utility and show no hint (my case, 23 Nov 2026: "pf loan repayment" under Circulars & Notices showed "Press Enter to open the provident fund")
   const clearHit = useMemo(() => {
     const q = (query || "").trim();
     return selection.scope !== "auto" || toolForm || routed || q.length < 4 || detectTool(q) ? null : clearIntent(q);
   }, [query, toolForm, routed, selection.scope]);
-  // the management page typed ("management", "admin"...) but not sent yet: the hint that Enter opens it (it goes once the line has been sent)
+  // I show the hint that Enter opens the management page when it is typed ("management", "admin"...) but not sent yet; the hint goes once the line has been sent
   const hubTyped = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
     return !toolForm && detectManagementHubIntent(q) && (submittedQuery || "").trim().toLowerCase() !== q;
   }, [query, submittedQuery, toolForm]);
-  // "Looks like a name": one to four words that read as an Indian name earn the hint that Enter searches people (src/lib/search/nameHint/nameHint.ts). Only a hint: it is shown when no command, utility or
-  // management page has claimed the line and the line has not been searched yet; it runs in the browser with no network call per keystroke (the plant's name words are fetched once, when the box opens).
+  // "Looks like a name": one to four words that read as an Indian name earn the hint that Enter searches people (src/lib/search/nameHint/nameHint.ts). It is only a hint: I show it when no command, utility or
+  // management page has claimed the line and the line has not been searched yet. It runs in the browser with no network call per keystroke (the plant's name words are fetched once, when the box opens).
   const nameSources = nameHintSources(NAME_HINT_MODE);
   const plantNames = useNameVocab(isOpen && nameSources.usePlant);
   const nameHint = useMemo(() => {
@@ -334,34 +335,34 @@ export function OmnibarModal({
     if (selection.scope !== "auto" || NAME_HINT_MODE === "off" || !q || mode === "intellectual" || toolForm || routed || clearHit || hubTyped || (submittedQuery || "").trim() === q || detectTool(q)) return null;
     return detectNameHint(q, { useBuiltin: nameSources.useBuiltin, plant: nameSources.usePlant ? plantNames : null });
   }, [query, mode, toolForm, routed, clearHit, hubTyped, submittedQuery, plantNames, nameSources.useBuiltin, nameSources.usePlant, selection.scope]);
-  // Step 59a: a question that uses a FORMER name of a department ("CHRD", "Training Department") is answered with the CURRENT name first: shown above the results, whatever the kind of answer.
+  // Step 59a: when a question uses a FORMER name of a department ("CHRD", "Training Department"), I answer with the CURRENT name first and show it above the results, whatever the kind of answer.
   const nameNotice = useMemo(() => formerNameNotice(submittedQuery || ""), [submittedQuery]);
 
   const [loadingStep, setLoadingStep] = useState(0);
   const [selectedCircularId, setSelectedCircularId] = useState<number | null>(
     null,
   );
-  // Set when the circular was opened from an answer's "Source" line: the pages on which the people of the answer are listed (the viewer scrolls to
+  // I set this when the circular is opened from an answer's "Source" line: the pages on which the people of the answer are listed (the viewer scrolls to
   // the first and marks them all). Cleared when the viewer closes.
   const [sourceViewer, setSourceViewer] = useState<{ pages: number[] } | null>(null);
-  // Set when the circular was opened from the ANSWER card: the exact words of that answer, shown as the viewer's banner instead of the search's own
+  // I set this when the circular is opened from the ANSWER card: the exact words of that answer, shown as the viewer's banner instead of the search's own
   // best clause (which can be a different one: the room of the report collection, not the room of the check-up). Cleared when the viewer closes.
   const [answerQuote, setAnswerQuote] = useState<string | null>(null);
-  // Whether the user has dismissed the "Target Clause Reference" banner for the
-  // currently-open circular. Reset each time a new circular is opened/closed.
+  // Tracks whether the user has dismissed the "Target Clause Reference" banner for the
+  // currently-open circular. I reset it each time a new circular is opened or closed.
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  // Full announcement (with HTML content) fetched on click, to open the modal.
+  // I fetch the full announcement (with HTML content) on click, to open the modal.
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(
     null,
   );
-  // How many times the window has been opened (counted in the render in which it opens, so the first frame of an opening already has its own animation state).
+  // How many times the window has been opened. I count it in the render in which it opens, so the first frame of an opening already has its own animation state.
   const [openings, setOpenings] = useState(0);
   const [wasOpen, setWasOpen] = useState(isOpen);
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
     if (isOpen) setOpenings((n) => n + 1);
   }
-  // Closing the search window by ANY route (X, a click outside, Escape, Ctrl+K, a click on the search bar's toggle) leaves nothing of it behind: a document viewer or an announcement that was
+  // I make closing the search window by ANY route (X, a click outside, Escape, Ctrl+K, a click on the search bar's toggle) leave nothing of it behind: a document viewer or an announcement that was
   // open over it stays open no more, and the next opening starts clean. (A viewer left set with the window closed would make the next opening draw nothing at all: the box is not shown while one is set.)
   useEffect(() => {
     if (isOpen) return;
@@ -372,14 +373,14 @@ export function OmnibarModal({
     setBannerDismissed(false);
   }, [isOpen]);
 
-  // Step 56b: the modal is wider than it was (step 54i) but its text was not: the text grows with the width, so that it keeps the proportion it had at the old 52rem (omniScale.css).
+  // Step 56b: the modal is wider than it was (step 54i) but its text was not, so I let the text grow with the width and keep the proportion it had at the old 52rem (omniScale.css).
   // The doctors' unit tables opt out (omni-noscale): they keep their size and the room the extra width gave them.
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // The text scale (--omni-k) is a pure function of the SCREEN and the mode: it is the scale of the width the box is going to have, not of the width it has at this moment.
+  // The text scale (--omni-k) is a pure function of the SCREEN and the mode: I take the scale of the width the box is going to have, not of the width it has at this moment.
   // It used to be re-measured from the box (ResizeObserver, offsetWidth) as well. While the box unfolds (every opening, and above all when it comes back after the circular's
   // PDF viewer is closed: the whole answer is drawn again, the unfolding stalls) the box is narrow, the measurement came out as 1, the text was drawn small and then jumped to its
-  // real size when the unfolding ended. Nothing the box does while it animates may change the text size, so nothing is measured from it any more
+  // real size when the unfolding ended. Nothing the box does while it animates may change the text size, so I measure nothing from it any more
   // (src/components/OmnibarModal.layout.selftest.ts keeps the measuring out).
   const getExpectedK = useCallback(() => {
     if (typeof window === "undefined") return 1;
@@ -388,9 +389,9 @@ export function OmnibarModal({
     const rem = executive ? BASE_MODAL_WIDTH_REM * EXECUTIVE_SCALE : BASE_MODAL_WIDTH_REM;
     const vw = executive ? BASE_MODAL_WIDTH_VW * EXECUTIVE_SCALE : BASE_MODAL_WIDTH_VW;
     const view = window.innerWidth;
-    // the box sits in a row with 1rem of room on each side, inside the page without its scrollbar
+    // the room I work from: the box sits in a row with 1rem on each side, inside the page without its scrollbar
     const room = (document.documentElement.clientWidth || view) - 2 * rootPx;
-    // the page behind the box: --content-width (a share of the screen, "80vw") from the md breakpoint up, the full width below; the box is never wider than it
+    // the page behind the box: --content-width (a share of the screen, "80vw") from the md breakpoint up, the full width below; I never let the box be wider than it
     const contentVw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--content-width")) || 80;
     const pagePx = view >= MD_BREAKPOINT_PX ? (contentVw * view) / 100 : view;
     const targetPx = Math.min(Math.max(rem * rootPx, (vw * view) / 100), MODAL_MAX_PX, 0.92 * view, room, pagePx);
@@ -399,7 +400,7 @@ export function OmnibarModal({
 
   const [omniK, setOmniK] = useState(() => (typeof window !== "undefined" ? getExpectedK() : 1));
 
-  // Frame 0 of every opening, a mode change, and a resized window (zoom included) all take the same pure value.
+  // I give frame 0 of every opening, a mode change, and a resized window (zoom included) the same pure value.
   useEffect(() => {
     const apply = () => {
       const expected = getExpectedK();
@@ -410,15 +411,15 @@ export function OmnibarModal({
     return () => window.removeEventListener("resize", apply);
   }, [getExpectedK, isOpen, selectedCircularId, selectedAnnouncement]);
   const { status: authStatus } = useVerifiedSession();
-  // Answer first (step 29a, off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true): once the search has found documents, the answer they
-  // prove is written above them, with the source and the exact words. Nothing appears if the text does not prove an answer.
+  // Answer first (step 29a, off unless NEXT_PUBLIC_FRONT_PATH_ANSWER_FIRST=true): once the search has found documents, I write the answer they
+  // prove above them, with the source and the exact words. Nothing appears if the text does not prove an answer.
   const circularAnswer = useCircularAnswer({ enabled: answerFirstEnabled(), query: submittedQuery, results: isLoading ? [] : results, mode, allowSummary: !looksLikeNameSearch(submittedQuery) && !isIdQuery((submittedQuery || "").trim()) });
-  // The documents the answer already cites are not listed a second time below it: the answer's source line is their one link.
-  // The same for the documents a SUMMARY is drawn from: its "Summarised from" line is their link, so they are not listed a second time below it.
+  // I do not list the documents the answer already cites a second time below it: the answer's source line is their one link.
+  // The same goes for the documents a SUMMARY is drawn from: its "Summarised from" line is their link, so I do not list them a second time below it.
   const answeredKeys = new Set([...(circularAnswer.answer?.sources ?? []), ...(circularAnswer.summary?.sources ?? [])].map((s) => `${s.type}-${s.id}`));
   const { openModal } = useModal();
   // The "sign in" advice for an EDS-category question (step 83): when the visitor signs in as an executive while that question is on screen, it runs by itself through EDS.
-  // (Signing in changes the search address, so the plain search restarts by itself; this sends it to EDS instead, so nobody has to close the window and ask again.)
+  // (Signing in changes the search address, so the plain search restarts by itself; I send it to EDS instead, so nobody has to close the window and ask again.)
   const wasExecutiveRef = useRef(isExecutive);
   useEffect(() => {
     const was = wasExecutiveRef.current;
@@ -439,11 +440,11 @@ export function OmnibarModal({
     // only a change of isExecutive is the trigger; the other values are read as they are at that moment
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExecutive]);
-  // "Are you an executive?" (src/lib/search/loginHints.ts): a signed-out visitor who asks an EDS-kind question is asked before anything is searched. `executiveAsk` is the question being asked (said: "yes" once he
+  // I ask "Are you an executive?" (src/lib/search/loginHints.ts) of a signed-out visitor who asks an EDS-kind question, before anything is searched. `executiveAsk` is the question being asked (said: "yes" once he
   // has said he is an executive); `declinedAsk` is the question for which he said No (the simple answer was shown, so the sign-in advice is not repeated above it).
   const [executiveAsk, setExecutiveAsk] = useState<ExecutiveAsk | null>(null);
   const [declinedAsk, setDeclinedAsk] = useState<string | null>(null);
-  // THE ADMIN BUTTON (More tools): a signed-out visitor is asked "Are you authorised to access them?" (Yes opens the sign-in window; No goes back to Everything); a signed-in person goes straight to the check.
+  // The Admin button (More tools): I ask a signed-out visitor "Are you authorised to access them?" (Yes opens the sign-in window; No goes back to Everything); a signed-in person goes straight to the check.
   // `adminWant` asks for the management page once the Admin selection and the login are both in place: the server says who the login is, and answers the management page or the red "not authorised" card.
   const [adminAsk, setAdminAsk] = useState<{ said: "yes" | null } | null>(null);
   const [adminWant, setAdminWant] = useState(false);
@@ -454,7 +455,7 @@ export function OmnibarModal({
     const was = wasExecutiveAskRef.current;
     wasExecutiveAskRef.current = isExecutive;
     const ask = askRef.current;
-    if (ask && ask.query === "" && isExecutive) setExecutiveAsk(null); // signed in as an executive after pressing the EDS button: the question is asked of the box, nothing is waiting to resume
+    if (ask && ask.query === "" && isExecutive) setExecutiveAsk(null); // an executive signed in after pressing the EDS button: the question is asked of the box, so nothing is waiting to resume
     if (ask && resumeAskedEds({ ask, wasExecutive: was, isExecutive, isOpen, query, edsEnabled: autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) })) {
       setExecutiveAsk(null);
       triggerSearch("intellectual", { auto: true, query: ask.query });
@@ -462,14 +463,14 @@ export function OmnibarModal({
     // only a change of isExecutive is the trigger; the other values are read as they are at that moment
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExecutive]);
-  // a visitor pressed the EDS button, said Yes and signed in as someone who is NOT an executive: the card goes and the note says what EDS is for
+  // when a visitor pressed the EDS button, said Yes and signed in as someone who is NOT an executive, I remove the card and the note says what EDS is for
   useEffect(() => {
     if (executiveAsk && executiveAsk.query === "" && authStatus === "authenticated" && !isExecutive) {
       setExecutiveAsk(null);
       setEdsNote(EDS_NOT_EXECUTIVE);
     }
   }, [authStatus, isExecutive, executiveAsk]);
-  // signed in while the Admin question is on the screen (after Yes, or when the sign-in state arrived late): the question goes and the check is made
+  // when the person signs in while the Admin question is on the screen (after Yes, or when the sign-in state arrived late), I drop the question and make the check
   useEffect(() => {
     if (selection.scope === "admin" && authStatus === "authenticated" && adminAsk) { setAdminAsk(null); setAdminWant(true); }
   }, [selection.scope, authStatus, adminAsk]);
@@ -478,11 +479,11 @@ export function OmnibarModal({
     // triggerSearch is read as it is at that moment
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminWant, selection.scope, authStatus]);
-  // the Admin question goes when something is typed
+  // I drop the Admin question when something is typed
   useEffect(() => {
     if (adminAsk && query.trim() !== "") setAdminAsk(null);
   }, [query, adminAsk]);
-  // the question is dropped when the text is edited, and when the window closes
+  // I drop the question when the text is edited, and when the window closes
   useEffect(() => {
     if (executiveAsk && query.trim() !== executiveAsk.query) setExecutiveAsk(null);
     if (declinedAsk !== null && query.trim() !== declinedAsk) setDeclinedAsk(null);
@@ -490,20 +491,20 @@ export function OmnibarModal({
   useEffect(() => {
     if (!isOpen) { setExecutiveAsk(null); setDeclinedAsk(null); setAdminAsk(null); setAdminWant(false); }
   }, [isOpen]);
-  // A reveal the user clicked while logged out; retried after they log in.
+  // A reveal the user clicked while logged out; I retry it after they log in.
   const pendingRevealRef = useRef<{ empId: string; field: RevealField } | null>(null);
 
   // Client-side site directory matches (the "site" result type). Sites are a
-  // static list, so this needs no server round-trip. Shown pinned above the
-  // circular/announcement results. Skipped in Executive synthesis mode.
+  // static list, so I need no server round-trip here. I pin them above the
+  // circular/announcement results and skip them in Executive synthesis mode.
   const siteResults = useMemo(() => {
-    if (mode === "intellectual" || selection.scope !== "auto") return []; // a chosen selection shows its own answers only: no intranet-site links beside them
+    if (mode === "intellectual" || selection.scope !== "auto") return []; // I show a chosen selection's own answers only: no intranet-site links beside them
     const q = (query || "").trim();
     if (q.length < 2) return [];
     let hits = searchSites(q, 6);
     // Hybrid "<name> <department>" (e.g. "gautham c&it"): the whole string won't
     // match a site because of the name, but the department the user typed still
-    // should show its link. Look it up by department name and pin it to the top.
+    // should show its link. I look it up by department name and pin it to the top.
     const dept = findDepartmentInText(q);
     if (dept) {
       const deptHits = searchSites(dept.group.name, 3);
@@ -519,18 +520,18 @@ export function OmnibarModal({
   }, [query, mode, selection.scope]);
 
   // ---- Employee (People) search --------------------------------------------
-  // Live exact-ID lookups (ticket / mobile / SAIL PNO) as the user types, and
-  // fuzzy+phonetic NAME search triggered on Enter. Contacts arrive masked; the
+  // Live exact-ID lookups (ticket / mobile / SAIL PNO) run as the user types, and
+  // the fuzzy+phonetic NAME search is triggered on Enter. Contacts arrive masked; the
   // reveal endpoint unmasks + audits.
   const [employeeResults, setEmployeeResults] = useState<any[]>([]);
   const [employeeLoading, setEmployeeLoading] = useState(false);
-  // The directory name search can find the same person as the answer card: print each person once.
+  // The directory name search can find the same person as the answer card, so I print each person once.
   const extraEmployees = useMemo(
     () => excludeShownPeople(analytics?.people, employeeResults),
     [analytics, employeeResults],
   );
   // "Show more": further pages (100 at a time) of the SAME answer, appended below the first page. The browser sends only the
-  // answer's id and how many rows it already has; the server runs the stored, re-checked SQL (signed-in people only).
+  // answer's id and how many rows it already has; I let the server run the stored, re-checked SQL (signed-in people only).
   const [more, setMore] = useState<{
     key: string;
     people: any[];
@@ -572,7 +573,7 @@ export function OmnibarModal({
       setMore({ ...cur, loading: false, error: e?.message || "Could not load more just now." });
     }
   }, [analytics, moreNow]);
-  // Suggest signing in (or using Executive Deep Synthesis) where that would help.
+  // I suggest signing in (or using Executive Deep Synthesis) where that would help.
   const loginHint = useMemo(
     () =>
       isLoading
@@ -590,22 +591,22 @@ export function OmnibarModal({
           }),
     [isLoading, submittedQuery, authStatus, isExecutive, mode, analytics, results, declinedAsk],
   );
-  // id -> { mobile?, email?, ticket?, sailpno? } once revealed in this session.
+  // I keep id -> { mobile?, email?, ticket?, sailpno? } once revealed in this session.
   const [revealed, setRevealed] = useState<Record<string, Revealed>>({});
-  // a reveal the server refused (the hourly cap) or could not log: said under that person's card
+  // when the server refuses a reveal (the hourly cap) or could not log it, I say so under that person's card
   const [revealNotice, setRevealNotice] = useState<{ empId: string; text: string } | null>(null);
-  // id of the row most recently copied (for a transient "Copied" confirmation).
+  // The id of the row most recently copied, which I use for a transient "Copied" confirmation.
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // ID-shape detector (mirror of the server's detectShape for the live path).
-  // Live: run ID lookups as the user types (debounced). Names wait for Enter.
+  // I run ID lookups as the user types (debounced); names wait for Enter.
   useEffect(() => {
     const q = (query || "").trim();
-    // the live lookup of a number belongs to Everything and to People > Name or number; under any other selection a number is not a person
+    // I run the live lookup of a number only under Everything and People > Name or number; under any other selection a number is not a person
     const idLive = selection.scope === "auto" || (selection.scope === "people" && selection.facet === "find");
     if (!idLive || mode === "intellectual" || !isIdQuery(q)) {
-      // Clear employee results unless a name-search populated them (Enter path
-      // sets them directly and should persist until the query changes).
+      // I clear employee results unless a name search populated them (the Enter path
+      // sets them directly and they should persist until the query changes).
       return;
     }
     let cancelled = false;
@@ -631,7 +632,7 @@ export function OmnibarModal({
     };
   }, [query, mode, selection.scope, selection.facet]);
 
-  // When the query is cleared or becomes an id/name, keep employee list sane.
+  // When the query is cleared or becomes an id/name, I keep the employee list sane.
   useEffect(() => {
     const q = (query || "").trim();
     if (q.length < 2) {
@@ -642,7 +643,7 @@ export function OmnibarModal({
     }
   }, [query]);
 
-  // ONE employee lookup at a time wins: every request takes a number, and only the NEWEST one may write its answer. (A slow
+  // I let ONE employee lookup at a time win: every request takes a number, and only the NEWEST one may write its answer. (A slow
   // answer for an old query used to arrive after the box was cleared or edited and put the old people back; the Enter-ID
   // lookup also had no .catch.)
   const employeeReq = useRef(0);
@@ -667,8 +668,8 @@ export function OmnibarModal({
     await fetchEmployees("name", q);
   }, [query, fetchEmployees]);
 
-  // THE FIXED SELECTIONS (src/records). A line under a chosen selection is answered by that selection's own engines only. People > Name or number is looked up by the directory's own routes (no AI);
-  // the server is still asked once (it answers an empty list at once) so the screen knows a search was made and can say "No results found".
+  // The fixed selections (src/records): I answer a line under a chosen selection by that selection's own engines only. People > Name or number is looked up by the directory's own routes (no AI);
+  // I still ask the server once (it answers an empty list at once) so the screen knows a search was made and can say "No results found".
   const runScoped = (line: string) => {
     const text = line.trim();
     if (text.length < 2) return;
@@ -680,14 +681,14 @@ export function OmnibarModal({
     }
     triggerSearch("semantic", { query: text });
   };
-  // People > Department & designation: the two picked lists (and an optional part of a name) are the whole question; the box shows the words that stand for it
+  // People > Department & designation: the two picked lists (and an optional part of a name) are the whole question, and I let the box show the words that stand for it
   const runFinder = (labels: { deptName: string | null; gradeName: string | null }) => {
     if (!finderReady(selection)) return;
     employeeReq.current++;
     setEmployeeResults([]);
     triggerSearch("semantic", { query: finderLabel({ ...labels, nm: selection.nm }) });
   };
-  // choosing another selection (or another way of looking for a person) leaves nothing of the old one on the screen
+  // I make choosing another selection (or another way of looking for a person) leave nothing of the old one on the screen
   const changeSelection = (next: Selection) => {
     const moved = next.scope !== selection.scope || next.facet !== selection.facet;
     setSelection(next);
@@ -695,29 +696,29 @@ export function OmnibarModal({
       employeeReq.current++;
       setEmployeeResults([]);
       clearSearch();
-      setQuery(""); // the words written for one choice are not carried over to another: the box starts empty
+      setQuery(""); // I do not carry the words written for one choice over to another: the box starts empty
       setEdsNote(null);
       setToolForm(null);
       forgetRoute();
       setExecutiveAsk(null);
       setAdminAsk(null);
-      // Executive Deep Search pressed: a visitor is asked at once "Are you an executive?" (Yes: sign in; No: the circulars), a signed-in person who is not an executive is told, an executive just gets the box
+      // Executive Deep Search pressed: I ask a visitor at once "Are you an executive?" (Yes: sign in; No: the circulars), I tell a signed-in person who is not an executive, and an executive just gets the box
       if (next.scope === "eds") {
         if (authStatus === "unauthenticated") { setExecutiveAsk({ query: "", said: null }); setDeclinedAsk(null); }
         else if (authStatus === "authenticated" && !isExecutive) setEdsNote(EDS_NOT_EXECUTIVE);
       }
       textareaRef.current?.focus();
     }
-    // Admin pressed (again too): a signed-in person goes straight to the check of their authority; anyone else is asked first
+    // Admin pressed (again too): I send a signed-in person straight to the check of their authority; anyone else I ask first
     if (next.scope === "admin") {
       if (authStatus === "authenticated") setAdminWant(true);
       else setAdminAsk((cur) => cur ?? { said: null });
     }
   };
-  // Executive Deep Search, chosen on purpose: an executive's question goes straight to it; a visitor is asked the usual "Are you an executive?"; a signed-in person who is not one is told so
+  // Executive Deep Search, chosen on purpose: an executive's question goes straight to it; I ask a visitor the usual "Are you an executive?"; a signed-in person who is not one is told so
   const [edsNote, setEdsNote] = useState<string | null>(null);
   const EDS_NOT_EXECUTIVE = "Executive Deep Search is for signed-in executives. To search the circulars, choose Circulars & Notices.";
-  // `picked`: the question was chosen from the shelf of samples (not written in the box); the way back differs (see edsBackLink / deepBack)
+  // `picked` means the question was chosen from the shelf of samples (not written in the box); I make the way back differ for it (see edsBackLink / deepBack)
   const [edsPicked, setEdsPicked] = useState<string | null>(null);
   const runEds = (line: string, picked = false) => {
     const text = line.trim();
@@ -738,20 +739,20 @@ export function OmnibarModal({
     setEmployeeResults([]);
     triggerSearch("intellectual", { query: text });
   };
-  // THE SHELF OF PROVEN QUESTIONS: while Executive Deep Search is chosen by an executive and nothing has been asked, the window shows the questions to try (each runs when pressed; a question written in the box needs Enter).
+  // The shelf of proven questions: while Executive Deep Search is chosen by an executive and nothing has been asked, I show the questions to try in the window (each runs when pressed; a question written in the box needs Enter).
   // Once one is asked the answer takes the place; "All sample questions" above the answer brings the shelf back (the box is emptied, like any other way back).
   const edsExecutive = selection.scope === "eds" && authStatus === "authenticated" && isExecutive;
   const edsShelfOpen = edsExecutive && mode === null && !isLoading && !executiveAsk && !edsNote && !toolForm;
-  // A question chosen from the shelf is answered with "All sample questions" above it (back to the shelf). A question written in the box (or sent to the deep search by the Enter key in Everything) has a plain "Back" there (back to the
-  // ordinary window, Everything with an empty box). Either way, once a deep answer is on the screen the row of buttons above is taken away to give the answer the room (owner, 23 Nov 2026); it comes back with the way back.
+  // I answer a question chosen from the shelf with "All sample questions" above it (back to the shelf). A question written in the box (or sent to the deep search by the Enter key in Everything) has a plain "Back" there (back to the
+  // ordinary window, Everything with an empty box). Either way, once a deep answer is on the screen I take the row of buttons above away to give the answer the room (my wish, 23 Nov 2026); it comes back with the way back.
   const deepAnswerShown = mode === "intellectual" && !isLoading && !isStale && !!synthesis;
   const edsBackLink = edsExecutive && mode !== null && !isLoading && edsPicked !== null && edsPicked === submittedQuery.trim();
   const deepBack = deepAnswerShown && !edsBackLink;
   const backToDefault = () => { employeeReq.current++; setEmployeeResults([]); setSelection(AUTO_SELECTION); clearSearch(); setQuery(""); setEdsNote(null); setEdsPicked(null); forgetRoute(); textareaRef.current?.focus(); };
-  // THE TIMER OF AN ANSWER: it runs for EVERY search that has to be waited for, whatever works it out (the engine's own rules, the language model, the deep synthesis), whether the question was written and sent with Enter, or pressed among the
-  // sample questions (owner, 23 Nov 2026). It starts when the search starts loading and stops in the very render that draws the reply (loading ends); the time it took stays on screen, frozen, with the reply, until another search is made or the
+  // The timer of an answer: I run it for EVERY search that has to be waited for, whatever works it out (the engine's own rules, the language model, the deep synthesis), whether the question was written and sent with Enter, or pressed among the
+  // sample questions (my rule, 23 Nov 2026). It starts when the search starts loading and stops in the very render that draws the reply (loading ends); the time it took stays on screen, frozen, with the reply, until another search is made or the
   // box is cleared. An answer that comes at once from the cache never loads, so it shows none. A search that is run again for the same words at once (the Enter key's deep answer that found nothing, and the ordinary search that follows it)
-  // is one wait to the person, so the clock goes on from its first start instead of beginning again.
+  // is one wait to the person, so I let the clock go on from its first start instead of beginning again.
   const [searchClock, setSearchClock] = useState<{ start: number; end: number | null; q: string } | null>(null);
   useEffect(() => {
     if (mode === null || !submittedQuery) { setSearchClock(null); return; }
@@ -765,9 +766,9 @@ export function OmnibarModal({
     });
   }, [isLoading, mode, submittedQuery]);
   const backToEdsShelf = () => { employeeReq.current++; setEmployeeResults([]); clearSearch(); setQuery(""); textareaRef.current?.focus(); };
-  // the cross of the management page (or of its "not authorised" card): the page goes; if it came from the Admin button the Admin choice goes with it, the box is wiped and the choice returns to Everything (every way back lands there)
+  // the cross of the management page (or of its "not authorised" card): the page goes. If it came from the Admin button, I take the Admin choice with it, wipe the box and return the choice to Everything (every way back lands there)
   const closeManagement = () => { if (selection.scope === "admin") changeSelection({ ...AUTO_SELECTION }); else clearSearch(); };
-  // the Utility Services button: the page of all the utilities, with the box and any answer cleared
+  // the Utility Services button opens the page of all the utilities, and I clear the box and any answer
   const openUtilities = () => {
     setUtilityShellOn(true);
     employeeReq.current++;
@@ -781,7 +782,7 @@ export function OmnibarModal({
     setSelection(AUTO_SELECTION);
     setToolForm("services");
   };
-  // what the box says while a selection is chosen
+  // the text I put in the box while a selection is chosen
   const placeholderText = useMemo(() => {
     if (selection.scope === "eds") return EDS_CHOICE.placeholder;
     if (selection.scope === "admin") return ADMIN_CHOICE.placeholder;
@@ -789,10 +790,10 @@ export function OmnibarModal({
     if (selection.scope === "people") return selection.facet === "roster" ? "Pick a department and a designation below, then press “List the people”…" : facetById(selection.facet)?.placeholder ?? "";
     return domainById(selection.scope)?.placeholder ?? "";
   }, [selection.scope, selection.facet]);
-  // under Everything: what the typed words look like they are for (pure, in the browser; only a hint)
+  // under Everything I show what the typed words look like they are for: pure, in the browser, and only a hint
   const suggestion = useMemo(() => (selection.scope === "auto" ? suggestDomain(query || "") : null), [query, selection.scope]);
 
-  // Reveal a masked contact field: unmask inline + server writes the audit row.
+  // I reveal a masked contact field here: it unmasks inline and the server writes the audit row.
   const doReveal = useCallback(
     async (empId: string, field: RevealField): Promise<boolean> => {
       try {
@@ -803,7 +804,7 @@ export function OmnibarModal({
         });
         if (r.status === 401) return false; // not logged in
         if (!r.ok) {
-          // the cap (429) or a fault: say so under the card; do not loop into login
+          // the cap (429) or a fault: I say so under the card and do not loop into login
           const e = await r.json().catch(() => null);
           setRevealNotice({ empId, text: typeof e?.error === "string" ? e.error : "That could not be shown just now. Please try again." });
           return true;
@@ -816,7 +817,7 @@ export function OmnibarModal({
         }));
         return true;
       } catch {
-        return true; // network error: don't trigger login loop
+        return true; // network error: I do not trigger a login loop
       }
     },
     [],
@@ -824,12 +825,12 @@ export function OmnibarModal({
 
   const revealContact = useCallback(
     async (empId: string, field: RevealField) => {
-      // Logged in -> reveal directly (session cookie carries identity).
+      // Logged in: I reveal directly, since the session cookie carries the identity.
       if (authStatus === "authenticated") {
         await doReveal(empId, field);
         return;
       }
-      // Logged out -> remember what to reveal, open the normal login modal,
+      // Logged out: I remember what to reveal, open the normal login modal,
       // and retry automatically once the session becomes authenticated.
       pendingRevealRef.current = { empId, field };
       openModal();
@@ -837,14 +838,14 @@ export function OmnibarModal({
     [authStatus, doReveal, openModal],
   );
 
-  // Copy an employee's visible directory record to the clipboard (logged-in
-  // only) and record the event as action='copy'. Masked contacts are included
+  // I copy an employee's visible directory record to the clipboard (logged-in
+  // only) and record the event as action='copy'. Masked contacts go in
   // only if they were already revealed in this session.
   const copyRecord = useCallback(
     async (emp: any) => {
       if (authStatus !== "authenticated") return; // button is disabled anyway
       const rev = revealed[emp.id] || {};
-      // the ticket number and the P.No. are copied only if this person has already revealed them (otherwise the record carries the name, designation and department)
+      // I copy the ticket number and the P.No. only if this person has already revealed them (otherwise the record carries the name, designation and department)
       const line = [
         withTitle(emp.name, emp.title),
         rev.ticket,
@@ -863,9 +864,9 @@ export function OmnibarModal({
         setCopiedId(emp.id);
         setTimeout(() => setCopiedId((c) => (c === emp.id ? null : c)), 1500);
       } catch {
-        // clipboard blocked; still record the intent below
+        // clipboard blocked; I still record the intent below
       }
-      // Best-effort audit; never blocks the UX.
+      // I make this audit best-effort: it never blocks the UX.
       fetch(`/api/employees/${emp.id}/copy`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -875,7 +876,7 @@ export function OmnibarModal({
     [authStatus, revealed],
   );
 
-  // After a successful login, complete any pending reveal.
+  // After a successful login, I complete any pending reveal.
   useEffect(() => {
     if (authStatus === "authenticated" && pendingRevealRef.current) {
       const { empId, field } = pendingRevealRef.current;
@@ -884,13 +885,13 @@ export function OmnibarModal({
     }
   }, [authStatus, doReveal]);
 
-  // A comparison table of 4+ columns on the screen widens the box; it is a pure function of the answer being shown, so it narrows again the moment that answer goes
-  // (a new query, an edit of the text, a narrower answer). The text scale (omniK) deliberately stays that of the normal width: the extra room is for the table, not bigger text.
+  // I widen the box for a comparison table of 4+ columns on the screen; it is a pure function of the answer being shown, so it narrows again the moment that answer goes
+  // (a new query, an edit of the text, a narrower answer). I deliberately keep the text scale (omniK) at that of the normal width: the extra room is for the table, not bigger text.
   // A calculator page that asks for the wide box (its ui says `wide`: the PF page, with three boxes in a row and a table of years) gets exactly the same width, and the same rule: it goes the moment the form is closed.
   const wideModal = (mode === "intellectual" && needsWideModal(synthesis)) || (!isLoading && answerNeedsWideModal(analytics)) || toolFormIsWide(toolForm);
-  // the normal box: its own width, but never wider than the page. The wide box: the page's width, nothing more, nothing less (100% = the room the row gives it, for a narrow screen).
+  // The normal box has its own width, but I never let it be wider than the page. The wide box is the page's width, nothing more, nothing less (100% = the room the row gives it, for a narrow screen).
   const normalMaxWidth = `min(max(${(mode === "intellectual" ? BASE_MODAL_WIDTH_REM * EXECUTIVE_SCALE : BASE_MODAL_WIDTH_REM).toFixed(2)}rem, ${mode === "intellectual" ? (BASE_MODAL_WIDTH_VW * EXECUTIVE_SCALE).toFixed(2) : String(BASE_MODAL_WIDTH_VW)}vw), ${MODAL_MAX_PX}px, 92vw, ${PAGE_WIDTH_VAR}, 100%)`;
-  // a page that asks for a width of its own (`wide: { maxRem }`) gets that many rem, but never more than the page; every other wide box is the page's width
+  // a page that asks for a width of its own (`wide: { maxRem }`) gets that many rem, but I never give it more than the page; every other wide box is the page's width
   const toolRem = toolFormMaxRem(toolForm);
   const currentMaxWidth = toolRem !== null ? `min(${toolRem}rem, ${PAGE_WIDTH_VAR}, 100%)` : wideModal ? `min(${PAGE_WIDTH_VAR}, 100%)` : normalMaxWidth;
 
@@ -917,17 +918,17 @@ export function OmnibarModal({
     return () => clearInterval(timer);
   }, [isLoading, mode]);
 
-  // Lock background page scroll while the omnibar is open so mouse-wheel
+  // I lock the background page scroll while the omnibar is open so mouse-wheel
   // scrolling inside the reply modal never bleeds through to the home page.
-  // Compensate for the scrollbar width so the page doesn't shift on lock.
+  // I compensate for the scrollbar width so the page doesn't shift on lock.
   useEffect(() => {
     if (!isOpen) return;
     const html = document.documentElement;
-    // one shared lock (src/lib/ui/scrollLock.ts): the last window to let go restores the page, in whatever order the windows close
+    // I use one shared lock (src/lib/ui/scrollLock.ts): the last window to let go restores the page, in whatever order the windows close
     const lock = lockPageScroll();
     const scrollBarWidth = lock.scrollBarWidth;
     // The page stays centred in (screen - scrollbar) because of that padding, but the box's own row (fixed, inset 0) spans the whole screen once the scrollbar is gone: the box
-    // sat half a scrollbar (about 7 px) to the right of the page behind it. The row takes the same room on its right (--scrollbar-comp, used below), so both share one centre.
+    // sat half a scrollbar (about 7 px) to the right of the page behind it. So I give the row the same room on its right (--scrollbar-comp, used below), and both share one centre.
     html.style.setProperty("--scrollbar-comp", `${scrollBarWidth}px`);
     return () => {
       lock.release();
@@ -935,7 +936,7 @@ export function OmnibarModal({
     };
   }, [isOpen]);
 
-  // A sample question of the user guide ("Try it") is typed into the box; it is NOT sent: the reader edits any [blank] and presses Enter
+  // I type a sample question of the user guide ("Try it") into the box but do NOT send it: the reader edits any [blank] and presses Enter
   useEffect(() => {
     const onPrefill = (e: Event) => {
       const text = (e as CustomEvent<{ query?: string }>).detail?.query;
@@ -946,7 +947,7 @@ export function OmnibarModal({
         if (!el) return;
         el.focus();
         const open = text.indexOf("[");
-        if (open >= 0 && text.indexOf("]", open) > open) el.setSelectionRange(open, text.indexOf("]", open) + 1); // the first blank is selected, ready to be typed over
+        if (open >= 0 && text.indexOf("]", open) > open) el.setSelectionRange(open, text.indexOf("]", open) + 1); // I select the first blank, ready to be typed over
         else el.setSelectionRange(text.length, text.length);
       }, 160);
     };
@@ -963,7 +964,7 @@ export function OmnibarModal({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // If lightbox is open, let lightbox handle its own Escape key
+      // If the lightbox is open, I let it handle its own Escape key
       if (selectedCircularId) return;
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -998,12 +999,12 @@ export function OmnibarModal({
     }
     if (result.type === "announcement") {
       e.preventDefault();
-      // a result found inside the PDF: the window shows the PDF at that page
+      // a result found inside the PDF: I show the PDF at that page in the window
       openAnnouncement(realSourceId(result.id), result.matchInPdf ? result.matchPage ?? null : null);
     }
   };
 
-  // Search rows carry only plain text; fetch the full announcement (with its rich-text HTML) so the modal renders formatting correctly.
+  // Search rows carry only plain text, so I fetch the full announcement (with its rich-text HTML) to let the modal render formatting correctly.
   const openAnnouncement = (id: number, pdfPage: number | null) => {
     fetch(`/api/announcements/${id}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -1011,11 +1012,11 @@ export function OmnibarModal({
         if (data) setSelectedAnnouncement({ ...data, pdfPage });
       })
       .catch(() => {
-        // Non-fatal: if the fetch fails, simply do nothing.
+        // Non-fatal: if the fetch fails, I simply do nothing.
       });
   };
 
-  // A source of a deep summary: a circular (its viewer) or an announcement (its window). An announcement travels under a moved number (sourceKey.ts).
+  // A source of a deep summary is a circular (opened in its viewer) or an announcement (opened in its window). An announcement travels under a moved number (sourceKey.ts).
   const openEdsSource = (id: number) => {
     if (isAnnouncementSourceId(id)) openAnnouncement(realSourceId(id), null);
     else setSelectedCircularId(id);
@@ -1024,22 +1025,26 @@ export function OmnibarModal({
   const activeMatchedCircular = selectedCircularId
     ? results.find((r) => r.id === selectedCircularId)
     : null;
-  // One row (a lookup of one person or one ticket): the big number and "1 row." add nothing, the table shows it.
+  // For one row (a lookup of one person or one ticket) I hide the big number and "1 row.": they add nothing, the table shows it.
   const hideRowCount = !!analytics && isSingleRowTable(analytics.kind, analytics.count, !!analytics.nl2sql?.table);
-  // An answer that is a sentence written for the question (an empty health check-up answer) keeps its text but has no big number above it.
+  // I keep the text of an answer that is a sentence written for the question (an empty health check-up answer) but show no big number above it.
   const hideCountNumber = hideRowCount || !!analytics?.nl2sql?.plainAnswer || !!analytics?.holidayCompare;
 
   return (
     <>
-      {/* Every opening gets its own AnimatePresence (key={openings}): a closing animation that is still running, or that ever stuck, can never meet the next opening's box. And a window that is
-          only fading out catches no clicks (its exit sets pointerEvents none: AnimatePresence keeps the element as it was drawn, so a condition on isOpen would never reach it): a layer left over its fade can never swallow the click on the search bar behind it. */}
+      {/*
+       * I give every opening its own AnimatePresence (key={openings}): a closing animation that is still running, or that ever stuck, can never meet the next opening's box. And a window that is
+       * only fading out catches no clicks (its exit sets pointerEvents none: AnimatePresence keeps the element as it was drawn, so a condition on isOpen would never reach it): a layer left over its fade can never swallow the click on the search bar behind it.
+       */}
       <AnimatePresence key={openings}>
         {isOpen && !selectedCircularId && !selectedAnnouncement && (
           <motion.div exit={{ pointerEvents: "none", transition: { duration: 0 } }} className="fixed inset-0 z-[100] flex items-start justify-center pt-12 sm:pt-14 px-4" style={{ paddingRight: "calc(1rem + var(--scrollbar-comp, 0px))" }}>
-            {/* The dimming covers the whole screen, but the BLUR only covers the page behind the box (same width and centre as the page: --omni-page-width, and the room the
-                scrollbar's lock padding leaves). The box is exactly as wide as the page, so a blur over the whole screen smeared the page's dark edge (the banner) a few pixels
-                outward, just outside the box's edge: two thin dark lines down both sides (read from a real screenshot: 139 fading to 190 over 4 px). With the blur kept inside the
-                page's own footprint nothing is smeared outside it. */}
+            {/*
+             * The dimming covers the whole screen, but I let the BLUR cover only the page behind the box (same width and centre as the page: --omni-page-width, and the room the
+             * scrollbar's lock padding leaves). The box is exactly as wide as the page, so a blur over the whole screen smeared the page's dark edge (the banner) a few pixels
+             * outward, just outside the box's edge: two thin dark lines down both sides (read from a real screenshot: 139 fading to 190 over 4 px). With the blur kept inside the
+             * page's own footprint nothing is smeared outside it.
+             */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1056,10 +1061,12 @@ export function OmnibarModal({
               style={{ right: "var(--scrollbar-comp, 0px)", width: PAGE_WIDTH_VAR, maxWidth: "100%" }}
             />
 
-            {/* Step 62a: NO `layout` prop on this box. With a classic (always visible) scrollbar the page width changes by the scrollbar's width when the scroll lock above is set and
-                released; the box's layout animation then ran against its exit animation, and AnimatePresence deleted the NEW box 3 ms after it appeared: after the first closing the
-                click on the search bar did nothing (a blue ring only) and the first Ctrl+K "closed" the already hidden box. Reproduced in Chrome, fixed by removing `layout`
-                (src/components/OmnibarModal.layout.selftest.ts keeps it out). The box keeps its fade and slide; only the height no longer glides when an answer arrives. */}
+            {/*
+             * Step 62a: I put NO `layout` prop on this box, and you should not add one. With a classic (always visible) scrollbar the page width changes by the scrollbar's width when the scroll lock above is set and
+             * released; the box's layout animation then ran against its exit animation, and AnimatePresence deleted the NEW box 3 ms after it appeared: after the first closing the
+             * click on the search bar did nothing (a blue ring only) and the first Ctrl+K "closed" the already hidden box. Reproduced in Chrome, fixed by removing `layout`
+             * (src/components/OmnibarModal.layout.selftest.ts keeps it out). The box keeps its fade and slide; only the height no longer glides when an answer arrives.
+             */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -20 }}
               animate={{
@@ -1078,7 +1085,7 @@ export function OmnibarModal({
               className="omni-scale relative w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-neutral-200 flex flex-col max-h-[calc(100vh-5.5rem)]"
             >
               {pageAlone && <span data-escape-back="true" hidden />}
-              {/* the box, the choices and what hangs under them are left out while the Utility Services page stands alone (utilityFocus) */}
+              {/* I leave out the box, the choices and what hangs under them while the Utility Services page stands alone (utilityFocus) */}
               {!pageAlone && (
               <>
               {/* Multiline Search Input Header */}
@@ -1091,8 +1098,8 @@ export function OmnibarModal({
                   onChange={(e) => {
                     const val = e.target.value;
                     setQuery(val);
-                    if (toolForm) setToolForm(null); // editing the text closes a calculator that Enter had opened
-                    if (routed || routedQuery || understanding) forgetRoute(); // ... and a utility that was found from the old line
+                    if (toolForm) setToolForm(null); // I close a calculator that Enter had opened when the text is edited
+                    if (routed || routedQuery || understanding) forgetRoute(); // ... and I forget a utility that was found from the old line
                     if (val.trim() === "" || isIdQuery(val.trim())) {
                       employeeReq.current++; // an answer still on its way for the old text must not land
                       setEmployeeResults([]);
@@ -1110,9 +1117,9 @@ export function OmnibarModal({
                       if (qTrim.length < 2) return;
                       if (routed) return; // the utility found from this very line is already open
 
-                      // A calculator: a sum, a conversion or a date question already shows its answer (as you type); a request for a calculator form opens it now. Either way the line
-                      // is NEVER sent to the search: a figure of someone's loan, pay or savings is not logged anywhere.
-                      // under a chosen button no utility opens from the typed words (the Utility Services page is a button of its own)
+                      // Calculators: a sum, a conversion or a date question already shows its answer (as you type), and a request for a calculator form opens it now. Either way I NEVER send the line
+                      // to the search: a figure of someone's loan, pay or savings is not logged anywhere.
+                      // Under a chosen button no utility opens from the typed words (the Utility Services page is a button of its own)
                       const tool = detectTool(qTrim);
                       if (tool && selection.scope === "auto") {
                         if (tool.kind === "form") setToolForm(tool.form);
@@ -1120,7 +1127,7 @@ export function OmnibarModal({
                         return;
                       }
 
-                      // A FIXED SELECTION (src/records/): the line is answered by that selection's own engines and nowhere else (no utility is guessed, no other record is tried). Circulars & Notices
+                      // A fixed selection (src/records/): I answer the line by that selection's own engines and nowhere else (no utility is guessed, no other record is tried). Circulars & Notices
                       // keep the ordinary path below, minus the people name search and the utility guesses. (No utility opens from typed words under a chosen button: Utility Services is a button of its own.)
                       if (selection.scope === "eds") {
                         runEds(qTrim);
@@ -1132,14 +1139,14 @@ export function OmnibarModal({
                         return;
                       }
 
-                      // ID Query: ticket, mobile, CUG, SAIL PNO (already handled live).
-                      // Keep employee results and NEVER send an ID to circular search!
+                      // ID query: ticket, mobile, CUG, SAIL PNO (already handled live).
+                      // I keep the employee results and NEVER send an ID to circular search.
                       if (isIdQuery(qTrim)) {
                         if (employeeResults.length === 0) void fetchEmployees("id", qTrim);
                         return;
                       }
 
-                      // THE MANAGEMENT PAGE ("management", "admin"...): the server answers it from the words alone, so it is sent at once. It must not wait for the AI that is asked "which utility do you mean" (a call to the model, up to 5 seconds,
+                      // The management page ("management", "admin"...): the server answers it from the words alone, so I send it at once. It must not wait for the AI that is asked "which utility do you mean" (a call to the model, up to 5 seconds,
                       // with "Understanding your request" on the screen) nor start the people name search (database time, and people shown under a page of titles): neither has anything to add for a line that is the page's own words.
                       if (detectManagementHubIntent(qTrim)) {
                         setEmployeeResults([]);
@@ -1147,10 +1154,10 @@ export function OmnibarModal({
                         return;
                       }
 
-                      // WHAT THE LINE MEANS, when no exact reader has it. First what the app can tell by itself (instant, nothing leaves the browser): a utility the line is clearly about opens, and the
-                      // line is not searched. Then, for a whole sentence that could be neither a name nor an ID, the AI is asked which utility it means (only the line goes, src/lib/tools/intentAi.ts);
+                      // What the line means, when no exact reader has it. First I use what the app can tell by itself (instant, nothing leaves the browser): a utility the line is clearly about opens, and the
+                      // line is not searched. Then, for a whole sentence that could be neither a name nor an ID, I ask the AI which utility it means (only the line goes, src/lib/tools/intentAi.ts);
                       // its answer is a utility id or none. Failing both, or on none, the line is searched as it always was.
-                      // a chosen button (Circulars & Notices too) is not second-guessed: no utility is guessed from its words
+                      // I do not second-guess a chosen button (Circulars & Notices too): no utility is guessed from its words
                       if (selection.scope === "auto") {
                         const understood = clearIntent(qTrim);
                         if (understood) {
@@ -1158,14 +1165,14 @@ export function OmnibarModal({
                           return;
                         }
                       }
-                      // AN EDS-KIND QUESTION FROM A VISITOR WHO IS SIGNED OUT: nothing is searched yet; the bar asks "Are you an executive?" (Yes: sign in to get the EDS reply; No: the simple reply).
+                      // For an EDS-kind question from a visitor who is signed out, I search nothing yet: the bar asks "Are you an executive?" (Yes: sign in to get the EDS reply; No: the simple reply).
                       if (shouldAskExecutive({ authStatus, query: qTrim, edsEnabled: autoEdsEnabled({ NEXT_PUBLIC_FRONT_PATH_AUTO_EDS: process.env.NEXT_PUBLIC_FRONT_PATH_AUTO_EDS }) })) {
                         setExecutiveAsk({ query: qTrim, said: null });
                         setDeclinedAsk(null);
                         return;
                       }
                       const proceed = () => {
-                        // Smart Enter: fire ALL deterministic channels at once —
+                        // Smart Enter: I fire ALL deterministic channels at once —
                         // employee name search + employee/department analytics +
                         // circular/announcement Smart Semantic. IDs & sites are
                         // already live as you type.
@@ -1181,7 +1188,7 @@ export function OmnibarModal({
                         ) {
                           if (!isLoading) triggerSearch("intellectual", { auto: true });
                         } else {
-                          // the people name search is for what can be a NAME (one to four words, not a question): a sentence only burned 1 to 7 s of database time (step 61a)
+                          // I run the people name search only for what can be a NAME (one to four words, not a question): a sentence only burned 1 to 7 s of database time (step 61a)
                           if (selection.scope === "auto" && query.trim().length >= 2 && looksLikeNameSearch(query)) {
                             runEmployeeNameSearch();
                           } else {
@@ -1233,9 +1240,9 @@ export function OmnibarModal({
                 </div>
               </div>
 
-              {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
+              {/* Step 41a: I took away the Executive Deep Synthesis button; the Enter key decides now (see the Enter handler above). */}
 
-              {/* The fixed selections (src/records): Everything, People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices. */}
+              {/* My fixed selections (src/records): Everything, People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices. */}
               {!deepAnswerShown && (
                 <RecordsScopeBar selection={selection} onChange={changeSelection} suggestion={selection.scope === "auto" ? suggestion : null} onExample={selection.scope === "eds" ? runEds : runScoped} onRunFinder={runFinder} utilitiesOpen={toolForm === "services"} onUtilities={openUtilities} notice={edsNote} edsReady={authStatus === "authenticated" && isExecutive} adminReady={authStatus === "authenticated"} onAdminHint={() => { if (authStatus === "authenticated") preloadManagementPanels(); if (authStatus === "authenticated") prefetchSearch("semantic", "management", { ...AUTO_SELECTION, scope: "admin" }); }} />
               )}
@@ -1246,9 +1253,9 @@ export function OmnibarModal({
                   ask={executiveAsk}
                   onYes={() => { setExecutiveAsk({ ...executiveAsk, said: "yes" }); openModal(); }} // Yes is the click on Sign in: the login window opens at once
                   onNo={() => {
-                    // the EDS button pressed with no question yet: No goes back to the default choice, Everything, with the box empty (every way back lands on Everything)
+                    // the EDS button pressed with no question yet: No takes the person back to the default choice, Everything, with the box empty (I make every way back land on Everything)
                     if (executiveAsk.query === "") { changeSelection({ ...AUTO_SELECTION }); return; }
-                    // No: the simple reply, exactly as for any other question
+                    // No: I give the simple reply, exactly as for any other question
                     const q = executiveAsk.query;
                     setExecutiveAsk(null);
                     setDeclinedAsk(q);
@@ -1261,7 +1268,7 @@ export function OmnibarModal({
                 <OmniAdminAsk
                   said={adminAsk.said}
                   onYes={() => { setAdminAsk({ said: "yes" }); openModal(); }} // Yes is the click on Sign in: the login window opens at once; once signed in, the authority is checked
-                  onNo={() => changeSelection({ ...AUTO_SELECTION })} // every way back lands on Everything
+                  onNo={() => changeSelection({ ...AUTO_SELECTION })} // I make every way back land on Everything
                 />
               )}
               {loginHint && <OmniLoginHint hint={loginHint} onSignIn={openModal} />}
@@ -1269,8 +1276,10 @@ export function OmnibarModal({
               )}
 
               <div className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">
-                {/* THE ROW OF AN ANSWER: "All sample questions" (Executive Deep Search only) at the left, the timer at the right, both centred on the same line. It is a real row (it takes its own height), so the timer never lies over the reply's own buttons (Download PDF),
-                    and it is NOT sticky: it sits at the top of the reply and scrolls away with it (owner, 23 Nov 2026). A question typed by hand has no back link yet; the row is there all the same, for the timer. */}
+                {/*
+                 * The row of an answer: "All sample questions" (Executive Deep Search only) at the left, the timer at the right, both centred on the same line. It is a real row (it takes its own height), so the timer never lies over the reply's own buttons (Download PDF),
+                 * and I made it NOT sticky: it sits at the top of the reply and scrolls away with it (my rule, 23 Nov 2026). A question typed by hand has no back link yet; the row is there all the same, for the timer.
+                 */}
                 {(edsBackLink || deepBack || (searchClock && !isStale)) && (
                   <div data-eds-toolbar className="-mx-2 -mt-2 mb-2 flex min-h-[2.5rem] items-center justify-between gap-3 border-b border-neutral-100 bg-white px-3 py-1">
                     <div className="min-w-0">
@@ -1326,7 +1335,7 @@ export function OmnibarModal({
                 ) : (
                   <>
                     {edsShelfOpen && <EdsExamples onPick={(q) => runEds(q, true)} />}
-                    {/* Calculators, converters and date answers: as you type, or a form after Enter. Runs in the browser; nothing typed here is stored or sent. */}
+                    {/* Calculators, converters and date answers appear as you type, or as a form after Enter. This runs in the browser: nothing typed here is stored or sent. */}
                     {understanding && (
                       <div role="status" className="mb-3 flex items-center gap-2 rounded-2xl border border-dashed border-violet-300 bg-violet-50 px-4 py-2.5 text-sm text-violet-900">
                         <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" /> Understanding your request&hellip;
@@ -1448,7 +1457,7 @@ export function OmnibarModal({
                                 <span>{analytics.notice}</span>
                               </p>
                             )}
-                            {/* the model's own "Understood as" line is not shown (22 Nov 2026); the lookups that are not written by the model (PAX, dates, holidays ...) keep theirs, it carries their source and limits */}
+                            {/* I do not show the model's own "Understood as" line (22 Nov 2026); the lookups that are not written by the model (PAX, dates, holidays ...) keep theirs, because it carries their source and limits */}
                             {analytics.interpretation && !analytics.nl2sql && (
                               <InterpretationNote text={analytics.interpretation} />
                             )}
@@ -1587,8 +1596,10 @@ export function OmnibarModal({
                       </div>
                     )}
 
-                    {/* The answer's rows: person cards, a table or a chart (AnswerResult adapts to what the SQL returned);
-                        answers from the older engines keep showing just the person cards. */}
+                    {/*
+                     * The answer's rows are person cards, a table or a chart (AnswerResult adapts to what the SQL returned);
+                     * I keep showing just the person cards for answers from the older engines.
+                     */}
                     {!isLoading &&
                       (() => {
                         // the first page plus any pages fetched with "Show more"
@@ -1697,19 +1708,19 @@ export function OmnibarModal({
                       analytics?.holidays &&
                       analytics.holidays.length > 0 &&
                       (() => {
-                        // Group same-date, same-name rows (the documented
+                        // I group same-date, same-name rows (the documented
                         // dual FH/RH pattern -- see the holidays/analytics.ts
                         // header comment on "the same holiday, same year"
                         // pattern) into one table row with a tick in each
                         // applicable type column, instead of showing two
                         // separate stacked entries for what is really one
-                        // holiday. Grouped by (date + name) specifically,
+                        // holiday. I group by (date + name) specifically,
                         // not date alone -- two genuinely different
                         // holidays can share a date (e.g. Doljatra / Holi)
                         // and must stay as separate rows.
                         //
                         // Category applicability (A/B/C/D) differs by TYPE,
-                        // not just by holiday, so it's computed per group
+                        // not just by holiday, so I compute it per group
                         // from whichever type rows are present:
                         //  - CH -> every category, always (no per-row data
                         //    needed; this is a confirmed domain fact, not a
@@ -1717,7 +1728,7 @@ export function OmnibarModal({
                         //    category-filter handling).
                         //  - FH -> exactly the categories that row's own
                         //    `categories` field names.
-                        //  - RH -> NOT ticked here. The RH pool is available
+                        //  - RH -> I do NOT tick it here. The RH pool is available
                         //    to every category, so ticking all four would be
                         //    technically true but would hide the one fact
                         //    that actually differs per category: the quota.
@@ -1928,13 +1939,13 @@ export function OmnibarModal({
                           <CircularAnswerCard
                             state={circularAnswer}
                             onOpenSource={(id, target, type) => {
-                              // an announcement opens in its own window, at the page of the PDF the answer came from; closing it brings this window back as it was
+                              // I open an announcement in its own window, at the page of the PDF the answer came from; closing it brings this window back as it was
                               if (type === "announcement") {
                                 openAnnouncement(id, target?.page ?? null);
                                 return;
                               }
                               setBannerDismissed(false);
-                              // the viewer opens on the page of the answer and shows the answer's own words (not the search's best clause)
+                              // I open the viewer on the page of the answer and show the answer's own words (not the search's best clause)
                               setSourceViewer(target?.page ? { pages: [target.page] } : null);
                               setAnswerQuote(target?.quote ? target.quote : null);
                               setSelectedCircularId(id);
@@ -1961,21 +1972,23 @@ export function OmnibarModal({
                               Other matching circulars
                             </h4>
                           ) : null}
-                          {/* In synthesis mode, only show cards for sources
-                              the synthesis actually cited in a finding (see
-                              executiveSynthesis.ts's citation-relevance
-                              filter) -- not every raw candidate that merely
-                              cleared the upstream search/qualify floor.
-                              Every other mode is unaffected: `results`
-                              itself is untouched here, this only changes
-                              what renders under "Primary Sources" in
-                              intellectual mode specifically. Known minor
-                              edge case: if `synthesis.citations` ends up
-                              empty (a table/chart-only answer with no key
-                              findings -- see executiveSynthesis.ts), the
-                              "Primary Sources" heading above will still
-                              render with no cards beneath it; not fixed
-                              here to keep this change small and low-risk. */}
+                          {/*
+                           * In synthesis mode, I only show cards for sources
+                           * the synthesis actually cited in a finding (see
+                           * executiveSynthesis.ts's citation-relevance
+                           * filter) -- not every raw candidate that merely
+                           * cleared the upstream search/qualify floor.
+                           * Every other mode is unaffected: `results`
+                           * itself is untouched here, this only changes
+                           * what renders under "Primary Sources" in
+                           * intellectual mode specifically. Known minor
+                           * edge case: if `synthesis.citations` ends up
+                           * empty (a table/chart-only answer with no key
+                           * findings -- see executiveSynthesis.ts), the
+                           * "Primary Sources" heading above will still
+                           * render with no cards beneath it; I have not fixed
+                           * it here, to keep this change small and low-risk.
+                           */}
                           {(mode === "intellectual" && synthesis
                             ? results.filter((r) =>
                                 synthesis.citations.some((c) => c.id === r.id),
@@ -2141,7 +2154,7 @@ export function OmnibarModal({
                                     </div>
                                   </div>
 
-                                  {/* an announcement found by what its PDF says: the passage, so the reader sees why it matched */}
+                                  {/* for an announcement found by what its PDF says I show the passage, so the reader sees why it matched */}
                                   {result.type === "announcement" && result.matchInPdf && !result.isPerfectMatch && result.chunkText && (
                                     <div data-pdf-passage className="ml-12 mt-1 flex items-start gap-3 rounded-md bg-neutral-50 p-2 text-xs leading-relaxed text-neutral-600">
                                       {result.matchPage ? (
@@ -2173,12 +2186,14 @@ export function OmnibarModal({
                                         </div>
                                       </div>
                                     )}
-                                  {/* Holiday chunks have no document to open and no
-                                      full-record fetch on click -- the chunk text
-                                      IS the entire answer, so it always shows
-                                      inline rather than being gated behind
-                                      isPerfectMatch/semantic mode like the other
-                                      two types above. */}
+                                  {/*
+                                   * Holiday chunks have no document to open and no
+                                   * full-record fetch on click -- the chunk text
+                                   * IS the entire answer, so I always show it
+                                   * inline rather than gating it behind
+                                   * isPerfectMatch/semantic mode like the other
+                                   * two types above.
+                                   */}
                                   {result.type === "holiday" && result.chunkText && (
                                     <div className="ml-12 mt-2 text-xs text-neutral-800 bg-purple-50 p-3 rounded-md border border-purple-200 leading-relaxed shadow-sm">
                                       {result.chunkText}
@@ -2191,7 +2206,7 @@ export function OmnibarModal({
                         </div>
                       </div>
                     )}
-                    {/* Intranet Sites — always shown at the very bottom, below People and circulars */}
+                    {/* Intranet Sites: I always show them at the very bottom, below People and circulars */}
                     {!isLoading && siteResults.length > 0 && (
                       <div className="flex flex-col gap-1 p-1 mb-2">
                         <h4 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
@@ -2246,10 +2261,12 @@ export function OmnibarModal({
                 )}
               </div>
 
-              {/* Universal Yes / No for the answer on screen: the entry point of the learning loop.
-                  Only for SIGNED-IN people (the feedback routes enforce this on the server as well).
-                  A VERIFIED answer (source "cache") shows only "Report this answer as wrong": it was already confirmed,
-                  so Yes/No would only confuse, but a wrong confirmation must always be challengeable. */}
+              {/*
+               * Universal Yes / No for the answer on screen: the entry point of the learning loop.
+               * I show it only to SIGNED-IN people (the feedback routes enforce this on the server as well).
+               * For a VERIFIED answer (source "cache") I show only "Report this answer as wrong": it was already confirmed,
+               * so Yes/No would only confuse, but a wrong confirmation must always be challengeable.
+               */}
               {!isLoading && authStatus === "authenticated" && mode === "semantic" && submittedQuery.trim().length >= 3 && !error && (
                 <div className="border-t border-slate-200/70 bg-white/80">
                   <AnswerFeedback

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/Nl2SqlAnswerExtras.selftest.tsx
-// Step 55a: the note about what a department word was taken to mean is drawn under "Departments covered", only when there is one.
+// Step 55a: I draw the note about what a department word was taken to mean under "Departments covered", only when there is one.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

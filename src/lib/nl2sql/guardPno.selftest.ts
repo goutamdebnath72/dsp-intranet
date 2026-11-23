@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/nl2sql/guardPno.selftest.ts
-// The SAIL P.No. is the first password: the guard refuses a query that selects, filters or sorts by it (in any spelling), and still passes the ordinary queries. The prompt no longer lists the column.
+// The SAIL P.No. is the first password, so the guard has to refuse a query that selects, filters or sorts by it (in any spelling) and still pass the ordinary queries. The prompt no longer lists the column.
 import { readFileSync } from "node:fs";
 import { guardSql } from "./guard";
 

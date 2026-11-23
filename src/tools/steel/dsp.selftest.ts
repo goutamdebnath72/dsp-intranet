@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/steel/dsp.selftest.ts
-// The DSP tab's figures: every quote agrees with the line it was read from, the arithmetic on them, the age of the quotes, the cities table, and the products (units, notes, nothing invented).
+// I check here the figures of the DSP tab: every quote agrees with the line it was read from, then the arithmetic on the quotes, their age, the cities table, and the products (units, notes, nothing invented).
 import { DateTime } from "luxon";
 import {
   BILLET_SECOND, DSP_BYPRODUCTS, DSP_CAPACITY, DSP_HOT_METAL, DSP_MILLS_FY25, DSP_PRODUCTS, DSP_WTA, DSP_YEARS, GST_RATE, QUOTES, QUOTE_OLD_AFTER_DAYS, TMT12_CITIES, ageDays, dateLabel, durgapurTmtRank, fy25Split, withGst, yearChange, type QuoteId,

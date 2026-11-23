@@ -1,4 +1,4 @@
-/** Self-test of the reading check. Run: npx tsx src/lib/ingestion/readingCheck.selftest.ts. The real cases use the readings of the pilot of 17 Oct 2026. */
+/** Self-test of the reading check. Run it with: npx tsx src/lib/ingestion/readingCheck.selftest.ts. The real cases use the readings of the pilot of 17 Oct 2026. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { asciiDigits, checkReadings, dashesBetweenDigits, handwrittenNumbers, isMajor, numberContext, numbersOf, oddScriptsIn } from "./readingCheck";
@@ -65,7 +65,7 @@ eq("a text without a loop is unchanged", cutAtLoop("one\ntwo\nthree\n"), "one\nt
 const pages: { id: string; pipeline: string; gemini: string; local: string }[] = JSON.parse(readFileSync(join(__dirname, "__fixtures__", "pilot-readings.json"), "utf8"));
 const page = (id: string) => pages.find((p) => p.id === id)!;
 const vsGemini = (id: string) => checkReadings(page(id).pipeline, page(id).gemini);
-// `local` in the fixture is the reading of a small model that was tried and set aside: a realistic example of a faulty second reading
+// `local` in the fixture is the reading of a small model that was tried and set aside. I keep it as a realistic example of a faulty second reading
 const vsLocal = (id: string) => checkReadings(page(id).pipeline, cutAtLoop(page(id).local));
 for (const id of ["gpais-english", "gpais-hindi", "football-trial", "gift-card-corrigendum", "merit-scholarship"]) eq(`REAL ${id}: the pipeline and Gemini agree`, vsGemini(id).status, "agreed");
 const gate = vsGemini("gate-pass-13");

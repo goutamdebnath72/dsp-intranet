@@ -1,6 +1,6 @@
 // src/tools/gratuity/GratuityForm.tsx
 //
-// THE GRATUITY FORM. Keeps what is typed in the browser's memory only (React state): nothing is stored, logged or sent. The sums are in the pure file beside it; this component collects the inputs and shows the results.
+// THE GRATUITY FORM. I keep what is typed in the browser's memory only (React state): nothing is stored, logged or sent. The sums are in the pure file beside it; this component only collects the inputs and shows the results.
 "use client";
 
 import React, { useMemo, useState } from "react";

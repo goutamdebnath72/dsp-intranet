@@ -1,6 +1,6 @@
 // src/lib/holidays/format.ts
 //
-// Pure text helpers for holiday answers. No database or model imports, so they are trivially testable.
+// Pure text helpers for holiday answers. I keep database and model imports out of this file, so it is trivially testable.
 
 import { DateTime } from "luxon";
 
@@ -23,13 +23,13 @@ export function formatCategoryList(raw: string | null | undefined): string | nul
   return `Categories ${cats.slice(0, -1).join(", ")} and ${cats[cats.length - 1]}`;
 }
 
-/** "Festival" + "A,B" -> "Festival, Categories A and B". No (valid) categories -> the label unchanged. */
+/** "Festival" + "A,B" -> "Festival, Categories A and B". With no (valid) categories I return the label unchanged. */
 export function labelWithCategories(label: string, categories: string | null | undefined): string {
   const c = formatCategoryList(categories);
   return c ? `${label}, ${c}` : label;
 }
 
-/** Distinct, non-empty notes joined into one string with a leading space, or "" when there are none. */
+/** Joins the distinct, non-empty notes into one string with a leading space, or "" when there are none. */
 export function notesSuffix(notes: Array<string | null | undefined>): string {
   const uniq = Array.from(new Set(notes.filter((n): n is string => !!n && n.trim().length > 0)));
   return uniq.length ? ` ${uniq.join(" ")}` : "";
@@ -38,7 +38,7 @@ export function notesSuffix(notes: Array<string | null | undefined>): string {
 // ---------------------------------------------------------------------------------------------------
 // Structured detail for "when is X" / "is this date a holiday" answers.
 // The answer used to be one long sentence (date, type, categories, explanation and a maintainer's side
-// remark all run together). The same facts are now returned as data so the screen can lay them out.
+// remark all run together). I now return the same facts as data so the screen can lay them out.
 // ---------------------------------------------------------------------------------------------------
 export interface HolidayDetailEntry {
   date: string; // ISO yyyy-LL-dd
@@ -55,11 +55,11 @@ export interface HolidayDetail {
   entries: HolidayDetailEntry[];
   /** The employee-facing reason (the note without the maintainer's "(Note: ...)" remark), or null. */
   explanation: string | null;
-  /** The maintainer's "(Note: ...)" remark about the source document, or null. Shown folded away. */
+  /** The maintainer's "(Note: ...)" remark about the source document, or null. The screen shows it folded away. */
   sourceNote: string | null;
 }
 
-/** Split "reason ... (Note: remark about the source)" into its two parts. */
+/** I split "reason ... (Note: remark about the source)" into its two parts. */
 export function splitNote(note: string | null | undefined): { explanation: string | null; sourceNote: string | null } {
   const n = (note ?? "").trim();
   if (!n) return { explanation: null, sourceNote: null };
@@ -80,7 +80,7 @@ interface DetailInputRow {
   note: string | null;
 }
 
-/** Group rows by holiday name (input order kept) into display-ready details. */
+/** Groups rows by holiday name (input order kept) into display-ready details. */
 export function buildHolidayDetails(rows: DetailInputRow[], typeLabel: Record<string, string>): HolidayDetail[] {
   const groups = new Map<string, DetailInputRow[]>();
   for (const r of rows) {

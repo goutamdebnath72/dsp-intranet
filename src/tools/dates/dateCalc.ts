@@ -1,8 +1,8 @@
 // src/tools/dates/dateCalc.ts
 //
-// DATE CALCULATIONS FOR THE SEARCH BAR, with Luxon only (the project's rule for dates). Pure: `now` is a parameter so the tests fix it; nothing is stored or sent.
+// Date calculations for the search bar, with Luxon only (my rule for dates in this project). Pure: `now` is a parameter so the tests fix it; nothing is stored or sent.
 //
-// Understands, in plain words:
+// What I understand, in plain words:
 //   days between 1 jan 2026 and 15 mar 2026        15/03/2026 - 01/01/2026 is NOT read as a date calculation (it is arithmetic), but "days from X to Y" is
 //   90 days from today · 30 days after 5 march 2026 · 2 weeks before 1 dec 2026 · 45 days ago · 5 jan 2026 + 3 months
 //   age 15/08/1985 · age born 15 aug 1985
@@ -11,7 +11,7 @@
 //   days until 25 dec 2026 · days since 1 jan 2026 · days left in 2026
 //   working days between 1 jan 2026 and 31 jan 2026 (Monday to Friday; holidays are NOT taken out, and the answer says so)
 //   today's date
-// Dates are written the Indian way: day first (15/08/1985 is 15 August). A date without a year is accepted only in "days until 25 dec" (the next one).
+// I write dates the Indian way: day first (15/08/1985 is 15 August). I accept a date without a year only in "days until 25 dec" (the next one).
 
 import { DateTime } from "luxon";
 
@@ -27,9 +27,9 @@ export interface DateAnswer {
 }
 
 const MONTHS = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
-/** one date as people write it */
+/** I match one date the way people write it */
 const D = String.raw`(?:today|tomorrow|yesterday|\d{1,2}(?:st|nd|rd|th)?[\s/.\-]+(?:\d{1,2}|(?:${MONTHS}))[\s/.\-,]+\d{4}|(?:${MONTHS})\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}|\d{4}-\d{2}-\d{2})`;
-const DNY = String.raw`(?:${D}|\d{1,2}(?:st|nd|rd|th)?\s+(?:${MONTHS}))`; // a date that may have no year
+const DNY = String.raw`(?:${D}|\d{1,2}(?:st|nd|rd|th)?\s+(?:${MONTHS}))`; // I allow a date here that has no year
 
 const FORMATS = ["d/M/yyyy", "d-M-yyyy", "d.M.yyyy", "d M yyyy", "d MMM yyyy", "d MMMM yyyy", "d MMM, yyyy", "MMM d yyyy", "MMMM d yyyy", "MMM d, yyyy", "MMMM d, yyyy", "yyyy-MM-dd", "d/MMM/yyyy", "d-MMM-yyyy", "d.MMM.yyyy"];
 
@@ -37,7 +37,7 @@ export function startOfToday(now?: DateTime): DateTime {
   return (now ?? DateTime.now()).setZone(ZONE).startOf("day");
 }
 
-/** One date, or null. `now` fixes "today". A date with no year takes the NEXT such day when `nextYear` is set. */
+/** Returns one date, or null. `now` fixes "today". I give a date with no year the NEXT such day when `nextYear` is set. */
 export function parseDate(text: string, now?: DateTime, nextYear = false): DateTime | null {
   const today = startOfToday(now);
   const t = (text || "").trim().toLowerCase().replace(/(\d)(st|nd|rd|th)\b/g, "$1").replace(/\s+/g, " ").replace(/\.$/, "");
@@ -66,7 +66,7 @@ export const fmtShort = (d: DateTime): string => d.setLocale("en").toFormat("d L
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const nf = (n: number) => n.toLocaleString("en-IN");
 
-/** years, months and days between two dates (a <= b) */
+/** I give the years, months and days between two dates (a <= b). */
 export function ymd(a: DateTime, b: DateTime): { years: number; months: number; days: number } {
   const x = b.diff(a, ["years", "months", "days"]).toObject();
   return { years: Math.floor(x.years ?? 0), months: Math.floor(x.months ?? 0), days: Math.round(x.days ?? 0) };
@@ -76,7 +76,7 @@ const ymdText = (a: DateTime, b: DateTime): string => {
   return [years ? plural(years, "year") : "", months ? plural(months, "month") : "", days || (!years && !months) ? plural(days, "day") : ""].filter(Boolean).join(", ");
 };
 
-/** Monday to Friday days from a (included) to b (excluded) */
+/** I count the Monday to Friday days from a (included) to b (excluded). */
 export function weekdaysBetween(a: DateTime, b: DateTime): number {
   const [from, to] = a <= b ? [a, b] : [b, a];
   const total = Math.round(to.diff(from, "days").days);
@@ -86,7 +86,7 @@ export function weekdaysBetween(a: DateTime, b: DateTime): number {
   return n;
 }
 
-/** Superannuation: on attaining `age` (60); at the end of that month, or of the month before when the birthday is the 1st (the usual public-sector rule: confirm with HR). */
+/** Superannuation: I take it on attaining `age` (60), at the end of that month, or of the month before when the birthday is the 1st (the usual public-sector rule: confirm with HR). */
 export function retirementDate(dob: DateTime, age = 60): { birthday: DateTime; retires: DateTime } {
   const birthday = dob.plus({ years: age });
   const retires = dob.day === 1 ? birthday.minus({ months: 1 }).endOf("month").startOf("day") : birthday.endOf("month").startOf("day");
@@ -97,7 +97,7 @@ const UNIT = String.raw`(day|days|week|weeks|month|months|year|years)`;
 type Unit = "days" | "weeks" | "months" | "years";
 const unitOf = (u: string): Unit => (u.startsWith("day") ? "days" : u.startsWith("week") ? "weeks" : u.startsWith("month") ? "months" : "years");
 
-/** A date calculation question, answered; null when the text is not one. `now` fixes today. */
+/** Answers a date calculation question; I return null when the text is not one. `now` fixes today. */
 export function answerDateQuestion(raw: string, now?: DateTime): DateAnswer | null {
   const q = (raw || "").trim().toLowerCase().replace(/^(?:what\s+is|what's|how\s+many|calculate|find)\s+/, "").replace(/[?.]+$/, "").replace(/\s+/g, " ").trim();
   if (!q || q.length > 100) return null;

@@ -1,7 +1,7 @@
 // src/components/TopResources.tsx
 "use client";
 
-import { useOnScreen } from "@/hooks/useOnScreen"; // the list stands still while it is off the screen
+import { useOnScreen } from "@/hooks/useOnScreen"; // I keep the list still while it is off the screen
 import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { links } from "@/lib/links";
@@ -194,7 +194,7 @@ const ResourceLink: React.FC<{ link: (typeof links)[0]; color: string }> = ({
           <Image
             src={link.icon}
             alt={link.title || "Icon"}
-            // the declared size is the size of the box the picture is drawn in (w-8 h-8 for the furnace, w-8 h-6 for the rest); a declared size that differs from the box in ONE direction only makes Next warn on every start
+            // I declare the size of the box the picture is drawn in (w-8 h-8 for the furnace, w-8 h-6 for the rest); a declared size that differs from the box in ONE direction only makes Next warn on every start
             width={32}
             height={link.icon === "/blast-furnace.png" ? 32 : 24}
             className="w-full h-full object-contain"
@@ -222,7 +222,7 @@ export function TopResources() {
 
   const direction = SCROLL_CONFIG.topResourcesDirection;
   const speedPxPerSec = SCROLL_CONFIG.speedPxPerSec;
-  // Effect to update list height
+  // This effect updates the list height
   useEffect(() => {
     const onResize = () => {
       setTimeout(() => {
@@ -240,7 +240,7 @@ export function TopResources() {
     onResize();
     return () => window.removeEventListener("resize", debouncedResize);
   }, [activeTab]);
-  // Seamless auto-scroll effect using rAF
+  // I do the seamless auto-scroll with rAF in this effect
   useEffect(() => {
     const scrollEl = scrollRef.current;
     if (!scrollEl) return;
@@ -283,9 +283,9 @@ export function TopResources() {
     };
   }, [activeTab, direction, speedPxPerSec]);
   return (
-    // MODIFIED: Replaced h-full with flex-1 min-h-0
+    // I replaced h-full with flex-1 min-h-0
     <div className="flex flex-col flex-1 min-h-0 bg-gray-100 rounded-lg border">
-      {/* 1. Tab Navigation - Sticky inside the grey container */}
+      {/* Step 1: tab navigation, sticky inside the grey container */}
       <div className="flex border-b border-neutral-300 flex-shrink-0 sticky top-0 bg-gray-100 z-10">
         {tabs.map((tab) => (
           <button
@@ -302,12 +302,12 @@ export function TopResources() {
         ))}
       </div>
 
-      {/* 2. Scrollable Content Area - Takes remaining space */}
+      {/* Step 2: scrollable content area, which takes the remaining space */}
       <div
         ref={scrollRef}
         onMouseEnter={() => (isHoveringRef.current = true)}
         onMouseLeave={() => (isHoveringRef.current = false)}
-        // MODIFIED: Added flex-1 and min-h-0 (already present, but good)
+        // I added flex-1 and min-h-0 (already present, but good)
         className="flex-1 min-h-0 overflow-y-auto px-2 pt-4 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
         style={{ overflowAnchor: "none" }}
       >

@@ -1,13 +1,13 @@
 -- 05_fast_name_codes.sql
--- Makes phonetic name matching fast (a query that took 6.4 s now takes milliseconds).
+-- This makes phonetic name matching fast (a query that took 6.4 s now takes milliseconds).
 -- Run this whole file once on the live database. Safe to re-run, in any order with 06. It adds ONE new table and
 -- replaces the view and the three helper functions; it changes no existing table.
 --
 -- Why it was slow: the phonetic code of every name was recomputed for every employee, several
--- times per query. Now the codes are stored once, and the helpers are plain SQL the database
+-- times per query. Now I store the codes once, and the helpers are plain SQL the database
 -- can optimise (they were needlessly SECURITY DEFINER, which stops that).
 --
--- Correctness is self-protecting: a stored row is used only if its stored NAME still equals the
+-- Correctness is self-protecting: I use a stored row only if its stored NAME still equals the
 -- employee's current name; otherwise the code is computed live. So a renamed or brand-new
 -- employee is never answered from stale data. After changing the phonetic functions themselves
 -- (e.g. adding a synonym), run:   SELECT nlq.refresh_name_codes();
@@ -35,7 +35,7 @@ REVOKE ALL ON TABLE nlq.employee_name_codes FROM PUBLIC;
 
 SELECT nlq.refresh_name_codes() AS rows_stored;
 
--- name_codes is produced in an inner step (OFFSET 0 keeps it as a plain column). That matters:
+-- I produce name_codes in an inner step (OFFSET 0 keeps it as a plain column). That matters:
 -- the database only optimises the helper functions when their input is a plain column, not a
 -- computed expression.
 CREATE OR REPLACE VIEW nlq.employees AS
@@ -72,7 +72,7 @@ JOIN public.designation_grade dg ON dg.id = er.designation_grade_id
 LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id
 LEFT JOIN public."user" u ON u.id = er.user_id;
 
--- The three helpers, without SECURITY DEFINER: they only call nlq.code (already granted), and
+-- I wrote the three helpers without SECURITY DEFINER: they only call nlq.code (already granted), and
 -- as plain SQL the database can pre-compute the constant word once instead of per employee.
 CREATE OR REPLACE FUNCTION nlq.word_like(words text[], codes text[], w text) RETURNS boolean
 LANGUAGE sql IMMUTABLE AS $$
@@ -97,13 +97,13 @@ GRANT EXECUTE ON FUNCTION
   nlq.word_like(text[], text[], text), nlq.first_word_like(text[], text[], text), nlq.last_word_like(text[], text[], text)
 TO nlq_reader;
 
--- Proof 1: stored codes agree with live codes for everyone (drift check; expect 0).
+-- Proof 1 is a drift check: stored codes must agree with live codes for everyone (expect 0).
 SELECT count(*) AS stored_codes_that_differ_from_live
 FROM nlq.employee_name_codes nc
 JOIN public.employee_roster er ON er.id = nc.id AND er.name = nc.name
 WHERE nc.codes IS DISTINCT FROM coalesce(nlq.name_codes_of(er.name), ARRAY[]::text[]);
 
--- Proof 2 (keep this LAST): the restricted role can use the phonetic columns. It raises an error
+-- Proof 2 (keep this LAST): the restricted role can use the phonetic columns. I make it raise an error
 -- if not, which undoes this whole file. RESET ROLE matters: the SQL editor runs a file as one
 -- transaction, so without it the role switch would leak into anything placed after this block.
 DO $$

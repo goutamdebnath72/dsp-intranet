@@ -2,10 +2,10 @@
 //
 // THE SERVER'S HALF OF THE ERROR LOG (22 Nov 2026), started by src/instrumentation.ts:
 //   * onRequestError of Next: every error a route, a page or a server action THROWS reaches reportServerRequestError;
-//   * console.error: the routes of this application catch most failures, log them with console.error and answer with a message; installServerErrorLog wraps console.error so those are recorded too
+//   * console.error: the routes of this application catch most failures, log them with console.error and answer with a message, so I wrap console.error in installServerErrorLog and those are recorded too
 //     (the original console.error still runs first, the terminal and the host's logs are unchanged).
 // ONLY IN PRODUCTION (and not when ERROR_LOG=off): a development run shares the database with production and has its own files (.dev-server.log, .browser-console.log).
-// Limits: 30 records a minute from this server copy, whatever happens (an outage cannot flood the table), the model asked at most 20 times an hour (report.ts). On Vercel the write is handed to the platform's
+// Limits: 30 records a minute from this server copy, whatever happens (an outage cannot flood the table), the model asked at most 20 times an hour (report.ts). On Vercel I hand the write to the platform's
 // waitUntil when it is there, so the function is not frozen before the record is saved.
 
 import { createLimiter } from "@/lib/security/rateLimit";
@@ -16,7 +16,7 @@ import { sendAlert } from "./alert";
 export const errorLogEnabled = (): boolean => process.env.NODE_ENV === "production" && (process.env.ERROR_LOG || "").toLowerCase() !== "off";
 
 const intake = createLimiter({ max: 30, windowMs: 60_000 });
-/** > 0 while this file is recording an error (connecting to the database included): errors raised meanwhile are the recording's own and are not recorded again */
+/** Greater than 0 while this file is recording an error (connecting to the database included): errors raised meanwhile are the recording's own, so I do not record them again. */
 let busy = 0;
 
 export async function productionDeps(): Promise<Deps> {
@@ -35,18 +35,18 @@ export function keepAlive(p: Promise<unknown>): void {
     const ctx = (globalThis as unknown as Record<symbol, { get?: () => { waitUntil?: (p: Promise<unknown>) => void } | undefined } | undefined>)[Symbol.for("@vercel/request-context")];
     ctx?.get?.()?.waitUntil?.(p);
   } catch {
-    /* no platform helper: the write simply runs on */
+    /* no platform helper here, so the write simply runs on */
   }
 }
 
-/** record one error from the server's own code (also used by the two hooks below); never throws */
+/** Records one error from the server's own code (the two hooks below use it as well). It never throws. */
 export async function recordServerError(raw: RawError, deps?: Deps): Promise<void> {
   if (!errorLogEnabled() || !intake.take("server").ok) return;
   busy++;
   try {
     await reportError(raw, deps ?? (await productionDeps()));
   } catch {
-    /* the log must never break a request */
+    /* My rule: the log must never break a request. */
   } finally {
     busy--;
   }
@@ -60,7 +60,7 @@ export async function reportServerRequestError(err: unknown, request: { path?: s
   await recordServerError({ source: "server", message: e?.message ?? String(err), stack: e?.stack, page: context?.routePath || request?.path });
 }
 
-/** what console.error was called with, as one message and a stack when an Error was among the arguments */
+/** Turns what console.error was called with into one message, plus a stack when an Error was among the arguments. */
 export function describeArgs(args: unknown[]): { message: string; stack?: string } {
   const err = args.find((a): a is Error => a instanceof Error);
   const text = args.map((a) => (typeof a === "string" ? a : a instanceof Error ? a.message : (() => { try { return JSON.stringify(a); } catch { return String(a); } })())).join(" ");
@@ -74,7 +74,7 @@ export function installServerErrorLog(): void {
   const native = console.error.bind(console);
   console.error = (...args: unknown[]) => {
     native(...args);
-    if (busy > 0 || isReporting()) return; // an error raised while the log itself is being written is not recorded
+    if (busy > 0 || isReporting()) return; // I do not record an error raised while the log itself is being written
     const d = describeArgs(args);
     keepAlive(recordServerError({ source: "server", message: d.message, stack: d.stack }));
   };

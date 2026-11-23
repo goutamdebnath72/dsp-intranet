@@ -1,7 +1,7 @@
 // src/lib/announcements/admin/store.ts
 //
 // ANNOUNCEMENT MANAGER DATABASE OPERATIONS (Modular Facility Kit).
-// Protected by:
+// I protect them with:
 //   - pg_advisory_xact_lock(hashtext('announcements'))
 //   - authorityOf / begin (HOD or authorised delegate)
 //   - guardRecord (lost update / race condition guard via HMAC version)
@@ -84,7 +84,7 @@ export async function listRecentAnnouncements(
   actor: Actor,
   limit = 5,
 ): Promise<AnnouncementItemView[]> {
-  // a whole number from 1 to 50 (an unchecked client value allowed 1e9 rows of full HTML, or a negative LIMIT = a 500)
+  // I clamp the limit to a whole number from 1 to 50: an unchecked client value allowed 1e9 rows of full HTML, or a negative LIMIT gave a 500.
   limit = Number.isFinite(limit) ? Math.min(50, Math.max(1, Math.trunc(limit))) : 5;
   return db.run(async (q) => {
     const authority = await authorityOf(q, "announcement", actor.ticket);
@@ -108,8 +108,8 @@ export async function listRecentAnnouncements(
     );
 
     const now = DateTime.now();
-    const files = await filesOf(q, rows.map((r: any) => Number(r.id))); // the PDFs (name and size only); none if the table is not there yet
-    const indexes = await indexStateOf(q, rows.map((r: any) => Number(r.id))); // how each announcement's text and PDF went into the search index; none if the table is not there yet
+    const files = await filesOf(q, rows.map((r: any) => Number(r.id))); // I read the PDFs here (name and size only); none if the table is not there yet
+    const indexes = await indexStateOf(q, rows.map((r: any) => Number(r.id))); // I read how each announcement's text and PDF went into the search index; none if the table is not there yet
 
     return rows.map((r: any) => {
       const createdAt = r.createdAt ? toDateTime(r.createdAt) : now;
@@ -150,14 +150,14 @@ export async function publishAnnouncement(
 ): Promise<{ status: "ok"; id: number } | { status: "invalid"; reason: string }> {
   const title = input.title.trim();
   if (!title) return { status: "invalid", reason: "Title/Headline is required." };
-  // A PDF may stand alone (a title and a PDF, no body text); it must be a real PDF of a fair size.
+  // A PDF may stand alone (a title and a PDF, no body text); I require it to be a real PDF of a fair size.
   const pdf = input.file ? checkPdf(input.file) : null;
   if (pdf && !pdf.ok) return { status: "invalid", reason: pdf.reason };
 
-  // Words linked to the PDF need a PDF: an announcement published without one keeps the words and loses the link.
+  // Words linked to the PDF need a PDF: an announcement I publish without one keeps the words and loses the link.
   const safeContent = input.file ? sanitizeAnnouncementHtml(input.content) : stripPdfLinks(sanitizeAnnouncementHtml(input.content));
   const contentText = htmlToPlainText(safeContent);
-  // The date must be a real ISO date/time (it went straight to the database before: a bad string was a 500).
+  // The date must be a real ISO date/time. It went straight to the database before, so a bad string gave a 500.
   let dateIso: string | null;
   if (input.date) {
     const parsedDate = DateTime.fromISO(input.date);
@@ -167,7 +167,7 @@ export async function publishAnnouncement(
     dateIso = DateTime.now().setZone(IST).toUTC().toISO();
   }
 
-  // The PDF goes to storage BEFORE the transaction (a 10 MB upload must not hold the facility lock); if the transaction fails, it is taken back out.
+  // I put the PDF in storage BEFORE the transaction, because a 10 MB upload must not hold the facility lock; if the transaction fails, I take it back out.
   let stored: StoredFile | null = null;
   if (input.file && pdf && pdf.ok) {
     const url = await storage.put(`announcements/${pdf.name}`, input.file.bytes, "application/pdf");
@@ -197,12 +197,12 @@ export async function publishAnnouncement(
       return newId;
     });
   } catch (e) {
-    if (stored) await storage.del([stored.url]).catch(() => {}); // nothing was saved: the PDF is not left behind
+    if (stored) await storage.del([stored.url]).catch(() => {}); // nothing was saved, so I do not leave the PDF behind
     throw e;
   }
 
-  // Non-blocking embedding generation. With a PDF it is made later, by the PDF's reading (src/lib/announcements/searchIndex/indexer.ts), from title, body and the PDF's text together: a vector made now from the title
-  // alone could land after that one and replace it.
+  // I do not block on embedding generation. With a PDF the vector is made later, by the PDF's reading (src/lib/announcements/searchIndex/indexer.ts), from title, body and the PDF's text together; a vector made now from the title
+  // alone could land after that one and replace it, so I skip it here.
   if (!stored) void embedAnnouncement(id, title, contentText);
 
   return { status: "ok", id };
@@ -231,16 +231,16 @@ export async function modifyAnnouncement(
   if (pdf && !pdf.ok) return { status: "invalid", reason: pdf.reason };
 
   const sanitizedContent = sanitizeAnnouncementHtml(input.content);
-  const contentText = htmlToPlainText(sanitizedContent); // (the words are the same with or without a PDF link)
+  const contentText = htmlToPlainText(sanitizedContent); // the words come out the same with or without a PDF link
 
-  // A new PDF goes to storage first (outside the lock). If the edit is then refused (stale, forbidden, not found) or fails, it is taken back out; if it succeeds, the PDF it replaced is.
+  // A new PDF goes to storage first, outside the lock. If the edit is then refused (stale, forbidden, not found) or fails, I take it back out; if it succeeds, I remove the PDF it replaced.
   let stored: StoredFile | null = null;
   if (input.file && pdf && pdf.ok) {
     const url = await storage.put(`announcements/${pdf.name}`, input.file.bytes, "application/pdf");
     stored = { url, name: pdf.name, bytes: input.file.bytes.length };
   }
   let replacedUrl: string | null = null;
-  let droppedPictures: string[] = []; // the page pictures of the PDF that goes (replaced or removed): out of storage after the commit
+  let droppedPictures: string[] = []; // the page pictures of the PDF that goes (replaced or removed) leave storage after the commit
   let result: ModifyResult;
   try {
     result = await modifyInTransaction();
@@ -271,7 +271,7 @@ export async function modifyAnnouncement(
              LEFT JOIN public.employee_roster er ON er.ticket_no = a."authorTicketNo"
              LEFT JOIN public."user" u ON u."ticketNo" = a."authorTicketNo"
             WHERE a.id = $1
-            FOR UPDATE OF a`, // OF a: Postgres refuses to lock the nullable side of the LEFT JOINs (it failed every modify and delete)
+            FOR UPDATE OF a`, // I lock OF a only: Postgres refuses to lock the nullable side of the LEFT JOINs (it failed every modify and delete)
           [input.id],
         );
         return (rows[0] as unknown as AnnouncementDbRow) || null;
@@ -312,14 +312,14 @@ export async function modifyAnnouncement(
       };
     }
 
-    // The PDF: a new one replaces the old; "remove" takes it off; neither leaves it as it was.
+    // The PDF: a new one replaces the old; "remove" takes it off; if neither is given, I leave it as it was.
     let fileNote = "";
     let hasFile: boolean;
     if (stored) {
       await ensureFileTable(q);
       replacedUrl = (await fileOf(q, input.id))?.url ?? null;
       await saveFile(q, input.id, stored, actor.ticket);
-      droppedPictures = await dropPdfIndex(q, input.id); // the text and pictures of the PDF it replaces are no longer those of the PDF: the new one is read after the commit
+      droppedPictures = await dropPdfIndex(q, input.id); // the text and pictures of the PDF it replaces no longer belong to the PDF; the new one is read after the commit
       fileNote = ` PDF ${replacedUrl ? "replaced" : "attached"}: ${stored.name}.`;
       hasFile = true;
     } else if (input.removeFile) {
@@ -335,7 +335,7 @@ export async function modifyAnnouncement(
       hasFile = (await fileOf(q, input.id)) !== null;
     }
 
-    // Words linked to the PDF stay linked only if the announcement ends up with a PDF.
+    // I keep words linked to the PDF only if the announcement ends up with a PDF.
     const safeContent = hasFile ? sanitizedContent : stripPdfLinks(sanitizedContent);
     await q(
       `UPDATE public.announcement
@@ -351,7 +351,7 @@ export async function modifyAnnouncement(
       note: fileNote ? `Updated announcement.${fileNote}` : "Updated announcement",
     });
 
-    // Re-index embedding asynchronously. A new PDF: its reading makes the vector (see publish). A removed PDF: made without any PDF text (the index rows are not yet gone for another connection). Otherwise: the vector
+    // I re-index the embedding asynchronously. A new PDF: its reading makes the vector (see publish). A removed PDF: I make it without any PDF text (the index rows are not yet gone for another connection). Otherwise: the vector
     // still includes what the kept PDF says (embedAnnouncement reads it).
     if (!stored) void embedAnnouncement(input.id, title, contentText, input.removeFile ? null : undefined);
 
@@ -392,7 +392,7 @@ export async function deleteAnnouncement(
              LEFT JOIN public.employee_roster er ON er.ticket_no = a."authorTicketNo"
              LEFT JOIN public."user" u ON u."ticketNo" = a."authorTicketNo"
             WHERE a.id = $1
-            FOR UPDATE OF a`, // OF a: Postgres refuses to lock the nullable side of the LEFT JOINs (it failed every modify and delete)
+            FOR UPDATE OF a`, // I lock OF a only: Postgres refuses to lock the nullable side of the LEFT JOINs (it failed every modify and delete)
           [input.id],
         );
         return (rows[0] as unknown as AnnouncementDbRow) || null;
@@ -434,7 +434,7 @@ export async function deleteAnnouncement(
     }
 
     const file = await fileOf(q, input.id); // its PDF goes with it (the row by cascade; the file in storage after the commit)
-    deletedPictures = await pageUrlsOf(q, input.id); // and the pictures of its pages
+    deletedPictures = await pageUrlsOf(q, input.id); // and so do the pictures of its pages
     await q(`DELETE FROM public.announcementreadstatus WHERE "announcementId" = $1`, [input.id]);
     await dropFile(q, input.id);
     await q(`DELETE FROM public.announcement WHERE id = $1`, [input.id]);

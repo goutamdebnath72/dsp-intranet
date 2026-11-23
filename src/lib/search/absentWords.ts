@@ -1,16 +1,16 @@
 // src/lib/search/absentWords.ts
 //
-// WORDS OF A QUESTION THAT NO DOCUMENT HAS. The circular search treats a word found in no circular as noise (a typo, a synonym: tokenWeights.ts gives it weight 0), which is right for the ranking, but it
-// means that "LTC rules" quietly becomes "rules" and returns whatever has the word "rules", with a percentage. Under the "Circulars & Notices" choice the reader asked for documents only, so the bar says what is
-// true: that no circular, notice or announcement has the word. When most of the question's words are absent, nothing is shown (nothing in the archive is about it); when only one of several is absent, the results
-// stand with a one-line note. Used only under that choice: "Everything" keeps the old behaviour.
+// Words of a question that no document has. The circular search treats a word found in no circular as noise (a typo, a synonym: tokenWeights.ts gives it weight 0). That is right for the ranking, but it
+// means that "LTC rules" quietly becomes "rules" and returns whatever has the word "rules", with a percentage. Under the "Circulars & Notices" choice the reader asked for documents only, so I make the bar say what is
+// true: that no circular, notice or announcement has the word. When most of the question's words are absent, I show nothing (nothing in the archive is about it); when only one of several is absent, the results
+// stand with a one-line note. I use this only under that choice: "Everything" keeps the old behaviour.
 
 import type { DataSource } from "typeorm";
 
 const TTL_MS = 10 * 60 * 1000;
 const cache = new Map<string, { at: number; present: boolean }>();
 
-/** the words (of those given) that appear in NO circular (its text or its headline), announcement (its title, its text, its PDF's text); [] when the lookup fails: then nothing is claimed */
+/** Returns the words (of those given) that appear in NO circular (its text or its headline), announcement (its title, its text, its PDF's text); [] when the lookup fails, because then I claim nothing. */
 export async function absentWords(ds: DataSource, words: string[]): Promise<string[]> {
   const uniq = Array.from(new Set(words.map((w) => w.toLowerCase()).filter((w) => w.length >= 3)));
   if (uniq.length === 0) return [];
@@ -37,16 +37,16 @@ export async function absentWords(ds: DataSource, words: string[]): Promise<stri
 }
 
 export interface AbsentVerdict {
-  /** most of the question is in no document: show nothing but the sentence */
+  /** Most of the question is in no document, so I show nothing but the sentence. */
   nothing: boolean;
-  /** some word is in no document but the rest is: show the results with the sentence above */
+  /** Some word is in no document but the rest is, so I show the results with the sentence above them. */
   partial: boolean;
   sentence: string;
 }
 
 const quoteAll = (ws: string[]) => ws.map((w) => `“${w.toUpperCase() === w ? w : w}”`).join(", ");
 
-/** pure: what to say, from the question's content words and those that no document has */
+/** Pure: works out what to say, from the question's content words and those that no document has. */
 export function judgeAbsent(contentWords: string[], absent: string[]): AbsentVerdict {
   const total = new Set(contentWords.map((w) => w.toLowerCase())).size;
   const gone = Array.from(new Set(absent.map((w) => w.toLowerCase())));

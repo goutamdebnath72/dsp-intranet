@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/employees/unresolvedScope.selftest.ts
-// A department the question names but nobody can find must not turn into "everybody" (the live answer to "executives in heavy maintenance" was 1,169, all of them).
+// My rule: a department the question names but nobody can find must not turn into "everybody" (the live answer to "executives in heavy maintenance" was 1,169, all of them).
 
 import { unresolvedDepartmentPhrase, withoutBlindScope } from "./unresolvedScope";
 import type { AnalyticsPayload } from "./analytics";

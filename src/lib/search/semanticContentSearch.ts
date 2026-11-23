@@ -21,33 +21,33 @@ export async function executeContentSearch(
   if (!safeQ)
     return { uniqueResults: [], isFallback: false, hasExactMatch: false };
 
-  // Classify the query. Whole-word matching applies ONLY to a double-quoted,
+  // I classify the query here. Whole-word matching applies ONLY to a double-quoted,
   // Latin-script phrase; everything else keeps the old case-insensitive
   // substring behaviour. Matching stays case-INSENSITIVE in every mode
   // (OCR corpus is case-noisy). The vector path is never affected.
   const mode = classifyQuoted(safeQ);
   const cleanQ = mode.phrase;
 
-  // An "exact-token" query is a single token containing a digit (a number or
+  // I treat an "exact-token" query as a single token containing a digit (a number or
   // an alphanumeric code like 20995.30 or a policy number). The user typed it
   // to find that EXACT string. If it is not present literally in the corpus,
-  // the honest answer is "nothing" — NOT the semantically-nearest unrelated
+  // the honest answer is "nothing", NOT the semantically-nearest unrelated
   // chunk. This prevents e.g. "20995.30" surfacing a Volleyball circular.
   const isExactTokenQuery =
     !/\s/.test(cleanQ) && /\d/.test(cleanQ) && cleanQ.length >= 4;
 
-  // $2 is used by whichever operator the literal branch selects:
+  // I use $2 in whichever operator the literal branch selects:
   //   - whole-word (quoted Latin) -> case-insensitive POSIX regex ~* \yphrase\y
   //   - otherwise                 -> ILIKE %phrase%
   const literalParam = mode.wholeWord
-    ? // POSIX ERE has no lookbehind, so express "not flanked by a letter or
-      // digit" with explicit boundary groups. This anchors codes with internal
-      // punctuation ("HR-CLC", "DSP/PERS-NW") as whole tokens — POSIX \y wrapped
-      // around a hyphenated string does not. The ~* operator is case-insensitive.
+    ? // POSIX ERE has no lookbehind, so I express "not flanked by a letter or
+      // digit" with explicit boundary groups. That anchors codes with internal
+      // punctuation ("HR-CLC", "DSP/PERS-NW") as whole tokens, which POSIX \y wrapped
+      // around a hyphenated string does not do. The ~* operator is case-insensitive.
       `(^|[^A-Za-z0-9])${escapeRegex(cleanQ)}([^A-Za-z0-9]|$)`
     : `%${cleanQ}%`;
 
-  // Operator + expression fragments differ by mode but reference the SAME $2,
+  // The operator and expression fragments differ by mode but reference the SAME $2,
   // so the rest of the query shape (and the literal_boost = 2.0) is unchanged.
   const litText = mode.wholeWord ? "cc.text ~* $2" : "cc.text ILIKE $2";
   const litHead = mode.wholeWord
@@ -60,8 +60,8 @@ export async function executeContentSearch(
   // query verbatim. A natural-language query ("format B declaration for SIR")
   // rarely appears verbatim, yet its significant tokens ("format","declaration",
   // "sir") do live in the target chunk. So for an UNQUOTED, non-Indic query with
-  // 2+ meaningful tokens, we also match chunks that contain a strong share of
-  // those tokens. Quoted queries and Indic queries are untouched.
+  // 2+ meaningful tokens, I also match chunks that contain a strong share of
+  // those tokens. I leave quoted queries and Indic queries untouched.
   const INDIC = /[\p{Script=Devanagari}\p{Script=Bengali}]/u;
   const STOP = new Set([
     "the","a","an","of","for","to","in","on","by","is","are","and","or",
@@ -76,13 +76,13 @@ export async function executeContentSearch(
       .split(/\s+/)
       .map((t) => t.replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ""))
       .filter((t) => t.length > 2 && !STOP.has(t));
-    // de-dup, cap to keep the SQL sane
+    // I de-dup the tokens and cap them to keep the SQL sane
     const uniq = Array.from(new Set(toks)).slice(0, 8);
     if (uniq.length >= 2) {
-      // the other words of a term family the question uses are admitted too (biometric / face recognition / RFID / BAMS); the typed words stay
+      // I admit the other words of a term family the question uses too (biometric / face recognition / RFID / BAMS); the typed words stay
       for (const w of termFamilyAdditions(cleanQ)) uniq.push(w.toLowerCase());
-      // Each token -> its own ILIKE param; a chunk/headline matching ANY of
-      // them is admitted (ranking below still rewards more/where matches).
+      // Each token gets its own ILIKE param; a chunk/headline matching ANY of
+      // them is admitted (the ranking below still rewards more/where matches).
       const parts: string[] = [];
       uniq.forEach((t) => {
         parts.push(`cc.text ILIKE $${3 + tokenParams.length}`);
@@ -92,7 +92,7 @@ export async function executeContentSearch(
     }
   }
 
-  // Combined literal side = whole-string literal OR the per-token rescue.
+  // My combined literal side is the whole-string literal OR the per-token rescue.
   const literalOrTokens = tokenPredicate
     ? `(${literalPredicate} OR ${tokenPredicate})`
     : literalPredicate;
@@ -102,8 +102,8 @@ export async function executeContentSearch(
     const queryVector = normalizeVector(rawEmbedding);
     const vectorString = `[${queryVector.join(",")}]`;
 
-    // Hybrid SQL: Searches both Vector Space AND the Literal Space.
-    // The literal operator (~ vs ILIKE) is chosen above; the vector clause
+    // Hybrid SQL: it searches both Vector Space AND the Literal Space.
+    // I choose the literal operator (~ vs ILIKE) above; the vector clause
     // is identical in every mode.
     const hybridQuerySql = `
       SELECT 
@@ -149,12 +149,12 @@ export async function executeContentSearch(
 
         if (literalBoost > 0) hasExactMatch = true;
 
-        // Floor: keep a chunk if it has the whole-string literal, OR a strong
+        // My floor: keep a chunk if it has the whole-string literal, OR a strong
         // semantic score, OR a per-token lexical hit (the rescue path). Without
         // the tokenBoost clause the rescued chunks would be dropped here.
         if (literalBoost === 0 && tokenBoost === 0 && rawSim < 0.6) continue;
 
-        // literal (2.0) ranks above token (0.75) ranks above pure vector.
+        // Literal (2.0) ranks above token (0.75), which ranks above pure vector.
         const score = rawSim + literalBoost + tokenBoost;
 
         if (!docMap.has(m.id)) {
@@ -168,9 +168,9 @@ export async function executeContentSearch(
                 : null,
             publishedAt: formatLuxonDate(m.publishedAt),
             internalScore: score,
-            similarity: Number(Math.min(0.99, Math.max(0, rawSim)).toFixed(3)), // Keep UI percentage realistic
+            similarity: Number(Math.min(0.99, Math.max(0, rawSim)).toFixed(3)), // I keep the UI percentage realistic
             chunkText: m.chunkText || "",
-            // Page of the FIRST (highest-ranked) matching chunk — where the
+            // This is the page of the FIRST (highest-ranked) matching chunk, where the
             // viewer should jump to. 0/undefined means unknown (legacy chunks).
             matchPage:
               m.pageNumber != null && Number(m.pageNumber) > 0
@@ -186,7 +186,7 @@ export async function executeContentSearch(
           if (m.chunkText && !existing.chunkText?.includes(m.chunkText)) {
             existing.chunkText += `\n\n${m.chunkText}`;
           }
-          // Collect every distinct page that has a matching chunk.
+          // I collect every distinct page that has a matching chunk.
           const pg =
             m.pageNumber != null && Number(m.pageNumber) > 0
               ? Number(m.pageNumber)
@@ -197,7 +197,7 @@ export async function executeContentSearch(
         }
       }
 
-      // Exact-token query with no literal match anywhere -> return empty
+      // With an exact-token query and no literal match anywhere, I return empty
       // rather than vector-fallback junk.
       if (isExactTokenQuery && !hasExactMatch) {
         return { uniqueResults: [], isFallback: false, hasExactMatch: false };
@@ -210,7 +210,7 @@ export async function executeContentSearch(
       if (results.length > 0) {
         const topScore = results[0].internalScore;
 
-        // Razor-sharp drop-off: If a literal match (score > 2.0) is found, sever everything else
+        // Razor-sharp drop-off: if a literal match (score > 2.0) is found, I sever everything else
         const tolerance = hasExactMatch ? 0.05 : 0.1;
 
         const strictlyFiltered = results

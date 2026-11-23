@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/phdHolders.selftest.ts
-// Step 56b: "who are the PhD holders" is answered from the list kept by hand (DR_TICKETS), not from a circular. 26 Oct 2026: "name of the employee who is phd holder" answered "Dr. Partha Mukhopadhyay" from
+// Step 56b: "who are the PhD holders" is answered from the list I keep by hand (DR_TICKETS), not from a circular. 26 Oct 2026: "name of the employee who is phd holder" answered "Dr. Partha Mukhopadhyay" from
 // the circular "List of Nodal Officers ... for SIR": a nodal officer's column read as a qualification, the designation of December 2025, nobody else possible.
 
 import { DR_TICKETS } from "../employees/honorific";
@@ -12,7 +12,7 @@ const ok = (name: string, cond: boolean, extra = "") => {
   else { fail++; console.log(`FAIL ${name} ${extra}`); }
 };
 
-// ---- the three questions of the owner, and the way people ask
+// ---- my three questions, and the way people ask
 const taken = [
   "list the name of employees who are phd holder with their department", "name of the employee who is phd holder", "name of the employee with his department who is phd holder",
   "who are the phd holders", "how many phd holders are there", "list of employees with PhD", "list the Ph.D holders", "which employees have a doctorate", "show phd holders in the plant",

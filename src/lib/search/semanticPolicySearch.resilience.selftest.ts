@@ -1,7 +1,7 @@
 // src/lib/search/semanticPolicySearch.resilience.selftest.ts
 // Run:  npx tsx src/lib/search/semanticPolicySearch.resilience.selftest.ts      (no real network, no real database)
 //
-// The REAL executePolicySearch, on top of a scripted stand-in for the database connection and a stand-in for Google's embedding service
+// This runs the REAL executePolicySearch, on top of a scripted stand-in for the database connection and a stand-in for Google's embedding service
 // (global fetch). It proves the wiring of searchResilience.ts into the engine: retry on a transient connection error, the query embedded
 // only ONCE, a title fallback shown when it finds something, and a failed search reported as FAILED rather than as "no results".
 process.env.GEMINI_API_KEY = "test-key";
@@ -9,8 +9,8 @@ import Module from "node:module";
 import type { executePolicySearch as ExecutePolicySearch } from "./semanticPolicySearch";
 import { SearchUnavailableError } from "./searchResilience";
 
-// The engine imports two modules that pull in the database ENTITY classes, which can not be loaded by this test runner (it does not emit
-// the decorator metadata they need -- the same reason the re-read tool avoids them). Those two are replaced here; everything else, ALL of
+// The engine imports two modules that pull in the database ENTITY classes, which this test runner cannot load (it does not emit
+// the decorator metadata they need -- the same reason the re-read tool avoids them). I replace those two here; everything else, ALL of
 // the engine's own code (embedding once, the two retrieval arms, fusion, ranking, the retry and the fallback), is the real thing:
 //   "@/lib/ai/embedding.service"  ->  ../ai/geminiEmbedding   (the same generateEmbedding, without the database import)
 //   "./titleSearch"               ->  a stub returning whatever titleHits says
@@ -62,7 +62,7 @@ function fakeDb(script: Script = {}) {
     query: async (sql: string) => {
       calls.query++;
       if (script.failAlways) throw new Error(script.failAlways);
-      if (failLeft-- > 0) throw new Error("timeout exceeded when trying to connect"); // the exact message from your terminal
+      if (failLeft-- > 0) throw new Error("timeout exceeded when trying to connect"); // the exact message from my terminal
       if (sql.includes("<=>")) return [{ id: 49, headline: "Circular - Gift card corrigendum", fileUrls: ["http://x/49.pdf"], publishedAt: "2026-08-08T00:00:00.000Z", chunk_text: "Gift Card amount may be read as Rs.14,999/-", cos: 0.82 }];
       if (sql.includes("ts_rank")) return [{ id: 49, score: 0.2 }];
       return [];
@@ -72,7 +72,7 @@ function fakeDb(script: Script = {}) {
 }
 
 (async () => {
-  // The embedding service caches a question's vector (repeating a question costs no call), so every scenario asks a slightly different one.
+  // The embedding service caches a question's vector (repeating a question costs no call), so I ask a slightly different one in every scenario.
   let n = 0;
   const fresh = () => `what is the gift card amount after the corrigendum scenario${++n}`;
 
@@ -85,7 +85,7 @@ function fakeDb(script: Script = {}) {
     const row = r.uniqueResults[0];
     check("healthy: the row has everything the screen uses (type, headline, url, date, similarity, excerpt)", row.type === "circular" && row.headline === "Circular - Gift card corrigendum" && row.url === "http://x/49.pdf" && !!row.publishedAt && typeof row.similarity === "number" && /14,999/.test(row.chunkText || ""));
   }
-  // 2. THE CASE FROM YOUR SCREEN: the first connection attempts time out, then the database answers
+  // 2. The case from my screen: the first connection attempts time out, then the database answers
   {
     embedCalls = 0;
     const { ds, calls } = fakeDb({ failFirst: 2 });
@@ -94,7 +94,7 @@ function fakeDb(script: Script = {}) {
     check("...and the question was embedded only ONCE (a retry does not spend another quota call)", embedCalls === 1, String(embedCalls));
     check("...after 2 failed and 2 successful queries (one retry)", calls.query === 4, String(calls.query));
   }
-  // 3. persistent failure, the title search finds nothing: a FAILED search, not an empty one
+  // 3. Persistent failure and the title search finds nothing: a FAILED search, not an empty one
   {
     embedCalls = 0;
     const { ds, calls } = fakeDb({ failAlways: "timeout exceeded when trying to connect" });
@@ -103,20 +103,20 @@ function fakeDb(script: Script = {}) {
     check("every try times out and the title search finds nothing: SearchUnavailableError (database), NOT an empty result", err instanceof SearchUnavailableError && (err as SearchUnavailableError).reason === "database", String(err));
     check("...three attempts were made (6 queries) and the embedding was requested once", calls.query === 6 && embedCalls === 1, JSON.stringify([calls.query, embedCalls]));
   }
-  // 4. persistent failure but the title search finds a circular: shown, as a fallback
+  // 4. Persistent failure but the title search finds a circular: I show it, as a fallback
   {
     const { ds } = fakeDb({ failAlways: "timeout exceeded when trying to connect", titleHits: [{ id: 49, headline: "Circular - Gift card corrigendum" }] });
     const r = await silence(() => executePolicySearch(ds, "gift card corrigendum"));
     check("hybrid keeps failing but the title search finds the circular: it is shown, marked as a fallback", r.isFallback === true && r.uniqueResults[0]?.id === 49);
   }
-  // 5. a real (non-connection) error is not retried
+  // 5. A real (non-connection) error is not retried
   {
     const { ds, calls } = fakeDb({ failAlways: 'syntax error at or near "FROM"' });
     let err: unknown;
     await silence(() => executePolicySearch(ds, fresh())).catch((e) => { err = e; });
     check("a real SQL error is NOT retried (one attempt = 2 queries) and is reported as a search-service problem", err instanceof SearchUnavailableError && (err as SearchUnavailableError).reason === "search-service" && calls.query === 2, String(calls.query));
   }
-  // 6. the embedding service itself failing is not retried as if it were the database
+  // 6. If the embedding service itself fails, I do not retry as if it were the database
   {
     const prev = globalThis.fetch;
     globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 400 })) as typeof fetch;
@@ -126,7 +126,7 @@ function fakeDb(script: Script = {}) {
     globalThis.fetch = prev;
     check("the embedding service refusing (HTTP 400) with an empty title fallback: a failed search (search-service), and the database was never queried", err instanceof SearchUnavailableError && (err as SearchUnavailableError).reason === "search-service" && calls.query === 0, String(err));
   }
-  // 7. a legitimately empty search is NOT an error
+  // 7. A legitimately empty search is NOT an error
   {
     const { ds } = fakeDb();
     ds.query = async () => [];

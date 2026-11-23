@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/cpiStore.selftest.ts
-// The saved consumer price index: the table is made once, rows are written in batches and read back, a row that is not the shape written is not shown, and database trouble never breaks the card.
+// This tests the saved consumer price index: the table is made once, rows are written in batches and read back, a row that is not the shape written is not shown, and database trouble never breaks the card.
 import { CPI_TABLE_STATEMENTS, cpiFromRow, typeormCpiStore } from "./cpiStore";
 import type { CpiRow } from "./cpi";
 

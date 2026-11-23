@@ -1,7 +1,7 @@
 // src/lib/employees/admin/api.ts
 //
-// THE EMPLOYEE MANAGER'S REQUESTS (step 66a). One handler for every operation the panel can ask; the route (src/app/api/employees/admin/route.ts) only brings the logged-in person and the database.
-// The person comes from the LOGIN SESSION and from nowhere else: whatever the browser says about itself (a ticket, a name, a role) is ignored. The rules are enforced here AND again inside the database
+// THE EMPLOYEE MANAGER'S REQUESTS (step 66a). I use one handler for every operation the panel can ask; the route (src/app/api/employees/admin/route.ts) only brings the logged-in person and the database.
+// The person comes from the LOGIN SESSION and from nowhere else: I ignore whatever the browser says about itself (a ticket, a name, a role). The rules are enforced here AND again inside the database
 // transaction (store.ts), so the panel hiding a button is a courtesy, never the protection.
 //   logged out                          -> 401
 //   logged in, no authority             -> 403 for everything except "me"
@@ -22,7 +22,7 @@ export interface ApiContext {
   db: EmpDb;
   findByName: (name: string) => Promise<EmployeeResult[]>;
   findByTicket: (ticket: string) => Promise<EmployeeResult[]>;
-  /** Where the photos are kept (the photo goes with the employee when he is deleted); absent in the tests that do not need it. */
+  /** This is where the photos are kept (the photo goes with the employee when he is deleted); absent in the tests that do not need it. */
   photos?: import("@/lib/employees/photo/storage").PhotoStorage;
 }
 export interface ApiReply { status: number; body: Record<string, unknown> }
@@ -33,7 +33,7 @@ const HOD_OPS = new Set(["delete", "delegates", "find-executive", "grant", "revo
 const text = (v: unknown, max = 200): string => String(v ?? "").slice(0, max);
 const idOf = (v: unknown): number | null => (typeof v === "number" && Number.isSafeInteger(v) && v > 0 ? v : null);
 const acksOf = (v: unknown): AcknowledgeKind[] => (Array.isArray(v) ? v.filter((x): x is AcknowledgeKind => x === "same-name") : []);
-/** The fields of a form, and nothing else the browser may have added. */
+/** I take the fields of a form and nothing else the browser may have added. */
 const fieldsOf = (v: unknown): Record<string, unknown> => {
   const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   const out: Record<string, unknown> = {};
@@ -41,11 +41,11 @@ const fieldsOf = (v: unknown): Record<string, unknown> => {
   return out;
 };
 
-/** The reply for an error the handler did not expect. A missing shared table (sql/17 not yet run) is named, so nobody has to read a server log to learn it. */
+/** The reply for an error the handler did not expect. I name a missing shared table (sql/17 not yet run), so nobody has to read a server log to learn it. */
 export function errorReply(e: unknown): ApiReply {
   const err = e as { code?: string; message?: string; driverError?: { code?: string } };
   const code = err?.code ?? err?.driverError?.code;
-  // a non-executive confirmed before sql/18 was run: the old rule of the table (ticket starts with 4) refuses him
+  // A non-executive was confirmed before sql/18 was run: the old rule of the table (ticket starts with 4) refuses him
   if (code === "23514" && /facility_delegate_ticket_no_check/.test(String(err?.message ?? ""))) {
     return reply(503, { error: "Giving a tool to a non-executive needs one more step in the database. Run src/lib/nl2sql/sql/18_facility_nonexecutive.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
   }
@@ -78,7 +78,7 @@ export async function handleEmployeeAdmin(body: unknown, ctx: ApiContext): Promi
   }
   if (op === "audit") {
     const history = await store.recentAudit(ctx.db, 50, hod);
-    // the editor's post comes from the people directory (the history keeps ticket and name only); one look-up per person, a failing look-up leaves the post empty
+    // I take the editor's post from the people directory (the history keeps ticket and name only); one look-up per person, and a failing look-up leaves the post empty
     const posts = new Map<string, string>();
     for (const t of Array.from(new Set(history.map((h) => h.actorTicket)))) {
       const found = (await ctx.findByTicket(t).catch(() => [])).find((p) => String(p.ticketNo).trim() === t);
@@ -93,11 +93,11 @@ export async function handleEmployeeAdmin(body: unknown, ctx: ApiContext): Promi
   if (op === "modify" || op === "delete") {
     const id = idOf(b.id);
     if (id === null) return reply(400, { error: "Which employee? (the id is missing)" });
-    // the version the person SAW travels with every change and delete (src/lib/concurrency/version.ts): the store refuses a save whose version is not the record's now
+    // The version the person SAW travels with every change and delete (src/lib/concurrency/version.ts): I make the store refuse a save whose version is not the record's now
     const version = text(b.version, 64);
     if (op === "modify") return reply(200, { result: await store.modifyEmployee(ctx.db, actor, id, fieldsOf(b.fields), acksOf(b.acknowledge), version) });
     const result = await store.deleteEmployee(ctx.db, actor, id, { confirmTicket: text(b.confirmTicket, 20), removeLogin: b.removeLogin === true, version });
-    if (result.status === "ok") { // the photo goes with him (its row, and the pictures in the store); a failure here never undoes the deletion
+    if (result.status === "ok") { // I let the photo go with him (its row, and the pictures in the store); a failure here never undoes the deletion
       try { const urls = await purgePhoto(ctx.db, id); if (ctx.photos && urls.length) await ctx.photos.del(urls); } catch (e) { console.error("employee photo purge:", e); }
     }
     return reply(200, { result });

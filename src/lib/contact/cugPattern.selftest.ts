@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/contact/cugPattern.selftest.ts </dev/null
-// Questions about the first digits of executives' CUG numbers: read by rules, answered only for a signed-in executive, prefix only, masked people, a limit per hour.
+// I read questions about the first digits of executives' CUG numbers by rules; they are answered only for a signed-in executive, prefix only, with masked people and a limit per hour.
 import { readFileSync } from "node:fs";
 import { MAX_DIGITS, MAX_SHOWN, PER_HOUR, REFUSALS, answerCugPattern, readCugPattern, resetCugCounter, type CugDeps, type CugSearchResult } from "./cugPattern";
 

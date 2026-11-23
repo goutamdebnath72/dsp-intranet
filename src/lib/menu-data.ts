@@ -261,7 +261,7 @@ export const menuData: MenuItemData[] = [
                 links: [
                     { label: "Senior Citizens (Hindi)", href: "#" },
                     { label: "Senior Citizens (English)", href: "#" },
-                    { label: "Workers", href: "#" }, // Assuming this has sub-links, but none were shown
+                    { label: "Workers", href: "#" }, // I assume this has sub-links, but none were shown
                     { label: "Youth (Hindi)", href: "#" },
                     { label: "Youth (English)", href: "#" },
                 ],

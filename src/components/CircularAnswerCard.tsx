@@ -2,10 +2,10 @@
 
 // src/components/CircularAnswerCard.tsx
 //
-// ANSWER FIRST. The answer as clear FACTS: a heading, then a small table (or one large key figure when there is a single fact), a note
+// ANSWER FIRST. I show the answer as clear FACTS: a heading, then a small table (or one large key figure when there is a single fact), a note
 // when the document states a condition, and ONE source line (the document, its date and page, with the only "Open circular" link on
 // the screen for it). The exact words that prove each fact sit underneath, folded away. While the answer is being prepared a quiet
-// placeholder keeps the place; if the documents do not prove an answer nothing is shown at all.
+// placeholder keeps the place; if the documents do not prove an answer, I show nothing at all.
 
 import React from "react";
 import { DateTime } from "luxon";
@@ -22,20 +22,20 @@ function dateLabel(iso: string | null): string {
   return d.isValid ? d.toFormat("d LLL yyyy") : "";
 }
 
-/** True when the column adds nothing to the label ("Casual Leave" over "Casual Leave"; "Gift Card Amount" and "Amount"). */
+/** Returns true when the column adds nothing to the label ("Casual Leave" over "Casual Leave"; "Gift Card Amount" and "Amount"). */
 function repeatsLabel(label: string, column: string): boolean {
   const norm = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   const l = norm(label), c = norm(column);
   return !c || l.includes(c) || c.includes(l);
 }
 
-/** What "Open circular" on a source opens: the page of the row that cites it and that row's own exact words (the viewer shows them as its banner). */
+/** Decides what "Open circular" on a source opens: the page of the row that cites it and that row's own exact words (the viewer shows them as its banner). */
 export function openTargetFor(a: CircularAnswer, s: { n: number; page: number | null }): { page: number | null; quote: string } {
   const row = a.rows.find((r) => r.source === s.n);
   return { page: s.page ?? row?.page ?? null, quote: row?.quote ?? "" };
 }
 
-/** "Loading Summary . . ." : three dots that light up one after another. */
+/** This draws "Loading Summary . . .": three dots that light up one after another. */
 function LoadingDots() {
   return (
     <span aria-hidden className="ml-1 inline-flex gap-1">
@@ -51,7 +51,7 @@ function LoadingDots() {
 type OpenSource = (id: number, target?: { page: number | null; quote: string }, type?: "circular" | "announcement" | "holiday") => void;
 type SourceOf = CircularAnswer["sources"][number];
 
-/** One source line: what it is, its date and page, and (for a circular or an announcement) the button that opens it. */
+/** I draw one source line: what it is, its date and page, and (for a circular or an announcement) the button that opens it. */
 function SourceItem({ s, target, onOpenSource }: { s: SourceOf; target: { page: number | null; quote: string }; onOpenSource: OpenSource }) {
   const openable = s.type === "circular" || s.type === "announcement";
   const body = (
@@ -86,8 +86,8 @@ function SourceItem({ s, target, onOpenSource }: { s: SourceOf; target: { page: 
 }
 
 /**
- * THE SUMMARY every circular or announcement reply carries when no precise answer could be proved (documentSummary.ts). It says what the best match is about, says so plainly when it does not answer the question,
- * and, when the model could not write one, shows the opening of the document in its own words, labelled as that.
+ * The summary every circular or announcement reply carries when no precise answer could be proved (documentSummary.ts). I make it say what the best match is about, and say so plainly when it does not answer the question,
+ * and, when the model could not write one, show the opening of the document in its own words, labelled as that.
  */
 export function SummaryCard({ summary, onOpenSource }: { summary: NonNullable<AnswerState["summary"]>; onOpenSource: OpenSource }) {
   return (
@@ -120,7 +120,7 @@ export function SummaryCard({ summary, onOpenSource }: { summary: NonNullable<An
   );
 }
 
-/** `type` says what the source is: a circular opens in its viewer, an announcement in its own window (the search window comes back when it is closed). */
+/** `type` says what the source is: a circular opens in its viewer, an announcement in its own window, and the search window comes back when it is closed. */
 export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState; onOpenSource: OpenSource }) {
   if (state.status === "idle") return null;
 
@@ -137,12 +137,12 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
   }
 
   const a = state.answer;
-  // no precise answer could be proved: the reply carries a summary of the best match instead (never a bare title)
+  // When no precise answer could be proved, I let the reply carry a summary of the best match instead (never a bare title)
   if (!a) return state.summary ? <SummaryCard summary={state.summary} onOpenSource={onOpenSource} /> : null;
 
   const single = a.rows.length === 1;
   const sharedColumn = !single && a.rows[0].column && a.rows.every((r) => r.column === a.rows[0].column) ? a.rows[0].column : "";
-  // the exact words, once per distinct quote, with the labels it proves
+  // I keep the exact words once per distinct quote, with the labels it proves
   const evidence: { quote: string; labels: string[] }[] = [];
   for (const r of a.rows) {
     const found = evidence.find((e) => e.quote === r.quote);
@@ -157,7 +157,7 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
         <span className="text-[11px] font-bold uppercase tracking-[0.14em]">Answer</span>
       </div>
 
-      {/* the heading is plain text, for circulars and announcements alike: the way into the document is the Source row below ("Open circular" / "Open announcement") */}
+      {/* I keep the heading as plain text, for circulars and announcements alike: the way into the document is the Source row below ("Open circular" / "Open announcement") */}
       <h3 className="px-4 pt-3.5 text-[17px] font-semibold leading-snug text-neutral-900">{a.title}</h3>
 
       {single ? (
@@ -192,7 +192,7 @@ export function CircularAnswerCard({ state, onOpenSource }: { state: AnswerState
                         {(() => {
                           const src = a.sources.find((s) => s.n === r.source);
                           if (!src) return null;
-                          const title = formatCircularTitle(src.headline); // the same display tidy-up as the Sources list below
+                          const title = formatCircularTitle(src.headline); // I use the same display tidy-up as the Sources list below
                           const head = title.length > 64 ? `${title.slice(0, 63).trimEnd()}\u2026` : title;
                           const when = dateLabel(src.publishedAt);
                           return `${head}${when ? ` \u00B7 ${when}` : ""}`;

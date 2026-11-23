@@ -1,9 +1,9 @@
 // src/tools/aicpi/CpiCharts.tsx
 //
-// THE CONSUMER PRICE INDEX (CPI) AND INFLATION OF MoSPI, drawn as column charts: the index of each month of all India in three tabs (Combined, Urban, Rural), the same for any State (the plant's own, West Bengal, first), and
+// I draw the Consumer Price Index (CPI) and inflation of MoSPI as column charts: the index of each month of all India in three tabs (Combined, Urban, Rural), the same for any State (the plant's own, West Bengal, first), and
 // the year-on-year inflation rate of the last 1, 3, 5 or 10 years in four tabs. The figures are MoSPI's own, saved in the database (src/lib/live/cpi.ts says what they are and how they were checked); a month MoSPI has not
-// published is not drawn, and nothing is estimated. This is the CPI of the people at large, not the CPI-IW that the dearness allowance follows: the card says so.
-// A bar chart tells the truth only from a starting line it names: the inflation chart starts at zero (a rate below zero hangs under it); the index chart starts at 100, the base year's own level (2024 = 100), and says so.
+// published is not drawn, and I estimate nothing. This is the CPI of the people at large, not the CPI-IW that the dearness allowance follows: the card says so.
+// A bar chart tells the truth only from a starting line it names, so the inflation chart starts at zero (a rate below zero hangs under it) and the index chart starts at 100, the base year's own level (2024 = 100), and says so.
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -17,7 +17,7 @@ import { ALL_INDIA, inflationAlert, inflationWindow, monthShort, monthText, type
 
 const f1 = (n: number) => n.toFixed(1);
 const f2 = (n: number) => n.toFixed(2);
-/** the round values on the left of a chart: no needless decimals (100, 105, 2.5) */
+/** The round values on the left of a chart: I keep out needless decimals (100, 105, 2.5). */
 const tick = (v: number) => String(Math.round(v * 100) / 100);
 
 export { Pills };
@@ -32,11 +32,11 @@ const SECTOR_TABS: Array<{ id: Sector; text: string }> = [
   { id: "Urban", text: "Urban" },
   { id: "Rural", text: "Rural" },
 ];
-/** THE COLOUR OF THE CPI COLUMNS (the tan they have always had) in three depths tells the sectors apart: the darkest for Combined, the original tan for Urban, the lightest for Rural; the same depth for a sector whether the chart is all India or a State */
+/** I colour the CPI columns in three depths of the tan they have always had, to tell the sectors apart: the darkest for Combined, the original tan for Urban, the lightest for Rural. A sector keeps the same depth whether the chart is all India or a State. */
 export const SECTOR_COLOR: Record<Sector, string> = { Combined: "#8a6a3e", Urban: "#c4a67f", Rural: "#e8d9bf" };
 const INFLATION_COLOR = "#4f79b5";
 
-/** the bars of one sector's index, month by month (the hover says the month, the index and the rate) */
+/** I build the bars of one sector's index, month by month; the hover says the month, the index and the rate. */
 export function indexBars(months: string[], s: SectorSeries): Bar[] {
   return months.map((m, i) => {
     const v = s.index[i], r = s.inflation[i];
@@ -44,7 +44,7 @@ export function indexBars(months: string[], s: SectorSeries): Bar[] {
   });
 }
 
-/** the bars of the inflation rate: a month name under each bar for a year or less, the year at its January for more */
+/** These are the bars of the inflation rate: I put a month name under each bar for a year or less, and the year at its January for more. */
 export function inflationBars(pts: InflationSlot[]): Bar[] {
   const few = pts.length <= 13;
   return pts.map((p) => {
@@ -68,7 +68,7 @@ function Facts({ items }: { items: Array<{ title: string; big: string; sub: stri
   );
 }
 
-/** the index of each month, all India, in the tab of a sector; and the same for a State */
+/** Here I show the index of each month, all India, in the tab of a sector, and the same for a State. */
 export function IndexView({ data, initialState = "West Bengal", initialSector = "Combined" }: { data: Cpi; initialState?: string; initialSector?: Sector }) {
   const [sector, setSector] = useState<Sector>(initialSector);
   const [state, setState] = useState(data.states.some((s) => s.name === initialState) ? initialState : ALL_INDIA);
@@ -109,7 +109,7 @@ const YEARS: Array<{ id: "1" | "3" | "5" | "10"; text: string }> = [
   { id: "10", text: "10Y" },
 ];
 
-/** the inflation rate (all India, Combined), month by month, for the last 1, 3, 5 or 10 years */
+/** Here I show the inflation rate (all India, Combined), month by month, for the last 1, 3, 5 or 10 years. */
 export function InflationView({ data, initial = "1" }: { data: Cpi; initial?: "1" | "3" | "5" | "10" }) {
   const [years, setYears] = useState<"1" | "3" | "5" | "10">(initial);
   const pts = useMemo(() => inflationWindow(data.inflation, Number(years) as 1 | 3 | 5 | 10), [data.inflation, years]);
@@ -119,7 +119,7 @@ export function InflationView({ data, initial = "1" }: { data: Cpi; initial?: "1
   const hi = real.reduce((a, p) => (p.value > a.value ? p : a)), lo = real.reduce((a, p) => (p.value < a.value ? p : a));
   const now = real[real.length - 1];
   const blank = pts.filter((p) => p.value === null).map((p) => monthText(p.month));
-  // the statement is about the latest month, whatever window is shown
+  // I make the statement about the latest month, whatever window is shown.
   const band = inflationAlert(data.inflation);
   const reach = pts.length < Number(years) * 12 ? ` (the figures begin ${monthText(pts[0].month)})` : "";
   return (
@@ -146,7 +146,7 @@ export function InflationView({ data, initial = "1" }: { data: Cpi; initial?: "1
   );
 }
 
-/** the whole of the CPI side of the card */
+/** This is the whole CPI side of the card. */
 export function CpiBody({ data }: { data: Cpi }) {
   return (
     <div>

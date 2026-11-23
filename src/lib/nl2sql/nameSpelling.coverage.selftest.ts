@@ -1,12 +1,12 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/nameSpelling.coverage.selftest.ts
-// Step 55b: HOW GENERAL is the spelling safety net? Not "does it know Goswami" but: take the real name words of the directory (642 words of the CO & CC and Refractory lists, one spelling
+// Step 55b: HOW GENERAL is the spelling safety net? Not "does it know Goswami" but this: I take the real name words of the directory (642 words of the CO & CC and Refractory lists, one spelling
 // of each, __fixtures__/name_words.real.json), break EVERY word in EVERY way of nine families of typo (about 44,000 broken spellings), and count what comes back.
 //   old rule   = the phonetic code alone (what the search did before): the typed word has the same code as the real name.
 //   net        = the nearest-spelling safety net finds the right name.
 //   wrong      = the net "corrects" to a DIFFERENT name (the error that must stay rare).
 //   other name = the broken spelling sounds exactly like another real name: the search finds that person (a collision, not a miss).
 // There is no list of names in the net: a new person in the directory is covered at once, because the vocabulary is read from the directory.
-// The thresholds below sit a little under what was measured on 26 Oct 2026, so that a change which makes the net worse fails here.
+// I set the thresholds below a little under what was measured on 26 Oct 2026, so that a change which makes the net worse fails here.
 
 import vocabRows from "./__fixtures__/name_words.real.json";
 import { foldToken } from "../employees/namePredicate";
@@ -43,7 +43,7 @@ for (const f of FAMILIES) {
   for (const w of words) for (const v of f.gen(w)) {
     if (v === w || v.length < 3 || seen.has(`${w}>${v}`)) continue;
     seen.add(`${w}>${v}`);
-    if (vocab.count.has(v)) continue; // it IS another real name
+    if (vocab.count.has(v)) continue; // this IS another real name
     s.cases++;
     if (sameCode(v, w)) { s.old++; continue; }
     if (isKnownWord(v, vocab)) { s.other++; continue; }
@@ -55,8 +55,8 @@ for (const f of FAMILIES) {
   console.log(`  ${f.name.slice(0, 84).padEnd(84)} ${String(s.cases).padStart(6)} cases: old rule ${String(Math.round((100 * s.old) / s.cases)).padStart(3)}%, with the net ${String(found).padStart(3)}%, wrong ${s.wrong}`);
   ok(`${f.name}: at least ${f.min}% found with the net (found ${found}%)`, found >= f.min);
   ok(`${f.name}: the net adds to the old rule (or the old rule already has everything)`, s.old + s.net >= s.old);
-  // a missing letter (4 letters typed from a 5-letter name) and two slips at once are often one slip from SEVERAL real names ("soen": Sen, Soren, Somen): that is ambiguity in the data, no rule
-  // can remove it, so the answer shows the other close names. The limit is therefore looser for those two families and tight for the rest.
+  // a missing letter (4 letters typed from a 5-letter name) and two slips at once are often one slip from SEVERAL real names ("soen": Sen, Soren, Somen): that is ambiguity in the data and no rule
+  // can remove it, so the answer shows the other close names. For that reason I made the limit looser for those two families and kept it tight for the rest.
   ok(`${f.name}: wrong corrections stay rare (${s.wrong} of ${s.cases})`, s.wrong / s.cases <= (/missing|TWO slips|FIRST letter/.test(f.name) ? 0.035 : 0.01));
 }
 const pct = (n: number) => Math.round((100 * n) / total.cases);

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/disciplineColumn.selftest.ts
-// Step 53a: the "Discipline" column of a list of doctors, and its place in the model's column hint.
+// Step 53a: this checks the "Discipline" column of a list of doctors, and its place in the model's column hint.
 
 import { addDisciplineColumn, presentPeople, withCohortInHint } from "./seniorityDisplay";
 

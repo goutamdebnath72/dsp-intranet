@@ -8,17 +8,17 @@
 // identical -- and the first request fails. The next request works, because the connection has been rebuilt by then.
 // That is the "error on the first open of a new circular, clean the second time" you saw.
 //
-// The fix: in development only, when TypeORM does not know a class OBJECT, accept the registered entity with the SAME NAME.
+// My fix: in development only, when TypeORM does not know a class OBJECT, I accept the registered entity with the SAME NAME.
 // Production has no hot reload and one copy of each class, so nothing changes there.
 
 import type { DataSource } from "typeorm";
 
-/** True only if the connection was built with this very class object (NOT merely one with the same name). */
+/** Returns true only if the connection was built with this very class object, not merely one with the same name. */
 export function hasExactMetadata(ds: DataSource, entity: unknown): boolean {
   return ds.entityMetadatas.some((m) => m.target === entity);
 }
 
-/** The name of a class (a function with a name), else undefined. */
+/** Returns the name of a class (a function with a name), else undefined. */
 const classNameOf = (x: unknown): string | undefined => (typeof x === "function" ? (x as { name: string }).name : undefined);
 
 export function installDevEntityNameFallback(ds: DataSource): void {

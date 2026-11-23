@@ -1,9 +1,9 @@
 // src/lib/live/cpiService.ts
 //
-// THE CONSUMER PRICE INDEX ANSWER: from the saved rows (src/lib/live/cpiStore.ts); MoSPI is asked only
+// THE CONSUMER PRICE INDEX ANSWER: I build it from the saved rows (src/lib/live/cpiStore.ts) and ask MoSPI only
 //   * when nothing is saved (everything is loaded: the new series from January 2026 and the old from 2016), or
-//   * when a month that should be out by now is not saved (the index of a month is due on the 12th of the next, at 4 pm): only the missing months are asked, a request or two.
-// When MoSPI cannot be asked or has not published, what is saved is shown (the card says which month is the latest and when the next is due). Nothing is estimated.
+//   * when a month that should be out by now is not saved (the index of a month is due on the 12th of the next, at 4 pm): then only the missing months are asked, a request or two.
+// When MoSPI cannot be asked or has not published, I show what is saved (the card says which month is the latest and when the next is due). I estimate nothing.
 import { DateTime } from "luxon";
 import { askAll, askNewMonths, buildCpi, latestDue, type Cpi, type CpiRow, type JsonGetter } from "./cpi";
 import type { CpiStore } from "./cpiStore";
@@ -16,14 +16,14 @@ export interface CpiDeps {
   get?: JsonGetter;
 }
 
-/** the answer, loading or topping up the store first when that is due */
+/** Gives the answer, loading or topping up the store first when that is due. */
 export async function cpiAnswer({ store, now = DateTime.now(), get }: CpiDeps): Promise<Cpi> {
   let rows = await store.all();
   const newest = rows.filter((r) => r.base === "2024").map((r) => r.month).sort().pop();
   const due = latestDue(now);
   const needs = !newest ? "all" : newest < due && due >= "2026-01" ? "new" : null;
   if (needs) {
-    // one load at a time, however many people open the card at once
+    // One load at a time, however many people open the card at once.
     loading ??= (async () => {
       try {
         const got = needs === "all" ? await askAll(now, get) : await askNewMonths(nextMonth(newest!), due, get);
@@ -36,7 +36,7 @@ export async function cpiAnswer({ store, now = DateTime.now(), get }: CpiDeps): 
     try {
       rows = [...rows, ...(await loading)];
     } catch (e) {
-      // MoSPI did not answer: with something saved, show it; with nothing, there is nothing to show
+      // MoSPI did not answer: with something saved I show it; with nothing, there is nothing to show.
       if (!rows.length) throw e;
     }
   }

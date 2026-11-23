@@ -1,9 +1,9 @@
 // src/lib/live/markets.ts
 //
-// SENSEX, NIFTY AND A WATCH LIST OF SHARES, from Yahoo Finance's public chart feed (one small request per symbol, kept five minutes on the server, so the load on the source is light).
+// Sensex, Nifty and a watch list of shares, from Yahoo Finance's public chart feed (one small request per symbol, kept five minutes on the server, so the load on the source is light).
 // Prices there may be delayed (about fifteen minutes) and the card says so. "Trending" means the biggest movers of a FIXED WATCH LIST of large companies (SAIL among them), not of the whole market:
-// the card names the list instead of claiming more. This is market data, never advice.
-// Pure: the feed's JSON in, the numbers out (tested on a hand-made sample of the feed's documented shape; a live check needs the source to be answering).
+// I made the card name the list instead of claiming more. This is market data, never advice.
+// This file is pure: the feed's JSON goes in, the numbers come out (tested on a hand-made sample of the feed's documented shape; a live check needs the source to be answering).
 import { DateTime } from "luxon";
 
 export interface Quote {
@@ -17,7 +17,7 @@ export interface Quote {
   low: number | null;
   /** ISO time of the last price */
   time: string;
-  /** the day's prices, for a small line (up to 40 points) */
+  /** The day's prices, for a small line (up to 40 points). */
   spark: number[];
 }
 
@@ -32,7 +32,7 @@ export const INDICES: Instrument[] = [
   { symbol: "^NSEBANK", name: "Nifty Bank" },
 ];
 
-/** the fixed watch list: SAIL first, then large companies across sectors (steel peers among them) */
+/** My fixed watch list: SAIL first, then large companies across sectors (steel peers among them). */
 export const WATCHLIST: Instrument[] = [
   { symbol: "SAIL.NS", name: "SAIL" },
   { symbol: "TATASTEEL.NS", name: "Tata Steel" },
@@ -61,7 +61,7 @@ interface YahooChart {
 const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** A quote from one chart answer; null when the answer does not hold a usable price (never a guess). */
+/** Returns a quote from one chart answer, or null when the answer does not hold a usable price (never a guess). */
 export function parseYahooChart(json: unknown, inst: Instrument): Quote | null {
   const res = (json as YahooChart)?.chart?.result?.[0];
   const m = res?.meta;
@@ -89,15 +89,15 @@ export function parseYahooChart(json: unknown, inst: Instrument): Quote | null {
 export interface MarketsData {
   indices: Quote[];
   stocks: Quote[];
-  /** the names that could not be fetched this time */
+  /** The names that could not be fetched this time. */
   missing: string[];
   gainers: Quote[];
   losers: Quote[];
-  /** present when some quotes are the last saved copy because the source did not answer: the names, and when the oldest of them was received (ISO) */
+  /** Present when some quotes are the last saved copy because the source did not answer. It holds the names, and when the oldest of them was received (ISO). */
   saved?: { at: string; names: string[] };
 }
 
-/** The biggest risers and fallers of the quotes (only those that actually moved, three of each). */
+/** Returns the biggest risers and fallers of the quotes: only those that actually moved, three of each. */
 export function movers(stocks: Quote[], n = 3): { gainers: Quote[]; losers: Quote[] } {
   const sorted = [...stocks].sort((a, b) => b.pct - a.pct);
   return { gainers: sorted.filter((q) => q.pct > 0).slice(0, n), losers: sorted.filter((q) => q.pct < 0).slice(-n).reverse() };
@@ -111,7 +111,7 @@ export function buildMarkets(indices: Array<Quote | null>, stocks: Array<Quote |
   return { indices: idx, stocks: st, missing, ...movers(st) };
 }
 
-/** Whether the last price is from the trading session now: NSE and BSE trade 9:15 to 15:30 IST on weekdays, and a price older than 20 minutes is the last close. */
+/** Tells whether the last price is from the trading session now. NSE and BSE trade 9:15 to 15:30 IST on weekdays, and I treat a price older than 20 minutes as the last close. */
 export function sessionState(quoteTimeIso: string, now: DateTime): "live" | "closed" {
   const t = DateTime.fromISO(quoteTimeIso);
   if (!t.isValid) return "closed";

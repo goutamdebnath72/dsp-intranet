@@ -1,8 +1,8 @@
 // src/tools/rim/RimGuide.tsx
 //
 // "HOW TO READ A WHEEL (RIM) MARKING": 8Jx20 and its like, part by part, then why the numbers matter (which tyres fit, what else must match the car).
-// It sits UNDER the tyre reader (after the tyre's own specification) as a section of its own, in emerald and teal so that it cannot be mistaken for the tyre's rose; when a tyre has been read,
-// a strip tells which wheel it asks for. The same panel opens by itself when a wheel marking is typed in the search line. Computed in the browser from src/tools/rim/rim.ts; nothing is stored or sent.
+// It sits UNDER the tyre reader (after the tyre's own specification) as a section of its own, and I made it emerald and teal so that it cannot be mistaken for the tyre's rose; when a tyre has been read,
+// a strip tells which wheel it asks for. The same panel opens by itself when a wheel marking is typed in the search line. It is computed in the browser from src/tools/rim/rim.ts; nothing is stored or sent.
 "use client";
 
 import React, { useState } from "react";
@@ -14,7 +14,7 @@ import { inputCls } from "@/components/tools/toolAtoms";
 
 const SAMPLES = ["8Jx20", "6.5Jx16", "7Jx17 ET45", "9.5Jx21"];
 
-/** one colour for each kind of part, on the plate and in the list */
+/** I give each kind of part one colour, on the plate and in the list. */
 const PART_STYLE: Record<string, { text: string; chip: string; bar: string }> = {
   "Rim width": { text: "text-sky-300", chip: "bg-sky-100 text-sky-800", bar: "bg-sky-400" },
   "Flange profile": { text: "text-amber-300", chip: "bg-amber-100 text-amber-800", bar: "bg-amber-400" },

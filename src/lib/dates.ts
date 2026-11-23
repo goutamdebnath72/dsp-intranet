@@ -1,6 +1,6 @@
 // src/lib/dates.ts
 //
-// THE SMALL LUXON HELPERS FOR PLACES THAT USED THE BUILT-IN `Date` (step 65c; owner, 1 Nov 2026: "Luxon is the date and time library throughout the app; any other date or time handling is converted to Luxon").
+// The small Luxon helpers for the places that used the built-in `Date` (step 65c). My rule (1 Nov 2026): "Luxon is the date and time library throughout the app; any other date or time handling is converted to Luxon".
 // Luxon only: nothing here touches the built-in `Date` except where a caller hands one in (a database driver returns Dates).
 //   IST          the plant's zone; "today" is the day in India, whatever zone the server (Vercel runs in UTC) or the visitor has.
 //   nowIso()     the moment now as an ISO instant in UTC with milliseconds ("2026-11-01T10:00:00.000Z"): what `new Date().toISOString()` gave.

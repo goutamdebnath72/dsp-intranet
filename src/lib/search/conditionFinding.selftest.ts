@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/search/conditionFinding.selftest.ts
-// A condition the table gives to a row is said in the sentences too (conditionFinding.ts). The first fixtures are query 1's answers of 11 Nov 2026 (the retention rules).
+// A condition the table gives to a row must be said in the sentences too (conditionFinding.ts). The first fixtures are query 1's answers of 11 Nov 2026 (the retention rules).
 import { readFileSync } from "node:fs";
 import { tableConditions, conditionFindings, withConditionFindings } from "./conditionFinding";
 import type { SynthesisResult, SynthesisTable } from "./executiveSynthesis";

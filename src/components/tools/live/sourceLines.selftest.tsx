@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/tools/live/sourceLines.selftest.tsx
-// EVERY CARD THAT USES SOMEONE ELSE'S DATA NAMES ITS SOURCE, at the bottom, with a link: the live cards through the one SourceLine (several sources: each named and linked), the currency converter through RatesSource.
+// My rule: every card that uses someone else's data names its source, at the bottom, with a link: the live cards through the one SourceLine (several sources: each named and linked), the currency converter through RatesSource.
 // The scans below fail when a new data card is added without one, or a route has no source to name.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -25,7 +25,7 @@ const rs = renderToStaticMarkup(<RatesSource rates={rates} />);
 ok("the currency converter names both providers with links (Frankfurter for the ECB's rates, Exchange Rate API for the Gulf currencies, as its free terms ask) and the date of the rates", /Sources:/.test(text(rs)) && /frankfurter\.dev/.test(rs) && /exchangerate-api\.com/.test(rs) && /Rates By Exchange Rate API/.test(rs) && /Rates of 13 Nov 2026/.test(text(rs)) && (rs.match(/target="_blank"/g) ?? []).length === 2);
 ok("only the providers that answered are named", ratesProviders({ ...rates, source: "open.er-api.com" }).length === 1 && ratesProviders({ ...rates, source: "European Central Bank reference rates (Frankfurter)" }).length === 1 && /Source:/.test(text(renderToStaticMarkup(<RatesSource rates={{ ...rates, source: "open.er-api.com" }} />))));
 
-// the route puts the links in the answer
+// The route puts the links in the answer.
 async function viaRoute() {
   const r1 = await (await liveRoute<{ big: boolean }>({ key: "srcline-test-1", ttlMs: 1000, source: "S", sourceUrl: "https://s.example/", sourceLinks: (d) => [{ name: "S", url: "https://s.example/" }, ...(d.big ? [{ name: "Extra", url: "https://extra.example/" }] : [])], load: async () => ({ big: true }) })).json();
   const r2 = await (await liveRoute<{ big: boolean }>({ key: "srcline-test-2", ttlMs: 1000, source: "S", sourceUrl: "https://s.example/", sourceLinks: (d) => [{ name: "S", url: "https://s.example/" }, ...(d.big ? [{ name: "Extra", url: "https://extra.example/" }] : [])], load: async () => ({ big: false }) })).json();
@@ -38,7 +38,7 @@ const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => { const 
 const files = walk("src").filter((p) => /\.(ts|tsx)$/.test(p) && !/selftest/.test(p));
 const read = (p: string) => readFileSync(p, "utf8");
 const users = files.filter((p) => p.endsWith(".tsx") && /\buseLive[<(]/.test(read(p)) && !/hooks|LivePieces/.test(p));
-// the fare panels use FareSource, the same source line in the fewest words ("Source: RailRadar"); either one satisfies the rule
+// The fare panels use FareSource, the same source line in the fewest words ("Source: RailRadar"); either one satisfies my rule.
 const hasSource = (p: string) => /<SourceLine\b/.test(read(p)) || /<FareSource\b/.test(read(p));
 ok("every card that asks a live route (useLive) ends with a source line (SourceLine, or the fare panels' short FareSource): " + users.map((p) => p.split("/").pop()).join(", "), users.length >= 10 && users.every(hasSource), users.filter((p) => !hasSource(p)).join());
 const converter = read("src/tools/converter/ConverterCard.tsx");

@@ -1,9 +1,9 @@
 // src/components/ChangePasswordModal.tsx
 //
-// THE "CHANGE PASSWORD" WINDOW of a signed-in person. It opens from the account menu in the top bar, and BY ITSELF after sign-in when the password has run out (180 days): then it cannot be closed, only filled in or
-// left by signing out, and it says in words that the password has expired and for how many days a new one is valid. It asks the server first (may this person change it here; has it run out; is a one-time code needed),
-// then takes the current password and the new one twice. NONE OF THE THREE PASSWORD BOXES ACCEPTS COPY, CUT, PASTE OR DROP: a password is typed, twice, by the person. The rules, the last-5 check and the one-time
-// code are the server's (src/app/api/account/password/route.ts, src/lib/security/changePassword.ts); the window only shows what the server answers. Nothing typed here is stored in the browser.
+// The "Change password" window of a signed-in person. It opens from the account menu in the top bar, and by itself after sign-in when the password has run out (180 days): then it cannot be closed, only filled in or
+// left by signing out, and it says in words that the password has expired and for how many days a new one is valid. I make it ask the server first (may this person change it here; has it run out; is a one-time code needed),
+// then it takes the current password and the new one twice. Important: none of the three password boxes accepts copy, cut, paste or drop, because a password is typed, twice, by the person. The rules, the last-5 check and the one-time
+// code belong to the server (src/app/api/account/password/route.ts, src/lib/security/changePassword.ts); the window only shows what the server answers. Nothing typed here is stored in the browser.
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -23,7 +23,7 @@ interface Status {
 }
 type Gate = { state: "loading" } | { state: "ok"; s: Status } | { state: "locked"; reason: string } | { state: "error" };
 
-/** a password box takes typing only: copy, cut, paste, drop and the context menu are all refused (so is dragging text out of it) */
+/** A password box takes typing only: I refuse copy, cut, paste, drop and the context menu, and dragging text out of it too. */
 export const NO_CLIPBOARD = {
   onCopy: (e: React.ClipboardEvent) => e.preventDefault(),
   onCut: (e: React.ClipboardEvent) => e.preventDefault(),
@@ -36,7 +36,7 @@ export const NO_CLIPBOARD = {
   "data-no-clipboard": "true",
 } as const;
 
-export function ChangePasswordModal({ isOpen, onClose, required = false, onChanged }: { isOpen: boolean; onClose: () => void; /** the password has run out: the window cannot be closed */ required?: boolean; onChanged?: () => void }) {
+export function ChangePasswordModal({ isOpen, onClose, required = false, onChanged }: { isOpen: boolean; onClose: () => void; /** When the password has run out, I do not let the window be closed. */ required?: boolean; onChanged?: () => void }) {
   const [mounted, setMounted] = useState(false);
   const [gate, setGate] = useState<Gate>({ state: "loading" });
   const [current, setCurrent] = useState("");
@@ -53,7 +53,7 @@ export function ChangePasswordModal({ isOpen, onClose, required = false, onChang
 
   useEffect(() => setMounted(true), []);
 
-  // each opening starts clean and asks the server
+  // I start each opening clean and ask the server.
   useEffect(() => {
     if (!isOpen) return;
     setCurrent(""); setNext(""); setAgain(""); setCode(""); setShow(false); setBusy(false); setError(""); setDone(false); setSentTo(""); setWait(0); setGate({ state: "loading" });
@@ -67,7 +67,7 @@ export function ChangePasswordModal({ isOpen, onClose, required = false, onChang
 
   useEffect(() => { if (isOpen && gate.state === "ok") first.current?.focus(); }, [isOpen, gate.state]);
   useEffect(() => {
-    if (!isOpen || required) return; // a window that must be filled in does not close on Escape
+    if (!isOpen || required) return; // I do not close on Escape when the window must be filled in
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

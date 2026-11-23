@@ -1,4 +1,4 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/converterModel.selftest.ts
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/converterModel.selftest.ts
 import { CONV_KINDS, ENGINE_UNITS, boxNumber, compute, defaultPair, engineRows, optionsFor, parseEngine, plainNumber } from "./converterModel";
 import type { Rates } from "./currency";
 

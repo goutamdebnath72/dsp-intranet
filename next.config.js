@@ -5,23 +5,23 @@
    convert to import syntax. */
 const fs = require("fs");
 const path = require("path");
-// the speed switches (src/lib/perf/switches.js): which of the audit's changes run
+// My speed switches (src/lib/perf/switches.js) decide which of the audit's changes run.
 const { PERF } = require("./src/lib/perf/switches.js");
 
 /** @type {import('next').NextConfig} */
 
 // Recursively walks a package's own dependency tree (via each package.json's
 // "dependencies" field) and returns glob patterns covering that package and
-// every dependency, transitively. Exists because manually listing pg's
-// dependencies once already went wrong: only pg-connection-string (1 of 5
+// every dependency, transitively. I wrote it because listing pg's
+// dependencies by hand once already went wrong: only pg-connection-string (1 of 5
 // direct dependencies) was included, missing pg-pool, pg-protocol,
-// pg-types, and pgpass -- plus everything THEY depend on (pg-types alone
+// pg-types, and pgpass, plus everything THEY depend on (pg-types alone
 // pulls in 5 more packages, one of which pulls in yet another). That gap
 // meant pg's own internal require() calls failed at runtime even though
-// pg's own files were correctly traced, which TypeORM reports as the
-// misleading "Postgres package has not been found installed" rather than
+// pg's own files were correctly traced, and TypeORM reports that as the
+// misleading "Postgres package has not been found installed" instead of
 // naming the actual missing sibling package. Walking the tree in code
-// avoids ever repeating that mistake, including if pg's dependencies
+// means I never repeat that mistake, even if pg's dependencies
 // change in a future version bump.
 function traceIncludesForPackage(pkgName, seen = new Set()) {
   if (seen.has(pkgName)) return [];
@@ -47,13 +47,13 @@ function traceIncludesForPackage(pkgName, seen = new Set()) {
   return globs;
 }
 
-// SECURITY HEADERS on every response (none of them changes what a page does or how fast it comes):
+// SECURITY HEADERS on every response. None of them changes what a page does or how fast it comes:
 //  - Strict-Transport-Security: the browser uses https only, for two years;
 //  - X-Content-Type-Options: a file is what its Content-Type says (no guessing a script out of a picture or a PDF);
 //  - X-Frame-Options SAMEORIGIN: another site cannot put this one in a frame (clickjacking); the app's own pages may (the PDF viewers frame /api/... files of the same address);
 //  - Referrer-Policy: another site is told only the address's origin, never the path or the search words;
 //  - Permissions-Policy: the page cannot ask for the camera, microphone, location, payment or USB (nothing here uses them).
-// A Content-Security-Policy is the next step and is NOT here: it needs a pass in a real browser over every page first (the PDF viewers, the history card's pdf.js worker, the lightbox, the login window),
+// I have NOT added a Content-Security-Policy yet; it is the next step. It needs a pass in a real browser over every page first (the PDF viewers, the history card's pdf.js worker, the lightbox, the login window),
 // because a policy that is too tight breaks a page without a word.
 const SECURITY_HEADERS = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
@@ -64,13 +64,13 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig = {
-  // the response no longer says which framework (and so which version's weaknesses) is behind it
+  // I turn this off so the response no longer says which framework (and so which version's weaknesses) is behind it.
   poweredByHeader: false,
   async headers() {
     return [
       { source: "/:path*", headers: SECURITY_HEADERS },
-      // The fonts and the plant video are plain files of /public that Next serves with "max-age=0": the browser asked the server about them again on every visit. A week in the browser, and a longer stale-while-revalidate, means a
-      // return visit reads them from the disk. (The pictures are NOT listed: a picture must be asked of the server each time, so that src/middleware.ts can refuse to hand it to a browser that opens it by itself.)
+      // The fonts and the plant video are plain files of /public that Next serves with "max-age=0", so the browser asked the server about them again on every visit. I give them a week in the browser, and a longer stale-while-revalidate, so a
+      // return visit reads them from the disk. (I left the pictures out on purpose: a picture must be asked of the server each time, so that src/middleware.ts can refuse to hand it to a browser that opens it by itself.)
       ...(PERF.browserCacheFontsAndVideo
         ? [
             { source: "/fonts/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" }] },
@@ -80,10 +80,10 @@ const nextConfig = {
     ];
   },
 
-  // (the old `swcMinify: false` option is gone in Next 16; minification is switched off for the webpack build below, which is what keeps TypeORM's class names)
+  // The old `swcMinify: false` option is gone in Next 16. I switch minification off for the webpack build below instead, which is what keeps TypeORM's class names.
 
   webpack: (config, { isServer, dev }) => {
-    // 2. ✅ PRESERVE ORIGINAL NATIVE DRIVER EXTERNAL SETTINGS
+    // Step 2: preserve the original native driver external settings.
     if (isServer) {
       config.externals = config.externals || [];
       config.externals.push({
@@ -94,14 +94,14 @@ const nextConfig = {
       });
     }
 
-    // 3. ✅ DISABLE WEBPACK MINIFICATION FOR THE SERVER BUNDLE ONLY
-    // This stops Webpack/Terser from renaming "User" to "l" or "p", making TypeORM 100% stable! Only the server runs TypeORM: the browser's bundle has no entity classes, so it IS minified
+    // Step 3: I disable webpack minification for the server bundle only.
+    // This stops Webpack/Terser from renaming "User" to "l" or "p", which keeps TypeORM 100% stable. Only the server runs TypeORM: the browser's bundle has no entity classes, so it IS minified
     // (measured on a production build: the home page's JavaScript fell from 10.4 MB to 3.3 MB, 2.3 MB to 1.0 MB compressed, from this one condition).
     if (!dev && (isServer || !PERF.minifyBrowserCode)) {
       config.optimization.minimize = false;
     }
 
-    // 4. ✅ Suppress noisy face-api critical dependency warnings
+    // Step 4: I suppress the noisy face-api critical dependency warnings.
     config.ignoreWarnings = [
       ...(config.ignoreWarnings || []),
       {
@@ -113,15 +113,15 @@ const nextConfig = {
     return config;
   },
 
-  // Next 16: these three settings are top-level (they were under `experimental` in Next 14)
-  // ✅ Keep allowing native database modules to load correctly at runtime
+  // Next 16: these three settings are top-level (they were under `experimental` in Next 14).
+  // I keep allowing native database modules to load correctly at runtime.
   serverExternalPackages: [
       "pg",
       "pg-hstore",
       "sequelize",
       "oracledb",
       "typeorm",
-      // pdf-to-img -> pdfjs-dist's Node canvas factory needs the native
+      // pdf-to-img -> pdfjs-dist: its Node canvas factory needs the native
       // @napi-rs/canvas binary at runtime.
       "pdfjs-dist",
       "@napi-rs/canvas",
@@ -131,27 +131,27 @@ const nextConfig = {
       // (.next/server/chunks/11.js locally). pdf-to-img's own code resolves
       // pdfjs-dist's bundled assets via
       // `createRequire(import.meta.url).resolve("pdfjs-dist/package.json")`
-      // — a resolution relative to WHATEVER FILE THAT CODE PHYSICALLY RUNS
+      // which is a resolution relative to WHATEVER FILE THAT CODE PHYSICALLY RUNS
       // FROM. Once webpack relocates it into a chunk file, import.meta.url
       // no longer points at pdf-to-img's real node_modules location, so
       // that resolution breaks ("Cannot find module 'pdfjs-dist/package.json'")
       // even though pdfjs-dist itself is correctly traced and present.
-      // Externalizing pdf-to-img keeps it as a plain, unbundled require()
+      // I externalize pdf-to-img so it stays a plain, unbundled require()
       // from its real file location, where the relative resolution is valid.
       "pdf-to-img",
-      // sharp is native: it must stay an external require(), never bundled (see outputFileTracingIncludes below)
+      // sharp is native: it must stay an external require(), never bundled (see outputFileTracingIncludes below). Do not bundle it.
       "sharp",
-      // pdf-parse loads its PDF engine (pdf.js) by a computed path; kept as a plain require() from its own folder so that path resolves (the live fuel-trend route reads PPAC's price table with it)
+      // pdf-parse loads its PDF engine (pdf.js) by a computed path, so I keep it as a plain require() from its own folder to let that path resolve (the live fuel-trend route reads PPAC's price table with it).
       "pdf-parse",
     ],
     // serverComponentsExternalPackages alone does NOT get every file these
-    // two packages need at runtime into the traced serverless bundle —
-    // confirmed by inspecting .next/server/app/api/circulars/route.js.nft.json:
+    // two packages need at runtime into the traced serverless bundle.
+    // Confirmed by inspecting .next/server/app/api/circulars/route.js.nft.json:
     // @napi-rs/canvas's native .node binary was entirely absent, and pdfjs-dist
     // was reduced to just its single entry file (missing package.json,
     // standard_fonts/, cmaps/). pdf-to-img resolves both of these at runtime
     // via dynamic require()/createRequire().resolve() calls that Next's
-    // build-time tracer can't follow, so both must be force-included here.
+    // build-time tracer can't follow, so I force-include both here.
     outputFileTracingIncludes: {
       "/api/circulars": [
         "./node_modules/@napi-rs/canvas*/**/*",
@@ -159,12 +159,14 @@ const nextConfig = {
         // sharp (and its platform binaries under @img) is used by the roster check and the health check-up schedule reading that now run inside
         // the upload (src/lib/ingestion/schedule/*). Like @napi-rs/canvas above it is a native module that the build-time tracer can leave out
         // of the deployed route, which would silently turn that feature off (the roster check would fail and every page would be read as an
-        // ordinary one), so it is force-included here.
+        // ordinary one), so I force-include it here.
         "./node_modules/sharp/**/*",
         "./node_modules/@img/**/*",
       ],
-      // the live fuel-trend route reads PPAC's daily price table (a PDF) with pdf-parse, whose engine is found by a computed path that the build-time tracer cannot follow: included by hand
+      // The live fuel-trend route reads PPAC's daily price table (a PDF) with pdf-parse, whose engine is found by a computed path that the build-time tracer cannot follow, so I include it by hand.
       "/api/live/fuel-trend": ["./node_modules/pdf-parse/**/*"],
+      // the developer reference (scripts/docs/build-api-docs.mjs) is read from disk by the route that serves it, so the deployed route must carry its folder
+      "/developers/[[...path]]": ["./developer-docs/**/*"],
       // pg has been in serverComponentsExternalPackages since long before
       // tonight's changes, and the homepage/every DB-backed route worked
       // fine in every test tonight -- but confirmed directly by inspecting

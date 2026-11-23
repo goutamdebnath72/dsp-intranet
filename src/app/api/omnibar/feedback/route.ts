@@ -3,8 +3,8 @@
 // The omnibar's universal "Was this what you were looking for? Yes / No".
 // POST { query, source, verdict: "yes"|"no", reasonCode?, note?, nl2sqlLogId?, attempt?, userKey? }
 //   -> { ok, id, verdictRecorded }
-// Works for every kind of answer (model, cache, holiday, old engine, circular results). For model-written and
-// cached answers it also sets the verdict on the answer's log row, which is what the learning loop reads.
+// It works for every kind of answer (model, cache, holiday, old engine, circular results). For model-written and
+// cached answers I also set the verdict on the answer's log row, which is what the learning loop reads.
 
 import { NextResponse } from "next/server";
 import { withDefaultClient } from "@/lib/nl2sql/db";
@@ -14,7 +14,7 @@ import { getSessionTicket } from "@/lib/apiAuth";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  // Yes / No is for signed-in people only, and WHO voted comes from the login session, never from the request.
+  // Yes / No is for signed-in people only, and I take WHO voted from the login session, never from the request.
   const ticket = await getSessionTicket();
   if (!ticket) return NextResponse.json({ error: "Sign in to give feedback" }, { status: 401 });
   let body: any;
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: r.undone, undone: r.undone });
   }
 
-  // A brake: no more than VOTES_PER_HOUR votes per person per hour.
+  // A brake: I allow no more than VOTES_PER_HOUR votes per person per hour.
   const recent = await withDefaultClient((c) => countRecentVotes(c, userKey)).catch(() => 0);
   if (recent >= VOTES_PER_HOUR) {
     return NextResponse.json({ error: "Too many votes this hour. Please try again later." }, { status: 429 });

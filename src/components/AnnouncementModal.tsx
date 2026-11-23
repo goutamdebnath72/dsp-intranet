@@ -12,15 +12,15 @@ import { AnnouncementPdfViewer } from "@/components/AnnouncementPdfViewer";
 import { PDF_LINK_ATTR, stripPdfLinks } from "@/lib/announcements/pdfLink";
 
 // --- 2. ADDED NEW ANNOUNCEMENT TYPE ---
-// This type matches the data our API now sends
+// This type matches the data my API now sends
 type Announcement = {
   id: number;
-  createdAt: string; // Dates are strings after JSON serialization
+  createdAt: string; // Dates arrive as strings after JSON serialization
   title: string;
   content: string | null;
-  date: string; // Dates are strings after JSON serialization
+  date: string; // Dates arrive as strings after JSON serialization
   isRead?: boolean;
-  /** the announcement's PDF (name and size). Left out by a caller that does not know (a search result): the window then asks for it by itself. null = none. */
+  /** The announcement's PDF (name and size). A caller that does not know it (a search result) leaves it out, and the window then asks for it by itself. null = none. */
   file?: AnnouncementFileInfo | null;
 };
 // ---------------------------------
@@ -28,9 +28,9 @@ type Announcement = {
 type Props = {
   announcement: Announcement;
   onClose: () => void;
-  // When opened from a search result, the query to highlight in the body.
+  // Set when opened from a search result: the query I highlight in the body.
   highlightQuery?: string;
-  /** opened from a search result that was found inside the PDF: the page of the PDF with the words (the window shows the PDF there) */
+  /** Set when opened from a search result that was found inside the PDF: the page of the PDF with the words. I show the PDF at that page in the window. */
   pdfPage?: number | null;
 };
 
@@ -40,10 +40,10 @@ export default function AnnouncementModal({
   highlightQuery,
   pdfPage,
 }: Props) {
-  // This line is correct because the date is a string from the API
+  // I can use fromISO here because the date is a string from the API.
   const announcementDate = DateTime.fromISO(announcement.date);
 
-  // The PDF: given by the list, or asked for here (a search result does not carry it).
+  // The PDF is either given by the list or asked for here, because a search result does not carry it.
   const [file, setFile] = useState<AnnouncementFileInfo | null | undefined>(announcement.file);
   useEffect(() => {
     setFile(announcement.file);
@@ -56,25 +56,25 @@ export default function AnnouncementModal({
     return () => { alive = false; };
   }, [announcement.id, announcement.file]);
 
-  // The PDF full screen over the page: opened by the card's button, and by words of the body that are linked to the PDF.
+  // I open the PDF full screen over the page from the card's button and from words of the body that are linked to the PDF.
   const [pdfOpen, setPdfOpen] = useState(false);
   const openPdf = () => { if (file) setPdfOpen(true); };
 
-  // The body is stored as sanitized rich-text HTML. Render it as formatted
-  // markup (not escaped text). Sanitize again on the client as defense in
-  // depth — safe content stays identical; anything unexpected is stripped.
+  // The body is stored as sanitized rich-text HTML. I render it as formatted
+  // markup (not escaped text), and I sanitize again on the client as defense in
+  // depth: safe content stays identical; anything unexpected is stripped.
   const safeHtml = useMemo(() => {
     const sanitized = sanitizeAnnouncementHtml(announcement.content || "");
-    // Words linked to the PDF are links only where there is a PDF: once it is known there is none (file === null) they are plain words.
+    // I make words linked to the PDF links only where there is a PDF: once it is known there is none (file === null) they are plain words.
     const clean = file === null ? stripPdfLinks(sanitized) : sanitized;
-    // Highlight the search terms (if opened from a search result). Safe: marks
+    // I highlight the search terms (if opened from a search result). This is safe: it marks
     // only text between tags, never inside a tag or attribute.
     return highlightQuery
       ? highlightAnnouncementHtml(clean, highlightQuery)
       : clean;
   }, [announcement.content, highlightQuery, file]);
 
-  // A click, or Enter or Space, on words linked to the PDF opens it (the link carries no address: the marker only).
+  // A click, or Enter or Space, on words linked to the PDF opens it. The link carries no address, only the marker.
   const onBodyClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest?.(`[${PDF_LINK_ATTR}]`)) openPdf();
   };
@@ -87,12 +87,12 @@ export default function AnnouncementModal({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Lock background page scroll while this modal is mounted so mouse-wheel
+  // I lock background page scroll while this modal is mounted so mouse-wheel
   // scrolling inside it (including over the fixed header) never bleeds through
   // to the page behind. The page scroller in this app is <html>
-  // (globals.css sets `html { overflow-y: auto }`), so lock the documentElement.
+  // (globals.css sets `html { overflow-y: auto }`), so I lock the documentElement.
   useEffect(() => {
-    const lock = lockPageScroll(); // one shared lock (src/lib/ui/scrollLock.ts)
+    const lock = lockPageScroll(); // I use one shared lock (src/lib/ui/scrollLock.ts)
     return () => lock.release();
   }, []);
 
@@ -110,7 +110,7 @@ export default function AnnouncementModal({
         </button>
 
         <div className="p-6 pr-14 border-b flex-shrink-0">
-          {/* always plain text: the PDF opens full screen by the card's own button (or by words of the body linked to it), never by the title */}
+          {/* I always show this as plain text: the PDF opens full screen by the card's own button (or by words of the body linked to it), never by the title. */}
           <h2 className="text-xl font-semibold text-gray-800">{announcement.title}</h2>
           <p className="text-sm text-gray-500 mt-1">
             {announcementDate.toFormat("dd LLL yyyy")}

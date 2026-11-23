@@ -1,10 +1,10 @@
 // src/lib/tools/detect.ts
 //
-// WHAT HAS BEEN TYPED: a sum, a unit or currency conversion, a date question, a tyre size, a VIN, a BH number (all answered AS YOU TYPE, in the browser), or a request for a calculator form (opened with Enter).
+// Here I decide what has been typed: a sum, a unit or currency conversion, a date question, a tyre size, a VIN, a BH number (all answered AS YOU TYPE, in the browser), or a request for a calculator form (opened with Enter).
 // This file names no topic: it walks the topics of src/tools/registry.ts, each of which says in its own topic.ts which lines are its.
-// One strict gate, so that no ordinary search is ever taken for a calculation: a sentence about a circular, a person's name, a ticket number, a date on its own all give null.
+// I keep one strict gate, so that no ordinary search is ever taken for a calculation: a sentence about a circular, a person's name, a ticket number, a date on its own all give null.
 //
-// PRIVACY: a line that is a tool hit is never sent to the server's search: a figure of someone's loan, pay or savings is not logged anywhere. (The currency rates come down as a
+// Privacy: a line that is a tool hit is never sent to the server's search, so a figure of someone's loan, pay or savings is not logged anywhere. (The currency rates come down as a
 // public file; the amount stays in the browser.)
 
 import type { DateTime } from "luxon";
@@ -17,18 +17,18 @@ export type { FormKind, LiveTopic };
 
 export type ToolHit =
   | TopicHit
-  | { kind: "live"; topic: LiveTopic; /** for the news: the tab or language the line asked for ("hindi news", "business news") */ lang?: string }
+  | { kind: "live"; topic: LiveTopic; /** For the news: the tab or language the line asked for ("hindi news", "business news"). */ lang?: string }
   | { kind: "form"; form: FormKind }
   | { kind: "menu" }
-  /** the page of every utility service, A to Z */
+  /** The page of every utility service, A to Z. */
   | { kind: "services" };
 
-/** the kinds that answer as the user types (the others open on Enter) */
+/** These are the kinds that answer as the user types; the others open on Enter. */
 export const isLive = (h: ToolHit | null): h is Exclude<ToolHit, { kind: "form" | "menu" | "services" }> => !!h && h.kind !== "form" && h.kind !== "menu" && h.kind !== "services";
 
-/** where the calculator forms are tried among the typed-line answers: after the readers of a tyre, a rim, a BH number and a VIN (ranks below), before the dates, conversions and sums (ranks above) */
+/** Where I try the calculator forms among the typed-line answers: after the readers of a tyre, a rim, a BH number and a VIN (ranks below), before the dates, conversions and sums (ranks above). */
 const FORM_RANK = 50;
-/** where the live-data cards are tried: after the dates and conversions, before engine power and plain sums */
+/** Where I try the live-data cards: after the dates and conversions, before engine power and plain sums. */
 const LIVE_RANK = 90;
 
 const FILLER = new Set([
@@ -38,7 +38,7 @@ const FILLER = new Set([
 
 const words = (q: string): string[] => q.toLowerCase().replace(/[?.!,]/g, " ").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
 
-/** the topics, walked as plain TopicLogic (their exact types are kept in registry.ts for FormKind, LiveTopic and ToolHit) */
+/** I walk the topics as plain TopicLogic; their exact types are kept in registry.ts for FormKind, LiveTopic and ToolHit. */
 const TOPIC_LIST: readonly TopicLogic[] = TOPICS;
 
 type FormRule = { id: FormKind | "menu" | "services"; rank: number; nouns: string[]; wants: (c: FormCtx) => boolean };
@@ -46,13 +46,13 @@ const MENU_RULE: FormRule = { id: "menu", rank: MENU_RANK, nouns: MENU_WORDS, wa
 const SERVICES_RULE: FormRule = { id: "services", rank: SERVICES_RANK, nouns: SERVICES_WORDS, wants: (c) => c.w.every((x) => SERVICES_WORDS.includes(x)) && c.w.some((x) => SERVICES_KEYS.includes(x)) };
 const FORM_RULES: FormRule[] = [
   ...TOPIC_LIST.flatMap((t): FormRule[] => (t.form ? [{ id: t.id as FormKind, ...t.form }] : [])),
-  // the list of all the calculators: "calculators", "all tools", "calculator menu"
+  // The list of all the calculators: "calculators", "all tools", "calculator menu".
   MENU_RULE,
-  // the page of all the utility services: "utility services", "utilities", "all utilities"
+  // The page of all the utility services: "utility services", "utilities", "all utilities".
   SERVICES_RULE,
 ].sort((a, b) => a.rank - b.rank);
 
-/** A calculator form requested in a few plain words: every word is a noun of the tool or a filler. */
+/** A calculator form requested in a few plain words. I accept it only when every word is a noun of the tool or a filler. */
 export function detectForm(raw: string): FormKind | "menu" | "services" | null {
   const w = words(raw);
   if (w.length === 0 || w.length > 7) return null;
@@ -66,17 +66,17 @@ export function detectForm(raw: string): FormKind | "menu" | "services" | null {
 
 const LIVE_FILLER = new Set(["and", "or", "&", "today", "todays", "today's", "now", "current", "live", "latest", "in", "india", "indian", "of", "the", "a", "price", "prices", "rate", "rates", "bhav", "show", "me", "what", "is", "are", "check", "and", "for", "per", "gram", "grams", "10", "tola", "kg"]);
 
-/** the multi-word names the topics want read as one word, longest first ("the hindu business line" before "the hindu") */
+/** The multi-word names that the topics want read as one word, longest first ("the hindu business line" before "the hindu"). */
 const PHRASES = TOPIC_LIST.flatMap((t) => t.live?.phrases ?? []).sort((a, b) => b.length - a.length);
 const phraseWord = (p: string) => p.replace(/ /g, "_");
-/** the words of a live line: hyphens read as spaces ("news-feed"), and a topic's multi-word names joined into one word ("dainik bhaskar" is "dainik_bhaskar") */
+/** The words of a live line: hyphens read as spaces ("news-feed"), and a topic's multi-word names joined into one word ("dainik bhaskar" is "dainik_bhaskar"). */
 export function liveWords(raw: string): string[] {
   let s = ` ${words(raw).map((x) => x.replace(/^[‘'’"]+|[‘'’"]+$/g, "")).join(" ").replace(/-/g, " ").replace(/\s+/g, " ").trim()} `;
   for (const p of PHRASES) s = s.split(` ${p} `).join(` ${phraseWord(p)} `);
   return s.trim().split(" ").filter(Boolean);
 }
 
-/** A live-data card asked for in a few plain words: every word is a key word of the topic or a filler ("gold rate today", "silver price", "22k gold"), so no ordinary sentence is taken for it. */
+/** A live-data card asked for in a few plain words. I accept it only when every word is a key word of the topic or a filler ("gold rate today", "silver price", "22k gold"), so no ordinary sentence is taken for it. */
 export function detectLive(raw: string): LiveTopic | null {
   const w = liveWords(raw);
   if (w.length === 0 || w.length > 6) return null;
@@ -115,7 +115,7 @@ const STEPS: Step[] = [
   liveStep,
 ].sort((a, b) => a.rank - b.rank);
 
-/** What a typed line is: a tool hit, or null (an ordinary search). `now` fixes "today" for the tests. */
+/** Says what a typed line is: a tool hit, or null (an ordinary search). `now` fixes "today" for the tests. */
 export function detectTool(raw: string, now?: DateTime): ToolHit | null {
   const q = (raw || "").trim();
   if ((q.length < 2 && q !== "π") || q.length > 200) return null;

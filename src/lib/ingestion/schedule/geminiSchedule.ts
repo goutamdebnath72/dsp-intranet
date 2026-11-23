@@ -1,14 +1,14 @@
 // src/lib/ingestion/schedule/geminiSchedule.ts
 //
-// READING A HEALTH CHECK-UP ROSTER WITH GEMINI. The work is split the way each part is done best:
+// Reading a health check-up roster with Gemini. I split the work the way each part is done best:
 //   * the WORDS of the rows (serial, ticket, name, department code, department) are read by two Gemini models (a primary and a checker) from the whole page image, as JSON;
 //   * the DATES are read by Gemini from a clean crop of each merged date cell (a few digits, so a cheap model reads them; a stronger one is asked when the first reading is not a
 //     date of the schedule's month);
 //   * the GEOMETRY decides which rows sit under which date: the ruled lines of the table (rosterGeometry.ts, image analysis, no OCR). A model asked for the date of every row
 //     misplaces the rows at the edge of a group; the rules of the table do not.
-// Checks (any warning means the schedule is NOT stored, a person looks at it): the two readers must find the same number of rows; the table must have as many ruled rows as the
-// readers found; a printed date must be a date of the schedule's month; groups of an odd size; dates out of order; the SL.NO sequence. A different ticket or department code read by
-// the checker is kept as an alternative reading so that the HR directory can confirm one of them.
+// My checks (any warning means the schedule is NOT stored and a person looks at it): the two readers must find the same number of rows; the table must have as many ruled rows as the
+// readers found; a printed date must be a date of the schedule's month; groups of an odd size; dates out of order; the SL.NO sequence. I keep a different ticket or department code read by
+// the checker as an alternative reading, so that the HR directory can confirm one of them.
 
 import { geminiReader, type PageReader } from "../pageReader";
 import { shrinkForReading } from "../pageImage";
@@ -28,9 +28,9 @@ export const DATE_PROMPT = `This image holds ONE printed date from a table cell 
 export interface RosterReaders {
   primary: PageReader;
   checker: PageReader | null;
-  /** reads a crop holding one printed date: a cheap model first ... */
+  /** I read a crop holding one printed date with a cheap model first ... */
   dateFast: PageReader;
-  /** ... and a stronger one when the first reading is not a date of the schedule's month */
+  /** ... and a stronger one is asked when the first reading is not a date of the schedule's month */
   dateStrong: PageReader | null;
 }
 
@@ -55,7 +55,7 @@ const str = (v: unknown): string => (v === null || v === undefined ? "" : String
 const toInt = (v: unknown): number | null => { const n = parseInt(String(v ?? "").replace(/\D/g, ""), 10); return Number.isFinite(n) ? n : null; };
 const cleanCode = (v: unknown): string | null => { const d = String(v ?? "").replace(/\D/g, ""); return d.length >= 3 && d.length <= 5 ? d : null; };
 
-/** The model's JSON reply as a reading; null when it is not a roster reading at all. */
+/** Turns the model's JSON reply into a reading, and returns null when it is not a roster reading at all. */
 export function parseRosterReply(raw: string): RosterReading | null {
   const t = String(raw ?? "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   let j: any;
@@ -68,16 +68,17 @@ export function parseRosterReply(raw: string): RosterReading | null {
 }
 
 /**
- * Which ruled interval each row of the reading sits in. The table's heading rows (title, column names) lie ABOVE the first data row, and the date column shows where that is: the
- * heading is a closed cell (or two) at the top of the date column with no date in it, and the first cell with a date starts at the first data row (a cell open at the top is a group carried over a page break, never a heading). Intervals above that point are not data.
- * Where a rule is missing (rows with no line between them) one interval holds several rows: the interval whose pieces would be tallest is divided, again and again, until the
+ * Finds which ruled interval each row of the reading sits in. The table's heading rows (title, column names) lie ABOVE the first data row, and the date column shows where that is: the
+ * heading is a closed cell (or two) at the top of the date column with no date in it, and the first cell with a date starts at the first data row
+ * (a cell open at the top is a group carried over a page break, never a heading). Intervals above that point are not data.
+ * Where a rule is missing (rows with no line between them) one interval holds several rows, so I divide the interval whose pieces would be tallest, again and again, until the
  * number of intervals equals the number of rows the readers found. Returns the vertical centre of every row, how many rows had to be made by dividing, and how many
  * intervals were left over at the bottom.
  */
 export function alignRows(edges: number[], cells: Array<{ y0: number; y1: number; openTop: boolean; date: string | null; printed: string | null }>, rows: number): { centers: number[]; divided: number; surplus: number; dataTop: number } {
   let lead = 0;
   while (lead < cells.length - 1 && cells[lead].date === null && !cells[lead].printed && !cells[lead].openTop) lead++;
-  if (lead > 0 && cells[lead].date === null) lead = 0; // no date anywhere after them: nothing marks where the data starts
+  if (lead > 0 && cells[lead].date === null) lead = 0; // no date anywhere after them, so nothing marks where the data starts
   const dataTop = lead > 0 ? cells[lead].y0 : edges[0];
   const bottom = edges[edges.length - 1];
   const all = [...edges].sort((x, y) => x - y);
@@ -123,10 +124,10 @@ async function readRows(reader: PageReader, png: Buffer): Promise<{ reading: Ros
   catch (e) { return { reading: null, error: String((e as Error)?.message ?? e).split("\n")[0].slice(0, 200) }; }
 }
 
-interface PageCell { y0: number; y1: number; openTop: boolean; openBottom: boolean; printed: string | null; date: string | null; note: string | null; fromOther: boolean; hasRows: boolean; /** vertical centre of the printed date; null = nothing printed in the cell */ cy: number | null }
+interface PageCell { y0: number; y1: number; openTop: boolean; openBottom: boolean; printed: string | null; date: string | null; note: string | null; fromOther: boolean; hasRows: boolean; /** Vertical centre of the printed date; null means nothing is printed in the cell. */ cy: number | null }
 interface PageData { pageNo: number; a: RosterReading; b: RosterReading | null; rowCenters: number[]; cellOfRow: number[]; cells: PageCell[]; geom: NonNullable<Awaited<ReturnType<typeof rosterPageGeometry>>> }
 
-/** Reads the roster pages and returns the same ExtractedSchedule as before. Pages that are not roster pages are skipped (a covering letter). */
+/** Reads the roster pages and returns the same ExtractedSchedule as before. I skip pages that are not roster pages (a covering letter). */
 export async function extractScheduleGemini(pages: Buffer[], deps: GeminiScheduleDeps, knownMonth?: { month: number; year: number } | null): Promise<ExtractedSchedule> {
   const warnings: string[] = [];
   const info: string[] = [];
@@ -148,7 +149,7 @@ export async function extractScheduleGemini(pages: Buffer[], deps: GeminiSchedul
     deps.trace?.(`page ${pageNo}: ${a.reading.rows.length} rows by the primary, ${b.reading ? b.reading.rows.length : "none"} by the checker; the table has ${geom.rowEdges.length - 1} ruled rows in ${geom.cells.length} date cells`);
     if (!scheduleMonth) scheduleMonth = parseScheduleMonth(`${a.reading.title} ${a.reading.month ?? ""}`) ?? (b.reading ? parseScheduleMonth(`${b.reading.title} ${b.reading.month ?? ""}`) : null);
 
-    // the ruled lines of the table; which row sits between which two is worked out in pass 3, once the date cells are known (alignRows)
+    // The ruled lines of the table. I work out which row sits between which two in pass 3, once the date cells are known (alignRows).
     const cells: PageCell[] = geom.cells.map((c) => ({ y0: c.y0, y1: c.y1, openTop: c.openTop, openBottom: c.openBottom, printed: null, date: null, note: null, fromOther: false, hasRows: false, cy: null }));
     pageData.push({ pageNo, a: a.reading, b: b.reading, rowCenters: [], cellOfRow: [], cells, geom });
   }
@@ -156,10 +157,10 @@ export async function extractScheduleGemini(pages: Buffer[], deps: GeminiSchedul
   // ---------- pass 2: the date printed in each date cell that holds rows (a cheap model first; a stronger one when that is not a date of this month)
   for (const pd of pageData) {
     for (const cell of pd.cells) {
-      if (cell.y1 - cell.y0 < 70) continue; // a cell too small to hold a date (a sliver cut by a stray mark): it joins its neighbour below
+      if (cell.y1 - cell.y0 < 70) continue; // a cell too small to hold a date (a sliver cut by a stray mark) joins its neighbour below
       if (deps.shouldStop?.()) throw new ScheduleTimeBudgetError();
       const crop = await cropCellText(pd.geom.g, pd.geom.band, { y0: cell.y0, y1: cell.y1, openTop: cell.openTop, openBottom: cell.openBottom }, false);
-      if (!crop) continue; // nothing printed: the date of this group is on the other side of the page break (or the cell is a sliver)
+      if (!crop) continue; // nothing printed, so the date of this group is on the other side of the page break (or the cell is a sliver)
       cell.cy = crop.cy;
       for (const reader of [deps.readers.dateFast, deps.readers.dateStrong]) {
         if (!reader) continue;
@@ -170,7 +171,7 @@ export async function extractScheduleGemini(pages: Buffer[], deps: GeminiSchedul
           const j = judgeDate(text, scheduleMonth);
           cell.printed = text;
           if (j.ok) { cell.date = j.date; cell.note = j.note; break; }
-          cell.note = j.note; // a date, but not one of this schedule: ask the stronger reader, and keep it as a problem if nobody agrees
+          cell.note = j.note; // a date, but not of this schedule: I ask the stronger reader, and keep it as a problem if nobody agrees
         } else {
           const r = repairPrintedDate(text, scheduleMonth);
           cell.printed = text;
@@ -181,16 +182,16 @@ export async function extractScheduleGemini(pages: Buffer[], deps: GeminiSchedul
     }
   }
 
-  // ---------- pass 3: cells cut by a stray mark are one merged cell. A blank cell between two others joins the neighbour whose date is printed in the CENTRE of the merged cell
+  // ---------- pass 3: I treat cells cut by a stray mark as one merged cell. A blank cell between two others joins the neighbour whose date is printed in the CENTRE of the merged cell
   // (that is where the date of a merged cell always is). Then every row takes the cell it sits in.
   for (const pd of pageData) {
     const cs = pd.cells;
-    const al = alignRows(pd.geom.rowEdges, cs, pd.a.rows.length); // before the cells are joined: the first data row is found from the cells as the geometry found them
+    const al = alignRows(pd.geom.rowEdges, cs, pd.a.rows.length); // done before the cells are joined, so the first data row is found from the cells as the geometry found them
     pd.rowCenters = al.centers;
     if (al.surplus > 2) warnings.push(`page ${pd.pageNo}: the table has ${al.surplus} more ruled rows than the readers found`);
     if (al.divided > 0) deps.trace?.(`page ${pd.pageNo}: ${al.divided} row(s) had no ruled line of their own and were placed by dividing the taller intervals`);
     for (let i = 1; i < cs.length - 1; i++) {
-      if (cs[i].cy !== null) continue; // an interior cell with no ink at all can never be a date cell
+      if (cs[i].cy !== null) continue; // I never treat an interior cell with no ink at all as a date cell
       let j = i;
       while (j + 1 < cs.length && cs[j + 1].cy === null) j++;
       const above = cs[i - 1], below = cs[j + 1];

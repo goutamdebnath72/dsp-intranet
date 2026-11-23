@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/flightFacts.selftest.ts
-// The two hand-reviewed facts of the flight list: the days a flight runs (a chip only for a checked row) and a rough one-way economy fare (the middle of dated public listings, hidden when out of date).
+// Checks the two hand-reviewed facts of the flight list: the days a flight runs (a chip only for a checked row) and a rough one-way economy fare (the middle of dated public listings, hidden when out of date).
 import { DateTime } from "luxon";
 import { DAYS, daysChip, daysText, fareChip, fareGuideStale, FARE_AS_OF, FARE_STALE_DAYS, FARES, middleFare, rupees, WEEKDAYS, type DaysRow } from "./flightFacts";
 

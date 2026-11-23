@@ -1,10 +1,10 @@
 // src/app/api/nl2sql/route.ts
 //
 // EXPERIMENT endpoint: the language model writes read-only SQL from a
-// question. Completely separate from /api/ai-search and the omnibar.
+// question. I keep it completely separate from /api/ai-search and the omnibar.
 //
-// Off by default: returns 404 unless NL2SQL_LAB_ENABLED=true. Requires a
-// logged-in session. Queries run as the read-only nlq_reader role.
+// Off by default: it returns 404 unless NL2SQL_LAB_ENABLED=true. It requires a
+// logged-in session, and queries run as the read-only nlq_reader role.
 //
 // POST { question: string }                       -> pipeline result
 // POST { feedback: { logId, verdict: "confirm"|"reject" } } -> { ok }

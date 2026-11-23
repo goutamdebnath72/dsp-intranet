@@ -1,14 +1,14 @@
 // src/lib/live/marketStore.ts
 //
-// THE SAVED MARKET QUOTES (table public.market_quote, src/lib/nl2sql/sql/24_market_quote.sql): the last good quote of each symbol with the time it was received. The markets card shows them, marked as not live,
+// The saved market quotes (table public.market_quote, src/lib/nl2sql/sql/24_market_quote.sql): the last good quote of each symbol with the time it was received. The markets card shows them, marked as not live,
 // when Yahoo Finance does not answer (it turns away anyone who asks too fast), so the card is never empty on a bad minute and a restart of the server does not lose them.
-// Nothing here may break a card: database trouble is logged once and the store then answers "nothing saved" (all) or does nothing (put), like src/lib/live/cpiStore.ts, whose pattern this follows.
+// Nothing here may break a card: database trouble is logged once and the store then answers "nothing saved" (all) or does nothing (put). I followed the pattern of src/lib/live/cpiStore.ts.
 import { DateTime } from "luxon";
 import type { Quote } from "./markets";
 
 export interface SavedQuote {
   quote: Quote;
-  /** when it was received from Yahoo Finance (ms since the epoch) */
+  /** When it was received from Yahoo Finance (ms since the epoch). */
   at: number;
 }
 
@@ -35,7 +35,7 @@ export const MARKET_TABLE_STATEMENTS: string[] = [
 const rowsOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.rows) ? r.rows : []);
 const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
-/** a saved row read back and CHECKED: a row that is not the shape written is dropped, never shown */
+/** I read a saved row back and CHECK it: a row that is not the shape written is dropped, never shown. */
 export function savedFromRow(x: any): SavedQuote | null {
   const q = typeof x?.quote === "string" ? safeJson(x.quote) : x?.quote;
   const at = x?.fetched_at instanceof Date ? x.fetched_at.getTime() : DateTime.fromISO(String(x?.fetched_at)).toMillis();
@@ -104,7 +104,7 @@ export function typeormMarketStore(ds: Queryable): MarketStore {
   };
 }
 
-/** a store that holds nothing, for when the database cannot be had at all: the card then works as it did before the store existed */
+/** A store that holds nothing, for when the database cannot be had at all. The card then works as it did before the store existed. */
 export const NO_STORE: MarketStore = { all: async () => new Map(), put: async () => undefined };
 
 const stores = new WeakMap<object, MarketStore>();

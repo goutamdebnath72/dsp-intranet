@@ -1,5 +1,5 @@
-// Run (from the project root): npx tsx src/lib/ingestion/reread.selftest.ts
-// applyReread and restoreFromBackup with a fake database client (no network): embeddings first, backup before the write, one transaction, rollback on failure.
+// Run it from the project root: npx tsx src/lib/ingestion/reread.selftest.ts
+// It tests applyReread and restoreFromBackup with a fake database client (no network): embeddings first, backup before the write, one transaction, rollback on failure.
 import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

@@ -1,19 +1,19 @@
 // src/lib/accessLog/admin/types.ts
 //
-// Types for Contact Access Log Management Facility (Modular Facility Kit).
+// These are my types for the Contact Access Log Management Facility (Modular Facility Kit).
 
 import type { DelegateView, AuditRow } from "@/lib/facility/types";
 
 export type AccessLogAdminOp = "logs" | "delegate" | "history";
 
-/** What the omnibar hands the panel when an authorised person asks to inspect or manage the contact access log. */
+/** This is what the omnibar hands the panel when an authorised person asks to inspect or manage the contact access log. */
 export interface AccessLogAdminOpen {
   op: AccessLogAdminOp;
-  /** hod = the HOD of C&IT (HOD_CIT_TICKET in constants.ts); delegate = an authorised executive. */
+  /** Role: hod is the HOD of C&IT (HOD_CIT_TICKET in constants.ts); delegate is an authorised executive. */
   role: "hod" | "delegate";
-  /** The logged-in person's ticket from session. */
+  /** The ticket of the logged-in person, taken from the session. */
   ticket: string;
-  /** The logged-in person's name from session. */
+  /** The name of the logged-in person, taken from the session. */
   name?: string;
   prefill?: {
     viewer?: string;
@@ -23,11 +23,11 @@ export interface AccessLogAdminOpen {
   };
 }
 
-/** what a person can ask the card to reveal (and so what the log records): the mobile number, the e-mail, the SAIL P.No., the ticket number */
+/** What a person can ask the card to reveal, and so what the log records: the mobile number, the e-mail, the SAIL P.No., the ticket number. */
 export type AccessLogField = "mobile" | "email" | "sailpno" | "ticket";
 
 export interface AccessLogRowView {
-  /** the log line's own id: a uuid string in the database (it was read as a number, which is NaN) */
+  /** The log line's own id: a uuid string in the database. Do not read it as a number: it used to be, and that gives NaN. */
   id: string;
   accessedAt: string;
   viewerTicketNo: string;
@@ -48,9 +48,9 @@ export interface AccessLogStatsView {
   copies: number;
   mobileCount: number;
   emailCount: number;
-  /** reveals of the SAIL P.No. (field "sailpno") */
+  /** Count of reveals of the SAIL P.No. (field "sailpno"). */
   pnoCount: number;
-  /** reveals of the ticket number (field "ticket") */
+  /** Count of reveals of the ticket number (field "ticket"). */
   ticketCount: number;
   uniqueViewers: number;
 }

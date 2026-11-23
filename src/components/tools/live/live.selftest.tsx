@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/tools/live/live.selftest.tsx
-// The live cards (gold and silver, fuel, news, sports, markets): what they show from known data, that every number comes with its source, that links open in a new tab safely, and that nothing typed can reach a source.
+// This test covers the live cards (gold and silver, fuel, news, sports, markets): what they show from known data, that every number comes with its source, that links open in a new tab safely, and that nothing typed can reach a source.
 import React from "react";
 import { readFileSync, readdirSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -24,13 +24,13 @@ const noop = () => {};
 const panel = (q: string) => h(<ToolPanel query={q} form={null} onForm={noop} />);
 const fx = (n: string) => readFileSync(`src/lib/live/fixtures/${n}`, "utf8");
 
-// the panel: each topic opens its card as you type, in its own colours, with the privacy line that says what is downloaded
+// The panel: each topic opens its card as you type, in its own colours, with the privacy line that says what is downloaded.
 for (const [q, title] of [["gold rate today", "Gold and silver in India"], ["petrol diesel lpg price", "Petrol, diesel and LPG"], ["top news headlines", "Today&#x27;s top headlines"], ["sensex nifty", "Sensex, Nifty and shares"], ["cricket news india", "Sports headlines"]] as const) {
   const x = panel(q);
   ok(`"${q}" opens "${title}" with the Instant mark and a fetching state`, x.includes(title) && /Instant/.test(x) && /aria-busy="true"/.test(x) && /only public figures from the source named below are downloaded; what you typed is not sent/.test(x) && /Nothing you type here is saved anywhere/.test(x), x.slice(0, 200));
 }
 
-// the DSP story card is for reading: it has no privacy and approximation strip (nothing is typed into it), while the cards that fetch figures keep theirs
+// The DSP story card is for reading, so I give it no privacy and approximation strip (nothing is typed into it), while the cards that fetch figures keep theirs.
 {
   const story = panel("dsp history"), gold = panel("gold rate today");
   ok("the DSP story card carries no 'Nothing you type here is saved' strip, and the gold card still does", /Story of the Durgapur Steel Plant|Durgapur Steel Plant: its story/.test(story) && !/Nothing you type here is saved anywhere/.test(story) && !/Results are approximations/.test(story) && /Nothing you type here is saved anywhere/.test(gold));
@@ -66,7 +66,7 @@ ok("the LIVE pill is the eye-catcher: solid green, a glow, a pinging dot, all of
 
 const goldCaption = goldHtml.slice(goldHtml.indexOf("IBJA closing") > 0 ? goldHtml.indexOf("IBJA closing") : goldHtml.indexOf("Today&#x27;s"));
 ok("the mark sits ON the cards, in their bottom-right corner, not below them: one on each gold tile, one on each index tile and one on the watch list, none in the caption lines", (goldHtml.match(/data-status-corner/g) ?? []).length === 3 && (mkHtml.match(/data-status-corner/g) ?? []).length === mk.indices.length + 1 && !/data-freshness/.test(goldCaption.split("Click a metal")[0]) && /justify-end/.test(mkHtml));
-// stories: a new tab, safely, only a headline and a link
+// Stories: a new tab, safely, only a headline and a link.
 const items = parseRss(fx("rss-thehindu.xml"), "The Hindu");
 const storyHtml = h(<StoryList items={items} lang="en" empty="none" />);
 ok("stories: the first large, the rest in rows; each link opens in a NEW TAB with noopener noreferrer; the publisher and the time are shown", (storyHtml.match(/target="_blank"/g) ?? []).length === items.length && (storyHtml.match(/rel="noopener noreferrer"/g) ?? []).length === items.length && /Read at The Hindu/.test(storyHtml) && /lang="en"/.test(storyHtml) && /https:\/\/www\.thehindu\.com\//.test(storyHtml) && !/javascript:/i.test(storyHtml));
@@ -110,20 +110,20 @@ ok("the routes read nothing of the caller (only the news reads its language, fro
 const modal = readFileSync("src/components/OmnibarModal.tsx", "utf8");
 ok("a live line is a tool line: the search window returns before any search or lookup", modal.indexOf("const tool = detectTool(qTrim)") < modal.indexOf("fetchEmployees(\"id\"") && /if \(tool(?: && selection\.scope === "auto")?\) \{[\s\S]{0,260}return;\s*\}/.test(modal));
 
-// the news card: Business is the first tab and the one that opens; a line can open another tab
+// The news card: Business is the first tab and the one that opens; a line can open another tab.
 const tabs = (q: string) => { const x = panel(q); return { x, sel: (/role="tab"[^>]*aria-selected="true"[^>]*>([^<]*)</.exec(x) ?? [])[1] }; };
 const nb = tabs("top news headlines");
 ok("the news card has four tabs, Business first, and opens on Business", /aria-label="Kind and language of the news"/.test(nb.x) && nb.x.indexOf(">Business<") < nb.x.indexOf(">English<") && nb.x.indexOf(">English<") < nb.x.indexOf(">हिन्दी<") && nb.x.indexOf(">हिन्दी<") < nb.x.indexOf(">বাংলা<") && nb.sel === "Business", nb.sel);
 ok("'business news' opens Business, 'english news' English, 'hindi news' Hindi", tabs("business news").sel === "Business" && tabs("english news").sel === "English" && tabs("hindi news").sel === "हिन्दी" && tabs("bengali news").sel === "বাংলা");
 ok("the Business tab asks the business route address only (a fixed tab word), and says what the free headlines do and do not cover", /useLive<NewsData>\(`\/api\/live\/news\?lang=\$\{lang\}`[,)]/.test(readFileSync(`${dir}/NewsCard.tsx`, "utf8")) && /Business Standard and Financial Express are not included/.test(readFileSync(`${dir}/NewsCard.tsx`, "utf8")) && /ask for a subscription for some of its own stories/.test(readFileSync(`${dir}/NewsCard.tsx`, "utf8")));
 
-// the Sensex and Nifty tiles each have their own deep gradient with white text, apart from the card's pale green; up or down is said by the change pill and the line
+// The Sensex and Nifty tiles each have their own deep gradient with white text, apart from the card's pale green; the change pill and the line say whether the day is up or down.
 {
   const src = readFileSync("src/components/tools/live/MarketsCard.tsx", "utf8");
   ok("the index tiles have deep gradients of their own (indigo-violet, sky-blue, fuchsia-purple) with white text, not the card's pale green", /from-indigo-600 via-violet-600 to-purple-700/.test(src) && /from-sky-500 via-blue-600 to-indigo-600/.test(src) && /from-fuchsia-600 via-purple-600 to-violet-700/.test(src) && /bg-gradient-to-br p-4 text-white/.test(src) && !/from-emerald-300 via-teal-300/.test(src) && !/from-rose-300 via-red-300/.test(src));
   ok("the line on a dark tile is white and the change pill keeps its own green or red (the up or down of the day), and every tile carries data-index-tile", /<Sparkline values=\{q\.spark\} color="#ffffff" \/>/.test(src) && /<ChangeChip abs=\{q\.change\} pct=\{q\.pct\} \/>/.test(src) && /data-index-tile=\{up \? "up" : "down"\}/.test(src));
 }
-// THE HOVER DOT IS UNDER THE POINTER: the points are drawn from PAD to W - PAD of the drawing, so the pointer's place must be mapped back through the same padding (it was mapped over the whole width, which put the dot up to 1.7% of the chart's width, about 12 px, away from the pointer)
+// Important: the hover dot must be under the pointer. The points are drawn from PAD to W - PAD of the drawing, so I map the pointer's place back through the same padding (it used to be mapped over the whole width, which put the dot up to 1.7% of the chart's width, about 12 px, away from the pointer).
 ok("trendIndex is the exact inverse of where a point is drawn: for 2, 3, 30, 246 and 366 points, a pointer exactly at the i-th point's place picks the i-th", [2, 3, 30, 246, 366].every((n) => Array.from({ length: n }, (_, i) => i).every((i) => trendIndex(trendFraction(i, n), n) === i)));
 ok("the dot is never more than half the space between two points from the pointer, along the whole drawn line (246 points); the old whole-width mapping was up to 1.7% of the width off", (() => { const n = 246; const half = (trendFraction(1, n) - trendFraction(0, n)) / 2; let worst = 0, worstOld = 0; for (let f = trendFraction(0, n); f <= trendFraction(n - 1, n); f += 0.0007) { worst = Math.max(worst, Math.abs(trendFraction(trendIndex(f, n), n) - f)); const old = Math.round(f * (n - 1)); worstOld = Math.max(worstOld, Math.abs(trendFraction(old, n) - f)); } return worst <= half + 1e-9 && worstOld > 0.014; })());
 ok("a pointer over the padding at either end takes the first or the last point, and one outside the chart cannot pick a point that does not exist", trendIndex(0, 246) === 0 && trendIndex(TREND_PAD / TREND_W / 2, 246) === 0 && trendIndex(1, 246) === 245 && trendIndex(-0.2, 246) === 0 && trendIndex(1.3, 246) === 245);

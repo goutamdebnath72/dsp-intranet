@@ -1,6 +1,6 @@
 // src/tools/dsphistory/serve.ts
 //
-// SERVING A PLANT DOCUMENT (no Next.js in it, so that it can be tested): the route src/app/api/history-docs/[doc]/route.ts hands its request and the real dependencies to `serveDoc`.
+// This serves a plant document. I kept Next.js out of it so that it can be tested: the route src/app/api/history-docs/[doc]/route.ts hands its request and the real dependencies to `serveDoc`.
 //   * An internal document (a JO Manual): a reader who is not signed in gets 401 and is told to sign in (the viewer then shows its Sign in button). A published PDF (Steel Cities, an annual report...) is public: no sign-in.
 //     The address of the file in Vercel Blob never leaves the server.
 //   * An unknown document id is 404, and so is a document that has not been uploaded yet.
@@ -9,11 +9,11 @@
 import { DOCS, isPublic } from "./docs";
 
 export interface ServeDeps {
-  /** the signed-in reader's ticket, or null */
+  /** The signed-in reader's ticket, or null. */
   ticket: () => Promise<string | null>;
-  /** the file kept under this name in Blob: its address and size, or null when it is not there */
+  /** Finds the file kept under this name in Blob: its address and size, or null when it is not there. */
   find: (blobName: string) => Promise<{ url: string; size: number } | null>;
-  /** fetch (a test passes its own) */
+  /** The fetch to use; a test passes its own. */
   get: (url: string, init: { headers: Record<string, string> }) => Promise<Response>;
 }
 

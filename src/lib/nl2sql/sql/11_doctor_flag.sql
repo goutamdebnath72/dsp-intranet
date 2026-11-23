@@ -1,6 +1,6 @@
 -- 11_doctor_flag.sql  (step 48b)
--- Doctors and non-medical executives. A doctor is on the MEDICAL track of designation_grade, or is flagged here: a few doctors carry a normal managerial designation
--- (an eye specialist who is a "Sr. Manager" in the HR tool) and their designation must not be touched. nlq.employees gets ONE more column, at the end: is_doctor.
+-- Doctors and non-medical executives. I count a person as a doctor if he is on the MEDICAL track of designation_grade, or is flagged here: a few doctors carry a normal managerial designation
+-- (an eye specialist who is a "Sr. Manager" in the HR tool) and I must not touch their designation. nlq.employees gets ONE more column, at the end: is_doctor.
 -- Idempotent. The live data change (which people to flag) is in cleanup/sql/48b_doctor_flag_live.sql, not here.
 
 ALTER TABLE public.employee_roster ADD COLUMN IF NOT EXISTS doctor_override boolean;

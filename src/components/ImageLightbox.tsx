@@ -1,13 +1,13 @@
 // src/components/ImageLightbox.tsx
 //
 // A PICTURE OPENED OVER THE PAGE, NOT IN A NEW TAB: the same kind of layer as the circular viewer (src/components/CircularViewerLightbox.tsx): a dark full-screen layer above everything (above the search window too), the
-// picture as large as the screen allows with its caption and credit, a cross (and Escape, and a click outside the picture) to close it and be back exactly where you were. It names no topic: any card may open a picture in it.
-//   * It is drawn in a portal on <body>, so that the search window's own scaling and clipping cannot shrink or cut it, and it sits above the window (z 400).
+// picture as large as the screen allows with its caption and credit, a cross (and Escape, and a click outside the picture) to close it and be back exactly where you were. I keep it free of any topic name: any card may open a picture in it.
+//   * I draw it in a portal on <body>, so that the search window's own scaling and clipping cannot shrink or cut it, and it sits above the window (z 400).
 //   * Escape closes the PICTURE ONLY. The search window behind it closes on Escape in two places: TopBar's own capture handler on window (which lets an Escape pass when it comes from inside an element marked data-escape-own, as the calculators' dropdown is
-//     marked data-select-open), and OmnibarModal's handler. The layer carries data-escape-own (so TopBar leaves that Escape alone) and takes the key in the capture phase and stops it (so OmnibarModal never sees it). The next Escape closes the window, as before.
-//   * The page's scrolling is locked while it is open (the shared lock, src/lib/ui/scrollLock.ts) and the focus goes to the cross, then back to the thumbnail that opened it.
-//   * The picture has NO background colour of its own (a white one showed as a pale fringe where the picture's edge fell on a half pixel); what shows round it is the dark layer.
-//   * It shows the size of the picture as it is (for example 606 x 438 px) so that nobody mistakes a small original for a poor display. A picture that is smaller than the screen is shown ENLARGED to fill the layer, up to twice its own size
+//     marked data-select-open), and OmnibarModal's handler. The layer carries data-escape-own (so TopBar leaves that Escape alone) and I take the key in the capture phase and stop it (so OmnibarModal never sees it). The next Escape closes the window, as before.
+//   * I lock the page's scrolling while it is open (the shared lock, src/lib/ui/scrollLock.ts) and move the focus to the cross, then back to the thumbnail that opened it.
+//   * I give the picture NO background colour of its own: a white one showed as a pale fringe where the picture's edge fell on a half pixel. What shows round it is the dark layer.
+//   * I show the size of the picture as it is (for example 606 x 438 px) so that nobody mistakes a small original for a poor display. A picture that is smaller than the screen is shown ENLARGED to fill the layer, up to twice its own size
 //     (fitSize), and the caption then says so ("shown 1.8 times larger"); a picture larger than the layer is shrunk to fit. It is never cropped.
 "use client";
 
@@ -28,14 +28,14 @@ export interface LightboxPicture {
   credit?: string;
 }
 
-/** the size a picture is shown at: as large as the room allows, never more than `maxScale` times its own size, never cropped. Null when the room or the picture has no size yet. */
+/** I show a picture as large as the room allows, never more than `maxScale` times its own size and never cropped. Returns null when the room or the picture has no size yet. */
 export function fitSize(natural: { w: number; h: number }, room: { w: number; h: number }, maxScale = 2): { w: number; h: number; scale: number } | null {
   if (!(natural.w > 0 && natural.h > 0 && room.w > 0 && room.h > 0)) return null;
   const scale = Math.min(room.w / natural.w, room.h / natural.h, maxScale);
   return { w: Math.round(natural.w * scale), h: Math.round(natural.h * scale), scale };
 }
 
-/** takes Escape for the picture: the key is stopped on the way down, so no other handler of the page (the search window closes on Escape) sees it. Returns the function that lets go. */
+/** Takes Escape for the picture: I stop the key on its way down, so no other handler of the page (the search window closes on Escape) sees it. Returns the function that lets go. */
 export function onEscape(target: EventTarget, close: () => void): () => void {
   const handler = (e: Event) => {
     if ((e as KeyboardEvent).key !== "Escape") return;
@@ -47,11 +47,11 @@ export function onEscape(target: EventTarget, close: () => void): () => void {
   return () => target.removeEventListener("keydown", handler, { capture: true });
 }
 
-/** the layer itself, without the portal and the effects (so that it can be drawn and tested on the server) */
+/** I keep the layer itself apart from the portal and the effects, so that it can be drawn and tested on the server. */
 export function LightboxView({ picture, onClose, closeRef, onSize, size, display, roomRef }: { picture: LightboxPicture; onClose: () => void; closeRef?: React.Ref<HTMLButtonElement>; onSize?: (w: number, h: number) => void; size?: { w: number; h: number } | null; display?: { w: number; h: number; scale: number } | null; roomRef?: React.Ref<HTMLDivElement> }) {
   return (
     <div role="dialog" aria-modal="true" aria-label={picture.title} data-image-lightbox data-escape-own="true" className="fixed inset-0 z-[400] flex flex-col bg-black/90 backdrop-blur-md">
-      {/* the dark area itself is a button: a click outside the picture closes it (it is out of the tab order: the cross and Escape are the keyboard's way) */}
+      {/* The dark area itself is a button: a click outside the picture closes it. I keep it out of the tab order, since the cross and Escape are the keyboard's way. */}
       <button type="button" tabIndex={-1} aria-label="Close the picture" data-lightbox-backdrop onClick={onClose} className="absolute inset-0 h-full w-full cursor-default" />
       <header className="relative flex shrink-0 items-center gap-3 border-b border-white/10 bg-black/50 p-3 text-white">
         <button ref={closeRef} type="button" onClick={onClose} aria-label="Close the picture" data-lightbox-close className="rounded-full p-1.5 text-white/80 transition hover:scale-110 hover:bg-red-100 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
@@ -96,7 +96,7 @@ export function ImageLightbox({ picture, onClose }: { picture: LightboxPicture |
       (opener.current as HTMLElement | null)?.focus?.();
     };
   }, [open, onClose]);
-  // the room for the picture: the layer's body, less its padding and the line of the credit; measured again when the window changes
+  // The room for the picture is the layer's body, less its padding and the line of the credit; I measure it again when the window changes.
   useEffect(() => {
     if (!open) return;
     const measure = () => {

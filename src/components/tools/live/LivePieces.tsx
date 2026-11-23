@@ -1,6 +1,6 @@
 // src/components/tools/live/LivePieces.tsx
 //
-// THE PARTS EVERY LIVE CARD SHARES: the line that says where the numbers came from and when (never a number without its source and its time), a calm loading state, a plain failure with a retry,
+// The parts every live card shares: the line that says where the numbers came from and when (I never show a number without its source and its time), a calm loading state, a plain failure with a retry,
 // the up/down chip of a change, and a trend chart drawn as SVG with a hover read-out. Sizes are the ones of the modal's scale sheet. Nothing is stored or sent.
 "use client";
 
@@ -14,20 +14,20 @@ import type { Freshness, FreshnessLabel } from "@/lib/live/freshness";
 
 const ZONE = "Asia/Kolkata";
 
-/** "3:42 pm, 12 Nov" in Indian time */
+/** Formats a time as "3:42 pm, 12 Nov", in Indian time. */
 export function stamp(iso: string): string {
   const d = DateTime.fromISO(iso, { zone: ZONE });
   return d.isValid ? d.toFormat("h:mm a, d LLL").replace("AM", "am").replace("PM", "pm") : "";
 }
 
 const PILL: Record<Freshness, string> = {
-  // LIVE is a solid green with a soft glow and a ping ring round its dot: it is the one thing on the card meant to catch the eye (the motion stops for people who ask their device for less)
+  // I make LIVE a solid green with a soft glow and a ping ring round its dot: it is the one thing on the card meant to catch the eye. The motion stops for people who ask their device for less.
   live: "bg-emerald-600 text-white ring-emerald-300 shadow-[0_0_0_3px_rgba(16,185,129,0.28),0_0_14px_rgba(16,185,129,0.55)] motion-safe:animate-livepulse",
   last: "bg-white/90 text-slate-700 ring-slate-300",
   saved: "bg-amber-100 text-amber-900 ring-amber-300",
 };
 
-/** the one pill that says whether a figure is live, the last close, or a saved copy (the words and the colours are the same on every card; light fills, so it reads on a dark tile and on a pale card) */
+/** This is the one pill that says whether a figure is live, the last close, or a saved copy. The words and the colours are the same on every card; I use light fills so it reads on a dark tile and on a pale card. */
 export function StatusPill({ label }: { label: FreshnessLabel }) {
   return (
     <span data-freshness={label.state} title={label.detail} className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ring-1 ${PILL[label.state]}`}>
@@ -43,7 +43,7 @@ export function StatusPill({ label }: { label: FreshnessLabel }) {
   );
 }
 
-/** where the figures came from and when; the Refresh button only when a way to refresh is given (a self-refreshing card has its own, in its status line) */
+/** Says where the figures came from and when. I show the Refresh button only when a way to refresh is given; a self-refreshing card has its own, in its status line. */
 export function SourceLine({ env, reload, loading = false }: { env: LiveEnvelope<unknown>; reload?: () => void; loading?: boolean }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -88,7 +88,7 @@ export function LiveGate({ state, error, reload, what, children }: { state: Live
   return <>{children}</>;
 }
 
-/** an up or a down arrow with the change, green or red (zero: grey) */
+/** An up or a down arrow with the change: green or red, and grey for zero. */
 export function ChangeChip({ abs, pct, money = false }: { abs: number; pct: number; money?: boolean }) {
   const up = abs > 0, flat = abs === 0;
   const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight;
@@ -102,20 +102,20 @@ export function ChangeChip({ abs, pct, money = false }: { abs: number; pct: numb
 }
 
 export interface TrendPoint {
-  /** the short date under the axis, e.g. "13 Jul" */
+  /** The short date under the axis, e.g. "13 Jul". */
   label: string;
   value: number;
-  /** the whole date for the read-outs, e.g. "13 Jul 2026" (the label when absent) */
+  /** The whole date for the read-outs, e.g. "13 Jul 2026" (the label when absent). */
   full?: string;
-  /** YYYY-MM-DD, used to say how long ago the chart begins */
+  /** YYYY-MM-DD; I use it to say how long ago the chart begins. */
   iso?: string;
-  /** an estimate (drawn dashed, marked "est."), not a published rate */
+  /** Marks an estimate, not a published rate: I draw it dashed and mark it "est.". */
   est?: boolean;
-  /** said under the figure of the first day: when no figure was published for that exact day, which day's figure is shown instead */
+  /** Said under the figure of the first day: when no figure was published for that exact day, it tells which day's figure is shown instead. */
   note?: string;
 }
 
-/** "4 months" / "1 year" / "3 weeks" for the span between two ISO dates (empty when either is missing) */
+/** Gives "4 months" / "1 year" / "3 weeks" for the span between two ISO dates; it is empty when either is missing. */
 export function spanText(fromIso?: string, toIso?: string): string {
   if (!fromIso || !toIso) return "";
   const a = DateTime.fromISO(fromIso, { zone: ZONE }), b = DateTime.fromISO(toIso, { zone: ZONE });
@@ -129,7 +129,7 @@ export function spanText(fromIso?: string, toIso?: string): string {
   return years === 1 ? "1 year" : `${years} years`;
 }
 
-/** round axis values: about `want` of them, on 1/2/5 steps, all inside lo..hi */
+/** I pick round axis values: about `want` of them, on 1/2/5 steps, all inside lo..hi. */
 export function niceTicks(lo: number, hi: number, want = 4): number[] {
   const span = hi - lo;
   if (!(span > 0)) return [lo];
@@ -140,7 +140,7 @@ export function niceTicks(lo: number, hi: number, want = 4): number[] {
   return out;
 }
 
-/** which points get a date under the axis: the first, the last and evenly spaced ones between (never crowded) */
+/** Chooses which points get a date under the axis: the first, the last and evenly spaced ones between, so the dates are never crowded. */
 export function dateTicks(n: number, want = 6): number[] {
   if (n <= 1) return [0];
   const k = Math.min(want, n);
@@ -149,28 +149,28 @@ export function dateTicks(n: number, want = 6): number[] {
   return Array.from(set).sort((x, y) => x - y);
 }
 
-/** how many dates a chart of this width (in pixels) can carry under its axis without them touching: a date is about 70 px wide; 0 means not measured yet */
+/** How many dates a chart of this width (in pixels) can carry under its axis without them touching. I take a date to be about 70 px wide; 0 means not measured yet. */
 export function datesThatFit(width: number): number {
   if (!(width > 0)) return 6;
   return Math.max(2, Math.min(6, Math.floor(width / 100)));
 }
 
-/** a callout that stays inside the chart: left-aligned near the left edge, right-aligned near the right edge, centred between */
+/** I keep a callout inside the chart: left-aligned near the left edge, right-aligned near the right edge, centred between. */
 const edgeShift = (pct: number) => (pct < 16 ? "0%" : pct > 84 ? "-100%" : "-50%");
 
 /**
  * A line chart with an area under it that draws itself in, grid lines with round values on the left, dates along the bottom,
  * the highest and the lowest day marked on the line with their date and value, and a read-out on hover (or touch).
- * For a price that stays as it is until the day it is changed (fuel), `step` draws it as a staircase (a sloping line would say the price drifted), `ties: "first"` names the DAY a high or a low was
- * first reached (not the latest day on which it still held), and the high and the low say how long they held.
+ * For a price that stays as it is until the day it is changed (fuel), `step` draws it as a staircase, because a sloping line would say the price drifted. `ties: "first"` names the DAY a high or a low was
+ * first reached, not the latest day on which it still held, and the high and the low say how long they held.
  */
-/** the drawing's own units: the points are drawn from PAD to W - PAD across a drawing W wide (so they do not touch the frame) */
+/** The drawing's own units: I draw the points from PAD to W - PAD across a drawing W wide, so they do not touch the frame. */
 export const TREND_W = 600, TREND_H = 220, TREND_PAD = 10;
 
-/** where on the drawing (0 at its left edge, 1 at its right) the i-th of n points is drawn */
+/** Where on the drawing (0 at its left edge, 1 at its right) the i-th of n points is drawn. */
 export const trendFraction = (i: number, n: number): number => (TREND_PAD + (i / Math.max(1, n - 1)) * (TREND_W - 2 * TREND_PAD)) / TREND_W;
 
-/** the point nearest to a place on the drawing (0 to 1 from its left edge): the inverse of trendFraction, so that the dot is drawn at the place the pointer is (a pointer over the padding takes the first or the last point) */
+/** Finds the point nearest to a place on the drawing (0 to 1 from its left edge). It is the inverse of trendFraction, so the dot is drawn at the place the pointer is; a pointer over the padding takes the first or the last point. */
 export function trendIndex(fraction: number, n: number): number {
   const i = Math.round(((fraction * TREND_W - TREND_PAD) / (TREND_W - 2 * TREND_PAD)) * (n - 1));
   return Math.max(0, Math.min(n - 1, i));
@@ -179,13 +179,13 @@ export function trendIndex(fraction: number, n: number): number {
 export function TrendChart({ points, color = "#0ea5e9", format, ariaLabel, step = false, ties = "last", latestLabel = "Latest", pointsText, todayIso }: {
   points: TrendPoint[]; color?: string; format: (v: number) => string; ariaLabel: string;
   step?: boolean; ties?: "first" | "last"; latestLabel?: string; pointsText?: string;
-  /** today (YYYY-MM-DD, Indian date): when the last point is an earlier day, the chart says that today's figure is not published yet */
+  /** Today (YYYY-MM-DD, Indian date): when the last point is an earlier day, the chart says that today's figure is not published yet. */
   todayIso?: string;
 }) {
   const calm = useReducedMotion();
   const box = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
-  // how many dates fit under the axis depends on how wide the chart is on this screen (unknown, so six, until it is measured)
+  // How many dates fit under the axis depends on how wide the chart is on this screen. That is unknown at first, so I use six until it is measured.
   const [width, setWidth] = useState(0);
   useEffect(() => {
     const el = box.current;
@@ -204,15 +204,15 @@ export function TrendChart({ points, color = "#0ea5e9", format, ariaLabel, step 
     const yOf = (v: number) => PAD + (1 - (v - lo2) / (hi2 - lo2)) * (H - 2 * PAD);
     const xOf = (i: number) => PAD + (i / Math.max(1, points.length - 1)) * (W - 2 * PAD);
     const xy = points.map((p, i) => ({ x: xOf(i), y: yOf(p.value) }));
-    // a staircase holds each value until the next point, then steps to the new one
+    // A staircase holds each value until the next point, then steps to the new one.
     const path = (a: number, b: number) => xy.slice(a, b + 1).map((q, i) => (i === 0 ? `M${q.x.toFixed(1)},${q.y.toFixed(1)}` : step ? `H${q.x.toFixed(1)} V${q.y.toFixed(1)}` : `L${q.x.toFixed(1)},${q.y.toFixed(1)}`)).join(" ");
     const line = path(0, xy.length - 1);
-    // of equal extremes, the latest is the one named (gold: the newest high is the one that matters), or the first (fuel: the day the price reached it)
+    // Of equal extremes I name the latest (gold: the newest high is the one that matters), or the first (fuel: the day the price reached it).
     let iHi = 0, iLo = 0;
     vs.forEach((v, i) => { if (ties === "last" ? v >= vs[iHi] : v > vs[iHi]) iHi = i; if (ties === "last" ? v <= vs[iLo] : v < vs[iLo]) iLo = i; });
-    // how long a value lasted from the point where it began: the last point that still has it
+    // How long a value lasted from the point where it began: the last point that still has it.
     const heldTo = (i: number) => { let j = i; while (j + 1 < vs.length && vs[j + 1] === vs[i]) j++; return j; };
-    // the estimated days are drawn dashed up to the first official day, the official days solid from it
+    // I draw the estimated days dashed up to the first official day, and the official days solid from it.
     const k = points.findIndex((p) => !p.est);
     const cut = k > 0 ? k : 0;
     return {
@@ -226,7 +226,7 @@ export function TrendChart({ points, color = "#0ea5e9", format, ariaLabel, step 
   const idx = (e: React.PointerEvent) => {
     const el = box.current;
     if (!el) return null;
-    // the drawing fills the inside of the frame (not its 1 px border) and the points do not start at its edge: the same mapping the drawing uses, run backwards
+    // The drawing fills the inside of the frame (not its 1 px border) and the points do not start at its edge, so here I run the same mapping the drawing uses backwards.
     const r = el.getBoundingClientRect();
     if (!el.clientWidth) return null;
     return trendIndex((e.clientX - r.left - el.clientLeft) / el.clientWidth, points.length);
@@ -254,7 +254,7 @@ export function TrendChart({ points, color = "#0ea5e9", format, ariaLabel, step 
           {geo.grid.map((g) => <span key={g.v} className="absolute right-0 -translate-y-1/2 whitespace-nowrap" style={{ top: `${pctY(g.y)}%` }}>{format(g.v)}</span>)}
         </div>
         <div ref={box} className="relative h-56 flex-1 touch-none select-none rounded-2xl border border-slate-200 bg-white/80 shadow-inner" onPointerMove={(e) => setHover(idx(e))} onPointerLeave={() => setHover(null)} role="img" aria-label={`${ariaLabel}. Highest ${format(hi.value)} on ${full(hi)}, lowest ${format(lo.value)} on ${full(lo)}, latest ${format(now.value)} on ${full(now)}.`}>
-          {/* the line is revealed left to right by a clip (not by pathLength: with a non-scaling stroke that stops the line short of its end) */}
+          {/* I reveal the line left to right with a clip, not with pathLength: with a non-scaling stroke, pathLength stops the line short of its end. */}
           <motion.div className="absolute inset-0" initial={calm ? false : { clipPath: "inset(-10% 100% -10% 0)" }} animate={{ clipPath: "inset(-10% -2% -10% 0)" }} transition={{ duration: 1.1, ease: "easeOut" }}>
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
             <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.28" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
@@ -322,7 +322,7 @@ export function TrendChart({ points, color = "#0ea5e9", format, ariaLabel, step 
   );
 }
 
-/** A small line for a day's prices, drawn in one colour (no axes, no numbers: the figure beside it says them). */
+/** A small line for a day's prices, drawn in one colour. It has no axes and no numbers; the figure beside it says them. */
 export function Sparkline({ values, color, height = 36 }: { values: number[]; color: string; height?: number }) {
   if (values.length < 2) return <div style={{ height }} />;
   const lo = Math.min(...values), hi = Math.max(...values), span = hi - lo || 1;

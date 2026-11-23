@@ -1,12 +1,12 @@
 // src/lib/security/passwordStore.ts
 //
-// WHAT IS KEPT ABOUT A PASSWORD'S LIFE, in three small tables of their own (the account table is not touched):
+// What is kept about a password's life, in three small tables of their own (I do not touch the account table):
 //   password_meta     one row per ticket: when the password was last changed, and the hashes of the 5 passwords before it (the same bcrypt hashes as the account's: as private as the password itself)
 //   password_otp      one row per ticket: the live one-time code (a keyed hash, never the code), its expiry and tries
 //   password_otp_log  when a code was sent, to count "3 an hour"
-// All three are closed to the browser (row level security on, nothing granted to anon or authenticated); only the server's own login reads them. They are created by this file on first use when the database login
-// may (like the other stores), or by src/lib/nl2sql/sql/30_password_policy.sql run by hand. If they cannot be created, the 180-day rule and the history are simply not applied (a password change still works) and
-// the problem is logged: the one thing that never fails open is the one-time code, when it is switched on.
+// All three are closed to the browser (row level security on, nothing granted to anon or authenticated); only the server's own login reads them. This file creates them on first use when the database login
+// may (like the other stores), or src/lib/nl2sql/sql/30_password_policy.sql run by hand does. If they cannot be created, the 180-day rule and the history are simply not applied (a password change still works) and
+// the problem is logged: the one thing I never let fail open is the one-time code, when it is switched on.
 
 import { DateTime } from "luxon";
 import { HISTORY_KEEP } from "./passwordPolicy";
@@ -45,7 +45,7 @@ export const TABLE_STATEMENTS: string[] = [
 let ready: Promise<boolean> | null = null;
 let failedAt = 0;
 
-/** true when the tables are there (made now if need be); a failure is remembered for 10 minutes, not repeated on every request */
+/** Returns true when the tables are there (made now if need be); I remember a failure for 10 minutes instead of repeating it on every request */
 export function ensureTables(q: Query): Promise<boolean> {
   if (ready && (failedAt === 0 || Date.now() - failedAt < 10 * 60_000)) return ready;
   failedAt = 0;
@@ -67,12 +67,12 @@ export function ensureTables(q: Query): Promise<boolean> {
 /** for tests */
 export function resetEnsure(): void { ready = null; failedAt = 0; }
 
-/** the driver gives a timestamp as a Date or as text: either way, epoch milliseconds */
+/** the driver gives a timestamp as a Date or as text: either way, I want epoch milliseconds */
 const toMs = (v: unknown): number => (v instanceof Date ? DateTime.fromJSDate(v) : DateTime.fromISO(String(v))).toMillis();
 
 export interface Meta { changedAt: number; history: string[] }
 
-/** the recorded change of this ticket, or null when none is recorded */
+/** Reads the recorded change of this ticket, or null when none is recorded */
 export async function readMeta(q: Query, ticket: string): Promise<Meta | null> {
   const r = await q(`SELECT changed_at, history FROM public.password_meta WHERE ticket_no = $1`, [ticket]);
   if (!r[0]) return null;
@@ -80,12 +80,12 @@ export async function readMeta(q: Query, ticket: string): Promise<Meta | null> {
   return { changedAt: toMs(r[0].changed_at), history: Array.isArray(h) ? h.filter((x: unknown): x is string => typeof x === "string") : [] };
 }
 
-/** a person on his first password: his 180 days begin now (nothing changes if a row exists already) */
+/** I use this for a person on his first password: his 180 days begin now (nothing changes if a row exists already) */
 export async function startClock(q: Query, ticket: string): Promise<void> {
   await q(`INSERT INTO public.password_meta (ticket_no, changed_at, history) VALUES ($1, now(), '[]'::jsonb) ON CONFLICT (ticket_no) DO NOTHING`, [ticket]);
 }
 
-/** a password was changed: now is the day, and the hash it replaced goes to the front of the history (the 5 newest are kept), in one statement */
+/** I record a changed password in one statement: now is the day, and the hash it replaced goes to the front of the history (the 5 newest are kept) */
 export async function recordChange(q: Query, ticket: string, replacedHash: string): Promise<void> {
   await q(
     `INSERT INTO public.password_meta (ticket_no, changed_at, history) VALUES ($1, now(), jsonb_build_array($2::text))
@@ -97,7 +97,7 @@ export async function recordChange(q: Query, ticket: string, replacedHash: strin
   );
 }
 
-/** the one-time codes, kept in password_otp (and counted in password_otp_log) */
+/** Gives the one-time codes, kept in password_otp (and counted in password_otp_log) */
 export function otpStoreOver(q: Query): OtpStore {
   return {
     async get(ticket): Promise<OtpRow | null> {

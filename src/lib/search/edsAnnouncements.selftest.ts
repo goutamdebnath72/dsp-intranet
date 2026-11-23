@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/search/edsAnnouncements.selftest.ts
 //
-// ANNOUNCEMENTS AS SOURCES OF THE DEEP SUMMARY (EDS): their numbers cannot meet a circular's, the engine is told about them only when they are there (a briefing from circulars alone is unchanged), they are named and cited
+// This checks announcements as sources of the deep summary (EDS): their numbers cannot meet a circular's, the engine is told about them only when they are there (a briefing from circulars alone is unchanged), they are named and cited
 // by their label, a stored briefing is valid only while the announcements it was made from are as they were, and the screens open them.
 
 export {};
@@ -20,7 +20,7 @@ const CIRC = "Circular Sl. No.: 2026/51 Sub: Digital signature certificates for 
 const row = (o: Record<string, unknown> = {}) => ({ id: 1, type: "announcement", headline: "Procedure for Issuance of Digital Signature Certificate (DSC)", url: null, publishedAt: "2026-11-17T04:00:00.000Z", similarity: 0.9, chunkText: "excerpt", ...o }) as any;
 
 async function main() {
-  const DSC_LABEL = announcementLabel(row().headline, row().publishedAt); // the title is over 60 characters: the label cuts it
+  const DSC_LABEL = announcementLabel(row().headline, row().publishedAt); // the title is over 60 characters, so the label cuts it
   ok("a long title is cut in the label, with an ellipsis, and the date follows", /^Announcement \u201cProcedure for Issuance of Digital Signature Certificate \(DS\u2026\u201d \(17 Nov 2026\)$/.test(DSC_LABEL), DSC_LABEL);
   // ---- the numbers
   ok("an announcement's source number is above every circular's and is its id moved", ANNOUNCEMENT_SOURCE_BASE === 1_000_000 && announcementSourceId(12) === 1_000_012 && realSourceId(1_000_012) === 12);
@@ -79,7 +79,7 @@ async function main() {
   clearExecutiveSynthesisCache();
   const a1 = await executeExecutiveSynthesis("who handles dsc queries", [eds.sources[1]], labels, { generate: gen, candidates: 1, store });
   const made = writes;
-  clearExecutiveSynthesisCache(); // a different server: only the permanent store is shared
+  clearExecutiveSynthesisCache(); // this is a different server: only the permanent store is shared
   await executeExecutiveSynthesis("who handles dsc queries", [eds.sources[1]], labels, { generate: gen, candidates: 1, store });
   ok("the same question over the same announcements is read back from the store, not written again", a1.keyFindings.length > 0 && made > 0 && writes === made, `made ${made}, writes ${writes}`);
   clearExecutiveSynthesisCache();

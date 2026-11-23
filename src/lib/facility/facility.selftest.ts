@@ -1,8 +1,8 @@
 // Run (from the project root; needs a scratch Postgres):
 //   NL2SQL_TEST_ADMIN_URL=postgres://postgres:pw@127.0.0.1:5432/postgres npx tsx --tsconfig tsconfig.json src/lib/facility/facility.selftest.ts
-// Step 68a: the shared "who may use which tool" and "what was done" (src/lib/facility/*, sql/17) against a real database: the copy of what the two tools already hold (once, and repeatable), who is the HOD, a delegate or
+// Step 68a: I test the shared "who may use which tool" and "what was done" (src/lib/facility/*, sql/17) against a real database: the copy of what the two tools already hold (once, and repeatable), who is the HOD, a delegate or
 // nobody for each tool separately, authorising and withdrawing (same words and same rules as before), two people at the same moment, a history that cannot be altered, and the lock words of the two tools unchanged.
-// The migrations are the REAL files (sql/13, sql/15, sql/17). The people are INVENTED.
+// The migrations are the REAL files (sql/13, sql/15, sql/17); the people are INVENTED.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -13,7 +13,7 @@ if (!adminUrl) {
   console.log("facility kit selftest: skipped (NL2SQL_TEST_ADMIN_URL is not set)");
   process.exit(0);
 }
-process.env.SUPERADMIN_TICKETS = "400001"; // the HOD is known by ticket from the environment, read when superAdmin.ts is first loaded
+process.env.SUPERADMIN_TICKETS = "400001"; // I know the HOD by ticket from the environment, read when superAdmin.ts is first loaded
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
 const SQL_DIR = join(process.cwd(), "src/lib/nl2sql/sql");
@@ -32,7 +32,7 @@ async function main() {
   const rows = async (sql: string, params?: unknown[]) => (await pool.query(sql, params as never[])).rows;
   const count = async (sql: string) => Number((await rows(sql))[0].n);
   for (const role of ["anon", "authenticated"]) await pool.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN CREATE ROLE ${role} NOLOGIN; END IF; END $$`);
-  // the stand-in of the live PAX table, only so that sql/13 can run as it does live
+  // This is my stand-in for the live PAX table, there only so that sql/13 can run as it does live
   await pool.query(`CREATE TABLE IF NOT EXISTS public.pax_directory (id serial PRIMARY KEY, dept_name text, location text, "number" text, label text, note text, source text, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now())`);
   await pool.query(readFileSync(join(SQL_DIR, "13_pax_admin.sql"), "utf8"));
   await pool.query(readFileSync(join(SQL_DIR, "15_employee_admin.sql"), "utf8"));
@@ -134,7 +134,7 @@ async function main() {
 
   // ---- begin: the start of every write of a tool ----
   ok("begin lets the HOD and a delegate through and says which; a stranger and a withdrawn person get Forbidden; needHod refuses a delegate", (await db.run((q) => auth.begin(q, "employee", HOD))) === "hod" && (await db.run((q) => auth.begin(q, "employee", RAKESH))) === "delegate" && await db.run((q) => auth.begin(q, "employee", { ticket: "412346", name: "ANIL" })).then(() => false, (e) => e instanceof auth.Forbidden) && await db.run((q) => auth.begin(q, "employee", RAKESH, true)).then(() => false, (e) => e instanceof auth.Forbidden));
-  { // begin really HOLDS the tool's lock until the transaction ends, and only that tool's
+  { // begin must really HOLD the tool's lock until the transaction ends, and only that tool's
     const c = await pool.connect();
     try {
       await c.query("BEGIN");

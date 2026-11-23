@@ -2,20 +2,20 @@
  * What a second reader said about the numbers of a circular's pages, for the answer card (the gate in circularAnswer.ts).
  *
  * The cross-check script (scripts/crosscheck-report.ts --apply) stores, per page, the numbers both readings had ("confirmed") and the numbers only the
- * pipeline had ("unconfirmed"), together with a FINGERPRINT of the page text it checked. A check is used only while the stored page text still
+ * pipeline had ("unconfirmed"), together with a FINGERPRINT of the page text it checked. I use a check only while the stored page text still
  * has that fingerprint: if the circular is re-read later, its check is stale and is ignored, so a check can never vouch for text it did not see.
  */
 import { createHash } from "node:crypto";
 import type { PageChecks } from "./circularAnswer";
 
-/** The page text as it is compared and fingerprinted: whitespace collapsed. */
+/** The page text as I compare and fingerprint it: whitespace collapsed. */
 export const normPageText = (s: string): string => String(s ?? "").replace(/\s+/g, " ").trim();
 
 export function pageTextHash(text: string): string {
   return createHash("sha1").update(normPageText(text)).digest("hex");
 }
 
-/** The stored text of each page: its chunks in order, joined with a space (the chunks were cut from the whitespace-collapsed page text). */
+/** I rebuild the stored text of each page from its chunks in order, joined with a space (the chunks were cut from the whitespace-collapsed page text). */
 export function storedPageTexts(chunks: { page: number | null; index: number; text: string }[]): Map<number, string> {
   const by = new Map<number, string[]>();
   for (const c of [...chunks].sort((a, b) => (a.page ?? 0) - (b.page ?? 0) || a.index - b.index)) {
@@ -32,7 +32,7 @@ export interface CheckRow {
   text_hash: string;
 }
 
-/** The saved checks that are still about the stored text. */
+/** I keep only the saved checks that are still about the stored text. */
 export function freshChecks(rows: CheckRow[], chunks: { page: number | null; index: number; text: string }[]): PageChecks {
   const texts = storedPageTexts(chunks);
   const out: PageChecks = {};
@@ -45,8 +45,8 @@ export function freshChecks(rows: CheckRow[], chunks: { page: number | null; ind
 }
 
 /**
- * Loads the fresh checks of one circular. Never throws: with no table yet (the SQL was not run) or any database trouble the answer is simply
- * built without a check, exactly as before.
+ * Loads the fresh checks of one circular. It never throws: with no table yet (the SQL was not run) or any database trouble I simply
+ * build the answer without a check, exactly as before.
  */
 export async function loadPageChecks(
   query: (sql: string, params: unknown[]) => Promise<any[]>,
@@ -73,7 +73,7 @@ export interface NewCheck {
 }
 export type NewCheckRow = NewCheck & { textHash: string };
 
-/** The checks of a new circular with the fingerprint of the text that is really stored for each page (its chunks); a page with no stored text gets no row. */
+/** I build the checks of a new circular with the fingerprint of the text that is really stored for each page (its chunks); a page with no stored text gets no row. */
 export function checkRowsFor(checks: NewCheck[], chunks: { page: number | null; index: number; text: string }[]): NewCheckRow[] {
   const texts = storedPageTexts(chunks);
   return checks.flatMap((c) => {
@@ -82,7 +82,7 @@ export function checkRowsFor(checks: NewCheck[], chunks: { page: number | null; 
   });
 }
 
-/** Stores the rows (one upsert each). Never throws: a missing table or any database trouble just means the page is not protected, as before. Returns how many were saved. */
+/** Stores the rows (one upsert each). It never throws: a missing table or any database trouble just means the page is not protected, as before. Returns how many were saved. */
 export async function savePageChecks(run: (sql: string, params: unknown[]) => Promise<unknown>, circularId: number, rows: NewCheckRow[]): Promise<number> {
   let saved = 0;
   for (const r of rows) {

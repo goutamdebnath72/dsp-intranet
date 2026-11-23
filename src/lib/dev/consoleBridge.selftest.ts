@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/dev/consoleBridge.selftest.ts
-// The browser console written to .browser-console.log (development only).
+// This test covers the browser console written to .browser-console.log (development only).
 import { readFileSync, writeFileSync, mkdtempSync, existsSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
@@ -62,7 +62,7 @@ ok("the framework's reload chatter is not written, everything else is", JSON.str
 const sizeBefore = b.posts.length;
 b.con.log("x".repeat(20000)); b.flush();
 ok("a very long message is cut", b.posts[sizeBefore].body.entries[0].m.length === 4000);
-// installing twice does not wrap the console twice
+// I check that installing twice does not wrap the console twice
 vm.runInContext(CONSOLE_BRIDGE_SCRIPT, b.sandbox);
 b.nativeCalls.length = 0; b.con.log("once"); b.flush();
 ok("a second install does nothing (a hot reload cannot double the lines)", b.nativeCalls.length === 1 && b.posts[b.posts.length - 1].body.entries.length === 1);

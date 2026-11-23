@@ -1,6 +1,6 @@
 // src/tools/aicpi/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the live-data card (AICPI, SAIL DA and inflation). What the search line needs to know is in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// How this topic looks in the panel of the search bar: the live-data card (AICPI, SAIL DA and inflation). What the search line needs to know is in topic.ts. I list it once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";

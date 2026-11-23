@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/flights.selftest.ts
-// The Andal Airport flights: the airport's own flight page (fixtures/kniairport-flights.html, read on 13 Nov 2026) is read and checked; a page laid out otherwise is refused.
+// Checks the Andal Airport flights: the airport's own flight page (fixtures/kniairport-flights.html, read on 13 Nov 2026) is read and checked, and a page laid out otherwise is refused.
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
 import { AIRPORT, duration, FLIGHTS_URL, FlightsError, LIVE_ARRIVALS_URL, LIVE_DEPARTURES_URL, nextFlight, parseFlights, until } from "./flights";

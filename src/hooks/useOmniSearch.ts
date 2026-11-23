@@ -23,7 +23,7 @@ export interface OmniSearchResult {
   isPerfectMatch?: boolean;
   matchPage?: number | null; // page of the best-matching chunk (viewer jump target)
   matchPages?: number[]; // all pages that contain a match
-  matchInPdf?: boolean; // an announcement found by what its PDF says (matchPage is a page of that PDF)
+  matchInPdf?: boolean; // I mark an announcement found by what its PDF says (matchPage is a page of that PDF)
 }
 
 export interface AnalyticsBreakdownRow {
@@ -50,63 +50,67 @@ export interface AnalyticsAnswer {
   rows?: AnalyticsBreakdownRow[];
   people?: any[];
   listTruncated?: boolean;
-  /** Stage 2: holiday rows for a holiday list query. */
+  /** Stage 2: the holiday rows I return for a holiday list query. */
   holidays?: AnalyticsHolidayRow[];
-  /** Structured "when is X" / "is this a holiday" layout. Mirrors AnalyticsPayload.holidayDetails. */
+  /** Structured "when is X" / "is this a holiday" layout; it mirrors AnalyticsPayload.holidayDetails. */
   holidayDetails?: HolidayDetail[];
-  /** Structured year comparison, drawn as a card. Mirrors AnalyticsPayload.holidayCompare. */
+  /** Structured year comparison that I draw as a card. It mirrors AnalyticsPayload.holidayCompare. */
   holidayCompare?: HolidayCompareView;
-  /** One-line lead above the holiday card. Mirrors AnalyticsPayload.lead. */
+  /** One-line lead that I put above the holiday card. It mirrors AnalyticsPayload.lead. */
   lead?: string;
-  /** Set when the question had a second part that was not answered. Mirrors AnalyticsPayload.notice. */
+  /** Set when the question had a second part that I did not answer. It mirrors AnalyticsPayload.notice. */
   notice?: string;
-  /** A clarifying question about a department word with more than one meaning (step 49a). The same type as AnalyticsPayload.ask. */
+  /** A clarifying question about a department word with more than one meaning (step 49a). It is the same type as AnalyticsPayload.ask. */
   ask?: import("@/lib/nl2sql/departmentAsk").DepartmentAsk;
-  /** A hospital OPD answer (step 51a), drawn as a card by HospitalAnswerCard. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  /** A hospital OPD answer (step 51a), drawn as a card by HospitalAnswerCard. I use the same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   hospital?: import("@/lib/hospital/types").HospitalAnswer;
-  /** The employee manager was asked for by someone who may use it (step 66a): drawn as a panel by EmployeeAdminPanel. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  /** Set when the employee manager was asked for by someone who may use it (step 66a); EmployeeAdminPanel draws it as a panel. The same type is used in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   employeeAdmin?: import("@/lib/employees/admin/types").EmployeeAdminOpen;
-  /** The PAX directory editor was asked for by someone who may use it (step 64a): drawn as a panel by PaxAdminPanel. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  /** Set when the PAX directory editor was asked for by someone who may use it (step 64a); PaxAdminPanel draws it as a panel. The same type is used in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   paxAdmin?: import("@/lib/pax/admin/types").PaxAdminOpen;
-  /** The Holiday Manager was asked for by someone who may use it: drawn as a panel by HolidayAdminPanel. */
+  /** The Holiday Manager was asked for by someone who may use it; I draw it as a panel with HolidayAdminPanel. */
   holidayAdmin?: import("@/lib/holidays/admin/types").HolidayAdminOpen;
-  /** The Circular Manager was asked for by someone who may use it: drawn as a panel by CircularAdminPanel. */
+  /** The Circular Manager was asked for by someone who may use it; I draw it as a panel with CircularAdminPanel. */
   circularAdmin?: import("@/lib/circulars/admin/types").CircularAdminOpen;
-  /** The Announcement Manager was asked for by someone who may use it: drawn as a panel by AnnouncementAdminPanel. */
+  /** The Announcement Manager was asked for by someone who may use it; I draw it as a panel with AnnouncementAdminPanel. */
   announcementAdmin?: import("@/lib/announcements/admin/types").AnnouncementAdminOpen;
-  /** The Contact Access Log was asked for by someone who may use it: drawn as a panel by AccessLogAdminPanel. */
+  /** The Contact Access Log was asked for by someone who may use it; I draw it as a panel with AccessLogAdminPanel. */
   accessLogAdmin?: import("@/lib/accessLog/admin/types").AccessLogAdminOpen;
-  /** The management page (the titles of the management tools this person may open): drawn by ManagementHubPanel. */
+  /** The management page (the titles of the management tools this person may open); ManagementHubPanel draws it. */
   managementHub?: import("@/lib/facility/hub").ManagementHubOpen;
-  /** The management page was asked for by someone who may not have it: the card that asks him to sign in, or tells him he is not authorised (ManagementGatePanel). */
+  /** The management page was asked for by someone who may not have it: I show the card that asks him to sign in, or tells him he is not authorised (ManagementGatePanel). */
   managementGate?: import("@/lib/facility/hub").ManagementGate;
-  /** The ONE clean answer shown first, big and bold (step 61a). The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  /** The ONE clean answer shown first, big and bold (step 61a). I use the same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   headline?: import("@/lib/ui/answerHeadline").AnswerHeadline;
-  /** Per-type (RH/CH/FH) tally for a holiday list query, only present when
-   *  no single type was already filtered on. `count` above is the
-   *  DISTINCT-holiday number; rawEntryCount is the raw (date,type) row
-   *  total that count deliberately excludes the double-counting from.
-   *  Mirrors AnalyticsPayload in src/lib/employees/analytics.ts -- keep
-   *  the two in sync if either changes. */
+  /**
+   * Per-type (RH/CH/FH) tally for a holiday list query; I only fill it when no single type was already filtered on.
+   * `count` above is the DISTINCT-holiday number; rawEntryCount is the raw (date,type) row total, and `count` deliberately avoids its double-counting.
+   * It mirrors AnalyticsPayload in src/lib/employees/analytics.ts: keep the two in sync if either changes.
+   */
   typeBreakdown?: { type: string; label: string; count: number }[];
   rawEntryCount?: number;
-  /** Per-category RH quota (holiday_rh_quota) alongside a holiday list. */
+  /** Per-category RH quota (holiday_rh_quota), which I send alongside a holiday list. */
   rhQuotaByCategory?: { category: string; quota: number }[];
-  /** What A/B/C/D actually mean -- see CATEGORY_LABEL in holidays/terms.ts. */
+  /** What A/B/C/D actually mean; see CATEGORY_LABEL in holidays/terms.ts. */
   categoryLabels?: Record<string, string>;
-  /** Present only on answers from a fresh, not-yet-trusted LLM-derived
-   *  pattern -- show the tick/cross and report feedback with this id.
-   *  Mirrors AnalyticsPayload.pendingPatternId (employees/analytics.ts). */
+  /**
+   * Present only on answers from a fresh, not-yet-trusted LLM-derived pattern: I show the tick/cross and report feedback with this id.
+   * It mirrors AnalyticsPayload.pendingPatternId (employees/analytics.ts).
+   */
   pendingPatternId?: number;
-  /** Plain-language statement of how an LLM-derived query was understood.
-   *  Mirrors AnalyticsPayload.interpretation. */
+  /**
+   * Plain-language statement of how I understood an LLM-derived query.
+   * It mirrors AnalyticsPayload.interpretation.
+   */
   interpretation?: string;
-  /** Present when the answer was written by the language model (SQL, departments covered, tick/cross,
-   *  and a table for breakdowns). See src/lib/nl2sql/omnibar.ts. */
+  /**
+   * Present when the language model wrote the answer (SQL, departments covered, tick/cross,
+   * and a table for breakdowns). See src/lib/nl2sql/omnibar.ts.
+   */
   nl2sql?: Nl2SqlExtras;
-  /** Which route produced the answer; the footer's Yes/No is recorded against it. */
+  /** Which route produced the answer; I record the footer's Yes/No against it. */
   source?: "nl2sql" | "cache" | "holiday" | "legacy" | "circular" | "none";
-  /** 1 for the first answer, 2 for a second attempt after a "No" ... */
+  /** I send 1 for the first answer and 2 for a second attempt after a "No" ... */
   attempt?: number;
   /** The log row to rate, also for explanations that carry no SQL. */
   feedbackLogId?: number | null;
@@ -126,7 +130,7 @@ const fetcher = async (url: string) => {
 
 type SearchRetry = { attempt: number; reason: string; note: string; logId: number | null };
 
-/** the address of one search: the SWR key of the answer on screen and of an answer fetched ahead are this same text, so a fetched-ahead answer is found at once */
+/** The address of one search: the SWR key of the answer on screen and of an answer fetched ahead are this same text, so I find a fetched-ahead answer at once */
 export function searchKey(text: string, mode: SearchMode, ticketNo?: string, retry?: SearchRetry | null, sel?: Selection): string {
   return `/api/ai-search?q=${encodeURIComponent(text)}&mode=${mode}${ticketNo ? `&ticket=${ticketNo}` : ""}${selectionQuery(sel)}${
     retry
@@ -141,12 +145,12 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [mode, setMode] = useState<SearchMode>(null);
-  // A "No" on an answer asks for another attempt: the request carries the reason (see AnswerFeedback.tsx).
+  // A "No" on an answer asks for another attempt: I send the reason with the request (see AnswerFeedback.tsx).
   const [retry, setRetry] = useState<{ attempt: number; reason: string; note: string; logId: number | null } | null>(null);
   const [attempt, setAttempt] = useState(1); // the attempt number of the answer now on screen
-  // true when the ENTER KEY (not the old button) sent the question to Executive Deep Synthesis (step 27a)
+  // I set this true when the ENTER KEY (not the old button) sent the question to Executive Deep Synthesis (step 27a)
   const [autoRouted, setAutoRouted] = useState(false);
-  // THE READER'S FIXED SELECTION (src/records): "auto" = Everything, exactly as before. It is part of the address of every search, so an answer found under one selection is never shown under another.
+  // The reader's fixed selection (src/records): "auto" = Everything, exactly as before. I make it part of the address of every search, so an answer found under one selection is never shown under another.
   const [selection, setSelection] = useState<Selection>(AUTO_SELECTION);
 
   const clearSearch = useCallback(() => {
@@ -162,7 +166,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     );
   }, []);
 
-  // Wipe all state when modal closes
+  // I wipe all state when the modal closes.
   useEffect(() => {
     if (!isOpen) {
       setQuery("");
@@ -171,14 +175,14 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     }
   }, [isOpen, clearSearch]);
 
-  // ONLY executed when a mode button is explicitly clicked
+  // This runs ONLY when a mode button is explicitly clicked.
   const triggerSearch = (selectedMode: SearchMode, opts?: { auto?: boolean; query?: string }) => {
     if (!selectedMode) return;
     setAutoRouted(!!opts?.auto && selectedMode === "intellectual");
     setMode(selectedMode);
     setRetry(null);
     setAttempt(1);
-    // a choice made under a clarifying question (step 49a) searches for its own text and puts it in the box
+    // A choice made under a clarifying question (step 49a) searches for its own text and puts it in the box.
     const text = (opts?.query ?? query).trim();
     if (opts?.query !== undefined) setQuery(opts.query);
     if (text.length >= 3) {
@@ -188,7 +192,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     }
   };
 
-  // FETCH AHEAD: ask for an answer before it is wanted (the management page does it when a title is pointed at, so pressing it shows the page at once). Same address as triggerSearch makes, so the answer is
+  // Fetch ahead: I ask for an answer before it is wanted (the management page does it when a title is pointed at, so pressing it shows the page at once). It uses the same address as triggerSearch makes, so the answer is
   // found when asked for; a request already on its way is shared, not repeated. Nothing is shown and nothing changes on screen.
   const prefetchSearch = (selectedMode: SearchMode, text: string, sel: Selection = selection) => {
     const t = text.trim();
@@ -196,7 +200,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     preload(searchKey(t, selectedMode, ticketNo, null, sel), fetcher).catch(() => undefined);
   };
 
-  // STRICT: SWR only fetches if modal is open, a button was clicked (mode !== null), and text is submitted
+  // I am strict here: SWR only fetches if the modal is open, a button was clicked (mode !== null), and text is submitted.
   const shouldFetch =
     isOpen && mode !== null && submittedQuery.trim().length >= 3;
 
@@ -217,16 +221,16 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   const trimmedSubmitted = (submittedQuery || "").trim();
   const isId = isIdQuery(trimmedQ);
   // Stale guard: if the user changed the query or typed an ID (e.g. CUG, ticket, mobile),
-  // results from a previous query must NOT linger as residue.
+  // I never let results from a previous query linger as residue.
   const isStale = isId || (trimmedSubmitted.length > 0 && trimmedQ !== trimmedSubmitted);
 
-  // Normalize response whether it's the new synthesis object or the legacy flat array
+  // I normalise the response whether it is the new synthesis object or the legacy flat array.
   const rawResults: OmniSearchResult[] = !shouldFetch || isStale || !submittedQuery || mode === null
     ? []
     : Array.isArray(data)
     ? data
     : data?.results || [];
-  // a document that shares nothing with the question must not wear a confident percentage (step 61a; ledger item 57): marked once per answer, from the question that was searched
+  // A document that shares nothing with the question must not wear a confident percentage (step 61a; ledger item 57): I mark this once per answer, from the question that was searched.
   const results: OmniSearchResult[] = useMemo(
     () => (rawResults.length > 0 ? markWeakMatches(submittedQuery, rawResults) : []),
     [submittedQuery, rawResults],
@@ -243,7 +247,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
   const isLoading = shouldFetch && isSwrLoading;
 
   // An EDS-type question that the ENTER KEY sent to Executive Deep Synthesis (step 27a) but that found no relevant circular to build
-  // an answer from must not end as an empty briefing: quietly run the normal search instead, exactly as Enter did before.
+  // an answer from must not end as an empty briefing: I quietly run the normal search instead, exactly as Enter did before.
   useEffect(() => {
     if (!autoRouted || mode !== "intellectual" || isLoading || !data) return;
     const syn = !Array.isArray(data) ? (data as OmniSearchResponse).synthesis : null;
@@ -254,7 +258,7 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     }
   }, [autoRouted, mode, isLoading, data]);
 
-  // "No" -> ask for another attempt in a different way (the server chooses it from the reason).
+  // On "No" I ask for another attempt in a different way; the server chooses it from the reason.
   const requestRetry = (r: { reason: string; note: string; logId: number | null }) => {
     setRetry({ ...r, attempt });
     setAttempt((a) => a + 1);
@@ -267,9 +271,9 @@ export function useOmniSearch(isOpen: boolean, ticketNo?: string) {
     requestRetry,
     setQuery,
     clearSearch,
-    /** true while the text in the box is no longer the text that was searched (the old answer is hidden meanwhile) */
+    /** True while the text in the box is no longer the text that was searched (the old answer is hidden meanwhile). */
     isStale,
-    // A synthesis that arrives on the plain Enter path (the engine chose it, step 26a) is shown as one: the screen follows the answer.
+    // I show a synthesis that arrives on the plain Enter path (the engine chose it, step 26a) as one: the screen follows the answer.
     mode: synthesis ? ("intellectual" as SearchMode) : mode,
     triggerSearch,
     prefetchSearch,

@@ -1,7 +1,7 @@
 // scripts/gemini-read-archive.ts
 //
-// Reads the page images of the archived circulars with the two Gemini readers (a primary and a checker) and SAVES each reading in reread-cache/gemini/. Those saved readings are what
-// scripts/ocr-consensus.ts compares with the stored text. READ-ONLY: it never writes to the database. A page already read by a reader is never read (or paid for) again.
+// This reads the page images of the archived circulars with the two Gemini readers (a primary and a checker) and SAVES each reading in reread-cache/gemini/. Those saved readings are what
+// scripts/ocr-consensus.ts compares with the stored text. It is READ-ONLY: it never writes to the database, and I made it so a page already read by a reader is never read (or paid for) again.
 //
 //   npx tsx --env-file=.env.local scripts/gemini-read-archive.ts --plan                 how many pages still need a reading
 //   npx tsx --env-file=.env.local scripts/gemini-read-archive.ts [--ids 34,20] [--max-calls 200] [--pause-ms 3000]

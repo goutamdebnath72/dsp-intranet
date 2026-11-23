@@ -1,14 +1,13 @@
 // src/lib/search/circularAnswer.ts
 //
-// ANSWER FIRST, SOURCES AFTER. When a question is answered by text in the stored documents (circulars, holiday policy notes,
-// announcements), the person should see the ANSWER first, as clear FACTS (a small table, or one key figure), and, for
-// accountability, the document it came from with the exact words that prove it. This module is GENERIC: it knows nothing about any
-// particular circular. It
+// ANSWER FIRST, SOURCES AFTER. When a question is answered by text in the stored documents (circulars, holiday policy notes, announcements), I want the person to see the ANSWER first,
+// as clear FACTS (a small table, or one key figure), and, for accountability, the document it came from with the exact words that prove it.
+// This module is GENERIC: it knows nothing about any particular circular. It
 //   1. picks the passages to read (buildPassages),
 //   2. asks the model for FACTS, each with a verbatim quote (buildAnswerPrompt, parseModelAnswer),
 //   3. REFUSES to show anything the text does not prove (verifyAnswer).
 //
-// The model is never trusted. An answer is shown only when ALL of these hold, for EVERY row (label | value) of the answer:
+// I never trust the model. An answer is shown only when ALL of these hold, for EVERY row (label | value) of the answer:
 //   - its quote is found, word for word (ignoring spaces, case and punctuation), in the passage it names;
 //   - the value's numbers and words are all inside that quote (nothing added, nothing calculated);
 //   - the label's words are inside that quote, so a value can never sit under another row's label;
@@ -17,11 +16,11 @@
 //     as the figure asked for (this is the mistake that put "Rs 20995.30 per day" on screen on 17 Oct: a monthly total);
 //   - words like "daily" or "monthly" in the title or note are backed by a column that says so;
 //   - every number in the title and note is in a quote or in the cited document's own title or date.
-// If any rule fails, no answer is shown and the person sees the matching documents exactly as before: "a right answer or an honest
+// If any rule fails, no answer is shown and the person sees the matching documents exactly as before. My rule: "a right answer or an honest
 // 'not found', never a confident wrong one". If the stored text of a scan is damaged (a lost column, a garbled number) the rules
 // fail, so a damaged scan gives NO answer, never a wrong one.
 //
-// Pure (no database, no network): unit-tested by circularAnswer.selftest.ts. The model call is passed in (an LlmFn).
+// This file is pure (no database, no network) and is unit-tested by circularAnswer.selftest.ts. The model call is passed in (an LlmFn).
 
 import { DateTime } from "luxon";
 import { numbersOf } from "../ingestion/readingCheck";
@@ -31,7 +30,7 @@ export type PassageType = "circular" | "announcement" | "holiday";
 
 /**
  * What a SECOND READER said about the numbers of each page of a circular (see ingestion/readingCheck.ts): the numbers both readings have, and the
- * numbers only the pipeline's reading has. Present only for a page that was checked AND whose stored text is still the text that was checked.
+ * numbers only the pipeline's reading has. It is present only for a page that was checked AND whose stored text is still the text that was checked.
  */
 export type PageChecks = Record<number, { confirmed: string[]; unconfirmed: string[] }>;
 
@@ -41,19 +40,19 @@ export interface PassagePart {
 }
 
 export interface Passage {
-  /** 1-based number the model cites. */
+  /** The 1-based number that the model cites. */
   n: number;
   type: PassageType;
   id: number;
   title: string;
-  /** ISO date or null. */
+  /** An ISO date, or null. */
   date: string | null;
-  /** The page of the best-matching part (for the source line). */
+  /** The page of the best-matching part, used for the source line. */
   page: number | null;
-  /** All of the text the model reads for this document. */
+  /** All of the text that the model reads for this document. */
   text: string;
   parts: PassagePart[];
-  /** What a second reader said about the numbers of the pages (only for checked pages whose text is unchanged). */
+  /** What a second reader said about the numbers of the pages; I fill it only for checked pages whose text is unchanged. */
   checks?: PageChecks;
 }
 
@@ -63,11 +62,11 @@ export interface DocInput {
   title: string;
   date: string | null;
   chunks: { page: number | null; index: number; text: string }[];
-  /** What a second reader said about the numbers of the pages (only for checked pages whose text is unchanged). */
+  /** What a second reader said about the numbers of the pages; I fill it only for checked pages whose text is unchanged. */
   checks?: PageChecks;
 }
 
-/** One fact as the model writes it. */
+/** A single fact, as the model writes it. */
 export interface RowIn {
   label: string;
   column: string;
@@ -83,9 +82,9 @@ export interface ModelAnswer {
   note: string;
 }
 
-/** One verified fact, ready to show. */
+/** A single verified fact, ready to show. */
 export interface AnswerRow {
-  /** False when the label and the column are the assistant's own wording and could not be tied to the document's words (prose); true otherwise. */
+  /** False when the label and the column are the model's own wording and could not be tied to the document's words (prose); true otherwise. */
   linked?: boolean;
   label: string;
   column: string;
@@ -102,10 +101,10 @@ export interface CircularAnswer {
   sources: { n: number; type: PassageType; id: number; headline: string; publishedAt: string | null; page: number | null }[];
 }
 
-export type VerifyResult = { ok: true; value: CircularAnswer; /** the model's own reply, kept for the log */ reply?: string } | { ok: false; reason: string; reply?: string };
+export type VerifyResult = { ok: true; value: CircularAnswer; /** I keep the model's own reply here for the log. */ reply?: string } | { ok: false; reason: string; reply?: string };
 
 // ------------------------------------------------------------------------------------------------ text helpers
-/** Letters and digits only, lower case: "Rs. 15,000/-" and "rs 15000" compare equal. Hindi and Bengali letters are kept. */
+/** Keeps letters and digits only, in lower case, so "Rs. 15,000/-" and "rs 15000" compare equal. I keep Hindi and Bengali letters. */
 export function normalizeForQuote(s: string): string {
   return String(s ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
@@ -117,8 +116,8 @@ const NUMBER_WORDS: Record<string, number> = {
 };
 
 /**
- * Every number in a text, as numeric values: 15,000 -> 15000; 1720.30 -> 1720.3; the parts of a date 01.01.2024 -> 1, 1, 2024;
- * number words (four -> 4). The word "one" counts only when `includeOne` is set (it is mostly a pronoun: "no one", "one of").
+ * Returns every number in a text as a numeric value: 15,000 -> 15000; 1720.30 -> 1720.3; the parts of a date 01.01.2024 -> 1, 1, 2024;
+ * number words (four -> 4). I count the word "one" only when `includeOne` is set, because it is mostly a pronoun ("no one", "one of").
  */
 export function numbersIn(text: string, includeOne = false): number[] {
   const out: number[] = [];
@@ -146,7 +145,7 @@ function keywords(question: string): string[] {
 }
 
 // ------------------------------------------------------------------------------------------------ which results are worth reading
-/** The top result must match at least this well (percent): a weaker match is probably not about the question, so no model call. */
+/** The top result must match at least this well (percent). A weaker match is probably not about the question, so I make no model call. */
 export const MIN_TOP_MATCH = 85;
 /** Other results are read together with the top one only if they match at least this well. */
 export const MIN_OTHER_MATCH = 80;
@@ -159,7 +158,7 @@ export function percentOf(r: { matchPercentage?: unknown; similarity?: number | 
 
 const KNOWN_TYPES: PassageType[] = ["circular", "announcement", "holiday"];
 
-/** The documents to read for a question: up to three, and only when the FIRST result is a strong match. */
+/** Picks the documents to read for a question: up to three, and only when the FIRST result is a strong match. */
 export function pickAnswerItems(
   results: { id: number; type: string; matchPercentage?: unknown; similarity?: number | null }[],
   max: number = MAX_DOCS,
@@ -173,7 +172,7 @@ export function pickAnswerItems(
 
 // ------------------------------------------------------------------------------------------------ choosing what the model reads
 /**
- * One passage per document. A short document is read whole; a long one is cut to the parts that share the most words with the
+ * I give each document one passage. A short document is read whole; a long one is cut to the parts that share the most words with the
  * question (kept in page order). The whole budget is shared, so the model never gets more than about 2,000 tokens of text.
  */
 export function buildPassages(question: string, docs: DocInput[], totalBudget = 8000): Passage[] {
@@ -192,7 +191,7 @@ export function buildPassages(question: string, docs: DocInput[], totalBudget = 
       const room = perDoc - used;
       const text = c.text.length > room ? c.text.slice(0, room) : c.text;
       chosen.push({ ...c, text });
-      used += text.length + 2; // the two characters that separate parts when they are joined
+      used += text.length + 2; // the two characters that separate the parts when I join them
     }
     chosen.sort((a, b) => (a.page ?? 0) - (b.page ?? 0) || a.order - b.order);
     const best = [...scored].sort((a, b) => b.score - a.score || a.order - b.order)[0];
@@ -268,17 +267,17 @@ export const MAX_TITLE_CHARS = 90;
 export const MAX_NOTE_CHARS = 220;
 export const MAX_CELL_CHARS = 60;
 export const MAX_VALUE_CHARS = 120;
-/** The share of the model's own quote words that must stand in the document's context of the value for the quote to be taken as a pointer to it. */
+/** The share of the model's own quote words that must stand in the document's context of the value, before I take the quote as a pointer to it. */
 export const SNAP_MIN_OVERLAP = 0.5;
 export const MAX_QUOTE_CHARS = 300;
 export const MAX_ROWS = 12;
-/** A quote with at least this many different numbers (or the app's " | " cell separator) is a table row: its numbers need their column label. */
+/** A quote with at least this many different numbers (or the app's " | " cell separator) counts as a table row, so its numbers need their column label. */
 export const TABLE_LIKE_NUMBERS = 5;
 
 const FILLER = new Set(["per", "the", "for", "and", "with", "rs", "inr", "rupees", "rupee", "not", "are", "was", "has", "any", "all", "its", "our", "out", "off", "may", "can"]);
 const CURRENCY = new Set(["rs", "inr", "rupees", "rupee"]);
 
-/** The words of a text (letters only, lower case, three letters or more) without filler. */
+/** Returns the words of a text (letters only, lower case, three letters or more) without filler. */
 function contentWords(s: string): string[] {
   return (String(s ?? "").toLowerCase().match(/\p{L}{3,}/gu) ?? []).filter((w) => !STOP.has(w) && !FILLER.has(w));
 }
@@ -292,13 +291,13 @@ const TIME_GROUPS: string[][] = [
   ["month", "months", "monthly"],
   ["year", "years", "yearly", "annual", "annually"],
   ["hour", "hours", "hourly"],
-  // a claim of RECENCY ("the 2024 trial is the latest") goes beyond what a few retrieved circulars can prove; only the document's own words may say it
+  // I do not let a claim of RECENCY ("the 2024 trial is the latest") through: it goes beyond what a few retrieved circulars can prove, so only the document's own words may say it
   ["latest", "newest", "newer", "recent", "recently"],
 ];
 
 /**
  * True if the column label stands right next to the value in the quote. In a table row ("TOTAL: 20995.30 | Wages Per Day: 808") a value
- * belongs to the label BEFORE it, never to the label after it, so there the value must FOLLOW its column label (`allowBefore` false).
+ * belongs to the label BEFORE it, never to the label after it, so there I require the value to FOLLOW its column label (`allowBefore` false).
  * In a sentence ("Four (04) days Casual Leave") the value may come before the label.
  */
 function columnBesideValue(nq: string, column: string, value: string, allowBefore: boolean): boolean {
@@ -306,7 +305,7 @@ function columnBesideValue(nq: string, column: string, value: string, allowBefor
   let nv = normalizeForQuote(value);
   for (const c of CURRENCY) if (nv.startsWith(c) && nv.length > c.length) nv = nv.slice(c.length);
   if (!nc || !nv) return false;
-  const GAP = 8; // a colon, a bracket, "rs" and the like normalise to a few characters at most
+  const GAP = 8; // a colon, a bracket, "rs" and the like shrink to a few characters at most when normalised
   let from = 0;
   for (;;) {
     const at = nq.indexOf(nc, from);
@@ -322,7 +321,7 @@ function columnBesideValue(nq: string, column: string, value: string, allowBefor
   }
 }
 
-/** Lower-case letters and digits only, each kept character with its place in the original text. */
+/** Keeps lower-case letters and digits only, and for each kept character its place in the original text. */
 function normalizeWithMap(s: string): { norm: string; at: number[] } {
   let norm = "";
   const at: number[] = [];
@@ -334,7 +333,7 @@ function normalizeWithMap(s: string): { norm: string; at: number[] } {
   return { norm, at };
 }
 
-/** True if a label ("Area", "BASIC", "Daily Wages (Rs.)") stands twice in the text: two rows of a table, not one. */
+/** True if a label ("Area", "BASIC", "Daily Wages (Rs.)") stands twice in the text, which means two rows of a table, not one. */
 function labelRepeats(span: string): boolean {
   const seen = new Set<string>();
   for (const m of span.matchAll(/([\p{L}][\p{L}\p{N} .()/&'-]{0,50}?):/gu)) {
@@ -348,9 +347,9 @@ function labelRepeats(span: string): boolean {
 
 /**
  * A quote that leaves cells out. A model asked for "the label, the column and the value together" often copies only those cells ("Area: WORKS |
- * Daily Wages (Rs. Per Day of duty): 808"), or marks what it left out with "...". That is accepted when every piece (cells split at "|" and at an
+ * Daily Wages (Rs. Per Day of duty): 808"), or marks what it left out with "...". I accept that when every piece (cells split at "|" and at an
  * ellipsis) is found word for word in the document, IN ORDER, within ONE table row: the span from the first piece to the last must be short and must
- * not hold the same column label twice (that would be two rows, and a label could end up beside another row's value).
+ * not hold the same column label twice, because that would be two rows and a label could end up beside another row's value.
  */
 export function piecesInOneRow(quote: string, passageText: string): boolean {
   const pieces = quote.split(/…|\.{3}|\|/).map((x) => normalizeForQuote(x)).filter((x) => x.length >= 2);
@@ -372,8 +371,8 @@ export function piecesInOneRow(quote: string, passageText: string): boolean {
 }
 
 /**
- * The words of the SENTENCE of the document that holds the quote. A model often quotes only a clause (`may please be read as "Rs.14,999/-"`),
- * whose subject ("the amount of the Gift Card") stands earlier in the same sentence. The sentence runs back to the previous full stop followed by a
+ * Returns the words of the SENTENCE of the document that holds the quote. A model often quotes only a clause (`may please be read as "Rs.14,999/-"`),
+ * whose subject ("the amount of the Gift Card") stands earlier in the same sentence. I let the sentence run back to the previous full stop followed by a
  * space (or line break) and forward to the next one, at most 400 characters either way; "Rs.15,000" and "w.e.f." do not end a sentence (no space after
  * the dot). ONLY PROSE QUALIFIES: the result is empty if the quote cannot be located, if a real sentence boundary is not found on BOTH sides within 400
  * characters (a table, flattened to one run of text, has none: its heading must never back a value of another column), or if the window holds a table
@@ -396,17 +395,17 @@ export function sentenceWordsAround(passageText: string, quote: string): Set<str
   if (from < 0) return new Set();
   const lo = Math.max(0, from - 400);
   const lm = [...passageText.slice(lo, from).matchAll(/[.!?]["')\]]?\s+|\n/g)].pop();
-  if (!lm && lo > 0) return new Set(); // no sentence start within reach
+  if (!lm && lo > 0) return new Set(); // there is no sentence start within reach
   const a0 = lm && lm.index !== undefined ? lo + lm.index + lm[0].length : 0;
   const rm = passageText.slice(to, to + 400).match(/[.!?]["')\]]?(\s|$)|\n/);
-  if (!rm && to + 400 < passageText.length) return new Set(); // no sentence end within reach
+  if (!rm && to + 400 < passageText.length) return new Set(); // there is no sentence end within reach
   const b0 = rm && rm.index !== undefined ? to + rm.index + rm[0].length : passageText.length;
   const window = passageText.slice(a0, b0);
-  if (/\||\[\/?TABLE\]/.test(window)) return new Set(); // a table row, not a sentence
+  if (/\||\[\/?TABLE\]/.test(window)) return new Set(); // this is a table row, not a sentence
   return wordSet(window);
 }
 
-/** For the terminal: where a refused quote stops matching the document (the longest start of it that IS there). */
+/** Written for the terminal: it reports where a refused quote stops matching the document (the longest start of it that IS there). */
 export function quoteMissReport(quote: string, passageText: string): string {
   const nq = normalizeForQuote(quote), np = normalizeForQuote(passageText);
   let k = 0;
@@ -414,7 +413,7 @@ export function quoteMissReport(quote: string, passageText: string): string {
   return k >= nq.length ? "the whole quote is there (checked as pieces in one row)" : `it matches the document for its first ${k} of ${nq.length} letters and digits, then breaks at: "...${quote.slice(Math.max(0, quote.length - (nq.length - k) - 12), quote.length - (nq.length - k) + 40).replace(/\s+/g, " ")}"`;
 }
 
-/** The cells of a table row as the app's own table reader writes it: "Label: value | Label: value". */
+/** Returns the cells of a table row as the app's own table reader writes them: "Label: value | Label: value". */
 function rowCells(quote: string): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = [];
   for (const cell of quote.split("|")) {
@@ -425,9 +424,9 @@ function rowCells(quote: string): { label: string; value: string }[] {
 }
 
 /**
- * In a rebuilt table row the value must sit in a CELL whose label carries the column the model names. The model may shorten a long heading
+ * In a rebuilt table row I require the value to sit in a CELL whose label carries the column the model names. The model may shorten a long heading
  * ("Daily Wages" for "Daily Wages (Rs. Per Day of duty)") or reorder it ("Wages per day"), but every word it names must be in the label of THE SAME
- * cell as the value: a value can still never be passed off under another column's label (a total is not a daily wage).
+ * cell as the value. That way a value can never be passed off under another column's label (a total is not a daily wage).
  */
 function columnInValueCell(quote: string, column: string, value: string): boolean {
   let nv = normalizeForQuote(value);
@@ -437,7 +436,7 @@ function columnInValueCell(quote: string, column: string, value: string): boolea
   if (!nv || !nc) return false;
   for (const cell of rowCells(quote)) {
     const cv = normalizeForQuote(cell.value);
-    // the cell holds this value: all of it (808 is not 8080), possibly followed by words ("808 per day")
+    // I accept a cell that holds this value in full (808 is not 8080), possibly followed by words ("808 per day")
     if (!(cv === nv || (cv.startsWith(nv) && !/^\d/.test(cv.slice(nv.length))))) continue;
     if (normalizeForQuote(cell.label).includes(nc)) return true;
     const lw = wordSet(cell.label);
@@ -450,13 +449,13 @@ function columnInValueCell(quote: string, column: string, value: string): boolea
 const MONTHS: Record<string, number> = { january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8, september: 9, sep: 9, sept: 9, october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12 };
 const dateKey = (y: number, m: number, d: number): string | null => {
   if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1) return null;
-  const real = DateTime.utc(y, m, d); // the calendar decides: 31.02.2024 is no date
+  const real = DateTime.utc(y, m, d); // I let the calendar decide: 31.02.2024 is no date
   return real.isValid ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
 };
 
 /**
- * The dates in a text, each as a canonical key (YYYY-MM-DD) with its place: 5.12.2024, 05-12-2024, 5/12/2024 (day first, as in these circulars),
- * "5th December, 2024", 5 Dec 2024, December 5, 2024. The OCR often reads the "th" as a quote mark: 5" December, 2024.
+ * Finds the dates in a text, each as a canonical key (YYYY-MM-DD) with its place: 5.12.2024, 05-12-2024, 5/12/2024 (day first, as in these circulars),
+ * "5th December, 2024", 5 Dec 2024, December 5, 2024. The OCR often reads the "th" as a quote mark, so I also handle 5" December, 2024.
  */
 export function datesIn(text: string): { key: string; from: number; to: number }[] {
   const out: { key: string; from: number; to: number }[] = [];
@@ -467,7 +466,7 @@ export function datesIn(text: string): { key: string; from: number; to: number }
   return out.sort((a, b) => a.from - b.from);
 }
 
-/** True if everything in the value is in the text: its dates by meaning (any written form), its other numbers and its words as written. */
+/** True if everything in the value is in the text: I compare its dates by meaning (any written form), and its other numbers and its words as written. */
 function valueIsIn(value: string, text: string): boolean {
   const vd = datesIn(value);
   let rest = value;
@@ -479,9 +478,9 @@ function valueIsIn(value: string, text: string): boolean {
 }
 
 // ------------------------------------------------------------------------------------------------ verifying the FACT, not the model's wording
-interface Cell { label: string; nlabel: string; from: number; to: number; /** the first cell of a table ROW: it follows the previous row's last cell WITHOUT a pipe (glued on), or starts a line */ rowStart: boolean }
+interface Cell { label: string; nlabel: string; from: number; to: number; /** I mark the first cell of a table ROW: it follows the previous row's last cell WITHOUT a pipe (glued on), or starts a line */ rowStart: boolean }
 
-/** The cells ("Label: value") of the app's own table text between two positions; a cell glued on without a "|" (the next row's first one) is split off. */
+/** Returns the cells ("Label: value") of the app's own table text between two positions. A cell glued on without a "|" (the next row's first one) is split off. */
 function parseCells(text: string, lo: number, hi: number): Cell[] {
   const cells: Cell[] = [];
   let pos = lo;
@@ -498,7 +497,7 @@ function parseCells(text: string, lo: number, hi: number): Cell[] {
   return cells;
 }
 
-/** Where a value stands in a text (original positions). A number is never found inside a longer one ("15,000" is not in "215,000" or "1,15,000"), a word never inside a longer word. */
+/** Finds where a value stands in a text (original positions). I never find a number inside a longer one ("15,000" is not in "215,000" or "1,15,000"), and never a word inside a longer word. */
 function valueSpans(text: string, value: string): [number, number][] {
   const vd = datesIn(value);
   if (vd.length) {
@@ -520,7 +519,7 @@ function valueSpans(text: string, value: string): [number, number][] {
   return out;
 }
 
-/** Shortens a text at a word boundary, ending with an ellipsis. */
+/** Shortens a text at a word boundary and ends it with an ellipsis. */
 function cut(s: string, max: number): string {
   if (s.length <= max) return s;
   const t = s.slice(0, max - 1), sp = t.lastIndexOf(" ");
@@ -528,25 +527,25 @@ function cut(s: string, max: number): string {
 }
 
 /**
- * The document's own words around a value, taken by the system (so they are word for word by construction): in a rebuilt table, the cells from the
- * one that carries the label to the value's cell (no column label repeated in between: that would be two rows); in prose, the sentence.
+ * Takes the document's own words around a value, and the system takes them (so they are word for word by construction): in a rebuilt table, the cells from the
+ * one that carries the label to the value's cell (no column label repeated in between, as that would be two rows); in prose, the sentence.
  */
 function contextAround(text: string, from: number, to: number, labelWords: string[]): { text: string; table: boolean; tied: boolean } {
   const one = (t: string) => t.replace(/\s+/g, " ").trim();
   if (text.slice(Math.max(0, from - 200), to + 200).includes("|")) {
-    // the table block (between its own markers), its cells, and the ROWS: a row starts wherever the first column label that repeats comes again
+    // first the table block (between its own markers), its cells, and the ROWS: a row starts wherever the first column label that repeats comes again
     const bs0 = text.lastIndexOf("[TABLE]", from), be0 = text.indexOf("[/TABLE]", to);
     const bs = bs0 >= 0 && from - bs0 < 4000 ? bs0 + "[TABLE]".length : Math.max(0, from - 1500);
     const be = be0 >= 0 && be0 - to < 4000 ? be0 : Math.min(text.length, to + 1500);
     const cells = parseCells(text, bs, be);
     const k = cells.findIndex((c) => c.from <= from && to <= c.to + 1);
     if (k >= 0) {
-      // in the stored text a row ends exactly where the next row's first cell is glued on (no pipe), or at a line break: that is where rows start
+      // in the stored text a row ends exactly where the next row's first cell is glued on (no pipe), or at a line break, so those are the places where I start rows
       const starts = cells.map((c, i) => (c.rowStart ? i : -1)).filter((i) => i >= 0);
       const prev = starts.filter((i) => i <= k).pop();
       const next = starts.find((i) => i > k);
       const ra = prev ?? 0, rb = (next ?? cells.length) - 1;
-      // the label must be carried by a cell of THIS row (the nearest one to the value's cell)
+      // I require the label to be carried by a cell of THIS row (the nearest one to the value's cell)
       let best = -1;
       for (let j = ra; j <= rb; j++) {
         if (!labelWords.some((w) => wordSet(text.slice(cells[j].from, cells[j].to)).has(w))) continue;
@@ -578,8 +577,8 @@ function contextAround(text: string, from: number, to: number, labelWords: strin
 }
 
 /**
- * THE QUOTE AS A POINTER. A model's quote is often not a copy (cells left out, a clause, a few words changed). The fact is what has to be proved, so
- * the value is looked up in the document and the document's own words around it are taken; the model's quote is accepted as a pointer to that place
+ * THE QUOTE AS A POINTER. A model's quote is often not a copy (cells left out, a clause, a few words changed). What has to be proved is the fact, so
+ * I look the value up in the document and take the document's own words around it; I accept the model's quote as a pointer to that place
  * only if at least SNAP_MIN_OVERLAP of its own words stand in those surroundings (a value quoted from the wrong place has few of them there).
  * Returns the document's words (word for word by construction), or null.
  */
@@ -591,7 +590,7 @@ export function snapQuote(p: Passage, r: RowIn): string | null {
   let best: { score: number; text: string } | null = null;
   for (const [from, to] of spans) {
     const ctx = contextAround(p.text, from, to, labelWords);
-    if (ctx.table && !ctx.tied) continue; // a value of a table row whose label is not in that row: never taken (WORKS beside another row's wage)
+    if (ctx.table && !ctx.tied) continue; // I never take a value of a table row whose label is not in that row (WORKS beside another row's wage)
     const words = wordSet(ctx.text);
     let hit = 0;
     evidence.forEach((w) => { if (words.has(w)) hit++; });
@@ -601,7 +600,7 @@ export function snapQuote(p: Passage, r: RowIn): string | null {
   return best && best.score >= SNAP_MIN_OVERLAP && best.text.length <= MAX_QUOTE_CHARS ? best.text : null;
 }
 
-/** Presentation is repaired, not refused: a long heading or label is shortened, a long note without a sentence end is dropped, extra rows are cut. */
+/** I repair the presentation instead of refusing: a long heading or label is shortened, a long note without a sentence end is dropped, extra rows are cut. */
 function tidyAnswer(a: ModelAnswer): ModelAnswer {
   let note = String(a.note ?? "");
   if (note.length > MAX_NOTE_CHARS) {
@@ -615,9 +614,9 @@ function tidyAnswer(a: ModelAnswer): ModelAnswer {
 
 /**
  * THE CONFIRMATION GATE. For a page that a second reader checked, a number of the answer's VALUE that only the pipeline's reading had is not
- * confirmed (it may be a misreading: a rupee sign read as a "2" turned "(Rs 15,000)" into "215,000"), so the answer is refused. A number that
+ * confirmed (it may be a misreading: a rupee sign read as a "2" turned "(Rs 15,000)" into "215,000"), so I refuse the answer. A number that
  * both readings had, a number on a page that was never checked, and a value with no digits are not affected.
- * The pages are those that hold the quote (its longest piece, when the quote leaves cells out); when a row was cut by a chunk break and the
+ * The pages are those that hold the quote (its longest piece, when the quote leaves cells out). When a row was cut by a chunk break and the
  * quote is in no single part, every page of the passage counts, and a number only counts as unconfirmed if NO page confirms it.
  */
 function confirmationRefusal(p: Passage, value: string, quote: string): string | null {
@@ -630,7 +629,7 @@ function confirmationRefusal(p: Passage, value: string, quote: string): string |
   for (const pt of p.parts) if (pt.page != null && normalizeForQuote(pt.text).includes(probe)) holding.add(pt.page);
   const pages = holding.size ? [...holding] : [...new Set(p.parts.map((pt) => pt.page).filter((x): x is number => x != null))];
   const rows = pages.map((pg) => ({ pg, c: p.checks![pg] })).filter((x) => x.c);
-  if (!rows.length) return null; // these pages were not checked
+  if (!rows.length) return null; // these pages were never checked, so I skip them
   for (const n of nums) {
     if (rows.some((x) => x.c.confirmed.includes(n))) continue;
     const refuting = rows.find((x) => x.c.unconfirmed.includes(n));
@@ -644,8 +643,8 @@ const AMOUNT_WORDS = ["amount", "amounts", "rate", "rates", "wage", "wages", "sa
 const looksLikeAmount = (v: string) => /(?:^|\s)(?:rs\.?|inr|\u20b9)\s*\d/i.test(v) || /\d{1,3}(?:,\d{2,3})+/.test(v);
 
 /**
- * A label that says "date" over a value that is plainly an amount (or an amount label over a date) is wrong whatever the vocabulary: refused. Only a
- * clear contradiction counts: a label with both kinds of words ("premium due date"), or a value such as "within 15 days", is left alone.
+ * A label that says "date" over a value that is plainly an amount (or an amount label over a date) is wrong whatever the vocabulary, so I refuse it. Only a
+ * clear contradiction counts: I leave alone a label with both kinds of words ("premium due date") and a value such as "within 15 days".
  */
 function typeClash(label: string, column: string, value: string): string | null {
   const words = new Set([...wordSet(label), ...wordSet(column)]);
@@ -669,17 +668,17 @@ const stemWord = (w: string): string => {
 
 /**
  * A note is the model's PARAPHRASE, and a paraphrase can drop a limit ("entitlement of CASUAL leave is calculated proportionately" became
- * "Entitlement is calculated proportionately"). So a note is shown only as the document's OWN sentence: the sentence of the cited passages that holds at
+ * "Entitlement is calculated proportionately"). So I show a note only as the document's OWN sentence: the sentence of the cited passages that holds at
  * least 60% of the note's words (word stems), cut at a word. If no sentence does, the note is dropped (the facts stay).
  */
 /**
  * WHAT AN INFOGRAPHIC LEAVES IN THE TEXT. A page that is a picture with words on it (a numbered procedure with a stopwatch and a sample code) is read word by word, so the numbers of its steps, its sample code and its
- * timer come out among the sentences: "OTP 123456 1 2 Both OTPs are required to be shared ... five minutes. - 05:00 - 3 Video verification ...". The sentence shown to the reader is cleaned of exactly that, and of nothing else
- * (what is left is still the document's own words, in order):
+ * timer come out among the sentences: "OTP 123456 1 2 Both OTPs are required to be shared ... five minutes. - 05:00 - 3 Video verification ...".
+ * I clean the sentence shown to the reader of exactly that, and of nothing else (what is left is still the document's own words, in order):
  *   * at the START: the words before the first word that has a lower-case letter are dropped when they hold a lone one- or two-digit number (a step's number) or a number of five digits or more (a sample code):
  *     "OTP 123456 1 2 Both OTPs ..." -> "Both OTPs ..."; "TRINETRA Cyber Security ..." and "PF 2024 rules" are left alone (an acronym, a year);
  *   * at the END: from a timer ("- 05:00 -") on, the rest is the next step of the picture.
- * A cleaning that would leave less than a sentence is not done.
+ * I do not clean when that would leave less than a sentence.
  */
 export function tidyInfographicDebris(sentence: string): string {
   let t = sentence.replace(/\s+/g, " ").trim();
@@ -702,7 +701,7 @@ export function documentSentenceFor(note: string, passages: Passage[]): string {
   if (want.length < NOTE_MIN_WORDS) return "";
   let best = "", bestScore = 0;
   for (const p of passages) {
-    // Separate table rows, section heads, and glued text:
+    // I separate table rows, section heads, and glued text:
     // - Before section headers like "I. CLOSED", "II. FESTIVAL"
     // - Before "SL. NO:" table rows
     // - Where a table cell ends and a prose sentence starts without punctuation: " | DAY: Thursday If a contractor worker is required..."
@@ -714,7 +713,7 @@ export function documentSentenceFor(note: string, passages: Passage[]): string {
     for (const raw of prepped.split(/(?<=[.!?])\s+(?=[A-Z0-9"\u201c(])|\n+/)) {
       let sentence = raw.replace(/\s+/g, " ").trim();
       if (!sentence) continue;
-      // If a segment still holds a table pipe, check if trailing prose follows the last pipe cell
+      // If a segment still holds a table pipe, I check whether trailing prose follows the last pipe cell
       if (/ \| /.test(sentence)) {
         const lastPipe = sentence.lastIndexOf("|");
         const after = sentence.slice(lastPipe + 1).trim();
@@ -738,15 +737,15 @@ export function documentSentenceFor(note: string, passages: Passage[]): string {
   return best.length <= NOTE_MAX_CHARS ? best : `${best.slice(0, NOTE_MAX_CHARS).replace(/\s+\S*$/, "")}\u2026`;
 }
 
-/** The OCR reads the "th" of "5th December" as a quote mark: the DISPLAYED value loses that mark (the exact words below it are never touched). */
+/** The OCR reads the "th" of "5th December" as a quote mark, so the DISPLAYED value loses that mark; I never touch the exact words below it. */
 export function tidyValue(value: string): string {
   return value.replace(/(\d)["'\u2019\u201d]\s*(?=[A-Za-z]{3,9}\b)/g, "$1 ");
 }
 
 /**
  * THE UNIT OF A BARE NUMBER, for the big figure of the answer: "15" under "Account locked duration" means nothing without "minutes". The model is told to give the value without units (a unit it adds on its own, or a
- * "per day" the document never printed, is a made-up fact), and that rule stays. After the answer has been verified, the figure is shown with the unit the DOCUMENT prints right after that number in the verified quote:
- * "15 minutes", "8 characters", "90 days", "5%", "Rs. 15,000". Only a whole bare number, only a unit from a fixed list of real units (not any word that follows: "51 dated" is not a unit), only when every place the
+ * "per day" the document never printed, is a made-up fact), and that rule stays. After the answer has been verified, I show the figure with the unit the DOCUMENT prints right after that number in the verified quote:
+ * "15 minutes", "8 characters", "90 days", "5%", "Rs. 15,000". This applies only to a whole bare number, only to a unit from a fixed list of real units (not any word that follows: "51 dated" is not a unit), only when every place the
  * number stands in the quote gives the same unit (otherwise the figure is shown as it is). The value that was verified is never changed, only the words shown with it.
  */
 const UNIT_WORDS = new Set(
@@ -755,7 +754,7 @@ const UNIT_WORDS = new Set(
     "kg kgs kilogram kilograms gram grams gm tonne tonnes ton tons mt litre litres liter liters ltr km kilometre kilometres kilometer kilometers metre metres meter meters cm mm kw kva mw kwh hp mbps gb mb kb percent " +
     "rupee rupees lakh lakhs crore crores thousand million paise").split(" "),
 );
-/** Time units are shown short, as the owner asked: minute(s) -> min, hour(s) -> hr, second(s) -> sec. Every other unit is shown as the document prints it. */
+/** I want time units shown short: minute(s) -> min, hour(s) -> hr, second(s) -> sec. Every other unit is shown as the document prints it. */
 const SHORT_UNIT: Record<string, string> = { minute: "min", minutes: "min", min: "min", mins: "min", hour: "hr", hours: "hr", hr: "hr", hrs: "hr", second: "sec", seconds: "sec", sec: "sec", secs: "sec" };
 /** the number words a time can be written in: five -> 5, twenty-five -> 25, ninety -> 90 */
 const WORD_UNITS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
@@ -763,8 +762,8 @@ const TIME_NOUN = "minutes?|mins?|hours?|hrs?|seconds?|secs?|days?|weeks?|months
 const TIME_WORD_RE = new RegExp(`\\b((?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[-\\s](?:one|two|three|four|five|six|seven|eight|nine)|${Object.keys(WORD_UNITS).join("|")})\\s+(?=(?:${TIME_NOUN})\\b)`, "gi");
 
 /**
- * A time as a figure and a short unit, for the big figure of the answer: "five minutes" -> "5 min", "15 minutes" -> "15 min", "2 Hours" -> "2 hr", "ninety days" -> "90 days". The number word is turned into its figure only where a unit of
- * time follows it ("five minutes"; never "Four (04)" or a word elsewhere), and only minute(s), hour(s) and second(s) are shortened (min, hr, sec); other units are left as printed.
+ * Turns a time into a figure and a short unit, for the big figure of the answer: "five minutes" -> "5 min", "15 minutes" -> "15 min", "2 Hours" -> "2 hr", "ninety days" -> "90 days". I turn the number word into its figure only where a unit of
+ * time follows it ("five minutes"; never "Four (04)" or a word elsewhere), and I shorten only minute(s), hour(s) and second(s) (min, hr, sec); other units are left as printed.
  */
 export function shortenTimeUnits(value: string): string {
   const figures = value.replace(TIME_WORD_RE, (_m, w: string) => {
@@ -801,7 +800,7 @@ export function asksForAList(question: string): boolean {
 }
 export const LIST_NOTE = "This lists what was found in the circulars retrieved for this question; other circulars may also apply.";
 
-/** The table column a value sits under, read from the quote's own cells ("Label: value | Label: value"); "" if the quote has no such cell. */
+/** Reads the table column a value sits under from the quote's own cells ("Label: value | Label: value"); returns "" if the quote has no such cell. */
 function deriveColumn(quote: string, value: string): string {
   let nv = normalizeForQuote(value);
   for (const c of CURRENCY) if (nv.startsWith(c) && nv.length > c.length) { nv = nv.slice(c.length); break; }
@@ -813,7 +812,7 @@ function deriveColumn(quote: string, value: string): string {
 }
 
 /**
- * Where a fact is in the documents: the passage the model cited first, then the others (a model may cite the wrong number), and the words of the
+ * Finds where a fact is in the documents: first the passage the model cited, then the others (a model may cite the wrong number), together with the words of the
  * document that prove it (the model's quote when it is a copy that holds the value, otherwise the document's own words around the value).
  */
 function locateFact(r: RowIn, passages: Passage[]): { p: Passage; quote: string } | { error: string } {
@@ -857,7 +856,7 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
     const qNums = new Set(numbersIn(quote, true));
     const qWords = wordSet(quote);
 
-    // the VALUE: all of it is in the quote (a date in any written form, a number in any format)
+    // the VALUE: all of it must be in the quote (a date in any written form, a number in any format)
     if (!valueIsIn(r.value, quote)) return fail(`unverified: the value "${r.value}" is not in its quote`);
     const vNums = numbersIn(r.value, true);
 
@@ -874,7 +873,7 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
     const dense = tokens.length > 0 && tokens.filter((t) => /\d/.test(t)).length / tokens.length >= 0.3;
     const tableLike = (distinct.size >= TABLE_LIKE_NUMBERS && dense) || /\s\|\s/.test(quote);
 
-    // TABLE: the label must be in the value's own row, and the value must sit under the column the model names (a table is checked by its STRUCTURE)
+    // TABLE: I require the label to be in the value's own row, and the value to sit under the column the model names (a table is checked by its STRUCTURE)
     if (tableLike) {
       const lw = contentWords(r.label);
       if (lw.length) {
@@ -891,8 +890,8 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
       if (!column) return fail("unverified: a number from a table row needs its column label");
       if (!columnBesideValue(nq, column, r.value, false) && !columnInValueCell(quote, column, r.value)) return fail(`unverified: the column "${column}" does not stand beside the value "${r.value}" in its quote`);
     } else if (column) {
-      // PROSE: the label and the column are the assistant's own description of the fact. When their words are in the quote or its sentence they are tied
-      // to the document; when they are not (a descriptive phrase such as "last date of renewal") the fact is still shown, marked as the assistant's wording
+      // PROSE: the label and the column are the model's own description of the fact. When their words are in the quote or its sentence they are tied
+      // to the document; when they are not (a descriptive phrase such as "last date of renewal") I still show the fact, marked as the model's wording
       const cw = contentWords(column);
       const tied = cw.every((w) => qWords.has(w)) || (cw.length > 0 && (() => { const sw = sentenceWordsAround(p.text, quote); return cw.every((w) => sw.has(w)); })());
       if (!tied) linked = false;
@@ -900,15 +899,15 @@ export function verifyAnswer(answer: ModelAnswer, passages: Passage[]): VerifyRe
 
     qNums.forEach((x) => allowed.add(x));
     cited.set(p.n, p);
-    // a column backs a time word ("daily"); a quote does too, but only a SENTENCE: a table row holds many columns, so its quote proves nothing
+    // a column backs a time word ("daily"); a quote does too, but only a SENTENCE does, because a table row holds many columns and its quote proves nothing
     for (const w of wordSet(column)) supportWords.add(w);
     if (!tableLike) for (const w of wordSet(quote)) supportWords.add(w);
     const part = p.parts.find((pt) => normalizeForQuote(pt.text).includes(nq));
     rows.push({ label: r.label, column, value: withUnit(tidyValue(r.value), quote), source: p.n, quote, page: part?.page ?? p.page, linked });
   }
 
-  // the heading and the note: their numbers come from a quote or from the cited document's own title or date. A heading or note that says more than the
-  // document does is REPAIRED (the document's own title, no note), not a reason to refuse a correct answer.
+  // the heading and the note: their numbers must come from a quote or from the cited document's own title or date. A heading or note that says more than the
+  // document does is REPAIRED (the document's own title, no note); I do not refuse a correct answer for it.
   const docs = Array.from(cited.values()).sort((x, y) => x.n - y.n);
   docs.forEach((p) => {
     numbersIn(p.title, true).forEach((x) => allowed.add(x));
@@ -970,8 +969,8 @@ function cacheKey(question: string, passages: Passage[]): string {
 }
 
 /**
- * Ask the model and verify. `llm` is the model call (one prompt in, text out). A model failure is never cached; a "not answerable"
- * and a verified answer are, for 30 minutes, so asking the same thing twice costs nothing.
+ * Asks the model and verifies. `llm` is the model call (one prompt in, text out). I never cache a model failure; I do cache a "not answerable"
+ * and a verified answer, for 30 minutes, so asking the same thing twice costs nothing.
  */
 export async function answerFromPassages(question: string, passages: Passage[], llm: (prompt: string) => Promise<string>, now: number = Date.now()): Promise<VerifyResult> {
   if (!passages.length) return { ok: false, reason: "no_passages" };
@@ -986,10 +985,10 @@ export async function answerFromPassages(question: string, passages: Passage[], 
   }
   const parsed = parseModelAnswer(raw);
   const verdict: VerifyResult = parsed ? verifyAnswer(parsed, passages) : { ok: false, reason: "unverified: the model's reply was not readable" };
-  // a list question can be answered only from the circulars the search found: say so, so that a partial list does not read as a complete one
+  // a list question can be answered only from the circulars the search found, so I say so: a partial list must not read as a complete one
   const noted: VerifyResult = verdict.ok && asksForAList(question) ? { ...verdict, value: { ...verdict.value, note: [verdict.value.note, LIST_NOTE].filter(Boolean).join(" ") } } : verdict;
   const result: VerifyResult = { ...noted, reply: String(raw) };
-  // the front-path line shows only the first word of a refusal; this says exactly which rule refused, so a refusal can be understood at once
+  // the front-path line shows only the first word of a refusal; this line says exactly which rule refused, so I can understand a refusal at once
   if (!result.ok && result.reason !== "not_answerable") {
     console.info(`[answer] not shown: ${result.reason}`);
     console.info(`[answer] the model's reply was: ${String(raw).replace(/\s+/g, " ").slice(0, 1500)}`);

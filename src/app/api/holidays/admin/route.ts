@@ -1,8 +1,8 @@
 // src/app/api/holidays/admin/route.ts
 //
 // POST /api/holidays/admin
-// The Holiday Manager facility endpoint (Modular Facility Kit).
-// Protected by same-origin, session verification, and granular authority.
+// This is the Holiday Manager facility endpoint (Modular Facility Kit).
+// I protect it with same-origin, session verification, and granular authority.
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   let body: unknown;
   try {
     const raw = await request.text();
-    // Allow up to 1 MB for full-year enriched JSON payloads
+    // I allow up to 1 MB for full-year enriched JSON payloads
     if (raw.length > 1_000_000) {
       return NextResponse.json({ error: "Payload too large." }, { status: 413 });
     }

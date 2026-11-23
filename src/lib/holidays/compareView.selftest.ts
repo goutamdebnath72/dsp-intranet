@@ -1,5 +1,5 @@
 // Run: npx tsx --tsconfig tsconfig.json src/lib/holidays/compareView.selftest.ts
-// Pure checks (no database, no browser) for the comparison card's data and the year-list wording.
+// These are pure checks (no database, no browser) for the comparison card's data and the year-list wording.
 import { buildHolidayCompareView } from "./compareView";
 import { formatYearList } from "./yearList";
 

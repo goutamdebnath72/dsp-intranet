@@ -1,7 +1,7 @@
 // src/lib/holidays/admin/api.ts
 //
 // API HANDLER FOR THE HOLIDAY MANAGER FACILITY.
-// Enforces:
+// This handler enforces:
 //   - Login required (401)
 //   - Authority check via facility_delegate / SUPERADMIN_TICKETS (403)
 //   - HOD-only actions for delegates/grant/revoke (403)

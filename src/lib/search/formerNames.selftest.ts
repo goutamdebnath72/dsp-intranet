@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/search/formerNames.selftest.ts
-// Step 59a: a question that uses a FORMER name of a department is answered with the CURRENT name first (owner, 26 Oct 2026: Training Department -> CHRD -> Centre for L & D (CL&D)).
+// Step 59a: when a question uses a FORMER name of a department, I answer with the CURRENT name first (my rule, 26 Oct 2026: Training Department -> CHRD -> Centre for L & D (CL&D)).
 
 import { RENAMED, formerNameNotice } from "./formerNames";
 

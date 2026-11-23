@@ -1,6 +1,6 @@
 /**
  * Self-test of the Gemini probe. Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/geminiProbe.selftest.ts
- * No real network: a fake fetch for the library, and a local stand-in server for the script itself.
+ * It uses no real network: a fake fetch for the library, and a local stand-in server for the script itself.
  */
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -112,8 +112,8 @@ const answer = (text: string, extra: Record<string, unknown> = {}) => ({
   const a = await run(["--timeout", "10", "--max-tokens", "1000", "--thinking-budget", "0"]);
   ok("the script: exits 0 and prints the report", a.code === 0 && /RESULT: answered in/.test(a.out) && /Room No\. 15/.test(a.out), a.out.slice(-400));
   ok("the script: the options reach the request and the report", /answer limit 1000 tokens \| thinking budget 0/.test(a.out) && /thinking 123/.test(a.out) && lastBody?.generationConfig?.maxOutputTokens === 1000 && lastBody?.generationConfig?.thinkingConfig?.thinkingBudget === 0, a.out.slice(-300));
-  // a page image with real weight (noise does not compress), shrunk by the script
-  const raw = randomBytes(1200 * 1600 * 3); // random pixels do not compress: a heavy page image
+  // a page image with real weight (noise does not compress), which the script shrinks
+  const raw = randomBytes(1200 * 1600 * 3); // random pixels do not compress, so this is a heavy page image
   const noisy = join(dir, "noisy.png");
   writeFileSync(noisy, await sharp(raw, { raw: { width: 1200, height: 1600, channels: 3 } }).png().toBuffer());
   const original = statSync(noisy).size;

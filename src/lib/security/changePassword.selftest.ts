@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/security/changePassword.selftest.ts
-// A PERSON CHANGES HIS OWN PASSWORD: the rules, with a fake database and real bcrypt. The HOD's own is not changed while the app is in its development phase.
+// What I test here: a person changes his own password, by the rules, with a fake database and real bcrypt. The HOD's own is not changed while the app is in its development phase.
 import { readFileSync } from "node:fs";
 import bcrypt from "bcryptjs";
 import { createFailureLock } from "./rateLimit";

@@ -3,7 +3,7 @@
 -- The PDF of an announcement (src/lib/announcements/attachment.ts, src/lib/announcements/admin/files.ts): one row for each announcement that carries a PDF, with or without body text. The PDF itself is in Vercel
 -- Blob; this table keeps its address (which is never sent to the browser: the file is served by /api/announcements/<id>/file), its name and its size.
 --
--- It is a table of its own, and not columns of public.announcement, so that the announcements keep working whether or not this file has been run: nothing that reads an announcement needs it.
+-- I made it a table of its own, and not columns of public.announcement, so that the announcements keep working whether or not this file has been run: nothing that reads an announcement needs it.
 -- Safe to run more than once. The application also creates this table by itself the first time a PDF is attached, if its database user may; running this file is the clean way.
 -- Deleting an announcement deletes its row here (ON DELETE CASCADE); the application deletes the PDF from Blob.
 

@@ -1,8 +1,8 @@
 // src/lib/db/config/postgres.config.ts
-// Parse a single DATABASE_URL (or DIRECT_DATABASE_URL) into a database config.
-// This file intentionally uses the WHATWG URL API so username/password are decoded correctly.
+// Parses a single DATABASE_URL (or DIRECT_DATABASE_URL) into a database config.
+// I use the WHATWG URL API on purpose, so that username and password are decoded correctly.
 
-// ✅ Declared local type instead of importing from Sequelize to satisfy the build compiler
+// I declared a local type instead of importing from Sequelize, to satisfy the build compiler
 type Options = any;
 
 function parseDatabaseUrl(url?: string) {
@@ -14,7 +14,7 @@ function parseDatabaseUrl(url?: string) {
     // pathname starts with '/'
     const database = u.pathname ? u.pathname.replace(/^\//, "") : undefined;
     // URL.username / URL.password are percent-decoded by the WHATWG URL implementation,
-    // but we defensively decodeURIComponent in case of differences.
+    // but I decodeURIComponent defensively in case implementations differ.
     const username = u.username ? decodeURIComponent(u.username) : undefined;
     const password = u.password ? decodeURIComponent(u.password) : undefined;
     return { host, port, database, username, password };
@@ -30,13 +30,13 @@ export function getPostgresConfig(): Options & {
   username?: string;
   password?: string;
 } {
-  // Prefer an explicit DIRECT_DATABASE_URL, then DATABASE_URL, then individual vars.
+  // I prefer an explicit DIRECT_DATABASE_URL, then DATABASE_URL, then the individual vars.
   const urlSource =
     process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || undefined;
 
   const parsed = parseDatabaseUrl(urlSource);
 
-  // If parsed successfully, return a config object.
+  // If the URL parsed successfully, I return a config object.
   if (parsed) {
     return {
       dialect: "postgres",
@@ -52,7 +52,7 @@ export function getPostgresConfig(): Options & {
     } as any;
   }
 
-  // Fallback: read individual POSTGRES_* env vars if present
+  // Fallback: I read the individual POSTGRES_* env vars if they are present
   const host = process.env.POSTGRES_HOST;
   const port = process.env.POSTGRES_PORT
     ? Number(process.env.POSTGRES_PORT)

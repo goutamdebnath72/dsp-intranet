@@ -20,7 +20,7 @@ const t = buildTable(holidays as any);
 check("the three years of a holiday list are all kept (same date, different weekday)", !!t && t.columns.length === 4 && t.columns.join("|") === "Holiday|2024|2025|2026", JSON.stringify(t?.columns));
 check("every row keeps its three values", !!t && t.rows.every((r) => r.length === 4));
 
-// the safeguard still works for numbers: a column that is a copy of another with one component zeroed is dropped
+// The safeguard still works for numbers: a column that is a copy of another with one component zeroed is dropped
 const amounts = {
   columns: ["Component", "Works", "Projects"],
   rows: [["Basic", "1000", "1000"], ["Allowance", "500", "500"], ["Bonus", "300", "0"], ["Total", "1800", "1500"]],

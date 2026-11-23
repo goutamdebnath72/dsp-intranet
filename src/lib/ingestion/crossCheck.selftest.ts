@@ -1,7 +1,7 @@
 /**
- * Self-test of the English / Hindi / Bengali cross-check and of the checks it records (step 42a).
+ * This is the self-test of the English / Hindi / Bengali cross-check and of the checks it records (step 42a).
  * Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/crossCheck.selftest.ts
- * The main cases are REAL: the pipeline's readings of the GPAIS pair and of the mediclaim Hindi page (pilot fixtures), with the mediclaim English page as
+ * I use REAL cases for the main tests: the pipeline's readings of the GPAIS pair and of the mediclaim Hindi page (pilot fixtures), with the mediclaim English page as
  * printed on the circular; the Bengali pages are constructed (a Bengali page of the GPAIS notice with the same numbers).
  */
 import { readFileSync } from "node:fs";
@@ -36,7 +36,7 @@ ok("a page of both scripts, neither dominant, is mixed", scriptOf("स्टी�
 ok("important numbers are those with 4 digits or a point, in one canonical form", [...majorNumbers("Dated 11-08-2026, Rs 150.00, 15 days, ref 2026/52, 7")].sort().join() === "11.08.2026,150.00,2026.52");
 ok("what a second reader wrote in [handwritten: ...] is not part of the page", [...majorNumbers("Date 20-08-2026 [handwritten: Soumit Roy 11/8/2026 ?]")].join() === "20.08.2026");
 
-// ---- the real GPAIS pair: English + Hindi, nothing wrong
+// ---- the real GPAIS pair, English + Hindi: I expect nothing wrong
 {
   const g = g1([{ page: 1, text: GP_HI }, { page: 2, text: GP_EN }]);
   ok("REAL: GPAIS English + Hindi is one group of two pages with 17 numbers on both", g.languages === "English + Hindi" && g.pages.length === 2 && g.confirmed[1].length === 17 && g.confirmed[2].length === 17, JSON.stringify([g.languages, g.confirmed]));
@@ -52,7 +52,7 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("English + Hindi + Bengali is one group of three pages, 17 numbers confirmed on each", g.languages === "English + Hindi + Bengali" && g.pages.length === 3 && [1, 2, 3].every((p) => g.confirmed[p].length === 17), JSON.stringify([g.languages, g.confirmed]));
   ok("a circular in English and Bengali only is a group too", g1([{ page: 1, text: GP_EN }, { page: 2, text: GP_BN }]).languages === "English + Bengali");
   {
-    // Hindi has numbers 1-5 of the English page's 8, Bengali has 4-8: they share too little with each other (2 of 8) but each matches the English page (5 of 8)
+    // Here Hindi has numbers 1-5 of the English page's 8 and Bengali has 4-8, so they share too little with each other (2 of 8), but each matches the English page (5 of 8).
     const en = "Steel Authority of India Limited Durgapur Steel Plant notice numbers 1001 1002 1003 1004 1005 1006 1007 1008 for the contractor workers";
     const hi = HI_WORDS + "1001 1002 1003 1004 1005";
     const bn = "ইস্পাত কর্তৃপক্ষ দুর্গাপুর ইস্পাত কারখানা বিজ্ঞপ্তি ঠিকা শ্রমিকদের জন্য সংখ্যা 1004 1005 1006 1007 1008";
@@ -61,19 +61,19 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
     ok("...and without the English page they are no group", crossCheck([{ page: 1, text: hi }, { page: 3, text: bn }]).length === 0);
   }
 
-  // the Bengali page misreads two numbers; English and Hindi agree
+  // In this case the Bengali page misreads two numbers while English and Hindi agree.
   const bad = pages.map((p) => (p.page === 3 ? { ...p, text: GP_BN.replace("20.08.2024", "20.0824").replace("193.00", "1930") } : p));
   const gb = g1(bad);
   ok("a misread on the Bengali page, against two pages that agree, is a disagreement with two supporting pages", gb.disagreements.length === 2 && gb.disagreements.every((d) => d.a.page === 3 && d.a.script === "bengali" && d.support === 2), JSON.stringify(gb.disagreements.map((d) => [d.a.value, d.b.value, d.support])));
   ok("...and only the Bengali page's misreadings are recorded as unconfirmed", checkOf(bad, 3)?.unconfirmed.slice().sort().join() === "1930,20.0824" && checkOf(bad, 1)?.unconfirmed.length === 0 && checkOf(bad, 2)?.unconfirmed.length === 0, JSON.stringify(twinChecks([gb])));
   ok("...and the other numbers of the Bengali page stay confirmed", (checkOf(bad, 3)?.confirmed.length ?? 0) === 15);
 
-  // the English page is the odd one out against Hindi and Bengali
+  // In this case the English page is the odd one out against Hindi and Bengali.
   const odd = pages.map((p) => (p.page === 2 ? { ...p, text: GP_EN.replace("193.00", "1930") } : p));
   ok("an English reading that two other pages contradict is recorded as unconfirmed (no page is trusted for its language)", checkOf(odd, 2)?.unconfirmed.join() === "1930" && checkOf(odd, 1)?.unconfirmed.length === 0 && checkOf(odd, 3)?.unconfirmed.length === 0, JSON.stringify(twinChecks(crossCheck(odd))));
 }
 
-// ---- the real mediclaim pair: the known misread; one page against one, so both readings are unconfirmed
+// ---- the real mediclaim pair: the known misread; it is one page against one, so I treat both readings as unconfirmed
 {
   const pages = [{ page: 1, text: P("mediclaim-hindi") }, { page: 2, text: MEDI_EN }];
   const g = g1(pages);
@@ -83,14 +83,14 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("REAL: a disagreement carries the words around each number", /20-0802|20\.0802|200802/.test(g.disagreements[0].a.context) && /20-08-2026/.test(g.disagreements[0].b.context), JSON.stringify(g.disagreements[0]));
 }
 
-// ---- the gift card: a stray digit in front of a number (the rupee sign read as a 2) is a variant
+// ---- the gift card: I count a stray digit in front of a number (the rupee sign read as a 2) as a variant
 {
   const pages = [{ page: 1, text: GIFT_HI }, { page: 2, text: GIFT_EN }];
   const g = g1(pages);
   ok("a stray digit in front (215000 next to 15000, which the other page confirms) is a variant", g.variants.length === 1 && g.variants[0].value === "215000" && g.variants[0].base === "15000" && g.variants[0].script === "devanagari", JSON.stringify([g.variants, g.disagreements, g.singles]));
   ok("...recorded as unconfirmed on the Hindi page only; 15000 stays confirmed on both", checkOf(pages, 1)?.unconfirmed.join() === "215000" && checkOf(pages, 1)?.confirmed.includes("15000") === true && checkOf(pages, 2)?.unconfirmed.length === 0 && checkOf(pages, 2)?.confirmed.includes("15000") === true);
 
-  // THE ANSWER CARD'S GATE, with these checks
+  // Here is the ANSWER CARD'S GATE, tested with these checks
   const chunks = [{ page: 1, index: 0, text: GIFT_HI }, { page: 2, index: 1, text: GIFT_EN }];
   const checks = Object.fromEntries(twinChecksFor(chunks).map((c) => [c.page, { confirmed: c.confirmed, unconfirmed: c.unconfirmed }]));
   const passages = buildPassages("gift card value", [{ type: "circular", id: 51, title: "Circular - Online option for Gift Card Rs. 15000 to employees", date: null, chunks, checks }]);
@@ -101,7 +101,7 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("GATE: the answer Rs. 15,000 (the English page) passes", right.ok, right.ok ? "" : right.reason);
 }
 
-// ---- a bare year is never the base of a longer form (circular 23 of the archive: 931.2025, a reference number, next to the year 2025)
+// ---- I never use a bare year as the base of a longer form (circular 23 of the archive: 931.2025, a reference number, next to the year 2025)
 {
   const en = "Steel Authority of India Limited Durgapur Steel Plant health check up circular numbers 1001 1002 1003 1004 for the year 2025 dated 2025";
   const hi = HI_WORDS + "1001 1002 1003 1004 931/2025 2025";
@@ -165,7 +165,7 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("merging the same twin check again changes nothing", JSON.stringify(again) === JSON.stringify(m), JSON.stringify(again));
 }
 
-// ---- from stored chunks (the same input as checkRowsFor)
+// ---- I build these from stored chunks (the same input as checkRowsFor)
 {
   const chunks = [{ page: 1, index: 0, text: GP_HI.slice(0, 700) }, { page: 1, index: 1, text: GP_HI.slice(700) }, { page: 2, index: 2, text: GP_EN }];
   const direct = twinChecks(crossCheck([{ page: 1, text: GP_HI.slice(0, 700) + " " + GP_HI.slice(700) }, { page: 2, text: GP_EN }]));
@@ -174,7 +174,7 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("a page that is not in the chunks (page null) is left out", twinChecksFor([{ page: null, index: 0, text: GP_EN }]).length === 0);
 }
 
-// ---- the sequence the upload route runs (step 42a): twin checks merged with the second reading's, with the fingerprints of the stored chunks
+// ---- the sequence my upload route runs (step 42a): twin checks merged with the second reading's, with the fingerprints of the stored chunks
 {
   const chunks = [{ page: 1, index: 0, text: GIFT_HI }, { page: 2, index: 1, text: GIFT_EN }];
   const second = [{ page: 2, status: "agreed", confirmed: ["15000"], unconfirmed: [], secondOnly: [], reader: "gemini:x" }];
@@ -187,7 +187,7 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("a one-page circular gets no rows from the twin check", checkRowsFor(combineChecks([], twinChecksFor(one)), one).length === 0);
 }
 
-// ---- the SAME circular in another language as a SEPARATE file (the Merit Award Scheme amendment: three files, "(Eng)", "(Hin)", "(Beng)")
+// ---- I also test the SAME circular in another language as a SEPARATE file (the Merit Award Scheme amendment: three files, "(Eng)", "(Hin)", "(Beng)")
 {
   const T = { eng: "Circular -, Merit Award Scheme,26 (Amendment), Contract Workers (Eng)", hin: "Circular - Merit Award Scheme, 26 (Amendment), Contract Workers (Hin)", ben: "Circular -, Merit Award Scheme,26 (Amendment), Contract Workers (Beng)" };
   const FAMILY = "circular merit award scheme 26 amendment contract workers";
@@ -199,7 +199,7 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("the siblings of each circular of the family (and none for a circular alone)", sib.get(84)?.join() === "85,86" && sib.get(86)?.join() === "84,85" && !sib.has(90), JSON.stringify([...sib]));
   ok("a witness page number is internal: it decodes to its circular and page, and a circular's own pages are not witnesses", JSON.stringify(decodeWitness(witnessPage(84, 3))) === '{"circular":84,"page":3}' && !isWitness(3) && decodeWitness(2) === null);
 
-  // the Bengali circular as the upload stores it: the page text read by Gemini (the stored text of the Merit Award notice, Bengali version)
+  // This is the Bengali circular as the upload stores it: the page text read by Gemini (the stored text of the Merit Award notice, Bengali version)
   const BEN = readFileSync(join(__dirname, "__fixtures__", "merit-bengali-page.txt"), "utf8");
   const EN = "STEEL AUTHORITY OF INDIA LIMITED DURGAPUR STEEL PLANT No: HR-CLC/MERIT_AWD/Amnd/2026/131 Date: 15.08.2026 NOTICE Subject: Extension of the last date for submission of applications for the Merit Scholarship Award 2026. The last date for submission of the application for the Merit Scholarship Scheme 2026 (Higher Education Scholarship Scheme) has been extended up to 31 August 2026. All concerned contract workers are requested to submit the duly filled application with the necessary documents within the stipulated date. For details contact the Shramik Kalyan Cell, Room No. 206, Ispat Bhawan, or the registered office of DSPCWWS, Old Plant Personnel Building, Opposite Canteen CN-9, Durgapur Steel Plant. Issued with the approval of the competent authority.";
   const HI = HI_WORDS + "मेरिट स्कॉलरशिप योजना की आवेदन जमा करने की अंतिम तिथि बढ़ा दी गई है सभी संबंधित संविदा कर्मचारियों से अनुरोध है। HR-CLC/MERIT_AWD/Amnd/2026/131 15.08.2026 31 अगस्त 2026 कक्ष संख्या 206";
@@ -212,7 +212,7 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   const mine = twinChecks(gs, (page) => !isWitness(page));
   ok("only the Bengali circular's OWN page gets a check (the witnesses are not written to)", mine.length === 1 && mine[0].page === 1 && mine[0].confirmed.includes("2026.131") && mine[0].unconfirmed.length === 0 && gs[0].disagreements.length === 0, JSON.stringify(mine));
 
-  // the Bengali reading is damaged, as the Indic pass really damages Latin digits (15.08.2026 -> 5.08.2026): two other circulars agree against it
+  // I damage the Bengali reading the way the Indic pass really damages Latin digits (15.08.2026 -> 5.08.2026): two other circulars agree against it
   const damaged = crossCheckWithWitnesses([{ page: 1, text: BEN.replace("15.08.2026", "5.08.2026") }], wit);
   ok("a damaged date on the Bengali circular, against two versions that agree, is a disagreement with two supporting pages, recorded as unconfirmed on the Bengali page only", damaged[0].disagreements.length === 1 && damaged[0].disagreements[0].support === 2 && twinChecks(damaged, (pg) => !isWitness(pg))[0].unconfirmed.join() === "5.08.2026", JSON.stringify(damaged[0].disagreements.map((d) => [d.a.value, d.b.value, d.support])));
 
@@ -222,7 +222,7 @@ ok("what a second reader wrote in [handwritten: ...] is not part of the page", [
   ok("a version in another language about something else (no numbers in common) is not a witness either", crossCheckWithWitnesses(ownBn, [{ circular: 99, page: 1, text: "STEEL AUTHORITY OF INDIA LIMITED DURGAPUR STEEL PLANT Circular 2025/77 dated 03.01.2025 about the Sports Club trial on 04.01.2025 at 6.00 PM; fee 1500.00 per head" }]).length === 0);
   ok("a circular with no witnesses is cross-checked on its own pages, as before", crossCheckWithWitnesses([{ page: 1, text: GP_HI }, { page: 2, text: GP_EN }], []).length === 1);
 
-  // the report: the family is listed once, under the lowest circular, with real circular and page names
+  // In the report I list the family once, under the lowest circular, with real circular and page names.
   const damagedBen = BEN.replace("15.08.2026", "5.08.2026");
   const of = (id: number, own: string, ws: { circular: number; page: number; text: string }[], sib: number[]): CircularFindings => ({ id, serial: id, headline: id === 86 ? T.ben : id === 85 ? T.hin : T.eng, pages: 1, groups: crossCheckWithWitnesses([{ page: 1, text: own }], ws), siblings: sib });
   const items: CircularFindings[] = [

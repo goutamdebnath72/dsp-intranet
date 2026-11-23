@@ -5,13 +5,13 @@
 // Pieces shown with an employee answer that was written by the language model (payload.nl2sql):
 //   * Departments covered -- which departments the answer's filter really matched, computed by the
 //     server from the SQL itself (not written by the model), so scope can be seen at a glance.
-//   * (The model's SQL is no longer shown or sent to the browser, 22 Nov 2026: it is written to the server log, and kept in public.nl2sql_log. See src/lib/nl2sql/log.ts.)
+//   * (I no longer show or send the model's SQL to the browser, since 22 Nov 2026: it is written to the server log, and kept in public.nl2sql_log. See src/lib/nl2sql/log.ts.)
 //   * (The Yes / No for the answer now lives in the omnibar footer, AnswerFeedback.tsx, for every kind of answer.)
 //   * Nl2SqlTable -- a plain table for breakdowns and other non-list answers.
 
 import type { Nl2SqlExtras, Nl2SqlTable as TableData } from "@/lib/nl2sql/clientTypes";
 
-// Same name appearing twice means two department records with different codes; show it once with a count.
+// The same name appearing twice means two department records with different codes; I show it once with a count.
 function groupNames(names: string[]): string[] {
   const counts = new Map<string, number>();
   for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);

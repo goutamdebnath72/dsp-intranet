@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/security/passwordLife.selftest.ts
-// THE LIFE OF A PASSWORD: 180 days, the last 5 not reusable, the window that comes up by itself, no copy and paste in the three boxes, and the one-time code (built, switched off).
+// What I test here: the life of a password. 180 days, the last 5 not reusable, the window that comes up by itself, no copy and paste in the three boxes, and the one-time code (built, switched off).
 import { readFileSync } from "node:fs";
 import bcrypt from "bcryptjs";
 import { DateTime } from "luxon";

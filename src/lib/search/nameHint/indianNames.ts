@@ -1,13 +1,13 @@
 // src/lib/search/nameHint/indianNames.ts
 //
-// COMMON INDIAN NAMES, written out by hand, for the search bar's "this looks like a name" hint (src/lib/search/nameHint/nameHint.ts). It is a hint only: a word missing here is simply not recognised as a name by this list
+// COMMON INDIAN NAMES, which I wrote out by hand for the search bar's "this looks like a name" hint (src/lib/search/nameHint/nameHint.ts). It is a hint only: a word missing here is simply not recognised as a name by this list
 // (the plant's own name words, fetched from the directory, may still recognise it), and a word that is here but is not a name in a particular line only produces a hint that Enter would search people.
-// The lists lean on the regions the plant's people come from (Bengal, Bihar, Jharkhand, Odisha, Uttar Pradesh, Punjab, the South and the West), in the spellings people actually write; the matching also folds
+// I lean the lists on the regions the plant's people come from (Bengal, Bihar, Jharkhand, Odisha, Uttar Pradesh, Punjab, the South and the West), in the spellings people actually write; the matching also folds
 // spelling variants together (Goutam = Gautam, Sandip = Sandeep), so a spelling need not be listed twice. Upper case, letters only. Nothing here is about any real employee.
 
 const words = (s: string): string[] => s.split(/\s+/).filter(Boolean);
 
-/** given names, men and women */
+/** Given names, for men and women */
 export const FIRST_NAMES: string[] = words(`
 AARAV ABHAY ABHIJIT ABHIJEET ABHILASH ABHINAV ABHISHEK ADITI ADITYA AJAY AJIT AJOY AKASH AKHIL AKHILESH AKSHAY ALOK AMAN AMAR AMARNATH AMIT AMITABH AMITAVA AMITESH AMOL AMRIT ANAND ANANDA ANANYA ANIL ANIMESH
 ANIRBAN ANIRUDDHA ANISH ANITA ANJALI ANJAN ANKIT ANKITA ANKUR ANNAPURNA ANOOP ANUP ANUPAM ANURADHA ANURAG ANUSHKA ANWAR APARNA ARCHANA ARIJIT ARNAB ARUN ARUNA ARUNABHA ARVIND ARYAN ASHA ASHIM ASHIS ASHISH ASHOK
@@ -32,7 +32,7 @@ SURJIT SURYA SUSHANT SUSHIL SUSHMA SUSMITA SUTAPA SWAGATA SWAPAN SWAPNA SWARUP S
 UTPAL UTTAM VAISHALI VANDANA VARUN VASANT VEENA VEER VIJAY VIJAYA VIKAS VIKASH VIKRAM VIMAL VINAY VINEET VINOD VIPIN VIRENDRA VISHAL VISHNU VISHWANATH VIVEK YASH YOGESH YUDHISHTHIR ZAHID ZAKIR
 `);
 
-/** family names, written as one word (Kumar, Singh, Mondal, Ghosh ... ) */
+/** I write family names as one word (Kumar, Singh, Mondal, Ghosh ... ) */
 export const SURNAMES: string[] = words(`
 AGARWAL AGRAWAL AHMAD AHMED AHIR AICH AKHTAR ALAM ALI ANAND ANSARI ARORA ASTHANA BAG BAGCHI BAIRAGI BAJPAI BALA BANDYOPADHYAY BANERJEE BANERJI BANSAL BARAI BARIK BARMAN BARUA BASAK BASU BATABYAL BEHERA BERA BHAKAT
 BHALLA BHANDARI BHARADWAJ BHARTI BHATIA BHATT BHATTACHARJEE BHATTACHARYA BHATTACHARYYA BHAUMIK BHOWMICK BHUIYAN BHUNIA BISWAS BORA BORAH BOSE BRAHMA CHAKI CHAKRABARTI CHAKRABORTY CHAKRAVARTY CHANDA CHANDRA
@@ -46,8 +46,8 @@ REDDY ROUT ROY SAHA SAHANI SAHOO SAHU SAIKIA SAMANTA SAMANTARAY SARANGI SARDAR S
 SIRCAR SIT SOREN SRIVASTAVA SUR SWAIN SWAMI TALUKDAR TAMANG TANTI TEWARI THAKUR TIGGA TIRKEY TIWARI TOPNO TRIPATHI TRIVEDI UPADHYAY UPADHYAYA VARMA VERMA VISWAS VYAS YADAV
 `);
 
-/** words that stand before or after a name and are not part of it: Mr, Shri, Dr ... (a line that starts with one of them is read without it) */
+/** words that stand before or after a name and are not part of it: Mr, Shri, Dr ... (I read a line that starts with one of them without it) */
 export const HONORIFICS: string[] = words(`MR MRS MS MISS SHRI SHREE SRI SMT SHRIMATI SRIMATI KUMARI DR ER ENGR PROF COL MAJ CAPT GEN LT`);
 
-/** the endings of the compound names written as one word (Ajaykumar, Motilal, Gopinath, Ramprasad, Sibshankar): a word of six letters or more that ends in one of these reads as a name (endings that also end ordinary English words, like -pal in principal, are left out) */
+/** I keep here the endings of the compound names written as one word (Ajaykumar, Motilal, Gopinath, Ramprasad, Sibshankar): a word of six letters or more that ends in one of these reads as a name (I left out endings that also end ordinary English words, like -pal in principal) */
 export const NAME_ENDINGS: string[] = words(`KUMAR NATH PRASAD CHANDRA SHANKAR SANKAR NARAYAN RANJAN SINGH SINHA KANT KANTA BRATA JIT JEET`);

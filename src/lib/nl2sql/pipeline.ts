@@ -1,10 +1,8 @@
 // src/lib/nl2sql/pipeline.ts
 //
-// question -> (LLM writes SQL) -> guard -> read-only execution -> answer.
-// If the SQL is rejected by the guard or fails in the database, the model is
-// shown the exact problem and gets up to two more attempts. Everything
-// external (the model, the database) is injected so the whole flow can be
-// tested without either.
+// The flow is: question -> (LLM writes SQL) -> guard -> read-only execution -> answer.
+// If the guard rejects the SQL or the database fails on it, I show the model the exact problem and give it up to two more attempts.
+// Everything external (the model, the database) is injected, so I can test the whole flow without either.
 
 import { PERF } from "@/lib/perf/switches";
 import { ttlMemo } from "@/lib/perf/ttlMemo";
@@ -27,17 +25,17 @@ import { checkComparison, checkRankingAndOrder } from "./rankingCheck";
 import { checkHealthColumns, checkPersonIdentity } from "./identityCheck";
 import { spellingRetry } from "./nameSpelling";
 
-/** Context for a second attempt after a "No", and other optional inputs. */
-// The two lists of example queries are read from the log table (200 rows each) on every question: remembered for a short while instead (src/lib/perf/switches.js: nl2sqlExamplesCacheSeconds; 0 = read every time)
+/** Here I pass the context for a second attempt after a "No", and other optional inputs. */
+// I read the two lists of example queries from the log table (200 rows each) on every question, so I remember them for a short while instead (src/lib/perf/switches.js: nl2sqlExamplesCacheSeconds; 0 = read every time)
 const confirmedExamples = ttlMemo(() => PERF.nl2sqlExamplesCacheSeconds, (c: SqlClient) => loadConfirmedExamples(c));
 const negativeExamples = ttlMemo(() => PERF.nl2sqlExamplesCacheSeconds, (c: SqlClient) => loadNegativeExamples(c));
 
 export interface PipelineExtra {
-  /** The log row of the answer that was rejected (stored on the new row as retry_of). */
+  /** The log row of the answer that was rejected; I store it on the new row as retry_of. */
   retryOf?: number | null;
-  /** SQL that must not be produced again (the rejected answer). */
+  /** SQL the model must not produce again: the rejected answer. */
   rejectedSql?: string[];
-  /** The person's reason as an instruction for the model (see learning.ts retryHint). */
+  /** The person's reason, turned into an instruction for the model (see learning.ts retryHint). */
   hint?: string;
 }
 
@@ -48,7 +46,7 @@ export interface PipelineDeps {
   maxAttempts?: number;
 }
 
-// Omit<> collapses a union to its common keys; this keeps each variant intact.
+// Omit<> collapses a union to its common keys, so I use this one to keep each variant intact.
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 const MAX_QUESTION_CHARS = 500;
@@ -147,7 +145,7 @@ export async function answerQuestion(question: string, userKey: string | null, d
       repair = { previousSql: plan.sql, problem: `The SQL was rejected by the safety check: ${g.reason}` };
       continue;
     }
-    // a department family the question names, covered wrongly (the row ids written as codes, a LIKE that finds other rows or none ...): the right ids are put in HERE, at once, with no second model
+    // When a department family the question names is covered wrongly (the row ids written as codes, a LIKE that finds other rows or none ...), I put the right ids in HERE, at once, with no second model
     // call (each costs about 6,000 tokens and Groq's per-minute limit makes the next one wait): live, 24 Oct 17:41, three calls, 80 s and a wrong 0 (step 48a)
     {
       const mended = repairDepartments(q, g.sql, prep.ctx.departments);
@@ -166,7 +164,7 @@ export async function answerQuestion(question: string, userKey: string | null, d
       continue;
     }
     const knownPhrases = [...prep.ctx.departments.map((d) => d.name), ...prep.ctx.designations.map((d) => d.title)];
-    // a department family the question names (CO & CC, main hospital, L & D ...) must be covered in full: first two attempts only, a question is never failed over it (step 45b)
+    // A department family the question names (CO & CC, main hospital, L & D ...) must be covered in full. I check this on the first two attempts only, and I never fail a question over it (step 45b)
     const senseProblem =
       checkVocabulary(q, g.sql, knownPhrases) ?? checkNormPatterns(g.sql) ?? (attempts <= 2 ? checkDepartments(q, g.sql, prep.ctx.departments) : null);
     if (senseProblem) {
@@ -177,8 +175,8 @@ export async function answerQuestion(question: string, userKey: string | null, d
     // "Soft" rules about what a correct answer SHOWS: a department with BOTH its code and name, identified by its row and
     // not by its number (deptColumns); rankings that keep ties and results in a meaningful order (rankingCheck); a row about a
     // specific person always carrying that person's ticket number and name (identityCheck). ONE repair
-    // chance covers all of them (first attempt only): if the model still gets it wrong, the answer is shown as it is --
-    // never fail a question over this.
+    // chance covers all of them (first attempt only): if the model still gets it wrong, I show the answer as it is --
+    // I never fail a question over this.
     if (attempts === 1) {
       const checks: [string, string | null][] = [
         ["department code+name", checkDepartmentColumns(g.sql)],
@@ -207,7 +205,7 @@ export async function answerQuestion(question: string, userKey: string | null, d
       let data = await deps.withClient((c) => runReadOnly(c, g.sql, deps.exec));
       let finalSql = g.sql;
       let spellingNote: string | undefined;
-      // Nobody found: a name word of the SQL that no real name is spelled like is replaced by the nearest real spelling and the same SQL runs again (step 55b, nameSpelling.ts).
+      // Nobody found: I replace a name word of the SQL that no real name is spelled like with the nearest real spelling, and run the same SQL again (step 55b, nameSpelling.ts).
       if (data.total === 0) {
         const near = await spellingRetry(g.sql, deps).catch(() => null);
         if (near) { data = near.data; finalSql = near.sql; spellingNote = near.note; }
@@ -230,10 +228,10 @@ export async function answerQuestion(question: string, userKey: string | null, d
 }
 
 /**
- * A VERIFIED answer: the same question, with a stored SQL that was confirmed and nobody
- * rejected (learning.ts findVerifiedSql). The SQL goes through the same guard and checks and is executed afresh
- * (so the data is current), but the model is not called. Returns null when there is no verified answer or it
- * no longer passes, and the normal path takes over.
+ * A VERIFIED answer is the same question with a stored SQL that was confirmed and that nobody
+ * rejected (learning.ts findVerifiedSql). The SQL goes through the same guard and checks and I execute it afresh
+ * (so the data is current), but I do not call the model. Returns null when there is no verified answer or it
+ * no longer passes, and then the normal path takes over.
  */
 export async function answerFromVerified(
   question: string,
@@ -268,6 +266,6 @@ export async function answerFromVerified(
       attempts: 0, elapsedMs: Date.now() - started, logId,
     };
   } catch {
-    return null; // anything unexpected: fall back to the model
+    return null; // on anything unexpected I fall back to the model
   }
 }

@@ -1,15 +1,14 @@
 // scripts/answer-replay.ts
 //
-// Replays the log of answer attempts through the CURRENT verification rules. No model call, no network, no database: it costs nothing and can be
-// run after every change. The log is written by the app when ANSWER_LOG_FILE is set (put  ANSWER_LOG_FILE=reread-reports/answers.jsonl  in .env.local,
-// restart the app, and browse: every answer attempt is kept with the model's own reply and the exact passages it was shown).
+// Replays the log of answer attempts through the CURRENT verification rules. No model call, no network, no database: it costs nothing, so I run it after every change. The app writes the log when ANSWER_LOG_FILE is set
+// (put  ANSWER_LOG_FILE=reread-reports/answers.jsonl  in .env.local, restart the app, and browse: every answer attempt is kept with the model's own reply and the exact passages it was shown).
 //
 //   npx tsx --tsconfig tsconfig.json scripts/answer-replay.ts                     every logged attempt, then a summary
 //   npx tsx --tsconfig tsconfig.json scripts/answer-replay.ts --refused           only the attempts that are refused NOW
 //   npx tsx --tsconfig tsconfig.json scripts/answer-replay.ts --changed           only those whose verdict differs from the one logged
 //   npx tsx --tsconfig tsconfig.json scripts/answer-replay.ts --file other.jsonl  another file (default: reread-reports/answers.jsonl)
 //
-// "acceptedThenRefused" must stay 0 unless a rule was tightened on purpose: it is the regression check for every change to the rules.
+// "acceptedThenRefused" must stay 0 unless I tightened a rule on purpose: it is my regression check for every change to the rules.
 
 import { existsSync, readFileSync } from "node:fs";
 import { parseJsonl, replay } from "../src/lib/search/answerReplay";

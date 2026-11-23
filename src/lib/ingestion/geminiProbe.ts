@@ -1,10 +1,10 @@
 // src/lib/ingestion/geminiProbe.ts
 //
-// ONE GEMINI READING OF ONE PAGE, WITH EVERYTHING THE SERVICE SAYS ABOUT IT (step 39d). Not used by the app: it exists to find out WHY a page's read is
+// One Gemini reading of one page, with everything the service says about it (step 39d). The app does not use it. I wrote it to find out WHY a page's read is
 // slow or never comes back (seen on 19 Oct 2026: page 1 of a circular read in 13 s while page 2 of the same upload hung through three attempts of 50 s).
 // It sends exactly the request the upload sends (same instructions, temperature 0), waits as long as it is told, and reports the time, how the
-// answer ended, how many tokens went to the page, to the answer and to "thinking", and whether the answer repeats itself. The two knobs that could change
-// the behaviour (the answer's length limit and the thinking budget) are options, so a hypothesis costs one command and touches nothing in the app.
+// answer ended, how many tokens went to the page, to the answer and to "thinking", and whether the answer repeats itself. I made the two knobs that could change
+// the behaviour (the answer's length limit and the thinking budget) options, so a hypothesis costs one command and touches nothing in the app.
 //
 // Pure apart from the injected fetch. Unit-tested by geminiProbe.selftest.ts. Used by scripts/gemini-probe.ts.
 
@@ -25,11 +25,11 @@ export interface ProbeOptions {
   apiKey: string;
   model?: string;
   baseUrl?: string;
-  /** How long to wait for the answer, in ms (default 300 000). */
+  /** I wait this long for the answer, in ms (default 300 000). */
   timeoutMs?: number;
-  /** The answer's length limit in tokens (default 8192, as the upload sends). */
+  /** The answer's length limit in tokens (default 8192, the same as the upload sends). */
   maxTokens?: number;
-  /** Tokens the model may spend thinking (0 = none). Left out of the request when undefined: the service's own default. */
+  /** Tokens the model may spend thinking (0 = none). I leave it out of the request when undefined, so the service's own default applies. */
   thinkingBudget?: number;
   fetchImpl?: FetchLike;
 }
@@ -44,7 +44,7 @@ export interface ProbeResult {
   thinkingTokens?: number;
   totalTokens?: number;
   text?: string;
-  /** The answer repeats itself (the reader would cut it at the loop). */
+  /** True when the answer repeats itself (the reader would cut it at the loop). */
   looped?: boolean;
   error?: string;
   request: { model: string; timeoutMs: number; maxTokens: number; thinkingBudget: number | null; imageBytes: number };
@@ -97,7 +97,7 @@ export async function probePage(o: ProbeOptions): Promise<ProbeResult> {
 
 const n = (x: number | undefined) => (x === undefined ? "not reported" : x.toLocaleString("en-US"));
 
-/** The probe's result as a few plain lines. */
+/** Gives the probe's result as a few plain lines. */
 export function formatProbe(r: ProbeResult, label: string): string {
   const q = r.request;
   const lines = [
@@ -120,7 +120,7 @@ export function formatProbe(r: ProbeResult, label: string): string {
 
 const bytes = (r: ProbeResult) => `${r.request.imageBytes.toLocaleString("en-US")} bytes`;
 
-/** Two reads of the SAME page (A: as stored, B: shrunk) side by side: the time, the size sent, and whether the important numbers agree. */
+/** I put two reads of the SAME page side by side (A: as stored, B: shrunk): the time, the size sent, and whether the important numbers agree. */
 export function compareProbes(a: ProbeResult, b: ProbeResult): string {
   if (!a.ok || !b.ok) return `COMPARISON: not possible (A ${a.ok ? "answered" : "failed"}, B ${b.ok ? "answered" : "failed"})`;
   const c = checkReadings(a.text ?? "", b.text ?? "");

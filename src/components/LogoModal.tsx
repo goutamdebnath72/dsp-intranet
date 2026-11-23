@@ -21,7 +21,7 @@ export function LogoModal({ isOpen, onClose }: LogoModalProps) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
-          onClick={onClose} // Close modal if background is clicked
+          onClick={onClose} // I close the modal when the background is clicked
           role="dialog"
           aria-modal="true"
           aria-labelledby="logo-modal-title"
@@ -29,7 +29,7 @@ export function LogoModal({ isOpen, onClose }: LogoModalProps) {
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="modal-close-button z-[70]" // Ensure button is above image
+            className="modal-close-button z-[70]" // I keep the button above the image
             aria-label="Close logo view"
           >
             <X size={24} />
@@ -42,13 +42,13 @@ export function LogoModal({ isOpen, onClose }: LogoModalProps) {
             exit={{ scale: 0.8, opacity: 0 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="relative"
-            onClick={(e) => e.stopPropagation()} // Prevent closing modal when clicking image
+            onClick={(e) => e.stopPropagation()} // I do not close the modal when the image is clicked
           >
             <h2 id="logo-modal-title" className="sr-only">SAIL Logo Enlarged</h2>
             <Image
               src="/sail-logo-bw.png"
               alt="SAIL Logo Enlarged"
-              width={390} // Respecting 13:14 ratio (390x420)
+              width={390} // keeps the 13:14 ratio (390x420)
               height={420}
               className="max-w-full max-h-[80vh] object-contain rounded-md" // Constrain size
               priority

@@ -1,11 +1,11 @@
 declare module "pdf-poppler";
 
-// Add this to your declarations.d.ts file
+// Keep this in your declarations.d.ts file.
 
 declare module "pdf-to-text" {
-  // Define the TDocument type based on the library's output
+  // I define the TDocument type based on the library's output.
   type TDocument = string | string[];
 
-  // Define the main 'pdf' function
+  // I define the main 'pdf' function here.
   export function pdf(buffer: Buffer, options?: any): Promise<TDocument>;
 }

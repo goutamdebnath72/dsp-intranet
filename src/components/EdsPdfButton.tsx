@@ -2,8 +2,8 @@
 
 // src/components/EdsPdfButton.tsx
 //
-// The "Download PDF" button of an Executive Deep Synthesis reply (and only of that: it is drawn inside ExecutiveBriefing, which only an EDS reply uses).
-// The PDF is made on the person's own computer from the reply that is on the screen; nothing is sent anywhere. Success shows no message of ours (the browser's save window is the confirmation); only a failure does.
+// The "Download PDF" button of an Executive Deep Synthesis reply, and only of that: it is drawn inside ExecutiveBriefing, which only an EDS reply uses.
+// I make the PDF on the person's own computer from the reply that is on the screen; nothing is sent anywhere. Success shows no message of mine (the browser's save window is the confirmation); only a failure does.
 import React from "react";
 import toast from "react-hot-toast";
 import { FileDown, Loader2 } from "lucide-react";
@@ -17,7 +17,7 @@ export function EdsPdfButton({ data, question, abbreviations }: { data: Synthesi
     setBusy(true);
     try {
       const { downloadEdsPdf } = await import("@/lib/pdf/downloadEdsPdf");
-      // no success message here: the browser's own save window (or its download bar) already tells the person where the file goes, and a message here could say "saved" before it is
+      // I show no success message here: the browser's own save window (or its download bar) already tells the person where the file goes, and a message here could say "saved" before it is
       await downloadEdsPdf(data, question, abbreviations);
     } catch (err) {
       console.error("[EDS PDF]", err);

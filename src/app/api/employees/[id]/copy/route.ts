@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/employees/:id/copy   body: { field?: "record" | "mobile" | "email" | "name" }
  *
- * Records that a logged-in viewer COPIED an employee's directory record to the
- * clipboard. Writes an audit row with action='copy' (distinguishing it from a
+ * This records that a logged-in viewer COPIED an employee's directory record to the
+ * clipboard. I write an audit row with action='copy' (distinguishing it from a
  * 'reveal'). Login-gated. Returns { ok: true } — the clipboard write itself
  * happens client-side; this endpoint only logs the event.
  */
@@ -31,13 +31,13 @@ export async function POST(
 
   const viewedUserId = (await params).id;
 
-  // Optional field label; default to "record" (the whole directory line).
+  // Optional field label; I default to "record" (the whole directory line).
   let field = "record";
   try {
     const body = await request.json();
     if (typeof body?.field === "string") field = body.field;
   } catch {
-    // no body -> keep default
+    // With no body I keep the default.
   }
   const allowed = new Set(["record", "mobile", "email", "name"]);
   if (!allowed.has(field)) field = "record";
@@ -49,7 +49,7 @@ export async function POST(
   try {
     const ds = await getDb();
 
-    // Resolve the viewed employee's ticket for the audit row.
+    // I resolve the viewed employee's ticket for the audit row.
     const rows = await ds.query(
       `SELECT id, "ticketNo" AS "ticketNo"
        FROM public."user" WHERE id = $1 LIMIT 1`,

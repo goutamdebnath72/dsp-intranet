@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/dsphistory/DocViewer.selftest.tsx
-// The viewer of a JO Manual: what it shows for each answer of the route (signed in, not signed in, not uploaded, error), the strip with "page 34 of 102", the Title page / Cited page buttons, and the page the PDF opens at.
+// I check here the viewer of a JO Manual: what it shows for each answer of the route (signed in, not signed in, not uploaded, error), the strip with "page 34 of 102", the Title page / Cited page buttons, and the page the PDF opens at.
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DocViewerView, layerShown, stateOfStatus, viewSrc } from "./DocViewer";

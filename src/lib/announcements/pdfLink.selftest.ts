@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/announcements/pdfLink.selftest.ts
-// Words of an announcement that open its PDF: the marker, taking it off, and what the editor, the saving code and the panel do with it.
+// What I check here: words of an announcement that open its PDF: the marker, taking it off, and what the editor, the saving code and the panel do with it.
 import { readFileSync } from "node:fs";
 import { PDF_LINK_ATTR, hasPdfLinks, stripPdfLinks } from "./pdfLink";
 

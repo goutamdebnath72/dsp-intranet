@@ -1,5 +1,5 @@
 // src/lib/hospital/holidaysOn.ts
-// The production holiday lookup for the OPD closure check: the holidays on one date from the holiday tables (the same data as the holiday answers).
+// This is the production holiday lookup for the OPD closure check: I take the holidays on one date from the holiday tables, the same data as the holiday answers.
 
 import { isHolidayYearLoaded, queryHolidays } from "@/lib/holidays/analytics";
 import type { HolidaysOn } from "./closure";

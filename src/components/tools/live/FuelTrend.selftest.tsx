@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/tools/live/FuelTrend.selftest.tsx
-// The Kolkata fuel chart: three tabs, a staircase, and the four figures under each (the price a year ago, the highest, the lowest, today's), drawn from the real sources of 12-13 Nov 2026.
+// This tests the Kolkata fuel chart: three tabs, a staircase, and the four figures under each (the price a year ago, the highest, the lowest, today's), drawn from the real sources of 12-13 Nov 2026.
 import React from "react";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -30,7 +30,7 @@ ok("the callouts on the line name the high and the low with their days", /High �
 ok("the line is a staircase (horizontal then vertical steps), not a sloping line", /d="M[\d.,]+ (H[\d.]+ V[\d.]+ ?)+/.test(petrol) && !/ L[\d.]+,[\d.]+ L[\d.]+,[\d.]+ L/.test(petrol.match(/<path d="M[^"]*"[^>]*stroke-width="2.5"/)?.[0] ?? ""));
 ok("the note under petrol says the source (PPAC), that a price stays until the day it is changed, and that today's price is the latest day published; it names no LPG sentence", /Petroleum Planning & Analysis Cell \(PPAC\)/.test(t) && /staircase because a price stays the same until the day it is changed/.test(t) && /latest day it has published/.test(t) && !/GoodReturns/.test(t));
 
-// diesel and LPG: the same chart for another series (the tab opens when the others are missing, as the component starts on the first it has)
+// Diesel and LPG: the same chart for another series (the tab opens when the others are missing, as the component starts on the first it has).
 const dsl = text(h({ ...full, petrol: null }));
 ok("diesel: ₹92.02 a year ago, highest ₹99.82 on 25 May 2026, lowest ₹92.02 on 13 Nov 2025 held until 14 May 2026, today ₹99.82", /Start · 1 year ago ₹92\.02 on 13 Nov 2025/.test(dsl) && /Highest ₹99\.82 on 25 May 2026/.test(dsl) && /Lowest ₹92\.02 on 13 Nov 2025/.test(dsl) && /held from 13 Nov 2025 to 14 May 2026/.test(dsl) && /Today's price ₹99\.82 on 12 Nov 2026/.test(dsl));
 const gas = h({ ...full, petrol: null, diesel: null });
@@ -44,13 +44,13 @@ const pts = toPoints(full.lpg!);
 ok("a month is labelled by its month, today's price by its day; a day by its date with the year", pts[0].label === "Jan 2026" && pts[9].label === "Oct 2026" && pts[10].label === "13 Nov 2026" && toPoints(full.petrol!)[0].label === "13 Nov 2025" && toPoints(full.petrol!)[364].full === "12 Nov 2026");
 ok("rupees: a round figure has none of the paise, the rest two places", rs(106) === "₹106" && rs(113.51) === "₹113.51" && rs(968) === "₹968" && rs(1234567) === "₹12,34,567");
 
-// the chart's new options leave the gold chart as it was
+// I check that the chart's new options leave the gold chart as it was.
 const goldish = [{ label: "a", value: 10 }, { label: "b", value: 12 }, { label: "c", value: 12 }, { label: "d", value: 9 }];
 const lineChart = renderToStaticMarkup(<TrendChart points={goldish} format={String} ariaLabel="x" />);
 const stepChart = renderToStaticMarkup(<TrendChart points={goldish} format={String} ariaLabel="x" step ties="first" />);
 ok("without the options the chart is a sloping line and names the LATEST of equal highs (c); with them, a staircase naming the FIRST (b) and how long it held", /Highest 12 on c/.test(text(lineChart)) && !/H[\d.]+ V[\d.]+/.test(lineChart) && !/held from/.test(text(lineChart)) && /Highest 12 on b/.test(text(stepChart)) && /H[\d.]+ V[\d.]+/.test(stepChart) && /held from b to c/.test(text(stepChart)));
 
-// the dates under the axis never touch: fewer of them on a narrow screen, six when it is wide or not yet measured
+// I keep the dates under the axis from touching: fewer of them on a narrow screen, six when it is wide or not yet measured.
 ok("dates that fit: 6 unmeasured or wide, 3 at a phone's width, never fewer than the first and the last", datesThatFit(0) === 6 && datesThatFit(650) === 6 && datesThatFit(900) === 6 && datesThatFit(320) === 3 && datesThatFit(180) === 2 && datesThatFit(50) === 2 && dateTicks(366, 2).join() === "0,365" && dateTicks(366, 3).join() === "0,183,365");
 
 console.log(`FuelTrend selftest: ${pass} passed, ${fail} failed`);

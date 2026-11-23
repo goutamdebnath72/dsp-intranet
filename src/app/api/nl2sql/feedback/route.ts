@@ -2,7 +2,7 @@
 //
 // Tick / cross from the omnibar for an answer written by the language model.
 // POST { logId: number, verdict: "confirm" | "reject", userKey?: string | null } -> { ok }
-// Only the person the answer was logged for can rate it (userKey must match the log row).
+// I let only the person the answer was logged for rate it (userKey must match the log row).
 
 import { NextResponse } from "next/server";
 import { withDefaultClient } from "@/lib/nl2sql/db";
@@ -12,7 +12,7 @@ import { getSessionTicket } from "@/lib/apiAuth";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  // Signed-in people only; WHO voted comes from the login session, never from the request.
+  // Signed-in people only; I take WHO voted from the login session, never from the request.
   const ticket = await getSessionTicket();
   if (!ticket) return NextResponse.json({ error: "Sign in to give feedback" }, { status: 401 });
   let body: any;

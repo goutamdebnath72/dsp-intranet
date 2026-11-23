@@ -1,7 +1,7 @@
 // src/lib/peopleEvents/sampleLists.ts
 //
 // THE SAMPLE LISTS OF THE BIRTHDAY AND RETIREMENT (SUPERANNUATION) TABS OF THE HOME PAGE: the five sample people of each list, with the photos kept in the project's public folder
-// (public/Eleanor_Vance.jpeg and so on). They were the lists of the first version of the widget; the owner asked on 17 Nov 2026 for them back on those two tabs.
+// (public/Eleanor_Vance.jpeg and so on). They were the lists of the first version of the widget; I asked on 17 Nov 2026 for them back on those two tabs.
 // The Silver Jubilee tab is not here: it still comes from the database. To show the real birthdays and retirements from the database again, set USE_SAMPLE_LISTS to false: nothing else changes
 // (the API, the query and the hook are still in place and still feed the Silver Jubilee tab).
 import { isoDay, todayIST } from "./rules";
@@ -9,7 +9,7 @@ import type { PersonEvent } from "./query";
 
 export const USE_SAMPLE_LISTS = true;
 
-/** Birthdays today: the card shows no date. */
+/** Birthdays today; I show no date on the card. */
 export const SAMPLE_BIRTHDAYS: PersonEvent[] = [
   { id: 1, name: "Eleanor Vance", designation: "Chief General Manager", department: "R&D Lab", imageUrl: "/Eleanor_Vance.jpeg", on: null },
   { id: 2, name: "Sophia Clarke", designation: "General Manager", department: "HR", imageUrl: "/Sophia_Clarke.jpeg", on: null },

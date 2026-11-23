@@ -1,7 +1,7 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/help/sampleQuestions.selftest.ts
 //
-// The user guide's sample questions must not drift from how the search really behaves: no ordinary sample may be one the front gate sends to the deep search (an executive who tries it would otherwise
-// wait for a briefing he did not ask for). The deep search (EDS) is NOT described on this page at all: it has its own tab (edsGuide.selftest.ts).
+// I do not want the user guide's sample questions to drift from how the search really behaves: no ordinary sample may be one the front gate sends to the deep search (an executive who tried it would otherwise
+// wait for a briefing he did not ask for). I do not describe the deep search (EDS) on this page at all: it has its own tab (edsGuide.selftest.ts).
 import { readFileSync } from "node:fs";
 import { SAMPLE_SECTIONS, TOOLS_SECTION, RECIPE, WEAK_VS_GOOD, allSamples, filterSections, splitBlanks, OMNIBAR_PREFILL_EVENT, OPEN_GUIDE_EVENT } from "./sampleQuestions";
 import { detectSynthesisIntent } from "../search/synthesisIntent";
@@ -17,7 +17,7 @@ import { answerDegreeQuestion } from "../../lib/qualifications/degreeAnswer";
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 
-// the main features have their sample questions on the first tab; the sample questions of the Utility Services (TOOLS_SECTION) are on the Utility Services tab; the guide as a whole is both
+// The main features have their sample questions on the first tab; the sample questions of the Utility Services (TOOLS_SECTION) are on the Utility Services tab; the guide as a whole is both.
 const EVERY = [...SAMPLE_SECTIONS, TOOLS_SECTION];
 const all = allSamples();
 ok("the guide has many questions (more than 80) in at least nine sections", all.length > 80 && EVERY.length >= 9, `${all.length} / ${EVERY.length}`);
@@ -25,15 +25,15 @@ ok("section ids are unique and every section says what it covers and how to ask"
 ok("no question is written twice in one section", EVERY.every((s) => { const qs = s.questions.map((x) => x.q); return new Set(qs.map((q) => q.toLowerCase())).size === qs.length; }));
 ok("the recipe and the weak/good pairs exist", RECIPE.length === 5 && /^Choose where to look/.test(RECIPE[0]) && WEAK_VS_GOOD.length >= 4 && WEAK_VS_GOOD.every((p) => p.weak.length > 2 && p.good.length > p.weak.length));
 
-// routing: no ordinary sample is sent to the deep search
+// Routing: I check that no ordinary sample is sent to the deep search.
 const plainBad = all.filter((x) => !x.either && !/\[[^\]]+\]/.test(x.q) && detectSynthesisIntent(x.q).synthesis);
 ok("no ordinary sample is routed to the deep search", plainBad.length === 0, JSON.stringify(plainBad.map((x) => [x.q.slice(0, 70), detectSynthesisIntent(x.q).score])));
 
-// the deep search is described on its own tab only: nothing of it is left on this page (owner, 16 Nov 2026)
+// I want the deep search described on its own tab only, so nothing of it is left on this page (my decision, 16 Nov 2026)
 const pageText = JSON.stringify(EVERY) + JSON.stringify(allSamples());
 ok("the sample page has no deep-search section, no ladders, no executives-only badge, and says nothing of EDS or Deep Synthesis", !EVERY.some((s) => s.id === "eds" || "ladders" in s || "executivesOnly" in s) && !/deep synthesis|\bEDS\b|briefing|executive deep|deep briefing|ladder/i.test(pageText), (/deep synthesis|\bEDS\b|briefing|executive deep|deep briefing|ladder/i.exec(pageText) ?? [""])[0]);
 
-// "appears as you type" is said only of what really does, and everything else is said to need Enter
+// I say "appears as you type" only of what really does; everything else is said to need Enter.
 const live = all.filter((x) => (EVERY.flatMap((s) => s.questions).find((y) => y.q === x.q)?.instant));
 ok("some questions are marked as appearing as you type (numbers, sites)", live.length >= 5, String(live.length));
 const liveBad = live.filter((x) => !/\[[^\]]+\]/.test(x.q) && !isIdQuery(x.q) && searchSites(x.q, 6).length === 0 && !isLive(detectTool(x.q)));
@@ -43,10 +43,10 @@ ok("every sample marked 'press Enter' that is a calculator request opens a form,
 ok("no sample that needs Enter is an identifier (those appear on their own)", needEnter.every((q) => !isIdQuery(q) && !isLive(detectTool(q))), JSON.stringify(needEnter.filter((q) => isIdQuery(q))));
 ok("every area says how to run it, and says Enter or 'as you type'", EVERY.every((s) => s.howToRun.length > 15 && /Enter|AS YOU TYPE/.test(s.howToRun)));
 
-// the first tab lists the MAIN features, in the owner's order, and the Utility Services' sample questions are not among them (17 Nov 2026)
+// The first tab lists the MAIN features, in my order, and the Utility Services' sample questions are not among them (17 Nov 2026).
 ok("the first tab's sections follow the buttons under the box (23 Nov 2026): people (two sections), PAX, hospital, holidays, degrees, then circulars & notices (three sections); none of them is the utility block", SAMPLE_SECTIONS.map((s) => s.id).join() === "people,roster,pax,doctors,holidays,degrees,titles,content,announcements" && !SAMPLE_SECTIONS.some((s) => s.id === TOOLS_SECTION.id) && TOOLS_SECTION.id === "tools");
 {
-  // each section names its button and says what to press; the buttons come in the bar's own order (src/records/domains.ts)
+  // Each section names its button and says what to press; the buttons come in the bar's own order (src/records/domains.ts).
   const labels = DOMAINS.map((d) => d.label);
   const first = SAMPLE_SECTIONS.map((s) => labels.findIndex((l) => (s.choice ?? "").startsWith(l)));
   ok("every section has a choice that begins with a button of the bar and a sentence saying which one to press; the buttons follow the bar's order", SAMPLE_SECTIONS.every((s) => !!s.choice && !!s.choose && s.choose.length > 30) && first.every((x, i) => x >= 0 && (i === 0 || x >= first[i - 1])), JSON.stringify(first));
@@ -54,7 +54,7 @@ ok("the first tab's sections follow the buttons under the box (23 Nov 2026): peo
 }
 ok("the department section is named for what it is (people by department and designation), and the utility block still carries the calculators, converters and live cards", /^People by department/.test(SAMPLE_SECTIONS.find((s) => s.id === "roster")!.title) && /Calculators, converters and live cards/.test(TOOLS_SECTION.title) && TOOLS_SECTION.questions.length > 20);
 
-// people: a template, never a real name; blanks are bracketed
+// For people I use a template, never a real name; blanks are bracketed.
 const peopleQs = SAMPLE_SECTIONS.find((s) => s.id === "people")!.questions.map((x) => x.q);
 ok("a name search is a template", peopleQs.some((q) => /^\[first name\] \[last name\]$/.test(q)));
 ok("blanks are found and split", JSON.stringify(splitBlanks("who is senior to [name] today")) === JSON.stringify([{ text: "who is senior to ", blank: false }, { text: "[name]", blank: true }, { text: " today", blank: false }]) && splitBlanks("no blank").length === 1);
@@ -75,11 +75,11 @@ ok("the top bar opens the guide on request and sends a question to the search ba
 ok("the search bar types a prefilled question into its box", /OMNIBAR_PREFILL_EVENT/.test(omni) && /setQuery\(/.test(omni));
 
 {
-  // the name example names all three spellings (the search finds them by sound: Goutam, Gautam and Gautham are one sound, checked in the database)
+  // The name example names all three spellings, since the search finds them by sound (Goutam, Gautam and Gautham are one sound, checked in the database).
   const names = EVERY.flatMap((x) => x.questions).find((q) => /similar-sounding/.test(q.note ?? ""));
   ok("the similar-sounding example names Goutam, Gautam and Gautham", !!names && /Goutam/.test(names.note!) && /Gautam\b/.test(names.note!) && /Gautham/.test(names.note!), JSON.stringify(names));
 }
-// ---- a question shown under a button is one that button really answers (the engines that run offline: PAX, Hospital OPD, Degrees), each with the line-making of its own button
+// ---- a question shown under a button must be one that button really answers (the engines that run offline: PAX, Hospital OPD, Degrees), each run with the line-making of its own button
 (async () => {
   const NOW = DateTime.fromISO("2026-10-25T10:00:00", { zone: "Asia/Kolkata" });
   const noHolidays = async () => ({ yearLoaded: false, hits: [] });

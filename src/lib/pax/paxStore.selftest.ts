@@ -5,7 +5,7 @@
 // HONEST NOTE: sql/12_pax_directory.sql is not in the repository; the table below is rebuilt from the handoff's description (columns id, dept_name, location, number, label, note, source, created_at, updated_at;
 // UNIQUE (label, number); a function public.pax_area(number); row level security with everything revoked from the public API roles). The numbers other than the ones the handoff names are INVENTED.
 // What this test proves: the loader's SQL is valid Postgres and reads those columns; the area words of the function are understood; the route answers from rows READ FROM A TABLE.
-// What it cannot prove: that the live table has exactly these columns. The read-only file cleanup/sql/63a_check_pax_directory.sql shows the live table's real shape (run it once).
+// What it cannot prove: that the live table has exactly these columns. Run the read-only file cleanup/sql/63a_check_pax_directory.sql once: it shows the live table's real shape.
 
 import { Client } from "pg";
 import { runOmnibar } from "../nl2sql/omnibar";
@@ -79,7 +79,7 @@ async function main() {
   a = await real("pax");
   ok("end to end: 'pax' -> the directory: 10 distinct numbers on 11 entries", a?.card.headline?.text === "10 PAX numbers" && a.card.table?.rows.length === 11, JSON.stringify(a?.card.headline));
 
-  // through the real runOmnibar, the model's client must stay untouched
+  // I run this through the real runOmnibar: the model's client must stay untouched
   let modelClient = 0;
   const deps = {
     enabled: true, verifiedMin: 1, skipModel: true, legacy: async () => null, holiday: async () => null, hospital: async () => null,
@@ -90,7 +90,7 @@ async function main() {
   const o = (await runOmnibar("pax fire servise", "U1", deps)) as { hospital?: { headline?: { text: string } }; source?: string; interpretation?: string } | null;
   ok("runOmnibar over the table: a misspelt name is found, the correction is said, the model's client is never used", o?.hospital?.headline?.text === "42046" && /Read “servise” as “service”/.test(o.interpretation ?? "") && o.source === "holiday" && modelClient === 0, JSON.stringify(o));
 
-  // a different wording of the area function must not turn a plant number into "not classified"
+  // I check that a different wording of the area function does not turn a plant number into "not classified"
   await c.end();
   const c2 = await build({ plant: "In plant", outside: "Outside_plant", none: "Not classified" });
   const rows2 = await loadPaxRows(async (sql, params) => (await c2.query(sql, params as never[])).rows);

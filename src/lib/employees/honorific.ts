@@ -1,13 +1,13 @@
 // src/lib/employees/honorific.ts
 //
-// "Dr." before a name, WHEN IT IS SHOWN (step 47a). The stored names have no title (checked on the live data: none of the main hospital's 63 executives starts with "Dr"), and they
-// must stay that way: the name search (first word, surname, phonetic codes, "kumar as a middle word", alphabetical order) works on the plain name. So the title is added only at the
+// "Dr." before a name, WHEN IT IS SHOWN (step 47a). The stored names have no title (checked on the live data: none of the main hospital's 63 executives starts with "Dr"), and I want them to
+// stay that way: the name search (first word, surname, phonetic codes, "kumar as a middle word", alphabetical order) works on the plain name. So I add the title only at the
 // moment of display, by the one rule below, in every place that builds or shows a person.
 //
 // Who gets "Dr.":
 //   1. every person on the MEDICAL track of the designation table (Director(M&HS), Joint Director, Sr. Deputy Director, Asst. Director/Sr. Consultant, DMO/Consultant, ADMO/Specialist,
 //      Medical Officer): automatic, nothing to maintain;
-//   2. the NON-MEDICAL employees (executives and non-executives) who hold a PhD and write "Dr." before their name: the data cannot tell, so their tickets are listed in DR_TICKETS below.
+//   2. the NON-MEDICAL employees (executives and non-executives) who hold a PhD and write "Dr." before their name: the data cannot tell, so I list their tickets in DR_TICKETS below.
 // This file has no server code, so the browser can use it.
 
 /**
@@ -15,8 +15,8 @@
  * the test (honorific.selftest.ts) checks the format and that no ticket is listed twice.
  */
 export const DR_TICKETS: readonly string[] = [
-  "440480", // Partha Mukhopadhyay, Asst. Manager, Business Excellence: holds a PhD, promoted from the non-executives (confirmed by the owner, 24 Oct 2026)
-  "497823", // Gautam Kumar Mandal, IED: holds a PhD, a direct recruit (confirmed by the owner, 27 Oct 2026)
+  "440480", // Partha Mukhopadhyay, Asst. Manager, Business Excellence: holds a PhD, promoted from the non-executives (confirmed by me, 24 Oct 2026)
+  "497823", // Gautam Kumar Mandal, IED: holds a PhD, a direct recruit (confirmed by me, 27 Oct 2026)
 ];
 
 export type Title = "Dr.";
@@ -24,32 +24,32 @@ export type Title = "Dr.";
 /** The rule, for a given list of extra tickets (the tests use their own list). */
 export function makeTitleFor(tickets: readonly string[]) {
   const extra = new Set(tickets.map((t) => String(t).trim()));
-  // a doctor is on the medical track OR flagged in the roster (doctor_override: a doctor whose designation is a managerial one); a listed PhD holder is the third way
+  // A doctor is on the medical track OR flagged in the roster (doctor_override: a doctor whose designation is a managerial one); a listed PhD holder is the third way.
   return (ticketNo: unknown, track: unknown, isDoctor?: unknown): Title | null =>
     track === "medical" || isDoctor === true || extra.has(String(ticketNo ?? "").trim()) ? "Dr." : null;
 }
 export const titleFor = makeTitleFor(DR_TICKETS);
 
-/** The small "PhD" badge on the card: only the people on the manual list (a non-medical employee with a PhD). A doctor has the title already and needs no badge. */
+/** The small "PhD" badge on the card: I show it only for the people on the manual list (a non-medical employee with a PhD). A doctor has the title already and needs no badge. */
 export function makePhdHolder(tickets: readonly string[]) {
   const listed = new Set(tickets.map((t) => String(t).trim()));
   return (ticketNo: unknown, track: unknown, isDoctor?: unknown): boolean => track !== "medical" && isDoctor !== true && listed.has(String(ticketNo ?? "").trim());
 }
 export const isPhdHolder = makePhdHolder(DR_TICKETS);
 
-/** Is this person a doctor: on the medical track of the designation table, or flagged in the roster (doctor_override) because the designation is a managerial one although the person is a doctor. */
+/** Is this person a doctor? Yes if on the medical track of the designation table, or flagged in the roster (doctor_override) because the designation is a managerial one although the person is a doctor. */
 export const isDoctorPerson = (track: unknown, doctorOverride: unknown): boolean => track === "medical" || doctorOverride === true;
 
 const HAS_TITLE = /^\s*(?:dr|doctor)(?:\.|\s)/i;
 
-/** The name as shown: "Dr. ARIJIT CHAKRABORTY". A name that already starts with Dr / Doctor is left as it is (never "Dr. Dr."). */
+/** The name as shown: "Dr. ARIJIT CHAKRABORTY". A name that already starts with Dr / Doctor is left as it is, so it is never "Dr. Dr.". */
 export function withTitle(name: unknown, title?: string | null): string {
   const n = typeof name === "string" ? name : "";
   if (!title || !n || HAS_TITLE.test(n)) return n;
   return `${title} ${n}`;
 }
 
-/** "Dr. Anil Kumar" typed into a search means the stored name "Anil Kumar": a LEADING Dr / Dr. / Doctor is a title, not a word of any stored name. Anything else is returned as it is. */
+/** "Dr. Anil Kumar" typed into a search means the stored name "Anil Kumar": I treat a LEADING Dr / Dr. / Doctor as a title, not a word of any stored name. Anything else is returned as it is. */
 export function stripDoctorTitle(q: string): string {
   const s = String(q ?? "");
   return s.replace(/^\s*(?:dr|doctor)(?:\.\s*|\s+)(?=\S)/i, "");

@@ -1,4 +1,4 @@
-// src/lib/nl2sql/log.ts -- best-effort persistence; never breaks an answer.
+// src/lib/nl2sql/log.ts -- best-effort persistence; I never let it break an answer.
 import type { SqlClient } from "./types";
 import { latestVotesCte } from "./votes";
 import { normalizeQuestion } from "./text";
@@ -14,15 +14,15 @@ export interface LogEntry {
   rowTotal: number | null;
   elapsedMs: number;
   attempts: number;
-  /** 'nl2sql' (model wrote it) or 'cache' (a verified answer was re-run). */
+  /** 'nl2sql' (the model wrote it) or 'cache' (a verified answer was re-run). */
   source?: "nl2sql" | "cache";
   /** The answer this one replaced after a "No". */
   retryOf?: number | null;
 }
 
 /**
- * ONE LINE PER ANSWER in the server's own log while the app runs in development (`npm run dev:log` keeps it in .dev-server.log), so a wrong or failed answer can be checked without the SQL being shown on the
- * screen: the question, how it was read, the SQL on one line, and the outcome. No ticket number. Not written in production (the same facts are in public.nl2sql_log, below). Never throws.
+ * I write ONE LINE PER ANSWER in the server's own log while the app runs in development (`npm run dev:log` keeps it in .dev-server.log), so a wrong or failed answer can be checked without the SQL being shown on the
+ * screen: the question, how it was read, the SQL on one line, and the outcome. No ticket number. Nothing is written in production (the same facts are in public.nl2sql_log, below). It never throws.
  */
 export function logLine(e: LogEntry, id: number | null): void {
   if (process.env.NODE_ENV === "production") return;
@@ -33,7 +33,7 @@ export function logLine(e: LogEntry, id: number | null): void {
         `  Q: ${oneLine(e.question)}\n  understood: ${oneLine(e.understoodAs) || "-"}\n  SQL: ${oneLine(e.sql) || "-"}` + (e.error ? `\n  error: ${oneLine(e.error)}` : ""),
     );
   } catch {
-    /* a log line never breaks an answer */
+    /* a log line must never break an answer */
   }
 }
 
@@ -54,7 +54,7 @@ export async function logResult(client: SqlClient, e: LogEntry): Promise<number 
   }
 }
 
-/** Record a tick/cross. Only the person who asked can rate their own answer. */
+/** Records a tick/cross. Only the person who asked can rate their own answer. */
 export async function recordVerdict(
   client: SqlClient,
   logId: number,
@@ -80,8 +80,8 @@ export async function recordVerdict(
  * SQL that must not be offered again for this exact question:
  *  - what THIS person's latest vote marked wrong (30 days), and
  *  - what at least one person marked wrong and nobody confirmed (blocked for everyone).
- *  Votes are counted by votes.ts: one voice per person, the latest vote of each person wins. If one
- *  person says Yes and another says No the reading is DISPUTED: neither pinned nor blocked.
+ *  Votes are counted by votes.ts: one voice per person, and the latest vote of each person wins. If one
+ *  person says Yes and another says No, I treat the reading as DISPUTED: neither pinned nor blocked.
  */
 export async function loadRejectedSql(client: SqlClient, userKey: string | null, question: string): Promise<string[]> {
   const qn = normalizeQuestion(question);
@@ -111,12 +111,12 @@ export async function loadRejectedSql(client: SqlClient, userKey: string | null,
     );
     out.push(...g.rows.map((x: any) => String(x.sql)));
   } catch {
-    /* best effort */
+    /* best effort, same as above */
   }
   return Array.from(new Set(out));
 }
 
-/** One log row, e.g. the answer a person just rejected (to tell the model what NOT to repeat). */
+/** Loads one log row, e.g. the answer a person just rejected (so I can tell the model what NOT to repeat). */
 export async function loadLogRow(client: SqlClient, id: number): Promise<{ id: number; question: string; sql: string | null; userKey: string | null } | null> {
   try {
     const r = await client.query(`SELECT id, question, sql, user_key FROM public.nl2sql_log WHERE id = $1`, [id]);

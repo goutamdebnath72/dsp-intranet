@@ -1,18 +1,18 @@
 // src/lib/ingestion/schedule/rosterProbe.ts
 //
-// Is this circular a ROSTER (a health check-up schedule: a ruled table of T.No / Name / Deptt.Code / Department, with the date printed once per
-// group of rows)? Decided from the PAGES, not from what the uploader typed as the headline.
+// This decides whether a circular is a ROSTER (a health check-up schedule: a ruled table of T.No / Name / Deptt.Code / Department, with the date printed once per
+// group of rows). I decide it from the PAGES, not from the headline the uploader typed.
 //
-// Two steps, cheapest first:
+// I do it in two steps, cheapest first:
 //   1. STRUCTURE (image only, about a second a page): a ruled table whose last column is cut into MERGED cells, far fewer than the rows beside them
 //      (a roster prints each date once for a whole group of rows; an ordinary table has a rule on every row in every column). Pages of letters and
 //      ordinary tables fail here, so an ordinary circular costs nothing but this look at its first few pages.
 //   2. HEADINGS (Gemini's reading of ONE page, once per document): the top of the table must read like a roster's heading row: the TICKET column
 //      (T.No) and at least two of Name, Deptt, Department, Date, Code. A ruled table with date cells that is NOT a roster stops here and is read
-//      the normal way. (If the first roster-like page has no headings, being a continuation page, the next one is tried before giving up.)
+//      the normal way. (If the first roster-like page has no headings, being a continuation page, I try the next one before giving up.)
 //
 // The probe looks at the first few pages only (ROSTER_DISCOVERY_PAGES): a circular that has shown no roster table by then is treated as an ordinary
-// one, so no long document pays for a search it cannot need. Once a roster table is confirmed, every later page is looked at too (the schedule may
+// one, so no long document pays for a search it cannot need. Once a roster table is confirmed, I look at every later page too (the schedule may
 // run to the last page, and the page after it may be a letter).
 //
 // Nothing here writes anything or changes how an ordinary page is read.
@@ -21,7 +21,7 @@ import { clusterLines, findHorizontalLines, loadGray } from "./lines";
 import { estimateTilt, deskewPng } from "./deskew";
 import { findDateCells, findFrame, type Frame } from "./dateCells";
 
-/** How many of a document's first pages are looked at to find a roster table. */
+/** I look at only this many of a document's first pages to find a roster table. */
 export const ROSTER_DISCOVERY_PAGES = 6;
 
 export interface RosterStructure {
@@ -29,7 +29,7 @@ export interface RosterStructure {
   why: string;
 }
 
-/** Does the page have the STRUCTURE of a roster: a ruled table with a column of merged date cells? (Looks at the picture only.) */
+/** Does the page have the STRUCTURE of a roster: a ruled table with a column of merged date cells? I look at the picture only. */
 export async function analyzeRosterStructure(png: Buffer): Promise<RosterStructure> {
   const tilt = estimateTilt(await loadGray(png));
   const { png: straight } = await deskewPng(png, tilt.k);
@@ -38,8 +38,8 @@ export async function analyzeRosterStructure(png: Buffer): Promise<RosterStructu
   if (!frame) return { rosterLike: false, why: "no ruled table" };
   const dc = findDateCells(g, frame);
   if (!dc) return { rosterLike: false, why: "a table without a date column" };
-  // MERGED: the last column is cut into at most half as many cells as the column beside it is cut into rows. (On real roster pages the rows beside
-  // the date column number 22 to 73 and its cells 2 to 12; in an ordinary table the two are the same.)
+  // MERGED means the last column is cut into at most half as many cells as the column beside it is cut into rows. On real roster pages the rows beside
+  // the date column number 22 to 73 and its cells 2 to 12; in an ordinary table the two are the same.
   const n = frame.rules.length;
   const xL = frame.rules[n - 3];
   const xR = frame.rules[n - 2];
@@ -63,12 +63,12 @@ export async function analyzeRosterStructure(png: Buffer): Promise<RosterStructu
 
 const OTHER_HEADINGS = ["name", "deptt", "department", "date", "code"];
 
-/** How much of the page's text (Gemini's reading) is searched for the heading row: the heading row sits right below the title. */
+/** This is how much of the page's text (Gemini's reading) I search for the heading row, because the heading row sits right below the title. */
 const HEADER_TEXT_CHARS = 1800;
 
 /**
  * Do the first lines of the page's text read like a roster's heading row: the TICKET column (T.No) and at least two of Name, Deptt, Department, Date, Code?
- * The ticket column is required so that a stray "name" or "date" in a table of something else cannot pass. The text is Gemini's reading of the page.
+ * I require the ticket column so that a stray "name" or "date" in a table of something else cannot pass. The text is Gemini's reading of the page.
  */
 export function headerLooksLikeRosterText(text: string): boolean {
   const hay = String(text ?? "").slice(0, HEADER_TEXT_CHARS).toLowerCase();
@@ -83,9 +83,9 @@ export interface RosterVerdict {
 }
 
 export interface RosterProbe {
-  /** Page by page, in order. `readText` returns Gemini's reading of the page (called only for a page that LOOKS like a roster, to read its heading row). */
+  /** I classify page by page, in order. `readText` returns Gemini's reading of the page; I call it only for a page that LOOKS like a roster, to read its heading row. */
   classify(png: Buffer, pageNo: number, readText: () => Promise<string>): Promise<RosterVerdict>;
-  /** null = undecided, true = a roster circular, false = an ordinary one */
+  /** null means undecided, true a roster circular, false an ordinary one */
   readonly isRoster: boolean | null;
 }
 
@@ -100,7 +100,7 @@ export function createRosterProbe(opts: { discoveryPages?: number } = {}): Roste
     async classify(png, pageNo, readText) {
       if (confirmed === false) return { roster: false, why: "this circular is not a roster" };
       if (confirmed === null && pageNo > discoveryPages) {
-        confirmed = false; // no roster table in the first pages: an ordinary circular, and no more looking
+        confirmed = false; // No roster table in the first pages, so I call it an ordinary circular and stop looking
         return { roster: false, why: `no roster table in the first ${discoveryPages} pages` };
       }
       const s = await analyzeRosterStructure(png);
@@ -109,7 +109,7 @@ export function createRosterProbe(opts: { discoveryPages?: number } = {}): Roste
         headerTries++;
         if (headerLooksLikeRosterText(await readText())) confirmed = true;
         else {
-          if (headerTries >= 2) confirmed = false; // two roster-like pages and neither has roster headings: not a roster
+          if (headerTries >= 2) confirmed = false; // Two roster-like pages and neither has roster headings, so I say it is not a roster
           return { roster: false, why: "a table with a date column, but its headings do not read like a roster's" };
         }
       }

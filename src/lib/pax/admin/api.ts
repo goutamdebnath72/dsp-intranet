@@ -1,13 +1,13 @@
 // src/lib/pax/admin/api.ts
 //
-// THE PAX ADMIN REQUESTS (step 64a). One handler for every operation the panel can ask; the route (src/app/api/pax/admin/route.ts) only brings the logged-in person and the database.
-// The person comes from the LOGIN SESSION and from nowhere else: whatever the browser says about itself (a ticket, a name, a role) is ignored. The rules of who may do what are enforced here AND again inside the
+// THE PAX ADMIN REQUESTS (step 64a). I use one handler for every operation the panel can ask; the route (src/app/api/pax/admin/route.ts) only brings the logged-in person and the database.
+// The person comes from the LOGIN SESSION and from nowhere else: whatever the browser says about itself (a ticket, a name, a role) is ignored. I enforce the rules of who may do what here AND again inside the
 // database transaction (store.ts), so the panel hiding a button is a courtesy, never the protection.
 //   logged out                                    -> 401
 //   logged in, no authority (not the HOD, not authorised) -> 403 for everything except "me"
 //   the HOD of C&IT (SUPERADMIN_TICKETS)             -> everything
 //   an authorised executive                       -> entries (list, add, modify, delete) and the history; NOT authorising or revoking, NOT the list of authorised people
-// The executive to authorise is looked up by the SERVER in the people directory (a typed name is never trusted): only an executive (ticket 4xxxxx) exists for this purpose.
+// The server looks up the executive to authorise in the people directory (a typed name is never trusted): only an executive (ticket 4xxxxx) exists for this purpose.
 
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import { resolveGrantTarget } from "@/lib/facility/authorise";
@@ -28,9 +28,9 @@ export interface ApiReply { status: number; body: Record<string, unknown> }
 
 const reply = (status: number, body: Record<string, unknown>): ApiReply => ({ status, body });
 
-/** A request from another site must not act with this person's login: the page that sent it has to be this site. */
+/** A request from another site must not act with this person's login, so I require that the page that sent it is this site. */
 export function isSameOrigin(origin: string | null | undefined, host: string | null | undefined): boolean {
-  if (!origin) return true; // a request without an Origin header is not a browser page of another site (the login cookie is also SameSite)
+  if (!origin) return true; // a request without an Origin header is not a browser page of another site (the login cookie is also SameSite), so I let it through
   try {
     return !!host && new URL(origin).host === host;
   } catch {
@@ -45,11 +45,11 @@ const text = (v: unknown, max = 200): string => String(v ?? "").slice(0, max);
 const acksOf = (v: unknown): Acknowledge[] => (Array.isArray(v) ? v.filter((x): x is Acknowledge => x === "second-number" || x === "different") : []);
 const idOf = (v: unknown): number | null => (typeof v === "number" && Number.isSafeInteger(v) && v > 0 ? v : null);
 
-/** The reply for an error the handler did not expect. A missing shared table (sql/17 not yet run) is named, so nobody has to read a server log to learn it. */
+/** The reply for an error the handler did not expect. I name a missing shared table (sql/17 not yet run), so nobody has to read a server log to learn it. */
 export function errorReply(e: unknown): ApiReply {
   const err = e as { code?: string; message?: string; driverError?: { code?: string } };
   const code = err?.code ?? err?.driverError?.code;
-  // a non-executive confirmed before sql/18 was run: the old rule of the table (ticket starts with 4) refuses him
+  // this happens when a non-executive is confirmed before sql/18 was run: the old rule of the table (ticket starts with 4) refuses him
   if (code === "23514" && /facility_delegate_ticket_no_check/.test(String(err?.message ?? ""))) {
     return reply(503, { error: "Giving a tool to a non-executive needs one more step in the database. Run src/lib/nl2sql/sql/18_facility_nonexecutive.sql once in the Supabase SQL editor, then try again.", setupNeeded: true });
   }
@@ -60,7 +60,7 @@ export function errorReply(e: unknown): ApiReply {
 }
 
 /**
- * The people the HOD can pick to authorise: by NAME only executives (a name search must not offer 5,000 non-executives by accident); by an exact six-digit TICKET anybody, with `nonExecutive` saying so
+ * The people the HOD can pick to authorise. My rule: by NAME only executives (a name search must not offer 5,000 non-executives by accident); by an exact six-digit TICKET anybody, with `nonExecutive` saying so
  * (the screen then asks the HOD to confirm).
  */
 export async function findPeopleToAuthorise(q: string, ctx: Pick<ApiContext, "findByName" | "findByTicket">) {
@@ -97,7 +97,7 @@ export async function handlePaxAdmin(body: unknown, ctx: ApiContext): Promise<Ap
   if (op === "departments") return reply(200, { departments: await store.listDepartments(ctx.db) });
   if (op === "audit") {
     const history = await store.recentAudit(ctx.db, 50);
-    // the editor's post comes from the people directory (the history keeps ticket and name only); one look-up per person, a failing look-up leaves the post empty
+    // the editor's post comes from the people directory (the history keeps ticket and name only); I do one look-up per person, and a failing look-up leaves the post empty
     const posts = new Map<string, string>();
     for (const t of Array.from(new Set(history.map((h) => h.actorTicket)))) {
       const found = (await ctx.findByTicket(t).catch(() => [])).find((p) => String(p.ticketNo).trim() === t);
@@ -112,7 +112,7 @@ export async function handlePaxAdmin(body: unknown, ctx: ApiContext): Promise<Ap
   if (op === "modify" || op === "delete") {
     const id = idOf(b.id);
     if (id === null) return reply(400, { error: "Which line? (the id is missing)" });
-    // the version the person SAW travels with every change and delete (src/lib/concurrency/version.ts): the store refuses a save whose version is not the line's now
+    // I send the version the person SAW with every change and delete (src/lib/concurrency/version.ts): the store refuses a save whose version is not the line's now
     const version = String(b.version ?? "").slice(0, 64);
     if (op === "delete") return reply(200, { result: await store.deleteEntry(ctx.db, actor, id, { version, confirmNumber: text(b.confirmNumber, 12) }) });
     return reply(200, { result: await store.modifyEntry(ctx.db, actor, id, { department: b.department, location: b.location, number: b.number }, acksOf(b.acknowledge), version) });

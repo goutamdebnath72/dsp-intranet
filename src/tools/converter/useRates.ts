@@ -1,6 +1,6 @@
 // src/tools/converter/useRates.ts
 //
-// THE PUBLIC EXCHANGE-RATE TABLE, for the converter: downloaded once, when a topic first asks for it (a currency question, or the converter's page), and kept for half an hour. The request is a fixed
+// The public exchange-rate table, for the converter: I download it once, when a topic first asks for it (a currency question, or the converter's page), and keep it for half an hour. The request is a fixed
 // address with no body and no query: nothing the user typed is part of it. The panel (ToolPanel.tsx) calls it and hands the table to whichever card needs it.
 "use client";
 
@@ -11,7 +11,7 @@ import type { RatesState } from "@/tools/uiTypes";
 let ratesCache: { at: number; rates: Rates } | null = null;
 const RATES_TTL_MS = 30 * 60 * 1000;
 
-/** The public exchange-rate table, fetched once when first needed and kept for half an hour. Nothing the user typed is part of the request. */
+/** I fetch the public exchange-rate table once, when it is first needed, and keep it for half an hour. Nothing the user typed is part of the request. */
 export function useRates(enabled: boolean): { rates: Rates | null; state: RatesState } {
   const [rates, setRates] = useState<Rates | null>(ratesCache && Date.now() - ratesCache.at < RATES_TTL_MS ? ratesCache.rates : null);
   const [state, setState] = useState<RatesState>(rates ? "ok" : "idle");

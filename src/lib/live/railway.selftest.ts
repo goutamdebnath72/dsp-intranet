@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/railway.selftest.ts
-// The Durgapur railway station reader: drawn from a sample of RailRadar's real answer (13 Nov 2026): checks the shape, moves the days on to the day the train is at Durgapur, places each train towards Howrah or away from it only
-// when the data supports it, separates the local (MEMU) trains and the specials, orders by the clock, and refuses an answer that is not the expected one. Also: the plant's API key is never in the source.
+// The Durgapur railway station reader, tested on a sample of RailRadar's real answer (13 Nov 2026). It checks the shape, moves the days on to the day the train is at Durgapur, places each train towards Howrah or away from it only
+// when the data supports it, separates the local (MEMU) trains and the specials, orders by the clock, and refuses an answer that is not the expected one. It also checks that the plant's API key is never in the source.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { clock, daysChip, filterTrains, headingOf, nextTrain, parseRailway, shiftDays, type Train } from "./railway";

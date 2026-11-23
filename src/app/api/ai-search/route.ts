@@ -40,31 +40,26 @@ import { answerScoped } from "@/lib/records/scoped";
 import { planLine } from "@/records/plan";
 import { absentWords, judgeAbsent } from "@/lib/search/absentWords";
 
-// Vercel stops a serverless function after a time limit. A question can legitimately take
-// longer than the default (the language model may have to wait for its per-minute allowance), and an Executive Deep Synthesis
-// makes two model calls and then a second reading of the best one (edsVerify.ts): with three circulars that is 30 s of writing
-// and up to 30 s of checking. 120 s here; the engine's own deadline (EDS_DEADLINE_MS) stays under it.
+// Vercel stops a serverless function after a time limit. A question can legitimately take longer than the default (the language model may have to wait for its per-minute allowance),
+// and an Executive Deep Synthesis makes two model calls and then a second reading of the best one (edsVerify.ts): with three circulars that is 30 s of writing
+// and up to 30 s of checking. So I set 120 s here, and keep the engine's own deadline (EDS_DEADLINE_MS) under it.
 export const maxDuration = 120;
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const INDIC_SCRIPT_REGEX = /[\p{Script=Devanagari}\p{Script=Bengali}]/u;
 
-// 1. The True Vector Noise Floor
-// Google Gemini embeddings for completely unrelated text (e.g., Honda spark plugs) score ~0.55 - 0.62.
-// Valid Hindi/Cross-lingual or long conversational queries score ~0.68 - 0.78.
+// 1. The true vector noise floor
+// Google Gemini embeddings for completely unrelated text (e.g., Honda spark plugs) score about 0.55 - 0.62.
+// Valid Hindi/cross-lingual or long conversational queries score about 0.68 - 0.78.
 const ABSOLUTE_NOISE_FLOOR = 0.65;
 
-// For a person-name-shaped query (2-3 pure-Latin words, e.g. "goutam debnath"),
-// a circular/announcement must have a real textual anchor (the words appear) or
-// an unusually strong vector match to qualify — otherwise off-topic documents
-// ride the noise floor and surface as meaningless ~67% matches. This is scoped
-// to name-shaped queries only, so cross-lingual semantic matches (which score
-// ~0.68-0.78 with no shared words) are unaffected.
+// For a person-name-shaped query (2-3 pure-Latin words, e.g. "goutam debnath"), I require a circular or announcement to have a real textual anchor (the words appear)
+// or an unusually strong vector match before it qualifies. Without this, off-topic documents ride the noise floor and surface as meaningless ~67% matches.
+// I scoped it to name-shaped queries only, so cross-lingual semantic matches (which score ~0.68-0.78 with no shared words) are unaffected.
 const NAME_QUERY_VECTOR_BAR = 0.82;
 
-// A well-formed empty SynthesisResult so intellectual-mode always returns the
-// typed object the frontend expects — never a bare string.
+// I return a well-formed empty SynthesisResult so that intellectual-mode always gives the frontend the typed object it expects, never a bare string.
 function emptyBriefing(message: string): SynthesisResult {
   return {
     overview: message,
@@ -75,16 +70,14 @@ function emptyBriefing(message: string): SynthesisResult {
   };
 }
 
-// How much text of each source circular to hand the synthesis model. The UI
-// snippet stays short (pickReadableExcerpt); the synthesis needs the FULL
-// circular so figures living in a different chunk than the one that matched the
-// query (e.g. an OCR rate table, multi-page bond schedules or annexures) are
-// fully in context. Powered by Gemini Pro with 2M token context window.
+// This is how much text of each source circular I hand to the synthesis model. The UI snippet stays short (pickReadableExcerpt), but the synthesis needs the FULL
+// circular, so that figures living in a different chunk than the one that matched the query (e.g. an OCR rate table, multi-page bond schedules or annexures) are
+// fully in context. The model is Gemini Pro with a 2M token context window.
 const SYNTH_CHARS_PER_CIRCULAR = 60000;
 
-// Fetch the complete chunk text of the given circulars (all chunks, in order)
+// Here I fetch the complete chunk text of the given circulars (all chunks, in order)
 // and return a map id -> concatenated text. This is what feeds the synthesis,
-// independent of which single chunk matched the query vector.
+// whichever single chunk matched the query vector.
 async function fetchFullCircularText(
   dataSource: import("typeorm").DataSource,
   ids: number[],
@@ -109,7 +102,7 @@ async function fetchFullCircularText(
         prev ? `${prev}\n${r.text || ""}` : r.text || "",
       );
     }
-    // clamp each to the budget
+    // I clamp each one to the budget.
     for (const [k, v] of out) {
       if (v.length > SYNTH_CHARS_PER_CIRCULAR) {
         out.set(k, v.slice(0, SYNTH_CHARS_PER_CIRCULAR));
@@ -121,11 +114,8 @@ async function fetchFullCircularText(
   return out;
 }
 
-// The content engine may concatenate several chunks of a document with
-// "\n\n". When the top-scoring chunk is OCR garbage (dense tables read as
-// noise), we would rather SHOW the user a readable passage that still contains
-// their words. This picks the best candidate chunk for DISPLAY only — it never
-// affects ranking or which documents match.
+// The content engine may concatenate several chunks of a document with "\n\n". When the top-scoring chunk is OCR garbage (dense tables read as noise), I would rather SHOW the user a readable passage that still contains their words.
+// I use this only to pick the best candidate chunk for DISPLAY. It never affects ranking or which documents match, and it must not.
 function pickReadableExcerpt(
   chunkText: string | null | undefined,
   tokens: string[],
@@ -138,10 +128,8 @@ function pickReadableExcerpt(
     .filter(Boolean);
   if (candidates.length <= 1) return raw;
 
-  // Readability score: share of tokens that look like real words (letters,
-  // length >= 2). OCR gibberish ("ftftAs", "lRl202S") scores low. Add a bonus
-  // when the candidate contains the user's query tokens so the shown snippet
-  // is both clean AND relevant.
+  // I score readability as the share of tokens that look like real words (letters, length >= 2), so OCR gibberish ("ftftAs", "lRl202S") scores low.
+  // I add a bonus when the candidate contains the user's query tokens, so the shown snippet is both clean AND relevant.
   const score = (c: string) => {
     const words = c.split(/\s+/).filter(Boolean);
     if (words.length === 0) return 0;
@@ -169,12 +157,11 @@ function pickReadableExcerpt(
 
 
 /**
- * Every search goes through here. PASSIVE route logging (step 2 of the front-path plan, src/lib/search/frontPathTrace.ts):
- * the answer is exactly what handleSearch returns; this only adds x-omni-* / Server-Timing headers and ONE console line
- * saying which route answered, how long each stage took and how many model calls and tokens it used. Tracing can never
- * break a search.
+ * Every search goes through here. This is PASSIVE route logging (step 2 of the front-path plan, src/lib/search/frontPathTrace.ts):
+ * the answer is exactly what handleSearch returns. I only add x-omni-* / Server-Timing headers and ONE console line
+ * saying which route answered, how long each stage took and how many model calls and tokens it used. I made sure tracing can never break a search.
  */
-/** The answer as it leaves: the ticket number and the P.No. masked for everybody (src/lib/security/sensitiveFields.ts), the SQL the model wrote kept on the server (answerSql.ts), and, only while VISITOR_CUT_ENABLED is on, a visitor's cut-down view. */
+/** Here I shape the answer as it leaves: the ticket number and the P.No. masked for everybody (src/lib/security/sensitiveFields.ts), the SQL the model wrote kept on the server (answerSql.ts), and, only while VISITOR_CUT_ENABLED is on, a visitor's cut-down view. */
 async function shaped(res: Response, signedIn: boolean): Promise<Response> {
   if (!(res.headers.get("content-type") || "").includes("application/json")) return res;
   const body = await res.clone().json().catch(() => undefined);
@@ -192,7 +179,7 @@ export async function GET(request: Request) {
   const trace = startTrace();
   const params = new URL(request.url).searchParams;
   const answered = await withTrace(trace, () => handleSearch(request));
-  // Every answer is shaped on its way out: ticket numbers and P.Nos masked (src/lib/security/sensitiveFields.ts); the cut-down view for a visitor (src/lib/security/visitorView.ts) is kept ready and is off.
+  // I shape every answer on its way out: ticket numbers and P.Nos masked (src/lib/security/sensitiveFields.ts). The cut-down view for a visitor (src/lib/security/visitorView.ts) is kept ready, but it is off.
   const res = await shaped(answered, !!(await getSessionTicket()));
   try {
     const body = await res.clone().json().catch(() => null);
@@ -203,7 +190,7 @@ export async function GET(request: Request) {
     for (const [name, value] of Object.entries(traceHeaders(summary))) res.headers.set(name, value);
     console.info(traceLine(summary, params.get("q") || ""));
   } catch {
-    /* tracing is best-effort */
+    /* I keep tracing best-effort. */
   }
   return res;
 }
@@ -221,16 +208,12 @@ async function handleSearch(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    // Sanitize junk characters up front. cleanQueryString deliberately
-    // PRESERVES the double-quote (the whole-word trigger) and the literal
-    // punctuation (. - / @ : # & ( ) , _) and both Indic scripts, so quoted
-    // and literal lookups survive intact. Everything downstream — quote
-    // classification, the vector embedding, and the literal term — uses this
-    // single cleaned value so they can never disagree.
+    // I sanitize junk characters up front. cleanQueryString deliberately PRESERVES the double-quote (the whole-word trigger), the literal punctuation (. - / @ : # & ( ) , _) and both Indic scripts, so quoted and literal lookups survive intact.
+    // Everything downstream (quote classification, the vector embedding and the literal term) uses this single cleaned value, so they can never disagree.
     const q = cleanQueryString(searchParams.get("q") || "");
     let mode = searchParams.get("mode") || "semantic";
-    // WHO is calling comes from the login SESSION only (security audit #3 and #6). The browser's `ticket` parameter is
-    // IGNORED: anybody can type any ticket number into a URL, and executive numbers (4xxxxx) are easy to guess.
+    // Who is calling comes from the login SESSION only (security audit #3 and #6). I IGNORE the browser's `ticket` parameter:
+    // anybody can type any ticket number into a URL, and executive numbers (4xxxxx) are easy to guess.
     const endSession = traceStep("session");
     const userTicket = (await getSessionTicket()) ?? undefined;
     endSession();
@@ -239,8 +222,8 @@ async function handleSearch(request: Request) {
       return NextResponse.json([]);
     }
 
-    // A QUESTION THAT CAN REACH THE MODEL (Enter: "semantic" and "intellectual"; "title" is a plain lookup) COSTS MONEY, and the route answers signed-out visitors too: without a limit a loop at one address
-    // could spend the whole model budget. 60 a minute for one signed-in ticket, 120 a minute for one address (a department behind one gateway still fits: a person asks a few a minute at most).
+    // A question that can reach the model (Enter: "semantic" and "intellectual"; "title" is a plain lookup) COSTS MONEY, and the route answers signed-out visitors too: without a limit a loop at one address
+    // could spend the whole model budget. So I allow 60 a minute for one signed-in ticket and 120 a minute for one address (a department behind one gateway still fits: a person asks a few a minute at most).
     // See src/lib/security/rateLimit.ts for what a limit held in one server copy can and cannot do.
     if (mode === "semantic" || mode === "intellectual") {
       const turn = userTicket ? aiByTicket.take(userTicket) : aiByAddress.take(clientIp(request.headers));
@@ -248,8 +231,8 @@ async function handleSearch(request: Request) {
     }
     if (q.length > 1000) return NextResponse.json({ error: "too_long", message: "The question is too long." }, { status: 400 });
 
-    // THE MANAGEMENT PAGE AND THE MANAGEMENT TOOLS' OWN REQUESTS ("management", "admin", "holiday management", "add new employee"...) are answered FIRST, before the name checks, the language-model router and the directory
-    // loads below: those cost database round trips and a call to the model, and a page that is only a list of titles (or a tool that opens at once) has no use for any of them. Each request is read as a sentence first (pure); the
+    // I answer THE MANAGEMENT PAGE AND THE MANAGEMENT TOOLS' OWN REQUESTS ("management", "admin", "holiday management", "add new employee"...) FIRST, before the name checks, the language-model router and the directory
+    // loads below: those cost database round trips and a call to the model, and a page that is only a list of titles (or a tool that opens at once) has no use for any of them. I read each request as a sentence first (pure); the
     // database is asked only who is calling (one query for the management page), and the login is the session's, as everywhere here. A sentence that is none of them goes on as before.
     if (mode === "semantic") {
       const endAdmin = traceStep("management");
@@ -258,12 +241,12 @@ async function handleSearch(request: Request) {
       if (admin) return NextResponse.json({ analytics: admin });
     }
 
-    // THE READER'S FIXED SELECTION (src/records): "auto" is everything below, unchanged. A chosen selection is answered by its own engines only (src/lib/records/scoped.ts) and never falls through to the circulars;
-    // "documents" skips every record path and goes straight to the circular search below. The planner's reading of the line is only logged, beside what the selection was (the shadow comparison).
+    // The reader's fixed selection (src/records): "auto" is everything below, unchanged. I answer a chosen selection by its own engines only (src/lib/records/scoped.ts) and never let it fall through to the circulars;
+    // "documents" skips every record path and goes straight to the circular search below. I only log the planner's reading of the line, beside what the selection was (the shadow comparison).
     const scope = parseScope(searchParams.get("scope"));
     const facet = parseFacet(searchParams.get("facet"));
     setTracePlan(planLine(q).best?.domain ?? "-", scope);
-    if (mode === "semantic" && scope === "people" && facet === "find") return NextResponse.json([]); // a name or a number is looked up by the directory's own routes in the browser: nothing to answer here
+    if (mode === "semantic" && scope === "people" && facet === "find") return NextResponse.json([]); // the browser looks up a name or a number by the directory's own routes, so I have nothing to answer here
     if (mode === "semantic" && scope !== "auto" && scope !== "documents") {
       const endScoped = traceStep("scoped");
       const payload = await answerScoped({
@@ -273,12 +256,11 @@ async function handleSearch(request: Request) {
       endScoped();
       return NextResponse.json({ analytics: payload });
     }
-    const recordsOpen = scope === "auto"; // under "documents" no person, department or other record is looked at
+    const recordsOpen = scope === "auto"; // Under "documents" I look at no person, department or other record
 
     const endNameChecks = traceStep("name-checks");
-    // Name-shaped: 2-3 words, all pure Latin letters (a person's name). Such a
-    // query must anchor lexically in a document to qualify it (see the filter
-    // below) — this kills the "name -> random low-score circular" noise.
+    // Name-shaped means 2-3 words, all pure Latin letters (a person's name). I make such a query anchor lexically in a document before it qualifies (see the filter below);
+    // this kills the "name -> random low-score circular" noise.
     const nameTokens = q.trim().split(/\s+/);
     const looksLikeName =
       nameTokens.length >= 2 &&
@@ -286,12 +268,10 @@ async function handleSearch(request: Request) {
       !INDIC_SCRIPT_REGEX.test(q) &&
       nameTokens.every((t) => /^[A-Za-z][A-Za-z.]*$/.test(t));
 
-    // Only treat it as a name if it actually matches a PERSON in the directory
-    // (same phonetic check the People search uses). This distinguishes a real
-    // name ("goutam debnath") from a document phrase that happens to be two
-    // Latin words ("leave policy") — the latter keeps the normal semantic floor.
+    // I treat it as a name only if it actually matches a PERSON in the directory (same phonetic check the People search uses). That separates a real
+    // name ("goutam debnath") from a document phrase that happens to be two Latin words ("leave policy"); the latter keeps the normal semantic floor.
     let isNameShaped = false;
-    let deptMentioned = false; // read by the front-path gate (frontGate.ts)
+    let deptMentioned = false; // the front-path gate (frontGate.ts) reads this
     if (recordsOpen && looksLikeName) {
       try {
         const nameHit = await dataSource.query(
@@ -306,12 +286,9 @@ async function handleSearch(request: Request) {
       }
     }
 
-    // A query that NAMES A DEPARTMENT ("gautham c&it", "roy blast furnace") is a
-    // directory lookup, not a circular topic. If the leftover fragment (after
-    // removing the department) is an actual person, hold the circular side to the
-    // same strict anchor as a plain name query so floor-riding noise circulars
-    // don't leak in under the People results. A department + a real TOPIC
-    // fragment ("c&it attendance") is NOT a person -> keeps the normal floor.
+    // A query that NAMES A DEPARTMENT ("gautham c&it", "roy blast furnace") is a directory lookup, not a circular topic.
+    // If the leftover fragment (after removing the department) is an actual person, I hold the circular side to the same strict anchor as a plain name query, so floor-riding noise circulars
+    // do not leak in under the People results. A department plus a real TOPIC fragment ("c&it attendance") is NOT a person, so it keeps the normal floor.
     if (recordsOpen && !isNameShaped && !INDIC_SCRIPT_REGEX.test(q)) {
       try {
         const dept = await findSailDepartmentInText(q);
@@ -333,7 +310,7 @@ async function handleSearch(request: Request) {
           }
         }
       } catch {
-        /* department-anchor best-effort */
+        /* I keep the department anchor best-effort. */
       }
     }
 
@@ -349,15 +326,15 @@ async function handleSearch(request: Request) {
     }
 
     // --- LANGUAGE-MODEL ROUTER (Gemini; src/lib/search/pureAiEngine.ts) ---
-    // Understands any phrasing ("where do I go", pronouns, Indian English) and names the tool. It runs only for the
+    // It understands any phrasing ("where do I go", pronouns, Indian English) and names the tool. I run it only for the
     // plain semantic search: not for an explicit Deep button, not for a retry request, not for the retrieval-only test
-    // hook, and never for a question holding a ticket / P.No / phone number (those are never sent out just to be
+    // hook, and never for a question holding a ticket / P.No / phone number (I never send those out just to be
     // routed). If the model is unavailable, slow or answers something invalid it returns null and the ORIGINAL
-    // pipeline below answers: a wrong guess must never replace a right answer.
+    // pipeline below answers. My rule: a wrong guess must never replace a right answer.
     const retrievalOnly = process.env.NODE_ENV !== "production" && searchParams.get("retrievalOnly") === "1";
     const retryInfo = parseRetry(searchParams);
-    // While the language model decides where the question belongs (1-5 s), the question's embedding is already being made, for the circular search that usually follows: the result is cached by text, so it is simply there when asked for
-    // (src/lib/perf/switches.js: prefetchQueryEmbedding). Not for a name-shaped line, which goes to the people search.
+    // While the language model decides where the question belongs (1-5 s), I already start making the question's embedding for the circular search that usually follows: the result is cached by text, so it is simply there when asked for
+    // (src/lib/perf/switches.js: prefetchQueryEmbedding). I do not do this for a name-shaped line, which goes to the people search.
     if (PERF.prefetchQueryEmbedding && recordsOpen && mode === "semantic" && !retrievalOnly && !retryInfo && !looksLikeName) void generateEmbedding(q.trim(), "search_query").catch(() => undefined);
     const toolCall = recordsOpen && mode === "semantic" && !retrievalOnly && !retryInfo ? await parseQueryWithLlm(q).catch(() => null) : null;
     const agentDecision = toolCall;
@@ -372,7 +349,7 @@ async function handleSearch(request: Request) {
       });
     }
 
-    // 2. Hospital: the original engine first, the pure executor for phrasings it does not know
+    // 2. Hospital: I try the original engine first, and the pure executor for phrasings it does not know
     if (toolCall?.tool === "hospital") {
       const hospital = await answerHospitalQuestion(q, toolCall.params);
       if (hospital) return NextResponse.json({ analytics: hospital });
@@ -398,9 +375,9 @@ async function handleSearch(request: Request) {
     }
 
     // SYNTHESIS INTENT (step 26a, src/lib/search/synthesisIntent.ts): does the question need several circulars built into one
-    // answer (compare / trace / contrast / correlate / what is hidden / what changed between ...)? Only RECORDED here, for the trace
+    // answer (compare / trace / contrast / correlate / what is hidden / what changed between ...)? I only RECORD it here, for the trace
     // and the harness. The SCREEN decides (step 27a, OmnibarModal.tsx): for a logged-in executive an EDS-type question is sent as
-    // mode=intellectual, exactly like the old button; this route then verifies the executive below and never upgrades by itself.
+    // mode=intellectual, exactly like the old button. This route then verifies the executive below, and I never let it upgrade by itself.
     const synthIntent = mode === "semantic" ? detectSynthesisIntent(q) : null;
     if (synthIntent) setTraceSynth(synthIntent.level, synthIntent.score);
 
@@ -422,7 +399,7 @@ async function handleSearch(request: Request) {
         }
       }
 
-      // Not a verified executive (no login, a non-executive, or someone no longer in the directory): the plain search.
+      // Not a verified executive (no login, a non-executive, or someone no longer in the directory): I give the plain search.
       // (Until step 25a this downgrade only happened when a `ticket` parameter was present, so a request without one
       // went straight to synthesis, and any executive's ticket typed into the URL passed.)
       if (!isAuthorizedExecutive) {
@@ -433,21 +410,21 @@ async function handleSearch(request: Request) {
     // --- EMPLOYEE QUESTIONS: the language model writes the read-only SQL ---
     // Holiday questions keep their deterministic answers; every other question goes to the model, which
     // decides whether it is an employee question (answered from the database, with its reading, SQL,
-    // departments covered and a tick/cross) or not (then we fall through to circular search below).
+    // departments covered and a tick/cross) or not (then I fall through to circular search below).
     // If the model path is unavailable the previous rule-based engine answers instead.
     // See src/lib/nl2sql/omnibar.ts. Kill switch: NL2SQL_OMNIBAR_ENABLED=false.
     // Test hook (never active in production builds): ?retrievalOnly=1 skips every
     // employee/holiday answer path -- and with it every model call -- so the circular
     // search can be measured on its own, for free and repeatably (scripts/circular-battery.mjs).
     // FRONT-PATH GATE (step 24a; OFF unless FRONT_PATH_SKIP_MODEL=true; src/lib/search/frontGate.ts). A question that mentions
-    // no one in the directory, no department, no ticket and no people-data word cannot be an employee question, so the slow,
-    // token-hungry model call is skipped and circular search answers first. If circular search then finds nothing, or fails,
+    // no one in the directory, no department, no ticket and no people-data word cannot be an employee question, so I skip the slow,
+    // token-hungry model call and let circular search answer first. If circular search then finds nothing, or fails,
     // rescueWithModel asks the model after all: a wrong skip costs time, never a wrong answer.
     let modelSkipped = false;
     if (agentDecision?.tool === "circular_search") {
-      // The router's word alone does not skip the employee model (a misread would hide an employee answer): the
-      // deterministic gate must agree that nothing in the question names a person, a department, a ticket or a
-      // people-data word. rescueWithModel still asks the model if circular search then finds nothing.
+      // I do not let the router's word alone skip the employee model (a misread would hide an employee answer): the
+      // deterministic gate must agree that nothing in the question names a person, a department, a ticket or a people-data word.
+      // rescueWithModel still asks the model if circular search then finds nothing.
       let skip = false;
       try {
         const directoryWords = await loadDirectoryNameWords((sql) => dataSource.query(sql));
@@ -466,7 +443,7 @@ async function handleSearch(request: Request) {
         const directoryWords = await loadDirectoryNameWords((sql) => dataSource.query(sql));
         modelSkipped = decideModelSkip({ q, isNameShaped, deptMentioned, directoryWords }).skip;
       } catch {
-        modelSkipped = false; // the directory's word list is unavailable: behave exactly as before
+        modelSkipped = false; // If the directory's word list is unavailable, I behave exactly as before
       }
       endGate();
       setTraceGate(modelSkipped ? "skipped" : "model");
@@ -479,8 +456,8 @@ async function handleSearch(request: Request) {
       endRescue();
       return rescued ? NextResponse.json({ analytics: rescued }) : null;
     };
-    // The structured data may answer "unanswerable" (no such column). When nobody is named, the circulars get their turn first and the
-    // explanation is kept in heldAnswer, shown only if they have nothing either (step 38c, src/lib/search/dataGapRule.ts).
+    // The structured data may answer "unanswerable" (no such column). When nobody is named, I let the circulars have their turn first and keep the
+    // explanation in heldAnswer, shown only if they have nothing either (step 38c, src/lib/search/dataGapRule.ts).
     let heldAnswer: Awaited<ReturnType<typeof answerOmnibar>> = null;
     if (recordsOpen && mode === "semantic" && !retrievalOnly) {
       const endOmnibar = traceStep("omnibar");
@@ -500,42 +477,39 @@ async function handleSearch(request: Request) {
       routed = await executeSmartSemanticRouter(dataSource, q);
     } catch (routerErr) {
       endCircular();
-      if (heldAnswer) return NextResponse.json({ analytics: heldAnswer }); // the circulars are unavailable: the data's own explanation stands
-      const rescued = await rescueWithModel(); // the gate skipped the model but circular search is unavailable
+      if (heldAnswer) return NextResponse.json({ analytics: heldAnswer }); // The circulars are unavailable, so I let the data's own explanation stand.
+      const rescued = await rescueWithModel(); // I get here when the gate skipped the model but circular search is unavailable
       if (rescued) return rescued;
       throw routerErr;
     }
     const { uniqueResults } = routed;
     endCircular();
 
-    // Quoted-query classification (double-quote only; Latin-only gets
-    // case-insensitive whole-word, Indic stays substring) — mirrors the SQL
-    // literal branch in semanticContentSearch so the two never disagree.
+    // Quoted-query classification (double-quote only; Latin-only gets case-insensitive whole-word, Indic stays substring). I mirror the SQL
+    // literal branch in semanticContentSearch here, so the two never disagree.
     const quoted = classifyQuoted(q);
     const isExplicitQuotedQuery = quoted.isQuoted;
     const cleanQ = quoted.phrase.toLowerCase();
-    // Lexical evidence uses CONTENT words only (see lib/search/topicGate.ts):
-    // counting "what", "the", "for" made nearly every chunk a "perfect match".
+    // I count CONTENT words only as lexical evidence (see lib/search/topicGate.ts): counting "what", "the", "for" made nearly every chunk a "perfect match".
     // Quoted and Indic queries keep the original token rule unchanged.
     const strictLexical = !isExplicitQuotedQuery && !INDIC_SCRIPT_REGEX.test(q);
     const allTokens = cleanQ.split(/\s+/).filter((t) => t.length > 2);
     const contentOnly = strictLexical ? contentTokens(cleanQ) : [];
     const queryTokens = strictLexical && contentOnly.length > 0 ? contentOnly : allTokens;
-    // What the question is ABOUT (content words minus who-it-is-for words): a result
-    // that shares only "contract workers" with "leave policy for contract workers"
-    // is about something else, however many audience words it repeats.
+    // This is what the question is ABOUT (content words minus who-it-is-for words). A result that shares only "contract workers" with "leave policy for contract workers"
+    // I treat as about something else, however many audience words it repeats.
     const topicQ = strictLexical ? topicTokens(queryTokens) : [];
-    // Rarity weights (lib/search/tokenWeights.ts): a word found in every circular counts
-    // little, a word found in one or two counts a lot. Quoted/Indic queries stay unweighted.
+    // I weight by rarity (lib/search/tokenWeights.ts): a word found in every circular counts little, a word found in one or two counts a lot.
+    // Quoted/Indic queries stay unweighted.
     const tokenWeight = strictLexical ? await queryTokenWeights(dataSource, queryTokens) : null;
-    // UNDER "CIRCULARS & NOTICES" the reader asked for documents only, so a question whose words are in NO document is told so (src/lib/search/absentWords.ts), not answered with whatever shares one common word
+    // Under "CIRCULARS & NOTICES" the reader asked for documents only, so when a question's words are in NO document I say so (src/lib/search/absentWords.ts), instead of answering with whatever shares one common word
     let documentsNote: string | null = null;
     if (scope === "documents" && mode === "semantic" && strictLexical && !retryInfo) {
       const verdict = judgeAbsent(queryTokens, await absentWords(dataSource, queryTokens));
       if (verdict.nothing) return NextResponse.json({ analytics: { kind: "clarify", answer: verdict.sentence, source: "none", attempt: 1 }, results: [] });
       if (verdict.partial) documentsNote = verdict.sentence;
     }
-    // Lexical evidence is read from the BEST PASSAGE among all of a circular's chunks, not only
+    // I read lexical evidence from the BEST PASSAGE among all of a circular's chunks, not only
     // the one chunk the engine surfaced (lib/search/documentText.ts). Quoted/Indic queries keep
     // the single chunk.
     const docChunks = strictLexical
@@ -544,8 +518,8 @@ async function handleSearch(request: Request) {
           (uniqueResults || []).filter((r: any) => r.type === "circular").map((r: any) => Number(r.id)),
         )
       : new Map<number, string[]>();
-    // Holiday notes are the answer to a holiday question: lift them BEFORE the top-5 cut so a
-    // slightly low-scoring note cannot be crowded out by circulars (not for contractor questions).
+    // Holiday notes are the answer to a holiday question, so I lift them BEFORE the top-5 cut: a
+    // slightly low-scoring note must not be crowded out by circulars (not for contractor questions).
     const holidayFloor = strictLexical && isHolidayTopic(q) && !/\bcontract/i.test(q);
 
     const scoredResults = (uniqueResults || []).map((result) => {
@@ -554,9 +528,8 @@ async function handleSearch(request: Request) {
       const rawSim =
         typeof result.similarity === "number" ? result.similarity : 0;
 
-      // Identify Lexical Overlap for the UI Amber Box + quoted-query filter.
-      // For a quoted Latin phrase this is case-insensitive & whole-word; for an
-      // Indic quoted phrase or any unquoted query it is substring (as before).
+      // I identify lexical overlap here for the UI Amber Box and the quoted-query filter. For a quoted Latin phrase it is case-insensitive and whole-word;
+      // for an Indic quoted phrase or any unquoted query it is substring (as before).
       const isExactPhrase =
         quoted.phrase.length >= 2 &&
         (literalPhraseMatches(result.headline || "", quoted) ||
@@ -572,8 +545,8 @@ async function handleSearch(request: Request) {
       const evidenceLower = passage.evidence;
       const hitTokens = passage.hits;
       const tokenHits = hitTokens.length;
-      // Headline hits mark the PRIMARY document (the circular actually about
-      // the query) vs a chunk that merely mentions the words in passing.
+      // I use headline hits to mark the PRIMARY document (the circular actually about
+      // the query), as against a chunk that merely mentions the words in passing.
       const headlineHits = queryTokens.filter((t) =>
         headlineLower.includes(t),
       ).length;
@@ -583,9 +556,8 @@ async function handleSearch(request: Request) {
           ? tokenHits / queryTokens.length
           : 0;
 
-      // A "perfect" lexical match must cover most of what was asked, not just any
-      // two words (a notice that only shares "contract workers" with
-      // "leave policy for contract workers" is not a perfect match).
+      // I only call a lexical match "perfect" when it covers most of what was asked, not just any two words: a notice that shares only "contract workers" with
+      // "leave policy for contract workers" does not count.
       const topicRelevant =
         topicQ.length === 0 ||
         topicQ.some((t) => headlineLower.includes(t)) ||
@@ -597,24 +569,24 @@ async function handleSearch(request: Request) {
           tokenHits >= 2 &&
           (!strictLexical || (coverage >= 0.6 && topicRelevant)));
 
-      // Map to a human-friendly percentage. Within each band the score varies
-      // CONTINUOUSLY with token coverage + headline hits + vector, so a primary
+      // I map the score to a human-friendly percentage. Within each band it varies
+      // CONTINUOUSLY with token coverage, headline hits and vector, so a primary
       // match separates from a supporting one instead of both flat-lining at 89.
       let displayMatch = 0;
       if (isExactPhrase) {
-        // 94-98: exact phrase present; nudge by headline + vector.
+        // 94-98: the exact phrase is present; I nudge by headline and vector.
         displayMatch =
           94 + Math.min(4, headlineHits * 1.5 + (rawSim > 0.7 ? 1 : 0));
       } else if (isPerfectMatch) {
-        // 82-93: spread by how much of the query is covered and whether the
-        // headline carries the terms (primary doc) plus a small vector nudge.
+        // 82-93: I spread by how much of the query is covered and whether the
+        // headline carries the terms (primary doc), plus a small vector nudge.
         displayMatch =
           82 +
           coverage * 6 + // 0-6 by token coverage
           Math.min(3, headlineHits * 1.5) + // 0-3 headline bonus
           (rawSim > 0.7 ? 2 : 0); // small semantic nudge
       } else {
-        // 60-81: pure vector, scaled from the noise floor.
+        // 60-81: pure vector, which I scale from the noise floor.
         displayMatch =
           60 +
           ((rawSim - ABSOLUTE_NOISE_FLOOR) / (0.9 - ABSOLUTE_NOISE_FLOOR)) * 21;
@@ -630,10 +602,10 @@ async function handleSearch(request: Request) {
       };
     });
 
-    // Admission filter. A quoted query still demands the exact phrase.
+    // This is the admission filter. A quoted query still demands the exact phrase.
     // Otherwise a result qualifies if EITHER it clears the vector noise floor
     // OR it carries a strong lexical signal (the exact phrase, or >=2 query
-    // tokens present in headline/chunk). The lexical rescue matters because a
+    // tokens present in headline/chunk). I need the lexical rescue because a
     // chunk that literally contains the user's words must never be discarded
     // just because a form/table document embeds with low semantic similarity
     // (e.g. "format B declaration for SIR" lives in a names table).
@@ -641,8 +613,8 @@ async function handleSearch(request: Request) {
       if (isExplicitQuotedQuery) return item.isExactPhrase;
       const rawSim = typeof item.similarity === "number" ? item.similarity : 0;
       if (isNameShaped) {
-        // A person-name query needs a genuine textual anchor, or a very strong
-        // vector score — no floor-riding. Documents that actually mention the
+        // I require a person-name query to have a genuine textual anchor, or a very strong
+        // vector score: no floor-riding. Documents that actually mention the
         // name (lexical hit) still qualify.
         return (
           item.isExactPhrase ||
@@ -663,16 +635,13 @@ async function handleSearch(request: Request) {
           results: [],
         });
       }
-      if (heldAnswer) return NextResponse.json({ analytics: heldAnswer }); // nothing in the circulars either: the data's own explanation stands
+      if (heldAnswer) return NextResponse.json({ analytics: heldAnswer }); // Nothing in the circulars either, so I let the data's own explanation stand.
       return (await rescueWithModel()) ?? NextResponse.json([]);
     }
 
-    // Rank by match percentage. Intellectual (synthesis) mode gets a wider
-    // candidate pool than the plain semantic display -- executeExecutiveSynthesis
-    // now runs its own decisive year/population relevance filter on whatever it's
-    // handed (see that file), and needs real alternatives to fall back on when
-    // the top-ranked candidates turn out to be a wrong-year or wrong-population
-    // circular. Semantic/title mode is untouched: still exactly 5, same as before.
+    // I rank by match percentage. Intellectual (synthesis) mode gets a wider candidate pool than the plain semantic display: executeExecutiveSynthesis
+    // now runs its own decisive year/population relevance filter on whatever it is handed (see that file), and needs real alternatives to fall back on when
+    // the top-ranked candidates turn out to be a wrong-year or wrong-population circular. I left semantic/title mode untouched: still exactly 5, same as before.
     const PRIMARY_SOURCE_LIMIT = mode === "intellectual" ? 10 : 5;
     const topPrimarySources = qualifiedResults
       .sort((a, b) => b.matchPercentage - a.matchPercentage)
@@ -683,11 +652,9 @@ async function handleSearch(request: Request) {
       }));
 
     // --- MODE 2: SMART SEMANTIC SEARCH ---
-    // Enter uses this path. Fold the literal HEADLINE search in too, so a single
-    // Enter covers circular/announcement titles (literal) AND body (literal +
-    // vector) — the Headline button is no longer required. Exact-title hits are
-    // boosted to the top; body/semantic hits follow. (Headline search is Latin-
-    // only; Indic queries rely on the vector path, unchanged.)
+    // Enter uses this path. I fold the literal HEADLINE search in too, so a single Enter covers circular/announcement titles (literal) AND body (literal + vector);
+    // the Headline button is no longer required. Exact-title hits are boosted to the top, and body/semantic hits follow.
+    // (Headline search is Latin-only; Indic queries rely on the vector path, unchanged.)
     if (mode === "semantic") {
       let merged = topPrimarySources as any[];
       if (!INDIC_SCRIPT_REGEX.test(q)) {
@@ -701,7 +668,7 @@ async function handleSearch(request: Request) {
             const key = `${t.type}-${t.id}`;
             const existing = byKey.get(key);
             if (existing) {
-              // already a body/semantic hit — promote it: an exact title match
+              // It is already a body/semantic hit, so I promote it: an exact title match
               // is the strongest signal.
               existing.matchPercentage = Math.max(
                 existing.matchPercentage ?? 0,
@@ -719,12 +686,10 @@ async function handleSearch(request: Request) {
             }
           }
 
-          // Headline-only embedding hits (circulars with no body chunks at
-          // all -- see headlineEmbeddingSearch.ts). A real cosine
-          // similarity, not a literal match, so it gets its own honest
-          // percentage rather than the fixed 96 a literal title match
-          // earns -- these should read as "related" not "exact."
-          // The holiday-list circulars (no body text) only belong in the results
+          // These are headline-only embedding hits (circulars with no body chunks at
+          // all -- see headlineEmbeddingSearch.ts). The score is a real cosine
+          // similarity, not a literal match, so I give it its own honest percentage rather than the fixed 96 a literal title match
+          // earns: these should read as "related", not "exact." The holiday-list circulars (no body text) only belong in the results
           // when the question is about holidays; otherwise they are filler.
           const headlineHits = isHolidayTopic(q)
             ? await executeHeadlineEmbeddingSearch(dataSource, q, 8)
@@ -745,14 +710,14 @@ async function handleSearch(request: Request) {
             }
           }
 
-          // Rank rules (year, audience, holiday-first, cutoff): see lib/search/rankAdjust.ts.
+          // My rank rules (year, audience, holiday-first, cutoff) are in lib/search/rankAdjust.ts.
           // Quoted and Indic queries pass through unchanged.
           const sortedByPct = Array.from(byKey.values()).sort(
             (a, b) => (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0),
           );
           merged = applyRankAdjustments(q, sortedByPct as any[]).slice(0, 6);
         } catch (e) {
-          // headline fold is best-effort; body/semantic results still stand.
+          // I fold the headline search in on a best-effort basis; if it fails, the body and semantic results still stand.
           console.warn("headline fold failed:", (e as any)?.message ?? e);
         }
       }
@@ -762,11 +727,10 @@ async function handleSearch(request: Request) {
     }
 
     // --- MODE 3: EXECUTIVE DEEP SYNTHESIS ---
-    // Feed synthesis the FULL text of each source circular (all chunks), not
-    // the single readable UI excerpt — so figures in an unmatched chunk (e.g. a
+    // I feed synthesis the FULL text of each source circular (all chunks), not the single readable UI excerpt, so figures in an unmatched chunk (e.g. a
     // rate table) are in context. The UI list still shows the short excerpt.
     // The deep summary reads CIRCULARS AND ANNOUNCEMENTS (an announcement's text is its body and the text of its PDF). The two have row numbers of their own, which can be the same number, so an announcement
-    // travels as a source under a moved number (src/lib/search/sourceKey.ts) and every citation and card below uses that one number. A holiday note is not a source.
+    // travels as a source under a moved number (src/lib/search/sourceKey.ts), and every citation and card below uses that one number. A holiday note is not a source.
     const circularIds = topPrimarySources.filter((r) => r.type === "circular").map((r) => r.id);
     const announcementIds = topPrimarySources.filter((r) => r.type === "announcement").map((r) => r.id);
     const [circularText, announcementText] = await Promise.all([
@@ -776,7 +740,7 @@ async function handleSearch(request: Request) {
     const eds = assembleEdsSources(topPrimarySources as any[], circularText, announcementText);
     let synthesis: SynthesisResult;
     if (eds.sources.length > 0) {
-      // The reader names a circular by the number the archive shows ("007") and its year, never by the database id; an announcement by its label.
+      // I name a circular for the reader by the number the archive shows ("007") and its year, never by the database id, and an announcement by its label.
       const labels = await fetchCircularLabels(dataSource, circularIds);
       for (const [id, label] of eds.announcementLabels) labels.set(id, label);
       const endSynthesis = traceStep("synthesis");
@@ -794,7 +758,7 @@ async function handleSearch(request: Request) {
     });
   } catch (error) {
     console.error("Search API error:", error);
-    // The search itself failed (database/service problem) and nothing was found to show: say so (the screen shows its red
+    // The search itself failed (database/service problem) and nothing was found to show. I say so (the screen shows its red
     // "Failed to perform search. Please try again." banner) instead of letting an empty list read as "No results found".
     if (error instanceof SearchUnavailableError) {
       return NextResponse.json(

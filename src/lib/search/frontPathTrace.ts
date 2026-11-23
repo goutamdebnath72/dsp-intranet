@@ -1,14 +1,14 @@
 // src/lib/search/frontPathTrace.ts
 //
-// Step 2 of the front-path plan (HANDOFF_dsp-intranet_front-path.md): ROUTE LOGGING. PASSIVE: it changes no answer,
-// only records, for every /api/ai-search request, what happened between the Enter key and the reply:
+// Step 2 of the front-path plan (HANDOFF_dsp-intranet_front-path.md): ROUTE LOGGING. It is PASSIVE: it changes no answer,
+// it only records, for every /api/ai-search request, what happened between the Enter key and the reply:
 //   - which route answered (holiday / nl2sql / cache / legacy / clarify / circular / eds / title / none / error),
 //   - how long each stage took (name checks, the omnibar engine, circular search, synthesis),
 //   - how many model calls it made and how many tokens they used, and how long a Groq rate-limit made it wait.
 // The numbers go out as response headers (x-omni-*, Server-Timing) and as ONE console line per request, so the
-// acceptance harness and the person at the keyboard read the same facts: "no guessing where the time goes".
+// acceptance harness and the person at the keyboard read the same facts: I want no guessing where the time goes.
 //
-// It uses AsyncLocalStorage, so the model adapter (nl2sql/llm.ts) and the synthesis call can report their usage
+// I use AsyncLocalStorage, so the model adapter (nl2sql/llm.ts) and the synthesis call can report their usage
 // without being passed anything; outside a traced request every function here quietly does nothing (scripts, tests).
 
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -26,15 +26,17 @@ export interface ModelCall {
 export interface Trace {
   startedAt: number;
   route: string | null;
-  /** The analytics kind (count, clarify, error ...) when the answer was one. */
+  /** The analytics kind (count, clarify, error ...), when the answer was one. */
   kind: string | null;
-  /** What the front-path gate (frontGate.ts) decided: "skipped" (model skipped, circular search first), "model" (asked as
-   *  before) or "fallback" (it skipped, circular search found nothing or failed, so the model was asked after all).
-   *  null = the gate is off. */
+  /**
+   * What the front-path gate (frontGate.ts) decided: "skipped" (model skipped, circular search first), "model" (asked as
+   * before) or "fallback" (it skipped, circular search found nothing or failed, so the model was asked after all).
+   * null = the gate is off.
+   */
   gate: string | null;
-  /** The synthesis-intent verdict for the question (synthesisIntent.ts), "level;score", e.g. "synthesis;7". null = not asked. */
+  /** The synthesis-intent verdict for the question (synthesisIntent.ts), as "level;score", e.g. "synthesis;7". null = not asked. */
   synth: string | null;
-  /** What the umbrella's planner (src/records/plan.ts) would have chosen for the line, and the selection the reader made ("auto" when none): the shadow comparison. null = not recorded. */
+  /** What the umbrella's planner (src/records/plan.ts) would have chosen for the line, and the selection the reader made ("auto" when none). This is the shadow comparison. null = not recorded. */
   plan: string | null;
   scope: string | null;
   steps: Map<string, number>;
@@ -63,12 +65,12 @@ export function startTrace(now: number = Date.now()): Trace {
   return { startedAt: now, route: null, kind: null, gate: null, synth: null, plan: null, scope: null, steps: new Map(), calls: [], waitedMs: 0 };
 }
 
-/** Run `fn` with `trace` as the current request's trace (everything it awaits sees it). */
+/** Runs `fn` with `trace` as the current request's trace; everything it awaits sees it. */
 export function withTrace<T>(trace: Trace, fn: () => Promise<T>): Promise<T> {
   return store.run(trace, fn);
 }
 
-/** Start timing a stage; call the returned function to stop. Repeated stages with the same name add up. */
+/** Start timing a stage and call the returned function to stop. Repeated stages with the same name add up. */
 export function traceStep(name: string): () => void {
   const t = store.getStore();
   if (!t) return () => {};
@@ -136,7 +138,7 @@ export function summarizeTrace(t: Trace, now: number = Date.now()): TraceSummary
 }
 
 /**
- * Name the route from the reply itself. The server decided what to send, so the shape of the reply (and the `source`
+ * I name the route from the reply itself. The server decided what to send, so the shape of the reply (and the `source`
  * the omnibar engine stamps on an analytics answer) IS the route. A list is circular search; an empty list is "none".
  */
 export function routeFromReply(status: number, mode: string, body: unknown): { route: string; kind: string | null } {
@@ -151,7 +153,7 @@ export function routeFromReply(status: number, mode: string, body: unknown): { r
 
 const fixed = (ms: number) => (ms / 1000).toFixed(1);
 
-/** The headers the harness (and a browser's network tab) can read. All values are plain ASCII. */
+/** The headers the harness (and a browser's network tab) can read. All values are plain ASCII, on purpose. */
 export function traceHeaders(s: TraceSummary): Record<string, string> {
   const h: Record<string, string> = {
     "x-omni-route": s.route,
@@ -182,9 +184,9 @@ export function traceLine(s: TraceSummary, query: string): string {
   const waited = s.waitedMs > 0 ? `, waited ${fixed(s.waitedMs)}s for Groq's per-minute limit` : "";
   const steps = s.steps.length ? ` | ${s.steps.map((x) => `${x.name} ${fixed(x.ms)}s`).join(", ")}` : "";
   const gate = s.gate ? ` | gate ${s.gate}` : "";
-  // only worth a mention when the question looks like a synthesis one
+  // I mention it only when the question looks like a synthesis one
   const synth = s.synth && !s.synth.startsWith("none") ? ` | synth ${s.synth.replace(";", " ")}` : "";
-  // the umbrella's shadow comparison, only when it says something: a chosen selection, or a line the planner has a reading of
+  // the umbrella's shadow comparison, shown only when it says something: a chosen selection, or a line the planner has a reading of
   const records = s.scope && (s.scope !== "auto" || (s.plan && s.plan !== "-")) ? ` | scope ${s.scope} plan ${s.plan ?? "-"}` : "";
   return `[front-path] ${s.route}${s.kind ? `/${s.kind}` : ""} ${fixed(s.totalMs)}s | ${model}${waited}${steps}${gate}${synth}${records} | q="${shown}"`;
 }

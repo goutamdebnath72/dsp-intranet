@@ -1,30 +1,30 @@
 // src/lib/pax/display.ts
 //
-// HOW A PRINTED NAME IS SHOWN IN THE PAX TABLE (step 63c; owner, 31 Oct 2026): three columns, Department | Location | PAX, the first column in A to Z order, nothing about plant or outside plant.
-// The list prints one name per line ("CISF Main Gate (IN)"); the table needs the department and the location apart. PURE: it only reads the printed names, the database is not touched.
+// HOW A PRINTED NAME IS SHOWN IN THE PAX TABLE (step 63c; my request, 31 Oct 2026): three columns, Department | Location | PAX, the first column in A to Z order, nothing about plant or outside plant.
+// The list prints one name per line ("CISF Main Gate (IN)"), but the table needs the department and the location apart. PURE: it only reads the printed names and does not touch the database.
 //
 //   - Names that START WITH THE SAME WORDS share a department: the words they all begin with are the department, the rest of each name is its location (verbatim).
 //       CISF Admin Gate / CISF Main Gate (IN) / CISF Pass section(Opp Admin. Bldg.) / CISF (PCR)  ->  CISF | Admin Gate, Main Gate (IN), Pass section(Opp Admin. Bldg.), PCR
 //       Network Team (C & IT) / Network Team (CMMS)                                               ->  Network Team | C & IT, CMMS
 //   - A name that stands alone is cut at its bracket: the text outside is the department, the text inside the bracket is the location.   Plant Medical (PMU) -> Plant Medical | PMU;  Fire Service -> Fire Service | (empty)
 //   - A location that is only a bracket loses its brackets (A - Zone, PCR); a bracket that follows other words stays as printed (Main Gate (IN)).
-//   - A name that stands alone but uses the SAME NUMBER as a name of a department belongs to that department, and its whole printed name is the location (owner, 31 Oct 2026):
+//   - A name that stands alone but uses the SAME NUMBER as a name of a department belongs to that department, and its whole printed name is the location (my rule, 31 Oct 2026):
 //       CISF Tumla Gate and Weigh Bridge - Tumla Gate both have 42043  ->  CISF | Tumla Gate  and  CISF | Weigh Bridge - Tumla Gate
 
 export interface Parts { department: string; location: string }
 
 /**
- * COMPLETE department names that are never cut (owner, 31 Oct 2026: "Plant Control and Plant Medical are the complete department names, can not break the words").
- * Without this, the names that merely START with the same word ("Plant Control", "Plant Medical (PMU)") would be read as one department "Plant". A name that begins with one of these is that department,
+ * COMPLETE department names that are never cut (my words, 31 Oct 2026: "Plant Control and Plant Medical are the complete department names, can not break the words").
+ * Without this list, the names that merely START with the same word ("Plant Control", "Plant Medical (PMU)") would be read as one department "Plant". A name that begins with one of these is that department, and
  * the rest of the printed name (if any) is the location: Plant Medical (PMU) -> Plant Medical | PMU; Plant Control -> Plant Control | (empty).
  * Add a name here when a department's own name begins with a word that other departments share.
  */
 export const WHOLE_DEPARTMENTS: readonly string[] = ["Plant Control", "Plant Medical"];
-/** A printed name and, when it is known, its number (the sharing of a number needs it). */
+/** A printed name and, when it is known, its number. I need the number for the sharing of a number. */
 export interface Entry { label: string; number?: string; /** a line made in the admin panel: its two parts are exactly what was typed, never guessed */ fixed?: Parts }
 
 /** The entries of a list of rows, as splitLabels reads them (a line made in the panel carries its own parts). */
-/** A department and its location written together, the one way everywhere (owner, 31 Oct 2026): "Weigh Bridge - 60T". With no location, the department alone. */
+/** A department and its location written together, the one way everywhere (my rule, 31 Oct 2026): "Weigh Bridge - 60T". With no location, the department alone. */
 export const placeName = (p: Parts): string => (p.location ? `${p.department} - ${p.location}` : p.department);
 
 export const toEntries = (rows: ReadonlyArray<{ label: string; number: string; deptName: string; location: string; curated?: boolean }>): Entry[] =>
@@ -34,16 +34,16 @@ const BRACKET = /^(.*?)\s*\(([^)]*)\)\s*$/;
 const words = (s: string): string[] => s.trim().split(/\s+/).filter(Boolean);
 const lower = (s: string) => s.toLowerCase();
 
-/** The text before a final bracket, and the bracket's content (or null). */
+/** Returns the text before a final bracket, and the bracket's content (or null). */
 function splitBracket(label: string): { base: string; inside: string | null } {
   const m = BRACKET.exec(label.trim());
   return m ? { base: m[1].trim(), inside: m[2].trim() } : { base: label.trim(), inside: null };
 }
 
-/** A dash or colon standing alone between two parts of a printed name ("Weigh Bridge – 60T"): a separator, never a word of the department or the location. */
+/** A dash or colon standing alone between two parts of a printed name ("Weigh Bridge – 60T") is a separator. I never treat it as a word of the department or the location. */
 const SEPARATOR = /^[-–—−:]+$/;
 
-/** The words that every name of the group begins with (compared without regard to case). */
+/** The words that every name of the group begins with, compared without regard to case. */
 function commonLead(bases: string[][]): string[] {
   const lead: string[] = [];
   for (let i = 0; ; i++) {
@@ -55,9 +55,9 @@ function commonLead(bases: string[][]): string[] {
   return lead;
 }
 
-/** The department and the location of every distinct printed name, worked out from ALL the names of the directory (the sharing of first words needs the whole list). */
+/** The department and the location of every distinct printed name, worked out from ALL the names of the directory, because the sharing of first words needs the whole list. */
 export function splitLabels(entries: Entry[]): Map<string, Parts> {
-  // a line made in the panel is taken exactly as typed and takes no part in the guessing below
+  // A line made in the panel is taken exactly as typed and takes no part in the guessing below.
   const fixedParts = new Map<string, Parts>();
   for (const e of entries) if (e.fixed && e.label.trim()) fixedParts.set(e.label.trim(), e.fixed);
   const distinct = Array.from(new Set(entries.map((e) => e.label.trim()).filter((l) => l && !fixedParts.has(l))));
@@ -68,7 +68,7 @@ export function splitLabels(entries: Entry[]): Map<string, Parts> {
   }
   const grouped = new Set<string>(); // the names that share their first words with another name (or are a whole department name)
   const out = new Map<string, Parts>();
-  // a name that begins with a complete department name is that department, whole; it takes no part in the sharing of first words
+  // A name that begins with a complete department name is that department, whole, and takes no part in the sharing of first words.
   const whole = new Set<string>();
   for (const l of distinct) {
     const w = words(l).map(lower);
@@ -92,7 +92,7 @@ export function splitLabels(entries: Entry[]): Map<string, Parts> {
       if (lead.length > 0) {
         for (const l of members) {
           grouped.add(l);
-          // the location = what is printed after the shared words, verbatim; only a lone bracket loses its brackets
+          // The location is what is printed after the shared words, verbatim; I let only a lone bracket lose its brackets.
           const rest = l.trim().replace(/\s+/g, " ").slice(lead.join(" ").length).replace(/^[\s\-–—−:]+/, "").trim();
           const lone = BRACKET.exec(rest);
           out.set(l, { department: lead.join(" "), location: lone && lone[1] === "" ? lone[2].trim() : rest });
@@ -106,7 +106,7 @@ export function splitLabels(entries: Entry[]): Map<string, Parts> {
     }
   }
   for (const [l, parts] of fixedParts) out.set(l, parts);
-  // a name that stands alone but uses the number of a department's name joins that department; its whole printed name is the location
+  // A name that stands alone but uses the number of a department's name joins that department; its whole printed name is the location.
   for (const s of distinct) {
     if (grouped.has(s)) continue;
     const mine = numbersOf.get(s);
@@ -118,6 +118,6 @@ export function splitLabels(entries: Entry[]): Map<string, Parts> {
 }
 
 const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
-/** Department A to Z, then location, then number. */
+/** Sorts by department A to Z, then location, then number. */
 export const compareParts = (a: Parts & { number: string }, b: Parts & { number: string }): number =>
   collator.compare(a.department, b.department) || collator.compare(a.location, b.location) || a.number.localeCompare(b.number);

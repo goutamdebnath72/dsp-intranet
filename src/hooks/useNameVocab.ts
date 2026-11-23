@@ -2,8 +2,8 @@
 
 // src/hooks/useNameVocab.ts
 //
-// The plant's name words for the search bar's "Looks like a name" hint (src/lib/search/nameHint/nameHint.ts): fetched ONCE, when the search bar opens and the hint's mode uses them, kept by SWR and by the
-// browser's own cache (the route says ten minutes), and prepared into sets once. A failed fetch leaves the hint on the built-in list alone (the hint is never blocked by it).
+// The plant's name words for the search bar's "Looks like a name" hint (src/lib/search/nameHint/nameHint.ts): I fetch them ONCE, when the search bar opens and the hint's mode uses them, keep them in SWR and in the
+// browser's own cache (the route says ten minutes), and prepare them into sets once. A failed fetch leaves the hint on the built-in list alone: the hint is never blocked by it.
 
 import { useMemo } from "react";
 import useSWR from "swr";

@@ -1,7 +1,7 @@
 // src/app/api/live/usd-inr/route.ts
 //
-// THE US DOLLAR IN RUPEES, EVERY WORKING DAY OF THE LAST YEAR, for the chart under the currency converter. Reads nothing from the caller: the address asked of Frankfurter (the European Central Bank's
-// reference rates) is built from today's date only. The answer is checked by src/lib/live/usdInr.ts; if the source fails, the last good answer is returned and marked as such, and with none, a plain failure.
+// The US dollar in rupees, every working day of the last year, for the chart under the currency converter. I read nothing from the caller: the address asked of Frankfurter (the European Central Bank's
+// reference rates) is built from today's date only. src/lib/live/usdInr.ts checks the answer; if the source fails, I return the last good answer marked as such, and with none, a plain failure.
 import { getJson } from "@/lib/live/http";
 import { liveRoute } from "@/lib/live/envelope";
 import { parseUsdInr, rangeStart, type UsdInrTrend } from "@/lib/live/usdInr";

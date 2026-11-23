@@ -34,7 +34,7 @@ for (const id of EDS_IDS) {
   const r = set.find((x) => x.id === id);
   ok(`${id} is detected: ${r ? brief(r.query) : "missing from the set"}`, !!r && is(r.query).synthesis);
 }
-// EDS- and INT- records ARE EDS-type questions (the old query document and the "C" questions), SEC- are probes, G- are probes
+// EDS- and INT- records ARE EDS-type questions (the old query document and the "C" questions), while SEC- and G- records are probes
 const others = set.filter((r) => !EDS_IDS.includes(r.id) && r.source !== "G" && !r.id.startsWith("EDS-") && !r.id.startsWith("INT-") && !r.id.startsWith("SEC-"));
 const edsTypeRecords = set.filter((r) => r.id.startsWith("EDS-") || r.id.startsWith("INT-"));
 const missed = edsTypeRecords.filter((r) => !is(r.query).synthesis);
@@ -54,7 +54,7 @@ const SEMANTIC = [
 ];
 for (const q of SEMANTIC) ok(`smart semantic question stays ordinary: ${brief(q)}`, is(q).level === "none");
 
-// ---- generalisation: questions written by me from the pattern (NOT from your data). Misses are reported, not hidden.
+// ---- generalisation: questions written from the pattern (NOT from the real data). Misses are reported, not hidden.
 const PARAPHRASES_EDS = [
   "Compare the casual and medical leave entitlements for contractor workers in the 2023 and 2025 holiday and leave circulars, and detail what stayed the same.",
   "Summarise how the SAIL Mediclaim renewal deadline changed between the original circular and the extension, and which circular announced each date.",
@@ -114,7 +114,7 @@ const PARAPHRASES_ORDINARY = [
 const ordinaryHits = PARAPHRASES_ORDINARY.filter((q) => is(q).synthesis);
 ok(`none of my ${PARAPHRASES_ORDINARY.length} ordinary single-document questions is taken for EDS`, ordinaryHits.length === 0, ordinaryHits.map(brief).join(" | "));
 
-// ---- DATA-MINING questions in the style of a policy maker (written by me from your description, BEFORE tuning on them)
+// ---- DATA-MINING questions in the style of a policy maker (written from my description, BEFORE tuning on them)
 const TOP_BRASS = [
   "What hidden patterns emerge from the circulars issued for contract workers between 2022 and 2025?",
   "Correlate the safety compliance rules with the welfare schemes announced for contractor workers and tell me what we are missing.",
@@ -137,7 +137,7 @@ const brassMisses = TOP_BRASS.filter((q) => !is(q).synthesis);
 ok(`at least 80% of my ${TOP_BRASS.length} policy-maker (data-mining) questions are detected (${TOP_BRASS.length - brassMisses.length} are)`, (TOP_BRASS.length - brassMisses.length) / TOP_BRASS.length >= 0.8, brassMisses.map(brief).join(" | "));
 if (brassMisses.length) console.log(`(information: policy-maker questions NOT detected:\n  ${brassMisses.map(brief).join("\n  ")})`);
 
-// ordinary questions that contain tempting words: they may be "borderline" at most, never EDS
+// Ordinary questions that contain tempting words: they may be "borderline" at most, never EDS
 const TEMPTING = [
   "What is the effect of the new gate pass colour?",
   "What is the impact of missing the SIR declaration deadline on my salary?",
@@ -155,8 +155,8 @@ const TEMPTING = [
 const temptingHits = TEMPTING.filter((q) => is(q).synthesis);
 ok(`none of my ${TEMPTING.length} ordinary questions with tempting words is taken for EDS`, temptingHits.length === 0, temptingHits.map(brief).join(" | "));
 
-// ---- HELD-OUT questions: written BEFORE the final tuning and never used to tune. Positives are reported (not asserted: they are
-// the honest measure of recall); the ordinary ones must never be EDS.
+// ---- HELD-OUT questions: written BEFORE the final tuning and never used to tune. I report the positives rather than assert them: they are
+// the honest measure of recall. The ordinary ones must never be EDS.
 const HELD_OUT_EDS = [
   "Are there any circulars whose provisions contradict each other on contract worker benefits?",
   "What common thread runs through the safety, attendance and access control circulars of the last two years?",
@@ -191,7 +191,7 @@ if (heldMisses.length) console.log(`  not detected:\n    ${heldMisses.map(brief)
 const heldHits = HELD_OUT_ORDINARY.filter((q) => is(q).synthesis);
 ok(`none of ${HELD_OUT_ORDINARY.length} held-out ordinary questions is taken for EDS`, heldHits.length === 0, heldHits.map(brief).join(" | "));
 
-// ---- the people-data guard: never EDS, even with an analytic verb
+// ---- the people-data guard: these are never EDS, even with an analytic verb
 const PEOPLE = [
   "Compare the seniority of Mohd Anwar Ullah and Rana Saha",
   "Summarise the designations of executives in C&IT",
@@ -210,7 +210,7 @@ const POLICY_WORDS: Array<[string, string]> = [
   ["Junior Officers", "Compare the PF contribution granted to Junior Officers of the 2008 batch with that of the 2010 batch, and explain the refund procedure."],
 ];
 for (const [what, q] of POLICY_WORDS) { const r = is(q); ok(`policy wording "${what}" does not block: ${brief(q)}`, r.blockedBy === null && r.synthesis); }
-// a stage-by-stage question is EDS-type; one ordinary 'each' is not enough on its own
+// A stage-by-stage question is EDS-type; one ordinary 'each' is not enough on its own
 ok("a stage-by-stage question with a second part is EDS: what follows each violation at each stage, and through whom", is("what consequence follows each violation at each stage, and through whom is it issued?").synthesis);
 ok("'for each grade' alone is only borderline (a lookup of one table), never EDS", !is("What is the dearness allowance for each grade?").synthesis);
 ok("a directory question that says 'each' stays out", !is("Who is the head of C&IT at each plant?").synthesis);

@@ -1,10 +1,10 @@
 // src/app/api/tools/rates/route.ts
 //
-// PUBLIC REFERENCE EXCHANGE RATES for the currency converter of the search bar. The browser does the sum; this route only fetches and caches the rates,
+// Public reference exchange rates for the currency converter of the search bar. The browser does the sum; this route only fetches and caches the rates,
 // and it reads nothing from the user: no body, no query, no cookie, no log of what anyone converted.
 //
 // Sources (free, no key): Frankfurter (European Central Bank reference rates; many currencies including INR), and open.er-api.com for the Gulf currencies the ECB does not publish.
-// Either may fail: the other is used; both failing gives a plain 503 and the card says "rates unavailable right now".
+// If either fails I use the other; both failing gives a plain 503 and the card says "rates unavailable right now".
 import { NextResponse } from "next/server";
 import { DateTime } from "luxon";
 import { validRates, type Rates } from "@/tools/converter/currency";
@@ -33,7 +33,7 @@ export async function GET() {
   let date = "";
   const sources: string[] = [];
   if (er && er.result === "success" && er.rates && typeof er.rates === "object") {
-    // the broad list first, the ECB's figures over it where both exist
+    // I put the broad list first, then the ECB's figures over it where both exist
     for (const [k, v] of Object.entries(er.rates)) if (typeof v === "number" && v > 0) rates[k] = v;
     date = (Number(er.time_last_update_unix) > 0 ? DateTime.fromSeconds(Number(er.time_last_update_unix), { zone: "utc" }) : DateTime.utc()).toISODate() ?? "";
     sources.push("open.er-api.com");

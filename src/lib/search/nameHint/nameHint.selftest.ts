@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/search/nameHint/nameHint.selftest.ts
-// "LOOKS LIKE A NAME": one to four words that read as an Indian name earn the hint that Enter searches people (nameHint.ts). Checked with a small fixture of the plant's name words (no database), on the
+// "LOOKS LIKE A NAME": one to four words that read as an Indian name earn the hint that Enter searches people (nameHint.ts). Here I check it with a small fixture of the plant's name words (no database), on the
 // built-in lists, and on the wiring (the search bar, the data route, the hook, the switch).
 import { readFileSync } from "node:fs";
 import { buildPlantVocab, detectNameHint, type PlantVocab } from "./nameHint";

@@ -1,11 +1,11 @@
 -- 06_spelling_families.sql
--- Teaches the name search that spelling variants of the -padhyay surnames are the same name:
+-- This teaches the name search that spelling variants of the -padhyay surnames are the same name:
 -- Mukhopadhya / Mukhopadhayay -> Mukhopadhyay (= Mukherjee), Gangopadhya -> Gangopadhyay
 -- (= Ganguly = Ganguli), likewise Bandyopadhya (= Banerjee) and Chattopadhya (= Chatterjee).
 -- Also: Bhattacharya = Bhattacharyya = Bhattacharjee = Bhattacharji = Bhattacharjya (and the typo Bhattacharyay).
 -- Also (31, 22 Nov 2026): Datta and Datt are written Dutta (the Bengali surname is one name; the directory has both spellings).
 -- Only words that START with Bhattachar and END in a -ya / -yya / -jee / -ji / -jya form are touched; Bhatia, Bhattar etc. are not.
--- Works for typed words and for stored names. Stays inside the nlq schema: your phonetic functions
+-- Works for typed words and for stored names. I keep this inside the nlq schema: my phonetic functions
 -- in schema public are NOT changed, so the old omnibar search is unaffected.
 -- Run this whole file once. Safe to re-run. (A fresh install needs only 01, which now includes this.)
 
@@ -47,16 +47,16 @@ BEGIN
   RETURN n;
 END $$;
 
--- Re-store the phonetic codes with the new rule.
+-- I re-store the phonetic codes with the new rule here.
 SELECT nlq.refresh_name_codes() AS rows_stored;
 
--- Proof 1 (plain query): stored codes agree with live codes for everyone (expect 0).
+-- Proof 1 (plain query): stored codes must agree with live codes for everyone (expect 0).
 SELECT count(*) AS stored_codes_that_differ_from_live
 FROM nlq.employee_name_codes nc
 JOIN public.employee_roster er ON er.id = nc.id AND er.name = nc.name
 WHERE nc.codes IS DISTINCT FROM coalesce(nlq.name_codes_of(er.name), ARRAY[]::text[]);
 
--- Proof 2 (keep this LAST): the restricted role still works with the phonetic columns, and the new
+-- Proof 2 (keep this LAST): the restricted role still has to work with the phonetic columns, and the new
 -- spellings now share a code. An error here undoes the whole file. RESET ROLE matters because the SQL
 -- editor runs a file as one transaction.
 DO $$

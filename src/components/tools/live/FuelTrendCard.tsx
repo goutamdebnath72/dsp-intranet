@@ -1,8 +1,8 @@
 // src/components/tools/live/FuelTrendCard.tsx
 //
-// THE KOLKATA PRICE OF PETROL, DIESEL AND LPG OVER THE LAST YEAR: three tabs, one chart each, drawn like the gold and silver chart: dates along the bottom, the highest and the lowest day marked with
+// The Kolkata price of petrol, diesel and LPG over the last year: three tabs, one chart each, drawn like the gold and silver chart: dates along the bottom, the highest and the lowest day marked with
 // their date, and four figures under it (the price at the start of the year, the highest, the lowest and today's). Petrol and diesel are PPAC's official price for every day; LPG is GoodReturns'
-// monthly record, which is shorter, and the card says so. The data come from /api/live/fuel-trend (src/lib/live/fuelTrend.ts), each with its source and time. Nothing typed is sent anywhere.
+// monthly record, which is shorter, and I say so on the card. The data come from /api/live/fuel-trend (src/lib/live/fuelTrend.ts), each with its source and time. Nothing typed is sent anywhere.
 "use client";
 
 import React, { useState } from "react";
@@ -21,12 +21,12 @@ export const FUEL_META: Record<FuelId, { name: string; unit: string; color: stri
 };
 const IDS: FuelId[] = ["petrol", "diesel", "lpg"];
 
-/** ₹113.51, or ₹106 for a round figure (the axis shows round values) */
+/** Writes a price as ₹113.51, or ₹106 for a round figure (the axis shows round values). */
 export const rs = (v: number) => `₹${Number.isInteger(v) ? v.toLocaleString("en-IN") : v.toFixed(2)}`;
 
 const dmy = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1] ?? ""} ${iso.slice(0, 4)}`;
 
-/** the points of a series for the chart: a day is "12 Nov 2025"; a month is "Jan 2026" (its price is shown from its first day), and the last point of the LPG record, today's price, is its day */
+/** I turn a series into the points of the chart: a day is "12 Nov 2025"; a month is "Jan 2026" (its price is shown from its first day), and the last point of the LPG record, today's price, is its day. */
 export function toPoints(s: FuelSeries): TrendPoint[] {
   return s.points.map((p, i) => {
     const last = i === s.points.length - 1;
@@ -41,7 +41,7 @@ export function FuelTrendBody({ trend }: { trend: FuelTrend }) {
   const on: FuelId = have.includes(id) ? id : have[0];
   const series = trend[on] as FuelSeries;
   const first = series.points[0], last = series.points[series.points.length - 1];
-  // arrow keys move between the tabs, as in any tab list
+  // Arrow keys move between the tabs, as in any tab list.
   const onTabKey = (e: React.KeyboardEvent) => {
     const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (!step) return;

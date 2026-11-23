@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/search/documentSummary.selftest.ts
-// THE SUMMARY EVERY CIRCULAR OR ANNOUNCEMENT REPLY CARRIES: written by the model from the passages, verified by plain code, and, when that fails, the document's own opening. Never absent, never invented.
+// This covers the summary that every circular or announcement reply carries: the model writes it from the passages, plain code verifies it, and when that fails I fall back to the document's own opening. It is never absent and never invented.
 
 export {};
 import { readFileSync } from "node:fs";

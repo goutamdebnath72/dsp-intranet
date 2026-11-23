@@ -4,9 +4,9 @@
 // with the overall diameter and the turns of the tyre in a kilometre. Pure; nothing is stored or sent anywhere.
 //
 // The load-index and speed-symbol tables are the standard ones (ETRTO / ISO 4000, as listed in the "Tire code" article of Wikipedia, checked 12 Nov 2026).
-// Pictures of "speed / load capacity" circulate with garbled figures: this table is the one to rely on, and the tyre's own sidewall and the vehicle's manual overrule any chart.
+// Pictures of "speed / load capacity" circulate with garbled figures, so rely on this table; the tyre's own sidewall and the vehicle's manual overrule any chart.
 
-/** load index -> kg a tyre may carry at its maximum speed and correct pressure */
+/** Maps a load index to the kg a tyre may carry at its maximum speed and correct pressure */
 export const LOAD_INDEX_KG: Record<number, number> = {
   60: 250, 61: 257, 62: 265, 63: 272, 64: 280, 65: 290, 66: 300, 67: 307, 68: 315, 69: 325, 70: 335, 71: 345, 72: 355, 73: 365, 74: 375, 75: 387, 76: 400, 77: 412, 78: 425, 79: 437,
   80: 450, 81: 462, 82: 475, 83: 487, 84: 500, 85: 515, 86: 530, 87: 545, 88: 560, 89: 580, 90: 600, 91: 615, 92: 630, 93: 650, 94: 670, 95: 690, 96: 710, 97: 730, 98: 750, 99: 775,
@@ -14,7 +14,7 @@ export const LOAD_INDEX_KG: Record<number, number> = {
   117: 1285, 118: 1320, 119: 1360, 120: 1400, 121: 1450, 122: 1500, 123: 1550, 124: 1600, 125: 1650, 126: 1700, 127: 1750, 128: 1800, 129: 1850, 130: 1900,
 };
 
-/** speed symbol -> maximum speed in km/h (Z: over 240; (W) over 270; (Y) over 300) */
+/** Maps a speed symbol to the maximum speed in km/h (Z: over 240; (W) over 270; (Y) over 300) */
 export const SPEED_KMH: Record<string, { kmh: number; over?: boolean }> = {
   J: { kmh: 100 }, K: { kmh: 110 }, L: { kmh: 120 }, M: { kmh: 130 }, N: { kmh: 140 }, P: { kmh: 150 }, Q: { kmh: 160 }, R: { kmh: 170 }, S: { kmh: 180 }, T: { kmh: 190 }, U: { kmh: 200 }, H: { kmh: 210 },
   V: { kmh: 240 }, Z: { kmh: 240, over: true }, W: { kmh: 270 }, "(W)": { kmh: 270, over: true }, Y: { kmh: 300 }, "(Y)": { kmh: 300, over: true },
@@ -29,7 +29,7 @@ export interface TyreSize {
   construction: string;
   rim: number;
   load?: number;
-  /** the second load index of a twin-fitted tyre ("121/118") */
+  /** The second load index of a twin-fitted tyre ("121/118") */
   load2?: number;
   speed?: string;
   extras: string[];
@@ -37,7 +37,7 @@ export interface TyreSize {
 
 const SIZE_RE = /^(?:(P|LT|T|C)\s?)?(\d{3})\s*\/\s*(\d{2})\s*(ZR|R|D|B|-)\s*-?\s*(\d{2})(?:\s*(\d{2,3})(?:\s*\/\s*(\d{2,3}))?\s*(\([WY]\)|[A-Z])?)?((?:\s+(?:XL|RF|TL|TT|M\+S|M&S|MS|EXTRALOAD|REINFORCED|TUBELESS))*)$/;
 
-/** Reads a tyre size as printed on the sidewall ("205/55 R16 91V", "P215/65R15 95H", "tyre size 165/80 r14"). Null when the text is not one. */
+/** Reads a tyre size as printed on the sidewall ("205/55 R16 91V", "P215/65R15 95H", "tyre size 165/80 r14"). I return null when the text is not one. */
 export function parseTyre(raw: string): TyreSize | null {
   const q = (raw || "").trim().toUpperCase().replace(/^(?:WHAT\s+IS\s+|READ\s+|DECODE\s+|EXPLAIN\s+)?(?:THE\s+)?(?:TYRE|TIRE)S?\s+(?:SIZE|CODE|SPEC(?:IFICATION)?S?)\s+/, "").replace(/\s+/g, " ").replace(/[?.]+$/, "");
   const m = SIZE_RE.exec(q);
@@ -50,7 +50,7 @@ export function parseTyre(raw: string): TyreSize | null {
   if (load2 !== undefined && !LOAD_INDEX_KG[load2]) return null;
   const speed = m[8] || undefined;
   if (speed && !SPEED_KMH[speed]) return null;
-  if (load !== undefined && !speed) return null; // a load index is always followed by its speed symbol
+  if (load !== undefined && !speed) return null; // I rely on a load index always being followed by its speed symbol
   return { vehicleClass: m[1] ?? "", width, aspect, construction: m[4] === "-" ? "" : m[4], rim, load, load2, speed, extras: (m[9] ?? "").trim().split(" ").filter(Boolean) };
 }
 
@@ -88,7 +88,7 @@ const mm = (x: number): string => `${Number(x.toFixed(2))} mm`;
 const mm1 = (x: number): string => `${Number(x.toFixed(1))} mm`;
 const kmhText = (s: string): string => { const e = SPEED_KMH[s]; return `${e.over ? "over " : ""}${e.kmh} km/h`; };
 
-/** What each part of the size means, and what follows from it. */
+/** Returns what each part of the size means, and what follows from it. */
 export function readTyre(t: TyreSize): TyreReading {
   const sidewall = (t.width * t.aspect) / 100;
   const rimMm = t.rim * 25.4;

@@ -1,7 +1,7 @@
 // src/lib/errorLog/adapter.ts
 //
-// The error log talks to PostgreSQL through one small function type (store.ts Query). TypeORM's own query() gives the rows of a SELECT or an INSERT ... RETURNING, but for an UPDATE or DELETE ... RETURNING it gives
-// [rows, affectedCount]: this turns both into plain rows.
+// I let the error log talk to PostgreSQL through one small function type (store.ts Query). TypeORM's own query() gives the rows of a SELECT or an INSERT ... RETURNING, but for an UPDATE or DELETE ... RETURNING it gives
+// [rows, affectedCount]: this adapter turns both into plain rows.
 
 import type { Query } from "./store";
 

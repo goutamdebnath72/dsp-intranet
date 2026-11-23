@@ -1,6 +1,6 @@
 -- 20_eds_briefing.sql  (step 73)
 --
--- The permanent store of Executive Deep Synthesis briefings (src/lib/search/edsStore.ts). The first GOOD briefing of a question is kept here, and every
+-- The permanent store of Executive Deep Synthesis briefings (src/lib/search/edsStore.ts). I keep the first GOOD briefing of a question here, and every
 -- later ask of the same question, on any server, shows that same briefing, until the archive of circulars changes or the engine's prompt / rules change.
 --
 -- Safe to run more than once. The application also creates this table by itself on first use if its database user may; running this file is the clean way.

@@ -1,8 +1,8 @@
 // scripts/audit-blob.mjs
 //
-// READ-ONLY. Lists EVERYTHING in your Vercel Blob store (all prefixes),
-// grouped by top-level folder, so you can spot old/orphaned files.
-// Deletes nothing.
+// READ-ONLY. Lists EVERYTHING in the Vercel Blob store (all prefixes),
+// grouped by top-level folder, so that I can spot old or orphaned files.
+// It deletes nothing.
 //
 // RUN:  node scripts/audit-blob.mjs
 
@@ -32,14 +32,14 @@ async function main() {
   let all = [];
   let cursor = undefined;
   while (true) {
-    // no prefix => everything in the store
+    // No prefix, so I get everything in the store.
     const page = await list({ cursor, limit: 1000 });
     all = all.concat(page.blobs);
     if (!page.hasMore) break;
     cursor = page.cursor;
   }
 
-  // group by top-level folder (text before first "/"), or "(root)"
+  // I group by top-level folder (the text before the first "/"), or "(root)".
   const groups = {};
   let totalBytes = 0;
   for (const b of all) {

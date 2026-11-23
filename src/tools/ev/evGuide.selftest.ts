@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/ev/evGuide.selftest.ts
-// The plain-words guide to EV specifications: six sections, the words a buyer meets, the arithmetic right, the claims only those the sources make.
+// This checks the plain-words guide to EV specifications: six sections, the words a buyer meets, the arithmetic right, and only the claims the sources make.
 import { EXAMPLE, GUIDE, GUIDE_LEAD, TWO_NUMBERS, WATTS, bhpToKw, kwToBhp, kwToPs } from "./evGuideData";
 import { convertWords } from "../converter/units";
 

@@ -1,6 +1,6 @@
 // src/lib/accessLog/admin/api.ts
 //
-// HTTP dispatch for the Contact Access Log facility endpoint (Modular Facility Kit).
+// This is the HTTP dispatch for the Contact Access Log facility endpoint (Modular Facility Kit).
 
 import type { DataSource } from "typeorm";
 import { DateTime } from "luxon";
@@ -115,7 +115,7 @@ export async function handleAccessLogAdmin(body: unknown, ctx: ApiContext): Prom
       dir: b.dir === "asc" ? "asc" : "desc",
     };
 
-    // A date must be a real calendar date: a bad string used to reach the database cast and come back as a 500.
+    // I require a date to be a real calendar date: a bad string used to reach the database cast and come back as a 500.
     for (const [label, v] of [["from", filters.from], ["to", filters.to]] as const) {
       if (v && !(/^\d{4}-\d{2}-\d{2}$/.test(v) && DateTime.fromISO(v).isValid)) {
         return reply(400, { error: `The "${label}" date is not a valid date (use YYYY-MM-DD).` });
@@ -125,7 +125,7 @@ export async function handleAccessLogAdmin(body: unknown, ctx: ApiContext): Prom
     const queryResult = await store.queryAccessLogs(ctx.ds, filters);
 
     // Looking at this log is itself recorded (who, when, with which filters, how many lines; never the lines). If the
-    // record cannot be written the lines are NOT shown: a view that leaves no trace is exactly what this must prevent.
+    // record cannot be written I do NOT show the lines: a view that leaves no trace is exactly what I must prevent.
     // Only the filters count as "a distinct look": paging and sorting do not write another row.
     await store.recordAccessLogView(ctx.db, actor, {
       filters: { from: filters.from ?? null, to: filters.to ?? null, viewer: filters.viewer ?? null, viewed: filters.viewed ?? null, field: filters.field ?? null, action: filters.action ?? null },
@@ -149,7 +149,7 @@ export async function handleAccessLogAdmin(body: unknown, ctx: ApiContext): Prom
     const t = await resolveGrantTarget(b, ctx.findByTicket);
     if (!t.ok) return reply(200, { result: { status: "invalid", reason: t.reason } });
     
-    // Strict safeguard: Contact Access Log never allows non-executives
+    // Strict safeguard: I never allow non-executives in the Contact Access Log.
     if (!/^4\d{5}$/.test(t.ticket)) {
       return reply(200, {
         result: {

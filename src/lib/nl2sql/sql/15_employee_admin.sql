@@ -1,6 +1,6 @@
--- 15_employee_admin.sql : the EMPLOYEE MANAGER (step 66a; owner, 1 Nov 2026): who may add, change and delete employees, and the history of every change. Run ONCE in the Supabase SQL editor; safe to run again.
+-- 15_employee_admin.sql : the EMPLOYEE MANAGER (step 66a; my request, 1 Nov 2026): who may add, change and delete employees, and the history of every change. Run ONCE in the Supabase SQL editor; safe to run again.
 --
---   employee_admin_delegate   the executives the HOD of C&IT has authorised (and the ones he has withdrawn: the row stays, with who and when)
+--   employee_admin_delegate   the executives the HOD of C&IT has authorised (and the ones he has withdrawn: I keep the row, with who and when)
 --   employee_admin_audit      the history: who did what to whom, and the record BEFORE and AFTER. APPEND ONLY: a trigger refuses any change or deletion of a line.
 --
 -- Like pax_directory, and like employee_roster itself, these tables are closed to the public API roles (anon, authenticated): only the application's own connection reads and writes them, and the AI search's
@@ -49,6 +49,6 @@ ALTER TABLE public.employee_admin_delegate ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.employee_admin_audit    ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.employee_admin_delegate, public.employee_admin_audit FROM anon, authenticated;
 
--- CHECK (both must say 2 columns of rules and 2 tables with row level security on):
+-- CHECK: both must say 2 columns of rules and 2 tables with row level security on
 SELECT (SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('employee_admin_delegate', 'employee_admin_audit') AND rowsecurity) AS tables_with_row_level_security,
        (SELECT count(*) FROM pg_trigger WHERE tgname = 'employee_admin_audit_no_change') AS append_only_trigger;

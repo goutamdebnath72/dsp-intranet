@@ -1,6 +1,6 @@
 // src/tools/flights/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the live-data card (Andal Airport flights). What the search line needs to know is in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the live-data card (Andal Airport flights). What the search line needs to know is in topic.ts. I list it once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";

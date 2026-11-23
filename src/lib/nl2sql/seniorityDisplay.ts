@@ -1,8 +1,8 @@
 // src/lib/nl2sql/seniorityDisplay.ts
 //
 // global_seniority_rank is an INTERNAL sort key: grade level x 10,000 + the person's position within that grade.
-// "40,121" means nothing to a reader, so it never reaches a screen, a table or a CSV. Wherever a list of people carries
-// it, the column is replaced -- before anything is displayed or exported -- by what it MEANS:
+// "40,121" means nothing to a reader, so I never let it reach a screen, a table or a CSV. Wherever a list of people carries
+// it, I replace the column -- before anything is displayed or exported -- with what it MEANS:
 //   executives      -> position_in_grade  (the order within the grade is real: earlier in HR's list = more senior)
 //   non-executives  -> blank              (only the GRADE order is meaningful, never the order inside one grade)
 // The rows are still SORTED by the real rank (the SQL does that); only the number is hidden.
@@ -44,7 +44,7 @@ export function humanizeSeniority(
 }
 
 /**
- * A list of people gets a "cohort" column (Executive / Non-executive) when the SQL did not return one: without it a table or CSV
+ * I add a "cohort" column (Executive / Non-executive) to a list of people when the SQL did not return one: without it a table or CSV
  * cannot tell the two groups apart (a designation such as "S-9" is not self-explanatory). It goes right after "designation"
  * (else after "name", else last). A person who cannot be identified gets a blank, never a guess.
  */
@@ -69,7 +69,7 @@ export function addCohortColumn(
 }
 
 /**
- * A list of DOCTORS gets a "discipline" column (Medicine, ENT ...) when at least one person in it has a known discipline and the SQL did not return one (step 53a).
+ * I add a "discipline" column (Medicine, ENT ...) to a list of DOCTORS when at least one person in it has a known discipline and the SQL did not return one (step 53a).
  * It goes right after "cohort" (else after "designation", else after "name", else last). A doctor whose discipline is not known gets a blank, never a guess;
  * a list in which nobody has a discipline gets no column at all (a list of non-doctors keeps its columns).
  */
@@ -94,8 +94,10 @@ export function addDisciplineColumn(
   return { columns: outColumns, rows: outRows };
 }
 
-/** A column that REPEATS the grand total on every row of a list of people ("Total count 16"): it is noise on a card and on a table row (the headline says it), so it is removed.
- *  Only a list with a ticket column, at least two rows, a name like total / count / cnt / ..._count and ONE value in every row; a count that differs per row is never touched. */
+/**
+ * A column that REPEATS the grand total on every row of a list of people ("Total count 16") is noise on a card and on a table row (the headline says it), so I remove it.
+ * I touch only a list with a ticket column, at least two rows, a name like total / count / cnt / ..._count and ONE value in every row; a count that differs per row is never touched.
+ */
 const TOTAL_COLUMN = /^(total|grand)|(^|_)(count|cnt)$/i;
 export function dropRepeatedTotals(columns: string[], rows: Array<Record<string, any>>): { columns: string[]; rows: Array<Record<string, any>> } {
   if (rows.length < 2 || !columns.includes("ticket_no")) return { columns, rows };
@@ -111,7 +113,7 @@ export function dropRepeatedTotals(columns: string[], rows: Array<Record<string,
   };
 }
 
-/** Everything a list of people needs before it is shown or exported: no internal rank, and a cohort column. */
+/** Here I do everything a list of people needs before it is shown or exported: no internal rank, and a cohort column. */
 export function presentPeople(
   columns: string[],
   rows: Array<Record<string, any>>,
@@ -125,7 +127,7 @@ export function presentPeople(
 
 /**
  * When the model lists the columns it wants (a display hint), that order wins and any column it did not mention is added at the
- * END. The cohort column is added by the system, so it would always land last. This slips it into the hint right after
+ * END. The cohort column is added by the system, so it would always land last. I slip it into the hint right after
  * "designation" (else after "name"), where it reads naturally. A hint that already mentions cohort, or names neither, is untouched.
  */
 export function withCohortInHint(hint: unknown, columns: string[]): unknown {
@@ -134,7 +136,7 @@ export function withCohortInHint(hint: unknown, columns: string[]): unknown {
   if (!Array.isArray(h.columns)) return hint;
   const keyOf = (e: unknown) => String(typeof e === "string" ? e : (e as any)?.key ?? "").toLowerCase();
   let cols: unknown[] = h.columns;
-  // slip a system-added column into the model's list right after the first of these columns it names (step 53a: the same for "discipline")
+  // I slip a system-added column into the model's list right after the first of these columns it names (step 53a: the same for "discipline")
   const slip = (key: string, label: string, after: string[]) => {
     if (!columns.includes(key) || cols.some((e) => keyOf(e) === key)) return;
     let at = -1;

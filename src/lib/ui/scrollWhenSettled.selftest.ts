@@ -1,5 +1,5 @@
 // src/lib/ui/scrollWhenSettled.selftest.ts
-// Run:  npx tsx src/lib/ui/scrollWhenSettled.selftest.ts      (no browser: the images and the clock are stand-ins)
+// Run:  npx tsx src/lib/ui/scrollWhenSettled.selftest.ts      (needs no browser: the images and the clock are stand-ins)
 import { isAligned, whenImagesSettled, type ImgLike, type Timers } from "./scrollWhenSettled";
 
 let pass = 0;
@@ -39,7 +39,7 @@ class FakeTimers implements Timers {
   }
 }
 
-// 1. everything already loaded (a second visit)
+// 1. Everything is already loaded (a second visit).
 {
   const t = new FakeTimers();
   const imgs = [new FakeImg(true), new FakeImg(true)];
@@ -49,7 +49,7 @@ class FakeTimers implements Timers {
   t.advance(0);
   check("...and once the page has been laid out: called exactly once, with no listeners ever attached", calls === 1 && imgs.every((i) => i.attached === 0));
 }
-// 2. the first visit: pages above the target arrive one by one
+// 2. The first visit: the pages above the target arrive one by one.
 {
   const t = new FakeTimers();
   const imgs = [new FakeImg(false), new FakeImg(false), new FakeImg(false)];
@@ -64,7 +64,7 @@ class FakeTimers implements Timers {
   t.advance(60_000);
   check("the timeout that was waiting does not call it again", calls === 1);
 }
-// 3. a page that fails counts as done
+// 3. A page that fails counts as done.
 {
   const t = new FakeTimers();
   const imgs = [new FakeImg(false), new FakeImg(false)];
@@ -74,7 +74,7 @@ class FakeTimers implements Timers {
   imgs[1].fire("load");
   check("a page that fails to load does not hold the scroll back for ever", calls === 1);
 }
-// 4. only the pending ones are waited for
+// 4. I wait only for the pending ones.
 {
   const t = new FakeTimers();
   const imgs = [new FakeImg(true), new FakeImg(false), new FakeImg(true)];
@@ -84,7 +84,7 @@ class FakeTimers implements Timers {
   imgs[1].fire("load");
   check("it waits only for the one that was still loading", calls === 1);
 }
-// 5. never arrives: the timeout
+// 5. It never arrives: the timeout decides.
 {
   const t = new FakeTimers();
   const imgs = [new FakeImg(false), new FakeImg(false)];
@@ -105,7 +105,7 @@ class FakeTimers implements Timers {
   t.advance(500);
   check("the limit can be set (500 ms)", calls === 1);
 }
-// 6. cancelling (the person scrolled, or the viewer closed)
+// 6. Cancelling (the person scrolled, or the viewer closed).
 {
   const t = new FakeTimers();
   const imgs = [new FakeImg(false), new FakeImg(false)];
@@ -139,7 +139,7 @@ class FakeTimers implements Timers {
   t.advance(0);
   check("no images at all: called once, asynchronously", calls === 1);
 }
-// 8. is the target where it was meant to be?
+// 8. Check whether the target is where it was meant to be.
 check("aligned: the top is at the scroll margin (16 px) below the viewer's top", isAligned(116, 100, 16) === true);
 check("aligned within 24 px either way, not beyond", isAligned(116 + 24, 100, 16) === true && isAligned(116 - 24, 100, 16) === true && isAligned(116 + 25, 100, 16) === false && isAligned(116 - 25, 100, 16) === false);
 check("far away (the old bug: 5,000 px below, or well above): not aligned", isAligned(5100, 100, 16) === false && isAligned(-3000, 100, 16) === false);

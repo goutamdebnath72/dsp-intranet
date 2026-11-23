@@ -1,9 +1,9 @@
 // src/lib/search/synthesisIntent.ts
 //
-// Which questions belong to EXECUTIVE DEEP SYNTHESIS (EDS)? A pure, explainable detector, so the one Enter key can decide
+// Which questions belong to EXECUTIVE DEEP SYNTHESIS (EDS)? I made this a pure, explainable detector so the one Enter key can decide
 // instead of a button. It reads the question only (no database, no model) and returns a score, a level and the reasons.
 //
-// THE PATTERN (found in the questions you marked as EDS: the four tests of the old query document and the "C" questions of
+// THE PATTERN (found in the questions I marked as EDS: the four tests of the old query document and the "C" questions of
 // the accuracy test, and checked against the Smart Semantic questions of the same document and the 210 other acceptance
 // questions):
 //
@@ -26,16 +26,16 @@
 // "Data mining" here means: find what is hidden in the circulars by relating facts that look unrelated (a safety rule and an
 // electoral-roll declaration; welfare schemes and attendance systems; how often a decision is revised after it is announced).
 //
-// Each feature has a weight; 5 or more = EDS ("synthesis"), 3 or 4 = "borderline" (a written summary may help: e.g. "Summarise the
+// Each feature has a weight. 5 or more = EDS ("synthesis"), 3 or 4 = "borderline" (a written summary may help: e.g. "Summarise the
 // Mediclaim extension circular"), below 3 = an ordinary question. Supporting shape alone can never reach 5: a question must also
 // have a verb, a version relation or an aggregate, or several supporting features at once.
 //
 // GUARD: a question about PEOPLE DATA (who is the head / senior / designation / ticket / mobile ...) is never EDS, even if it says "compare":
 // "compare the seniority of X and Y" belongs to the employee directory. (The old tests say "employees" and "executives" only as
-// the groups a policy applies to, so those words do not block.)
+// the groups a policy applies to, so I do not let those words block.)
 //
-// This detects the INTENT. Whether synthesis then runs also needs a logged-in executive (the screen) that the server verifies
-// again, and the switch (ON by default since step 41a; NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false turns it off): never decided here. If an automatic synthesis finds no relevant
+// This detects the INTENT only. Whether synthesis then runs also needs a logged-in executive (the screen) that the server verifies
+// again, and the switch (ON by default since step 41a; NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false turns it off). I never decide those here. If an automatic synthesis finds no relevant
 // circular, the screen falls back to the normal search (useOmniSearch.ts).
 
 export type SynthesisLevel = "synthesis" | "borderline" | "none";
@@ -47,7 +47,7 @@ export interface SynthesisIntent {
   score: number;
   /** What fired, in plain words (shown in tests, the trace and the report). */
   reasons: string[];
-  /** Set when the question looks like a people-data question: never EDS. */
+  /** Set when the question looks like a people-data question, which is never EDS. */
   blockedBy: string | null;
 }
 
@@ -56,7 +56,7 @@ export const BORDERLINE_THRESHOLD = 3;
 
 const ANALYTIC_VERB =
   /\b(synthesi[sz]e|trace|evolution|evolve[sd]?|contrast|compare|comparison|cross[- ]?referenc\w*|juxtapos\w*|briefing|brief me|summari[sz]e|analy[sz]e|trajectory|timeline|reconcile)\b/i;
-// DISCOVERY, decisive (+5): words that name an act of finding what is hidden or relating the unrelated. Rare in ordinary lookups.
+// DISCOVERY, decisive (+5): words that name an act of finding what is hidden or relating the unrelated. They are rare in ordinary lookups.
 const DISCOVERY_STRONG =
   /\b(correlat\w+|hidden|unforeseen|overlooked|unnoticed|invisible|blind spots?|what are we missing|anomal\w+|inconsisten\w+|contradict\w*|discrepanc\w+|implications?|uncover\w*|insights?|big picture|overall picture|not (?:obvious|visible|apparent|evident)|nobody\b[^?.]{0,30}\b(?:talked|noticed|spotted|mentioned|realis\w*|realiz\w*)|relationships? (?:between|among)|connections? (?:between|among)|links? between|in common|overlap\w*|diverg\w*|converg\w*)\b/i;
 // DISCOVERY, supporting (+2 for EACH distinct cue, up to three): common words that signal pattern-finding. One alone never
@@ -81,16 +81,16 @@ const AGGREGATE = new RegExp(
   `\\b(?:list|enumerate|name|all|every)\\b[^?.]{0,60}\\b(?:events|circulars|notices|schemes|trials|tournaments|programmes|programs|orders|matches|competitions|announcements)\\b[^?.]{0,80}\\b(?:in|during|for|of)\\s+(?:${MONTHS})(?:\\s+(?:19|20)\\d{2})?\\b`,
   "i",
 );
-// TWO TOPICS asked of the circulars in one breath ("what do the circulars say about X and about Y"): the answer is built from the circulars of both topics (a Gaurav Diwas circular and a Flag Day circular, 11 Nov 2026, scored 2 and took the plain path)
+// TWO TOPICS asked of the circulars in one breath ("what do the circulars say about X and about Y"): the answer is built from the circulars of both topics. A Gaurav Diwas circular and a Flag Day circular (11 Nov 2026) scored 2 and took the plain path, which is why I added this.
 const TWO_TOPICS = /\b(?:say|says|state|states|mention|mentions|provide|provides|cover|covers|contain|contains|announce|announces)\b[^?.:]{0,50}\b(?:about|on|regarding|for)\b[^?.:]{0,140}\band (?:also )?(?:about|on|regarding|for|the)\b/i;
-// THREE OR MORE ASKS listed after a colon ("dates, how employees take part, and the ways to pay"): a briefing with a part for each, not one passage
+// THREE OR MORE ASKS listed after a colon ("dates, how employees take part, and the ways to pay"): I want a briefing with a part for each, not one passage
 const ASKS_AFTER_COLON = /:[^?.]*,[^?.]*(?:,|\band\b)[^?.]+/;
 const TWO_QUESTIONS = /\band (?:which|what|when|who|how|(?:through|by|to|from|for|under) (?:whom|which|what))\b/i;
 // A STAGE-BY-STAGE or CATEGORY-BY-CATEGORY breakdown ("what follows each violation at each stage", "for every level", "grade-wise"): the answer is a table of several rows, not one passage.
 const BREAKDOWN =
   /\b(?:at|for|in|under|across|per) (?:each|every) (?:of the )?(?:stage|step|level|tier|phase|category|grade|class|type|violation|offen[cs]e|scheme|case|rung)s?\b|\b(?:stage|step|level|category|grade|phase)[- ]?wise\b|\beach (?:violation|offen[cs]e|stage|step|level|tier)\b/i;
 
-// People-data operations: the employee directory answers these, never a synthesis of circulars. The guard looks for the DIRECTORY sense of a word, not the bare word:
+// People-data operations: the employee directory answers these, never a synthesis of circulars. My guard looks for the DIRECTORY sense of a word, not the bare word:
 // "who" / "whom" / "grade" / "junior" are everyday words of policy questions ("those who do not register", "through whom is it issued", "by grade", "Junior Officers of the 2008
 // batch"), and blocking on them kept strong EDS questions (a compare, a stage-by-stage ladder) out of EDS. What stays blocking: whose <person field>, "who is the head / manager /
 // in-charge ...", "who has / have / got ..." (a roster; not "who has to submit"), senior / junior used for a person (not "Senior Officers", "Junior Officers"), seniority, designation, ticket, mobile / phone, e-mail, surname, headcount.
@@ -101,7 +101,7 @@ const ID_LIKE = /\b\d{5,10}\b|\b[A-Za-z]\d{4,}\b/;
 const wordsOf = (q: string) => q.trim().split(/\s+/).filter(Boolean).length;
 const distinctYears = (q: string) => new Set(q.match(/\b(?:19|20)\d{2}\b/g) ?? []).size;
 
-/** Distinct capitalised words, acronyms and #numbers that are not the first word: the "many named things" signal. */
+/** I count distinct capitalised words, acronyms and #numbers that are not the first word: this is the "many named things" signal. */
 function namedThings(q: string): number {
   const toks = q.replace(/[(),.]/g, " ").split(/\s+/).filter(Boolean).slice(1);
   return new Set(toks.filter((w) => /^[A-Z][A-Za-z]+$/.test(w) || /^[A-Z]{2,}$/.test(w) || /^#\d+/.test(w))).size;
@@ -118,7 +118,7 @@ export function detectSynthesisIntent(question: string): SynthesisIntent {
 
   if (!q) return { synthesis: false, level: "none", score: 0, reasons: [], blockedBy: null };
 
-  // the main signals (any ONE of these is the heart of an EDS question)
+  // The main signals: any ONE of these is the heart of an EDS question
   if (ANALYTIC_VERB.test(q)) add(3, "an analytic task verb (trace / compare / contrast / synthesize / cross-reference / briefing ...)");
   if (VERSION_RELATION.test(q)) add(3, "a relation between versions or documents (change between / original / first announced / earlier circular ...)");
   if (BREAKDOWN.test(q)) add(3, "a stage-by-stage or category-by-category breakdown (at each stage / for each level / grade-wise ...)");
@@ -127,7 +127,7 @@ export function detectSynthesisIntent(question: string): SynthesisIntent {
   const mediumCues = DISCOVERY_MEDIUM.filter((re) => re.test(q)).length;
   if (mediumCues > 0) add(2 * Math.min(mediumCues, 3), `${mediumCues} pattern-finding cue(s) (patterns / trends / recurring themes / how often / across all ...)`);
 
-  // supporting shape
+  // Supporting shape
   if (REPORT_VERB.test(q)) add(1, "a report verb (detail / provide / outline ...)");
   const analyticVerbs = new Set((q.match(new RegExp(ANALYTIC_VERB.source, "gi")) ?? []).map((v) => v.toLowerCase()));
   if (analyticVerbs.size >= 2) add(1, "a second analytic verb");
@@ -137,13 +137,13 @@ export function detectSynthesisIntent(question: string): SynthesisIntent {
   if (ASKS_AFTER_COLON.test(q)) add(2, "three or more asks listed after a colon");
   const named = namedThings(q);
   if (named >= 3) add(1, `${named} named things`);
-  // a request for many attributes at once ("by grade, amount, periodicity, authority and occasion"): four or more items in one sentence is a table, not a passage
+  // A request for many attributes at once ("by grade, amount, periodicity, authority and occasion"): I treat four or more items in one sentence as a table, not a passage
   if ((q.match(/,/g) ?? []).length >= 3) add(2, "a list of four or more items asked for at once");
   const words = wordsOf(q);
   if (words >= 38) add(2, `${words} words`);
   else if (words >= 28) add(1, `${words} words`);
 
-  // guard: a people-data question is never EDS
+  // Guard: a people-data question is never EDS
   let blockedBy: string | null = null;
   const ops = q.match(PEOPLE_OPS);
   if (ops) blockedBy = `people-data word "${ops[0]}"`;
@@ -155,7 +155,7 @@ export function detectSynthesisIntent(question: string): SynthesisIntent {
 
 /**
  * ON by default (step 41a): the Enter key sends an EDS-type question from a logged-in executive to Executive Deep Synthesis by itself (the
- * screen decides, OmnibarModal.tsx; the server still verifies the executive from the login session). There is no button any more. The kill
+ * screen decides, OmnibarModal.tsx; the server still verifies the executive from the login session). I removed the button, so there is none any more. The kill
  * switch is NEXT_PUBLIC_FRONT_PATH_AUTO_EDS=false (also 0, off, no, in any case). It is a NEXT_PUBLIC_ variable because the browser reads it,
  * so a change needs a new deployment. The browser must pass the value in explicitly, because Next only replaces the literal
  * process.env.NEXT_PUBLIC_... in client code.

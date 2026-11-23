@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/search/edsVerify.selftest.ts
 //
-// The second reading (edsVerify.ts): the verifier's report is applied only where plain code can check it. The source text is the real wording of
+// This tests the second reading (edsVerify.ts): I apply the verifier's report only where plain code can check it. The source text is the real wording of
 // circular 009 (2022), Motivational Award Schemes, and the faults are the ones found in live answers on 11 Nov 2026 (and earlier ones, in general form).
 import { readFileSync } from "node:fs";
 import { applyVerdict, parseVerdict, quoteInSource, quotePieces, unusedClauses, mislabelledTimes, uncoveredLists, flatText, verifierInput, ambiguousShortForms, VERIFY_PROMPT, type Verdict } from "./edsVerify";
@@ -112,13 +112,13 @@ const V: Verdict = {
   ],
   cells: [
     { row: "DIC's Excellence Award Scheme", column: "Periodicity", value: "Annual", quote: "Award Amt. (Rs.): 8,000 | Periodicity: Annual" },
-    { row: "Jawahar Award Scheme", column: "Award Amt. (Rs.)", value: "12,000", quote: "Award Amt. (Rs.): 10,000" }, // a figure the circular does not write: ignored
+    { row: "Jawahar Award Scheme", column: "Award Amt. (Rs.)", value: "12,000", quote: "Award Amt. (Rs.): 10,000" }, // a figure the circular does not write, so it is ignored
     { row: "Kaushal Award", column: "Beneficiary", value: "Not stated in circular", quote: "Beneficiary: Contract Labour" }, // never blanked on the verifier's word
   ],
   missingColumns: [],
   missingRows: [
     { label: "Dr. APJ Abdul Kalam Award", cells: ["Exe & Non Exe", "Fully paid Holiday for three days and two nights to a nearby resort with family within 150 Kms from Durgapur as per TA eligibility", "Half Yearly"], quote: "Name of the Scheme: Dr. APJ Abdul Kalam Award | Beneficiary: Exe & Non Exe" },
-    { label: "Nehru Award Scheme", cells: ["Non Exe", "6,000", "Annual"], quote: "Name of the Scheme: Nehru Award Scheme" }, // not in this source text: ignored
+    { label: "Nehru Award Scheme", cells: ["Non Exe", "6,000", "Annual"], quote: "Name of the Scheme: Nehru Award Scheme" }, // not in this source text, so it is ignored
   ],
   unanswered: [
     { part: "the maximum cost of the Kalam Award tour", status: "in_circular", fact: "Maximum cost per employee for lodging & transport will be Rs.20,000/- or as per SAIL TA rules whichever is lower.", quote: "Maximum cost per employee for lodging & transport will be Rs.20,000/-" },
@@ -186,7 +186,7 @@ ok("the verifier's prompt says what is not a fault: format, units, short forms i
       { where: "overview", sentence: "The circular outlines various motivational award schemes at DSP.", verdict: "unsupported", fix: "" },
       { where: "overview", sentence: "Ten distinct schemes are compared, ranging from individual awards to group recognitions.", verdict: "unsupported", fix: "" },
     ], cells: [], missingRows: [], missingColumns: [], unanswered: [], abbreviations: [
-      { abbr: "IED", meaning: "Contract Labour Department", quote: "Implementing/ Executing Authority: CGM" }, // every word is somewhere in the circular, the phrase is not
+      { abbr: "IED", meaning: "Contract Labour Department", quote: "Implementing/ Executing Authority: CGM" }, // every word is somewhere in the circular, but the phrase is not
       { abbr: "DIC", meaning: "Director In-charge", quote: "approval of Director In Charge" },
     ] }, { ...ctx, sources: [{ id: 10, text: SRC + " As per the study recommendations of the high-level committee, and subsequent approval of Director In Charge (ISP & DSP)." }] });
   ok("a fix that changes only format or wording (no rupee sign, 'Exe' for 'Executives') is not taken: the finding keeps its words", out.result.keyFindings[0].text === base.keyFindings[0].text && out.changes.some((c) => /changes no fact/.test(c)), out.result.keyFindings[0].text);
@@ -246,7 +246,7 @@ function memStore(): EdsStore & { rows: Map<string, EdsRow> } {
       generate: async () => RAW,
       verify: async (input, system) => { sawInput = input; sawSystem = system; return JSON.stringify(V); },
     });
-    // the plain-code guards run first (the count is already "Three", "directly" and "automatically" are already out): the verifier sees the guarded text
+    // The plain-code guards run first (the count is already "Three", "directly" and "automatically" are already out), so the verifier sees the guarded text.
     ok("the verifier is called with its own prompt and the briefing", sawSystem === VERIFY_PROMPT && /Three distinct schemes are compared/.test(sawInput) && /Kaushal Award is presented by the CGM/.test(sawInput), sawInput.slice(0, 600));
     ok("the verifier's checked corrections are in the briefing shown", /presented to selected Awardees by respective CGM\/ HoD/.test(r.keyFindings[1].text) && r.table!.rows[1][3] === "Annual" && r.table!.rows.length === 4 && r.abbreviations?.TA === "Travelling Allowance", JSON.stringify(r.keyFindings));
     ok("the briefing records that it was read a second time, with the changes", r.verification?.checked === true && (r.verification?.changes.length ?? 0) >= 6, JSON.stringify(r.verification));
@@ -267,7 +267,7 @@ function memStore(): EdsStore & { rows: Map<string, EdsRow> } {
     ok("a test with no verifier hook runs no verification and stores as before", r.verification?.checked === false && store.rows.size === 1);
   }
   {
-    // the one repair attempt: a table that lacks a year the question names is put to the writer again, named; the better answer is kept
+    // The one repair attempt: a table that lacks a year the question names is put to the writer again, with the year named, and I keep the better answer.
     clearExecutiveSynthesisCache();
     const prompts: string[] = [];
     const oneYear = JSON.stringify({ headline: "H", overview: "The amounts stayed the same in 2025 and 2026.", keyFindings: [{ text: "The Jawahar Award is ₹10,000 in both years.", sources: [10] }, { text: "The DIC award is ₹8,000.", sources: [10] }, { text: "Pers (OD) executes both.", sources: [10] }], table: { title: "Awards", columns: ["Scheme", "2025"], rows: [["Jawahar Award Scheme", "10,000"], ["DIC's Excellence Award Scheme", "8,000"]], sources: [10] }, datasets: [] });

@@ -1,22 +1,22 @@
 // src/tools/vin/vin.ts
 //
-// HOW TO READ A VEHICLE IDENTIFICATION NUMBER (VIN): "MALBM51BLKM000001" -> world manufacturer MAL (Hyundai Motor India), the maker's own descriptor BM51B, position 9 L (not a check digit: Indian makers use it
+// How I read a vehicle identification number (VIN): "MALBM51BLKM000001" -> world manufacturer MAL (Hyundai Motor India), the maker's own descriptor BM51B, position 9 L (not a check digit: Indian makers use it
 // for their own code), model year K (2019), plant M, serial 000001. Pure; nothing is stored or sent anywhere.
 //
 // The structure is ISO 3779 (the 17 characters) and ISO 3780 (the World Manufacturer Identifier, which SAE International assigns); the letters I, O and Q are never used, so that nothing is mistaken for 1 or 0.
 // Positions 1-3 are the WMI, 4-9 the Vehicle Descriptor Section (VDS), 10-17 the Vehicle Indicator Section (VIS). The check digit of position 9 (a weighted sum modulo 11) is required in North America and
-// is NOT used by Indian makers. What a maker puts in positions 4-8, the plant letter and the month is the maker's own business: this reader says what the standard fixes, names the manufacturer and
-// plant only where it is sure, and says plainly when a part is the maker's own code. The vehicle's papers (registration certificate, invoice) and the maker are the authority.
+// is NOT used by Indian makers. What a maker puts in positions 4-8, the plant letter and the month is the maker's own business: my reader says only what the standard fixes, names the manufacturer and
+// plant only where I am sure, and says plainly when a part is the maker's own code. The vehicle's papers (registration certificate, invoice) and the maker are the authority.
 //
-// Indian chassis plates: Hyundai stamps the VIN followed by "*" and a letter for the month of manufacture (MALBM51BLKM000001*L: L = November); that suffix is read here and nothing else is guessed.
+// Indian chassis plates: Hyundai stamps the VIN followed by "*" and a letter for the month of manufacture (MALBM51BLKM000001*L: L = November); I read that suffix and guess nothing else.
 
 import { DateTime } from "luxon";
 
-/** the characters of a VIN: digits and capital letters except I, O and Q */
+/** The characters of a VIN: digits and capital letters except I, O and Q. */
 export const VIN_CHAR = /^[A-HJ-NPR-Z0-9]$/;
-/** the year codes of position 10 in order: A = 1980 (and 2010), ... Y = 2000 (2030), 1 = 2001 (2031) ... 9 = 2009 (2039); I, O, Q, U, Z and 0 are never year codes */
+/** I list the year codes of position 10 in order: A = 1980 (and 2010), ... Y = 2000 (2030), 1 = 2001 (2031) ... 9 = 2009 (2039); I, O, Q, U, Z and 0 are never year codes. */
 export const YEAR_CODES = "ABCDEFGHJKLMNPRSTVWXY123456789";
-/** the month letters Hyundai stamps after the VIN (I is skipped) */
+/** These are the month letters Hyundai stamps after the VIN (I is skipped). */
 export const MONTH_CODES: Record<string, string> = { A: "January", B: "February", C: "March", D: "April", E: "May", F: "June", G: "July", H: "August", J: "September", K: "October", L: "November", M: "December" };
 
 const TRANSLIT: Record<string, number> = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8, J: 1, K: 2, L: 3, M: 4, N: 5, P: 7, R: 9, S: 2, T: 3, U: 4, V: 5, W: 6, X: 7, Y: 8, Z: 9 };
@@ -38,7 +38,7 @@ export const SECTIONS: Array<{ id: "WMI" | "VDS" | "VIS"; from: number; to: numb
   { id: "VIS", from: 10, to: 17, name: "Vehicle Indicator Section", purpose: "the model year, the assembly plant and the serial number of this vehicle" },
 ];
 
-/** Manufacturers by WMI. Indian ones (MA-ME) first. Only codes that are well established are listed; anything else is said to be unknown, never guessed. */
+/** Manufacturers by WMI, Indian ones (MA-ME) first. I list only codes that are well established; anything else is said to be unknown, never guessed. */
 export const WMIS: Record<string, { maker: string; country: string }> = {
   MAL: { maker: "Hyundai Motor India", country: "India" },
   MA3: { maker: "Maruti Suzuki", country: "India" },
@@ -70,10 +70,10 @@ export const WMIS: Record<string, { maker: string; country: string }> = {
   TMB: { maker: "Škoda", country: "Czech Republic" },
 };
 
-/** the plant letter of position 11 is the maker's own; only this one is known with certainty (Hyundai Motor India had a single plant in India, at Sriperumbudur near Chennai, until recent years) */
+/** The plant letter of position 11 is the maker's own, so I list only this one, which is known with certainty (Hyundai Motor India had a single plant in India, at Sriperumbudur near Chennai, until recent years). */
 const PLANTS: Record<string, Record<string, string>> = { MAL: { M: "Hyundai Motor India's plant at Sriperumbudur, near Chennai" } };
 
-/** the region (first character) and, where the first two characters fix it, the country */
+/** Returns the region (first character) and, where the first two characters fix it, the country. */
 export function regionOf(vin: string): { region: string; country: string | null } {
   const c = vin[0] ?? "", two = vin.slice(0, 2);
   const region = /[A-H]/.test(c) ? "Africa" : /[J-R]/.test(c) ? "Asia" : /[S-Z]/.test(c) ? "Europe" : /[1-5]/.test(c) ? "North America" : /[6-7]/.test(c) ? "Oceania" : /[8-9]/.test(c) ? "South America" : "unknown";
@@ -95,13 +95,13 @@ export function regionOf(vin: string): { region: string; country: string | null 
   return { region, country };
 }
 
-/** the years a position-10 code may stand for: one in each 30-year cycle (null for a letter or digit that is never a year code) */
+/** Returns the years a position-10 code may stand for: one in each 30-year cycle (null for a letter or digit that is never a year code). */
 export function yearsFor(code: string): number[] | null {
   const i = YEAR_CODES.indexOf(code);
   return i < 0 ? null : [1980 + i, 2010 + i];
 }
 
-/** the year it most likely is: the latest of the two that is not later than next year; `other` is the one 30 years earlier (or later) */
+/** I take the year it most likely is to be the latest of the two that is not later than next year; `other` is the one 30 years earlier (or later). */
 export function modelYear(code: string, nowYear: number): { year: number; other: number } | null {
   const y = yearsFor(code);
   if (!y) return null;
@@ -118,7 +118,7 @@ export interface CheckStep {
   weight: number;
   product: number;
 }
-/** the check-digit sum of a 17-character VIN step by step (position 9 has weight 0: it is the digit being checked) */
+/** Works out the check-digit sum of a 17-character VIN step by step; position 9 has weight 0 because it is the digit being checked. */
 export function checkSteps(vin: string): { steps: CheckStep[]; sum: number; remainder: number; digit: string } {
   const steps = Array.from(vin).map((ch, i) => ({ pos: i + 1, ch, value: valueOf(ch), weight: WEIGHTS[i], product: valueOf(ch) * WEIGHTS[i] }));
   const sum = steps.reduce((s, x) => s + x.product, 0);
@@ -127,11 +127,11 @@ export function checkSteps(vin: string): { steps: CheckStep[]; sum: number; rema
 }
 
 export interface Typed {
-  /** a word such as "vin" or "chassis number" came before the number */
+  /** Set when a word such as "vin" or "chassis number" came before the number. */
   prefixed: boolean;
-  /** the characters, upper case, without spaces and hyphens, up to any "*" */
+  /** The characters, upper case, without spaces and hyphens, up to any "*". */
   core: string;
-  /** what followed a "*" (Hyundai's month letter), upper case */
+  /** What followed a "*" (Hyundai's month letter), upper case. */
   suffix: string;
 }
 
@@ -149,7 +149,7 @@ export function splitVin(raw: string): Typed {
   return { prefixed, core, suffix };
 }
 
-/** Is this line a VIN, so that it should be read as the person types? Strict without a word like "vin" in front (17 valid characters, letters and digits, a possible year code at position 10). */
+/** Decides whether this line is a VIN that I should read as the person types. I am strict when no word like "vin" is in front: 17 valid characters, letters and digits, and a possible year code at position 10. */
 export function looksLikeVin(raw: string): boolean {
   if ((raw || "").length > 60) return false;
   const t = splitVin(raw);
@@ -168,11 +168,11 @@ export interface VinPart {
 }
 
 export interface VinCheck {
-  /** what position 9 holds and what the sum says it would be */
+  /** What position 9 holds and what the sum says it would be. */
   found: string;
   calculated: string;
   matches: boolean;
-  /** "valid": a check digit that matches; "mismatch": a digit or X that does not match; "none": a letter, so no check digit */
+  /** The state of position 9. "valid": a check digit that matches; "mismatch": a digit or X that does not match; "none": a letter, so no check digit. */
   state: "valid" | "mismatch" | "none";
 }
 
@@ -185,7 +185,7 @@ export interface VinReading {
   year: { year: number; other: number } | null;
   wmi: { maker: string; country: string } | null;
   notes: string[];
-  /** worries that do not stop the reading (a position-10 code that is never a year) */
+  /** Worries that do not stop me from reading the number (a position-10 code that is never a year). */
   warnings: string[];
 }
 export interface VinProblem {
@@ -194,7 +194,7 @@ export interface VinProblem {
   issues: string[];
 }
 
-/** What each part of a VIN means, and what follows from it. `nowYear` fixes "next year" for the tests. */
+/** Reads what each part of a VIN means, and what follows from it. `nowYear` fixes "next year" for the tests. */
 export function readVin(raw: string, nowYear: number = DateTime.now().year): VinReading | VinProblem {
   const t = splitVin(raw);
   const typed = t.core + (t.suffix ? `*${t.suffix}` : "");
@@ -266,7 +266,7 @@ export function readVin(raw: string, nowYear: number = DateTime.now().year): Vin
     detail: `${vin.slice(11)}: the number of this vehicle in its maker's production, the part that tells two otherwise identical vehicles apart`,
   });
 
-  // Hyundai's stamped extension: *L
+  // Here I read Hyundai's stamped extension: *L
   const notes: string[] = [];
   if (t.suffix) {
     if (wmiCode === "MAL" && /^[A-HJ-M]$/.test(t.suffix)) {
@@ -290,7 +290,7 @@ export function readVin(raw: string, nowYear: number = DateTime.now().year): Vin
   return { ok: true, vin, parts, facts, check, year, wmi, notes, warnings };
 }
 
-/** made-up numbers that show the readings; none is a real vehicle's */
+/** Made-up numbers that show the readings; none is a real vehicle's. */
 export const VIN_SAMPLES: Array<{ vin: string; label: string }> = [
   { vin: "MALBM51BLKM000001", label: "Hyundai, India" },
   { vin: "1HGBH41JXMN109186", label: "Honda, USA" },

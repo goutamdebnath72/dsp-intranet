@@ -3,10 +3,10 @@
 //
 // The red circle on the Circulars thumbnail: the number of new circulars (1..9, or "9+").
 //
-// The number is centred by its VISIBLE INK (horizontally by the centre of its weight), not by the box the font reserves for it. A font reserves the same kind of box for every digit, but the ink
+// I centre the number by its VISIBLE INK (horizontally by the centre of its weight), not by the box the font reserves for it. A font reserves the same kind of box for every digit, but the ink
 // sits differently in it (a "1" has more empty space on its right than an "8") and vertically the box has room for letters that digits do not use. So
 // a number centred as text looks a little off, and by a different amount for each digit and each font. (A fixed nudge of -1px, tried before, could
-// only suit one digit in one font.) Here the ink of the actual number is MEASURED in the actual font of the actual screen and moved to the exact
+// only suit one digit in one font.) Here I MEASURE the ink of the actual number in the actual font of the actual screen and move it to the exact
 // centre of the circle, snapped to device pixels (to quarter pixels sideways on a 1x screen) so it stays sharp. Works with whatever font the computer provides.
 
 import { useLayoutEffect, useRef } from "react";
@@ -16,11 +16,11 @@ export const NEW_BADGE_COLOR = "#FF3B30";
 const BADGE_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Segoe UI", Roboto, sans-serif';
 
 /**
- * The visible ink of a text, in CSS px, found by DRAWING it on a hidden canvas at 16x resolution and reading which pixels are painted. (The canvas's own
+ * I find the visible ink of a text, in CSS px, by DRAWING it on a hidden canvas at 16x resolution and reading which pixels are painted. (The canvas's own
  * "actualBoundingBox" numbers are not reliable for this: in some browsers they are the font's reserved box rounded to whole pixels, not the ink.)
- * The text is drawn at its REAL font size and only MAGNIFIED by a transform: a system font such as SF Pro changes its design with the size (a "Text" cut
+ * I draw the text at its REAL font size and only MAGNIFY it by a transform: a system font such as SF Pro changes its design with the size (a "Text" cut
  * for small sizes, a "Display" cut for large ones), so drawing it 16 times bigger would measure a different design from the one on screen.
- * Returned in the same terms as actualBoundingBox*: left/right are distances from the text's origin (left is positive when the ink reaches LEFT of the
+ * The result uses the same terms as actualBoundingBox*: left/right are distances from the text's origin (left is positive when the ink reaches LEFT of the
  * origin), ascent/descent are distances above/below the baseline; weightX is the distance from the origin to the ink's centre of weight (the average
  * position of the painted pixels, each counted by how much of it is painted). null when nothing is drawn.
  */
@@ -42,7 +42,7 @@ export function measureInk(
   canvas.height = Math.ceil(font.sizePx * 2.5 * K);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
-  ctx.scale(K, K); // magnify the drawing; the font stays at its real size
+  ctx.scale(K, K); // I magnify the drawing; the font stays at its real size
   ctx.font = fontString;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
@@ -90,10 +90,10 @@ function CenteredText({ text }: { text: string }) {
     if (!el || !probe || !circle) return;
 
     const place = () => {
-      el.style.transform = "none"; // measure where the browser laid it out
+      el.style.transform = "none"; // I measure where the browser laid it out
       const cs = getComputedStyle(el);
       const ink = measureInk(text, { style: cs.fontStyle, weight: cs.fontWeight, sizePx: parseFloat(cs.fontSize), family: cs.fontFamily });
-      if (!ink) return; // nothing to centre (or an old browser): leave the number as laid out
+      if (!ink) return; // nothing to centre (or an old browser): I leave the number as laid out
       const box = el.getBoundingClientRect();
       const circleBox = circle.getBoundingClientRect();
       const { dx, dy } = inkShift({
@@ -108,7 +108,7 @@ function CenteredText({ text }: { text: string }) {
     };
 
     place();
-    // the font may arrive after the first paint, and the screen scale changes with the browser zoom: measure again then
+    // the font may arrive after the first paint, and the screen scale changes with the browser zoom, so I measure again then
     const cs0 = getComputedStyle(el);
     void document.fonts?.load(`${cs0.fontStyle} ${cs0.fontWeight} ${cs0.fontSize} ${cs0.fontFamily}`, text).then(place).catch(() => {});
     void document.fonts?.ready.then(place);
@@ -136,7 +136,7 @@ export function NewCircularBadge({ count, fontFamily = BADGE_FONT }: { count: nu
     <span className="absolute -top-2 -right-2 flex items-center justify-center">
       {/* soft ping halo */}
       <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ backgroundColor: NEW_BADGE_COLOR }} />
-      {/* badge body: a circle (a pill for two characters); the number inside is centred by its ink */}
+      {/* badge body: a circle (a pill for two characters), with the number inside centred by its ink */}
       <span
         data-testid="new-circular-badge"
         className="relative flex items-center justify-center rounded-full text-white"

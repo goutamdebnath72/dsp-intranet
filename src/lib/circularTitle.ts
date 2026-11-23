@@ -1,22 +1,22 @@
 // src/lib/circularTitle.ts
 //
-// How a circular's title is SHOWN on screen. DISPLAY ONLY: the title saved in the database is never changed, so nothing is lost and this can be switched
+// This is how a circular's title is SHOWN on screen. DISPLAY ONLY: the title saved in the database is never changed, so nothing is lost and I can switch this
 // off with the one constant below.
 //
 // Titles were typed by hand, by different people, over the years: some entirely in capitals ("CIRCULAR-HOLIDAY LIST FOR THE YEAR 2026"), some in running
 // letters ("Circular - Selection of players for SAIL ..."), some half and half ("CIRCULAR - HTS Jan-May 2026 Session"). Shown in a list that looks untidy,
-// so every title is shown the same way: running letters, only the first letter of the first word (and of the subject that follows a "Circular -" label)
+// so I show every title the same way: running letters, only the first letter of the first word (and of the subject that follows a "Circular -" label)
 // in capital.
-//   * A title typed entirely in capitals is converted. Organisation names and abbreviations stay in capitals (SAIL, DSP, PF ... see KEEP_UPPERCASE),
+//   * I convert a title typed entirely in capitals. Organisation names and abbreviations stay in capitals (SAIL, DSP, PF ... see KEEP_UPPERCASE),
 //     months and a few proper names keep their capital (January, Durgapur ... see PROPER_NOUNS).
-//   * A title that is already in running letters is left exactly as it is, except that a shouted first word ("CIRCULAR - ...") is put right.
-//   * Only the CASE of letters is ever touched: every other character, and the order of the letters, stays exactly as typed (typos included).
+//   * A title that is already in running letters is left exactly as it is, except that I put right a shouted first word ("CIRCULAR - ...").
+//   * I only ever touch the CASE of letters: every other character, and the order of the letters, stays exactly as typed (typos included).
 // To teach it another abbreviation or name, add it to the lists below.
 
-/** Switch the tidying off (titles are then shown exactly as stored). */
+/** I can switch the tidying off here (titles are then shown exactly as stored). */
 export const NORMALIZE_CIRCULAR_TITLES = true;
 
-/** Abbreviations that stay in capitals. (Any 2-5 letter word with no vowel, like DSP, BSP, PF, HR, LMS, HTS, TT, also stays in capitals by itself.) */
+/** I keep these abbreviations in capitals. (Any 2-5 letter word with no vowel, like DSP, BSP, PF, HR, LMS, HTS, TT, also stays in capitals by itself.) */
 export const KEEP_UPPERCASE: ReadonlySet<string> = new Set(
   [
     "SAIL", "DSP", "BSP", "RSP", "ISP", "BSL", "ASP", "SSP", "VISL", "IISCO", "CMO", "CPSE", "HR", "IT", "ERP", "ESS", "BAMS", "IMS", "PF", "ESI", "ESIC",
@@ -26,10 +26,10 @@ export const KEEP_UPPERCASE: ReadonlySet<string> = new Set(
   ].map((s) => s.toUpperCase()),
 );
 
-/** Abbreviations that contain a symbol (the symbol would split them into single letters). */
+/** Abbreviations that contain a symbol, listed apart because the symbol would split them into single letters. */
 const COMPOSITES = ["C&IT", "M&HS", "R&D", "S&T", "P&A"];
 
-/** Names that keep a capital letter, in their proper form (key = lowercase). */
+/** I keep a capital letter on these names, in their proper form (key = lowercase). */
 export const PROPER_NOUNS: ReadonlyMap<string, string> = new Map(
   [
     "Gaurav", "Diwas", "Swarna", "Jayanti", "Mediclaim", "Durgapur", "Kolkata", "Calcutta", "Delhi", "India", "Bengal", "Hindi", "Bengali", "English",
@@ -41,15 +41,15 @@ const MONTHS = new Set(
   ["january", "february", "march", "april", "june", "july", "august", "september", "october", "november", "december", "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec"],
 );
 const WEEKDAYS = new Set(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
-/** Abbreviations written with a capital first letter (Dr., Rs., Ltd. ...). */
+/** Abbreviations I write with a capital first letter (Dr., Rs., Ltd. ...). */
 const CAPITALISED_ABBREVIATIONS: ReadonlyMap<string, string> = new Map([
   ["dr", "Dr"], ["mr", "Mr"], ["mrs", "Mrs"], ["ms", "Ms"], ["smt", "Smt"], ["ltd", "Ltd"], ["pvt", "Pvt"], ["rs", "Rs"],
 ]);
-/** A word after which a lone I, V or X is a roman numeral (Part-II, Phase I). */
+/** Words after which I read a lone I, V or X as a roman numeral (Part-II, Phase I). */
 const NUMBERED_THINGS = new Set(["part", "phase", "clause", "schedule", "annexure", "appendix", "category", "grade", "class", "zone", "unit", "batch", "group", "section", "stage", "volume"]);
-/** The first word of a title that is only a label; the subject after it starts with a capital too ("Circular - Holiday list"). */
+/** A first word that is only a label of the title; I give the subject after it a capital too ("Circular - Holiday list"). */
 const LABELS = new Set(["circular", "notice", "notification", "memo", "order"]);
-/** A title with at most this share of lowercase letters counts as "typed in capitals" (allows a unit like the km in 5km). */
+/** A title with at most this share of lowercase letters counts as "typed in capitals"; this allows a unit like the km in 5km. */
 const SHOUTING_MAX_LOWER_SHARE = 0.12;
 
 const ROMAN = /^(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})$/;
@@ -62,11 +62,11 @@ interface Context {
   prevWord: string; // lowercase, "" at the start
 }
 
-/** The case a single (already uppercase or any-case) word gets in the middle of a sentence. */
+/** Here I decide the case that a single word (already uppercase or any-case) gets in the middle of a sentence. */
 function decideWord(word: string, ctx: Context): string {
   const apostrophe = word.search(/['’]/);
   if (apostrophe > 0) {
-    // worker's, don't: the part after the apostrophe is never an abbreviation
+    // worker's, don't: I never treat the part after the apostrophe as an abbreviation
     return decideWord(word.slice(0, apostrophe), { ...ctx, length: apostrophe }) + word[apostrophe] + word.slice(apostrophe + 1).toLowerCase();
   }
   const up = word.toUpperCase();
@@ -80,7 +80,7 @@ function decideWord(word: string, ctx: Context): string {
   if (WEEKDAYS.has(lo)) return lo[0].toUpperCase() + lo.slice(1);
   if (MONTHS.has(lo)) return lo[0].toUpperCase() + lo.slice(1);
   if (lo === "may") {
-    // the month only next to a number or another month (May-2026, Jan-May 2026); otherwise the word "may"
+    // I take it as a month only next to a number or another month (May-2026, Jan-May 2026); otherwise it is the word "may".
     const monthNeighbour = /^[-\s]*\d/.test(after) || /\d[-\s]*$/.test(before) || /(?:jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*-\s*$/i.test(before);
     return monthNeighbour ? "May" : "may";
   }
@@ -117,14 +117,14 @@ function convert(title: string, onlyFirstWord: boolean): string {
       prevWord = (word as string).toLowerCase();
     }
     const isFirst = seen === 0;
-    // the subject after a label starts with a capital only when the label is followed by a dash, colon or comma ("Circular - Holiday list"), not by a plain
+    // I give the subject after a label a capital only when the label is followed by a dash, colon or comma ("Circular - Holiday list"), not by a plain
     // space ("Circular for ...")
     const afterLabel = labelPending && /^[\s,.:;–—-]*$/.test(gap) && /[,.:;–—-]/.test(gap);
-    // never capitalise the ending of a number (26th)
+    // I never capitalise the ending of a number (26th).
     const endsANumber = /\d$/.test(whole.slice(0, offset));
     if ((isFirst || afterLabel) && !endsANumber) {
       if (onlyFirstWord && isFirst) {
-        // a half-shouted title: fix the first word only if it was shouted (CIRCULAR), never touch an abbreviation (PF, HTS)
+        // A half-shouted title: I fix the first word only if it was shouted (CIRCULAR), and I never touch an abbreviation (PF, HTS).
         out = out !== m ? capitalise(out.toLowerCase()) : m;
       } else {
         out = capitalise(out);
@@ -136,7 +136,7 @@ function convert(title: string, onlyFirstWord: boolean): string {
   });
 }
 
-/** The title as it should be shown. Never changes anything but the case of letters. */
+/** The title as it should be shown. I never change anything but the case of letters. */
 export function formatCircularTitle(title: string | null | undefined): string {
   if (!title) return "";
   if (!NORMALIZE_CIRCULAR_TITLES) return title;
@@ -144,7 +144,7 @@ export function formatCircularTitle(title: string | null | undefined): string {
   if (!letters) return title;
   const lowercase = letters.replace(/[^a-z]/g, "").length;
   if (lowercase / letters.length > SHOUTING_MAX_LOWER_SHARE) {
-    // already in running letters: only a SHOUTED first word ("CIRCULAR - ...") is put right
+    // Already in running letters: I put right only a SHOUTED first word ("CIRCULAR - ...").
     const first = /[A-Za-z]+/.exec(title);
     if (first && first[0] === first[0].toUpperCase() && first[0].length >= 3) return convert(title, true);
     return title;

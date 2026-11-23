@@ -1,7 +1,7 @@
 // src/components/tools/live/LiveStrip.tsx
 //
-// THE STATUS LINE OF A SELF-REFRESHING CARD: a pulsing dot and LIVE (or PAUSED, or NOT UPDATING when the last check failed), when the figures were fetched, how long until the next check, a thin bar that
-// runs down as the seconds pass, a button to pause the checking, and one to check now. The countdown is its own small component with its own clock, so that the list under it is not redrawn every second.
+// The status line of a self-refreshing card: a pulsing dot and LIVE (or PAUSED, or NOT UPDATING when the last check failed), when the figures were fetched, how long until the next check, a thin bar that
+// runs down as the seconds pass, a button to pause the checking, and one to check now. The countdown is its own small component with its own clock, so I keep the list under it from being redrawn every second.
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -11,7 +11,7 @@ import { DateTime } from "luxon";
 
 const ZONE = "Asia/Kolkata";
 
-/** "3:42:10 pm" in Indian time, to the second (a live screen shows seconds) */
+/** Gives "3:42:10 pm" in Indian time, to the second, because a live screen shows seconds. */
 export function clock(iso: string): string {
   const d = DateTime.fromISO(iso, { zone: ZONE });
   return d.isValid ? d.toFormat("h:mm:ss a").replace("AM", "am").replace("PM", "pm") : "";
@@ -26,7 +26,7 @@ const LOOK: Record<StripMode, { dot: string; ring: string; text: string; label: 
   lagging: { dot: "bg-amber-500", ring: "bg-amber-400", text: "text-amber-700", label: "Not updating" },
 };
 
-/** "next check in 42 s": counts down from the moment the last answer came in */
+/** "next check in 42 s": it counts down from the moment the last answer came in. */
 function Countdown({ arrivedAt, everyMs }: { arrivedAt: number; everyMs: number }) {
   const [t, setT] = useState(() => Date.now());
   useEffect(() => {
@@ -63,7 +63,7 @@ export function LiveStrip({ fetchedAt, arrivedAt, everyMs, mode, refreshing, onT
           </button>
         </span>
       </div>
-      {/* the bar runs down over the interval, and starts again with each answer */}
+      {/* The bar runs down over the interval, and starts again with each answer. */}
       <div className="mt-1.5 h-0.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
         {mode === "live" && !calm && <motion.div key={arrivedAt} initial={{ scaleX: 1 }} animate={{ scaleX: 0 }} transition={{ duration: everyMs / 1000, ease: "linear" }} style={{ originX: 0 }} className="h-full w-full rounded-full bg-emerald-400" />}
       </div>

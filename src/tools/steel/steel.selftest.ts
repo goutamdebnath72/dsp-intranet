@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/steel/steel.selftest.ts
-// The data and the logic of the steel card. The figures are copied from the Ministry of Steel's monthly reports and from the companies' own results, so the checks are the ones that can be PROVED from the data itself:
+// This tests the data and the logic of the steel card. The figures are copied from the Ministry of Steel's monthly reports and from the companies' own results, so I only make the checks that can be PROVED from the data itself:
 // the month-on-month changes the reports state agree with their figures, the monthly figures add up to the cumulative figures the reports state, and SAIL's own quarterly figures agree with the Ministry's monthly ones.
 import { COMPANIES } from "./companies";
 import { IRON_ORE, MOS_REPORTS, NSL_MONTHLY, RETAIL, RINL_MONTHLY, SAIL_MONTHLY, WSA_MONTHLY } from "./mos";
@@ -13,7 +13,7 @@ const near = (a: number | null, b: number, tol: number) => a !== null && Math.ab
 // ---- the retail prices
 ok("ten months, December 2025 to September 2026, one report for each, in order and without a gap", RETAIL.length === 10 && RETAIL[0].month === "2025-12" && RETAIL[9].month === "2026-09" && RETAIL.every((r, i) => i === 0 || r.month === monthShift(RETAIL[i - 1].month, 1)) && MOS_REPORTS.length === 10 && MOS_REPORTS.every((r, i) => r.month === RETAIL[i].month && /^https:\/\/steel\.gov\.in\/sites\/default\/files\/.+\.pdf$/.test(r.url)));
 ok("the latest prices are the ones the September 2026 report states: TMT 65,750, HR coil 76,900, CR coil 89,670", latestRetail().tmt === 65750 && latestRetail().hrc === 76900 && latestRetail().crc === 89670);
-// what each report says the month-on-month change was ([TMT, HRC, CRC], percent): the figures must give the same, except where the report's own percentage is a slip
+// What each report says the month-on-month change was ([TMT, HRC, CRC], percent): my figures must give the same, except where the report's own percentage is a slip
 const STATED: Record<string, [number, number, number]> = {
   "2026-01": [16.2, 13.9, 7.4], "2026-02": [4.4, 3.4, 2.8], "2026-03": [1.3, 3.8, 5.9], "2026-04": [1.8, 7.5, 5.5], "2026-05": [-5.7, -4.2, -2.5],
   "2026-06": [-6.7, -1.2, -0.1], "2026-07": [-5.5, -0.3, 0.8], "2026-08": [3.9, 0.6, -0.1], "2026-09": [15.5, 10.8, 14.0],
@@ -64,7 +64,7 @@ ok("the realisation per tonne is stated by SAIL for most quarters (a rupee figur
 ok("EBITDA per tonne where stated is a plausible rupee figure (5,000 to 20,000 a tonne); a quarter with a figure from a report of a call is marked secondary", COMPANIES.every((c) => c.quarters.every((q) => q.ebitdaPerTonne === null || (q.ebitdaPerTonne >= 5000 && q.ebitdaPerTonne <= 20000))) && COMPANIES.find((c) => c.id === "jspl")!.quarters.at(-1)!.secondary === true && COMPANIES.find((c) => c.id === "tata")!.quarters.every((q) => !q.secondary));
 ok("the notes name the break in JSW's figures (BPSL left the consolidation on 27 March 2026) and no text anywhere has Bengali letters or a telephone number", /BPSL/.test(COMPANIES.find((c) => c.id === "jsw")!.basis) && !/[ঀ-৿]/.test(JSON.stringify(COMPANIES)) && !/\b\d{10}\b/.test(JSON.stringify(COMPANIES)));
 
-// ---- JSW's change of scope: a change on the year is against the quarter as JSW restated it without BPSL
+// ---- JSW's change of scope: I compare a change on the year with the quarter as JSW restated it without BPSL
 const jsw = COMPANIES.find((c) => c.id === "jsw")!;
 const jq = (q: string) => jsw.quarters.find((x) => x.q === q)!;
 ok("JSW's three restated quarters carry the figures its later releases give (Q1 FY26 6.38, Q2 FY26 6.95, Q4 FY26 6.48 million tonnes, without BPSL), each lower than the quarter first reported", jq("Q1 FY26").sameScope?.production === 6.38 && jq("Q2 FY26").sameScope?.production === 6.95 && jq("Q4 FY26").sameScope?.production === 6.48 && (["Q1 FY26", "Q2 FY26", "Q4 FY26"] as const).every((q) => jq(q).sameScope!.production! < jq(q).production! && jq(q).sameScope!.sales! < jq(q).sales!) && COMPANIES.filter((c) => c.id !== "jsw").every((c) => c.quarters.every((q) => !q.sameScope)));

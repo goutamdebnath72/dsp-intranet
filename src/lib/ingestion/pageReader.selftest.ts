@@ -1,4 +1,4 @@
-// Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/pageReader.selftest.ts   (no network: a scripted fetch stands in for the services)
+// Run it with: npx tsx --tsconfig tsconfig.json src/lib/ingestion/pageReader.selftest.ts   (no network: a scripted fetch stands in for the services)
 import { DEFAULT_GEMINI_MODEL, PAGE_READER_PROMPT, STOPPED_MARKER, cutAtLoop, geminiReader, parseQuotaError, readerFromEnv, sniffImageMime } from "./pageReader";
 
 let pass = 0, fail = 0;

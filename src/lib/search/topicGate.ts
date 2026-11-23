@@ -6,12 +6,12 @@
 //    lexical scoring in api/ai-search/route.ts used to count EVERY word longer
 //    than 2 letters, including "what", "the", "for", "how", "does". Almost any
 //    chunk contains two of those, so almost every chunk looked like a "perfect
-//    lexical match" (82-93%) whatever the topic. Counting only content words
-//    makes the lexical signal mean something.
+//    lexical match" (82-93%) whatever the topic. I count only content words
+//    now, so the lexical signal means something.
 //
 // 2. isHolidayTopic(): does the question concern holidays / leave-day rules?
-//    The holiday-list circulars (no body text, found by headline embedding) and
-//    the holiday-policy notes should compete in the results ONLY for such
+//    I want the holiday-list circulars (no body text, found by headline embedding) and
+//    the holiday-policy notes to compete in the results ONLY for such
 //    questions. For every other question they were pure filler (50-89% on
 //    unrelated queries, in 30 of 46 battery questions).
 
@@ -27,7 +27,7 @@ export const QUERY_STOPWORDS = new Set([
   "if", "as", "up", "out", "off", "tell", "give", "show", "find", "list", "please",
 ]);
 
-/** Meaningful words of a query (lower-case, edge punctuation removed, stopwords dropped, length > 2). */
+/** Returns the meaningful words of a query (lower-case, edge punctuation removed, stopwords dropped, length > 2). */
 export function contentTokens(cleanLowerQuery: string): string[] {
   return cleanLowerQuery
     .split(/\s+/)
@@ -63,7 +63,7 @@ export const AUDIENCE_WORDS = new Set([
   "dsp", "sail", "plant", "steel", "durgapur", "circular", "notice",
 ]);
 
-/** The words of a query that say WHAT it is about (content words minus audience/organisation words). */
+/** Returns the words of a query that say WHAT it is about: the content words minus audience and organisation words. */
 export function topicTokens(contentOnly: string[]): string[] {
   return contentOnly.filter((t) => !AUDIENCE_WORDS.has(t));
 }

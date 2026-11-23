@@ -1,9 +1,9 @@
 // src/lib/announcements/searchIndex/tables.ts
 //
-// THE DATABASE SIDE OF THE SEARCH INDEX (src/lib/nl2sql/sql/29_announcement_search_index.sql). Same care as admin/files.ts: every READ is wrapped in a savepoint, so a database where the tables are not there yet
+// THE DATABASE SIDE OF THE SEARCH INDEX (src/lib/nl2sql/sql/29_announcement_search_index.sql). I take the same care as admin/files.ts: every READ is wrapped in a savepoint, so a database where the tables are not there yet
 // (the SQL file not run, and nothing indexed yet) simply has no index: announcements, their PDFs and their literal search are untouched.
 //
-// Two PARTS are kept apart, so that one can be redone without the other: the BODY (source 'body' passages) and the PDF (source 'pdf' passages, its page pictures, its text). Each has its own state in
+// I keep two PARTS apart, so that one can be redone without the other: the BODY (source 'body' passages) and the PDF (source 'pdf' passages, its page pictures, its text). Each has its own state in
 // announcement_index. The functions that REPLACE a part return the addresses of the page pictures it had, for the caller to delete from storage after the commit.
 
 import type { QueryFn } from "@/lib/facility/types";
@@ -14,11 +14,11 @@ export interface PartState {
   note: string | null;
 }
 export interface PdfState extends PartState {
-  /** pages that have text */
+  /** Count of pages that have text. */
   pages: number | null;
-  /** ... of which taken from the PDF's own text */
+  /** ... of those, the ones taken from the PDF's own text */
   textPages: number | null;
-  /** ... and read by AI */
+  /** ... and of those, the ones read by AI */
   ocrPages: number | null;
 }
 export interface BodyState extends PartState {
@@ -33,11 +33,11 @@ export interface IndexedChunk {
   index: number;
   page: number;
   text: string;
-  /** a pgvector literal "[0.1,0.2,...]" */
+  /** Held as a pgvector literal "[0.1,0.2,...]". */
   vector: string;
 }
 
-/** Creates the tables if they are not there. If the database user may not, the error goes up and the caller records it as the reason. */
+/** Creates the tables if they are not there. If the database user may not, I let the error go up so the caller records it as the reason. */
 export async function ensureIndexTables(q: QueryFn): Promise<void> {
   await q(
     `CREATE TABLE IF NOT EXISTS public.announcement_index (
@@ -84,7 +84,7 @@ async function insertChunks(q: QueryFn, id: number, source: "body" | "pdf", chun
   }
 }
 
-/** Removes everything the PDF part holds for an announcement (its PDF was removed or replaced); the body part stays. Returns the page pictures it had. Missing tables are fine. */
+/** I remove everything the PDF part holds for an announcement (its PDF was removed or replaced) and leave the body part alone. Returns the page pictures it had. Missing tables are fine. */
 export async function dropPdfIndex(q: QueryFn, id: number): Promise<string[]> {
   const urls = await tryInSavepoint(q, async () => {
     await q(`DELETE FROM public.announcement_chunk WHERE announcement_id = $1 AND source = 'pdf'`, [id]);
@@ -95,7 +95,7 @@ export async function dropPdfIndex(q: QueryFn, id: number): Promise<string[]> {
   return urls ?? [];
 }
 
-/** Replaces the PDF part with a freshly read one: its passages, page pictures and text, together. Returns the page pictures it had before. */
+/** I replace the PDF part with a freshly read one, taking its passages, page pictures and text together. Returns the page pictures it had before. */
 export async function savePdfIndex(q: QueryFn, id: number, o: { chunks: IndexedChunk[]; text: string; pages: number; textPages: number; ocrPages: number; note: string | null; pageUrls: Map<number, string> }): Promise<string[]> {
   await q(`DELETE FROM public.announcement_chunk WHERE announcement_id = $1 AND source = 'pdf'`, [id]);
   const old = await takePageUrls(q, id);
@@ -114,7 +114,7 @@ export async function savePdfIndex(q: QueryFn, id: number, o: { chunks: IndexedC
   return old;
 }
 
-/** Records that the PDF could not be read (what an older PDF left is dropped: it belonged to a PDF that is no longer there). Returns the page pictures it had. */
+/** Records that the PDF could not be read. I drop what an older PDF left, because it belonged to a PDF that is no longer there. Returns the page pictures it had. */
 export async function savePdfFailure(q: QueryFn, id: number, note: string): Promise<string[]> {
   await q(`DELETE FROM public.announcement_chunk WHERE announcement_id = $1 AND source = 'pdf'`, [id]);
   const old = await takePageUrls(q, id);
@@ -144,7 +144,7 @@ export async function saveBodyIndex(q: QueryFn, id: number, o: { chunks: Indexed
   );
 }
 
-/** Records that the body's passages could not be made (the old ones stay: they are the previous text's, but the literal search and the whole-record vector still serve; the state says it). */
+/** Records that the body's passages could not be made. I keep the old ones (they are the previous text's) because the literal search and the whole-record vector still serve; the state says it. */
 export async function saveBodyFailure(q: QueryFn, id: number, note: string): Promise<void> {
   await q(
     `INSERT INTO public.announcement_index (announcement_id, body_status, body_note, indexed_at)
@@ -154,7 +154,7 @@ export async function saveBodyFailure(q: QueryFn, id: number, note: string): Pro
   );
 }
 
-/** The state of the index of these announcements (a missing table: none of them). */
+/** The state of the index of these announcements; with a missing table I return none of them. */
 export async function indexStateOf(q: QueryFn, ids: number[]): Promise<Map<number, IndexState>> {
   const out = new Map<number, IndexState>();
   if (ids.length === 0) return out;
@@ -175,7 +175,7 @@ export async function indexStateOf(q: QueryFn, ids: number[]): Promise<Map<numbe
   return out;
 }
 
-/** The page pictures of an announcement (for deleting it: the pictures go from storage after the commit; the rows go by cascade). A missing table: none. */
+/** The page pictures of an announcement, used when deleting it: the pictures go from storage after the commit, and the rows go by cascade. A missing table gives none. */
 export async function pageUrlsOf(q: QueryFn, id: number): Promise<string[]> {
   const rows = await tryInSavepoint(q, () => q(`SELECT url FROM public.announcement_page WHERE announcement_id = $1`, [id]));
   return (rows ?? []).map((r) => String(r.url));

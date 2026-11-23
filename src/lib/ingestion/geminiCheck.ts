@@ -1,8 +1,8 @@
 /**
  * The Gemini reading check of a circular's pages: for each page the pipeline already read (its reading comes from the re-read tool's page cache),
- * a second reader (Gemini) reads the same page image, the two readings are compared (readingCheck.ts), and a report ranks the pages to look at.
+ * a second reader (Gemini) reads the same page image, I compare the two readings (readingCheck.ts), and a report ranks the pages to look at.
  *
- * Gemini's readings are kept on disk, so a page is never paid for twice; a failed or incomplete reading is never kept. The calls are spaced out,
+ * I keep Gemini's readings on disk, so a page is never paid for twice; a failed or incomplete reading is never kept. The calls are spaced out,
  * a rate-limit refusal waits for the window to clear, and a run stops after a limit on live calls, so one command cannot burn the quota.
  * Nothing here touches the database: it reads, compares and reports.
  */
@@ -30,14 +30,14 @@ export interface CheckArgs {
   fetchImage(url: string): Promise<Buffer>;
   cacheDir: string;
   useCache: boolean;
-  /** Wait after each LIVE call, to stay inside the service's per-minute limit. */
+  /** I wait this long after each LIVE call, to stay inside the service's per-minute limit. */
   pauseMs: number;
   /** Waits after a rate-limit refusal, one entry per retry. */
   waitsMs: number[];
   sleep(ms: number): Promise<void>;
-  /** Live calls still allowed in this run (cache hits are free). Shared across circulars through the object. */
+  /** Live calls still allowed in this run (cache hits are free). The object is shared across circulars. */
   budget: { liveCallsLeft: number; liveCalls: number; cacheHits: number };
-  /** Keep both full readings in each outcome (for --dump-text). */
+  /** Set this to keep both full readings in each outcome (for --dump-text). */
   keepTexts?: boolean;
   onPage?(o: PageOutcome): void;
   onWait?(ms: number, attempt: number, total: number): void;
@@ -50,7 +50,7 @@ export interface CheckResult {
 }
 
 const promptId = createHash("sha1").update(PAGE_READER_PROMPT).digest("hex").slice(0, 10);
-/** One file per (page image, reader, instructions): a changed model or prompt reads the page again. */
+/** I keep one file per (page image, reader, instructions), so a changed model or prompt reads the page again. */
 export function geminiCacheFile(dir: string, url: string, readerName: string): string {
   return join(dir, "gemini", createHash("sha1").update(`${url}|${readerName}|${promptId}`).digest("hex") + ".json");
 }
@@ -82,7 +82,7 @@ export async function checkCircularPages(a: CheckArgs): Promise<CheckResult> {
         continue;
       }
       second = res.value as string;
-      // an incomplete reading is worth showing but not worth keeping: it is read again next time
+      // an incomplete reading is worth showing but not worth keeping, so I read it again next time
       if (a.useCache && !second.includes(STOPPED_MARKER)) {
         mkdirSync(join(a.cacheDir, "gemini"), { recursive: true });
         writeFileSync(file, JSON.stringify({ url, reader: a.reader.name, savedAt: nowIso(), text: second }));
@@ -101,7 +101,7 @@ export interface CircularCheckInput { id: number; serial: number | string | null
 export interface ReportMeta { reader: string; startedAt: string; liveCalls: number; cacheHits: number; stoppedForQuota: boolean; stoppedForLimit: boolean }
 
 const checked = (o: PageOutcome): o is Extract<PageOutcome, { check: PageCheck }> => "check" in o;
-/** How much a page needs a look: important numbers that only one reading has, and letters from a wrong script. */
+/** How much a page needs a look: important numbers that only one reading has, plus letters from a wrong script. */
 export const attention = (o: PageOutcome): number => (checked(o) ? o.check.onlyFirst.length + o.check.onlySecond.length + o.check.oddScripts.length * 2 : 0);
 
 export function summarize(inputs: CircularCheckInput[]) {

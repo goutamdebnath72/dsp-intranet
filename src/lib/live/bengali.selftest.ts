@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/bengali.selftest.ts
-// The hand-curated Bengali front page: how a story is given its desk, how the front page is chosen and ordered, tested on 350 REAL Anandabazar headlines of 10-13 Nov 2026 (read section by section).
+// This tests the hand-curated Bengali front page: how a story is given its desk, and how the front page is chosen and ordered. I use 350 REAL Anandabazar headlines of 10-13 Nov 2026 (read section by section).
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
 import { classify, curate, DESKS, FRONT_PAGE, SHARE, TIER1_CAP, TRENDING_PAPERS, type DeskId } from "./bengali";
@@ -45,7 +45,7 @@ ok("a mix of papers on the real data: Anandabazar's stories keep every top-band 
 ok("one paper holds at most half its share in the top band: six attacks of one day give Anandabazar three places in the band (the rest go down to the core, still on the page)", (() => { const p = curate([...Array.from({ length: 6 }, (_, k) => mk("জঙ্গি হামলা " + k, "national", "2026-11-12T0" + k + ":00:00Z")), ...Array.from({ length: 8 }, (_, k) => mk("খেলার খবর " + k, "sports", "2026-11-12T1" + k + ":00:00Z"))], 18); return p.filter((x) => x.tier === 1).length === 3 && p.filter((x) => x.desk === "attack").length === 6 && p.filter((x) => x.desk === "sports").length === 8 && new Set(p.map((x) => x.link)).size === p.length; })());
 ok("the top of the page is a mix of papers: when several papers have news of a war or an attack, no paper holds more than half its share of the band", (() => { const p = curate([...paper("Anandabazar Patrika", 5, (k) => `জঙ্গি হামলা আনন্দবাজার ${k}`, "national"), ...paper("Bartaman", 3, (k) => `জঙ্গি হামলা বর্তমান ${k}`, "other"), ...paper("Ei Samay", 3, (k) => `যুদ্ধ এই সময় ${k}`, "other"), ...everyone.filter((x) => x.source === "Aajkaal")]); const n = (s: string) => p.filter((x) => x.tier === 1 && x.source === s).length; return n("Anandabazar Patrika") <= 3 && n("Bartaman") <= 2 && n("Ei Samay") <= 2 && p.filter((x) => x.tier === 1).length <= TIER1_CAP; })());
 
-// trending: three papers carry it
+// Trending means three papers carry the story
 ok("a story carried by three papers (the one shown and two others named) is 'trending'; by two it is not; a film story never is", classify(mk("একটি বড় খবর যা তিন কাগজে", "state", "2026-11-13T08:00:00Z", ["BBC বাংলা", "সংবাদ প্রতিদিন"])) === "trending" && TRENDING_PAPERS === 3 && classify(mk("একটি খবর", "state", "2026-11-13T08:00:00Z", ["BBC বাংলা"])) === "state" && classify(mk("একটি ছবি", "entertainment", "2026-11-13T08:00:00Z", ["BBC বাংলা", "সংবাদ প্রতিদিন"])) === "entertainment");
 
 // the front page, on the real headlines

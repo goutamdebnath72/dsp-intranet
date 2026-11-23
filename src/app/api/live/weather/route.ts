@@ -1,7 +1,7 @@
 // src/app/api/live/weather/route.ts
 //
-// THE WEATHER AT DURGAPUR, NOW AND FOR THE WEEK, from Open-Meteo (src/lib/live/weather.ts). Reads nothing from the caller: the address asked is fixed (Durgapur's coordinates). The answer is checked; if the
-// source fails, the last good answer is returned and marked as such, and with none, a plain failure. Kept for ten minutes (the service refreshes its reading every quarter of an hour).
+// The weather at Durgapur, now and for the week, from Open-Meteo (src/lib/live/weather.ts). I read nothing from the caller: the address asked is fixed (Durgapur's coordinates). I check the answer; if the
+// source fails, I return the last good answer marked as such, and with none, a plain failure. I keep it for ten minutes (the service refreshes its reading every quarter of an hour).
 import { DateTime } from "luxon";
 import { getJson } from "@/lib/live/http";
 import { liveRoute } from "@/lib/live/envelope";

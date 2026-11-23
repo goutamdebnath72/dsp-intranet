@@ -2,10 +2,10 @@
 //
 // THE DOCUMENT MODEL OF THE "DOWNLOAD AS PDF" OF AN EXECUTIVE DEEP SYNTHESIS (EDS) REPLY.
 //
-// The reply is structured data (headline, overview, findings, tables, charts, sources), so the PDF is DRAWN from that data (vector text and vector charts, selectable and
-// searchable), never a screenshot of the screen. This file turns the reply into print-ready blocks: text runs with their script (so each run gets a font that has its
-// glyphs), table cells in the same reading as on screen (rate / approver / note), chart geometry (already scaled), the sources and the file name. Pure: no I/O, no PDF
-// library, no clock (the caller passes `now`), so every rule is tested (edsPdfModel.selftest.ts). edsPdfDocument.tsx only paints what this model says.
+// The reply is structured data (headline, overview, findings, tables, charts, sources), so I DRAW the PDF from that data (vector text and vector charts, selectable and searchable), never a screenshot of the screen.
+// This file turns the reply into print-ready blocks: text runs with their script (so each run gets a font that has its glyphs), table cells in the same reading as on screen (rate / approver / note),
+// chart geometry (already scaled), the sources and the file name. I keep it pure: no I/O, no PDF library, no clock (the caller passes `now`), so every rule is tested (edsPdfModel.selftest.ts).
+// edsPdfDocument.tsx only paints what this model says.
 import { DateTime } from "luxon";
 import type { SynthesisChart, SynthesisResult, SynthesisTable } from "@/lib/search/executiveSynthesis";
 import { formatCircularTitle } from "@/lib/circularTitle";
@@ -25,7 +25,7 @@ export interface Run {
   code?: boolean;
 }
 
-/** Characters the embedded fonts do not have, written the plain way. (Everything else the replies use - ₹ × – — • ° ½ and curly quotes - is in the fonts.) */
+/** These are the characters the embedded fonts do not have; I write them the plain way. Everything else the replies use - ₹ × – — • ° ½ and curly quotes - is in the fonts. */
 const PLAIN: Array<[RegExp, string]> = [
   [/≥/g, ">="],
   [/≤/g, "<="],
@@ -35,10 +35,10 @@ const PLAIN: Array<[RegExp, string]> = [
   [/≠/g, "!="],
   [/[✓✔☑]/gu, "Yes"],
   [/[✗✘]/gu, "No"],
-  [/[​﻿]/g, ""], // zero-width space / BOM: nothing to draw
+  [/[​﻿]/g, ""], // zero-width space or BOM: there is nothing to draw
   [/ /g, " "],
 ];
-// emoji (the on-screen "✅" and friends) cannot be drawn by the fonts: removed, never shown as an empty box
+// The fonts cannot draw emoji (the on-screen "✅" and friends), so I remove them and never show an empty box.
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu;
 
 export function pdfSafe(text: string): string {
@@ -56,7 +56,7 @@ const scriptOf = (ch: string): Script => {
 };
 
 /**
- * Splits text into runs of one script each. The Hindi and Bengali fonts hold only their own script (no space, digit or ASCII punctuation), so a space, an ASCII digit or a
+ * I split text into runs of one script each. The Hindi and Bengali fonts hold only their own script (no space, digit or ASCII punctuation), so a space, an ASCII digit or a
  * punctuation mark is always drawn in the main font: "सेल स्थापना" is the word "सेल", a space, and the word "स्थापना". A zero-width joiner stays inside its word (it takes part in shaping).
  */
 export function splitScripts(text: string): Array<{ text: string; script: Script }> {
@@ -71,7 +71,7 @@ export function splitScripts(text: string): Array<{ text: string; script: Script
   return out;
 }
 
-/** Inline markdown of a finding or paragraph (**bold**, *italic*, `code`) -> runs, with rupee grouping and plain symbols, each run split by script. */
+/** Here I turn the inline markdown of a finding or paragraph (**bold**, *italic*, `code`) into runs, with rupee grouping and plain symbols, each run split by script. */
 export function inlineRuns(input: unknown): Run[] {
   const text = pdfSafe(groupRupees(typeof input === "string" ? input : input == null ? "" : String(input)));
   const runs: Run[] = [];
@@ -93,7 +93,7 @@ export function inlineRuns(input: unknown): Run[] {
   return runs;
 }
 
-/** Plain text of runs (for the file name, tests and the document's own title). */
+/** Plain text of runs, used for the file name, the tests and the document's own title. */
 export const plainOf = (runs: Run[]): string => runs.map((r) => r.text).join("");
 
 /* ------------------------------------------------------------------ *
@@ -104,11 +104,11 @@ export type CellKind = "label" | "none" | "rate" | "amount" | "plain";
 
 export interface CellModel {
   kind: CellKind;
-  /** the main text (the rate, the amount, the value, the label) */
+  /** The main text: the rate, the amount, the value or the label. */
   main: Run[];
-  /** who approves ("Head of P&A"), when the bracket names an authority */
+  /** Who approves ("Head of P&A"), set when the bracket names an authority. */
   authority?: Run[];
-  /** a note: the bracket that is not an authority, and the [condition] */
+  /** A note: the bracket that is not an authority, and the [condition]. */
   notes: Run[][];
 }
 
@@ -142,25 +142,27 @@ export function parseCell(cell: string, colIndex: number): CellModel {
 export interface TableModel {
   title?: string;
   columns: Run[][];
-  /** column widths in percent (the first column 28%, the others share the rest equally: the same as on screen) */
+  /** Column widths in percent: the first column 28% and the others share the rest equally, the same as on screen. */
   widths: number[];
   rows: CellModel[][];
-  /** the circulars it was read from, as the archive names them ("Circular 046 (2022)") */
+  /** The circulars it was read from, as the archive names them ("Circular 046 (2022)"). */
   sources: string[];
 }
 
-/* A table stays in one block (it moves to the next page whole, with its heading) only if it FITS on a page. The painter used to decide that by the number of rows (12 or fewer), but an
- * 11-row table whose rows wrap to 3 or 4 lines is taller than a page, and the PDF library then draws the page on top of itself. So the height is estimated here, from the text and the
- * column widths, on the generous side: a table judged too tall only runs on over the page break (its heading row repeats), which is always safe; one judged short enough must really fit. */
-export const PDF_BODY_WIDTH_PT = 511; // A4 (595 pt) less the 42 pt side margins
-export const PDF_BODY_HEIGHT_PT = 718; // A4 (842 pt) less the top (66) and bottom (58) margins
-const TABLE_WHOLE_LIMIT_PT = 560; // leaves room for the section heading, the title and a possible paragraph above it on the same page
+/*
+ * I keep a table in one block (it moves to the next page whole, with its heading) only if it FITS on a page. The painter used to decide that by the number of rows (12 or fewer), but an
+ * 11-row table whose rows wrap to 3 or 4 lines is taller than a page, and the PDF library then draws the page on top of itself. So I estimate the height here, from the text and the
+ * column widths, on the generous side: a table judged too tall only runs on over the page break (its heading row repeats), which is always safe; one judged short enough must really fit.
+ */
+export const PDF_BODY_WIDTH_PT = 511; // A4 (595 pt) minus the 42 pt side margins
+export const PDF_BODY_HEIGHT_PT = 718; // A4 (842 pt) minus the top (66) and bottom (58) margins
+const TABLE_WHOLE_LIMIT_PT = 560; // I leave room for the section heading, the title and a possible paragraph above it on the same page
 
 const textLen = (runs: Run[] | undefined) => (runs ?? []).reduce((n, r) => n + r.text.length, 0);
 
 const cellLines = (chars: number, fontPt: number, widthPct: number) => {
-  const inner = Math.max(20, (PDF_BODY_WIDTH_PT * widthPct) / 100 - 14); // less the cell's side padding
-  const perLine = Math.max(4, Math.floor(inner / (fontPt * 0.6))); // bold text, a wide average letter: on the safe side
+  const inner = Math.max(20, (PDF_BODY_WIDTH_PT * widthPct) / 100 - 14); // minus the cell's side padding
+  const perLine = Math.max(4, Math.floor(inner / (fontPt * 0.6))); // bold text, a wide average letter: I stay on the safe side
   return Math.max(1, Math.ceil(chars / perLine));
 };
 function rowHeightOf(t: TableModel, cells: CellModel[]): number {
@@ -174,7 +176,7 @@ function rowHeightOf(t: TableModel, cells: CellModel[]): number {
         return h;
       }),
     ) + 14
-  ); // the cell's top and bottom padding and its rule
+  ); // the cell's top and bottom padding plus its rule
 }
 const headHeightOf = (t: TableModel) => Math.max(...t.columns.map((c, ci) => cellLines(textLen(c), 7.8, t.widths[ci] ?? 100 / t.columns.length) * 11)) + 14;
 
@@ -182,7 +184,7 @@ export function estimateTableHeight(t: TableModel): number {
   return (t.title ? 18 : 0) + headHeightOf(t) + t.rows.reduce((n, r) => n + rowHeightOf(t, r), 0) + (t.sources.length ? 26 : 0) + 12;
 }
 
-/** True when the table is short enough to be kept whole (moved to the next page as one block). */
+/** Returns true when the table is short enough for me to keep it whole (moved to the next page as one block). */
 export function tableFitsOnePage(t: TableModel): boolean {
   return estimateTableHeight(t) <= TABLE_WHOLE_LIMIT_PT;
 }
@@ -203,7 +205,7 @@ export function tableModel(table: SynthesisTable, citations: SynthesisResult["ci
  * Sources
  * ------------------------------------------------------------------ */
 
-/** How the archive names a circular: its label ("Circular 046 (2022)"), else the year of its date, else "Source". */
+/** I name a circular the way the archive does: by its label ("Circular 046 (2022)"), else by the year of its date, else "Source". */
 export function sourceName(c: SynthesisResult["citations"][number]): string {
   if (c.label) return c.label;
   const year = c.publishedAt && /^\d{4}/.test(c.publishedAt) ? c.publishedAt.slice(0, 4) : "";
@@ -214,15 +216,17 @@ export function sourceNames(ids: number[] | undefined, citations: SynthesisResul
   return (ids ?? []).map((id) => citations.find((c) => c.id === id)).filter((c): c is NonNullable<typeof c> => !!c).map(sourceName);
 }
 
-/* ------------------------------------------------------------------ *
- * Charts: the geometry is computed here, already scaled to the drawing area
- * ------------------------------------------------------------------ */
+/*
+ * ------------------------------------------------------------------ *
+ * Charts: I compute the geometry here, already scaled to the drawing area
+ * ------------------------------------------------------------------
+ */
 
 export const PALETTE = ["#f59e0b", "#0ea5e9", "#10b981", "#8b5cf6", "#ef4444", "#ec4899", "#14b8a6", "#f97316"];
 export const SERIES_A = "#f59e0b";
 export const SERIES_B = "#0ea5e9";
 
-/** "Nice" axis ticks from 0 (or the minimum) to a rounded maximum: 0, 50, 100, 150. */
+/** I make "nice" axis ticks from 0 (or the minimum) to a rounded maximum: 0, 50, 100, 150. */
 export function niceTicks(min: number, max: number, count = 4): number[] {
   const lo = Math.min(0, min);
   const hi = max <= lo ? lo + 1 : max;
@@ -238,7 +242,7 @@ export function niceTicks(min: number, max: number, count = 4): number[] {
   return out;
 }
 
-/** The path of a ring slice (angles in radians, 0 at 12 o'clock, clockwise). A full circle is drawn as two halves, as one arc cannot start and end at the same point. */
+/** The path of a ring slice (angles in radians, 0 at 12 o'clock, clockwise). I draw a full circle as two halves, as one arc cannot start and end at the same point. */
 export function slicePath(cx: number, cy: number, rOuter: number, rInner: number, a0: number, a1: number): string {
   if (a1 - a0 >= Math.PI * 2 - 1e-6) {
     const mid = a0 + Math.PI;
@@ -252,7 +256,7 @@ export function slicePath(cx: number, cy: number, rOuter: number, rInner: number
 export interface ChartBase {
   title: string;
   subtitle?: string;
-  /** "Metric: ₹" - not for a timeline */
+  /** The "Metric: ₹" text; not used for a timeline */
   metric?: string;
   sources: string[];
 }
@@ -280,7 +284,7 @@ export interface TimelineModel extends ChartBase { type: "timeline"; items: Arra
 export interface KpiModel extends ChartBase { type: "kpi"; items: Array<{ value: string; label: string; detail?: string }> }
 export type ChartModel = PieModel | BarModel | LineModel | ScatterModel | TimelineModel | KpiModel;
 
-/** Drawing area of the line and scatter charts, in points (the card inside an A4 page with 44 pt margins is about 480 pt wide). */
+/** This is the drawing area of the line and scatter charts, in points; the card inside an A4 page with 44 pt margins is about 480 pt wide. */
 export const PLOT_W = 440;
 export const PLOT_H = 190;
 const PAD_L = 46;
@@ -403,7 +407,7 @@ export interface PdfModel {
 
 const DISPLAY_DATE = "d MMM yyyy";
 
-/** The file name: "EDS-Accommodation-retention-Type-A-vs-B-2026-11-10.pdf" (ASCII only, no spaces, at most about 70 characters of title). */
+/** I build the file name like "EDS-Accommodation-retention-Type-A-vs-B-2026-11-10.pdf": ASCII only, no spaces, at most about 70 characters of title. */
 export function edsPdfFileName(headline: string | undefined, now: DateTime): string {
   const slug = pdfSafe(headline ?? "")
     .normalize("NFKD")
@@ -411,7 +415,7 @@ export function edsPdfFileName(headline: string | undefined, now: DateTime): str
     .replace(/[^A-Za-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/-+$/g, "");
-  // at most about 70 characters of title, cut between words (never in the middle of a word or a year)
+  // I keep at most about 70 characters of title and cut between words, never in the middle of a word or a year.
   const cut = slug.length <= 70 ? slug : slug.slice(0, 70).replace(/-[^-]*$/, "");
   return `EDS-${cut || "Briefing"}-${now.toFormat("yyyy-LL-dd")}.pdf`;
 }
@@ -439,12 +443,12 @@ export function buildEdsPdfModel(data: SynthesisResult, opts: { question?: strin
   };
 
   function dateText(iso: string): string | null {
-    const d = DateTime.fromISO(iso.slice(0, 10), { zone: "utc" }); // a calendar date, not a moment: no zone shift
+    const d = DateTime.fromISO(iso.slice(0, 10), { zone: "utc" }); // a calendar date, not a moment, so I allow no zone shift
     return d.isValid ? d.toFormat(DISPLAY_DATE) : null;
   }
 }
 
-/** True when the reply holds something to put in a PDF (an error reply or an empty one has no download button). */
+/** Returns true when the reply holds something to put in a PDF; an error reply or an empty one gets no download button. */
 export function hasPdfContent(data: SynthesisResult | null | undefined): boolean {
   if (!data || data.error) return false;
   return !!(String(data.overview ?? "").trim() || (data.keyFindings ?? []).length || (data.table?.rows.length ?? 0) || (data.extraTable?.rows.length ?? 0) || (data.charts ?? []).length);

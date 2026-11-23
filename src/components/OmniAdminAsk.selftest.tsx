@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/OmniAdminAsk.selftest.tsx
-// The ADMIN button of More tools: a signed-out visitor is asked "Are you authorised to access them?" (Yes opens the sign-in window and, once signed in, the authority is checked; No goes back to Everything);
+// My test of the ADMIN button of More tools: a signed-out visitor is asked "Are you authorised to access them?" (Yes opens the sign-in window and, once signed in, the authority is checked; No goes back to Everything);
 // a signed-in person goes straight to the check; a person who is not authorised sees the red card of the management page.
 import React from "react";
 import { readFileSync } from "node:fs";
@@ -24,7 +24,7 @@ const yes = renderToStaticMarkup(<OmniAdminAsk said="yes" onYes={noop} onNo={noo
 ok("after Yes there is no sign-in card and no Sign in button (Yes itself opens the login window): Yes is shown as chosen and No stays", !/data-ask-signin|data-gate-signin/.test(yes) && /aria-pressed="true"[^>]*data-ask-yes/.test(yes) && /data-ask-no/.test(yes));
 ok("the component takes no sign-in handler (Yes is the click on Sign in)", !/onSignIn/.test(readFileSync("src/components/OmniAdminAsk.tsx", "utf8")));
 
-// the refusal after sign-in is the management page's own red card, in the owner's words
+// the refusal after sign-in is the management page's own red card, in my own words
 const denied = renderToStaticMarkup(<ManagementGatePanel gate={{ state: "denied" }} onClose={noop} />);
 ok("a signed-in person who may not have the page sees a red alert saying they are not authorised to access this page", /role="alert"/.test(denied) && /data-management-gate="denied"/.test(denied) && /border-rose/.test(denied) && text(denied).includes(GATE_TEXT.deniedTitle) && /You are not authorised to access this page/.test(GATE_TEXT.deniedTitle));
 

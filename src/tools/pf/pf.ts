@@ -2,8 +2,8 @@
 //
 // PROBABLE PF AT SUPERANNUATION, WORKED OUT FROM THE DSP PROVIDENT FUND PAGE AND THE PAYSLIP.
 // An employee of DSP can see only these figures: on the PF page of the legacy intranet (Provident Fund Statement of the financial year: the opening balance, the interest on it, the monthly contributions so far, the
-// interest on them and the closing balance, each for PF (Emp), PF (Comp) and V.P.F), on the yearly PF statement (the taxable balance) and on the payslip (the monthly PF and VPF). The calculator takes exactly those figures
-// and carries them forward month by month to the retirement date. Pure function: the numbers a person types are used in the browser and are never stored, logged or sent anywhere.
+// interest on them and the closing balance, each for PF (Emp), PF (Comp) and V.P.F), on the yearly PF statement (the taxable balance) and on the payslip (the monthly PF and VPF). My calculator takes exactly those figures
+// and carries them forward month by month to the retirement date. It is a pure function: the numbers a person types are used in the browser and are never stored, logged or sent anywhere.
 //
 // THE METHOD IS THE PF TRUST'S OWN, read from a DSP yearly statement (the sums were checked against every line of one: the interest on the opening balance, on the monthly contributions, the taxable part, the TDS and the closing balance):
 //   * Interest on the OPENING balance of a year = opening x rate x months / 12 (a whole year: opening x rate).
@@ -12,7 +12,7 @@
 //   * The company's share in the PF account = the employee's 12% less the pension part (EPS, Rs 1,250 a month: 8.33% of Rs 15,000).
 //   * TAXABLE INTEREST: what the employee puts in (PF and VPF together) beyond Rs 2,50,000 in a financial year is taxable, and so is the interest on it and on the taxable balance carried from earlier years. The trust
 //     deducts 10% TDS on that interest from the employee's column when the year is closed (the rest of the income tax is recovered from the pay and is not part of the PF).
-// These are APPROXIMATIONS and the screen says so: the rate of each future year is declared later, and pay, DA and increments change. Every rate and limit is an input with a default, not a hidden constant.
+// These are APPROXIMATIONS and the screen says so: the rate of each future year is declared later, and pay, DA and increments change. I made every rate and limit an input with a default, not a hidden constant.
 
 import { DateTime } from "luxon";
 import { inRange, type Problem } from "@/lib/tools/money";
@@ -21,34 +21,34 @@ export interface Trio { emp: number; comp: number; vpf: number }
 export const total = (t: Trio): number => t.emp + t.comp + t.vpf;
 
 export interface PfInput {
-  /** the month and year the PF page says "Monthly Recovery Posted upto" (10 and 2026 for "10/2026 Paybill") */
+  /** The month and year the PF page says "Monthly Recovery Posted upto" (10 and 2026 for "10/2026 Paybill"). */
   postedMonth: number;
   postedYear: number;
-  /** the retirement date's month and year (March 2032 for 30 March 2032) */
+  /** The retirement date's month and year (March 2032 for 30 March 2032). */
   retireMonth: number;
   retireYear: number;
-  /** (a) opening balance as on 1 April, from the PF page */
+  /** (a) opening balance as on 1 April, from the PF page. */
   opening: Trio;
-  /** (e) the monthly contributions of the current financial year so far, from the PF page */
+  /** (e) the monthly contributions of the current financial year so far, from the PF page. */
   contributions: Trio;
-  /** (f) the interest on those monthly contributions so far, from the PF page */
+  /** (f) the interest on those monthly contributions so far, from the PF page. */
   contributionInterest: Trio;
-  /** the yearly rate in percent for the months still to come (the page's own rate, 8.25, until a new one is declared) */
+  /** The yearly rate in percent for the months still to come (the page's own rate, 8.25, until a new one is declared). */
   interestPct: number;
-  /** the rate the page used for the months already posted (the page prints it: "Interest Rate : 8.25%"); it does not change when you try another rate for the future */
+  /** The rate the page used for the months already posted (the page prints it: "Interest Rate : 8.25%"). It does not change when you try another rate for the future. */
   pageRatePct: number;
-  /** the employee's monthly PF as the payslip prints it (CPF PC) */
+  /** The employee's monthly PF as the payslip prints it (CPF PC). */
   monthlyEmp: number;
-  /** the pension part taken out of the company's share each month (1,250) */
+  /** The pension part taken out of the company's share each month (1,250). */
   epsPart: number;
-  /** the VPF you will pay each month from now, in rupees, and the ceiling on it (30,000 a month) */
+  /** The VPF you will pay each month from now, in rupees, and the ceiling on it (30,000 a month). */
   monthlyVpf: number;
   vpfCeiling: number;
-  /** a yearly rise in the PF wage (basic + DA), in percent, applied from the next April; the rest of this year stays at today's figure */
+  /** A yearly rise in the PF wage (basic + DA), in percent, applied from the next April; I leave the rest of this year at today's figure. */
   risePct: number;
-  /** the taxable balance of the last yearly statement ("TAXBL CB"), or null if you do not have it (then no tax on interest is taken off) */
+  /** The taxable balance of the last yearly statement ("TAXBL CB"), or null if you do not have it; then I take no tax on interest off. */
   taxableOpening: number | null;
-  /** what the employee may put in before interest turns taxable (2,50,000 a year) and the TDS the trust deducts (10%) */
+  /** What the employee may put in before interest turns taxable (2,50,000 a year) and the TDS the trust deducts (10%). */
   taxFreeLimit: number;
   tdsPct: number;
 }
@@ -56,38 +56,38 @@ export interface PfInput {
 export interface PfYear {
   /** "2026-27" */
   fy: string;
-  /** the months of this year that are carried (12, or fewer in the first year and in the retirement year) */
+  /** The months of this year that are carried (12, or fewer in the first year and in the retirement year). */
   months: number;
-  /** the contributions added in this year (from now, in the first year) */
+  /** The contributions added in this year (from now, in the first year). */
   added: Trio;
-  /** the interest of the whole year, and the TDS taken off it */
+  /** The interest of the whole year, and the TDS taken off it. */
   interest: number;
   tds: number;
-  /** the balance at the close of the year (or on retirement) */
+  /** The balance at the close of the year (or on retirement). */
   closing: Trio;
   closingTotal: number;
   monthlyEmp: number;
 }
 export interface PfResult {
-  /** the balance as the PF page shows it now: a + b + e + f (b = a x rate x months / 12) */
+  /** The balance as the PF page shows it now: a + b + e + f (b = a x rate x months / 12). */
   now: Trio;
   nowTotal: number;
-  /** the months already posted in the current year, and the months still to come until retirement */
+  /** The months already posted in the current year, and the months still to come until retirement. */
   postedMonths: number;
   monthsToGo: number;
   years: PfYear[];
   final: Trio;
   finalTotal: number;
-  /** from now to retirement: what is added by contributions and by interest (before TDS), and the TDS */
+  /** From now to retirement: what is added by contributions and by interest (before TDS), and the TDS. */
   futureContributions: number;
   futureInterest: number;
   tdsTotal: number;
-  /** the taxable balance at retirement, if the opening one was given */
+  /** The taxable balance at retirement, if the opening one was given. */
   taxableClosing: number | null;
   retireLabel: string;
 }
 
-/** the financial year (April to March) a month belongs to, as its first year, and the month's place in it (April = 1 ... March = 12) */
+/** Returns the financial year (April to March) a month belongs to, as its first year; the month's place in it runs April = 1 ... March = 12. */
 export const fyOf = (year: number, month: number): number => (month >= 4 ? year : year - 1);
 export const slotOf = (month: number): number => (month >= 4 ? month - 3 : month + 9);
 export const fyLabel = (f: number): string => `${f}-${String((f + 1) % 100).padStart(2, "0")}`;
@@ -99,7 +99,7 @@ export function parseMonthYear(s: string): { month: number; year: number } | nul
   const month = Number(m[1]), year = Number(m[2]);
   return month >= 1 && month <= 12 && year >= 1990 && year <= 2100 ? { month, year } : null;
 }
-/** "30/03/2032" (also 30-03-2032, 30.03.2032): the day is checked against the month */
+/** "30/03/2032" (also 30-03-2032, 30.03.2032): I check the day against the month. */
 export function parseDate(s: string): { day: number; month: number; year: number } | null {
   const m = /^\s*(\d{1,2})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{4})\s*$/.exec(s ?? "");
   if (!m) return null;
@@ -131,7 +131,7 @@ export function pfAtRetirement(i: PfInput): PfResult | Problem {
 
   const r = i.interestPct / 100;
   const vpfMonthly = Math.min(i.monthlyVpf, i.vpfCeiling);
-  // where the PF page stands now: closing = a + b + e + f, with b = a x the page's rate x months posted / 12
+  // Where the PF page stands now: closing = a + b + e + f, with b = a x the page's rate x months posted / 12.
   const rp = i.pageRatePct / 100;
   const accNow = trio(i.opening.emp * rp * n / 12 + i.contributionInterest.emp, i.opening.comp * rp * n / 12 + i.contributionInterest.comp, i.opening.vpf * rp * n / 12 + i.contributionInterest.vpf);
   const now = add(add(i.opening, i.contributions), accNow);
@@ -149,7 +149,7 @@ export function pfAtRetirement(i: PfInput): PfResult | Problem {
     let p = F === F0 ? i.contributions : trio();
     let acc = F === F0 ? accNow : trio();
     const added = trio();
-    // what the employee puts in each month of this year (PF and VPF), for the taxable part: months already posted are taken as equal parts of what the page shows
+    // What the employee puts in each month of this year (PF and VPF), for the taxable part. I take months already posted as equal parts of what the page shows.
     const empByMonth: number[] = [];
     for (let k = 1; k <= H; k++) empByMonth.push(F === F0 && k <= n ? (i.contributions.emp + i.contributions.vpf) / n : monthlyEmp + vpfMonthly);
     for (let k = first; k <= H; k++) {
@@ -157,7 +157,7 @@ export function pfAtRetirement(i: PfInput): PfResult | Problem {
       added.emp += monthlyEmp; added.comp += monthlyComp; added.vpf += vpfMonthly;
       acc = add(acc, trio((ob.emp + p.emp) * r / 12, (ob.comp + p.comp) * r / 12, (ob.vpf + p.vpf) * r / 12));
     }
-    // (the interest of the months already posted in the first year is inside accNow; every later month adds the running balance's share, the opening balance included)
+    // (The interest of the months already posted in the first year is inside accNow; every later month adds the running balance's share, the opening balance included.)
     monthsToGo += H - first + 1;
     let tds = 0;
     if (taxable !== null) {
@@ -185,7 +185,7 @@ export function pfAtRetirement(i: PfInput): PfResult | Problem {
   return { now, nowTotal: total(now), postedMonths: n, monthsToGo, years, final, finalTotal: total(final), futureContributions, futureInterest, tdsTotal, taxableClosing: taxable, retireLabel: `${String(i.retireMonth).padStart(2, "0")}/${i.retireYear}` };
 }
 
-/** the final balance for several yearly rises of pay and several interest rates, for a table of "what if" */
+/** The final balance for several yearly rises of pay and several interest rates, for a "what if" table. */
 export function pfWhatIf(i: PfInput, rises: number[], rates: number[]): Array<{ risePct: number; cells: Array<{ ratePct: number; total: number | null }> }> {
   return rises.map((risePct) => ({ risePct, cells: rates.map((ratePct) => { const r = pfAtRetirement({ ...i, risePct, interestPct: ratePct }); return { ratePct, total: "error" in r ? null : r.finalTotal }; }) }));
 }

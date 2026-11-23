@@ -1,6 +1,6 @@
 // src/app/api/live/fuel/route.ts
 //
-// PETROL, DIESEL AND LPG IN DELHI, MUMBAI, CHENNAI AND KOLKATA. Reads nothing from the caller. Six public pages are fetched together (petrol, diesel, and the LPG page of each city),
+// Petrol, diesel and LPG in Delhi, Mumbai, Chennai and Kolkata. I read nothing from the caller. I fetch six public pages together (petrol, diesel, and the LPG page of each city),
 // flattened and read by src/lib/live/fuel.ts, which checks every figure and refuses a page that no longer looks as it should (an error, never a wrong price).
 import { getText } from "@/lib/live/http";
 import { liveRoute } from "@/lib/live/envelope";

@@ -1,6 +1,6 @@
 // src/components/FormerNameNotice.tsx
 // The line that stands above the answer when the question used a FORMER name of a department (step 59a): "CHRD" is now called Centre for L & D (CL&D).
-// Plain text only (React escapes it). It is not an answer and not a warning: a quiet note that the name was understood and what the department is called now.
+// Plain text only (React escapes it). It is not an answer and not a warning: I made it a quiet note that the name was understood and what the department is called now.
 
 import React from "react";
 import { History } from "lucide-react";

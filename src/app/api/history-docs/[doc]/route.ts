@@ -2,7 +2,7 @@
 //
 // GET /api/history-docs/<id>           a plant document the DSP history card cites (a JO Manual), shown in the browser; signed-in readers only
 // GET /api/history-docs/<id>?info=1    {title, pages, bytes} as JSON (what the card's viewer asks first, to know whether to show the PDF or the Sign in button)
-// The work is in src/tools/dsphistory/serve.ts; the files are put in Vercel Blob by scripts/upload-history-docs.mjs.
+// The work is done in src/tools/dsphistory/serve.ts; scripts/upload-history-docs.mjs puts the files in Vercel Blob.
 
 import { getSessionTicket } from "@/lib/apiAuth";
 import { serveDoc } from "@/tools/dsphistory/serve";

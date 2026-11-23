@@ -1,15 +1,15 @@
 // scripts/wipe-circulars.mjs
 //
-// Wipes ALL circulars cleanly, in two places:
+// This wipes ALL circulars cleanly, in two places:
 //   1. Postgres (Supabase): circular_chunks + circulars  (TRUNCATE, resets IDs to 1)
 //   2. Vercel Blob: every object under the "circulars/" prefix
 //
-// SAFETY: shows counts first, then asks y/N before deleting anything.
+// SAFETY: it shows counts first, then asks y/N before deleting anything.
 //
 // RUN:
 //     node scripts/wipe-circulars.mjs
 //
-// Requires .env.local with DATABASE_URL and BLOB_READ_WRITE_TOKEN (already present).
+// It requires .env.local with DATABASE_URL and BLOB_READ_WRITE_TOKEN (already present).
 
 import { readFileSync } from "fs";
 import { createInterface } from "readline";
@@ -106,7 +106,7 @@ async function main() {
   // --- 4. Wipe Blob ---
   if (blobs.length) {
     console.log(`Deleting ${blobs.length} blob files...`);
-    // del() accepts an array of urls; do it in batches to be safe
+    // del() accepts an array of urls; I do it in batches to be safe.
     const urls = blobs.map((b) => b.url);
     const BATCH = 100;
     for (let i = 0; i < urls.length; i += BATCH) {

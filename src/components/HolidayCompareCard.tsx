@@ -7,7 +7,7 @@
 //   - a coloured pill between them saying what changed in words ("2 fewer in 2025"),
 //   - for an all-types comparison, one row per type with a bar per year and the change,
 //   - a one-line footnote only when the types add up to more than the totals.
-// The data comes ready-made from buildHolidayCompareView (src/lib/holidays/compareView.ts); this file only draws it.
+// The data comes ready-made from buildHolidayCompareView (src/lib/holidays/compareView.ts); I keep this file to drawing only.
 
 import React from "react";
 import { ArrowDown, ArrowUp, Equal, Info } from "lucide-react";

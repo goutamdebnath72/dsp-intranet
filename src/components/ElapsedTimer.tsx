@@ -1,13 +1,13 @@
 // src/components/ElapsedTimer.tsx
 //
-// A DIGITAL TIMER for a search that takes a while (the Executive Deep Search answer takes up to about two minutes). It sits in the top right corner of the panel (on the row the window gives it), ticks while the answer is being looked for, and stops the moment it is drawn,
+// A DIGITAL TIMER for a search that takes a while (the Executive Deep Search answer takes up to about two minutes). I put it in the top right corner of the panel (on the row the window gives it); it ticks while the answer is being looked for, and stops the moment it is drawn,
 // keeping the time it took on screen. Pure display: the caller says when it started and, once it is over, when it stopped. Read by src/components/OmnibarModal.tsx.
 "use client";
 
 import React, { useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 
-/** milliseconds as a digital clock: 00:47.3 (minutes, seconds, tenths) */
+/** Formats milliseconds as a digital clock: 00:47.3 (minutes, seconds, tenths) */
 export function formatElapsed(ms: number): string {
   const t = Math.max(0, Math.floor(ms / 100));
   const tenths = t % 10;
@@ -16,7 +16,7 @@ export function formatElapsed(ms: number): string {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${tenths}`;
 }
 
-/** the same, in words for a screen reader: "47.3 seconds", "1 minute 5.2 seconds" */
+/** The same, in words for a screen reader: "47.3 seconds", "1 minute 5.2 seconds" */
 export function spokenElapsed(ms: number): string {
   const t = Math.max(0, Math.floor(ms / 100));
   const mins = Math.floor(t / 600);
@@ -24,7 +24,7 @@ export function spokenElapsed(ms: number): string {
   return mins > 0 ? `${mins} minute${mins === 1 ? "" : "s"} ${secs} seconds` : `${secs} seconds`;
 }
 
-export function ElapsedTimer({ startedAt, stoppedAt, now: nowForTest }: { startedAt: number; stoppedAt: number | null; /** for the tests only: the moment "now" is taken to be */ now?: number }) {
+export function ElapsedTimer({ startedAt, stoppedAt, now: nowForTest }: { startedAt: number; stoppedAt: number | null; /** For the tests only: sets the moment "now" is taken to be */ now?: number }) {
   const running = stoppedAt === null;
   const [now, setNow] = useState(() => nowForTest ?? Date.now());
   useEffect(() => {
@@ -35,7 +35,7 @@ export function ElapsedTimer({ startedAt, stoppedAt, now: nowForTest }: { starte
   }, [running]);
   const ms = (stoppedAt ?? now) - startedAt;
   return (
-    // just the chip: the search window gives it a row of its own (src/components/OmnibarModal.tsx, data-eds-toolbar), in the normal flow, so it takes its own height, is centred on the same line as the back link beside it and can never lie over the reply's own buttons
+    // Just the chip: I let the search window give it a row of its own (src/components/OmnibarModal.tsx, data-eds-toolbar), in the normal flow, so it takes its own height, is centred on the same line as the back link beside it and can never lie over the reply's own buttons
     <div
       role="timer"
       data-elapsed-timer={running ? "running" : "stopped"}

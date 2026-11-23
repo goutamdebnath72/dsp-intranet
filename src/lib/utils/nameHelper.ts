@@ -1,14 +1,14 @@
 /**
  * Smart Name Helper Utility
  *
- * Extracts conversational names and initials from full name strings,
- * ignoring common prefixes, honorifics, and religious abbreviations.
+ * I use this to extract conversational names and initials from full name strings;
+ * it ignores common prefixes, honorifics, and religious abbreviations.
  */
 
-// A curated, case-insensitive list of common prefixes and honorifics
+// My curated, case-insensitive list of common prefixes and honorifics,
 // widely used in South Asia and globally.
-// ⚠️ KEEP IN SYNC with the SQL function public.name_prefixes()
-// (04_phonetic_setup.sql) used by employee phonetic search.
+// Important: keep this in sync with the SQL function public.name_prefixes()
+// (04_phonetic_setup.sql), which employee phonetic search uses.
 const COMMON_PREFIXES = new Set([
   "MOHD",
   "MOHAMMAD",
@@ -35,7 +35,7 @@ const COMMON_PREFIXES = new Set([
 ]);
 
 /**
- * Helper to split a name into structural parts, discarding any configured prefixes.
+ * I split a name into structural parts here, discarding any configured prefixes.
  */
 function getStructuralNameParts(fullName: string): string[] {
   const parts = fullName.trim().split(/\s+/);
@@ -45,12 +45,12 @@ function getStructuralNameParts(fullName: string): string[] {
     return !COMMON_PREFIXES.has(cleanPart);
   });
 
-  // Fallback to original parts if the entire name was filtered out as prefixes
+  // If the entire name was filtered out as prefixes, I fall back to the original parts
   return filtered.length > 0 ? filtered : parts;
 }
 
 /**
- * Parses a full name and extracts the true conversational call-name.
+ * I parse a full name here and extract the true conversational call-name.
  * @param fullName - The full raw name string (e.g., "MOHD ANWAR ULLAH", "DR GOUTAM SEN")
  * @returns The resolved first conversational name (e.g., "ANWAR", "GOUTAM")
  */
@@ -63,7 +63,7 @@ export function getFriendlyFirstName(
 }
 
 /**
- * Generates up to two initials from a name string, ignoring common prefixes.
+ * I generate up to two initials from a name string and ignore common prefixes.
  * @param fullName - The full raw name string (e.g., "MOHD ANWAR ULLAH")
  * @returns The resolved initials (e.g., "AU" instead of "MA")
  */

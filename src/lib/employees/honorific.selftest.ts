@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/employees/honorific.selftest.ts
-// "Dr." before a name, only when it is shown: who gets it, never twice, a typed "Dr." is ignored when searching, the table says what the card says. With TEST_DATABASE_URL set it also
+// This checks "Dr." before a name, only when it is shown: who gets it, never twice, a typed "Dr." is ignored when searching, and the table says what the card says. With TEST_DATABASE_URL set it also
 // runs the real people queries on the scratch database.
 
 import { DR_TICKETS, isDoctorPerson, isPhdHolder, makePhdHolder, makeTitleFor, stripDoctorTitle, titleFor, withTitle, withTitlesInRows } from "./honorific";

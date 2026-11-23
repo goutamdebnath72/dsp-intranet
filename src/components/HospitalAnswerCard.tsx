@@ -1,6 +1,6 @@
 // src/components/HospitalAnswerCard.tsx
 // Draws a hospital OPD answer: the title with its Open / Closed badge, the one-line verdict, THE TABLE FIRST, the short points, the pointer (for example the Emergency Department) and the red notes
-// (the OPD and card registration hours by the clock). Plain text only (React escapes it); the badge and the verdict are never colour alone: their words carry the meaning.
+// (the OPD and card registration hours by the clock). Plain text only (React escapes it); I never let the badge or the verdict rest on colour alone: their words carry the meaning.
 
 import React from "react";
 import {
@@ -23,17 +23,17 @@ const TONE: Record<"open" | "closed" | "unknown" | "info", string> = {
   unknown: "bg-amber-100 text-amber-900 border-amber-200",
   info: "bg-slate-100 text-slate-800 border-slate-200",
 };
-/** The headline: the answer itself, large and bold (text-2xl: one step below the first version, text-3xl, which was heavy for a long value such as "DNB(MEDICINE)": owner, 26 Oct 2026). Green Yes, red No, amber when it is not known; a plain value is dark. The words carry the meaning, never the colour alone. */
+/** The headline is the answer itself, large and bold. I chose text-2xl, one step below the first version (text-3xl), which looked heavy for a long value such as "DNB(MEDICINE)" (26 Oct 2026). Green Yes, red No, amber when it is not known; a plain value is dark. The words carry the meaning, never the colour alone. */
 const HEADLINE: Record<"yes" | "no" | "info" | "unknown", string> = {
   yes: "text-green-600",
   no: "text-red-600",
   info: "text-neutral-900",
   unknown: "text-amber-600",
 };
-/** Under a Yes or No headline the sentence does not repeat the word. */
+/** Under a Yes or No headline I do not repeat the word in the sentence. */
 const withoutVerdict = (text: string, headline?: { text: string; tone: string }): string =>
   headline && (headline.tone === "yes" || headline.tone === "no")
-    ? text.replace(new RegExp(`^${headline.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[:,.]\\s*`, "i"), "") || text // the headline text is escaped: it is data, not a pattern
+    ? text.replace(new RegExp(`^${headline.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[:,.]\\s*`, "i"), "") || text // I escape the headline text: it is data, not a pattern
     : text;
 
 const BADGE: Record<"open" | "closed" | "unknown", string> = {
@@ -42,7 +42,7 @@ const BADGE: Record<"open" | "closed" | "unknown", string> = {
   unknown: "bg-amber-500 text-white",
 };
 
-/** A short cell ("OPD 12", "Unit III", "not recorded", a ticket) is never broken over two lines; a long one (the days, a name with a note) wraps as it needs to. The first column (Unit / OPD / Room) is given a little more room. */
+/** I never break a short cell ("OPD 12", "Unit III", "not recorded", a ticket) over two lines; a long one (the days, a name with a note) wraps as it needs to. I give the first column (Unit / OPD / Room) a little more room. */
 const keepOnOneLine = (cell: string | null | undefined, columnIndex: number): boolean => String(cell ?? "").length <= (columnIndex === 0 ? 24 : 16);
 
 function doctorInitials(name: string): string {
@@ -53,7 +53,7 @@ function doctorInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** Check if a qualification string represents a Postgraduate degree or diploma (MD, MS, DNB, MCh, MRCOG, DGO, etc.) */
+/** Tells whether a qualification string is a Postgraduate degree or diploma (MD, MS, DNB, MCh, MRCOG, DGO, etc.) */
 function isPostgraduate(qual: string): boolean {
   if (!qual) return false;
   const q = qual.toUpperCase();
@@ -112,7 +112,7 @@ function renderCell(cell: string, column: string, columnIndex: number) {
   const col = (column || "").toLowerCase();
   const low = cell.toLowerCase().trim();
 
-  // 1. Missing data placeholders (soft, low-noise styling)
+  // 1. Missing-data placeholders: I give them a soft, low-noise style
   if (low === "not recorded" || low === "not recorded yet" || low === "none" || low === "not stated") {
     return <span className="text-xs sm:text-sm font-normal italic text-slate-400">{cell}</span>;
   }
@@ -149,14 +149,14 @@ function renderCell(cell: string, column: string, columnIndex: number) {
     );
   }
 
-  // 4. Qualification: Special symbol & distinct colored chip for Postgraduates (Purple + Cap) vs MBBS (Emerald + Stethoscope)
+  // 4. Qualification: I give Postgraduates a special symbol and a distinct coloured chip (Purple + Cap), and MBBS its own (Emerald + Stethoscope)
   if (col.includes("qualification")) {
     if (cell === "—" || cell === "-") {
       return <span className="text-slate-300 font-bold text-base leading-none">—</span>;
     }
     const isPg = isPostgraduate(cell);
     if (isPg) {
-      // POSTGRADUATE: Prestigious Purple Chip with GraduationCap!
+      // Postgraduate: purple chip with the GraduationCap icon.
       return (
         <span
           className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-purple-900 text-xs sm:text-sm font-bold border border-purple-200/90 shadow-2xs tracking-wide max-w-full leading-none"
@@ -167,7 +167,7 @@ function renderCell(cell: string, column: string, columnIndex: number) {
         </span>
       );
     }
-    // GRADUATE (MBBS): Crisp Emerald Chip with Stethoscope!
+    // Graduate (MBBS): emerald chip with the Stethoscope icon.
     return (
       <span
         className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs sm:text-sm font-bold border border-emerald-200/90 shadow-2xs tracking-wide max-w-full leading-none"
@@ -260,7 +260,7 @@ function TableView({ table, onAsk }: { table: HospitalTable; onAsk?: (question: 
                   }`}
                 >
                   {ci === 0 && onAsk && table.asks?.[ri] ? (
-                    // a department of the list: pressing its name asks for its own OPD
+                    // A department of the list: I make pressing its name ask for its own OPD
                     <button type="button" data-table-ask={table.asks[ri]} title={`Show the OPD of ${cell}`} onClick={() => onAsk(table.asks![ri] as string)} className="rounded-full text-left transition hover:ring-2 hover:ring-blue-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
                       {renderCell(cell, table.columns[ci], ci)}
                     </button>
@@ -326,7 +326,7 @@ export function HospitalAnswerCard({ answer, onAsk }: { answer: HospitalAnswer; 
         )}
       </div>
       {answer.status && (answer.headline && answer.status.tone !== "unknown") ? (
-        // under a headline the sentence is plain: the headline carries the colour (an amber caution keeps its box)
+        // Under a headline the sentence is plain, because the headline carries the colour (an amber caution keeps its box)
         <p className="text-sm text-neutral-700" data-tone={answer.status.tone} data-sentence="true">
           {withoutVerdict(answer.status.text, answer.headline)}
         </p>
@@ -375,7 +375,7 @@ export function HospitalAnswerCard({ answer, onAsk }: { answer: HospitalAnswer; 
         </ul>
       )}
       {answer.details?.map((d, i) => (
-        // keyed by the ANSWER as well as the position: a folded line that was opened on one answer is closed again on the next (the same <details> element must not be reused)
+        // I key this by the ANSWER as well as the position: a folded line that was opened on one answer is closed again on the next (the same <details> element must not be reused)
         <details key={`${answer.title}|${i}|${d.summary}`} className="text-sm text-neutral-600" data-details="true">
           <summary className="cursor-pointer font-medium text-neutral-700">{d.summary}</summary>
           <p className="mt-1">{d.text}</p>

@@ -1,6 +1,6 @@
 -- 17_facility_kit.sql  (step 68a)
 --
--- ONE table for "who may use which tool" and ONE table for "what was done", for every tool of the search bar (the employee manager and the PAX editor now, the other tools later).
+-- I keep ONE table for "who may use which tool" and ONE table for "what was done", for every tool of the search bar (the employee manager and the PAX editor now, the other tools later).
 -- Until step 68b / 68c the two tools still write to their own tables, so NOTHING CHANGES ON SCREEN with this file.
 --
 -- It is safe to run more than once: the tables are created only if missing, and the copy of the existing rows below can be repeated at any time (each old row is copied once, marked in `legacy_ref`).
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS public.facility_delegate (
   legacy_ref        text,                                                             -- 'employee_admin_delegate#12': the old row this one was copied from (empty for rows made here)
   CHECK ((revoked_at IS NULL) = (revoked_by_ticket IS NULL))
 );
--- one ACTIVE authorisation per person and tool (a withdrawn one stays as history, and the person can be authorised again)
+-- One ACTIVE authorisation per person and tool: a withdrawn one stays as history, and the person can be authorised again
 CREATE UNIQUE INDEX IF NOT EXISTS facility_delegate_one_active ON public.facility_delegate (facility, ticket_no) WHERE revoked_at IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS facility_delegate_legacy ON public.facility_delegate (legacy_ref) WHERE legacy_ref IS NOT NULL;
 
@@ -55,7 +55,7 @@ $f$;
 DROP TRIGGER IF EXISTS facility_audit_no_change ON public.facility_audit;
 CREATE TRIGGER facility_audit_no_change BEFORE UPDATE OR DELETE ON public.facility_audit FOR EACH ROW EXECUTE FUNCTION public.facility_audit_immutable();
 
--- nobody but the application's own connection can touch them
+-- Nobody but the application's own connection can touch them
 ALTER TABLE public.facility_delegate ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.facility_audit    ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.facility_delegate, public.facility_audit FROM anon, authenticated;

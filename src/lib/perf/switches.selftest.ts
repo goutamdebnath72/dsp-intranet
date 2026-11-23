@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/perf/switches.selftest.ts </dev/null
-// The speed switches (switches.js): every switch is typed, explained, and READ by the code; the small cache (ttlMemo.ts) remembers, forgets and never keeps a failure.
+// This tests the speed switches (switches.js): every switch must be typed, explained, and READ by the code; and the small cache (ttlMemo.ts) must remember, forget and never keep a failure.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { PERF } from "./switches";
@@ -17,7 +17,7 @@ ok("every switch has a type in switches.d.ts, and no type is left without a swit
 ok("every switch is explained by a comment line just above it (what the new way does, and what the previous way was)", keys.every((k) => new RegExp(`/\\*\\*[^\\n]*\\*/\\n\\s+${k}:`).test(js)));
 ok("the numbers are not negative and the choices are among those the types allow", ["feedFocusThrottleSeconds", "routerCacheSeconds", "nl2sqlExamplesCacheSeconds", "peopleEventsCacheSeconds"].every((k) => (PERF as any)[k] >= 0) && ["idle", "now"].includes(PERF.searchWindowLoad) && ["pointer", "now"].includes(PERF.guideLoad) && ["pointer", "idle", "now"].includes(PERF.managementPanelsLoad) && ["idle", "now"].includes(PERF.homeWidgetsLoad));
 
-// every switch is read somewhere (a switch nobody reads would promise a way back that does nothing)
+// Every switch must be read somewhere: a switch nobody reads would promise a way back that does nothing.
 const files: string[] = [];
 const walk = (d: string) => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (/\.(ts|tsx|js)$/.test(f) && !/selftest|switches\.(js|d\.ts)$/.test(f)) files.push(p); } };
 walk("src"); files.push("next.config.js");
@@ -50,7 +50,7 @@ ok("next.config.js reads the same file as the app (CommonJS require), and the br
   seconds = 0.05; map.set("f", "6"); await new Promise((r) => setTimeout(r, 90));
   ok("an old entry is forgotten", map.get("f") === undefined);
 
-  // the router: a test's own model text is never answered from memory
+  // The router: a test's own model text is never answered from memory.
   const { parseQueryWithLlm } = await import("@/lib/search/pureAiEngine");
   let calls = 0;
   const llm = async () => { calls++; return JSON.stringify({ tool: "circulars", params: {}, reasoning: "x" }); };

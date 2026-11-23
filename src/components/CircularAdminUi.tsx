@@ -3,7 +3,7 @@
 // src/components/CircularAdminUi.tsx
 //
 // Presentational UI for the Circular Manager Facility (Modular Facility Kit).
-// Matches the visual language of the Employee Manager, PAX Directory Editor,
+// I made it match the visual language of the Employee Manager, PAX Directory Editor,
 // and Holiday Manager: glass cards, live validation, underline tabs, sapphire/indigo styling,
 // sticky action bars, TypedConfirm integration, and NonExecutive delegation cards.
 

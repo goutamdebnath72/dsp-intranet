@@ -2,7 +2,7 @@
 //
 // WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words that ask for the provident fund page, which has two tabs: the probable PF at retirement, and the EMI of a refundable PF loan.
 // A line about the loan (emi, loan, instalment, repayment) opens the page on the loan tab. The loan EMI calculators of banks and societies are not here: the only EMI calculator is the PF loan's.
-// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. It is listed once, in src/tools/registry.ts.
+// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. I list it once, in src/tools/registry.ts.
 import { defineTopic } from "@/tools/types";
 
 export const pfTopic = defineTopic({
@@ -13,9 +13,9 @@ export const pfTopic = defineTopic({
     nouns: ["pf", "epf", "provident", "fund", "maturity", "corpus", "balance", "vpf", "loan", "loans", "emi", "emis", "refundable", "repayment", "installment", "installments", "instalment", "instalments"],
     wants: (c) => {
       const pf = c.has(["pf", "epf", "provident", "vpf"]);
-      // the probable PF at retirement: "pf maturity calculator", "provident fund calculator"
+      // The probable PF at retirement: "pf maturity calculator", "provident fund calculator".
       const maturity = pf && c.has(["maturity", "corpus", "calculator", "calculate", "calculation", "estimate", "estimator", "estimation"]) && !c.has(["loan", "loans", "emi", "emis"]);
-      // the PF loan's EMI: "emi", "emi calculator", "loan emi", "pf loan", "pf loan emi", "loan calculator", "refundable pf loan"
+      // The PF loan's EMI: "emi", "emi calculator", "loan emi", "pf loan", "pf loan emi", "loan calculator", "refundable pf loan".
       const loan = (c.has(["emi", "emis"])) || (c.has(["loan", "loans"]) && (pf || c.calcWord));
       return (maturity || loan) && c.only();
     },

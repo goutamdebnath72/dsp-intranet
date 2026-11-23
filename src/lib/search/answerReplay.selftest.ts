@@ -17,23 +17,23 @@ ok("REAL REPLIES: all three, refused when they were logged, are accepted by the 
 ok("...the gift card with its labels tied to the document, the mediclaim and sports answers with the assistant's own wording marked", r.rows[0].looseRows === 0 && r.rows[1].looseRows === 2 && r.rows[2].looseRows === 2, JSON.stringify(r.rows.map((x) => x.looseRows)));
 ok("each row says what happened when it was logged", r.rows[1].before.includes("last date of renewal") && r.rows[2].before.includes("Event dates"));
 
-// the replay shows the note the rules show next to the one the model wrote
+// the replay shows the note that the rules show, next to the one the model wrote
 const withNote = { ...attempts[1], reply: JSON.stringify({ ...JSON.parse(attempts[1].reply), note: "Extension includes gap cases." }) };
 const noteRun = replay([withNote, { ...attempts[1], reply: JSON.stringify({ ...JSON.parse(attempts[1].reply), note: "Renewal needs the approval of the Director." }) }]);
 ok("the replay shows a grounded note as the document's sentence, next to the model's own", noteRun.rows[0].modelNote === "Extension includes gap cases." && /including Gap cases/.test(noteRun.rows[0].note), JSON.stringify(noteRun.rows[0]));
 ok("...and an ungrounded note as dropped", noteRun.rows[1].modelNote.startsWith("Renewal needs") && noteRun.rows[1].note === "" && noteRun.rows[1].nowOk, JSON.stringify(noteRun.rows[1]));
 
-// a half-written last line and junk lines are skipped
+// I skip a half-written last line and junk lines
 ok("a half-written last line is skipped", parseJsonl(text + '{"question":"half').length === 3 && parseJsonl("\n\nnot json\n").length === 0);
 
-// the regression signal: an attempt that was accepted and is refused NOW must be counted
+// the regression signal: an attempt that was accepted and is refused NOW has to be counted
 const falseClaim = JSON.stringify({ question: "x", ok: true, reply: JSON.stringify({ answerable: true, title: "T", note: "", rows: [{ label: "Last date", column: "Last date", value: "Rs.14,999/-", source: 1, quote: 'may please be read as "Rs.14,999/-"' }] }), passages: attempts[0].passages });
 const reg = replay(parseJsonl(falseClaim));
 ok("an attempt logged as accepted and refused now is counted as a regression", reg.summary.acceptedThenRefused === 1 && /says a date but the value/.test(reg.rows[0].now), JSON.stringify(reg.summary));
 const unreadable = replay([{ question: "u", ok: true, reply: "not json at all", passages: attempts[0].passages }]);
 ok("an unreadable model reply is a refusal, not a crash", unreadable.summary.nowRefused === 1);
 
-// the log: written only when asked, one line per attempt, never breaks an answer
+// the log is written only when asked, one line per attempt, and never breaks an answer
 const dir = mkdtempSync(join(tmpdir(), "alog-"));
 const file = join(dir, "sub", "answers.jsonl");
 const passage: Passage = attempts[0].passages[0];

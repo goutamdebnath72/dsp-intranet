@@ -1,7 +1,7 @@
 // src/lib/accessLog/admin/omnibar.ts
 //
-// Omnibar responder for Contact Access Log.
-// Detects contact access log intent and returns the payload to render AccessLogAdminPanel in the modal.
+// Omnibar responder for the Contact Access Log.
+// It detects the contact access log intent and returns the payload to render AccessLogAdminPanel in the modal.
 
 import type { AnalyticsPayload } from "@/lib/employees/analytics";
 import type { HospitalAnswer } from "@/lib/hospital/types";

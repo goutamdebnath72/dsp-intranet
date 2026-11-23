@@ -71,3 +71,6 @@ DSP_Circulars_Query_Test_Set.pdf
 # handoff notes may quote keys and passwords: never commit
 HANDOFF*.md
 .render/
+
+# the comment tool's working folder (scripts/comments/comments.mjs)
+.comment-work/

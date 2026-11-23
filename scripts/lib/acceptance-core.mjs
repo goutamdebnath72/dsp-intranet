@@ -1,7 +1,7 @@
 // scripts/lib/acceptance-core.mjs
 //
-// The PURE part of the omnibar acceptance harness: no network, no files. Everything here is unit-tested by
-// scripts/omnibar-acceptance.selftest.mjs, so the judge can be trusted before it judges the app.
+// This is the PURE part of the omnibar acceptance harness: no network, no files. Everything here is unit-tested by
+// scripts/omnibar-acceptance.selftest.mjs, so I can trust the judge before it judges the app.
 //
 // What it does, for one question and the JSON the real /api/ai-search returned:
 //   1. inferRoute()   -- which channel answered (the API does not say, so it is read from the shape of the answer)
@@ -13,10 +13,10 @@
 export const norm = (s) => String(s ?? "").toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").trim();
 const padded = (s) => ` ${norm(s)} `;
 
-// keys never searched and never written to a result file
+// These keys are never searched and never written to a result file.
 const SKIP_KEYS = new Set(["sql", "display", "logId", "userKey", "confidence", "sailPNo", "mobileMasked", "emailMasked"]);
 
-/** Every string / number in the answer, as one normalised, searchable text. */
+/** Returns every string / number in the answer as one normalised, searchable text. */
 export function flattenText(node) {
   const parts = [];
   const walk = (v, key) => {
@@ -30,7 +30,7 @@ export function flattenText(node) {
   return padded(parts.join(" ¦ "));
 }
 
-/** A fact is a string (must appear as whole words) or an array of alternatives (any one is enough). */
+/** A fact is a string (it must appear as whole words) or an array of alternatives (any one is enough). */
 export function hasFact(hay, fact) {
   const alts = Array.isArray(fact) ? fact : [fact];
   return alts.some((a) => {
@@ -39,7 +39,7 @@ export function hasFact(hay, fact) {
   });
 }
 
-/** The answer with everything personal removed, for files written to disk. */
+/** Returns the answer with everything personal removed, for files written to disk. */
 export function sanitize(node) {
   if (Array.isArray(node)) return node.map(sanitize);
   if (node && typeof node === "object") {
@@ -53,7 +53,7 @@ export function sanitize(node) {
   return node;
 }
 
-/** True when the answer carries a person's SAIL P.No. (which is also the login password: security audit #1). */
+/** True when the answer carries a person's SAIL P.No., which is also the login password (security audit #1). */
 export function containsSailPNo(node) {
   if (Array.isArray(node)) return node.some(containsSailPNo);
   if (node && typeof node === "object") {
@@ -63,7 +63,7 @@ export function containsSailPNo(node) {
 }
 
 // ---------------------------------------------------------------------------------------------- rows
-/** Every "row" the answer shows (table row, person, holiday, quota, circular...) as a list of normalised cells. */
+/** Returns every "row" the answer shows (table row, person, holiday, quota, circular...) as a list of normalised cells. */
 export function extractRows(payload) {
   const rows = [];
   const add = (...cells) => {
@@ -80,7 +80,7 @@ export function extractRows(payload) {
     for (const q of a.rhQuotaByCategory ?? []) add(q.category, q.quota);
     for (const t of a.typeBreakdown ?? []) add(t.type, t.label, t.count);
     if (a.holidayCompare) {
-      // the year-comparison card: one row per year tile, one per type
+      // The year-comparison card gives one row per year tile and one per type.
       for (const y of a.holidayCompare.years ?? []) add(a.holidayCompare.title, y.year, y.total, y.caption);
       for (const r of a.holidayCompare.rows ?? []) add(r.type, r.label, r.a, r.b, r.change);
     }
@@ -95,7 +95,7 @@ function cellMatches(cell, tokenNorm) {
   return tokenNorm.length >= 4 && ` ${cell} `.includes(` ${tokenNorm} `);
 }
 
-/** `rowHas` = list of rows; each row = list of tokens (string, or array of alternatives) that must all appear in ONE row. */
+/** `rowHas` is a list of rows; each row is a list of tokens (a string, or an array of alternatives) that must all appear in ONE row. */
 export function rowHasMatch(rows, tokens) {
   return rows.some((cells) =>
     tokens.every((t) => {
@@ -105,7 +105,7 @@ export function rowHasMatch(rows, tokens) {
   );
 }
 
-/** The number the answer reports, measured the way the record says (`of`). null = the answer has no such number. */
+/** Returns the number the answer reports, measured the way the record says (`of`). null means the answer has no such number. */
 export function measureCount(payload, of) {
   const a = payload && !Array.isArray(payload) ? payload.analytics : null;
   switch (of) {
@@ -132,7 +132,7 @@ export function measureCount(payload, of) {
 
 // ---------------------------------------------------------------------------------------------- route
 /**
- * Which channel answered. The API does not say, so it is read from the answer:
+ * Which channel answered. The API does not say, so I read it from the answer:
  *   array            -> CIRCULAR (or POLICY when the first hit is a holiday-policy note; NONE when empty)
  *   {synthesis}      -> EDS
  *   {analytics}      -> BAD-QUERY (kind error) | HOLIDAY | HEALTH-SQL / EMP-SQL (model SQL, legacy engine) | CLARIFY
@@ -162,7 +162,7 @@ export function inferRoute(payload) {
   return { route: "UNKNOWN" };
 }
 
-/** `expected` = one route, a list of acceptable routes, or "ANY". NOT-FOUND is satisfied by an empty list or a clarify/"cannot answer" card. */
+/** `expected` is one route, a list of acceptable routes, or "ANY". I treat NOT-FOUND as satisfied by an empty list or a clarify/"cannot answer" card. */
 export function routeMatches(expected, actual) {
   if (expected === undefined || expected === null || expected === "ANY") return true;
   const list = Array.isArray(expected) ? expected : [expected];
@@ -215,7 +215,7 @@ export function evaluateCircular(c, payload) {
 /**
  * Since step 23a the route names itself in response headers (src/lib/search/frontPathTrace.ts): which route answered,
  * how many model calls and tokens it used, and how long each stage took. `headers` = a plain object with LOWER-CASE keys.
- * Returns null for a server that does not send them (an older build): the harness then falls back to inferring.
+ * Returns null for a server that does not send them (an older build); the harness then falls back to inferring.
  */
 export function parseTraceHeaders(headers) {
   const h = headers || {};
@@ -229,9 +229,9 @@ export function parseTraceHeaders(headers) {
   return {
     route: String(h["x-omni-route"]),
     kind: h["x-omni-kind"] ? String(h["x-omni-kind"]) : null,
-    /** The front-path gate's decision (step 24a): skipped | model | fallback; null when the gate is off. */
+    /** This is the front-path gate's decision (step 24a): skipped | model | fallback; null when the gate is off. */
     gate: h["x-omni-gate"] ? String(h["x-omni-gate"]) : null,
-    /** The synthesis-intent verdict (step 26a), "level;score", e.g. "synthesis;6". null when the server did not ask. */
+    /** This is the synthesis-intent verdict (step 26a), "level;score", e.g. "synthesis;6". null when the server did not ask. */
     synth: h["x-omni-synth"] ? String(h["x-omni-synth"]) : null,
     ms: num("x-omni-ms"),
     modelCalls: num("x-omni-model-calls"),
@@ -243,7 +243,7 @@ export function parseTraceHeaders(headers) {
   };
 }
 
-/** Does the harness's INFERRED route agree with the route the server says it took? (a check on the inference itself) */
+/** Does the route the harness INFERRED agree with the route the server says it took? I use this as a check on the inference itself. */
 export function routesAgree(serverRoute, serverKind, inferred) {
   switch (serverRoute) {
     case "holiday": return inferred === "HOLIDAY" || inferred === "BAD-QUERY";
@@ -254,7 +254,7 @@ export function routesAgree(serverRoute, serverKind, inferred) {
     case "none": return inferred === "NONE" || inferred === "CLARIFY";
     case "eds": return inferred === "EDS";
     case "error": return inferred === "ERROR";
-    default: return true; // title / unknown / analytics: nothing to compare
+    default: return true; // title / unknown / analytics: nothing to compare here
   }
 }
 
@@ -263,7 +263,7 @@ export const DAILY_LIMIT = /free daily allowance .{0,120}is used up/i;
 
 /**
  * resp = { status, json, text, ms, error }  -> the result record written to the report.
- * outcome: PASS | FAIL | ERROR | OBSERVED (pending decision / no expectation yet) | INFO
+ * outcome is one of: PASS | FAIL | ERROR | OBSERVED (pending decision / no expectation yet) | INFO
  */
 export function judge(rec, resp) {
   const run = rec.run || {};
@@ -296,7 +296,7 @@ export function judge(rec, resp) {
     base.steps = trace.steps;
   }
   if (DAILY_LIMIT.test(text)) {
-    // not an answer: the model's allowance ran out. Recorded as an ERROR so that --resume asks the question again.
+    // This is not an answer: the model's allowance ran out. I record it as an ERROR so that --resume asks the question again.
     return { ...base, dailyLimit: true, route: "ERROR", outcome: "ERROR", failLabel: "error", checked: [], notes: ["the model's free daily allowance is used up: this question was not really answered and will be asked again on --resume"], answerText: "" };
   }
 
@@ -322,7 +322,7 @@ export function judge(rec, resp) {
     if (!routeOk) notes.push(`route: expected ${[].concat(rec.expectedRoute).join(" or ")}, got ${inf.route}${inf.via ? ` (via ${inf.via})` : ""}`);
   }
   if (inf.via === "legacy") notes.push("answered by the old rule-based engine (the model path failed or declined)");
-  // a route that must NEVER answer this request (the security probes: synthesis without a login)
+  // A route that must NEVER answer this request (the security probes: synthesis without a login).
   const forbidden = [].concat(rec.forbiddenRoutes ?? []);
   if (forbidden.length) {
     if (!checked.includes("route")) checked.push("route");
@@ -362,7 +362,7 @@ export function judge(rec, resp) {
     else if (typeof ec.min === "number" && got < ec.min) contentFails.push(`count (${ec.of}): expected at least ${ec.min}, got ${got}`);
     else if (typeof ec.max === "number" && got > ec.max) contentFails.push(`count (${ec.of}): expected at most ${ec.max}, got ${got}`);
   }
-  // the battery's circular rules apply only when the answer really is a list of documents
+  // The battery's circular rules apply only when the answer really is a list of documents.
   if (rec.circular && (inf.route === "CIRCULAR" || inf.route === "POLICY")) {
     checked.push("circulars");
     const ev = evaluateCircular(rec.circular, payload);
@@ -371,8 +371,8 @@ export function judge(rec, resp) {
   }
   if (contentFails.length) notes.push(...contentFails);
 
-  // the engine's own opinion on whether this is an EDS-type question (synthesisIntent.ts): every record says what it should be
-  // (`synthesis: true`) and EVERY OTHER record must NOT be taken for one. Only asked of servers that report it.
+  // This is the engine's own opinion on whether the question is an EDS-type one (synthesisIntent.ts). I make every record say what it should be
+  // (`synthesis: true`), and EVERY OTHER record must NOT be taken for one. It is only asked of servers that report it.
   let intentFail = null;
   const intentLevel = trace?.synth ? trace.synth.split(";")[0] : null;
   if (intentLevel) {
@@ -390,7 +390,7 @@ export function judge(rec, resp) {
   else if (rec.info) outcome = "INFO";
   else outcome = failLabel ? "FAIL" : "PASS";
 
-  // a short, personal-data-free description of what came back
+  // A short description of what came back, free of personal data.
   const a = payload && !Array.isArray(payload) ? payload.analytics : null;
   const answerText = a
     ? String(a.answer ?? a.lead ?? "").replace(/\s+/g, " ").slice(0, 240)
@@ -414,7 +414,7 @@ export function judge(rec, resp) {
     notes,
     answerText,
     top,
-    // a ticket in the URL proves nothing since step 25a: only a login session counts as "signed in"
+    // Since step 25a a ticket in the URL proves nothing: only a login session counts as "signed in".
     leaksSailPNo: containsSailPNo(payload) && (run.auth ?? (run.mode === "intellectual" ? "exec" : "none")) === "none",
   };
 }
@@ -488,7 +488,7 @@ export function summarize(results) {
   };
 }
 
-/** Model calls and tokens per route that answered (only questions the server traced). */
+/** Gives the model calls and tokens per route that answered (only for questions the server traced). */
 export function modelUseByRoute(results) {
   const m = new Map();
   for (const r of results) {
@@ -511,7 +511,7 @@ export function modelUseByRoute(results) {
   });
 }
 
-/** Mean milliseconds per stage, per route (name checks, the omnibar engine, circular search, synthesis). */
+/** Gives the mean milliseconds per stage, per route (name checks, the omnibar engine, circular search, synthesis). */
 export function stagesByRoute(results) {
   const m = new Map();
   for (const r of results) {
@@ -525,7 +525,7 @@ export function stagesByRoute(results) {
   return [...m].map(([route, e]) => ({ route, n: e.n, mean: Object.fromEntries(Object.entries(e.sum).map(([name, ms]) => [name, Math.round(ms / e.n)])) }));
 }
 
-/** What changed between two runs (ids present in both). */
+/** Shows what changed between two runs (only ids present in both). */
 export function compareRuns(a, b) {
   const A = new Map(a.results.map((r) => [r.id, r]));
   const changes = { regressed: [], fixed: [], routeChanged: [], stillFailing: [], onlyInA: [], onlyInB: [] };

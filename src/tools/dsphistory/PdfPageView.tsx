@@ -1,9 +1,9 @@
 // src/tools/dsphistory/PdfPageView.tsx
 //
-// ONE PAGE OF A PLANT DOCUMENT, DRAWN WITH THE QUOTED WORDS MARKED: the page is drawn by pdf.js (the reader that Firefox uses; the browser's own PDF viewer cannot be told to mark words), fitted to the width of the room,
-// and the words the card quotes are painted over in yellow, and scrolled into view, so the reader sees at once the sentence the card took from the manual instead of hunting for it. Only the page being looked at is
-// fetched and drawn (pdf.js asks our route, GET /api/history-docs/<id>, for the parts of the file it needs; the rest of the manual is never sent). pdf.js is loaded only when a manual is opened.
-// Where the quote is on the page is worked out in highlight.ts (checked against all 78 quotes the card takes from the two manuals: every one is found on its page). If the words are not found the page is still shown, with a line that says so.
+// One page of a plant document, drawn with the quoted words marked: pdf.js draws the page (the reader that Firefox uses; the browser's own PDF viewer cannot be told to mark words), fitted to the width of the room,
+// and I paint the words the card quotes over in yellow and scroll them into view, so the reader sees at once the sentence the card took from the manual instead of hunting for it. I fetch and draw only the page being looked at
+// (pdf.js asks our route, GET /api/history-docs/<id>, for the parts of the file it needs; the rest of the manual is never sent). I load pdf.js only when a manual is opened.
+// Where the quote is on the page is worked out in highlight.ts (checked against all 78 quotes the card takes from the two manuals: every one is found on its page). If the words are not found I still show the page, with a line that says so.
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -17,7 +17,7 @@ const loadPdfjs = (): Promise<any> => (pdfjsReady ??= import("pdfjs-dist/legacy/
   return m;
 }));
 
-/** the documents already opened (a page change reuses its document) */
+/** I keep the documents already opened, so a page change reuses its document. */
 const opened = new Map<string, Promise<any>>();
 const openDocument = (id: string): Promise<any> => {
   let p = opened.get(id);
@@ -29,7 +29,7 @@ const openDocument = (id: string): Promise<any> => {
   return p;
 };
 
-/** the widest a page is drawn (CSS pixels): a page is read, not stretched across a wide screen; a sheet that is wider than it is high (the book prints two pages to a sheet) is drawn larger, so that each page of it can be read */
+/** The widest a page is drawn (CSS pixels): I want a page read, not stretched across a wide screen; a sheet that is wider than it is high (the book prints two pages to a sheet) is drawn larger, so that each page of it can be read */
 const MAX_WIDTH = 980;
 const MAX_WIDTH_SPREAD = 1500;
 
@@ -66,7 +66,7 @@ export function PdfPageView({ doc, page, quotes, onLoaded }: { doc: string; page
       const [, tc] = await Promise.all([(task as any).promise, p.getTextContent()]);
       if (!alive) return;
       const pieces = tc.items.filter((i: any) => typeof i.str === "string").map((i: any) => pieceOf(i, vp.transform, vp.scale));
-      // the share of a line that comes before and inside the quote is taken from the widths of those words in an ordinary sans-serif face (better than counting characters, which are not all as wide)
+      // I take the share of a line that comes before and inside the quote from the widths of those words in an ordinary sans-serif face (better than counting characters, which are not all as wide)
       const mctx = document.createElement("canvas").getContext("2d");
       if (mctx) mctx.font = "100px Arial, Helvetica, sans-serif";
       const measure = mctx ? (t: string) => mctx.measureText(t).width : undefined;

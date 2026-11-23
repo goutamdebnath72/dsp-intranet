@@ -1,7 +1,7 @@
 // src/lib/search/executiveGrounding.selftest.ts
 // Run with: npx tsx src/lib/search/executiveGrounding.selftest.ts
 //
-// Every figure the executive sees must exist in the circular text: findings, tables, charts AND (since the 7 Nov 2026 review)
+// My rule: every figure the executive sees must exist in the circular text: findings, tables, charts AND (since the 7 Nov 2026 review)
 // the overview paragraph.
 import { buildResult, datesWritten, withoutKnownDates } from "./executiveSynthesis";
 
@@ -20,7 +20,7 @@ const citations = [{ id: 7, headline: "Wages", publishedAt: null }];
 const valid = new Set([7]);
 const run = (payload: object) => buildResult(JSON.stringify(payload), citations as any, valid, SOURCE);
 
-// a clean answer passes untouched
+// A clean answer must pass untouched.
 const good = run({
   overview: "The daily wage is **Rs 808.00**. The total monthly wage is **Rs 20,995.30**.",
   keyFindings: [{ text: "Total monthly wage is Rs 20,995.30.", sources: [7] }],
@@ -28,7 +28,7 @@ const good = run({
 ok("a grounded overview is kept whole", good.overview.includes("808.00") && good.overview.includes("20,995.30"), good.overview);
 ok("a grounded finding is kept", good.keyFindings.length === 1);
 
-// an invented figure in the overview is removed, the true sentence stays
+// An invented figure in the overview is removed; the true sentence stays.
 const mixed = run({
   overview: "The daily wage is Rs 808.00. The festival bonus is Rs 77,777.00 per worker.",
   keyFindings: [{ text: "Total monthly wage is Rs 20,995.30.", sources: [7] }],
@@ -36,14 +36,14 @@ const mixed = run({
 ok("the sentence with an INVENTED figure is dropped", !mixed.overview.includes("77,777"), mixed.overview);
 ok("the sentence with a true figure stays", mixed.overview.includes("808.00"), mixed.overview);
 
-// nothing safe in the overview: the first verified finding stands in
+// With nothing safe in the overview, the first verified finding stands in.
 const allBad = run({
   overview: "The bonus is Rs 55,555.00.",
   keyFindings: [{ text: "GPAIS premium is Rs 193.00 for January 2025.", sources: [7] }],
 });
 ok("an overview with only invented figures is replaced by the first verified finding", allBad.overview === "GPAIS premium is Rs 193.00 for January 2025.", allBad.overview);
 
-// findings with invented figures are still dropped
+// Findings with invented figures are still dropped.
 const badFinding = run({
   overview: "Wages were revised.",
   keyFindings: [
@@ -60,7 +60,7 @@ const wordRun = (payload: object) => buildResult(JSON.stringify(payload), citati
 ok("a small number the circular writes as a word is kept ('Four times' = 4, 'Twice' = 2, 'sixth' = 6)", wordRun({ overview: "Type A pays 4x and Type B 2x, for up to 6 months.", keyFindings: [{ text: "4x in the 3rd and 4th month; 6 months at most.", sources: [7] }] }).keyFindings.length === 1);
 ok("...but a number that is in neither form is still dropped from the same circular", wordRun({ overview: "x", keyFindings: [{ text: "Type A pays 9x.", sources: [7] }] }).keyFindings.length === 0);
 
-// ---- dates are grounded by WHAT date they are, not by how they are written
+// ---- I ground dates by WHAT date they are, not by how they are written
 const GP = "the current Pink colored out passes which is valid till 31st December'2023 will become invalid from 1st January'2024. Blue colored Out Passes from 1st January'2024, to 31st March'2024. Executives w.e.f. 01.01.2024 and trial from 01.11.2023. Enrolment 06.12.2024 to 07.12.2024.";
 const gp = (payload: object) => buildResult(JSON.stringify(payload), citations as any, valid, GP);
 const sd = datesWritten(GP);

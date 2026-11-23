@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/CircularAnswerCard.loading.selftest.tsx
-// While the summary of a circular search is prepared the card says "Loading Summary" with three animated dots: no pulsing bars, no sweeping colour.
+// While the summary of a circular search is prepared, I make the card say "Loading Summary" with three animated dots: no pulsing bars, no sweeping colour.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

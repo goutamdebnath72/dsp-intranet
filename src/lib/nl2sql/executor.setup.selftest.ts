@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/nl2sql/executor.setup.selftest.ts </dev/null
 // The read-only executor's SETUP is one round trip (a SELECT of set_config(..., true) calls with bound parameters), not five SET LOCAL statements: the database is ~100 ms away, so each trip is felt.
-// Proved identical to SET LOCAL on the real database (role, search path, timeouts, read-only state, refusals, reset after ROLLBACK); this test pins the shape of what is sent.
+// It was proved identical to SET LOCAL on the real database (role, search path, timeouts, read-only state, refusals, reset after ROLLBACK); this test pins the shape of what is sent.
 
 import { runReadOnly } from "./executor";
 import type { SqlClient } from "./types";
@@ -39,13 +39,13 @@ const recording = (rows: Array<Record<string, unknown>> = [{ n: 1 }]) => {
   await runReadOnly(c.client, "SELECT 1 AS n", { role: 'x"; DROP TABLE y; --' });
   ok("a hostile role name travels as a value, never in the text", !/DROP/.test(c.sent[1].text) && (c.sent[1].params ?? []).includes('x"; DROP TABLE y; --'));
 
-  // the ROLLBACK is sent even when the query fails
+  // The ROLLBACK is sent even when the query fails.
   const sent: string[] = [];
   const failing: SqlClient = { async query(text) { sent.push(text); if (/^SELECT \* FROM \(/.test(text)) throw new Error("boom"); return { rows: [] }; } };
   let threw = false;
   try { await runReadOnly(failing, "SELECT 1 AS n", {}); } catch { threw = true; }
   ok("a failing query still ends in ROLLBACK and the error reaches the caller", threw && sent[sent.length - 1] === "ROLLBACK");
-  // text that could start a second statement is refused before anything is sent
+  // Text that could start a second statement is refused before anything is sent.
   const d = recording();
   let refused = false;
   try { await runReadOnly(d.client, "SELECT 1; DROP TABLE x", {}); } catch { refused = true; }

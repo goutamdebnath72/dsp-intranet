@@ -3,7 +3,7 @@
 // THE "UTILITY SERVICES" TAB OF THE USER GUIDE (text and data; the screen is src/components/help/UtilityServicesTab.tsx).
 //
 // A Utility Service is one of the helpers the app offers beside its main search (circulars, EDS, employees, departments, holidays, hospital, PAX, announcements and sites): the day's news, a price, the weather,
-// a train, a calculator, the meaning of a number plate. They are auxiliary: they give something useful at once and do not look into the intranet's own records. The owner asked (17 Nov 2026) for them to
+// a train, a calculator, the meaning of a number plate. They are auxiliary: they give something useful at once and do not look into the intranet's own records. I asked (17 Nov 2026) for them to
 // have a tab of their own, with the words that open each one shown up front. The prose of every service is the prose they had in the introduction of the Sample questions tab (moved here, not changed).
 //
 // `type` is the words to type for a service (a SHORT or LONG command of the "What to type" list, so each is already tested against the real detector; src/lib/help/utilityServices.selftest.ts checks that every
@@ -14,7 +14,7 @@ export const UTILITY_TITLE = "Utility Services";
 export const UTILITY_LEAD =
   "To help employees in many different ways, the app provides a host of Utility Services beside its main search. They are auxiliary: they do not look into the intranet's records, but give you something useful at once, such as the day's news, a price, the weather, a train, a calculator, or the meaning of a number plate. Each service has a name, shown in bold below, and the words that open it, shown with the name.";
 
-/** how to get any service, in two steps */
+/** How to get any service, in two steps. */
 export const UTILITY_HOW: string[] = [
   "Click the words shown with a service (they go into the search bar), or type them yourself.",
   "Press Enter. A sum, a conversion and a PIN code or a ward number show their answer under the search line as you type, with no Enter.",
@@ -23,19 +23,19 @@ export const UTILITY_HOW: string[] = [
 export interface UtilityPart {
   title: string;
   detail: string;
-  /** the words that open it */
+  /** The words that open it. */
   type: string[];
 }
 export interface UtilityService {
   /** the bold name */
   label: string;
   detail: string;
-  /** the words that open it (a service with parts has them on its parts) */
+  /** The words that open it; a service with parts has them on its parts. */
   type?: string[];
   parts?: UtilityPart[];
 }
 
-/** THE ONE LINE ABOUT THE "CALCULATORS" COMMAND: it opens a menu of tools, and the line names every one. The guide's test checks that each tool of the menu is named here. */
+/** THE ONE LINE ABOUT THE "CALCULATORS" COMMAND: it opens a menu of tools, and I make the line name every one. The guide's test checks that each tool of the menu is named here. */
 export const CALCULATORS_LINE: { before: string; command: string; after: string; tools: string[] } = {
   before: "Type",
   command: "calculators",
@@ -83,7 +83,7 @@ export const UTILITY_SERVICES: UtilityService[] = [
     { title: "VIN (vehicle identification number), simplified", detail: "the 17-character code that identifies one vehicle, stamped on its chassis and given in its papers (the letters I, O and Q are never used). It has three blocks: the first 3 characters give the country and the maker, the next 6 the type of vehicle in the maker's own code, and the last 8 the model year (the 10th character: K is 2019), the plant and the vehicle's own serial number. Type vin number to see each block explained, or type a VIN such as MALBM51BLKM000001 and it is read as you type.", type: ["vin number", "MALBM51BLKM000001"] },  ] },
 ];
 
-/** what these services cannot do yet, said plainly */
+/** What these services cannot do yet, said plainly. */
 export const UTILITY_LIMITS: string[] = [
   "Live figures (news, prices, markets) come from free public sources: a source can be late or briefly unavailable, and each card names its source and when it was fetched.",
   "The shares card comes from Yahoo Finance, which sometimes turns the site away for a few minutes: the card then shows its last saved figures, marked \"Not live\" with their time. At weekends it shows the last close.",

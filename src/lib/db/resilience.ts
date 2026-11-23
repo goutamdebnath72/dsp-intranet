@@ -1,9 +1,9 @@
 // src/lib/db/resilience.ts
 //
-// Small, dependency-free helpers for coping with a database connection that drops or is replaced while a
-// request is using it. Kept separate from index.ts (which imports every entity) so they can be tested alone.
+// I kept these helpers small and dependency-free: they cope with a database connection that drops or is replaced while a request is using it.
+// They live apart from index.ts (which imports every entity) so I can test them alone.
 
-/** Errors worth one more try: the pooler dropped a connection, or the pool was replaced mid-request. */
+/** I retry only these errors: the pooler dropped a connection, or the pool was replaced mid-request. */
 export const TRANSIENT_DB_ERROR =
   /connection terminated|driver not connected|timeout exceeded|connection timeout|econnreset|server closed the connection|terminating connection|cannot use a pool after calling end/i;
 
@@ -14,9 +14,9 @@ export function isTransientDbError(e: unknown): boolean {
 }
 
 /**
- * Run a database operation; if it fails with a transient connection error, run it again. `fn` must obtain
+ * I run a database operation and, if it fails with a transient connection error, run it again. `fn` must obtain
  * its connection INSIDE (e.g. `await getDb()` each time) so a retry picks up a fresh, healthy pool.
- * Non-transient errors (bad SQL, constraint violations ...) are thrown immediately and never retried.
+ * Non-transient errors (bad SQL, constraint violations ...) are thrown immediately and I never retry them.
  */
 export async function withDbRetry<T>(fn: () => Promise<T>, attempts = 2, delayMs = 250): Promise<T> {
   for (let attempt = 1; ; attempt++) {
@@ -30,10 +30,10 @@ export async function withDbRetry<T>(fn: () => Promise<T>, attempts = 2, delayMs
 }
 
 /**
- * Close an old connection pool LATER, not now. In dev, a hot reload replaces the DataSource while requests
+ * I close an old connection pool LATER, not now. In dev, a hot reload replaces the DataSource while requests
  * that started a moment earlier are still running queries on the old one; closing it immediately is what
- * produced "Connection terminated" / "Cannot use a pool after calling end" right after login. The old pool
- * is left to finish its work and is closed after `drainMs`.
+ * produced "Connection terminated" / "Cannot use a pool after calling end" right after login. So I leave the old pool
+ * to finish its work and close it after `drainMs`.
  */
 export function retireDataSource(
   ds: { isInitialized?: boolean; destroy(): Promise<void> },
@@ -46,6 +46,6 @@ export function retireDataSource(
         console.warn("⚠️ Old TypeORM pool teardown noise (safe to ignore):", (e as Error)?.message ?? e),
       );
   }, drainMs);
-  // Never keep the process alive just to close an old pool.
+  // I never keep the process alive just to close an old pool.
   (timer as unknown as { unref?: () => void }).unref?.();
 }

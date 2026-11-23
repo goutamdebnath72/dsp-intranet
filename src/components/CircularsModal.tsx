@@ -35,9 +35,9 @@ type Circular = {
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  /** Called when a circular is opened. The home page (useCircularStatus) saves the read and updates the "new" state. */
+  /** Called when a circular is opened; the home page (useCircularStatus) saves the read and updates the "new" state. */
   onCircularClick: (id: number) => unknown;
-  /** The circulars to show as new (highlighted). Owned by the home page, so the modal and the red circle always agree. */
+  /** The circulars to show as new (highlighted). I keep this owned by the home page, so the modal and the red circle always agree. */
   unreadIds: ReadonlySet<number>;
 };
 
@@ -52,9 +52,9 @@ const fetcher = (url: string) =>
 export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: Props) {
   const { data: session } = useVerifiedSession();
 
-  // Cheap, rarely-changing: just which years actually have circulars.
-  // Drives the year-tab selector without ever pulling a single circular
-  // row -- previously this app fetched EVERY circular from EVERY year just
+  // Cheap and rarely changing: just which years actually have circulars.
+  // It drives the year-tab selector without ever pulling a single circular
+  // row. Before, this app fetched EVERY circular from EVERY year just
   // to figure out which years to show as tabs.
   const { data: availableYears = [] } = useSWR<string[]>(
     isOpen ? "/api/circulars?meta=years" : null,
@@ -67,9 +67,9 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  // Once the years list arrives, default to the latest year that actually
-  // has data -- mirrors the old "jump to the most recent year with
-  // content" behavior. Only fires the FIRST time (selectedYear starts
+  // Once the years list arrives, I default to the latest year that actually
+  // has data, mirroring the old "jump to the most recent year with
+  // content" behavior. It fires only the FIRST time (selectedYear starts
   // null), so it never fights the user's own tab clicks afterward.
   useEffect(() => {
     if (isOpen && selectedYear === null && availableYears.length > 0) {
@@ -77,7 +77,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
     }
   }, [isOpen, availableYears, selectedYear]);
 
-  // The ONLY circular-row fetch that happens on demand: just the currently
+  // This is the ONLY circular-row fetch that happens on demand: just the currently
   // selected year, ~500 rows at most instead of every year's archive at
   // once. Switching tabs is a new SWR cache key, not a full refetch.
   const {
@@ -89,32 +89,32 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
     fetcher,
   );
 
-  // Quietly warm the cache for the immediately-preceding year, so the most
+  // I quietly warm the cache for the immediately preceding year, so the most
   // likely next click (browsing one year further back) shows instantly
-  // from cache instead of a fresh loading spinner. Deliberately only ONE
-  // year ahead -- prefetching several years would just recreate the
+  // from cache instead of a fresh loading spinner. I deliberately prefetch only ONE
+  // year ahead: prefetching several years would just recreate the
   // original "load everything up front" problem in a slower, sneakier
   // form instead of actually fixing it.
   useEffect(() => {
     if (!isOpen || !selectedYear) return;
     const prevYear = String(Number(selectedYear) - 1);
     if (availableYears.includes(prevYear)) {
-      // Best-effort only -- a failure here (e.g. a transient DB connection
+      // Best-effort only: a failure here (e.g. a transient DB connection
       // hiccup right after a heavy request, which this app's pool is known
       // to occasionally hit) must never surface to the user. Unlike the two
       // useSWR() calls above, preload()'s returned promise isn't consumed
       // by a hook that exposes its own error state, so an unhandled
       // rejection here was crashing the whole page with Next's dev overlay
-      // for what should have been an invisible background prefetch -- the
-      // selected year will just load normally, un-prefetched, if it fails.
+      // for what should have been an invisible background prefetch. If it fails, the
+      // selected year just loads normally, un-prefetched.
       preload(`/api/circulars?year=${prevYear}`, fetcher).catch(() => {});
     }
   }, [isOpen, selectedYear, availableYears]);
 
-  // Lock background page scroll while the modal is open so mouse-wheel
+  // I lock background page scroll while the modal is open so mouse-wheel
   // scrolling inside it (including over the fixed header) never bleeds through
-  // to the home page behind. NOTE: the page scroller in this app is <html>
-  // (globals.css sets `html { overflow-y: auto }`), so we must lock the
+  // to the home page behind. Note: the page scroller in this app is <html>
+  // (globals.css sets `html { overflow-y: auto }`), so I have to lock the
   // documentElement, not <body>.
   useEffect(() => {
     if (!isOpen) return;
@@ -134,10 +134,10 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
     ? archiveYears.includes(selectedYear)
     : false;
 
-  // ✅ Wiring Delete Backend
+  // Wiring the delete backend
   const handleDelete = async (id: number) => {
     try {
-      // The API should handle the physical deletion of image files
+      // The API has to handle the physical deletion of the image files
       const response = await fetch(`/api/circulars/${id}`, {
         method: "DELETE",
       });
@@ -147,7 +147,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
       }
 
       stickySuccess("✅ Circular and associated files deleted."); // stays until its cross is clicked
-      mutateCirculars(); // Refresh just this year's list
+      mutateCirculars(); // I refresh just this year's list
     } catch (err: any) {
       toast.error(err?.message && err.message !== "Failed to delete" ? err.message : "Failed to delete.");
     }
@@ -159,14 +159,14 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
     setIsConfirmOpen(true);
   };
 
-  // ✅ Ownership and 24h Window Check
+  // Ownership and 24h window check
   const canModify = (circular: Circular) => {
-    // The HOD of C&IT may change any circular; anyone else only his or her own, within the window. (This only decides
+    // I let the HOD of C&IT change any circular; anyone else only his or her own, within the window. (This only decides
     // whether the button is shown: the server decides again from the database.)
     if ((session?.user as any)?.isSuperAdmin) return true;
     const userTicketNo = (session?.user as any)?.ticketNo || "";
     if (userTicketNo !== circular.authorTicketNo) return false;
-    // Window is measured from UPLOAD time, not the circular's (possibly
+    // I measure the window from UPLOAD time, not from the circular's (possibly
     // backfilled) issue date.
     const upAt = DateTime.fromISO(circular.uploadedAt);
     const diff = DateTime.now().diff(upAt, "hours").hours;
@@ -354,7 +354,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
                       <button
                         onClick={() => {
                           // The home page owns the "new" state (useCircularStatus): for a logged-in person it clears this row at once and keeps
-                          // it cleared while the read is being saved. Nothing to do here but open the circular.
+                          // it cleared while the read is being saved. So here I only open the circular.
                           void onCircularClick(circular.id);
                         }}
                         className="flex-1 text-left"
@@ -390,7 +390,7 @@ export function CircularsModal({ isOpen, onClose, onCircularClick, unreadIds }: 
                         </p>
                       </button>
 
-                      {/* ✅ Edit/Delete Controls */}
+                      {/* Edit/Delete controls */}
                       {canModify(circular) && (
                         <div className="flex gap-2 ml-4 items-center">
                           <Tooltip content="Delete — uploader only, within 24 h of upload">

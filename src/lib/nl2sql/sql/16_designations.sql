@@ -1,11 +1,11 @@
--- 16_designations.sql : the DESIGNATION LIST put right (step 66c; owner, 1 Nov 2026). Run ONCE in the Supabase SQL editor; safe to run again (a second run changes nothing).
+-- 16_designations.sql : the DESIGNATION LIST put right (step 66c; my request, 1 Nov 2026). Run ONCE in the Supabase SQL editor; safe to run again (a second run changes nothing).
 --
 -- WHAT IT DOES (all in one transaction: if anything fails, nothing is kept)
 --   1. The spelling: "Asst.General Manager" becomes "Asst. General Manager" (a space after the dot), in the list of designations and in the login accounts that carry the old text.
 --   2. ONE "Asst. Manager": the executive designation list had it twice (code 204 with 149 people, code 201 with 95) and a "Junior Manager" (code 201, 1 person), which is not a designation.
 --      Nobody is in training today, so these 96 people are Asst. Managers: they move to the code-204 row, KEEP THEIR RELATIVE ORDER, and get new positions after the 149 who are there
---      (rank = grade order x 10000 + position, the HR formula). The two old rows are then removed, but only when nobody holds them.
---   3. The training designations are ADDED, empty (nobody holds them yet):
+--      (rank = grade order x 10000 + position, the HR formula). I then remove the two old rows, but only when nobody holds them.
+--   3. I ADD the training designations, empty (nobody holds them yet):
 --        executives   Management Trainee (MT) and Junior Officer (JO)         code 201, rank 13 (the entry grade, as the old rows were)
 --        doctors      DNB Doctor                                              code 201, rank 13            <- PLACEHOLDER code
 --        non-execs    SOT, JOT, TA   (in this order, most senior first)       codes 400, 399, 398, ranks 25, 26, 27 (below S-1 = 401)   <- PLACEHOLDER codes
@@ -24,19 +24,19 @@
 
 BEGIN;
 
--- no one writes to the two tables while this runs
+-- I lock the two tables so that no one writes to them while this runs
 LOCK TABLE public.designation_grade, public.employee_roster IN SHARE ROW EXCLUSIVE MODE;
 
 -- 1. the spelling
 UPDATE public.designation_grade SET title = 'Asst. General Manager' WHERE title = 'Asst.General Manager';
 UPDATE public."user" SET designation = 'Asst. General Manager' WHERE designation = 'Asst.General Manager';
 
--- 2. the new designations (those that are not there yet). Explicit ids after the highest one, so that it works whether or not the id sequence has kept up with the rows loaded with ids.
+-- 2. The new designations (those that are not there yet). I give explicit ids after the highest one, so that it works whether or not the id sequence has kept up with the rows loaded with ids.
 WITH wanted(ord, code, title, track, rank_order) AS (
   VALUES (1, 201, 'Management Trainee', 'managerial', 13), (2, 201, 'Junior Officer', 'managerial', 13), (3, 201, 'DNB Doctor', 'medical', 13),
          (4, 400, 'SOT', 'nonexec', 25), (5, 399, 'JOT', 'nonexec', 26), (6, 398, 'TA', 'nonexec', 27)
 ), missing AS (
-  -- numbered in the order above (so the ids, and the order of the form, are always the same)
+  -- Numbered in the order above, so that the ids, and the order of the form, are always the same
   SELECT w.*, row_number() OVER (ORDER BY w.ord) AS n FROM wanted w
   WHERE NOT EXISTS (SELECT 1 FROM public.designation_grade g WHERE g.title = w.title AND g.track = w.track)
 )
@@ -44,7 +44,7 @@ INSERT INTO public.designation_grade (id, code, title, track, rank_order)
 SELECT (SELECT coalesce(max(id), 0) FROM public.designation_grade) + m.n, m.code, m.title, m.track, m.rank_order FROM missing m;
 SELECT setval(pg_get_serial_sequence('public.designation_grade', 'id'), (SELECT max(id) FROM public.designation_grade)) WHERE pg_get_serial_sequence('public.designation_grade', 'id') IS NOT NULL;
 
--- 3. the people of the duplicate "Asst. Manager" (code 201) and of "Junior Manager" join the one "Asst. Manager" (code 204), in the order they had, after those who are there
+-- 3. The people of the duplicate "Asst. Manager" (code 201) and of "Junior Manager" join the one "Asst. Manager" (code 204), in the order they had, after those who are there
 WITH keep AS (
   SELECT id, rank_order FROM public.designation_grade WHERE track = 'managerial' AND title = 'Asst. Manager' AND code = 204
 ), old AS (
@@ -58,10 +58,10 @@ UPDATE public.employee_roster er
    SET designation_grade_id = (SELECT id FROM keep), within_grade_position = base.m + moving.n, global_seniority_rank = (SELECT rank_order FROM keep) * 10000 + base.m + moving.n
   FROM moving, base
  WHERE er.id = moving.id AND EXISTS (SELECT 1 FROM keep);
--- the login accounts of the people who had the text "Junior Manager" or the duplicate's text
+-- The login accounts of the people who had the text "Junior Manager" or the duplicate's text
 UPDATE public."user" SET designation = 'Asst. Manager' WHERE designation = 'Junior Manager';
 
--- 4. the two old rows go, only if nobody holds them (and only if the row to keep is there)
+-- 4. The two old rows go, but only if nobody holds them (and only if the row to keep is there)
 DELETE FROM public.designation_grade g
  WHERE g.track = 'managerial' AND g.code = 201 AND g.title IN ('Asst. Manager', 'Junior Manager')
    AND EXISTS (SELECT 1 FROM public.designation_grade k WHERE k.track = 'managerial' AND k.title = 'Asst. Manager' AND k.code = 204)

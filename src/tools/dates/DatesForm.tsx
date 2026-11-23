@@ -1,6 +1,6 @@
 // src/tools/dates/DatesForm.tsx
 //
-// THE DATE CALCULATORS (between two dates, add or subtract, age, retirement date). Keeps what is typed in the browser's memory only (React state): nothing is stored, logged or sent. The sums are in the pure file beside it; this component collects the inputs and shows the results.
+// The date calculators (between two dates, add or subtract, age, retirement date). I keep what is typed in the browser's memory only (React state): nothing is stored, logged or sent. The sums are in the pure file beside it; this component collects the inputs and shows the results.
 "use client";
 
 import React, { useMemo, useState } from "react";

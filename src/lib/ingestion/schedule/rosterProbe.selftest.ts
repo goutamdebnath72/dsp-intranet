@@ -1,5 +1,5 @@
 // src/lib/ingestion/schedule/rosterProbe.selftest.ts
-// Run:  npx tsx src/lib/ingestion/schedule/rosterProbe.selftest.ts      (pictures are drawn in memory; the page text, which Gemini reads in the real upload, is a stand-in)
+// Run:  npx tsx src/lib/ingestion/schedule/rosterProbe.selftest.ts      (I draw the pictures in memory; the page text, which Gemini reads in the real upload, is a stand-in)
 import { analyzeRosterStructure, createRosterProbe, headerLooksLikeRosterText, ROSTER_DISCOVERY_PAGES } from "./rosterProbe";
 
 let pass = 0;
@@ -25,24 +25,24 @@ async function toPng(px: Uint8Array): Promise<Buffer> {
 }
 const RULES = [100, 200, 400, 800, 900, 1050, 1150]; // 6 columns, the last is DATE
 const TOP = 250;
-/** a roster page: a ruled table of 6 columns with merged date cells (3 groups of 5 rows) and a printed date in each */
+/** I draw a roster page: a ruled table of 6 columns with merged date cells (3 groups of 5 rows) and a printed date in each. */
 async function rosterPage(): Promise<Buffer> {
   const px = blank();
   const bottom = 300 + 15 * 40;
   for (const x of RULES) rect(px, x - 1, TOP, x + 2, bottom);
-  for (let y = 300; y <= 900; y += 40) rect(px, 100, y - 1, 1050, y + 2); // a rule on every row, in every column but the date column
-  for (const y of [300, 500, 700, 900]) rect(px, 1050, y - 1, 1150, y + 2); // the date column: one rule per group of 5 rows
+  for (let y = 300; y <= 900; y += 40) rect(px, 100, y - 1, 1050, y + 2); // a rule under every row, in every column but the date column
+  for (const y of [300, 500, 700, 900]) rect(px, 1050, y - 1, 1150, y + 2); // in the date column there is one rule per group of 5 rows
   for (const cy of [400, 600, 800]) for (let i = 0; i < 8; i++) rect(px, 1100 - 44 + i * 11, cy - 14, 1100 - 44 + i * 11 + 7, cy + 14);
   return toPng(px);
 }
-/** the same ruled table with NO merged date cells (an ordinary table of something else) */
+/** The same ruled table, but I give it NO merged date cells (an ordinary table of something else). */
 async function plainTablePage(): Promise<Buffer> {
   const px = blank();
   for (const x of RULES) rect(px, x - 1, TOP, x + 2, 900);
-  for (let y = 300; y <= 900; y += 40) rect(px, 100, y - 1, 1150, y + 1); // every row the same height, spanning all columns
+  for (let y = 300; y <= 900; y += 40) rect(px, 100, y - 1, 1150, y + 1); // every row has the same height and spans all columns
   return toPng(px);
 }
-/** a page of a letter: blocks of "text", no table at all */
+/** I draw a page of a letter: blocks of "text", no table at all. */
 async function letterPage(): Promise<Buffer> {
   const px = blank();
   for (let y = 200; y < 1400; y += 34) rect(px, 120, y, 120 + 600 + ((y * 7) % 300), y + 14);

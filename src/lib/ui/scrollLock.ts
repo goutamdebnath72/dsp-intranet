@@ -1,10 +1,10 @@
 // src/lib/ui/scrollLock.ts
 //
-// ONE LOCK ON THE PAGE'S SCROLLING FOR EVERY WINDOW THAT COVERS THE PAGE (the search window, the user guide, the circulars list, an announcement, the home page's circular viewer).
-// Each of them used to save <html>'s overflow and padding when it opened and put them back when it closed. Two windows open at once (the guide over the search window, an announcement
-// over it) and closed together (one Escape closes both) restored in whatever order React happened to clean them up, and the LAST to restore put back the state the first one had
+// One lock on the page's scrolling, shared by every window that covers the page (the search window, the user guide, the circulars list, an announcement, the home page's circular viewer).
+// Each of them used to save <html>'s overflow and padding when it opened and put them back when it closed. When two windows were open at once (the guide over the search window, an announcement
+// over it) and closed together (one Escape closes both), they restored in whatever order React happened to clean them up, and the LAST to restore put back the state the first one had
 // ALREADY locked: the page stayed locked ("overflow: hidden" and a 15 px shift) until it was refreshed.
-// Now the first window to ask locks the page and remembers how it was; the last to let go restores it, whatever the order; letting go twice does nothing.
+// My fix: the first window to ask locks the page and remembers how it was; the last to let go restores it, whatever the order; letting go twice does nothing.
 
 export interface LockTarget {
   style: { overflow: string; paddingRight: string };
@@ -16,7 +16,7 @@ export interface LockEnv {
 }
 
 export interface PageLock {
-  /** the width of the page's scrollbar as it was before the first lock (so a window opened over another still knows it) */
+  /** The width of the page's scrollbar as it was before the first lock, so that a window opened over another still knows it. */
   scrollBarWidth: number;
   release: () => void;
 }
@@ -51,7 +51,7 @@ export function lockPageScroll(env: LockEnv = browserEnv()): PageLock {
   };
 }
 
-/** for the tests */
+/** Used by the tests only. */
 export function lockHolders(): number {
   return holders;
 }

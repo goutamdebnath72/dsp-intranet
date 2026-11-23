@@ -1,4 +1,4 @@
-// Run (from the project root): npx tsx src/lib/ingestion/indicRepair.selftest.ts
+// Run it from the project root: npx tsx src/lib/ingestion/indicRepair.selftest.ts
 import { canonicalIndic, indicDefect, repairIndic } from "./indicRepair";
 import { createGeminiOcr, readingSummary } from "./geminiOcr";
 import type { PageReader } from "./pageReader";
@@ -7,7 +7,7 @@ import { cleanQueryString } from "../utils/queryCleaner";
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
 
-// the real slip found in the archive (circular 21, page 1): the table heading printed "क्र.सं." was stored with a Korean letter
+// This is the real slip found in the archive (circular 21, page 1): the table heading printed "क्र.सं." was stored with a Korean letter
 const PRIMARY = "सभी ठेका श्रमिकों का विवरण उपलब्ध कराएंगे। 크.सं. | पिन नं. | नाम | पिता/पति का नाम | लिंग | जन्म तिथि";
 const CHECKER = "सभी ठेका श्रमिकों का विवरण उपलब्ध कराएंगे। क्र.सं. | पिन नं. | नाम | पिता/पति का नाम | लिंग | जन्म तिथि";
 
@@ -54,7 +54,7 @@ ok("a joiner typed inside a word does not split it", cleanQueryString("ক\u200D
 ok("a query typed with the precomposed letter equals the stored form", cleanQueryString("ডিয়া") === canonicalIndic("ডিয়া"));
 ok("English and quoted queries are unchanged", cleanQueryString('"Rs.500" gift card') === '"Rs.500" gift card');
 
-// 4. in the upload reader: primary slip is repaired from the checker, and the summary says so
+// 4. in the upload reader: a primary slip is repaired from the checker, and the summary says so
 const reader = (name: string, text: string): PageReader => ({ name, read: async () => text });
 const run = async (p: string, c: string) => {
   const ocr = createGeminiOcr({ readers: { primary: reader("p", p), checker: reader("c", c) }, deadlineAt: Date.now() + 60_000 });

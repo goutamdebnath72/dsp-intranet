@@ -1,7 +1,7 @@
 // src/tools/dates/topic.ts
 //
-// WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words that ask for the date calculators, and a date question answered as you type (days between two dates, 90 days from today, age, retirement date).
-// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. It is listed once, in src/tools/registry.ts.
+// What the search line needs to know about this topic (pure, no React): the words that ask for the date calculators, and a date question answered as you type (days between two dates, 90 days from today, age, retirement date).
+// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. I list it once, in src/tools/registry.ts.
 import { defineTopic } from "@/tools/types";
 import { answerDateQuestion } from "./dateCalc";
 

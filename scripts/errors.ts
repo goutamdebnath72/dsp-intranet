@@ -1,6 +1,6 @@
 // scripts/errors.ts
 //
-// THE PRODUCTION ERROR LOG, READ FROM THE TERMINAL (src/lib/errorLog/). Uses the same database as the application (.env.local).
+// The production error log, read from the terminal (src/lib/errorLog/). I use the same database as the application (.env.local).
 //
 //   npm run errors                      the open errors, serious first (new and seen; not the resolved)
 //   npm run errors -- all               everything, resolved too

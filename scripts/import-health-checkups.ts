@@ -1,6 +1,6 @@
 // scripts/import-health-checkups.ts
 //
-// Health check-up schedules (an annexure of a circular, one month) -> the table public.health_checkup_schedule, so a question such as
+// Health check-up schedules (an annexure of a circular, one month) go into the table public.health_checkup_schedule, so that a question such as
 // "which department is ticket 228757 in for the January 2025 health check-up" is answered with the person AND the date.
 //
 //   npx tsx --env-file=.env.local scripts/import-health-checkups.ts                       lists the circulars that look like health check-up schedules
@@ -10,8 +10,8 @@
 //
 // Before the first --apply run  src/lib/nl2sql/sql/08_health_checkups.sql  once in the Supabase SQL editor.
 //
-// How the date of a row is found: it is printed ONCE, in the middle of a merged cell that spans a whole group of rows; the cell's ruled lines say
-// which rows it covers (src/lib/ingestion/schedule/). How a row is trusted: its ticket and name are checked against the HR directory (nlq.employees).
+// How I find the date of a row: it is printed ONCE, in the middle of a merged cell that spans a whole group of rows, and the cell's ruled lines say
+// which rows it covers (src/lib/ingestion/schedule/). How I trust a row: its ticket and name are checked against the HR directory (nlq.employees).
 // A row is verified, corrected (a misread ticket fixed by the one HR employee with that name and department) or unverified (kept, flagged, never
 // shown as confirmed). --apply refuses a circular whose pages show a problem (rows without a date, a group of an odd size, dates out of order)
 // unless you add --accept-warnings after looking at the report.
@@ -64,7 +64,7 @@ async function loadPages(c: CircularRow): Promise<Buffer[]> {
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set (run with: npx tsx --env-file=.env.local scripts/import-health-checkups.ts)");
   const apply = flag("apply");
-  // The database is used in SHORT steps (a new connection each, retried if the network drops it): the OCR between the steps takes minutes and a
+  // I use the database in SHORT steps (a new connection each, retried if the network drops it): the OCR between the steps takes minutes, and a
   // connection held open all that time can be dropped (a run once died with "read ETIMEDOUT").
   const db = <T,>(fn: (c: Client) => Promise<T>) =>
     withConnection(() => new Client({ connectionString: process.env.DATABASE_URL }), fn, {
@@ -74,7 +74,7 @@ async function main() {
   try {
     const ids = (arg("ids") ?? "").split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isInteger(n));
     if (ids.length === 0) {
-      // every circular that looks like a health check-up schedule by its headline, or that the upload recognised as one, or that has rows stored
+      // Every circular that looks like a health check-up schedule by its headline, or that the upload recognised as one, or that has rows stored.
       const head = `SELECT c.id, c."serialNumber", EXTRACT(YEAR FROM c."publishedAt")::int AS year, c.headline, coalesce(array_length(c."fileUrls", 1), 0) AS pages,
         (SELECT count(*) FROM public.health_checkup_schedule h WHERE h.circular_id = c.id)::int AS stored_rows`;
       const where = `c.headline ILIKE '%health%check%' OR c.headline ILIKE '%check%up%' OR EXISTS (SELECT 1 FROM public.health_checkup_schedule h WHERE h.circular_id = c.id)`;
@@ -83,7 +83,7 @@ async function main() {
         r = await q(`${head}, (SELECT l.kind || ': ' || l.status FROM public.circular_ingest_log l WHERE l.circular_id = c.id ORDER BY l.id DESC LIMIT 1) AS decision
           FROM public.circulars c WHERE ${where} OR EXISTS (SELECT 1 FROM public.circular_ingest_log l WHERE l.circular_id = c.id AND l.kind = 'health-schedule') ORDER BY c."publishedAt", c.id`);
       } catch {
-        r = await q(`${head}, NULL AS decision FROM public.circulars c WHERE ${where} ORDER BY c."publishedAt", c.id`); // the log table does not exist yet
+        r = await q(`${head}, NULL AS decision FROM public.circulars c WHERE ${where} ORDER BY c."publishedAt", c.id`); // the log table may not exist yet
       }
       console.log("Circulars that look like health check-up schedules (pass their ids with --ids):\n");
       for (const x of r.rows) {
@@ -97,7 +97,7 @@ async function main() {
       throw new Error("the table public.health_checkup_schedule does not exist: run src/lib/nl2sql/sql/08_health_checkups.sql in the Supabase SQL editor first");
     }
 
-    // ---- the OCR engines (the same four the upload uses: see src/lib/ingestion/schedule/ingest.ts)
+    // ---- the OCR engines (I use the same four the upload uses: see src/lib/ingestion/schedule/ingest.ts)
     const readers = geminiRosterReaders();
 
     // ---- the HR directory (EVERYONE, not only non-executives) and which department code belongs to which department name
@@ -122,7 +122,7 @@ async function main() {
       const cachePath = join("health-cache", `circular-${id}.json`);
       let res: ExtractedSchedule | null = null;
       let reused = false;
-      // the saved reading belongs to the reader that made it: any change to the reader's code (fingerprint) or to the pages makes it stale
+      // The saved reading belongs to the reader that made it, so I treat it as stale after any change to the reader's code (fingerprint) or to the pages.
       const key = JSON.stringify({ v: EXTRACT_VERSION, code: extractorFingerprint(join(__dirname, "..", "src", "lib", "ingestion", "schedule")), urls: c.fileUrls, dir: arg("pages-dir") ?? null });
       if (!flag("fresh") && existsSync(cachePath)) {
         const saved = JSON.parse(readFileSync(cachePath, "utf8"));
@@ -131,10 +131,10 @@ async function main() {
       if (!res) {
         const pages = await loadPages(c);
         res = await extractScheduleGemini(pages, { readers, trace: (m) => console.log("      " + m) });
-        if (res.rows.length > 0) writeFileSync(cachePath, JSON.stringify({ key, res })); // a reading that found no rows (Gemini unreachable, no credit) is never kept
+        if (res.rows.length > 0) writeFileSync(cachePath, JSON.stringify({ key, res })); // I never keep a reading that found no rows (Gemini unreachable, no credit)
       }
 
-      // ---- check every row (department code against the printed department, people against HR): the same code the upload runs
+      // ---- check every row (department code against the printed department, people against HR): I run the same code the upload runs
       const prepared: PreparedSchedule = await prepareSchedule(res, ctx, sql);
       const rows = prepared.rows;
       const codeFixes = prepared.codeFixes;
@@ -198,7 +198,7 @@ async function main() {
     console.log(`\n${blocked ? `${blocked} circular(s) need attention. ` : ""}Report: ${file}`);
     if (blocked) process.exitCode = 1;
   } finally {
-    // nothing to close: every database step opened and closed its own connection
+    // Nothing to close here: every database step opened and closed its own connection.
   }
 }
 

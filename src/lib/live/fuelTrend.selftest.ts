@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/fuelTrend.selftest.ts
-// The Kolkata price of petrol, diesel and LPG over the last year: PPAC's daily table (read from a PDF), GoodReturns' monthly LPG table, the copy kept with the app, and the route that joins them.
+// Checks the Kolkata price of petrol, diesel and LPG over the last year: PPAC's daily table (read from a PDF), GoodReturns' monthly LPG table, the copy kept with the app, and the route that joins them.
 // The fixtures are the real sources of 12-13 Nov 2026 (see their first lines).
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
@@ -57,13 +57,13 @@ ok("the route reads nothing of the caller (GET takes no request) and its two sou
 ok("the two kinds are asked separately (a failure of one does not take the other down), each falls back to the saved copy, and all three missing is an error", /Promise\.allSettled/.test(route) && (route.match(/seriesFromSnapshot/g) ?? []).length >= 3 && /if \(!petrol && !diesel && !lpgSeries\) throw/.test(route));
 ok("pdf-parse is read from its lib file, kept external and included in the deployed route (or the PDF engine would be missing on the host)", /pdf-parse\/lib\/pdf-parse\.js/.test(route) && /"pdf-parse",/.test(readFileSync("next.config.js", "utf8")) && /"\/api\/live\/fuel-trend": \["\.\/node_modules\/pdf-parse\/\*\*\/\*"\]/.test(readFileSync("next.config.js", "utf8")));
 
-// THE ONE-YEAR WINDOW: from the same date a year before today to today
+// The one-year window: from the same date a year before today to today.
 {
   const w = inYearWindow({ id: "petrol", grain: "day", points: p.petrol }, NOW);
   ok("petrol is carried on to today: the table ends on 12 Nov 2026, so the chart ends on 13 Nov 2026 with that day's price (a fuel price stays until it is changed), and says from which day it was carried", w.carriedFrom === "2026-11-12" && w.series.points.length === 366 && w.series.points[0].date === "2025-11-13" && w.series.points[365].date === "2026-11-13" && w.series.points[365].value === 113.51);
   const already = inYearWindow({ id: "petrol", grain: "day", points: p.petrol }, DateTime.fromISO("2026-11-12T20:00:00", { zone: "Asia/Kolkata" }));
   ok("a record that already ends today is not carried", already.carriedFrom === null && already.series.points[already.series.points.length - 1].date === "2026-11-12");
-  // the copy kept with the app begins earlier than the window: it is cut at the anniversary, the price in force that day first
+  // The copy kept with the app begins earlier than the window, so it is cut at the anniversary, with the price in force that day first.
   const saved = seriesFromSnapshot(snapshot as Snapshot, "petrol");
   const cut = inYearWindow(saved, NOW);
   ok("the saved copy is cut at the same date a year back (13 Nov 2025) and carried to today, whatever its own first day", cut.series.points[0].date === "2025-11-13" && cut.series.points[cut.series.points.length - 1].date === "2026-11-13" && cut.series.points.length === 366);

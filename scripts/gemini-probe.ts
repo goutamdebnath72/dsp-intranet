@@ -1,7 +1,7 @@
 // scripts/gemini-probe.ts
 //
-// READS ONE STORED PAGE ONCE WITH GEMINI and prints what the service says about it: how long it took, how the answer ended, the tokens spent on the
-// page, the answer and "thinking", and whether the answer repeats itself. Writes NOTHING (no database write, no file). It is for finding out why a page's
+// I use this to read ONE stored page once with Gemini and print what the service says about it: how long it took, how the answer ended, the tokens spent on the
+// page, the answer and "thinking", and whether the answer repeats itself. It writes NOTHING (no database write, no file). Use it to find out why a page's
 // read is slow or never comes back; see src/lib/ingestion/geminiProbe.ts.
 //
 //   npx tsx --env-file=.env.local scripts/gemini-probe.ts --id 85 --page 2 --timeout 300
@@ -16,7 +16,7 @@
 //   --compare              read the page TWICE, as stored (A) and shrunk (B), and compare time, size and numbers: one command to learn whether the size matters
 //   --base-url URL         another address of the service (for tests)
 //
-// Needs GEMINI_API_KEY (GEMINI_VISION_MODEL names the model) and, with --id, DATABASE_URL.
+// You need GEMINI_API_KEY (GEMINI_VISION_MODEL names the model) and, with --id, DATABASE_URL.
 
 import { readFileSync } from "node:fs";
 import { Client } from "pg";

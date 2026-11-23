@@ -1,8 +1,8 @@
 // src/app/api/account/password/otp/route.ts
 //
-// POST /api/account/password/otp   sends the signed-in person a one-time code for a password change, to HIS OWN mobile number (else e-mail) on record: the request names no destination, so it cannot be pointed
-// at anybody else. Built but SWITCHED OFF: answers 404 until PASSWORD_OTP=on on the host, and says plainly that no gateway is set up until one is (src/lib/security/otpSender.ts).
-// The rules (6 digits, 5 minutes, 5 tries, 60 seconds between codes, 3 an hour) are in src/lib/security/otp.ts.
+// POST /api/account/password/otp   sends the signed-in person a one-time code for a password change, to his own mobile number (else e-mail) on record. I made the request name no destination, so it cannot be pointed
+// at anybody else. It is built but switched off: it answers 404 until PASSWORD_OTP=on on the host, and says plainly that no gateway is set up until one is (src/lib/security/otpSender.ts).
+// The rules (6 digits, 5 minutes, 5 tries, 60 seconds between codes, 3 an hour) are kept in src/lib/security/otp.ts.
 
 import { NextResponse } from "next/server";
 import { getSessionTicket } from "@/lib/apiAuth";

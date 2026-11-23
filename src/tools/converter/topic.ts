@@ -1,7 +1,7 @@
 // src/tools/converter/topic.ts
 //
-// WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words that ask for the unit and currency converter, and a typed conversion answered as you type (5 km in miles, 100 usd to inr, 1 bhp in kw, 1 bigha in sq ft).
-// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. It is listed once, in src/tools/registry.ts.
+// What the search line needs to know about this topic (pure, no React): the words that ask for the unit and currency converter, and a typed conversion that I answer as you type (5 km in miles, 100 usd to inr, 1 bhp in kw, 1 bigha in sq ft).
+// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. I list it once, in src/tools/registry.ts.
 import { defineTopic } from "@/tools/types";
 import { parseConversion } from "./units";
 import { parseEngine } from "./converterModel";
@@ -18,7 +18,7 @@ export const converterTopic = defineTopic({
   },
   hits: [
     { rank: 70, detect: (q) => { const request = parseCurrency(q); return request ? { kind: "currency" as const, request } : null; } },
-    // rank 45: ahead of the forms (50), so that "colour converter" and "rgb to hex converter" open the colour card and not the unit converter's form; the reader is strict (a "#", the word hex or rgb, or "to hex"), so nothing else is taken
+    // Rank 45: ahead of the forms (50), so that "colour converter" and "rgb to hex converter" open the colour card and not the unit converter's form. I keep the reader strict (a "#", the word hex or rgb, or "to hex"), so nothing else is taken
     { rank: 45, detect: (q) => { const c = parseColour(q); return c ? { kind: "colour" as const, hex: c.hex } : null; } },
     { rank: 80, detect: (q) => { const result = parseConversion(q); return result ? { kind: "convert" as const, result } : null; } },
     { rank: 100, detect: (q) => { const e = parseEngine(q); return e ? { kind: "engine" as const, value: e.value, id: e.id } : null; } },

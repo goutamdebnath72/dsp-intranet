@@ -1,7 +1,7 @@
 // src/tools/pincode/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the Durgapur areas card (PIN codes, DMC wards, assembly seats). What the search line needs to know is in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
-// The card carries about 120 KB of data, so it is loaded only when it is first drawn (the search bar itself opens at once).
+// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the Durgapur areas card (PIN codes, DMC wards, assembly seats). What the search line needs to know is in topic.ts. I list it once, in src/tools/registry.ui.tsx.
+// The card carries about 120 KB of data, so I load it only when it is first drawn (the search bar itself opens at once).
 "use client";
 
 import React from "react";
@@ -15,7 +15,7 @@ const PincodeCard = dynamic(() => import("@/tools/pincode/PincodeCard").then((m)
   loading: () => <div className="h-40 animate-pulse rounded-2xl bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100" aria-busy="true" aria-label="Loading the Durgapur areas" />,
 });
 
-/** "wards|ward 22" -> the tab and what to look for */
+/** Reads a lang such as "wards|ward 22" into the tab and what to look for */
 export function readLang(lang?: string): { tab: PincodeTab; query: string } {
   const [t, ...rest] = (lang ?? "pins|").split("|");
   return { tab: t === "wards" || t === "seats" || t === "police" ? t : "pins", query: rest.join("|") };

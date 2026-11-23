@@ -1,6 +1,6 @@
 // src/tools/registry.ui.tsx
 //
-// THE LIST OF TOPICS (panel side). One line for each topic, in the order of src/tools/registry.ts: this order is the order of the tiles in the list of calculators. See types.ts and uiTypes.ts.
+// THE LIST OF TOPICS (panel side). One line for each topic, in the order of src/tools/registry.ts: that order is also the order of the tiles in the list of calculators. See types.ts and uiTypes.ts.
 import { calcUi } from "@/tools/calculator/ui";
 import { pfUi } from "@/tools/pf/ui";
 import { gratuityUi } from "@/tools/gratuity/ui";

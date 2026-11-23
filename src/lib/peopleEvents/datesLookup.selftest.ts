@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/peopleEvents/datesLookup.selftest.ts
-// Step 65b: "No user can search the date of birth or the date of joining of an employee by the search bar EXCEPT THE HOD OF C&IT" (owner, 1 Nov 2026). No database here (the same code is run against the real roster in
+// Step 65b: my rule (1 Nov 2026) is "No user can search the date of birth or the date of joining of an employee by the search bar EXCEPT THE HOD OF C&IT". There is no database here (the same code is run against the real roster in
 // peopleEventsDb.selftest.ts). What is proved: which sentences ask for those dates, that only the HOD (by the LOGIN's ticket) is answered, that everybody else gets one plain sentence and the dates are never
 // even read for them, and that no other file in the project can read the two date columns.
 
@@ -162,8 +162,8 @@ async function main() {
     }
   };
   walk(join(process.cwd(), "src"));
-  // api.ts names the columns only to RECOGNISE the error "the migration has not been run" in a failure message; it reads nothing (no SELECT, no FROM): proved just below
-  // the employee manager (employees/admin/store.ts) reads and writes the dates for the HOD of C&IT ALONE: a delegate never receives one (its own tests prove it); named here on purpose, so a fourth reader cannot appear unnoticed
+  // api.ts names the columns only to RECOGNISE the error "the migration has not been run" in a failure message; it reads nothing (no SELECT, no FROM), which is proved just below
+  // the employee manager (employees/admin/store.ts) reads and writes the dates for the HOD of C&IT ALONE: a delegate never receives one (its own tests prove it); I name it here on purpose, so a fourth reader cannot appear unnoticed
   const READERS = ["src/lib/employees/admin/store.ts", "src/lib/peopleEvents/datesLookup.ts", "src/lib/peopleEvents/query.ts"];
   const NAMES_ONLY = ["src/lib/peopleEvents/api.ts"];
   ok("ONLY THREE FILES of the program read the date columns: the lists (query.ts), this lookup (datesLookup.ts) and the employee manager's store (for the HOD alone); one more (api.ts) names them only in an error message. Any other file fails this test", JSON.stringify(readers.filter((x) => !NAMES_ONLY.includes(x)).sort()) === JSON.stringify(READERS) && readers.every((x) => READERS.includes(x) || NAMES_ONLY.includes(x)), JSON.stringify(readers));

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/fareLegStore.selftest.ts
-// The saved fares to every stop: written and read back in route order with the time received, a row that is not the shape written is not shown, and database trouble never breaks a card.
+// Checks the saved fares to every stop: written and read back in route order with the time received, a row that is not the shape written is not shown, and database trouble never breaks a card.
 import { DateTime } from "luxon";
 import { LEG_TABLE_STATEMENTS, LEG_TABLES, legFromRow, legTableStatements, typeormLegStore } from "./fareLegStore";
 import type { LegFare } from "./fare";
@@ -57,7 +57,7 @@ function fakeDb(o: { exists?: boolean; failCreate?: boolean; failRead?: boolean 
   const good = { to_code: "ASN", to_name: "Asansol Jn", seq: 22, distance_km: "43", journey_date: "2026-11-21", classes: JSON.stringify(leg("ASN", 22, 43, 150).classes), fetched_at: "2026-11-14T08:00:00Z" };
   ok("a row is read (classes as text or data, numbers as text)", legFromRow(good)?.leg.distanceKm === 43 && legFromRow({ ...good, classes: leg("ASN", 22, 43, 150).classes })?.leg.seq === 22);
   ok("a row with a broken time, no classes, a broken class, a bad code or day, or a fractional place is not shown", legFromRow({ ...good, fetched_at: "x" }) === null && legFromRow({ ...good, classes: "[]" }) === null && legFromRow({ ...good, classes: [{ code: "SL" }] }) === null && legFromRow({ ...good, to_code: "asn jn" }) === null && legFromRow({ ...good, journey_date: "21/11/2026" }) === null && legFromRow({ ...good, seq: 2.5 }) === null && legFromRow({ ...good, distance_km: "abc" }) === null);
-  // the Asansol tab's trains have their own leg table (and are joined to their own fare table), so nothing of Durgapur's is touched
+  // I gave the Asansol tab's trains their own leg table (joined to their own fare table), so nothing of Durgapur's is touched.
 ok("the Asansol leg store writes, reads, lists stops and joins only the _asn tables, and makes its table by itself", await (async () => {
   const log: string[] = [];
   const rows: any[] = [];

@@ -1,7 +1,7 @@
 -- 01_nlq_schema_views_role.sql
 -- EXPERIMENT: natural-language -> SQL written by the LLM. This file creates the
 -- ONLY objects the LLM-written SQL may touch, and the role it runs as.
--- Additive and idempotent: nothing existing is modified or dropped.
+-- I keep it additive and idempotent: nothing existing is modified or dropped.
 --
 -- PREREQUISITES (already in your database, per earlier sessions):
 --   public.employee_roster, public.designation_grade, public.sail_department,
@@ -15,22 +15,22 @@
 --   * nlq_reader can SELECT only from the three views below and EXECUTE only
 --     nlq.norm / nlq.code. It has NO privilege on public."user" (passwords,
 --     tokens), employee_roster, or anything else.
---   * The views deliberately expose NO phone numbers, email addresses or
---     street addresses -- only yes/no flags such as has_email_nic -- so a
+--   * I deliberately expose NO phone numbers, email addresses or street addresses
+--     in the views -- only yes/no flags such as has_email_nic -- so a
 --     query can COUNT people without email but can never READ an address.
 -- Run this whole file at once.
 
 CREATE SCHEMA IF NOT EXISTS nlq;
 
--- Punctuation/case-insensitive text normalizer: nlq.norm('C & IT') = 'c and it'
+-- I use this as a punctuation- and case-insensitive text normalizer: nlq.norm('C & IT') = 'c and it'
 CREATE OR REPLACE FUNCTION nlq.norm(t text) RETURNS text
 LANGUAGE sql IMMUTABLE AS $$
   SELECT btrim(regexp_replace(lower(replace(coalesce(t, ''), '&', ' and ')), '[^a-z0-9]+', ' ', 'g'))
 $$;
 
 -- Spelling families whose variants the phonetic code cannot see. The -padhyay surnames are written
--- many ways (Mukhopadhyay / Mukhopadhya / Mukhopadhayay ...). Any "-padhya / -padhyaya / -padhayay"
--- ending after the stems Mukho-, Bando-/Bandyo-, Chatto-, Gango- is treated as the full "-padhyay"
+-- many ways (Mukhopadhyay / Mukhopadhya / Mukhopadhayay ...). I treat any "-padhya / -padhyaya / -padhayay"
+-- ending after the stems Mukho-, Bando-/Bandyo-, Chatto-, Gango- as the full "-padhyay"
 -- form, for typed words AND for stored names. Only those four stems, so Upadhyay, Padhi etc. are
 -- untouched. (Mukherji / Banerji / Chatterji / Ganguli already share a code with their family.)
 -- Also Bhattacharya = Bhattacharyya = Bhattacharjee = Bhattacharji = Bhattacharjya (and the typo Bhattacharyay).
@@ -52,7 +52,7 @@ $$;
 
 -- Phonetic code of ONE word, the same code stored in nlq.employees.name_codes.
 -- as_last = true applies last-word (surname) synonyms, e.g. NATH -> DEBNATH.
--- SECURITY DEFINER with a pinned search_path so the reader role needs no
+-- I made it SECURITY DEFINER with a pinned search_path so the reader role needs no
 -- access to schema public.
 CREATE OR REPLACE FUNCTION nlq.code(word text, as_last boolean DEFAULT false) RETURNS text
 LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
@@ -62,15 +62,15 @@ $$;
 -- Phonetic codes of a whole name, for the view below. WHY THIS WRAPPER EXISTS: the view
 -- calls a function that lives in schema public, and functions called from a view run with
 -- the privileges of the person querying (nlq_reader), who is deliberately locked out of
--- schema public. SECURITY DEFINER runs this one small function as its owner instead, so the
--- restricted role never needs any access to public.
+-- schema public. I use SECURITY DEFINER so this one small function runs as its owner instead,
+-- and the restricted role never needs any access to public.
 CREATE OR REPLACE FUNCTION nlq.name_codes_of(full_name text) RETURNS text[]
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
   SELECT public.name_phonetic_codes(nlq.spelling_fix(full_name))
 $$;
 
--- Stored phonetic codes (fast). A stored row is used only while its stored NAME still equals the
--- employee's current name, otherwise the code is computed live, so answers are never stale.
+-- I store the phonetic codes for speed. A stored row is used only while its stored NAME still equals the
+-- employee's current name; otherwise I compute the code live, so answers are never stale.
 CREATE TABLE IF NOT EXISTS nlq.employee_name_codes (
   id    integer PRIMARY KEY,
   name  text   NOT NULL,
@@ -92,13 +92,13 @@ END $$;
 REVOKE ALL ON FUNCTION nlq.refresh_name_codes() FROM PUBLIC;
 REVOKE ALL ON TABLE nlq.employee_name_codes FROM PUBLIC;
 
--- The phonetic layer, as three NULL-SAFE building blocks the LLM combines freely with AND / OR /
+-- I built the phonetic layer as three NULL-SAFE building blocks the LLM combines freely with AND / OR /
 -- NOT. "Similar spelling": the typed word matches a name word if it is the same word
 -- (case-insensitive) OR has the same phonetic code (Roy=Ray, Mazumdar=Majumdar=Majumder,
 -- Nath=Debnath as a last word ...). Arguments are the employee's name_words / name_codes columns.
 -- Every branch is wrapped in coalesce so the result is never NULL (a NULL would silently drop the
 -- row under NOT(...)). They are plain SQL, not SECURITY DEFINER, so the database can optimise them.
--- as plain SQL the database can pre-compute the constant word once instead of per employee.
+-- As plain SQL the database can pre-compute the constant word once instead of per employee.
 CREATE OR REPLACE FUNCTION nlq.word_like(words text[], codes text[], w text) RETURNS boolean
 LANGUAGE sql IMMUTABLE AS $$
   SELECT coalesce(upper(btrim(w)) = ANY(words), false)
@@ -127,7 +127,7 @@ CREATE OR REPLACE VIEW nlq.departments AS
 SELECT id, code, name, cohort_scope
 FROM public.sail_department;
 
--- name_codes is produced in an inner step (OFFSET 0 keeps it as a plain column). That matters:
+-- I produce name_codes in an inner step (OFFSET 0 keeps it as a plain column). That matters:
 -- the database only optimises the helper functions when their input is a plain column, not a
 -- computed expression.
 CREATE OR REPLACE VIEW nlq.employees AS
@@ -179,14 +179,14 @@ GRANT EXECUTE ON FUNCTION
   nlq.word_like(text[], text[], text), nlq.first_word_like(text[], text[], text), nlq.last_word_like(text[], text[], text)
 TO nlq_reader;
 
--- Let the application's own login role assume nlq_reader (SET ROLE).
+-- I let the application's own login role assume nlq_reader (SET ROLE).
 -- If the app connects as a different role than the one running this file,
 -- run:  GRANT nlq_reader TO <that_role>;
 GRANT nlq_reader TO CURRENT_USER;
 
--- Fill the stored phonetic codes once (re-run after changing the phonetic functions).
+-- I fill the stored phonetic codes once here; re-run this after changing the phonetic functions.
 SELECT nlq.refresh_name_codes() AS phonetic_codes_stored;
 
--- Verify (expect 3 views + 2 functions; last query must show nlq_reader has
+-- Verify with these queries (expect 3 views + 2 functions; the last query must show nlq_reader has
 -- NO table privileges outside nlq):
 SELECT table_schema, table_name FROM information_schema.views WHERE table_schema = 'nlq' ORDER BY 2;

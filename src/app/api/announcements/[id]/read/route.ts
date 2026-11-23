@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
 
-// ✅ CRITICAL FIX: Import directly from individual model files to prevent Webpack duplication
+// Important: I import directly from the individual model files to prevent Webpack duplication
 import { Announcement } from "@/lib/db/models/announcement.model";
 import { AnnouncementReadStatus } from "@/lib/db/models/announcement-read-status.model";
 import { User } from "@/lib/db/models/user.model";
@@ -41,12 +41,12 @@ export async function POST(
   try {
     const dataSource = await getDb();
 
-    // Securely reference class-based repositories
+    // I reference the class-based repositories securely here
     const announcementRepo = dataSource.getRepository(Announcement);
     const userRepo = dataSource.getRepository(User);
     const readStatusRepo = dataSource.getRepository(AnnouncementReadStatus);
 
-    // 1. Verify that the target announcement exists
+    // Step 1: I verify that the target announcement exists
     const announcementExists = await announcementRepo.findOne({
       where: { id: announcementId },
     });
@@ -57,7 +57,7 @@ export async function POST(
       );
     }
 
-    // 2. Verify that the active session user exists in the DB
+    // Step 2: I verify that the active session user exists in the DB
     const userExists = await userRepo.findOne({
       where: { id: userId },
     });
@@ -68,7 +68,7 @@ export async function POST(
       );
     }
 
-    // 3. Prevent duplicate read rows by checking if already marked
+    // Step 3: I prevent duplicate read rows by checking whether it is already marked
     let status = await readStatusRepo.findOne({
       where: {
         userId,

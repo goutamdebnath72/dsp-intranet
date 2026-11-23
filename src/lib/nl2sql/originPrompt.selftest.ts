@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/originPrompt.selftest.ts
-// A question about promotees (JO) or direct recruits gets the ticket rule in its prompt; every other question's prompt is untouched (the prompt has a size limit).
+// A question about promotees (JO) or direct recruits gets the ticket rule in its prompt; I leave every other question's prompt untouched, because the prompt has a size limit.
 
 import { buildPrompt, isOriginQuestion } from "./prompt";
 import { guardSql } from "./guard";
@@ -25,7 +25,7 @@ ok("...and says that JO is a DESIGNATION (Junior Officer), not a class", /JO.{0,
 ok("an ordinary question's prompt does not hold it (no cost)", !without.includes("substr(ticket_no") && !without.includes("PROMOTEES AND DIRECT RECRUITS"));
 ok("the extra text is modest (under 2200 characters), only for those questions", withDoc.length - without.length > 400 && withDoc.length - without.length < 2200, `${withDoc.length - without.length}`);
 
-// the SQL the rule teaches passes the real guard
+// the SQL the rule teaches must pass the real guard
 for (const sql of [
   "SELECT department_code, department, count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND substr(ticket_no, 2, 1) <> '9' GROUP BY department_id, department_code, department ORDER BY count DESC, department_code",
   "SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' AND substr(ticket_no, 2, 1) = '9' AND designation = 'Dy. General Manager' ORDER BY global_seniority_rank",

@@ -1,6 +1,6 @@
 // src/lib/circulars/admin/access.ts
 //
-// Access helpers and session resolution for the Circular Manager facility.
+// Here are the access helpers and session resolution for the Circular Manager facility.
 
 import type { DataSource } from "typeorm";
 import { getSessionTicket } from "@/lib/apiAuth";

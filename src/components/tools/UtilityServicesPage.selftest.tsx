@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/tools/UtilityServicesPage.selftest.tsx
-// The page of all the utility services: one card for every topic of the registry, A to Z, opened by "utility services", with Back arrows and the guide pointing to it.
+// This checks the page of all the utility services: one card for every topic of the registry, A to Z, opened by "utility services", with Back arrows and the guide pointing to it.
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
@@ -27,7 +27,7 @@ ok("every card has a title, a sentence, an icon, a tone and the words that open 
 ok("a calculator or reader is in the group of calculators and readers, a live card in information and guides", cards.every((c) => (c.kind === "form") === (c.group === GROUP_FORMS) && (c.kind === "live") === (c.group === GROUP_INFO)));
 ok("both groups have cards", cards.some((c) => c.group === GROUP_FORMS) && cards.some((c) => c.group === GROUP_INFO));
 ok("a calculator's card says what its tile in the list of calculators says (the two lists agree)", cards.filter((c) => c.kind === "form").every((c) => { const f = TOPIC_UIS.find((u) => u.id === c.id)!.form!; return c.title === f.menu.title && c.text === f.menu.text; }));
-// the words on a card really open that topic
+// I check that the words on a card really open that topic.
 const words = cards.map((c) => [c.id, c.kind, detectTool(c.type)?.kind ?? "nothing"] as const).filter(([, kind, got]) => (kind === "live" ? got !== "live" : got === "nothing"));
 ok("the words shown on every card are understood by the search bar (a live card opens a live card; a calculator opens its page or answers as you type)", words.length === 0, JSON.stringify(words));
 

@@ -1,6 +1,6 @@
 // src/tools/rim/topic.ts
 //
-// WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): a typed wheel (rim) marking (8Jx20) read as you type. The words that open the reader ("wheel size") are in the tyre topic, because the rim guide sits under the tyre reader.
+// WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): a typed wheel (rim) marking (8Jx20) read as you type. I keep the words that open the reader ("wheel size") in the tyre topic, because the rim guide sits under the tyre reader.
 // How it looks in the panel is in ui.tsx; its logic is in the files beside this one. It is listed once, in src/tools/registry.ts.
 import { defineTopic } from "@/tools/types";
 import { parseRim } from "./rim";

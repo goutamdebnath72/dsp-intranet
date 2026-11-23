@@ -1,8 +1,8 @@
 // src/components/ImageGuard.tsx
 //
-// THE BROWSER SIDE OF "PHOTOGRAPHS CANNOT BE SAVED" (rules and limits: src/lib/ui/imageGuard.ts; the CSS side, no dragging and nothing printed, is in globals.css). Mounted once in the root layout. It refuses, anywhere in the app,
-// the right-click menu and the drag of a picture (an <img>, a <canvas>, a <video>, or anything inside a picture's frame). It listens in the capture phase on the document, so a picture added later is covered too, and it
-// never touches the page's own clicks (a picture still opens full size when it is clicked).
+// THE BROWSER SIDE OF "PHOTOGRAPHS CANNOT BE SAVED" (rules and limits: src/lib/ui/imageGuard.ts; the CSS side, no dragging and nothing printed, is in globals.css). It is mounted once in the root layout. Anywhere in the app it refuses,
+// the right-click menu and the drag of a picture (an <img>, a <canvas>, a <video>, or anything inside a picture's frame). I listen in the capture phase on the document, so a picture added later is covered too, and I
+// never touch the page's own clicks (a picture still opens full size when it is clicked).
 "use client";
 
 import { useEffect } from "react";

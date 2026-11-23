@@ -1,5 +1,5 @@
 // scripts/eds-variance.ts: runs the Executive Deep Synthesis for ONE question N times (cache cleared each time) and prints how much the
-// replies differ: the number to look at is "distinct". Use it before and after a change to the engine.
+// replies differ: the number to look at is "distinct". I use it before and after a change to the engine.
 //   EDS_STORE=rollback  also uses the REAL store (SQL and all) inside a transaction that is rolled back at the end: nothing is kept.
 //   EDS_RUNS=5 npx tsx --env-file=.env.local scripts/eds-variance.ts "question"      (EDS_CACHE=keep: do not clear the cache between runs)
 import { Client } from "pg";

@@ -1,8 +1,8 @@
 // src/lib/search/semanticPolicySearch.ts
 //
-// GENERIC HYBRID RETRIEVAL ENGINE (the `documents` worker of the query algebra).
+// This is my GENERIC HYBRID RETRIEVAL ENGINE (the `documents` worker of the query algebra).
 //
-// Replaces the previous pure-vector ranker whose additive recency bonus and
+// It replaces the previous pure-vector ranker, whose additive recency bonus and
 // relevance-blind edge-cliff let recent-but-off-topic circulars out-rank the
 // on-topic one, and severed the correct document out of the result set before
 // it could ever reach the UI (validated live: "leave policy", "c&it attendance").
@@ -20,12 +20,12 @@
 //           only order documents of ~equal fused relevance, never flip it.
 //   NO edge-cliff severance. NO recency/length term inside the score.
 //
-// The engine is uniform for every query: no per-circular, per-keyword or
+// I made the engine uniform for every query: no per-circular, per-keyword or
 // per-query rule anywhere. A query carrying no Latin tokens (Devanagari /
 // Bengali) yields an empty lexical arm, so fusion collapses to the vector arm —
 // i.e. the previous cross-lingual behaviour, unchanged.
 //
-// Contract preserved: returns { uniqueResults: SearchResultRow[]; isFallback }.
+// I preserved the contract: it returns { uniqueResults: SearchResultRow[]; isFallback }.
 // Each row carries a `similarity` in a high band so the route-level noise floor
 // admits it and the results interleave sanely with the announcement arm; the
 // band is strictly rank-monotonic so any downstream similarity sort preserves
@@ -43,13 +43,13 @@ import {
 } from "./titleSearch";
 
 // --- Fusion / retrieval constants -------------------------------------------
-const RRF_K = 60; // standard Reciprocal Rank Fusion constant (insensitive)
-const LEX_WEIGHT = 2; // subject/lexical arm counts double in the fusion
-const POOL = 30; // per-arm candidate depth
-const RESULT_K = 8; // documents returned to the router
+const RRF_K = 60; // I use the standard Reciprocal Rank Fusion constant (insensitive)
+const LEX_WEIGHT = 2; // the subject/lexical arm counts double in my fusion
+const POOL = 30; // my per-arm candidate depth
+const RESULT_K = 8; // the number of documents I return to the router
 
-// Relevance floor — calibrated on live junk-vs-legit signal distributions
-// (scripts/probe-confidence.mjs). A candidate is kept only if it clears ONE of:
+// My relevance floor is calibrated on live junk-vs-legit signal distributions
+// (scripts/probe-confidence.mjs). I keep a candidate only if it clears ONE of:
 //   - strong lexical  : ts_rank >= LEX_FLOOR (legit subject hits are .04-.08;
 //                       junk riding a common word like "list" is .006-.019),
 //   - strong vector   : cos >= VEC_FLOOR (keeps cross-lingual/Indic legit at
@@ -60,21 +60,21 @@ const RESULT_K = 8; // documents returned to the router
 //                       on-topic tail; junk fails here on cos (.46-.52).
 // This replaces the old loose "lexical-hit OR cos>=0.6" gate that let nonsense
 // ("honda spark plugs price list") surface a confident match.
-const COS_INCLUDE = 0.5; // vector-arm candidate inclusion (block obvious junk)
-const LEX_FLOOR = 0.03; // strong lexical/subject match
-const VEC_FLOOR = 0.64; // strong semantic match with no lexical support
-const AGREE_COS = 0.55; // agreement tier: minimum cosine
-const AGREE_TSR = 0.02; // agreement tier: minimum ts_rank
+const COS_INCLUDE = 0.5; // vector-arm candidate inclusion: I use it to block obvious junk
+const LEX_FLOOR = 0.03; // I take this as a strong lexical/subject match
+const VEC_FLOOR = 0.64; // I take this as a strong semantic match with no lexical support
+const AGREE_COS = 0.55; // agreement tier: my minimum cosine
+const AGREE_TSR = 0.02; // agreement tier: my minimum ts_rank
 
-// Similarity emission band. Returned docs are the top candidates and must clear
+// Similarity emission band. I return the top candidates, and they must clear
 // the route-level noise floor; the band is rank-monotonic so order survives any
 // downstream similarity sort or announcement merge.
 const SIM_HI = 0.97;
 const SIM_LO = 0.7;
 
-// Build an OR tsquery from a raw string: split on non-alphanumerics, drop
+// I build an OR tsquery from a raw string: split on non-alphanumerics, drop
 // <2-char tokens, OR the rest. Department/stopword noise ("c&it" -> c,it)
-// falls away so the real topic token drives the lexical match. Latin-only by
+// falls away so the real topic token drives the lexical match. It is Latin-only by
 // construction, so Indic queries return null (lexical arm no-ops).
 function toOrTsquery(q: string): string | null {
   const toks = (q || "")
@@ -82,7 +82,7 @@ function toOrTsquery(q: string): string | null {
     .split(/[^a-z0-9]+/)
     .filter((t) => t.length >= 2);
   const uniq = [...new Set(toks)];
-  // the other words of a term family the question uses (biometric / face recognition / RFID / BAMS) are alternatives too; the typed words stay
+  // the other words of a term family the question uses (biometric / face recognition / RFID / BAMS) are alternatives too; I keep the typed words
   const more = uniq.length ? termFamilyTsTerms(q) : [];
   return uniq.length ? [...uniq, ...more].join(" | ") : null;
 }
@@ -97,7 +97,7 @@ type VecRow = {
 };
 type LexRow = { id: number; score: number };
 
-// ARM V — per-document best-chunk cosine, top POOL, junk floor applied.
+// ARM V — I take the per-document best-chunk cosine, top POOL, with the junk floor applied.
 async function armVector(
   dataSource: DataSource,
   vectorString: string,
@@ -138,9 +138,9 @@ async function armVector(
   }));
 }
 
-// ARM L — field-weighted (headline 'A' over body 'B'), log length-normalized
-// ts_rank over the whole document. Returns docs matching the OR tsquery, best
-// first. Empty when tsq is null (Indic).
+// ARM L — I rank with a field-weighted (headline 'A' over body 'B'), log length-normalized
+// ts_rank over the whole document. It returns docs matching the OR tsquery, best
+// first, and is empty when tsq is null (Indic).
 async function armLexical(
   dataSource: DataSource,
   tsq: string | null,
@@ -173,9 +173,9 @@ async function armLexical(
   return rows.map((r) => ({ id: r.id, score: Number(r.score) || 0 }));
 }
 
-// Representative chunk for documents that surfaced only via the lexical arm
+// This fetches a representative chunk for documents that surfaced only via the lexical arm
 // (not in the vector pool), so every returned row has display/coverage text.
-// Prefers a chunk that matches the tsquery; falls back to the first chunk.
+// I prefer a chunk that matches the tsquery and fall back to the first chunk.
 async function fetchChunkText(
   dataSource: DataSource,
   ids: number[],
@@ -225,11 +225,11 @@ export async function executePolicySearch(
   const tsq = toOrTsquery(safeQ);
   const detectedYear = safeQ.match(/\b(20\d{2})\b/)?.[1] || null;
 
-  // The query is embedded ONCE: a retry after a transient database error must not spend another embedding call.
+  // I embed the query ONCE: a retry after a transient database error must not spend another embedding call.
   let queryVectorString: string | null = null;
 
-  // A transient database error (e.g. a connection that took too long to open) is retried; if the pipeline still fails, the title
-  // search is used, and if THAT finds nothing the search is reported as FAILED, never as "no results" (see searchResilience.ts).
+  // I retry a transient database error (e.g. a connection that took too long to open); if the pipeline still fails, I use the title
+  // search, and if THAT finds nothing the search is reported as FAILED, never as "no results" (see searchResilience.ts).
   return hybridWithFallback<SearchResultRow>(async () => {
     if (queryVectorString === null) {
       const rawEmbedding = await generateEmbedding(safeQ, "search_query");
@@ -247,7 +247,7 @@ export async function executePolicySearch(
       return { uniqueResults: titleFallback, isFallback: true };
     }
 
-    // Rank maps for RRF.
+    // I keep these rank maps for RRF.
     const vecRank = new Map<number, number>();
     vec.forEach((r, i) => vecRank.set(r.id, i + 1));
     const lexRank = new Map<number, number>();
@@ -262,7 +262,7 @@ export async function executePolicySearch(
     const meta = new Map<number, VecRow>();
     for (const r of vec) meta.set(r.id, r);
 
-    // Candidate universe = union of both arms; then the calibrated relevance
+    // My candidate universe is the union of both arms, then the calibrated relevance
     // floor (see constants). Junk fails all three tiers -> empty result set.
     const candidateIds = new Set<number>([...vecRank.keys(), ...lexSet]);
     const qualified: number[] = [];
@@ -281,7 +281,7 @@ export async function executePolicySearch(
       return { uniqueResults: titleFallback, isFallback: true };
     }
 
-    // Reciprocal Rank Fusion (lexical/subject arm weighted x2).
+    // Reciprocal Rank Fusion, with the lexical/subject arm weighted x2.
     const fused = qualified.map((id) => {
       const rv = vecRank.get(id);
       const rl = lexRank.get(id);

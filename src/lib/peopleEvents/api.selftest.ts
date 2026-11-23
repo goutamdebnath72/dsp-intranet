@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/peopleEvents/api.selftest.ts
-// Step 65a: the reply of /api/people-events: the lists on a normal day, the named fix when the migration has not been run, no detail leaked on any other failure, and what the route may not do. No database.
+// Step 65a: this tests the reply of /api/people-events: the lists on a normal day, the named fix when the migration has not been run, no detail leaked on any other failure, and what the route may not do. No database is used.
 
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";

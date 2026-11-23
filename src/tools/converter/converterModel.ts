@@ -1,7 +1,7 @@
 // src/tools/converter/converterModel.ts
 //
-// THE SUMS BEHIND THE CONVERTER CARD, which is laid out like Google's: a kind (Power), a value and unit on the left, the result and unit on the right, and a formula line under them.
-// Pure: it picks units from the tables of units.ts and currency.ts and does the arithmetic. Nothing is stored or sent anywhere.
+// The sums behind the converter card, which is laid out like Google's: a kind (Power), a value and unit on the left, the result and unit on the right, and a formula line under them.
+// I keep it pure: it picks units from the tables of units.ts and currency.ts and does the arithmetic. Nothing is stored or sent anywhere.
 import { UNITS, TEMPERATURES, type UnitKind } from "./units";
 import { CURRENCIES, convertCurrency, currencyOf, type Rates } from "./currency";
 
@@ -21,16 +21,16 @@ export interface UnitOption {
 
 const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-/** The units of a kind, as the two dropdowns list them ("Mechanical horsepower", "Metric horsepower (PS)", "US dollar (USD)"). */
+/** Returns the units of a kind, as the two dropdowns list them ("Mechanical horsepower", "Metric horsepower (PS)", "US dollar (USD)"). */
 export function optionsFor(kind: ConvKind): UnitOption[] {
-  if (kind === "colour") return []; // a colour is three numbers and a HEX, not a unit and a factor: it has its own panel (ColourPanel.tsx)
+  if (kind === "colour") return []; // A colour is three numbers and a HEX, not a unit and a factor, so I gave it its own panel (ColourPanel.tsx)
   if (kind === "engine") return ENGINE_UNITS.map((e) => ({ id: e.id, label: `${e.short} · ${e.name}` }));
   if (kind === "temperature") return TEMPERATURES.map((t) => ({ id: t.id, label: t.id === "K" ? "Kelvin" : t.id === "C" ? "Celsius (°C)" : "Fahrenheit (°F)" }));
   if (kind === "currency") return CURRENCIES.map((c) => ({ id: c.code, label: `${capital(c.name)} (${c.code})` }));
   return UNITS.filter((u) => u.kind === kind).map((u) => ({ id: u.id, label: capital(u.label) }));
 }
 
-/** The pair a kind opens with (Google's: metre to foot… ours: the most useful for the plant). */
+/** The pair a kind opens with: Google's is metre to foot, mine is the most useful for the plant. */
 const DEFAULT_PAIRS: Partial<Record<ConvKind, [string, string]>> = { currency: ["USD", "INR"], colour: ["rgb", "hex"], power: ["hp", "kW"], engine: ["hp", "ps"], temperature: ["C", "F"] };
 export function defaultPair(kind: ConvKind): [string, string] {
   const d = DEFAULT_PAIRS[kind];
@@ -39,7 +39,7 @@ export function defaultPair(kind: ConvKind): [string, string] {
   return [o[0].id, (o[1] ?? o[0]).id];
 }
 
-/** A number for an input box: up to `sig` significant digits (Google shows six), no grouping, no trailing zeros ("1.01387", "0.621371"). */
+/** I write a number for an input box with up to `sig` significant digits (Google shows six), no grouping and no trailing zeros ("1.01387", "0.621371"). */
 export function plainNumber(x: number, sig = 8): string {
   if (!Number.isFinite(x)) return "";
   if (x === 0) return "0";
@@ -49,7 +49,7 @@ export function plainNumber(x: number, sig = 8): string {
   return String(t);
 }
 
-/** What the result box shows: six significant digits like Google; money to the paisa (or four digits when below one). */
+/** The result box shows six significant digits like Google; I show money to the paisa (or four digits when below one). */
 export function boxNumber(kind: ConvKind, x: number): string {
   if (kind === "currency") return Math.abs(x) >= 1 ? plainNumber(Math.round(x * 100) / 100, 15) : plainNumber(x, 4);
   return plainNumber(x, 6);
@@ -59,13 +59,13 @@ const four = (x: number): string => plainNumber(Number(x.toPrecision(5)));
 
 export interface Computed {
   result: number;
-  /** the line under the boxes: "For an approximate result, multiply the power value by 1.0139" */
+  /** I put this line under the boxes: "For an approximate result, multiply the power value by 1.0139" */
   formula: string;
-  /** said when a unit word has more than one meaning, or the rates' date */
+  /** Notes I add when a unit word has more than one meaning, or to give the rates' date */
   notes: string[];
 }
 
-/** `value` of `fromId` expressed in `toId`; null when a unit is unknown or (currency) the rate is missing. */
+/** Returns `value` of `fromId` expressed in `toId`; I return null when a unit is unknown or, for currency, the rate is missing. */
 export function compute(kind: ConvKind, value: number, fromId: string, toId: string, rates: Rates | null): Computed | null {
   if (!Number.isFinite(value) || kind === "colour") return null;
   if (kind === "currency") {
@@ -105,11 +105,11 @@ export interface EngineUnit {
   id: string;
   short: string;
   name: string;
-  /** what the letters stand for, and what the unit is */
+  /** Here I say what the letters stand for, and what the unit is */
   meaning: string;
 }
 
-/** The three ways a vehicle's engine power is quoted today, in the order they read from the largest number to the smallest for the same power. */
+/** The three ways a vehicle's engine power is quoted today; I list them in the order they read from the largest number to the smallest for the same power. */
 export const ENGINE_UNITS: EngineUnit[] = [
   { id: "ps", short: "PS", name: "Pferdestärke (metric horsepower)", meaning: "PS is short for the German word Pferdestärke, \"horse strength\": the metric horsepower, 1 PS = 735.5 W (the DIN unit; CV or cv in French and Italian; hp in a European brochure is usually PS)." },
   { id: "hp", short: "bhp", name: "brake horsepower (mechanical)", meaning: "bhp is brake horsepower: the power measured at the engine's crankshaft on a brake (dynamometer), before the losses of gearbox and wheels; 1 bhp = 745.7 W. An American \"hp\" is the same horsepower." },
@@ -118,7 +118,7 @@ export const ENGINE_UNITS: EngineUnit[] = [
 
 export const ENGINE_IDS = ENGINE_UNITS.map((e) => e.id);
 
-/** The value in each of the three units, from a value typed in one of them (PS first, then bhp, then kW). */
+/** Gives the value in each of the three units, from a value typed in one of them; I list PS first, then bhp, then kW. */
 export function engineRows(value: number, atId: string): Array<{ id: string; short: string; value: number }> | null {
   const at = UNITS.find((u) => u.kind === "power" && u.id === atId);
   if (!at || !Number.isFinite(value) || !ENGINE_IDS.includes(atId)) return null;
@@ -129,7 +129,7 @@ export function engineRows(value: number, atId: string): Array<{ id: string; sho
 const ENGINE_WORD: Record<string, string> = { ps: "ps", cv: "ps", bhp: "hp", hp: "hp", kw: "kW" };
 const NUMBER = String.raw`([-+]?(?:\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d+)?)`;
 
-/** "engine power", "100 bhp", "ps bhp kw", "bhp vs ps vs kw": a question about engine power that is not a plain two-unit conversion. */
+/** "engine power", "100 bhp", "ps bhp kw", "bhp vs ps vs kw": I treat these as a question about engine power that is not a plain two-unit conversion. */
 export function parseEngine(raw: string): { value: number; id: string } | null {
   const q = (raw || "").trim().toLowerCase().replace(/[?.!]+$/, "").replace(/\s+/g, " ");
   if (!q || q.length > 60) return null;
@@ -139,6 +139,6 @@ export function parseEngine(raw: string): { value: number; id: string } | null {
   const ids = (m[2].match(/bhp|ps|kw|hp|cv/g) ?? []).map((w) => ENGINE_WORD[w]);
   const distinct = [...new Set(ids)];
   if (distinct.length !== ids.length) return null;
-  if (ids.length === 1 && m[1] === undefined) return null; // a lone "kw" or "ps" is not a question
+  if (ids.length === 1 && m[1] === undefined) return null; // I do not take a lone "kw" or "ps" as a question
   return { value: m[1] === undefined ? 1 : Number(m[1].replace(/,/g, "")), id: ids[0] };
 }

@@ -1,10 +1,10 @@
-// scripts/eds-warm.ts: MAKE THE SHELF'S ANSWERS BEFORE ANYONE ASKS.
-// An Executive Deep Search answer is made once and then kept (table eds_briefing) for as long as the circulars and the engine are the same, so the next person who asks the same question gets it at once. This script
-// asks every question of the shelf (src/lib/help/edsExamples.ts: the 32 questions under the Executive Deep Search button) through the REAL route, as an executive, so that the first person to press a sample question
+// scripts/eds-warm.ts: makes the shelf's answers before anyone asks.
+// An Executive Deep Search answer is made once and then kept (table eds_briefing) for as long as the circulars and the engine stay the same, so the next person who asks the same question gets it at once. I use this script to
+// ask every question of the shelf (src/lib/help/edsExamples.ts: the 32 questions under the Executive Deep Search button) through the REAL route, as an executive, so the first person to press a sample question
 // does not wait 30 to 60 seconds. A question that is already kept answers in a second or two and costs nothing; only the missing ones cost model calls. Run it after a circular is uploaded (the kept answers then
 // need making again: the engine compares the archive's fingerprint) or after the engine's version changes.
 //   EDS_TICKET=4xxxxx npx tsx --tsconfig tsconfig.selftest.json scripts/eds-warm.ts [--base http://localhost:3000] [--only S01,H02] [--concurrency 2] [--dry]
-// EDS_TICKET is the ticket number of any executive in the directory (the route's own executive check). The server must be running against the database to be warmed (npm run dev, or the deployed site).
+// EDS_TICKET is the ticket number of any executive in the directory, because the route runs its own executive check. The server must be running against the database to be warmed (npm run dev, or the deployed site).
 import { edsShelfQuestions } from "../src/lib/help/edsExamples";
 
 const arg = (name: string, def = "") => { const i = process.argv.indexOf(`--${name}`); return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : def; };
@@ -40,7 +40,7 @@ async function main() {
       const x = list[next++];
       if (!x) return;
       const r = await ask(x.q);
-      const already = !r.error && r.ms < 6_000; // a kept answer comes back in a second or two
+      const already = !r.error && r.ms < 6_000; // an answer that is already kept comes back in a second or two
       if (r.error) failed++; else if (already) kept++; else made++;
       spent += r.ms;
       console.log(`${x.id.padEnd(5)} ${(r.ms / 1000).toFixed(1).padStart(5)} s  ${r.error ? `FAILED: ${r.error}` : already ? "was kept already" : "made and kept"}${r.title ? `  | ${r.title}` : ""}`);

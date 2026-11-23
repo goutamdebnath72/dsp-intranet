@@ -20,7 +20,7 @@ type TooltipProps = {
   align?: TooltipAlign;
 };
 
-// Avoid the SSR warning for useLayoutEffect; behaves as layout effect in browser.
+// I use this to avoid the SSR warning for useLayoutEffect; it behaves as a layout effect in the browser.
 const useIsoLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -35,15 +35,15 @@ export const Tooltip: React.FC<TooltipProps> = ({
   const childRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
 
-  // Measure AFTER the bubble is in the DOM so we know its real width, then
-  // compute the final left in pixels for the requested alignment. No CSS
-  // transform is used for horizontal placement — the left value is exact.
+  // I measure AFTER the bubble is in the DOM so I know its real width, then
+  // compute the final left in pixels for the requested alignment. I use no CSS
+  // transform for horizontal placement — the left value is exact.
   useIsoLayoutEffect(() => {
     if (!isHovered || !childRef.current || !bubbleRef.current) return;
     const trigger = childRef.current.getBoundingClientRect();
     const bubbleW = bubbleRef.current.offsetWidth;
 
-    // Trigger edges in document space.
+    // These are the trigger edges in document space.
     const tLeft = trigger.left + window.scrollX;
     const tRight = trigger.right + window.scrollX;
     const tCenter = tLeft + trigger.width / 2;
@@ -74,7 +74,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
             position: "absolute",
             top: coords.top,
             left: coords.left,
-            // Vertical lift only; NO horizontal transform (left is exact px).
+            // I lift vertically only; no horizontal transform, because left is exact px.
             transform: "translateY(-100%)",
             zIndex: 9999,
           }}

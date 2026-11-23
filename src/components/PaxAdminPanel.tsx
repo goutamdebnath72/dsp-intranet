@@ -2,15 +2,15 @@
 
 // src/components/PaxAdminPanel.tsx
 //
-// THE PAX DIRECTORY EDITOR (step 64a; owner, 31 Oct 2026). It opens in the answer area of the search bar when the HOD of C&IT (or an executive he has authorised) types that he wants to add, change or
+// THE PAX DIRECTORY EDITOR (step 64a; my request, 31 Oct 2026). It opens in the answer area of the search bar when the HOD of C&IT (or an executive he has authorised) types that he wants to add, change or
 // delete a PAX number, or to authorise or withdraw an executive. Three inputs: Department, Location, PAX number. Nothing is protected by what this panel hides: the SERVER decides who may do what (src/lib/pax/admin/api.ts)
-// and checks every rule again. The panel only tells the person early, and asks the questions the owner wanted when an entry clashes with a saved one:
+// and checks every rule again. The panel only tells the person early, and asks the questions I wanted when an entry clashes with a saved one:
 // "do you want to edit the existing line, or have you made a mistake?".
 //
 // THIS FILE holds the state and the requests, and every rule of what happens when. THE LOOK (the teal frame, the underline tabs, the three-node rail, the telephone-line plate, the action bar, the dialogs, the lists)
-// is in PaxAdminUi.tsx and decides nothing (step 67a; owner, 1 Nov 2026: "implement it, keeping all the logic intact"). It re-exports what it has always exported.
+// is in PaxAdminUi.tsx and decides nothing (step 67a; my instruction of 1 Nov 2026: "implement it, keeping all the logic intact"). It re-exports what it has always exported.
 //
-// Plain text only (React escapes it). No <form> tag: the search modal already holds a text area, and forms must not nest; Enter in a field does the same as the button.
+// I use plain text only (React escapes it) and no <form> tag: the search modal already holds a text area, and forms must not nest. Enter in a field does the same as the button.
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { DateTime } from "luxon";
@@ -25,7 +25,7 @@ import { NonExecutiveAsk } from "./facility/NonExecutive";
 import { cleanInput, validateEntry, type FieldErrors } from "@/lib/pax/admin/validate";
 import { AuthoriseCard, ChangingBanner, ConfirmCard, CONFIRM_INPUT, ConflictView, DANGER, EntryFormView, EntryList, FIELD, HistoryList, IconField, Notice, PRIMARY, PaxAdminHeader, PaxShell, PaxTabs, PersonRow, SECONDARY, SearchBar, LineAboutToGo, StaleCard, rebaseEntry, theirEntryChanges, wordOfField, type FormValues } from "./PaxAdminUi";
 
-// what the tests and the rest of the app have always imported from this file
+// I re-export these because the tests and the rest of the app have always imported them from this file
 export { ConflictView, EntryFormView, EntryList, HistoryList, PaxAdminHeader, conflictText } from "./PaxAdminUi";
 export type { FormValues } from "./PaxAdminUi";
 
@@ -36,7 +36,7 @@ type Tab = "add" | "modify" | "delete" | "people" | "history";
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-/** A request that is not answered in this time ends with a message: a form must never stay greyed (busy) for ever. */
+/** A request that is not answered in this time ends with a message: I never want a form to stay greyed (busy) for ever. */
 const REQUEST_TIMEOUT_MS = 20_000;
 
 async function call(payload: Json): Promise<{ ok: boolean; status: number; body: Json }> {
@@ -61,22 +61,22 @@ async function call(payload: Json): Promise<{ ok: boolean; status: number; body:
 const emptyForm = (p?: PaxAdminOpen["prefill"]): FormValues => ({ department: p?.department ?? "", location: "", number: p?.number ?? "" });
 const tabFor = (op: PaxAdminOpen["op"]): Tab => (op === "modify" ? "modify" : op === "delete" ? "delete" : op === "delegate" ? "people" : "add");
 
-/** true = the change form saves only when the PAX NUMBER has been changed (the rule of 31 Oct 2026); false = it saves when the department, the location or the number has been changed (23 Nov 2026) */
+/** Set to true and the change form saves only when the PAX NUMBER has been changed (my rule of 31 Oct 2026); set to false and it saves when the department, the location or the number has been changed (23 Nov 2026) */
 const CHANGE_NEEDS_NEW_NUMBER = false;
 
-export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen; /** the departments to choose from, when they are known already (the tests, which draw the panel once and run no request) */ initialDepartments?: string[] }) {
+export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen; /** Here I pass the departments to choose from when they are known already (the tests do this: they draw the panel once and run no request) */ initialDepartments?: string[] }) {
   const isHod = open.role === "hod";
   const [tab, setTab] = useState<Tab>(tabFor(open.op));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "error"; text: string } | null>(null);
 
-  // THE DEPARTMENTS TO CHOOSE FROM (owner, 23 Nov 2026): the department of a line is picked from the departments the directory holds, never typed. null = still loading; the server refuses any other name as well.
+  // THE DEPARTMENTS TO CHOOSE FROM (my rule, 23 Nov 2026): the department of a line is picked from the departments the directory holds, never typed. null = still loading; the server refuses any other name as well.
   const [departments, setDepartments] = useState<string[] | null>(initialDepartments ?? null);
   const inList = (name: string, own?: string) => {
     const t = cleanInput({ department: name, location: "", number: "" }).department.toLowerCase();
-    return !!t && (!!departments?.some((d) => d.toLowerCase() === t) || (own !== undefined && t === own.trim().toLowerCase())); // a line saved before the rule may keep its own department
+    return !!t && (!!departments?.some((d) => d.toLowerCase() === t) || (own !== undefined && t === own.trim().toLowerCase())); // A line saved before my rule may keep its own department
   };
-  /** the list for the change form: the plant's departments, plus the department the line already has (when it is not one of them) so that the box can show it */
+  /** I build the list for the change form from the plant's departments, plus the department the line already has (when it is not one of them) so that the box can show it */
   const listFor = (own: string | undefined): string[] | null => (departments && own && !departments.some((d) => d.toLowerCase() === own.trim().toLowerCase()) ? [own, ...departments] : departments);
 
   // add
@@ -89,20 +89,20 @@ export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen
   const [entries, setEntries] = useState<PaxEntryView[]>([]);
   const [listed, setListed] = useState(false);
   const [editing, setEditing] = useState<PaxEntryView | null>(null);
-  // TWO PEOPLE AT ONCE (step 67b): set when a save is refused because somebody else changed the line first (the line as it is now, and who changed it last); the card lets the person choose
+  // TWO PEOPLE AT ONCE (step 67b): I set this when a save is refused because somebody else changed the line first (it holds the line as it is now, and who changed it last); the card lets the person choose
   const [stale, setStale] = useState<{ current: PaxEntryView; last: PaxLastChange | null } | null>(null);
   const [editForm, setEditForm] = useState<FormValues>(emptyForm());
   const [editErrors, setEditErrors] = useState<FieldErrors>({});
   const [editConflict, setEditConflict] = useState<{ conflicts: PaxConflict[]; acknowledgeable: Acknowledge[]; entry: FormValues } | null>(null);
   const [deleting, setDeleting] = useState<PaxEntryView | null>(null);
-  // what has been typed to confirm a deletion belongs to ONE line as it stood (its id and version): another line, or the same line changed by somebody, starts with an empty box
+  // I tie what has been typed to confirm a deletion to ONE line as it stood (its id and version): another line, or the same line changed by somebody, starts with an empty box
   const [typed, setTyped] = useState<{ forKey: string; value: string }>({ forKey: "", value: "" });
   const deleteKey = deleting ? `${deleting.id}:${deleting.version ?? ""}` : "";
   const confirmNumber = typed.forKey === deleteKey ? typed.value : "";
 
-  // who is logged in (the server's answer; the name comes from the people directory)
-  // the name is already known (step 67b): it travelled with the answer that opened the editor (the people directory's name, the one the history records), or else it is in the login cookie's session. The header has it on
-  // the first paint and NO request is made for it. Only when neither has it is it asked for (below). It is only shown: nothing is decided on it.
+  // Who is logged in (the server's answer; the name comes from the people directory)
+  // The name is already known (step 67b): it travelled with the answer that opened the editor (the people directory's name, the one the history records), or else it is in the login cookie's session. The header has it on
+  // the first paint and I make NO request for it. Only when neither has it do I ask for it (below). It is only shown: nothing is decided on it.
   const sessionName = useSessionName();
   const initialName = (typeof open.name === "string" && open.name.trim()) || sessionName || null;
   const [me, setMe] = useState<string | null>(initialName);
@@ -111,18 +111,18 @@ export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen
   const [delegates, setDelegates] = useState<PaxDelegateView[] | null>(null);
   const [who, setWho] = useState("");
   const [found, setFound] = useState<Array<{ ticket: string; name: string; designation: string; department: string; nonExecutive?: boolean }> | null>(null);
-  const [asking, setAsking] = useState<string | null>(null); // the ticket of a NON-EXECUTIVE the HOD is being asked to confirm
+  const [asking, setAsking] = useState<string | null>(null); // Holds the ticket of a NON-EXECUTIVE the HOD is being asked to confirm
   const [revoking, setRevoking] = useState<PaxDelegateView | null>(null);
   const [history, setHistory] = useState<PaxAuditView[] | null>(null);
 
   const alive = useRef(true);
-  // React's StrictMode (npm run dev) mounts, unmounts and mounts again: the flag must be switched ON again at every mount, or every answer would be thrown away and the button would stay greyed for ever
+  // React's StrictMode (npm run dev) mounts, unmounts and mounts again, so I switch the flag ON again at every mount: otherwise every answer would be thrown away and the button would stay greyed for ever
   useEffect(() => {
     alive.current = true;
     return () => { alive.current = false; };
   }, []);
   useEffect(() => {
-    if (initialName) return; // the name came with the answer: nothing to ask
+    if (initialName) return; // The name came with the answer, so there is nothing to ask
     void (async () => {
       const r = await call({ op: "me" });
       if (alive.current && r.ok && typeof r.body.name === "string" && r.body.name.trim()) setMe(r.body.name.trim());
@@ -135,7 +135,7 @@ export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen
       if (!alive.current) return;
       const list = r.ok && Array.isArray(r.body.departments) ? (r.body.departments as string[]) : [];
       setDepartments(list);
-      // a department that came with the request (typed words) counts only if it is one of the list: otherwise the box starts empty and the person chooses
+      // A department that came with the request (typed words) counts only if it is one of the list; otherwise I start the box empty and the person chooses
       setAddForm((f) => {
         const hit = list.find((d) => d.toLowerCase() === f.department.trim().toLowerCase());
         return f.department && !hit ? { ...f, department: "" } : hit ? { ...f, department: hit } : f;
@@ -145,7 +145,7 @@ export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen
   }, []);
   const guard = useCallback(async <T,>(fn: () => Promise<T>, keepNotice = false): Promise<T | undefined> => {
     setBusy(true);
-    if (!keepNotice) setNotice(null); // a reload that follows an action must not wipe the message that action has just set
+    if (!keepNotice) setNotice(null); // I do not let a reload that follows an action wipe the message that action has just set
     try {
       return await fn();
     } finally {
@@ -182,7 +182,7 @@ export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen
   }
 
   // ---- add ----
-  /** The add form saves only when its required inputs are there (the department and a PAX number of exactly 5 digits starting with 4; the location is optional): the button stays off until then (owner, 31 Oct 2026), and says what is missing. */
+  /** The add form saves only when its required inputs are there (the department and a PAX number of exactly 5 digits starting with 4; the location is optional). My rule (31 Oct 2026): the button stays off until then, and says what is missing. */
   const addValid = validateEntry(addForm);
   const addDeptOk = inList(addForm.department);
   const addHint = !addDeptOk ? "Choose the department from the list." : addValid.ok ? undefined : (addValid.errors.department ?? addValid.errors.number ?? addValid.errors.location);
@@ -223,8 +223,10 @@ export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen
     setNotice(null);
     setTab("modify");
   }
-  /** The change form saves when something has been changed (the department, the location or the number) and the whole line is valid. The server already accepted any such change; only this button refused it unless the NUMBER had been changed (owner, 31 Oct 2026),
-   *  which blocked a change of department or location alone (owner, 23 Nov 2026). The old rule is one constant away: CHANGE_NEEDS_NEW_NUMBER = true. */
+  /**
+   * The change form saves when something has been changed (the department, the location or the number) and the whole line is valid. The server already accepted any such change; only this button refused it unless the NUMBER had been changed (my rule, 31 Oct 2026),
+   *  which blocked a change of department or location alone (raised by me, 23 Nov 2026). The old rule is one constant away: CHANGE_NEEDS_NEW_NUMBER = true.
+   */
   const editClean = cleanInput(editForm);
   const editValid = validateEntry(editForm);
   const editNumberChanged = editing !== null && editClean.number !== editing.number;
@@ -272,7 +274,7 @@ export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen
     }
   }
 
-  // the two ways on after "somebody else changed this line": take their version, or keep my edits on top of it (a three-way merge: only what I changed is mine)
+  // I offer two ways on after "somebody else changed this line": take their version, or keep my edits on top of it (a three-way merge: only what I changed is mine)
   function takeTheirs() {
     if (!stale) return;
     setEditing(stale.current);
@@ -298,7 +300,7 @@ export function PaxAdminPanel({ open, initialDepartments }: { open: PaxAdminOpen
     if (!r.ok) return fail(r);
     const res = r.body.result as Json;
     if (res.status === "stale") {
-      // the line was changed after the person opened it: nothing was deleted; he is shown the line as it is now and confirms again
+      // The line was changed after the person opened it, so nothing was deleted: he is shown the line as it is now and confirms again
       const last = res.last as PaxLastChange | null;
       setDeleting(res.current as PaxEntryView);
       setNotice({ tone: "warn", text: `${describeLine(res.current as PaxEntryView)} was changed${last ? ` by ${last.actorName} (${last.actorTicket})` : ""} after you opened it. It is shown below as it is now: look again, then confirm.` });

@@ -1,10 +1,10 @@
 // src/lib/nl2sql/eval/golden.ts
 //
-// The measuring stick. Each case is ONE meaning asked in SEVERAL different
+// My measuring stick. Each case is ONE meaning asked in SEVERAL different
 // wordings (the whole point of this experiment is wording it has never seen),
 // plus a hand-written REFERENCE SQL that defines the correct answer. A wording
 // passes when the SQL the model writes returns the same rows as the reference,
-// computed on the same database -- so the suite needs no hard-coded numbers and
+// computed on the same database -- so I need no hard-coded numbers in the suite and it
 // works on your real data as well as the test data.
 
 export type GoldenKind = "set" | "ordered" | "scalar" | "table" | "unanswerable";
@@ -13,7 +13,7 @@ export interface GoldenCase {
   id: string;
   kind: GoldenKind;
   variants: string[];
-  /** Reference SQL (null for cases that must be declared unanswerable). */
+  /** The reference SQL; I leave it null for cases that must be declared unanswerable. */
   reference: string | null;
   note?: string;
 }
@@ -225,7 +225,7 @@ export const GOLDEN: GoldenCase[] = [
 
 type Row = Record<string, unknown>;
 
-/** The column both results share that identifies a person. */
+/** Picks the column both results share that identifies a person. */
 function pickKey(e: Row[], a: Row[]): string | null {
   const has = (rows: Row[], c: string) => !rows.length || c in rows[0];
   for (const c of ["ticket_no", "name"]) if (has(e, c) && has(a, c)) return c;

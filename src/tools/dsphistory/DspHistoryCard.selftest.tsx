@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/dsphistory/DspHistoryCard.selftest.tsx
-// The DSP story card as it is drawn on each tab, and the words that open it (and the ones that must not).
+// I test the DSP story card as it is drawn on each tab, and the words that open it (and the ones that must not).
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { existsSync, readFileSync } from "node:fs";

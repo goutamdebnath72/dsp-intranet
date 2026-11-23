@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/railway/AsansolPanel.selftest.tsx
-// The railway card's two tabs and the Asansol tab: drawn from samples of RailRadar's real boards (16 Nov 2026). The Asansol tab lists the trains that stop at Asansol and not at Durgapur, in two lists (those that pass
-// Durgapur without stopping, those that do not go over it) and a violet one for the local trains, says plainly that it is a timetable, and is asked for only when it is opened.
+// Checks the railway card's two tabs and the Asansol tab, drawn from samples of RailRadar's real boards (16 Nov 2026). I expect the Asansol tab to list the trains that stop at Asansol and not at Durgapur, in two lists (those that pass
+// Durgapur without stopping, those that do not go over it) and a violet one for the local trains, to say plainly that it is a timetable, and to be asked for only when it is opened.
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -41,7 +41,7 @@ ok("the Asansol tab is not asked for until it is opened: its panel is hidden and
 const tabsAsn = renderToStaticMarkup(<RailwayTabs start="asn" />);
 ok("starting on the Asansol tab shows it first (loading), asks for the Asansol route only, and hides the Durgapur panel", /id="railway-panel-dgr"[^>]*hidden=""|hidden=""[^>]*id="railway-panel-dgr"/.test(tabsAsn) && /aria-busy="true"/.test(tabsAsn));
 ok("the panel's title names both stations and its subtitle says what is in it, without repeating the title (the tabs below carry the full station names), and its card is the two-tab card", railwayUi.live?.title === "Trains at Durgapur and Asansol" && /Durgapur/.test(String(railwayUi.live?.subtitle)) && /Asansol/.test(String(railwayUi.live?.subtitle)) && !String(railwayUi.live?.subtitle).includes(String(railwayUi.live?.title)) && /data-railway-tabs/.test(renderToStaticMarkup(<>{railwayUi.live?.card()}</>)));
-// the fares from Asansol: asked of the saved data of Asansol only
+// The fares from Asansol are asked of the saved data of Asansol only
 const fares = readFileSync("src/tools/railway/Fares.tsx", "utf8").replace(/\/\/.*$/gm, "");
 const fareRoutes = ["railway-fare", "railway-fare-legs"].map((n) => readFileSync(`src/app/api/live/${n}/route.ts`, "utf8").replace(/\/\/.*$/gm, ""));
 ok("the fare boxes of the Asansol tab ask the routes with from=ASN, and the routes accept only ASN (anything else means Durgapur), reading Asansol's own tables", /railway-fare\?train=\$\{number\}\$\{fromQuery\(from\)\}/.test(fares) && /railway-fare-legs\?train=\$\{number\}\$\{fromQuery\(from\)\}/.test(fares) && fareRoutes.every((t) => /get\("from"\) === "ASN" \? "ASN" : "DGR"/.test(t)) && /fareStoreFor\(await getDb\(\), from\)/.test(fareRoutes[0]) && /legStoreFor\(await getDb\(\), from\)/.test(fareRoutes[1]));
@@ -49,7 +49,7 @@ ok("the Asansol tab's fares say Asansol, not Durgapur: the table heading, the da
 const finder = readFileSync("src/tools/railway/FareFinder.tsx", "utf8").replace(/\/\/.*$/gm, "");
 const findRoute = readFileSync("src/app/api/live/railway-fare-find/route.ts", "utf8").replace(/\/\/.*$/gm, "");
 ok("the fare finder of the Asansol tab asks with from=ASN, and its route accepts only ASN (anything else means Durgapur), keeps each station's list apart, reads Asansol's own leg tables and Asansol's timetable", /stops=1\$\{q\}/.test(finder) && /to=\$\{encodeURIComponent\(to \|\| "-"\)\}\$\{q\}/.test(finder) && /get\("from"\) === "ASN" \? "ASN" : "DGR"/.test(findRoute) && /legStoreFor\(await getDb\(\), from\)/.test(findRoute) && /from === "ASN" \? loadAsansol\(\) : loadRailway\(\)/.test(findRoute) && /stopsKept\[from\]/.test(findRoute) && /originName\(from\)/.test(finder) && !/from Durgapur to/.test(finder));
-// nothing is lost: both timetables keep their last good answer in the database
+// I rely on this: nothing is lost, because both timetables keep their last good answer in the database
 const rwRoute = readFileSync("src/app/api/live/railway/route.ts", "utf8").replace(/\/\/.*$/gm, "");
 const asnRoute = readFileSync("src/app/api/live/railway-asn/route.ts", "utf8").replace(/\/\/.*$/gm, "");
 ok("both timetable routes keep their last good answer in the database and show it, marked stale with its own time, when RailRadar does not answer; Asansol's list is kept three days (two requests each time)", /persist: \{ store: savedAnswers, check: looksLikeRailway \}/.test(rwRoute) && /persist: \{ store: savedAnswers, check: looksLikeAsansol \}/.test(asnRoute) && /ttlMs: KEPT_ASN_S \* 1000/.test(asnRoute) && KEPT_ASN_S === 3 * 24 * 60 * 60);

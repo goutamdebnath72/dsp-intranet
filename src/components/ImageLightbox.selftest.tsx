@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/ImageLightbox.selftest.tsx
-// A picture opens over the page in its own layer (not in a new tab): a cross, Escape and a click outside close it, and Escape closes the picture only, never the search window behind it.
+// I want a picture to open over the page in its own layer (not in a new tab): a cross, Escape and a click outside close it, and Escape closes the picture only, never the search window behind it.
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
@@ -32,10 +32,10 @@ const big = renderToStaticMarkup(<LightboxView picture={pic} onClose={() => {}} 
 ok("the caption says the real size and that the picture is shown enlarged ('606 × 438 px, shown 1.8 times larger'); the picture takes the computed size", big.includes("606 × 438 px, shown 1.8 times larger") && /style="width:1107px;height:800px"/.test(big));
 ok("a picture shown at about its own size does not claim to be enlarged", !/times larger/.test(renderToStaticMarkup(<LightboxView picture={pic} onClose={() => {}} size={{ w: 1209, h: 795 }} display={f3} />)));
 
-// Escape: taken for the picture, and stopped, so the handler of the search window (which closes it on Escape) never sees it
+// I take Escape for the picture and stop it, so the handler of the search window (which closes it on Escape) never sees it
 const target = new EventTarget();
 let closed = 0, windowSaw = 0;
-// (Node's EventTarget has no capture and bubble phases, only the order of the listeners; in a browser the capture handler on window runs before any bubble handler whatever the order, so the lightbox is put first here)
+// (Node's EventTarget has no capture and bubble phases, only the order of the listeners; in a browser the capture handler on window runs before any bubble handler whatever the order, so I put the lightbox first here)
 const letGo = onEscape(target, () => { closed++; });
 target.addEventListener("keydown", () => { windowSaw++; }); // the search window's own handler
 const key = (k: string) => Object.assign(new Event("keydown", { cancelable: true }), { key: k });
@@ -48,11 +48,11 @@ letGo();
 target.dispatchEvent(key("Escape"));
 ok("once the picture is closed, Escape goes back to the page (the handler is let go)", closed === 1 && windowSaw === 2);
 
-// the search window closes on Escape in TopBar (a capture handler on window, registered long before this layer) unless the key comes from inside an element that owns Escape: the layer is marked as one (found in a real browser: without the mark the window closed with the picture)
+// The search window closes on Escape in TopBar (a capture handler on window, registered long before this layer) unless the key comes from inside an element that owns Escape, so I mark the layer as one (found in a real browser: without the mark the window closed with the picture)
 const topbar = readFileSync("src/components/TopBar.tsx", "utf8");
 ok("the layer is marked data-escape-own, and TopBar leaves an Escape that comes from inside such an element alone (as it does for an open dropdown)", /data-escape-own="true"/.test(html) && /closest\('\[data-select-open="true"\], \[data-escape-own="true"\]'\)/.test(topbar));
 
-// wired into the story card: every picture and every head's portrait opens in the layer
+// I wired this into the story card: every picture and every head's portrait opens in the layer
 const card = readFileSync("src/tools/dsphistory/DspHistoryCard.tsx", "utf8");
 ok("the story card opens its pictures and portraits in this layer: no link to a picture file with target=_blank is left", /ImageLightbox/.test(card) && (card.match(/<ImageLightbox /g) ?? []).length === 2 && !/<a href=\{photoSrc/.test(card));
 

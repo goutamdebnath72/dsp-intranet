@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/aicpi.selftest.ts
-// The AICPI-IW record (read from the Labour Bureau's two pages, saved as they were on 13 Nov 2026) and the SAIL / CPSE dearness allowance (IDA, 2017 pay scales, revised every quarter) worked out from it: the formula is tested
-// against the rates the Department of Public Enterprises announced (53.4% from 1 January 2026, 59.1% from 1 October 2026), which is what makes its constants trustworthy.
+// This tests the AICPI-IW record (read from the Labour Bureau's two pages, saved as they were on 13 Nov 2026) and the SAIL / CPSE dearness allowance (IDA, 2017 pay scales, revised every quarter) worked out from it. I test the formula
+// against the rates the Department of Public Enterprises announced (53.4% from 1 January 2026, 59.1% from 1 October 2026), and that is what makes its constants trustworthy.
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
 import { AicpiError, announcedFor, buildAicpi, IDA_ANNOUNCED, idaAmount, idaForQuarter, idaFromAverage, idaProjected, monthsOfQuarter, parseChart, parseHome, PERCENT_PER_POINT, quarterOf, quartersOf, validAicpi } from "./aicpi";

@@ -16,7 +16,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Invalid year" }, { status: 400 });
     }
 
-    // ✅ Switched to string lookup to clear EntityMetadataNotFoundError
+    // I switched to a string lookup to clear EntityMetadataNotFoundError
     const holidayYearRepo =
       dataSource.getRepository<HolidayYear>("HolidayYear");
 
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
   } catch (err: any) {
     console.error("❌ Error fetching holidays:", err);
     return NextResponse.json(
-      { error: "The holidays could not be loaded just now." }, // the raw error text (a database message) stays in the server log
+      { error: "The holidays could not be loaded just now." }, // I keep the raw error text (a database message) in the server log only
       { status: 500 },
     );
   }

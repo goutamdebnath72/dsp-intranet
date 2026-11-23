@@ -1,8 +1,8 @@
 // src/app/api/live/gold/route.ts
 //
-// GOLD AND SILVER IN INDIA (IBJA rates and their trend). Reads nothing from the caller; asks the IBJA page, reads it with src/lib/live/gold.ts, and answers with the source and the time.
+// Gold and silver in India (IBJA rates and their trend). I read nothing from the caller; I ask the IBJA page, read it with src/lib/live/gold.ts, and answer with the source and the time.
 // The trend is IBJA's own record (about four months), lengthened to a year with ESTIMATED days from the NSE gold/silver ETFs when those can be had (always marked as estimates).
-// If the page cannot be reached the last good answer is returned, marked stale; if the page has changed so that the numbers cannot be found, it is an error, never a guess.
+// If the page cannot be reached I return the last good answer, marked stale; if the page has changed so that the numbers cannot be found, it is an error, never a guess.
 import { getJson, getText, UpstreamError } from "@/lib/live/http";
 import { liveRoute } from "@/lib/live/envelope";
 import { extendHistory, looksLikeGoldAnswer, parseEtfSeries, parseIbja, type EtfSeries } from "@/lib/live/gold";
@@ -16,18 +16,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 20;
 
 const URL_IBJA = "https://ibjarates.com/";
-// The year before IBJA's page begins: the NSE-traded gold and silver ETFs (see the end of src/lib/live/gold.ts). Fixed addresses, asked at most once in six hours.
-// from a week BEFORE the date one year back (so that the day of that date, or the trading day before it, is in the record) to now
+// For the year before IBJA's page begins I use the NSE-traded gold and silver ETFs (see the end of src/lib/live/gold.ts). Fixed addresses, asked at most once in six hours.
+// I ask from a week BEFORE the date one year back (so that the day of that date, or the trading day before it, is in the record) to now
 const etfUrl = (symbol: string) => `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${Math.floor(todayIn().minus({ years: 1, days: 7 }).toSeconds())}&period2=${Math.floor(Date.now() / 1000)}&interval=1d`;
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** the copy of the two records kept with the app: past prices do not change, so it serves whenever the live source does not answer */
+/** This is the copy of the two records kept with the app: past prices do not change, so I serve it whenever the live source does not answer */
 function savedRecords(): { gold: EtfSeries; silver: EtfSeries; savedThrough: string } | null {
   const gold = parseEtfSeries(snapshot.gold), silver = parseEtfSeries(snapshot.silver);
   return gold && silver ? { gold, silver, savedThrough: snapshot.savedThrough } : null;
 }
 
-/** the two ETF records (live, else the saved copy), or why neither could be had (the chart then stays on IBJA's own days); never throws */
+/** Returns the two ETF records (live, else the saved copy), or why neither could be had (the chart then stays on IBJA's own days). It never throws. */
 async function etfRecords(): Promise<{ gold: EtfSeries; silver: EtfSeries; savedThrough?: string } | { why: string }> {
   try {
     const { value } = await memo(`gold-etf-from-${yearAgo()}`, 6 * 60 * 60 * 1000, async () => {
@@ -43,7 +43,7 @@ async function etfRecords(): Promise<{ gold: EtfSeries; silver: EtfSeries; saved
   }
 }
 
-/** the saved last good answer, or none when the database cannot be had: the card must not fail because of it */
+/** Returns the saved last good answer, or none when the database cannot be had: I do not let the card fail because of it */
 async function savedAnswers(): Promise<SnapshotStore> {
   try { return snapshotStoreFor(await getDb()); } catch { return NO_SNAPSHOT_STORE; }
 }
@@ -54,9 +54,9 @@ export async function GET() {
     ttlMs: 10 * 60 * 1000,
     source: "IBJA (India Bullion and Jewellers Association)",
     sourceUrl: URL_IBJA,
-    // the last good answer is also kept in the database (src/lib/live/snapshotStore.ts): after a restart, or a quiet night with IBJA unreachable, the card shows it marked stale with its own time instead of an error
+    // I also keep the last good answer in the database (src/lib/live/snapshotStore.ts): after a restart, or a quiet night with IBJA unreachable, the card shows it marked stale with its own time instead of an error
     persist: { store: savedAnswers, check: looksLikeGoldAnswer },
-    // the rates are IBJA's; the estimated earlier months (when there are any) use the closing prices of the NSE gold and silver funds, which come from Yahoo Finance: both are named and linked
+    // The rates are IBJA's; the estimated earlier months (when there are any) use the closing prices of the NSE gold and silver funds, which come from Yahoo Finance. I name and link both.
     sourceLinks: (d) => [{ name: "IBJA (India Bullion and Jewellers Association)", url: URL_IBJA }, ...("estimate" in d && d.estimate ? [{ name: "Yahoo Finance (NSE gold and silver fund prices, for the estimated earlier months)", url: "https://finance.yahoo.com/" }] : [])],
     load: async () => {
       const rates = parseIbja(await getText(URL_IBJA));

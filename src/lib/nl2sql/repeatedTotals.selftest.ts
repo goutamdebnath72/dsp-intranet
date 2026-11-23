@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/repeatedTotals.selftest.ts
-// The model often adds a column that repeats the grand total on every row of a list of people ("Total count 16"): it is removed from the cards and the table.
+// The model often adds a column that repeats the grand total on every row of a list of people ("Total count 16"); I remove it from the cards and the table.
 
 import { dropRepeatedTotals, presentPeople } from "./seniorityDisplay";
 
@@ -31,7 +31,7 @@ ok("a single person keeps its columns", r.columns.includes("total_count"));
 const same = people(3, () => ({ total_count: 3 }));
 ok("with nothing to drop the same objects come back", dropRepeatedTotals(cols(), people(3, () => ({}))).columns.length === 5 && Array.isArray(same));
 
-// the common step for the first page and "Show more"
+// This is the common step for both the first page and "Show more".
 const p = presentPeople(cols("total_count"), people(4, () => ({ total_count: 4 })), []);
 ok("presentPeople removes it too (so cards and table lose it together)", !p.columns.includes("total_count") && p.rows.every((x) => !("total_count" in x)), JSON.stringify(p.columns));
 

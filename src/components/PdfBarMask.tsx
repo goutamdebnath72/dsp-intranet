@@ -1,15 +1,15 @@
 // src/components/PdfBarMask.tsx
 //
 // THE SCROLLBARS INSIDE A PDF FRAME, SHOWN ONLY ON HOVER. The browser's own PDF viewer (inside an <iframe>) draws its own vertical and horizontal scrollbars, always visible, and a page cannot style what is inside it
-// (the global rule in globals.css reaches only our own scrolling areas). So the bars are hidden the way a modern interface hides them: two strips painted over the places where the bars sit, in the colour of the
+// (the global rule in globals.css reaches only our own scrolling areas). So I hide the bars the way a modern interface hides them: two strips painted over the places where the bars sit, in the colour of the
 // viewer's own background, and they fade away while the pointer is over the frame (the `group` it sits in is hovered; the hover of a frame counts for the element that holds it).
 //   * The strips do not catch the pointer (pointer-events-none): the bars under them still scroll and drag as ever; wheel, trackpad and keys are untouched.
-//   * The right strip starts below the viewer's toolbar (56 px in Chrome and Edge), so the toolbar (page number, zoom, print, download) is never covered.
+//   * The right strip starts below the viewer's toolbar (56 px in Chrome and Edge), so I never cover the toolbar (page number, zoom, print, download).
 //   * The colour is the viewer's dark background (#282828 in the current Chrome and Edge). A browser that paints it differently shows a faint strip at rest: harmless, and the bars still work.
-// Use inside an element that is `relative group` and holds the iframe.
+// Use this inside an element that is `relative group` and holds the iframe.
 import React from "react";
 
-/** the viewer's own background, behind the page */
+/** The viewer's own background, behind the page; I paint the strips in this colour */
 export const PDF_VIEWER_BG = "#282828";
 
 export function PdfBarMask() {

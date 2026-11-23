@@ -2,7 +2,7 @@
 import { canonicalIndic } from "../ingestion/indicRepair";
 
 /**
- * Cleans the search query while strictly preserving everything the search
+ * I clean the search query but strictly preserve everything the search
  * pipeline depends on:
  *  - English alphanumerics (a-z, A-Z, 0-9)
  *  - Devanagari script (Hindi) and Bengali script
@@ -13,23 +13,23 @@ import { canonicalIndic } from "../ingestion/indicRepair";
  *    (e.g. "Rs.500", "HR-CLC/MERIT_AWD/2026/131", "bams.saildsp.co.in",
  *     "affdf@icici"). Stripping these would break literal/quoted lookups.
  *
- * Only genuinely junk characters (control glyphs, stray symbols/dingbats)
- * are collapsed to spaces.
+ * I collapse only genuinely junk characters (control glyphs, stray symbols/dingbats)
+ * to spaces.
  */
 export function cleanQueryString(query: string): string {
   if (!query) return "";
 
-  // The circulars are stored with Hindi and Bengali words in Unicode NFC and without joiner characters, so a query typed with a joiner (the phone keyboards add
-  // them inside conjuncts) or with the other form of ড় য় ड़ is brought to the same form; before, a joiner was turned into a space and split the word in two.
+  // The circulars are stored with Hindi and Bengali words in Unicode NFC and without joiner characters, so I bring a query typed with a joiner (phone keyboards add
+  // them inside conjuncts) or with the other form of ড় য় ड़ to the same form. Before this, a joiner was turned into a space and split the word in two.
   return (
     canonicalIndic(query.replace(/[\u200C\u200D]/g, ""))
-      // Keep: letters/numbers, whitespace, Devanagari, Bengali, the double
-      // quote, and the literal punctuation set the corpus/queries rely on.
+      // I keep letters/numbers, whitespace, Devanagari, Bengali, the double
+      // quote, and the literal punctuation set that the corpus and the queries rely on.
       .replace(
         /[^\p{Script=Devanagari}\p{Script=Bengali}a-zA-Z0-9\s".\-/@:#&(),_]/gu,
         " ",
       )
-      // Collapse runs of whitespace, but do NOT trim quotes/punctuation.
+      // I collapse runs of whitespace, but do NOT trim quotes/punctuation.
       .replace(/\s+/g, " ")
       .trim()
   );

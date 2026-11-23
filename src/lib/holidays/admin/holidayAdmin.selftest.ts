@@ -46,7 +46,7 @@ async function runTests() {
   ok("revoke holiday permission -> op: delegate", detectHolidayAdminIntent("revoke holiday permission")?.op === "delegate");
   ok("holiday audit history -> op: history", detectHolidayAdminIntent("holiday audit history")?.op === "history");
 
-  // Pure questions must NOT trigger admin intent
+  // A pure question must never trigger admin intent.
   ok("when is durga puja -> null", detectHolidayAdminIntent("when is durga puja") === null);
   ok("is tomorrow a holiday -> null", detectHolidayAdminIntent("is tomorrow a holiday") === null);
   ok("list of holidays in 2026 -> null", detectHolidayAdminIntent("list of holidays in 2026") === null);

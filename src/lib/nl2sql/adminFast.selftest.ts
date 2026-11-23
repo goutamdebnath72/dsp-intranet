@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/nl2sql/adminFast.selftest.ts
-// The management page and the tools' own requests are answered FIRST by the search route, before the name checks, the language-model router and the directory loads (which cost database round trips and a call to the model).
+// I made the search route answer the management page and the tools' own requests FIRST, before the name checks, the language-model router and the directory loads (which cost database round trips and a call to the model).
 // No database and no model are used here: a request read with no login is answered by the sentence alone, and a sentence that is not a management request is not touched at all.
 import { readFileSync } from "node:fs";
 import { answerAdminFast } from "./omnibar";
@@ -15,12 +15,12 @@ let pass = 0, fail = 0;
 const ok = (name: string, c: unknown, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 
 async function main() {
-  // the page, signed out: the sign-in card, from the sentence alone
+  // The page, signed out: the sign-in card, from the sentence alone.
   const a = (await answerAdminFast("management", null)) as { managementGate?: { state: string }; source?: string; attempt?: number } | null;
   ok("'management' with no login is answered at once by the sign-in card, in the shape the chain gives (source and attempt), without a database or a model", a?.managementGate?.state === "login" && a?.source === "holiday" && a?.attempt === 1);
   ok("every word that opens the page is answered the same way", (await Promise.all(["admin", "management page", "managers", "admin tools", "open the management page"].map((q) => answerAdminFast(q, null)))).every((r) => (r as { managementGate?: { state: string } } | null)?.managementGate?.state === "login"));
-  // the tools' own requests are in the same early list (their own readers are tested in hub.selftest.tsx: each tool's words are read by its own reader and by no other's; the tools' database access modules need the app's login library, which the
-  // test runner cannot load, so they are not run here)
+  // The tools' own requests are in the same early list (their own readers are tested in hub.selftest.tsx: each tool's words are read by its own reader and by no other's; the tools' database access modules need the app's login library, which the
+  // test runner cannot load, so I do not run them here).
   const omniSrc = readFileSync("src/lib/nl2sql/omnibar.ts", "utf8");
   const listed = ["managementHub", "employeeAdmin", "paxAdmin", "holidayAdmin", "circularAdmin", "announcementAdmin", "accessLogAdmin"];
   ok("the early list holds the management page and all six tools' own requests, each with its own responder", listed.every((k) => new RegExp(`\\n    ${k}: async \\(qq, ticket\\) =>`).test(omniSrc.slice(omniSrc.indexOf("function adminResponders"), omniSrc.indexOf("export async function answerAdminFast")))) && Object.keys(HUB_TOOLS).length === 6);

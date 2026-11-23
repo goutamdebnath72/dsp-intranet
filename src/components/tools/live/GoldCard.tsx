@@ -1,7 +1,7 @@
 // src/components/tools/live/GoldCard.tsx
 //
-// GOLD AND SILVER IN INDIA: today's IBJA rates (24 carat, 22 carat, silver) with the change since the last close, and the trend over the months IBJA publishes, one metal at a time.
-// The numbers come from our /api/live/gold route (src/lib/live/gold.ts); each is shown with its source and the time it was fetched. Nothing typed is sent anywhere.
+// Gold and silver in India: today's IBJA rates (24 carat, 22 carat, silver) with the change since the last close, and the trend over the months IBJA publishes, one metal at a time.
+// The numbers come from my /api/live/gold route (src/lib/live/gold.ts); each is shown with its source and the time it was fetched. Nothing typed is sent anywhere.
 "use client";
 
 import React, { useState } from "react";
@@ -31,7 +31,7 @@ const METALS: Metal[] = ["gold24", "gold22", "silver"];
 
 export function GoldBody({ rates, stale = false }: { rates: MetalRates; stale?: boolean }) {
   const [metal, setMetal] = useState<Metal>("gold24");
-  // arrow keys move between the tabs, as in any tab list
+  // The arrow keys move between the tabs, like in any tab list.
   const onTabKey = (e: React.KeyboardEvent) => {
     const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (!step) return;

@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { getAuthOptions } from "@/lib/auth";
 
-// ✅ Import directly from individual model files to prevent Webpack duplication
+// I import directly from individual model files to prevent Webpack duplication.
 import { Circular } from "@/lib/db/models/circular.model";
 import { CircularReadStatus } from "@/lib/db/models/circular-read-status.model";
 import { User } from "@/lib/db/models/user.model";
@@ -42,8 +42,8 @@ export async function POST(
     const userRepo = dataSource.getRepository(User);
     const readStatusRepo = dataSource.getRepository(CircularReadStatus);
 
-    // The three checks do not depend on each other, so they run AT ONCE (one round trip to the database instead of three one after another:
-    // saving a read used to take 2-3 seconds on a remote database, and the screen waits for it).
+    // The three checks do not depend on each other, so I run them AT ONCE: one round trip to the database instead of three one after another.
+    // Saving a read used to take 2-3 seconds on a remote database, and the screen waits for it.
     const [circularCount, userCount, alreadyRead] = await Promise.all([
       circularRepo.count({ where: { id: circularId } }),
       userRepo.count({ where: { id: userId } }),
@@ -56,7 +56,7 @@ export async function POST(
       return NextResponse.json({ error: "User not found in records" }, { status: 404 });
     }
 
-    // Prevent duplicate read rows (the unique index on userId + circularId is the final guard: two opens at the same moment is not an error).
+    // I prevent duplicate read rows. The unique index on userId + circularId is the final guard: two opens at the same moment is not an error.
     if (alreadyRead === 0) {
       try {
         await readStatusRepo.save(

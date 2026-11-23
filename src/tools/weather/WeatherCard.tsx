@@ -1,7 +1,7 @@
 // src/tools/weather/WeatherCard.tsx
 //
-// THE WEATHER AT DURGAPUR: what it is now (the big figure, the sky in words, what it feels like, humidity, wind, rain, sunrise and sunset, UV), the next 24 hours three hours at a time, and seven days.
-// The data are checked in src/lib/live/weather.ts and come from /api/live/weather (Open-Meteo); the card asks again by itself every ten minutes while it is open and in view, quietly (nothing is replaced by a
+// The weather at Durgapur: what it is now (the big figure, the sky in words, what it feels like, humidity, wind, rain, sunrise and sunset, UV), the next 24 hours three hours at a time, and seven days.
+// The data are checked in src/lib/live/weather.ts and come from /api/live/weather (Open-Meteo). I made the card ask again by itself every ten minutes while it is open and in view, quietly (nothing is replaced by a
 // loading box). Nothing typed is sent anywhere: the request carries nothing.
 "use client";
 
@@ -18,7 +18,7 @@ const ZONE = "Asia/Kolkata";
 const ICON: Record<SkyKind, LucideIcon> = { clear: Sun, partly: CloudSun, cloud: Cloud, fog: CloudFog, drizzle: CloudDrizzle, rain: CloudRain, storm: CloudLightning, snow: Snowflake, unknown: HelpCircle };
 const TINT: Record<SkyKind, string> = { clear: "text-amber-500", partly: "text-amber-500", cloud: "text-slate-500", fog: "text-slate-400", drizzle: "text-sky-500", rain: "text-sky-600", storm: "text-violet-600", snow: "text-cyan-500", unknown: "text-slate-400" };
 
-/** the picture of the sky; a clear night is the moon */
+/** Draws the picture of the sky; a clear night is the moon. */
 export function SkyIcon({ code, night = false, size = 22 }: { code: number; night?: boolean; size?: number }) {
   const kind = skyKind(code);
   if (kind === "clear" && night) return <Moon size={size} className="text-indigo-500" aria-hidden="true" />;
@@ -36,7 +36,7 @@ export function dayLabel(date: string, today: string): string {
   const n = Math.round(d.diff(t, "days").days);
   return n === 0 ? "Today" : n === 1 ? "Tomorrow" : d.toFormat("ccc d LLL");
 }
-/** is this hour between that day's sunrise and sunset? (for the moon and the sun) */
+/** Is this hour between that day's sunrise and sunset? I use the answer to choose the moon or the sun. */
 export function isDaylight(iso: string, w: Weather): boolean {
   const t = at(iso), day = w.days.find((d) => d.date === t.toISODate());
   if (!day) return true;
@@ -44,10 +44,10 @@ export function isDaylight(iso: string, w: Weather): boolean {
   return hm >= day.sunrise && hm < day.sunset;
 }
 
-/** the columns of the week: day, picture, sky, chance of rain, amount of rain, then the low, a bar from the low to the high (it takes the rest of the width), the high; the sky's name, the amount and the bar are not on a phone */
+/** My columns of the week: day, picture, sky, chance of rain, amount of rain, then the low, a bar from the low to the high (it takes the rest of the width), the high; the sky's name, the amount and the bar are not shown on a phone. */
 export const DAY_GRID = "grid items-center gap-x-2 sm:gap-x-3 grid-cols-[minmax(0,1fr)_1.5rem_2.75rem_2.25rem_2.25rem] sm:grid-cols-[7rem_1.5rem_9.5rem_3.5rem_4rem_2.5rem_minmax(5rem,1fr)_2.5rem]";
 
-/** one end of a day's bar: hover (or rest the pointer on) the end and its temperature is named ("Low 21°", "High 29°"); a small dot marks the end while the pointer is over the bar */
+/** One end of a day's bar: hover (or rest the pointer on) the end and its temperature is named ("Low 21°", "High 29°"); a small dot marks the end while the pointer is over the bar. */
 function BarEnd({ side, label }: { side: "left" | "right"; label: string }) {
   return (
     <span aria-hidden="true" className={`group/end absolute top-1/2 flex h-4 w-4 -translate-y-1/2 cursor-default items-center justify-center ${side === "left" ? "left-0 -translate-x-1/2" : "right-0 translate-x-1/2"}`}>
@@ -59,7 +59,7 @@ function BarEnd({ side, label }: { side: "left" | "right"; label: string }) {
 
 export function WeatherBody({ w }: { w: Weather }) {
   const today = w.days[0];
-  // the bars are drawn on one scale, the coldest low to the hottest high of the week
+  // I draw the bars on one scale, the coldest low to the hottest high of the week.
   const lo = Math.min(...w.days.map((d) => d.min)), hi = Math.max(...w.days.map((d) => d.max));
   const pct = (t: number) => (hi > lo ? Math.round(((t - lo) / (hi - lo)) * 100) : 0);
   return (
@@ -87,7 +87,7 @@ export function WeatherBody({ w }: { w: Weather }) {
       <ol className="grid grid-cols-4 gap-1.5 sm:grid-cols-8" aria-label="The next 24 hours, three hours at a time">
         {w.hours.map((h) => {
           const day = isDaylight(h.time, w);
-          // each hour is its own small card: a firmer border and a soft shadow lift it off the panel, and its tint tells the daytime hours (warm sky) from the night ones (indigo) at a glance
+          // I make each hour its own small card: a firmer border and a soft shadow lift it off the panel, and its tint tells the daytime hours (warm sky) from the night ones (indigo) at a glance.
           return (
             <li key={h.time} data-hour-card={day ? "day" : "night"} className={`flex flex-col items-center rounded-xl border px-1 py-2 text-center shadow-sm ${day ? "border-sky-200 bg-gradient-to-b from-sky-50 to-white" : "border-indigo-200 bg-gradient-to-b from-indigo-100/70 to-white"}`} title={h.text}>
               <span className={`text-[11px] font-bold ${day ? "text-sky-800" : "text-indigo-800"}`}>{hourLabel(h.time)}</span>
@@ -100,7 +100,7 @@ export function WeatherBody({ w }: { w: Weather }) {
       </ol>
 
       <h4 className="mb-1.5 mt-4 text-sm font-extrabold text-slate-800">{w.days.length} days</h4>
-      {/* ONE grid for the header and every row, with fixed column widths; the one flexible column is the bar from each day's low to its high, drawn on the scale of the whole week, so the width of the card is used by something to read, not by gaps (on a phone the sky's name, the amount and the bar give way), so that each column is a straight line down the card: day, picture, sky, chance of rain, rain, high, low (the figures right-aligned in tabular digits) */}
+      {/* I use ONE grid for the header and every row, with fixed column widths. The one flexible column is the bar from each day's low to its high, drawn on the scale of the whole week, so the width of the card is used by something to read, not by gaps (on a phone the sky's name, the amount and the bar give way). This way each column is a straight line down the card: day, picture, sky, chance of rain, rain, high, low (the figures right-aligned in tabular digits). */}
       <div className="space-y-1" role="table" aria-label="The forecast for the week">
         <div role="row" className={`${DAY_GRID} px-3 text-[11px] font-bold uppercase tracking-wide text-slate-500`}>
           <span role="columnheader">Day</span>

@@ -3,7 +3,7 @@
 // HOW SERIOUS IS THIS ERROR (22 Nov 2026). Three ranks: SERIOUS (something of the application is broken for people: the developer is told at once), MINOR (a real fault that does little harm, or a one-off: in the daily digest), NOISE (not the
 // application's fault: a browser extension, a lost connection, a resize loop: kept, counted, never announced).
 // First a fixed list of patterns decides what is certain (free, instant, the same every time). Only an error nobody has classified goes to the AI model, once per distinct error, at most 20 an hour, with the text masked
-// (scrub.ts maskForModel: no names, numbers or e-mail, only code locations of the stack). If the model is not there or answers badly the error stays UNRATED and is shown in the digest, never dropped.
+// (scrub.ts maskForModel: no names, numbers or e-mail, only code locations of the stack). If the model is not there or answers badly I leave the error UNRATED and show it in the digest, never dropped.
 // Pure apart from the model call, which is passed in.
 
 import { maskForModel, stackFrames } from "./scrub";
@@ -29,7 +29,7 @@ const SERIOUS: Array<[RegExp, string]> = [
   [/JavaScript heap out of memory|ENOSPC|FUNCTION_INVOCATION_TIMEOUT|FUNCTION_INVOCATION_FAILED/i, "The server ran out of memory, disk or time."],
 ];
 
-/** the pattern list: a verdict when it is certain, null when a person or the model has to look */
+/** This is the pattern list: it gives a verdict when it is certain, and null when a person or the model has to look. */
 export function ruleVerdict(e: ErrorFacts): Verdict | null {
   const text = `${e.message}\n${e.stack ?? ""}`;
   for (const [re, note] of SERIOUS) if (re.test(text)) return { severity: "serious", note, by: "rule" };
@@ -54,7 +54,7 @@ export function triagePrompt(e: ErrorFacts): string {
   ].join("\n");
 }
 
-/** the model's reply as a verdict, or null when it is not one */
+/** Returns the model's reply as a verdict, or null when it is not one. */
 export function parseVerdict(text: string): Verdict | null {
   try {
     const j = JSON.parse(String(text).replace(/^```(?:json)?|```$/gim, "").trim());

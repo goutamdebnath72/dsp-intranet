@@ -1,20 +1,20 @@
 // src/lib/pax/store.ts
 //
-// READING THE PAX DIRECTORY (step 63a). The table `public.pax_directory` (sql/12) is deliberately NOT in the `nlq` schema and is closed to the public API roles (row level security on,
+// READING THE PAX DIRECTORY (step 63a). I deliberately keep the table `public.pax_directory` (sql/12) OUT of the `nlq` schema, and it is closed to the public API roles (row level security on,
 // everything revoked from `anon` and `authenticated`): only the application's OWN connection reads it. So this loader takes a plain query function and is given `getDb()`'s `query`
 // (see omnibar.ts), NEVER the language model's read-only client (`deps.withClient`): the model must not be able to see this table, and with a dedicated NL2SQL_DATABASE_URL it could not read it anyway.
 //
-// The area (plant / outside plant / not classified) comes from the database function `public.pax_area(number)`, so the rule lives in ONE place. Its words are normalised here, so a change of wording
+// The area (plant / outside plant / not classified) comes from the database function `public.pax_area(number)`, so the rule lives in ONE place. I normalise its words here, so a change of wording
 // there ("plant" / "in plant") cannot turn a plant number into an unclassified one.
 
 import type { PaxArea, PaxRow } from "./matcher";
 
 export type QueryFn = (sql: string, params?: unknown[]) => Promise<Array<Record<string, unknown>>>;
 
-/** The directory is a few dozen to a few thousand rows: it is read whole and matched in memory (spelling slips, abbreviations). */
+/** The directory is a few dozen to a few thousand rows, so I read it whole and match it in memory (spelling slips, abbreviations). */
 export const PAX_ROW_LIMIT = 5000;
 
-/** The `source` of a line made or changed in the admin panel (Telecom's own list carries its file name there). */
+/** This is the `source` I give a line made or changed in the admin panel (Telecom's own list carries its file name there). */
 export const PORTAL_SOURCE = "portal";
 
 export function normalizeArea(v: unknown): PaxArea {

@@ -20,7 +20,7 @@ export class CircularPage {
   @Column({ type: "varchar", name: "file_url" })
   fileUrl!: string;
 
-  // The arrow function defers evaluation; Relation<> prevents TS metadata emission
+  // I use the arrow function to defer evaluation; Relation<> prevents TS metadata emission
   @ManyToOne(() => Circular, (circular) => circular.pages)
   @JoinColumn({ name: "circular_id" })
   circular!: Relation<Circular>;

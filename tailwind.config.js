@@ -4,16 +4,16 @@ module.exports = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-    // helpers outside components that draw markup with Tailwind classes (the sticky toast's close button, the search highlighter): without these
-    // folders their classes are never generated and the markup is drawn unstyled
+    // These are helpers outside components that draw markup with Tailwind classes (the sticky toast's close button, the search highlighter). Without these
+    // folders their classes are never generated and the markup is drawn unstyled.
     "./src/lib/ui/**/*.{ts,tsx}",
     "./src/lib/utils/**/*.{ts,tsx}",
-    // the topics of the search bar's tools (calculators, converters, readers, guides): each folder draws its own cards, so without this folder none of their classes would be generated
+    // These are the topics of the search bar's tools (calculators, converters, readers, guides). Each folder draws its own cards, so without this line none of their classes would be generated.
     "./src/tools/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {
-      // the LIVE pill's light blink: it dims to about two thirds and comes back, slowly, so that it is seen without being tiring
+      // I made the LIVE pill's light blink dim to about two thirds and come back, slowly, so that it is seen without being tiring.
       keyframes: {
         livepulse: { "0%, 100%": { opacity: "1" }, "50%": { opacity: "0.55" } },
       },

@@ -1,6 +1,6 @@
 // src/lib/employees/photo/client.ts
 //
-// WHAT THE BROWSER DOES BEFORE A PHOTO IS SENT (step 70): checks the file, finds the ONE face, cuts the square around it. The three steps that need a real browser (decode, find the face, cut) are `deps`, so the
+// What the browser does before a photo is sent (step 70): it checks the file, finds the ONE face, and cuts the square around it. The three steps that need a real browser (decode, find the face, cut) are `deps`, so the
 // rest can be tested with stand-ins; the real ones are in browserDeps.ts. If anything fails the person gets a sentence, never a crash, and nothing is sent.
 
 import { PHOTO, squareAround, type Box, type Square } from "./crop";
@@ -32,5 +32,5 @@ export async function preparePhoto(file: File, deps: PhotoDeps): Promise<Prepare
   } catch { return no("The photo could not be prepared. Try another photo."); }
 }
 
-/** The address of a saved photo on the screen (the version in it makes the browser keep it for good and fetch a new one only when it changes). */
+/** The address of a saved photo on the screen. I put the version in it so the browser keeps the picture for good and fetches a new one only when it changes. */
 export const photoSrc = (id: number, size: "thumb" | "master", version: number): string => `/api/employees/photo?id=${id}&size=${size}&v=${version}`;

@@ -1,6 +1,6 @@
 // src/lib/holidays/analytics.ts
 //
-// THE holiday worker. ONE parameterized query answers every holiday question
+// THE holiday worker. I made ONE parameterized query answer every holiday question
 // (count / list / find-one / type-lookup / exists / breakdown / compare),
 // mirroring queryPeople in src/lib/employees/analytics.ts. Every number comes
 // from the DB via parameterized raw SQL (injection-safe) -- never from AI.
@@ -8,8 +8,8 @@
 // Dual-tag rows (the same holiday name appearing twice on the same date under
 // two different holidayType values -- confirmed present in the live data,
 // e.g. 2026-01-23 "Saraswati Puja/ Basant Panchami/ Netaji's Birth Day" is
-// BOTH RH and FH) are counted/listed AS-IS, no dedup -- confirmed with the
-// user as intentional, not a bug to design around.
+// BOTH RH and FH) are counted/listed AS-IS, no dedup. I confirmed this
+// as intentional, not a bug to design around.
 
 import { toDateTime } from "../dates";
 import { DateTime } from "luxon";
@@ -29,24 +29,24 @@ export type HolidayOp =
 
 export interface HolidayFilters {
   year?: number | null; // primary year (compare: yearA)
-  yearB?: number | null; // compare mode only
+  yearB?: number | null; // used in compare mode only
   type?: HolidayType | null;
-  name?: string | null; // ILIKE on holidaymaster.name
-  months?: number[] | null; // 1..12, one or more -- "holidays in March"
+  name?: string | null; // matched with ILIKE on holidaymaster.name
+  months?: number[] | null; // month 1..12, one or more -- "holidays in March"
   // (a single-element array) and "holidays in March and April" (two
-  // elements) both go through the same filter.
+  // elements) are both handled by the same filter.
   date?: { month: number; day: number } | null;
-  category?: string | null; // "A" | "B" | "C" | "D" -- filters holidayyear
-  // rows whose categories column (a comma-separated string, e.g. "A,B")
-  // contains this letter. Only meaningful for FH rows; CH/RH rows have
+  category?: string | null; // one of "A" | "B" | "C" | "D" -- filters holidayyear
+  // It keeps rows whose categories column (a comma-separated string, e.g. "A,B")
+  // contains this letter. It is only meaningful for FH rows; CH/RH rows have
   // categories = null since CH applies to everyone and RH entitlement is a
   // quota, not a per-holiday fact.
-  fromDate?: string | null; // ISO yyyy-LL-dd -- lower bound (inclusive).
-  // Used both for "upcoming holidays" (today's date) and for the lower end
+  fromDate?: string | null; // ISO yyyy-LL-dd -- lower bound (inclusive)
+  // I use this both for "upcoming holidays" (today's date) and for the lower end
   // of an explicit custom date range.
   toDate?: string | null; // ISO yyyy-LL-dd -- upper bound (inclusive), for
-  // an explicit custom date range ("from X to Y"). Not used by "upcoming"
-  // (which relies on `year` to cap the upper end at that year's Dec 31).
+  // an explicit custom date range ("from X to Y"). "Upcoming" does not use it
+  // (it relies on `year` to cap the upper end at that year's Dec 31).
 }
 
 export interface HolidayQuery {
@@ -59,7 +59,7 @@ export interface HolidayRow {
   name: string;
   aliases: string[] | null;
   type: HolidayType;
-  date: string; // ISO yyyy-LL-dd
+  date: string; // ISO yyyy-LL-dd date
   categories: string | null; // e.g. "A,B" -- FH rows only, null otherwise
   note: string | null; // one-off reclassification reason, or null
 }
@@ -94,8 +94,10 @@ export interface HolidayQueryResult {
     totalB: number;
   };
   rhQuota?: HolidayRhQuotaRow[];
-  /** false = the requested year isn't loaded in holidayyear -- the caller
-   *  must NOT invent an answer (see the future-year guard, handoff §2.2). */
+  /**
+   * false = the requested year isn't loaded in holidayyear -- the caller
+   *  must NOT invent an answer (see the future-year guard, handoff §2.2).
+   */
   yearAvailable?: boolean;
 }
 
@@ -104,7 +106,7 @@ async function db() {
 }
 
 // ----------------------------------------------------------------------------
-// Which years actually have rows in holidayyear. Tiny table, short cache
+// Which years actually have rows in holidayyear. It is a tiny table, so I keep a short cache
 // (mirrors terms.ts's holiday-name cache) so this doesn't round-trip on
 // every keystroke-triggered search.
 // ----------------------------------------------------------------------------
@@ -159,15 +161,15 @@ function buildWhere(f: HolidayFilters): { where: string; params: any[] } {
     clauses.push(`EXTRACT(DAY FROM hy.date)::int = $${params.length}`);
   }
   if (f.name && f.name.trim()) {
-    // Normalize whitespace around "/" on both sides before comparing.
+    // I normalize whitespace around "/" on both sides before comparing.
     // This corpus has repeatedly shown spacing drift around slashes in
     // compound names (e.g. "X/ Y" vs "X / Y") between rows that are
     // otherwise meant to be the exact same holiday on the same date --
     // see the 2024 Diwali/Kali Puja FH+RH pair, where a one-space
     // difference caused the FH row to be silently missed from a lookup
     // that correctly found the RH row. A plain ILIKE on the raw strings
-    // is fragile to this; normalizing slash-spacing on both the column
-    // and the parameter closes the gap generically, not just for that
+    // is fragile to this; I normalize slash-spacing on both the column
+    // and the parameter, which closes the gap generically, not just for that
     // one row.
     const normalizedName = f.name.trim().replace(/\s*\/\s*/g, "/");
     params.push(`%${normalizedName}%`);
@@ -177,7 +179,7 @@ function buildWhere(f: HolidayFilters): { where: string; params: any[] } {
     params.push(f.category.trim());
     // categories is a comma-separated string, e.g. "A,B" -- string_to_array
     // + array containment is the correct "comma list contains this value"
-    // check, rather than a fragile ILIKE substring match (which would
+    // check, so I use it rather than a fragile ILIKE substring match (which would
     // wrongly match "A" against a hypothetical future "AB" or similar).
     clauses.push(`string_to_array(hy.categories, ',') @> ARRAY[$${params.length}]::text[]`);
   }
@@ -224,7 +226,7 @@ export async function queryHolidays(spec: HolidayQuery): Promise<HolidayQueryRes
         b: rows.find((r) => r.year === yearB && r.type === t)?.n ?? 0,
       }),
     );
-    // The headline totals count each real day once: a day that is both a Festival and a Restricted holiday has
+    // I make the headline totals count each real day once: a day that is both a Festival and a Restricted holiday has
     // two rows (the per-type counts above) but is ONE holiday (the same rule as the Holiday List).
     const occasions: Array<{ year: number; n: number }> = await d.query(
       `SELECT year, count(*)::int AS n
@@ -241,7 +243,7 @@ export async function queryHolidays(spec: HolidayQuery): Promise<HolidayQueryRes
     };
   }
 
-  // Every other op needs its primary year (when given) actually loaded.
+  // Every other op needs its primary year (when given) to be actually loaded; I check that here.
   if (filters.year != null && !(await isHolidayYearLoaded(filters.year))) {
     return { count: 0, yearAvailable: false };
   }
@@ -296,7 +298,7 @@ export async function queryHolidays(spec: HolidayQuery): Promise<HolidayQueryRes
 
   // ---- list | findOne | typeLookup | exists: all need the joined rows;
   // the caller decides how to FORMAT them (single hit, ambiguous list of
-  // hits, or a plain list), the SQL shape is identical. ----
+  // hits, or a plain list), and the SQL shape is identical. ----
   const { where, params } = buildWhere(filters);
   const rows: any[] = await d.query(
     `SELECT hy.id, hy.date, hy."holidayType" AS type, hm.name AS name,

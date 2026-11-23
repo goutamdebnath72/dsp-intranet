@@ -1,13 +1,15 @@
 "use client";
 
-// The switch that colours ticket numbers by origin (step 44c), and the ticket text that follows it. OFF by default; see src/lib/ui/originTint.ts.
+// I made this the switch that colours ticket numbers by origin (step 44c), together with the ticket text that follows it. It is OFF by default; see src/lib/ui/originTint.ts.
 
 import { Palette } from "lucide-react";
 import { originOfTicket } from "@/lib/nl2sql/designationFilter";
 import { originClass, originDot, useOriginTint } from "@/lib/ui/originTint";
 
-/** A ticket number; with the tint on, coloured by origin and marked with a dot. Anything that is not an executive ticket stays plain.
- *  `origin` is given when the text shown is a MASKED ticket (the server sends the origin read from the real one: src/lib/security/sensitiveFields.ts); otherwise it is read from the ticket itself. */
+/**
+ * A ticket number: with the tint on, I colour it by origin and mark it with a dot. Anything that is not an executive ticket stays plain.
+ *  `origin` is given when the text shown is a MASKED ticket (the server sends the origin read from the real one: src/lib/security/sensitiveFields.ts); otherwise I read it from the ticket itself.
+ */
 export function TicketText({ ticket, tint, origin: given }: { ticket: string | null | undefined; tint: boolean; origin?: "direct" | "promotee" | "" }) {
   const t = String(ticket ?? "").trim();
   if (!t) return null;

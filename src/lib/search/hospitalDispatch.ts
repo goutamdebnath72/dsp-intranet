@@ -1,8 +1,8 @@
 // src/lib/search/hospitalDispatch.ts
 //
-// A question the router sent to the hospital. Order matters: the original hospital engine (answerHospital:
+// A question the router sent to the hospital. Order matters: I let the original hospital engine (answerHospital:
 // its own understanding of doctors, units, dates and closures, ambiguity questions, retired-doctor notes; 530
-// tests) answers first. Only when it does not recognise the phrasing does the pure executor answer from the
+// tests) answer first. Only when it does not recognise the phrasing does the pure executor answer from the
 // model's clean parameters. (Before this, the pure executor ran first and bypassed all of those rules.)
 
 import { executePureHospital } from "./pureAiEngine";
@@ -26,7 +26,7 @@ export async function answerHospitalQuestion(q: string, params: Record<string, a
       if (r.ask) return { kind: "clarify", answer: r.summary, ask: r.ask, ...(r.card.status ? { hospital: r.card } : {}) };
       original = { kind: "count", answer: r.summary, hospital: r.card };
       // tone "unknown" = the original engine ADMITS it did not understand ("I could not find a doctor named
-      // 'karmakar there 5pm'": its parser kept filler words as part of the name). Then the model's clean parameters get a try.
+      // 'karmakar there 5pm'": its parser kept filler words as part of the name). In that case I give the model's clean parameters a try.
       originalUnknown = r.card.status?.tone === "unknown";
       if (!originalUnknown) return original;
     }
@@ -35,7 +35,7 @@ export async function answerHospitalQuestion(q: string, params: Record<string, a
   }
   const pure = executePureHospital(params);
   const pureAnswer: HospitalPayload | null = pure ? { kind: "count", answer: pure.summary, hospital: pure.card } : null;
-  // the pure answer wins over an "I did not understand" answer only when it really answers (it is not "unknown" itself)
+  // I let the pure answer win over an "I did not understand" answer only when it really answers (it is not "unknown" itself)
   if (pureAnswer && (!original || (originalUnknown && pure!.card.status?.tone !== "unknown"))) return pureAnswer;
   return original ?? pureAnswer;
 }

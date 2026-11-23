@@ -1,17 +1,17 @@
 // src/lib/ingestion/schedule/importSchedule.ts
 //
-// Checking what the roster pages gave (ticket, name, department) against the HR directory, so that nothing wrong is stored as if it were right.
+// Here I check what the roster pages gave (ticket, name, department) against the HR directory, so that nothing wrong is stored as if it were right.
 // A row is
 //   verified   -- its ticket is an HR employee whose name fits (same phonetic words) and, when the fit is only partial, whose department fits too;
 //   corrected  -- its ticket was misread or unknown, but exactly ONE HR employee has this name and this department: that ticket is used (noted);
 //   unverified -- anything else. Stored, flagged, never shown as confirmed; the ticket as read is kept for a person to look at.
-// The name comparison uses the directory's own phonetic codes (the same ones the name search uses), computed by the database.
+// For the name comparison I use the directory's own phonetic codes (the same ones the name search uses), computed by the database.
 import type { ScheduleRow } from "./extractSchedule";
 
 export interface HrEmployee {
   ticket: string;
   name: string;
-  /** phonetic code of each word of the name (initials dropped), as nlq.employees.name_codes */
+  /** Phonetic code of each word of the name (initials dropped), as in nlq.employees.name_codes */
   codes: string[];
   departmentCode: string | null;
 }
@@ -19,7 +19,7 @@ export interface HrEmployee {
 export type RowStatus = "verified" | "corrected" | "unverified";
 
 export interface VerifiedRow extends ScheduleRow {
-  /** the ticket confirmed against HR (null = not confirmed) */
+  /** The ticket confirmed against HR (null = not confirmed). */
   ticketNo: string | null;
   status: RowStatus;
   statusNote: string | null;
@@ -28,7 +28,7 @@ export interface VerifiedRow extends ScheduleRow {
 export type Fit = "exact" | "partial" | "none";
 
 /**
- * How well a printed name fits an HR name, by phonetic codes.
+ * I grade how well a printed name fits an HR name, by phonetic codes:
  *   exact   : at least two codes in common, and every code of the shorter name is among them (SANJAY ROY = SANJAY RAY = S ROY ...)
  *   partial : every code of the shorter name matches, but there is only one ("P O ROY" against "PERE PADEN OUSEPH ROY"), or all but one word of a
  *             longer name matches (a first letter spoilt by a rule mark)
@@ -38,7 +38,7 @@ const squash = (s: string) => (s || "").toUpperCase().replace(/[^A-Z]/g, "");
 
 /**
  * Two spellings a letter or two apart ("AVUIT MAJI" / "AVIJIT MAJI", "RUB SAHA" / "RUBI SAHA", "DEBJIT DATTA" / "DEBJIT DUTTA"): an OCR slip or a spelling
- * variant, not another person -- but this is weak evidence on its own, so it is only used together with the same ticket AND the same department code.
+ * variant, not another person. This is weak evidence on its own, so I only use it together with the same ticket AND the same department code.
  */
 export function nameClose(printed: string, hr: string): boolean {
   const a = squash(printed);
@@ -48,10 +48,10 @@ export function nameClose(printed: string, hr: string): boolean {
 }
 
 export function nameFit(printed: string[], hr: string[], printedName?: string, hrName?: string): Fit {
-  // the same letters in the same order are the same name, however the spaces fall: "SATYA BRATA BOSE" = "SATYABRATA BOSE", and a name
+  // I treat the same letters in the same order as the same name, however the spaces fall: "SATYA BRATA BOSE" = "SATYABRATA BOSE", and a name
   // whose phonetic codes are few (SARGAM KUMARI: KUMARI is dropped as a title) is still the same person when the whole name is the same
   if (printedName && hrName && squash(printedName).length >= 4 && squash(printedName) === squash(hrName)) return "exact";
-  if (printed.length >= 2 && printed.join("") === hr.join("")) return "exact"; // the same codes, only cut differently ("BISHNUPADA" = "BISHNU PADA")
+  if (printed.length >= 2 && printed.join("") === hr.join("")) return "exact"; // these are the same codes, only cut differently ("BISHNUPADA" = "BISHNU PADA")
   const P = [...new Set(printed)];
   const H = [...new Set(hr)];
   const min = Math.min(P.length, H.length);
@@ -71,7 +71,7 @@ export function verifyAgainstHr(rows: ScheduleRow[], printedCodes: string[][], h
   const out: VerifiedRow[] = rows.map((r, i) => {
     const base = { ...r, ticketNo: null as string | null, status: "unverified" as RowStatus, statusNote: null as string | null };
     const P = printedCodes[i] ?? [];
-    // The ticket was read more than once and the readings may differ ("1" read as "4" ...): HR judges each. The first that is an employee whose name
+    // I read the ticket more than once and the readings may differ ("1" read as "4" ...): HR judges each, and the first that is an employee whose name
     // fits is the ticket.
     const tickets = [r.ticket, ...(r.ticketAlt ?? [])];
     for (const t of tickets) {
@@ -82,7 +82,7 @@ export function verifyAgainstHr(rows: ScheduleRow[], printedCodes: string[][], h
         return { ...base, ticketNo: cand.ticket, status: "verified", statusNote: t !== r.ticket ? `the ticket was read as ${r.ticket ?? "nothing"} and as ${t}: HR confirms ${t} for ${cand.name}` : null };
       }
     }
-    // no ticket gave a good name fit: a name a letter or two off is accepted when the ticket is an employee in the SAME department (and it is noted)
+    // No ticket gave a good name fit, so I accept a name a letter or two off when the ticket is an employee in the SAME department (and I note it).
     for (const t of tickets) {
       const cand = t ? byTicket.get(t) : undefined;
       if (cand && nameClose(r.name, cand.name) && same(r.departmentCode, cand.departmentCode)) {
@@ -91,7 +91,7 @@ export function verifyAgainstHr(rows: ScheduleRow[], printedCodes: string[][], h
     }
     const e = r.ticket ? byTicket.get(r.ticket) : undefined;
     if (e) {
-      // the ticket is an employee, but the name does not fit: the ticket may have been misread into someone else's. Try to find the person by name.
+      // The ticket is an employee, but the name does not fit: the ticket may have been misread into someone else's. I try to find the person by name.
       base.statusNote = `ticket ${r.ticket} belongs to ${e.name} in HR, which does not fit the printed name "${r.name}"`;
     } else if (r.ticket) base.statusNote = `ticket ${r.ticket} is not in the HR directory`;
     else base.statusNote = "no readable ticket number";
@@ -104,7 +104,7 @@ export function verifyAgainstHr(rows: ScheduleRow[], printedCodes: string[][], h
     return base;
   });
 
-  // one person cannot be called twice in a schedule: the better-confirmed row keeps the ticket, the other is flagged
+  // One person cannot be called twice in a schedule: the better-confirmed row keeps the ticket and I flag the other.
   const seen = new Map<string, number>();
   const rank = (s: RowStatus) => (s === "verified" ? 2 : s === "corrected" ? 1 : 0);
   out.forEach((r, i) => {
@@ -120,10 +120,10 @@ export function verifyAgainstHr(rows: ScheduleRow[], printedCodes: string[][], h
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------
-// The department code against the department NAME printed on the same row.
+// I check the department code against the department NAME printed on the same row.
 // A code is read from small digits and is wrong now and then ("40001" for "10001", "3304" for "3301"); the NAME is plain text and is read far
 // better. The HR directory knows which codes belong to which department name, so a code that does not belong to the department printed on its
-// row is replaced by the one that does -- when there is exactly one such code. Nothing is guessed when the name is unknown or ambiguous.
+// row is replaced by the one that does, when there is exactly one such code. I guess nothing when the name is unknown or ambiguous.
 
 export interface DeptPair {
   code: string;
@@ -161,8 +161,8 @@ export function fixCodesByDepartment<R extends ScheduleRow>(rows: R[], pairs: De
   return rows.map((r) => {
     const nd = dnorm(r.department);
     if (nd.length < 3) return r;
-    // THE SAFEGUARD: when the department of the code that was read is (nearly) the department printed, the code is probably right and the printed
-    // text probably clipped or misread -- never override it. (A real case: "...(OPRN - ZONE II" is printed clipped by its cell and read as "...ZONE I",
+    // The safeguard: when the department of the code that was read is (nearly) the department printed, the code is probably right and the printed
+    // text probably clipped or misread, so I never override it. (A real case: "...(OPRN - ZONE II" is printed clipped by its cell and read as "...ZONE I",
     // which is the EXACT name of another department, 57500; the code read, 58500, was right.)
     if (r.departmentCode && namesOfCode.has(r.departmentCode)) {
       const tol = nd.length >= 14 ? 2 : 1;
@@ -170,7 +170,7 @@ export function fixCodesByDepartment<R extends ScheduleRow>(rows: R[], pairs: De
     }
     let codes = byName.get(nd);
     if (!codes) {
-      // the name was read with a small error: the one name that is within a letter or two (never a guess between two)
+      // The name was read with a small error: I take the one name that is within a letter or two (never a guess between two).
       const tol = nd.length >= 14 ? 2 : 1;
       const near = names.filter((n) => lev(n, nd, tol) <= tol);
       if (near.length === 1) codes = byName.get(near[0]);

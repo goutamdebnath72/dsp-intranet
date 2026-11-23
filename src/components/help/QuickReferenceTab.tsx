@@ -1,7 +1,7 @@
 // src/components/help/QuickReferenceTab.tsx
 //
-// THE "WHAT TO TYPE" PAGE OF THE USER GUIDE: each feature of the search bar's tools by name, and beside it the words that open it, the alternatives separated by a front slash. Click any alternative to put
-// it in the search bar (the reader still presses Enter where a page needs it). The list is data (src/lib/help/quickReference.ts, tested against the real detector); nothing about a feature is written here.
+// This is the "What to type" page of the user guide: each feature of the search bar's tools by name, and beside it the words that open it, the alternatives separated by a front slash. Click any alternative to put
+// it in the search bar (the reader still presses Enter where a page needs it). The list is data (src/lib/help/quickReference.ts, tested against the real detector); I write nothing about a feature here.
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -20,7 +20,7 @@ function Run({ instant }: { instant: boolean }) {
   );
 }
 
-/** the alternatives of one kind of command (short or long) of a feature, with a front slash between them; each is a button that puts it in the search bar */
+/** The alternatives of one kind of command (short or long) of a feature, with a front slash between them; each is a button that puts it in the search bar. */
 function Strings({ strings, kind, onTry }: { strings: string[]; kind: "short" | "long"; onTry?: (q: string) => void }) {
   const tone = kind === "short" ? "bg-emerald-50 text-emerald-800 hover:bg-emerald-100" : "bg-sky-50 text-sky-800 hover:bg-sky-100";
   return (
@@ -39,7 +39,7 @@ function Strings({ strings, kind, onTry }: { strings: string[]; kind: "short" | 
   );
 }
 
-/** one line of a feature's commands: the label (Short or Long), then the commands, or the reason there are none */
+/** One line of a feature's commands: the label (Short or Long), then the commands, or the reason there are none. */
 function CommandLine({ kind, strings, why, onTry }: { kind: "short" | "long"; strings: string[]; why?: string; onTry?: (q: string) => void }) {
   const label = kind === "short" ? "Short" : "Long";
   const badge = kind === "short" ? "bg-emerald-600 text-white" : "bg-sky-600 text-white";

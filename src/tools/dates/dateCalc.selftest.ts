@@ -5,7 +5,7 @@ import { answerDateQuestion, parseDate, retirementDate, weekdaysBetween, ZONE } 
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
-// today is fixed: Thursday, 12 November 2026
+// I fix today as Thursday, 12 November 2026.
 const NOW = DateTime.fromISO("2026-11-12T15:30:00", { zone: ZONE });
 const a = (q: string) => answerDateQuestion(q, NOW);
 const head = (q: string) => a(q)?.headline;

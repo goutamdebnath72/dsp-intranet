@@ -5,7 +5,7 @@ import { checkAbsences, describeDifferences, distinctiveWords, dropContradictedC
 
 let failed = 0, passed = 0;
 function check(name: string, ok: boolean, detail = "") { if (ok) passed++; else { failed++; console.log(`  FAIL  ${name}${detail ? " -- " + detail : ""}`); } }
-/** A numbered list of restricted holidays as the circulars print it: every serial from 1 to `max`, the named ones filled in, the others plain fillers (a list with gaps is not a list a kind can be read from). */
+/** A numbered list of restricted holidays as the circulars print it: every serial from 1 to `max`, the named ones filled in, the others plain fillers (I need that because a list with gaps is not a list a kind can be read from). */
 function rhEntries(named: Record<number, [string, string, string]>, max: number, form = "SL. No.: "): string {
   const out: string[] = [];
   for (let n = 1; n <= max; n++) { const [h, d, day] = named[n] ?? [`Filler holiday ${n}`, "1st January", "Monday"]; out.push(`${form}${n} | HOLIDAYS: ${h} | DATE: ${d} | Day: ${day}`); }
@@ -68,7 +68,7 @@ const table = { columns: ["Festival", "2024", "2025", "2026"], rows: [
   check("the quotation does not run into the next row", !/Chhat/.test(q) && !/SL\./.test(q), q);
   check("a row with no column names is left as it is", readable("Bhatridwitiya | 23rd October") === "Bhatridwitiya · 23rd October" && readable("Just a sentence without bars") === "Just a sentence without bars");
 }
-{ // the false positives of the first version, taken from the engine selftest's retention table
+{ // these are the false positives of the first version, taken from the engine selftest's retention table
   const retention: AbsenceSource = { id: 6, headline: "Circular - Rules for Retention of Company Accomodation by Ex-employees at City Locations", text: "Period of retention: Upto two (2) months | Advance Rent (per month): Standard HRR. From 7th month to 12th month* | Advance Rent: 1.2 times the Monthly Rent." };
   const r = checkAbsences({ columns: ["Retention Period", "Type A City Locations", "Type B City Locations"], rows: [["7th to 12th month", "Not applicable", "1.2x Monthly Rent"]] }, [retention]);
   check("a heading without a year (\"Type A City Locations\") never maps to a circular", r.fixes.length === 0 && r.table.rows[0][1] === "Not applicable");
@@ -76,7 +76,7 @@ const table = { columns: ["Festival", "2024", "2025", "2026"], rows: [
   check("a row label with a figure, or made only of generic words, is never an item name", r2.fixes.length === 0, JSON.stringify(r2.fixes));
 }
 {
-  // real lines of the 2025 circular (71): a festival list, then a restricted list. The cell must say WHICH kind of list names the item.
+  // Real lines of the 2025 circular (71): a festival list, then a restricted list. The cell must say WHICH kind of list names the item.
   const text2025 = "2. FESTIVAL HOLIDAYS: Following Festival Holidays are admissible to Category A & Category B employees: SL NO.: 1 | HOLIDAYS: Maha Shivaratri | DATE: 26th February | DAY: Wednesday | CATEGORY: Category B SL NO.: 8 | HOLIDAYS: Durgapuja - Maha Ashtami | DATE: 30th September | DAY: Tuesday | CATEGORY: Category A & B "
     + "3. RESTRICTED HOLIDAYS (RH): Employees can avail restricted holidays from the list below LIST OF RESTRICTED HOLIDAYS (RH) " + rhEntries({ 4: ["Netaji's Birth Day", "23rd January", "Thursday"], 5: ["Basanta Panchami / Sri Panchami", "2nd February", "Sunday"], 28: ["Bhatridwitiya", "23rd October", "Thursday"], 33: ["Christmas Day", "25th December", "Thursday"] }, 33);
   const src: AbsenceSource[] = [{ id: 71, headline: "CIRCULAR HOLIDAY LIST FOR THE YEAR 2025", text: text2025 }];
@@ -92,7 +92,7 @@ const table = { columns: ["Festival", "2024", "2025", "2026"], rows: [
   check("an item in the festival list says festival holiday", r.table.rows[3][1] === 'Listed in the circular as a festival holiday: "Maha Shivaratri · 26th February · Wednesday · Category B"', r.table.rows[3][1]);
 }
 {
-  // "what differs", from the checked cells
+  // "what differs", taken from the checked cells
   const t2024 = "RESTRICTED HOLIDAYS (RH): LIST OF RH " + rhEntries({ 7: ["Maha Shivaratri", "08th March", "Friday"], 20: ["Rath Yatra", "07th July", "Sunday"] }, 22);
   const t2025 = "2. FESTIVAL HOLIDAYS: SL NO.: 1 | HOLIDAYS: Maha Shivaratri | DATE: 26th February | DAY: Wednesday | CATEGORY: Category B 3. RESTRICTED HOLIDAYS (RH): LIST OF RESTRICTED HOLIDAYS (RH) " + rhEntries({ 17: ["Rath Yatra", "27th June", "Friday"] }, 19);
   const t2026 = "2. FESTIVAL HOLIDAYS: SL.: 6 | HOLIDAYS: Rath Yatra | DATE: 16th July | DAY OF WEEK: Thursday | CATEGORY: Category B 3. RESTRICTED HOLIDAYS (RH): LIST OF RESTRICTED HOLIDAYS (RH) " + rhEntries({ 6: ["Maha Shivaratri", "15th February", "Sunday"] }, 8, "Sl.: ");
@@ -113,7 +113,7 @@ const table = { columns: ["Festival", "2024", "2025", "2026"], rows: [
   check("a two-column table gets no differences finding", describeDifferences({ columns: ["A", "B"], rows: [["x", "1"]] }, r.fixes, r.confirmed) === null);
 }
 {
-  // the kind of list is said only when it is certain
+  // I say the kind of list only when it is certain.
   const prose = "2. FESTIVAL HOLIDAYS: SL NO.: 12 | HOLIDAYS: Birth Day of Guru Nanak | DATE: 5th November | DAY: Wednesday SL NO.: 13 | HOLIDAYS: Christmas Day | DATE: 25th December | DAY: Thursday | CATEGORY: Category A & B For Category B employees one restricted holiday namely Bhatridwitiya will be treated as additional Festival Holiday for maintaining total number of Festival holidays to 18. ";
   const noHeading = prose + "SL. No.: 28 | HOLIDAYS: Bhatridwitiya | DATE: 23rd October | Day: Thursday";
   const rNo = checkAbsences({ columns: ["Holiday", "2025"], rows: [["Bhatridwitiya", "Not stated in circular"]] }, [{ id: 71, headline: "HOLIDAYS 2025", text: noHeading }]);
@@ -122,14 +122,14 @@ const table = { columns: ["Festival", "2024", "2025", "2026"], rows: [
   const rYes = checkAbsences({ columns: ["Holiday", "2025"], rows: [["Bhatridwitiya", "Not stated in circular"]] }, [{ id: 71, headline: "HOLIDAYS 2025", text: withHeading }]);
   check("with its heading in the text the kind is said, and the sentence still follows", rYes.table.rows[0][1].startsWith('Listed in the circular as a restricted holiday: "Bhatridwitiya · 23rd October · Thursday"; the circular adds: "one restricted holiday namely Bhatridwitiya will be treated'), rYes.table.rows[0][1]);
   check("the fix records the sentence too", rYes.fixes[0].also?.includes("treated as additional Festival Holiday") === true);
-  // the real 2025 wording (circular 71): the sentence runs from "So," to its full stop
+  // The real 2025 wording (circular 71): the sentence runs from "So," to its full stop.
   const real = "SL NO.: 13 | HOLIDAYS: Christmas Day | DATE: 25th December | DAY: Thursday | CATEGORY: Category A & B For Category B employees: One Closed / Public Holiday namely Republic Day falls on Sunday. So, one restricted holiday namely Bhatridwitiya (23rd October, 2024) will be treated as additional Festival Holiday for maintaining total number of Public/ Closed/ Festival holidays to 18 for this category of employees. 3. RESTRICTED HOLIDAYS (RH): LIST OF RESTRICTED HOLIDAYS (RH) " + rhEntries({ 28: ["Bhatridwitiya", "23rd October", "Thursday"] }, 28);
   const rReal = checkAbsences({ columns: ["Holiday", "2025"], rows: [["Bhatridwitiya", "Not stated in circular"]] }, [{ id: 71, headline: "HOLIDAYS 2025", text: real }]);
   check("the real 2025 sentence is quoted whole, from 'So,' to its full stop", rReal.table.rows[0][1] === 'Listed in the circular as a restricted holiday: "Bhatridwitiya · 23rd October · Thursday"; the circular adds: "So, one restricted holiday namely Bhatridwitiya (23rd October, 2024) will be treated as additional Festival Holiday for maintaining total number of Public/ Closed/ Festival holidays to 18 for this category of employees."', rReal.table.rows[0][1]);
   check("an item named in a list only gets no added sentence", !/the circular adds/.test(checkAbsences({ columns: ["Holiday", "2025"], rows: [["Christmas Day", "Not stated in circular"]] }, [{ id: 71, headline: "HOLIDAYS 2025", text: real }]).table.rows[0][1]));
 }
 {
-  // the TEXT of the reply must not contradict the corrected table
+  // The TEXT of the reply must not contradict the corrected table.
   const fix: AbsenceFix = { row: "Bhatridwitiya", column: "2025", sourceId: 71, quote: "Bhatridwitiya · 23rd October · Thursday" };
   const wrong = "Bhatridwitiya is not stated in the 2025 list. Saraswati Puja falls on 23 January 2026.";
   const a = dropContradictedClaims(wrong, [fix]);
@@ -148,7 +148,7 @@ const table = { columns: ["Festival", "2024", "2025", "2026"], rows: [
   check("only the offending clause goes; the others stay (an abbreviation like 'Rs.' does not split a sentence)", g.removed.length === 1 && g.text.includes("Rs. 500 is paid.") && g.text.includes("Diwali is on 1 November."), JSON.stringify(g));
 }
 {
-  // the 2022 list as scanned: the entries from 30 on have lost their headings ("Column 1: 30. | Column 2: ..."), a signature sits between two entries
+  // The 2022 list as scanned: the entries from 30 on have lost their headings ("Column 1: 30. | Column 2: ..."), and a signature sits between two entries.
   const T22 = "RESTRICTED HOLIDAYS (RH) : LIST OF RH SL. No.: 28. | HOLIDAYS: Durgapuja - Vijaya Dashami / Dussehra | DATE: 5th October. | Day: Wednesday SL. No.: 29. | HOLIDAYS: Lakshmi Puja / Milad-un-Nabi or Id-e-Milad (Birthday of Prophet Mohammad) | DATE: 9th October | Day: Sunday [handwritten: Phel?]\nColumn 1: 30. | Column 2: Kali Puja / Diwali | Column 3: 24th October | Column 4: Monday Column 1: 35. | Column 2: Christmas Eve | Column 3: 24th December | Column 4: Saturday Column 1: 36. | Column 2: Christmas Day | Column 3: 25th December | Column 4: Sunday Column 1: 37. | Column 2: Guru Govind Singh's Birthday | Column 3: 29th December | Column 4: Thursday (*) Muslim festivals.";
   const T23 = "FESTIVAL HOLIDAYS SL NO.: 7 | HOLIDAY: Durgapuja - Maha Navami | DATE: 23rd October | DAY OF WEEK: Monday | CATEGORY: Category B RESTRICTED HOLIDAYS (RH) : LIST OF RH SL. No.: 25. | HOLIDAY: Durgapuja - Maha Ashtami | DATE: 22nd October | DAY OF WEEK: Sunday SL. No.: 26. | HOLIDAY: Durgapuja - Maha Navami | DATE: 23rd October | DAY OF WEEK: Monday";
   const srcs: AbsenceSource[] = [{ id: 74, headline: "CIRCULAR HOLIDAY LIST FOR THE YEAR 2022", text: T22 }, { id: 73, headline: "CIRCULAR-HOLIDAY LIST FOR THE YEAR 2023", text: T23 }];

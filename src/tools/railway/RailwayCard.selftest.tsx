@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/railway/RailwayCard.selftest.tsx
-// The Durgapur Railway Station card and the words that open it: drawn from a sample of RailRadar's real answer (13 Nov 2026), saying plainly that it is a timetable and not live status; the route reads nothing from the caller.
+// Checks the Durgapur Railway Station card and the words that open it: drawn from a sample of RailRadar's real answer (13 Nov 2026), saying plainly that it is a timetable and not live status; the route reads nothing from the caller.
 import { readFileSync } from "node:fs";
 import React from "react";
 import { DateTime } from "luxon";

@@ -1,8 +1,8 @@
 // src/tools/converter/ConverterCard.tsx
 //
-// THE CONVERTER, LAID OUT LIKE GOOGLE'S but dressed like the management windows: a kind on top; under it a value with its unit on the left, the result with its unit on the right (a dark glowing panel),
-// (no formula line, by the owner's wish). Both boxes can be typed in (the other follows), both units can be changed (or swapped with the round button), and so can the kind.
-// ELASTIC: a long unit name wraps and its box inflates with a spring, a short one lets it deflate; the two panels trade width by the length of what they show; a long number shrinks to stay whole.
+// The converter, laid out like Google's but dressed like the management windows: a kind on top; under it a value with its unit on the left, the result with its unit on the right (a dark glowing panel),
+// (no formula line, by my wish). Both boxes can be typed in (the other follows), both units can be changed (or swapped with the round button), and so can the kind.
+// It is elastic: a long unit name wraps and its box inflates with a spring, a short one lets it deflate; the two panels trade width by the length of what they show; a long number shrinks to stay whole.
 // Engine power (PS, bhp, kW) is three panels at once. Everything is computed in the browser from the tables beside this file; the only downloads are the public exchange-rate table, passed in, and (only while the card is on USD and INR) the year of history under it, UsdInrTrend.tsx.
 "use client";
 
@@ -23,7 +23,7 @@ export interface ConverterStart {
   from: string;
   to: string;
   value: number;
-  /** colour: the HEX it opens with (the typed line "#ff5733 to rgb" or "rgb(255,87,51)" brings it) */
+  /** colour: the HEX the card opens with; the typed line "#ff5733 to rgb" or "rgb(255,87,51)" brings it */
   colour?: string;
 }
 
@@ -31,12 +31,12 @@ export const DEFAULT_START: ConverterStart = { kind: "length", ...(() => { const
 
 const KIND_OPTIONS = CONV_KINDS.map((k) => ({ id: k, label: KIND_NAMES[k] }));
 
-/** how much of the row a panel asks for: more for a long number or a long unit name, never less than a share of one */
+/** I give a panel the share of the row it asks for: more for a long number or a long unit name, never less than a share of one. */
 export function panelWeight(text: string, label: string): number {
   return Math.round(Math.min(2.4, Math.max(1, Math.max(text.length * 0.9, label.length * 0.5) / 13)) * 100) / 100;
 }
 
-/** the big number of a panel: an input that shrinks as the number grows, so it is always seen whole */
+/** The big number of a panel: an input that I let shrink as the number grows, so it is always seen whole */
 function BigInput({ label, value, onChange, dark }: { label: string; value: string; onChange: (v: string) => void; dark?: boolean }) {
   return (
     <input
@@ -59,13 +59,13 @@ export function ConverterCard({ start, rates, ratesState, tone = "sky" }: { star
   const [typed, setTyped] = useState(plainNumber(start.value));
   const [side, setSide] = useState<"left" | "right">("left");
   const [turns, setTurns] = useState(0);
-  // engine power: the unit (PS, bhp or kW) the value was typed in
+  // For engine power I keep here the unit (PS, bhp or kW) the value was typed in
   const [engId, setEngId] = useState(start.kind === "engine" ? start.from : "hp");
 
   const options = optionsFor(kind);
   const v = num(typed);
   const forward = side === "left";
-  // the box that was not typed in follows the one that was
+  // The box that is not being typed in follows the one that is.
   const other = Number.isFinite(v) ? compute(kind, v, forward ? from : to, forward ? to : from, rates) : null;
   const otherText = other ? boxNumber(kind, other.result) : "";
   const leftText = forward ? typed : otherText;
@@ -177,9 +177,9 @@ export function ConverterCard({ start, rates, ratesState, tone = "sky" }: { star
           {info?.notes.map((n) => (
             <p key={n} className="mt-2 flex items-start gap-2 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-3 py-2 text-xs leading-snug text-amber-900"><Info size={14} className="mt-0.5 shrink-0" />{kind === "currency" ? `${info.formula}. ` : "Note: "}{n}{n.endsWith(".") ? "" : "."}</p>
           ))}
-          {/* where the rates come from, under the converter like every other card */}
+          {/* I say where the rates come from under the converter, like every other card does */}
           {kind === "currency" && rates && info && <RatesSource rates={rates} />}
-          {/* the one currency relation that has a year of history under it: dollar and rupee, whichever way round */}
+          {/* This is the one currency relation I give a year of history under: dollar and rupee, whichever way round */}
           {kind === "currency" && isUsdInr(from, to) && <UsdInrTrendCard />}
         </>
       )}

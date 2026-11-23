@@ -12,21 +12,21 @@ export interface EmployeeResult {
   ticketNo: string;
   sailPNo: string | null;
   designation: string | null;
-  /** Dr. before the name when it is shown: every medical-track doctor and the listed PhD holders (employees/honorific.ts). The stored name has no title. */
+  /** Dr. goes before the name when it is shown, for every medical-track doctor and the listed PhD holders (employees/honorific.ts). I keep the title out of the stored name. */
   title?: string | null;
-  /** The small "PhD" badge: a non-medical employee on the manual list (employees/honorific.ts). */
+  /** Drives the small "PhD" badge, for a non-medical employee on the manual list (employees/honorific.ts). */
   phd?: boolean;
-  /** A doctor's discipline (Medicine, ENT ...) when it is known: the chip beside EXE and the Discipline column (hospital/discipline.ts). */
+  /** Set when a doctor's discipline (Medicine, ENT ...) is known; it feeds the chip beside EXE and the Discipline column (hospital/discipline.ts). */
   discipline?: string;
-  /** A doctor: the medical track, or flagged in the roster (a doctor whose designation is a managerial one). */
+  /** Marks a doctor: the medical track, or flagged in the roster (a doctor whose designation is a managerial one). */
   isDoctor?: boolean;
   department: string | null;
-  // Only set when the person asked for them (e.g. "... with department codes"): the codes of the department / designation.
+  // I set these only when the person asked for them (e.g. "... with department codes"): the codes of the department / designation.
   departmentCode?: string | null;
   designationCode?: string | null;
-  // Any other column the answer returned (rank, seniority position, "has NIC email" ...), shown as small labelled chips on the card.
+  // Any other column the answer returned (rank, seniority position, "has NIC email" ...); I show it as small labelled chips on the card.
   extraFields?: { label: string; value: string }[];
-  // Masked by default; the reveal endpoint returns the full values + logs access.
+  // I mask this by default; the reveal endpoint returns the full values and logs the access.
   mobileMasked: string | null;
   emailMasked: string | null;
   hasMobile: boolean;
@@ -41,7 +41,7 @@ function maskMobile(m: string | null): string | null {
   if (!m) return null;
   const digits = m.replace(/\D/g, "");
   if (digits.length < 4) return "xxxx";
-  // Keep the leading 6 (CUG prefix like 943479) visible, mask the rest.
+  // I keep the leading 6 (CUG prefix like 943479) visible and mask the rest.
   const head = digits.slice(0, 6);
   return `${head}${"x".repeat(Math.max(0, digits.length - 6))}`;
 }
@@ -52,14 +52,14 @@ function maskEmail(e: string | null): string | null {
   return `xxxxxx${e.slice(at)}`;
 }
 
-// Executive CUG mobile prefix. Users often type only the last 4 digits.
+// The executive CUG mobile prefix. I need it because users often type only the last 4 digits.
 const CUG_PREFIX = "943479";
 
 // ---- Query-shape detection ---------------------------------------------------
 export type QueryShape =
   | { kind: "ticket"; value: string }
   | { kind: "mobile"; value: string }
-  | { kind: "cug4"; value: string } // last 4 digits of an executive CUG number
+  | { kind: "cug4"; value: string } // matches the last 4 digits of an executive CUG number
   | { kind: "sailpno"; value: string }
   | { kind: "name"; value: string }
   | { kind: "none" };
@@ -71,7 +71,7 @@ export function detectShape(raw: string): QueryShape {
   if (/^\d{10}$/.test(q)) return { kind: "mobile", value: q };
   if (/^\d{4}$/.test(q)) return { kind: "cug4", value: q };
   if (/^[A-Za-z]\d{4,}$/.test(q)) return { kind: "sailpno", value: q };
-  // any alphabetic / mixed text -> name
+  // Any alphabetic or mixed text I treat as a name.
   if (/[A-Za-z\u0900-\u097F\u0980-\u09FF]/.test(q)) return { kind: "name", value: q };
   return { kind: "none" };
 }
@@ -83,7 +83,7 @@ function rowToResult(r: any, matchKind: EmployeeResult["matchKind"], score: numb
     type: "employee",
     name: r.name,
     ticketNo: ticket,
-    sailPNo: maskPno(r.sailPNo), // masked: the P.No. is also the first password (src/lib/security/maskPno.ts)
+    sailPNo: maskPno(r.sailPNo), // I mask this because the P.No. is also the first password (src/lib/security/maskPno.ts)
     designation: r.designation || null,
     department: formatDepartmentDisplay(r.dept_name),
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
@@ -109,7 +109,7 @@ const SELECT_COLS = `
 `;
 
 /**
- * EXACT ID lookup (live as the user types). No fuzziness.
+ * EXACT ID lookup, run live as the user types. I allow no fuzziness here.
  */
 export async function searchEmployeesById(
   ds: DataSource,
@@ -124,12 +124,12 @@ export async function searchEmployeesById(
     where = `u."contactNo" = $1`;
     params.push(shape.value);
   } else if (shape.kind === "cug4") {
-    // Only the last 4 digits typed -> reconstruct the full CUG number.
+    // Only the last 4 digits were typed, so I reconstruct the full CUG number.
     where = `u."contactNo" = $1`;
     params.push(`${CUG_PREFIX}${shape.value}`);
   } else {
     // SAIL PNO doubles as the login password (case-sensitive there), but for
-    // FINDING a person we match case-insensitively — login is unaffected.
+    // FINDING a person I match case-insensitively; login is unaffected.
     where = `lower(u."sailPNo") = lower($1)`;
     params.push(shape.value);
   }
@@ -145,30 +145,30 @@ export async function searchEmployeesById(
 }
 
 /**
- * NAME search (on Enter). Combines:
+ * NAME search (on Enter). I combine:
  *   - literal trigram similarity + ILIKE (typo / partial tolerance)
  *   - phonetic dmetaphone match, but ONLY on COMPLETE words
  *     (a word is "complete" if it is followed by a space or another word;
  *      the trailing partial word stays literal-only).
  *
- * Ranking: exact whole-name > starts-with > high trigram > phonetic.
+ * My ranking: exact whole-name > starts-with > high trigram > phonetic.
  */
 export async function searchEmployeesByName(
   ds: DataSource,
   raw: string,
 ): Promise<EmployeeResult[]> {
-  const q = stripDoctorTitle((raw || "").trim()).replace(/\s+/g, " "); // a typed "Dr." is a title, not a word of the stored name
+  const q = stripDoctorTitle((raw || "").trim()).replace(/\s+/g, " "); // I treat a typed "Dr." as a title, not a word of the stored name
   if (q.length < 2) return [];
 
   const like = `%${q}%`;
 
-  // Positional phonetic match against the PRECOMPUTED name_phonetic codes:
+  // I do a positional phonetic match against the PRECOMPUTED name_phonetic codes:
   //   - multi-word query -> ordered subsequence (positions preserved, middle
   //     words skippable, NO swaps, NO single-word-only).
   //   - single-word query -> that one code appears anywhere in the name.
-  //   - honorifics (MOHD, MR, DR, SHRI, ...) stripped inside the SQL function,
+  //   - honorifics (MOHD, MR, DR, SHRI, ...) are stripped inside the SQL function,
   //     mirroring nameHelper.ts COMMON_PREFIXES.
-  // Literal trigram/ILIKE runs alongside and ranks on top.
+  // The literal trigram/ILIKE match runs alongside and ranks on top.
   const sql = `
     SELECT ${SELECT_COLS},
       similarity(u.name, $1) AS sim,
@@ -209,16 +209,16 @@ export async function searchEmployeesByName(
 
 /**
  * NAME FRAGMENT + DEPARTMENT search (on Enter). You remember part of a name and
- * the department — e.g. "soumit c&it" or "roy blast furnace" (any word order).
- * Department is filtered EXACTLY by `sail_department` ids (Stage 8 overhaul,
- * 28 Sep 2026 -- was legacy `departments.code`, see sailDepartments.ts); the
- * name fragment is matched forgivingly (partial ILIKE OR phonetic).
+ * the department, e.g. "soumit c&it" or "roy blast furnace" (any word order).
+ * I filter the department EXACTLY by `sail_department` ids (Stage 8 overhaul,
+ * 28 Sep 2026 -- was legacy `departments.code`, see sailDepartments.ts); I match the
+ * name fragment forgivingly (partial ILIKE OR phonetic).
  *
  * FIXED (28 Sep 2026): this used to sort by parsed ticket number, with a doc
- * comment literally claiming that was "seniority-ordered" -- it wasn't. Now
+ * comment literally claiming that was "seniority-ordered" -- it wasn't. Now it
  * joins `employee_roster` and sorts strictly by `global_seniority_rank`, the
  * same no-exceptions rule every other people-list in the app now follows.
- * LEFT JOIN so the 3 roster rows with no `user_id` link still sort correctly
+ * I use a LEFT JOIN so the 3 roster rows with no `user_id` link still sort correctly
  * relative to everyone else (they just won't have live contact fields).
  */
 export async function searchEmployeesByNameInDept(

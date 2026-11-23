@@ -3,7 +3,7 @@
 // src/components/AnnouncementAdminPanel.tsx
 //
 // ANNOUNCEMENT MANAGER FACILITY PANEL (Modular Facility Kit).
-// Renders inside the Omnibar modal answer area when an authorised user asks to manage or publish announcements.
+// I render this inside the Omnibar modal answer area when an authorised user asks to manage or publish announcements.
 // Features:
 //   - Publish / Edit plant announcements with Title and RichTextEditor (HTML + Gemini embeddings)
 //   - Live Read-Only IST Date & Time clock matching official administration standards
@@ -89,8 +89,8 @@ async function call(payload: Record<string, any>): Promise<{ ok: boolean; status
   }
 }
 
-/** A publish or an edit that carries a PDF (or removes one) goes as a form, not as JSON; a PDF takes longer to send, so the wait is longer. */
-/** The notice after a save: what was saved, then what happened when its PDF was read for the search bar (a failure is a warning: the announcement itself is saved). */
+/** I send a publish or an edit that carries a PDF (or removes one) as a form, not as JSON; a PDF takes longer to send, so the wait is longer. */
+/** I build the notice after a save like this: what was saved, then what happened when its PDF was read for the search bar. A failure is only a warning, because the announcement itself is saved. */
 function indexingNotice(saved: string, indexing: { status?: string; message?: string } | undefined, savedWithoutIndexNote?: string): { tone: "ok" | "warn"; text: string } {
   if (!indexing?.message) return { tone: "ok", text: savedWithoutIndexNote ?? saved };
   const base = savedWithoutIndexNote ?? saved;
@@ -119,7 +119,7 @@ async function callForm(fields: Record<string, string | number | boolean | null 
   }
 }
 
-/** Why this file cannot be attached, or null if it can (the server checks the bytes again). */
+/** Returns why this file cannot be attached, or null if it can (I check the bytes again on the server). */
 function pdfProblem(f: File): string | null {
   if (!/\.pdf$/i.test(f.name)) return "Only a PDF (a file whose name ends in .pdf) can be attached.";
   if (f.size === 0) return "The file is empty.";
@@ -147,12 +147,12 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
   const [editingId, setEditingId] = useState<number | null>(open.prefill?.editId ?? null);
   const [editingVersion, setEditingVersion] = useState<string | null>(null);
   const [staleConflict, setStaleConflict] = useState<{ current: AnnouncementItemView; last: any } | null>(null);
-  // the PDF: the file chosen now, the one the announcement already has (when editing), and whether that one is to be removed
+  // I keep three things about the PDF: the file chosen now, the one the announcement already has (when editing), and whether that one is to be removed.
   const [pdf, setPdf] = useState<File | null>(null);
   const [currentPdf, setCurrentPdf] = useState<AnnouncementFileInfo | null>(null);
   const [removePdf, setRemovePdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  // selected words may be made a link to the PDF only when the announcement has one: a PDF chosen now, or the one it already has and is not being removed
+  // I let selected words be made a link to the PDF only when the announcement has one: a PDF chosen now, or the one it already has and is not being removed.
   const pdfAvailable = !!pdf || (!!currentPdf && !removePdf);
   const clearPdfState = () => { setPdf(null); setCurrentPdf(null); setRemovePdf(false); setPdfError(null); };
 
@@ -238,8 +238,8 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
 
       setBusy(false);
       if (res.ok) {
-        void refreshAnnouncements(); // the home page's lists show the edit at once
-        stickySuccess("✅ Announcement updated successfully!"); // stays until its cross is clicked
+        void refreshAnnouncements(); // this makes the home page's lists show the edit at once
+        stickySuccess("✅ Announcement updated successfully!"); // I keep it on screen until its cross is clicked
         setNotice(indexingNotice("Announcement updated successfully!", res.body?.indexing));
         setEditingId(null);
         setEditingVersion(null);
@@ -264,8 +264,8 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
 
       setBusy(false);
       if (res.ok) {
-        void refreshAnnouncements(); // the home page's lists show the new announcement at once
-        stickySuccess(`✅ Announcement published! You can modify or delete this for the next ${Math.round(EDIT_DELETE_WINDOW_HOURS / 24)} days.`); // stays until its cross is clicked
+        void refreshAnnouncements(); // this makes the home page's lists show the new announcement at once
+        stickySuccess(`✅ Announcement published! You can modify or delete this for the next ${Math.round(EDIT_DELETE_WINDOW_HOURS / 24)} days.`); // I keep it on screen until its cross is clicked
         setNotice(indexingNotice("Announcement published successfully and indexed for AI search!", res.body?.indexing, "Announcement published successfully."));
         setTitle("");
         setContent("");
@@ -278,7 +278,7 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
     }
   };
 
-  // reads an announcement's PDF for the search bar again (it was not read, or could not be): the reading takes a while, the button is off meanwhile
+  // I read an announcement's PDF for the search bar again here (it was not read, or could not be). The reading takes a while, so the button is off meanwhile.
   const reindex = async (item: AnnouncementItemView) => {
     if (busy) return;
     setBusy(true);
@@ -330,7 +330,7 @@ export function AnnouncementAdminPanel({ open }: { open: AnnouncementAdminOpen }
     setDeletingAnnouncement(null);
 
     if (res.ok) {
-      void refreshAnnouncements(); // and the home page's lists drop it at once
+      void refreshAnnouncements(); // and I make the home page's lists drop it at once
       setNotice({ tone: "ok", text: "Announcement deleted successfully." });
       loadRecent();
       loadHistory();

@@ -1,7 +1,7 @@
 // src/tools/rim/ui.tsx
 //
 // HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the card for a typed wheel (rim) marking such as 8Jx20. The rim guide also sits under the tyre reader (tyre/TyreCard.tsx).
-// Its logic is in the files beside this one, what the search line needs to know in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// Its logic is in the files beside this one, and what the search line needs to know is in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";

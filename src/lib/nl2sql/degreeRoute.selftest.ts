@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/degreeRoute.selftest.ts
-// Step 61a: a question about the degrees themselves goes through the REAL pipeline (runOmnibar) and is answered from the table of degrees: the model is never called, nothing is read from the database.
+// Step 61a: a question about the degrees themselves goes through the REAL pipeline (runOmnibar) and I answer it from the table of degrees: the model is never called, nothing is read from the database.
 
 import { runOmnibar, type OmnibarDeps } from "./omnibar";
 
@@ -33,7 +33,7 @@ const deps = (): OmnibarDeps => ({
     ok(`"${q}": no model call and no database read`, modelCalls === 0 && dbCalls === 0, `${modelCalls} model calls, ${dbCalls} db reads`);
     ok(`"${q}": a plain-text answer travels with the card (copy, export)`, typeof r?.answer === "string" && r.answer.length > 5);
   }
-  // a question about people is NOT taken by this route: it goes on to the model (which here throws, so the pipeline gives its own answer or null)
+  // A question about people is NOT taken by this route; it goes on to the model, which here throws, so the pipeline gives its own answer or null.
   for (const q of ["how many doctors are post graduate?", "who has a post graduate degree", "list the employees of chrd"]) {
     modelCalls = 0;
     const r: any = await runOmnibar(q, "T", deps()).catch(() => null);

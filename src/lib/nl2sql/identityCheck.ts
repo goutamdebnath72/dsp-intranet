@@ -1,12 +1,12 @@
 // src/lib/nl2sql/identityCheck.ts
 //
-// An answer about SPECIFIC people must say WHO each row is about. "Which department is ticket 228757 in" was answered with just
+// An answer about SPECIFIC people has to say WHO each row is about. "Which department is ticket 228757 in" was answered with just
 //     Dept Code | Department     12000 | CO & CC (BATTERY)
-// -- a department with no person: the reader can not tell whose it is, and a name is what a ticket number is read against.
-// A lookup of specific people (a ticket number, or a name typed in the question) must show ticket_no AND name, as the first columns.
+// -- a department with no person: the reader cannot tell whose it is, and a name is what a ticket number is read against.
+// So my rule: a lookup of specific people (a ticket number, or a name typed in the question) must show ticket_no AND name, as the first columns.
 //
-// Read from the model's SQL (not asked of a model). Counts and breakdowns (an aggregate or a GROUP BY) are not about "a row per
-// person" and are left alone. The pipeline gives the model ONE chance to fix it (first attempt only); the answer is never refused over it.
+// I read this from the model's SQL (a model is not asked). Counts and breakdowns (an aggregate or a GROUP BY) are not about "a row per
+// person" and are left alone. The pipeline gives the model ONE chance to fix it (first attempt only); I never refuse the answer over it.
 
 import { parse } from "pgsql-ast-parser";
 
@@ -40,7 +40,7 @@ function walk(n: any, f: (x: any) => void): void {
 
 const refName = (e: any): string | null => (e && e.type === "ref" && typeof e.name === "string" ? e.name.toLowerCase() : null);
 
-/** Does this WHERE pick out specific people: ticket_no compared with something, or a name condition? */
+/** Does this WHERE pick out specific people? I look for ticket_no compared with something, or a name condition. */
 function pinsSpecificPeople(where: any): boolean {
   let pinned = false;
   walk(where, (x) => {
@@ -56,7 +56,7 @@ export function checkPersonIdentity(sql: string): string | null {
   const top = topSelect(sql);
   if (!top || !Array.isArray(top.columns)) return null;
 
-  // counts, totals and breakdowns: not a row per person
+  // counts, totals and breakdowns are not a row per person, so I leave them alone
   if (Array.isArray(top.groupBy) && top.groupBy.length > 0) return null;
   let aggregate = false;
   let wildcard = false;
@@ -83,8 +83,8 @@ export function checkPersonIdentity(sql: string): string | null {
 }
 
 /**
- * A question about a health check-up is about WHEN: a schedule row without its date is half an answer (and the person asked for the date).
- * Judged on the SQL: a list of rows from nlq.health_checkups must SELECT checkup_date. Counts and breakdowns are left alone.
+ * A question about a health check-up is about WHEN, so I treat a schedule row without its date as half an answer (and the person asked for the date).
+ * I judge it on the SQL: a list of rows from nlq.health_checkups must SELECT checkup_date. Counts and breakdowns are left alone.
  */
 export function checkHealthColumns(sql: string): string | null {
   const top = topSelect(sql);

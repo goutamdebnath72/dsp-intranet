@@ -1,32 +1,32 @@
 // src/lib/help/quickReference.ts
 //
-// THE "WHAT TO TYPE" PAGE OF THE USER GUIDE: for each feature of the search bar's tools, its NAME and the words that open it, with the alternatives separated by a front slash ("gold rate today / silver price / 22k gold").
-// One data file, read by src/components/help/QuickReferenceTab.tsx; nothing about a feature is written in the component.
+// The "What to type" page of the user guide: for each feature of the search bar's tools, its NAME and the words that open it, with the alternatives separated by a front slash ("gold rate today / silver price / 22k gold").
+// This is one data file, read by src/components/help/QuickReferenceTab.tsx; I write nothing about a feature in the component.
 //
-// The list is kept honest by src/lib/help/quickReference.selftest.ts: every string of every entry is run through the REAL detector (src/lib/tools/detect.ts) and must open the feature the entry says it opens,
+// src/lib/help/quickReference.selftest.ts keeps the list honest: every string of every entry is run through the REAL detector (src/lib/tools/detect.ts) and must open the feature the entry says it opens,
 // so a word that stops working, or a feature listed under a word that opens another, fails the tests. A string here is something the reader types AS IT IS; there is no blank to fill in.
 // (The questions about people, hospital, circulars, announcements are on the Sample questions page: they are sentences, not words that open a tool.)
 //
-// EVERY feature is given its SHORT command (one or two words) and its LONG command (a phrase or a full question), or says in words why one of them does not exist (a value you type yourself, a command that needs all its words);
+// My rule: EVERY feature is given its SHORT command (one or two words) and its LONG command (a phrase or a full question), or says in words why one of them does not exist (a value you type yourself, a command that needs all its words);
 // the selftest checks that no feature is missing one of the two without saying so.
 // `expect` is what the detector must answer for every string of the entry: the kind of line, and for a form or a live card its id, and for the news card the tab ("live:news:hi").
 
 export interface RefEntry {
-  /** the feature's name, as the reader knows it */
+  /** The feature's name, as the reader knows it. */
   feature: string;
-  /** the SHORT commands: the fewest words that open it (one or two), each alternative shown with a "/" between */
+  /** The SHORT commands: the fewest words that open it (one or two); I show each alternative with a "/" between */
   short: string[];
-  /** the LONG commands: the same thing asked in full, in a phrase or a whole question, each alternative shown with a "/" between */
+  /** The LONG commands: the same thing asked in full, in a phrase or a whole question; I show each alternative with a "/" between */
   long: string[];
-  /** said on the page when there is no short command, and why (a value you type yourself, or a command that needs all its words) */
+  /** I show this on the page when there is no short command, and say why (a value you type yourself, or a command that needs all its words) */
   noShort?: string;
-  /** said on the page when there is no long command, and why */
+  /** I show this on the page when there is no long command, and say why. */
   noLong?: string;
-  /** one short line: what opens, and anything worth knowing; words between ** ** are shown in bold */
+  /** One short line: what opens, and anything worth knowing; words between ** ** are shown in bold */
   what: string;
-  /** the result appears as you type (true), or the line needs the Enter key (false) */
+  /** The result appears as you type (true), or the line needs the Enter key (false) */
   instant: boolean;
-  /** what the detector answers for each string (checked by the selftest); "records" is a question or a name that opens no tool but goes to the ordinary search of the intranet's own records */
+  /** What the detector answers for each string (checked by the selftest); "records" is a question or a name that opens no tool but goes to the ordinary search of the intranet's own records */
   expect: string;
 }
 
@@ -166,10 +166,10 @@ export const QUICK_REFERENCE: RefGroup[] = [
   },
 ];
 
-/** all the commands of an entry, short first */
+/** All the commands of an entry, short first. */
 export const entryStrings = (e: RefEntry): string[] => [...e.short, ...e.long];
 
-/** every string of the page with its feature, group and expectation, and whether it is a short or a long command (the selftest reads this) */
+/** Every string of the page with its feature, group and expectation, and whether it is a short or a long command (the selftest reads this) */
 export function allReferenceStrings(): Array<{ group: string; feature: string; q: string; expect: string; instant: boolean; kind: "short" | "long" }> {
   return QUICK_REFERENCE.flatMap((g) => g.entries.flatMap((e) => [
     ...e.short.map((q) => ({ group: g.id, feature: e.feature, q, expect: e.expect, instant: e.instant, kind: "short" as const })),
@@ -177,7 +177,7 @@ export function allReferenceStrings(): Array<{ group: string; feature: string; q
   ]));
 }
 
-/** the groups (and, inside them, the entries) that hold every word of `text` in a feature name, a string or a note; an empty text keeps everything */
+/** Returns the groups (and, inside them, the entries) that hold every word of `text` in a feature name, a string or a note; an empty text keeps everything. */
 export function filterReference(text: string, groups: RefGroup[] = QUICK_REFERENCE): RefGroup[] {
   const words = (text || "").toLowerCase().split(/\s+/).filter((w) => w.length >= 2);
   if (!words.length) return groups;
@@ -190,7 +190,7 @@ export function filterReference(text: string, groups: RefGroup[] = QUICK_REFEREN
   return out;
 }
 
-/** a line's pieces for the screen: the plain text and the bold text (written between ** **), in order; an odd, unclosed ** is left as plain text */
+/** Returns a line's pieces for the screen: the plain text and the bold text (written between ** **), in order; I leave an odd, unclosed ** as plain text. */
 export function boldParts(text: string): Array<{ text: string; bold: boolean }> {
   const parts = text.split("**");
   if (parts.length % 2 === 0) return [{ text, bold: false }];

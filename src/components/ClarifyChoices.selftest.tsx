@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/ClarifyChoices.selftest.tsx
-// The options under a clarifying question: checkboxes, Select all, Continue, None of these, documents; nothing when there is no option.
+// Checks the options under a clarifying question: checkboxes, Select all, Continue, None of these, documents; nothing when there is no option.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

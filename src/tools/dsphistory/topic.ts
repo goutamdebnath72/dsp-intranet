@@ -1,8 +1,8 @@
 // src/tools/dsphistory/topic.ts
 //
-// WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words of the DSP story card ("dsp history", "heads of dsp", "queen elizabeth durgapur", "sail history"). The data, its sources and its checks are in
+// This is what the search line needs to know about this topic (pure, no React): the words of the DSP story card ("dsp history", "heads of dsp", "queen elizabeth durgapur", "sail history"). The data, its sources and its checks are in
 // history.ts and history.selftest.ts; how it looks is in DspHistoryCard.tsx and ui.tsx. It is listed once, in src/tools/registry.ts.
-// Only NAMES of more than one word are key words here (no single word like "history" or "heads" opens the card), so that "dsp" alone, "history" alone, "who is the head of dsp" and ordinary searches about the plant stay
+// Only NAMES of more than one word are key words here (no single word like "history" or "heads" opens the card). I did that so "dsp" alone, "history" alone, "who is the head of dsp" and ordinary searches about the plant stay
 // with the search they were: a line is this card's when it has one of these names and every other word is one of the card's extra words or a filler. `lang` says which tab to open.
 import { defineTopic } from "@/tools/types";
 

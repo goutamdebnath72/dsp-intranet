@@ -3,7 +3,7 @@
 import { Sparkles } from "lucide-react";
 import type { LoginHint } from "@/lib/search/loginHints";
 
-/** A slim suggestion bar shown above the results. See lib/search/loginHints.ts for when. An "eds-signin" hint also carries a Sign in button (it opens the sign-in window). */
+/** I show a slim suggestion bar above the results; lib/search/loginHints.ts decides when. An "eds-signin" hint also carries a Sign in button (it opens the sign-in window). */
 export function OmniLoginHint({ hint, onSignIn }: { hint: LoginHint; onSignIn?: () => void }) {
   return (
     <div

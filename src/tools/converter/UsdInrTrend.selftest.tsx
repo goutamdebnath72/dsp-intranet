@@ -1,5 +1,5 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/UsdInrTrend.selftest.tsx
-// The dollar-rupee chart under the currency converter: its four figures, and that it appears for USD and INR (either way round) and for no other pair or kind.
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/UsdInrTrend.selftest.tsx
+// I check the dollar-rupee chart under the currency converter: its four figures, and that it appears for USD and INR (either way round) and for no other pair or kind.
 import React from "react";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -16,7 +16,7 @@ const trend = { points: parseUsdInr(JSON.parse(readFileSync("src/lib/live/fixtur
 const html = renderToStaticMarkup(<UsdInrTrendBody trend={trend} />);
 const t = text(html);
 
-// THE CHART BEGINS ON THE SAME DATE A YEAR BACK: a working-day anniversary needs no note; a weekend one shows the rate of the last working day and says so
+// The chart begins on the same date a year back: for a working-day anniversary I need no note; for a weekend one it shows the rate of the last working day and says so.
 ok("the first point is the very date a year back (13 Nov 2025 when today is 13 Nov 2026) and, a working day, carries no note", usdInrPoints(trend)[0].full === "13 Nov 2025" && usdInrPoints(trend)[0].note === undefined && !/published no rate for/.test(t));
 const weekend = { points: parseUsdInr(JSON.parse(readFileSync("src/lib/live/fixtures/frankfurter-usd-inr.json", "utf8")), DateTime.fromISO("2026-11-15T11:00:00", { zone: "Asia/Kolkata" })) };
 const wt = text(renderToStaticMarkup(<UsdInrTrendBody trend={weekend} />));
@@ -35,7 +35,7 @@ ok("the note says whose rates, working days only, that the last point is the con
 
 ok("the pair is USD and INR, in either order, and no other", isUsdInr("USD", "INR") && isUsdInr("INR", "USD") && !isUsdInr("USD", "EUR") && !isUsdInr("INR", "GBP") && !isUsdInr("EUR", "INR") && !isUsdInr("USD", "USD"));
 
-// the converter: the chart is under it only for USD/INR
+// The converter: I show the chart under it only for USD/INR
 const card = (kind: "currency" | "length", from: string, to: string) => renderToStaticMarkup(<ConverterCard start={{ kind, from, to, value: 1 }} rates={{ base: "USD", date: "2026-11-12", source: "test", rates: { INR: 94.04, EUR: 0.87, GBP: 0.75 } }} ratesState="ok" />);
 ok("USD to INR: the chart's card is under the converter", /aria-label="US dollar in rupees over the last year"/.test(card("currency", "USD", "INR")));
 ok("INR to USD: the same chart", /aria-label="US dollar in rupees over the last year"/.test(card("currency", "INR", "USD")));

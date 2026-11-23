@@ -1,7 +1,7 @@
 // src/lib/employees/photo/storage.ts
 //
-// WHERE THE PICTURES ARE KEPT (step 70): Vercel Blob, the same place the circulars' files go. The addresses of the pictures are NEVER sent to the browser: the pictures are served by our own login-checked route
-// (src/app/api/employees/photo), so a picture is seen only by somebody who is logged in. `memoryStorage` is for the tests.
+// Where the pictures are kept (step 70): Vercel Blob, the same place the circulars' files go. I never send the addresses of the pictures to the browser: our own login-checked route
+// (src/app/api/employees/photo) serves them, so a picture is seen only by somebody who is logged in. `memoryStorage` is for the tests.
 
 export interface PhotoStorage {
   put(path: string, body: Buffer, contentType: string): Promise<string>;

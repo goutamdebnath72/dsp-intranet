@@ -6,12 +6,12 @@
 // a circular that matched only the common words count as a "perfect" match while the one
 // circular containing the distinctive words ranked third.
 //
-// weight(word) = ln((N + 1) / (df + 1)) + 1   where N = circulars that have body text and
+// My formula: weight(word) = ln((N + 1) / (df + 1)) + 1   where N = circulars that have body text and
 // df = circulars whose text contains the word. A word in every circular weighs exactly 1.
 // A word found in NO circular ("happens", a typo, a synonym) weighs 0: no circular can match it,
 // so it must not drag down the coverage of the circulars that match everything else. If every
 // word of a query is unknown, all weights fall back to 1.
-// Document frequencies are cached for 10 minutes. If the lookup fails for any reason every
+// I cache document frequencies for 10 minutes. If the lookup fails for any reason every
 // word weighs 1, which is the previous (unweighted) behaviour.
 
 import type { DataSource } from "typeorm";
@@ -61,7 +61,7 @@ export async function queryTokenWeights(ds: DataSource, tokens: string[]): Promi
   return out;
 }
 
-/** Share of the query's total weight that the matched words carry (0..1). */
+/** Returns the share of the query's total weight that the matched words carry (0..1). */
 export function weightedCoverage(all: string[], hit: string[], weights: Map<string, number>): number {
   const w = (t: string) => weights.get(t) ?? 1;
   const total = all.reduce((a, t) => a + w(t), 0);

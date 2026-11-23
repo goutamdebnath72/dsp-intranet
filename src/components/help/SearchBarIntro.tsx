@@ -1,6 +1,6 @@
 // src/components/help/SearchBarIntro.tsx
 //
-// THE INTRODUCTION TO THE SEARCH BAR at the top of the user guide (text in src/lib/help/searchBarIntro.ts): what the bar is, how to start, what it covers, what it cannot do yet.
+// This is the introduction to the search bar at the top of the user guide (text in src/lib/help/searchBarIntro.ts): what the bar is, how to start, what it covers, what it cannot do yet.
 "use client";
 
 import React from "react";
@@ -8,7 +8,7 @@ import { CircleAlert, Layers, MousePointerClick, Search, ShieldCheck, Wrench } f
 import { ADMIN_POINTER, AREAS, CHOICE_RULES, EDS_POINTER, INTRO_LEAD, INTRO_TITLE, LIMITS, ROW_TITLES, START, UTILITY_POINTER } from "@/lib/help/searchBarIntro";
 import { ADMIN_CHOICE, DOMAINS, EDS_CHOICE } from "@/records/domains";
 
-/** THE BAR AS IT IS DRAWN, in small: the two rows of buttons under the box, from the same lists the bar reads (so the picture cannot differ from the bar). Nothing here is pressable. */
+/** I draw the bar in small: the two rows of buttons under the box, from the same lists the bar reads, so the picture cannot differ from the bar. Nothing here is pressable. */
 function BarPicture() {
   const chip = "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[12px] font-semibold";
   const rows: Array<{ title: string; chips: string[]; first?: boolean }> = [
@@ -34,7 +34,7 @@ function BarPicture() {
   );
 }
 
-/** `onOpenUtility` and `onOpenEds` take the reader to the Utility Services and Deep search (EDS) tabs (the pointers under More tools are buttons when they are given). */
+/** `onOpenUtility` and `onOpenEds` take the reader to the Utility Services and Deep search (EDS) tabs; when they are given, the pointers under More tools are buttons. */
 export function SearchBarIntro({ onOpenUtility, onOpenEds }: { onOpenUtility?: () => void; onOpenEds?: () => void } = {}) {
   return (
     <section aria-label={INTRO_TITLE} className="overflow-hidden rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-indigo-50 shadow-sm">

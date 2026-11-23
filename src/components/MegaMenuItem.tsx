@@ -16,10 +16,10 @@ export function MegaMenuItem({ menuItem }: MegaMenuItemProps) {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Click-to-open (was hover). Opening on hover made the mega-menu panel
-    // appear on top of / behind the search omnibar while searching. Click
-    // control removes that interference entirely: the panel only opens when the
-    // user explicitly clicks the item, never while typing in the omnibar.
+    // I changed this to click-to-open (it was hover). Opening on hover made the mega-menu panel
+    // appear on top of / behind the search omnibar while searching. Click control removes that
+    // interference entirely: the panel only opens when the user explicitly clicks the item,
+    // never while typing in the omnibar.
 
     // Close on outside click.
     useEffect(() => {
@@ -61,9 +61,9 @@ export function MegaMenuItem({ menuItem }: MegaMenuItemProps) {
         },
     };
     return (
-        // Positioning handled by the parent in Header.tsx
+        // I leave positioning to the parent in Header.tsx
         <motion.div ref={containerRef}>
-            {/* The top-level button (e.g., "People") — now a click toggle */}
+            {/* The top-level button (e.g., "People"), now a click toggle */}
             <button
                 type="button"
                 onClick={() => setIsOpen((prev) => !prev)}
@@ -91,7 +91,7 @@ export function MegaMenuItem({ menuItem }: MegaMenuItemProps) {
                         initial="hidden"
                         animate="visible"
                         exit="hidden"
-                        // Full-width panel spanning the 'relative' parent in Header.tsx
+                        // The panel is full width and spans the 'relative' parent in Header.tsx
                         className="absolute left-0 right-0 top-full w-full max-w-none z-50"
                     >
                         {/* Frosted Glass Effect */}

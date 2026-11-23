@@ -1,6 +1,6 @@
 /**
  * Replays logged answer attempts (see answerLog.ts) through the CURRENT verification rules: no model, no network, no database. For each attempt it
- * says what happened when it was logged and what happens now, so that a change to the rules is proved on every real reply ever seen.
+ * says what happened when it was logged and what happens now, so a change I make to the rules is proved on every real reply ever seen.
  */
 import { parseModelAnswer, verifyAnswer, type Passage } from "./circularAnswer";
 
@@ -19,7 +19,7 @@ export interface ReplayRow {
   now: string;
   wasOk: boolean;
   nowOk: boolean;
-  /** Rows of the answer the current rules show as the assistant's own wording (their labels could not be tied to the document). */
+  /** Rows of the answer that the current rules show as the assistant's own wording (their labels could not be tied to the document). */
   looseRows: number;
   /** The note the model wrote, and the note the current rules show (the document's own sentence, or none). */
   modelNote: string;
@@ -34,7 +34,7 @@ export function parseJsonl(text: string): LoggedAttempt[] {
       const r = JSON.parse(line);
       if (r && typeof r.question === "string" && typeof r.reply === "string" && Array.isArray(r.passages)) out.push(r);
     } catch {
-      /* a half-written last line */
+      /* a half-written last line is skipped */
     }
   }
   return out;

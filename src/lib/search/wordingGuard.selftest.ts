@@ -7,7 +7,7 @@ import type { SynthesisTable } from "./executiveSynthesis";
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 
-// the words of circular 29 (2024), as stored
+// Here are the words of circular 29 (2024), exactly as stored
 const SRC = `SL.NO: 1 | Nature of Violation: No person should work/get work done on any equipment without isolation. | Violation Stage: First Stage | Revised Consequence for Violation: 1st) Issuing counselling letter through concerned CGM/HOD
 SL.NO: 4 | Nature of Violation: confined space | Violation Stage: Fourth Stage | Revised Consequence for Violation: 4th) Financial penalty (Officers: Rs.500/- and Employees / CW - Rs.200/-), For all subsequent violations/ Discretion of Head of Safety
 SL.NO: In case of violation by Contract Worker (CW), Penalty shall be imposed on the contractor`;
@@ -96,7 +96,7 @@ ok("the prompt carries both rules", /DISCRETION IS NOT ISSUING/.test(eng) && /SA
   const b = fixUnprintedNotApplicable(r, "This clause is not applicable to non-executives.");
   ok("when the circulars say 'not applicable' the cell is left alone", b.changed === 0 && b.result.table!.rows[0][1] === "Not applicable");
   const eng = readFileSync("src/lib/search/executiveSynthesis.ts", "utf8");
-  ok("the engine runs it, and an unnamed two-series chart is not shown", /fixUnprintedNotApplicable\(result, sourceText\)/.test(eng) && /two series with no names of their own/.test(eng));
+  ok("the engine runs it, and an unnamed two-series chart is not shown", /fixUnprintedNotApplicable\(result, sourceText\)/.test(eng) && /Two series with no names of their own/.test(eng));
 }
 
 console.log(`wordingGuard selftest: ${pass} passed, ${fail} failed`);

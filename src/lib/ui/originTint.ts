@@ -1,7 +1,7 @@
 // src/lib/ui/originTint.ts
 //
-// The OPTIONAL colouring of ticket numbers by origin (step 44c). OFF for everybody until a person turns it on, kept in that person's browser, never shown otherwise.
-// Direct recruit (second digit 9) = indigo with a hollow dot, promotee (any other second digit) = amber with a filled dot: two neutral shades (no good/bad colour like red and green)
+// The OPTIONAL colouring of ticket numbers by origin (step 44c). It is OFF for everybody until a person turns it on; I keep the choice in that person's browser and never show it otherwise.
+// Direct recruit (second digit 9) = indigo with a hollow dot, promotee (any other second digit) = amber with a filled dot. I chose two neutral shades (no good/bad colour like red and green)
 // and a dot whose SHAPE differs, so it does not rest on colour alone. The legend appears only while the switch is on.
 
 import { useSyncExternalStore } from "react";
@@ -26,14 +26,14 @@ const subscribe = (cb: () => void) => {
   };
 };
 
-/** [is the tint on, switch it]. Every place that shows a ticket follows the same switch, in this tab and in other tabs. */
+/** Returns [is the tint on, switch it]. Every place that shows a ticket follows the same switch, in this tab and in other tabs. */
 export function useOriginTint(): [boolean, (on: boolean) => void] {
   const on = useSyncExternalStore(subscribe, read, () => false);
   const set = (value: boolean) => {
     try {
       window.localStorage.setItem(KEY, value ? "1" : "0");
     } catch {
-      /* private mode: the switch simply does not stick */
+      /* Private mode: the switch simply does not stick. */
     }
     window.dispatchEvent(new Event(EVENT));
   };

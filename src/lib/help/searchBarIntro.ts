@@ -1,21 +1,21 @@
 // src/lib/help/searchBarIntro.ts
 //
 // THE INTRODUCTION TO THE SEARCH BAR, at the top of the user guide, for a new user: what the bar is, what it can be asked, and what it cannot (yet). One data file, read by
-// src/components/help/SearchBarIntro.tsx. It follows the bar as it is drawn (23 Nov 2026): the two rows of buttons under the box. AREAS is the first row, "Search in", button by button in the bar's own order; MORE_TOOLS
-// is the second row. When a button is added to the bar (src/records/domains.ts) it is ONE new item in AREAS here, and the guide's test (searchBarIntro.selftest.ts) fails until it is, so the introduction cannot fall behind the bar.
+// src/components/help/SearchBarIntro.tsx. I made it follow the bar as it is drawn (23 Nov 2026): the two rows of buttons under the box. AREAS is the first row, "Search in", button by button in the bar's own order; MORE_TOOLS
+// is the second row. When you add a button to the bar (src/records/domains.ts), add ONE new item in AREAS here; the guide's test (searchBarIntro.selftest.ts) fails until you do, so the introduction cannot fall behind the bar.
 
 export interface IntroArea {
-  /** the name of the area */
+  /** The name of the area. */
   label: string;
-  /** what can be asked, in plain words */
+  /** What can be asked, in plain words. */
   detail: string;
-  /** an area with several distinct things to know gets a sub-title for each, drawn under the line (the Vehicles area: five) */
+  /** An area with several distinct things to know gets a sub-title for each, drawn under the line (the Vehicles area has five). */
   parts?: IntroPart[];
 }
 
 export interface IntroPart {
   title: string;
-  /** what it covers and what to type */
+  /** What it covers and what to type. */
   detail: string;
 }
 
@@ -27,14 +27,14 @@ export const INTRO_LEAD =
 /** THE TITLES OF THE TWO ROWS, as the bar draws them (src/components/RecordsScopeBar.tsx) */
 export const ROW_TITLES = { searchIn: "Search in", moreTools: "More tools" } as const;
 
-/** THE POINTER TO THE UTILITY SERVICES: the helpers beside the main features (news, prices, weather, trains, calculators, vehicle readers) have their own tab, "Utility Services" (src/lib/help/utilityServices.ts). */
+/** THE POINTER TO THE UTILITY SERVICES: I give the helpers beside the main features (news, prices, weather, trains, calculators, vehicle readers) a tab of their own, "Utility Services" (src/lib/help/utilityServices.ts), and this points to it. */
 export const UTILITY_POINTER: { before: string; term: string; after: string } = {
   before: "To help employees in different ways, the app also provides a host of",
   term: "Utility Services",
   after: "(the day's news, prices, the weather, trains and flights, calculators, readers for number plates, tyres and VINs, and more). They are auxiliary to the features above. The Utility Services button, under More tools, opens them on a page of their own with a Back button, and they have a tab of their own here, with the words that open each one.",
 };
 
-/** THE POINTER TO THE EXECUTIVE DEEP SEARCH, the other button of More tools; the Deep search (EDS) tab tells all */
+/** THE POINTER TO THE EXECUTIVE DEEP SEARCH, the other button of More tools; I leave the telling to the Deep search (EDS) tab. */
 export const EDS_POINTER: { before: string; term: string; after: string } = {
   before: "For a question that needs several circulars read together, press",
   term: "Executive Deep Search",
@@ -71,14 +71,14 @@ export const AREAS: IntroArea[] = [
   { label: "Circulars & Notices", detail: "find a circular or an announcement by the words of its title, or ask a question and get the answer from inside it: rules, schemes, amounts, last dates, who is eligible; an announcement is also found by what its attached PDF says. The answer names the document and opens it. If a word of yours is in no document, the bar says so" },
 ];
 
-/** what the search bar's main features cannot do yet, said plainly (what the Utility Services cannot do is on their own tab) */
+/** What the search bar's main features cannot do yet, said plainly (what the Utility Services cannot do is on their own tab). */
 export const LIMITS: string[] = [
   "Plant production data is not answered yet: no daily or monthly production data of the plant is connected to the search bar (the DSP tab of the steel card shows only the yearly figures that SAIL's annual reports state).",
   "The management pages (Employee, PAX directory, Circular, Announcement and Holiday managers, and the Contact access log) change the plant's data. The HOD of C&IT opens them after signing in, and can delegate each page (the Contact access log to executives only). Signed in, type management to see the titles of the pages you may open (only those the HOD has given you).",
   "AI can make mistakes: check the circular or the source before you act on a figure.",
 ];
 
-/** how to get started, in three steps */
+/** How to get started, in three steps. */
 export const START: string[] = [
   "Click the search bar (or press Ctrl + K).",
   "Under the box, press where to look (the Search in row), or leave Everything.",

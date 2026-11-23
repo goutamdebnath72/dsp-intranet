@@ -8,8 +8,7 @@ import {
 import { DateTime } from "luxon";
 
 /**
- * ValueTransformer to automatically bridge native database JS Dates
- * to Luxon DateTime objects across the Next.js application layer.
+ * I use this ValueTransformer to bridge the native database JS Dates to Luxon DateTime objects across the Next.js application layer.
  */
 const LuxonDateTimeTransformer: ValueTransformer = {
   to(value: DateTime | null | undefined): Date | null {

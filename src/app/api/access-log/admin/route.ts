@@ -1,8 +1,8 @@
 // src/app/api/access-log/admin/route.ts
 //
 // POST /api/access-log/admin
-// The Contact Access Log facility endpoint (Modular Facility Kit).
-// Protected by same-origin, session verification, and granular authority.
+// This is the endpoint of the Contact Access Log facility (Modular Facility Kit).
+// I protect it with a same-origin check, session verification and granular authority.
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";

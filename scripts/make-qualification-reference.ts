@@ -1,6 +1,6 @@
 // scripts/make-qualification-reference.ts
-// Writes the reference document of the degrees the system knows and the level of each: `npx tsx scripts/make-qualification-reference.ts > docs/QUALIFICATION_LEVELS.md`
-// It is generated from src/lib/qualifications/degrees.ts, so the document and the system cannot disagree. Edit the table, then run this again.
+// This writes the reference document of the degrees the system knows and the level of each: `npx tsx scripts/make-qualification-reference.ts > docs/QUALIFICATION_LEVELS.md`
+// I generate it from src/lib/qualifications/degrees.ts, so the document and the system cannot disagree. Edit the table, then run this again.
 
 import { DEGREES, LEVELS, LEVEL_LABEL, SEGMENTS, type DegreeDef, type Level } from "../src/lib/qualifications/degrees";
 

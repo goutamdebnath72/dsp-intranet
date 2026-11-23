@@ -1,7 +1,7 @@
 // src/app/api/live/flights/route.ts
 //
-// THE FLIGHTS TO AND FROM ANDAL AIRPORT, from the airport's own flight page (src/lib/live/flights.ts). Reads nothing from the caller: the address asked is fixed. The page is checked; if the airport's site
-// fails or its layout changes, the last good answer is returned and marked as such, and with none, a plain failure. Kept for ten minutes.
+// The flights to and from Andal Airport, from the airport's own flight page (src/lib/live/flights.ts). I read nothing from the caller: the address asked is fixed.
+// I check the page; if the airport's site fails or its layout changes, I return the last good answer marked as such, and with none, a plain failure. I keep it for ten minutes.
 import { DateTime } from "luxon";
 import { getText } from "@/lib/live/http";
 import { liveRoute } from "@/lib/live/envelope";

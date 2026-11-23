@@ -1,7 +1,7 @@
 // src/tools/converter/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the unit and currency converter (its tile and page) and the cards for a typed conversion, a currency question and engine power.
-// Its logic is in the files beside this one, what the search line needs to know in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// How this topic looks in the panel of the search bar: the unit and currency converter (its tile and page) and the cards for a typed conversion, a currency question and engine power.
+// Its logic is in the files beside this one, and what the search line needs to know is in topic.ts. I list it once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";
@@ -17,7 +17,7 @@ const engineShell = (children: React.ReactNode) => (
 
 export const converterUi: TopicUi = {
   id: "converter",
-  // the public exchange-rate table is downloaded only for a currency question or the converter's own page
+  // I download the public exchange-rate table only for a currency question or the converter's own page
   needsRates: (hit, form) => hit?.kind === "currency" || form === "converter",
   form: {
     title: "Unit and currency converter",
@@ -30,12 +30,12 @@ export const converterUi: TopicUi = {
   hits: [
     onHit("convert", (hit) => {
       const r = hit.result;
-      // engine power (bhp, PS, kW) is always shown as all three
+      // I always show engine power (bhp, PS, kW) as all three
       if (r.kind === "convert" && r.category === "power" && ENGINE_IDS.includes(r.fromId) && ENGINE_IDS.includes(r.toId)) {
         return engineShell(<ConverterCard tone="amber" key={`engine|${r.fromId}|${r.value}`} start={{ kind: "engine", from: r.fromId, to: r.toId, value: r.value }} rates={null} ratesState="idle" />);
       }
       if (r.kind === "mismatch") return <ToolShell title="Unit converter" tone="sky" icon={<ArrowLeftRight size={20} />} instant><p className="text-sm text-slate-700">{r.message}</p></ToolShell>;
-      // keyed by what was asked, so the card starts afresh when the question changes and keeps the reader's own edits until then
+      // I key it by what was asked, so the card starts afresh when the question changes and keeps the reader's own edits until then
       return (
         <ToolShell title="Unit converter" subtitle="Appears as you type" tone="sky" icon={<ArrowLeftRight size={20} />} instant>
           <ConverterCard key={`${r.category}|${r.fromId}|${r.toId}|${r.value}`} start={{ kind: r.category, from: r.fromId, to: r.toId, value: r.value }} rates={null} ratesState="idle" />

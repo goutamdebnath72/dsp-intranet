@@ -1,8 +1,8 @@
 // src/tools/pf/PfForm.tsx
 //
 // THE PROBABLE PF AT SUPERANNUATION FORM. Its fields are the figures a DSP employee can read on the PF page of the legacy intranet (opening balance, monthly contributions and the interest on them, each for PF (Emp), PF (Comp)
-// and V.P.F), on the yearly PF statement (the taxable balance) and on the payslip (the monthly PF and VPF). Keeps what is typed in the browser's memory only (React state): nothing is stored, logged or sent.
-// The sums are in the pure file beside it (pf.ts); this component collects the inputs and shows the results.
+// and V.P.F), on the yearly PF statement (the taxable balance) and on the payslip (the monthly PF and VPF). I keep what is typed in the browser's memory only (React state): nothing is stored, logged or sent.
+// The sums are in the pure file beside it (pf.ts); this component only collects the inputs and shows the results.
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -15,7 +15,7 @@ const empty = (): Row => ({ emp: "", comp: "", vpf: "" });
 const toTrio = (r: Row): Trio => ({ emp: num(r.emp), comp: num(r.comp), vpf: num(r.vpf) });
 const filled = (r: Row) => r.emp.trim() !== "" && r.comp.trim() !== "" && r.vpf.trim() !== "";
 
-/** one row of the PF page: its name on ONE line, and a box for each of PF (Emp), PF (Comp) and V.P.F. It is drawn as the cells of the grid of the three rows below (see PageGrid), so the name's column is as wide as the longest name and the boxes share the rest. */
+/** One row of the PF page: its name on ONE line, and a box for each of PF (Emp), PF (Comp) and V.P.F. I draw it as the cells of the grid of the three rows below (see PageGrid), so the name's column is as wide as the longest name and the boxes share the rest. */
 function PageRow({ id, label, value, onChange }: { id: string; label: string; value: Row; onChange: (r: Row) => void }) {
   return (
     <>
@@ -30,7 +30,7 @@ function PageRow({ id, label, value, onChange }: { id: string; label: string; va
   );
 }
 
-/** the three rows of the PF page under one header, in ONE grid: a column that fits the longest name (on one line), then three equal boxes */
+/** The three rows of the PF page under one header, in ONE grid: a column that fits the longest name (on one line), then three equal boxes. */
 function PageGrid({ children }: { children: React.ReactNode }) {
   return (
     <div className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2.5 lg:grid-cols-[max-content_repeat(3,minmax(0,14rem))] lg:items-start" data-page-grid>
@@ -56,12 +56,14 @@ const SEG = [
   { key: "vpf", label: "V.P.F", cls: "bg-amber-400" },
 ] as const;
 
-/** THE CHART OF THE PF: one column for today and one for the close of each financial year, each column stacked PF (Emp) / PF (Comp) / V.P.F, with its year under it, its total on top and a scale on the left.
- *  Every size is relative (percent, rem, flex): the columns share the width but never grow wider than 6 rem, so a few years are not drawn as a few huge blocks. */
+/**
+ * THE CHART OF THE PF: one column for today and one for the close of each financial year, each column stacked PF (Emp) / PF (Comp) / V.P.F, with its year under it, its total on top and a scale on the left.
+ *  Every size is relative (percent, rem, flex): the columns share the width but never grow wider than 6 rem, so that a few years are not drawn as a few huge blocks.
+ */
 export function PfChart({ now, nowLabel, years }: { now: Trio; nowLabel: string; years: PfYear[] }) {
   const cols = [{ key: "now", label: nowLabel ? `Today (${nowLabel})` : "Today", t: now }, ...years.map((y) => ({ key: y.fy, label: y.fy, t: y.closing }))];
   const max = Math.max(...cols.map((c) => total(c.t)), 1);
-  // a long career has many columns: from ten columns up, only every few-th column carries its year and its total (always the first and the last, and never one that would touch the last); the others keep their bar and their hover.
+  // A long career has many columns, so from ten columns up I let only every few-th column carry its year and its total (always the first and the last, and never one that would touch the last); the others keep their bar and their hover.
   const n = cols.length, last = n - 1, step = Math.max(1, Math.ceil(n / 9));
   const shown = (i: number) => i === last || i === 0 || (i % step === 0 && last - i >= step);
   const ticks = [0, 0.25, 0.5, 0.75, 1];

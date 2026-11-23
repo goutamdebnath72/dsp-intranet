@@ -1,17 +1,18 @@
 // src/lib/ingestion/geminiOcr.ts
 //
-// THE OCR OF AN UPLOAD, Gemini only. Each page image is read by a PRIMARY Gemini model (default gemini-3.1-pro-preview) and, at the
-// same time, by a CHECKER Gemini model (default gemini-3.8-flash). The primary reading is the page's text. The two readings are compared number by number
+// The OCR of an upload, Gemini only. A PRIMARY Gemini model (default gemini-3.1-pro-preview) reads each page image and, at the
+// same time, a CHECKER Gemini model (default gemini-3.8-flash) reads it too. The primary reading is the page's text. I compare the two readings number by number
 // (readingCheck.ts); the numbers only the primary has are recorded as UNCONFIRMED (the answer card refuses a number nobody confirmed) and the numbers only the checker has
-// are recorded too. Nothing is ever decided silently.
+// are recorded too. I never decide anything silently.
 //
-// WHAT HAPPENS WHEN A READER FAILS (the upload must never store a page it did not read):
+// What happens when a reader fails (the upload must never store a page it did not read):
 //   - the primary fails, is cut off, or its daily allowance is used up  -> the checker's reading is the text (and no check is recorded: the page was read once);
 //   - the checker fails                                                  -> the primary's reading is the text (read once);
 //   - both fail, or both were cut off                                    -> the page is reported in `failedPages`; the caller must refuse the upload (a circular
 //                                                                           with an unread page is not stored, and nothing is left behind).
-// Pages are read at most `concurrency` readings at a time. Pure of any database; the readers are passed in, so it is tested with fake readers.
+// At most `concurrency` readings run at a time. This file is pure of any database; the readers are passed in, so I test it with fake readers.
 
+import { orReplacement } from "../ai/noPro";
 import { DEFAULT_GEMINI_MODEL, STOPPED_MARKER, geminiReader, type AttemptInfo, type PageReader } from "./pageReader";
 import { SHRINK_EDGE, SHRINK_QUALITY, shrinkForReading } from "./pageImage";
 import { checkReadings } from "./readingCheck";
@@ -19,12 +20,12 @@ import { MIN_SHARED_WORDS, cleanSecondReading, pairDisputes, type Dispute } from
 import { canonicalIndic, repairIndic } from "./indicRepair";
 import type { NewCheck } from "../search/pageChecks";
 
-export const DEFAULT_PRIMARY_MODEL = "gemini-3.1-pro-preview";
-export const DEFAULT_CHECK_MODEL = "gemini-3.8-flash";
+export const DEFAULT_PRIMARY_MODEL = "gemini-3.8-flash"; // was gemini-3.1-pro-preview until 23 Nov 2026: I use no Pro models any more (src/lib/ai/noPro.ts)
+export const DEFAULT_CHECK_MODEL = "gemini-3.6-flash"; // I use another Flash model than the main reader (was gemini-3.8-flash beside a Pro reader), so the two readings are still independent
 
 export interface OcrReaders { primary: PageReader; checker: PageReader | null }
 
-/** The two Gemini readers of an upload. Throws when there is no key: an upload cannot be read without Gemini. */
+/** The two Gemini readers of an upload. It throws when there is no key, because I do not allow an upload to be read without Gemini. */
 export function geminiOcrReaders(env: Record<string, string | undefined> = process.env): OcrReaders {
   const apiKey = env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not set: circulars are read by Gemini, so an upload cannot be read without it");
@@ -36,14 +37,14 @@ export function geminiOcrReaders(env: Record<string, string | undefined> = proce
       read: async (png, hooks) => reader.read(await shrinkForReading(png), hooks),
     };
   };
-  const primaryModel = (env.OCR_PRIMARY_MODEL || env.GEMINI_VISION_MODEL || DEFAULT_PRIMARY_MODEL).trim();
-  const checkModel = (env.OCR_CHECK_MODEL || DEFAULT_CHECK_MODEL).trim();
+  const primaryModel = orReplacement((env.OCR_PRIMARY_MODEL || env.GEMINI_VISION_MODEL || DEFAULT_PRIMARY_MODEL).trim(), DEFAULT_PRIMARY_MODEL, "OCR main reader");
+  const checkModel = orReplacement((env.OCR_CHECK_MODEL || DEFAULT_CHECK_MODEL).trim(), DEFAULT_CHECK_MODEL, "OCR checker");
   return { primary: make(primaryModel), checker: checkModel && checkModel !== primaryModel ? make(checkModel) : null };
 }
 
 export interface OcrPageLog {
   page: number;
-  /** which reading is the page's text */
+  /** says which reading is the page's text */
   source: "primary" | "checker" | "none";
   reason: string;
   readMs?: number;
@@ -52,9 +53,9 @@ export interface OcrPageLog {
   onlyPrimary: number;
   onlyChecker: number;
   disputes: Dispute[];
-  /** true when a second reading was compared with the text */
+  /** true when I compared a second reading with the text */
   checked?: boolean;
-  /** Hindi/Bengali letter slips of the reader (a letter of another script, an impossible letter sequence): repaired from the other reading, or left and reported */
+  /** Hindi/Bengali letter slips of the reader (a letter of another script, an impossible letter sequence): I repair them from the other reading, or leave them and report them */
   indicRepaired?: Array<{ from: string; to: string }>;
   indicUnresolved?: string[];
 }
@@ -63,9 +64,9 @@ export interface OcrLog { primary: string; checker: string | null; ms: number; p
 export interface OcrResult {
   /** the text of each page that was read, by 1-based page number */
   texts: Map<number, string>;
-  /** rows for circular_page_check (fingerprints are added once the chunks are known: checkRowsFor) */
+  /** rows for circular_page_check (I add the fingerprints once the chunks are known: checkRowsFor) */
   checks: NewCheck[];
-  /** pages that could not be read by either reader */
+  /** pages that neither reader could read */
   failedPages: Array<{ page: number; reason: string }>;
   log: OcrLog;
 }
@@ -86,7 +87,7 @@ export function createGeminiOcr(o: { readers: OcrReaders; deadlineAt: number; co
   const startedAt = now();
   let active = 0;
   const waiting: Array<() => void> = [];
-  let primaryOff = false; // the primary's daily allowance is used up: later pages go straight to the checker
+  let primaryOff = false; // the primary's daily allowance is used up, so later pages go straight to the checker
   let checkerOff = false;
   const entries = new Map<number, Entry>();
 
@@ -134,7 +135,7 @@ export function createGeminiOcr(o: { readers: OcrReaders; deadlineAt: number; co
     if (!cOk) {
       return { text, log: { page, source: "primary" as const, reason: checker ? `the checker could not read the page (${why(c)}); the page was read once` : "no checker is configured; the page was read once", readMs: p.ms, confirmed: 0, onlyPrimary: 0, onlyChecker: 0, disputes: [] as Dispute[], ...(entry.attempts.length ? { attempts: entry.attempts } : {}) }, check: null as NewCheck | null };
     }
-    // both readings are complete: do they describe the same page, and which important numbers differ?
+    // both readings are complete: here I ask whether they describe the same page, and which important numbers differ
     const g = words(cleanSecondReading(c.text!)), t = words(text);
     if (g.size >= 8 && t.size >= 8) {
       const share = [...g].filter((w) => t.has(w)).length / g.size;
@@ -154,7 +155,7 @@ export function createGeminiOcr(o: { readers: OcrReaders; deadlineAt: number; co
     };
   };
 
-  /** decideRaw, then the Hindi/Bengali letter slips of the chosen text are repaired from the other reading (or reported): see indicRepair.ts */
+  /** I run decideRaw, then repair the Hindi/Bengali letter slips of the chosen text from the other reading (or report them): see indicRepair.ts */
   const decide = (entry: Entry, page: number, p: Outcome, c: Outcome) => {
     const d = decideRaw(entry, page, p, c);
     if (d.text === null) return d;
@@ -180,7 +181,7 @@ export function createGeminiOcr(o: { readers: OcrReaders; deadlineAt: number; co
       });
     },
 
-    /** The text of one page as soon as a reading is back (the roster check needs it before the upload ends). Rejects when the page could not be read. */
+    /** The text of one page as soon as a reading is back, because the roster check needs it before the upload ends. Rejects when the page could not be read. */
     async textOf(page: number): Promise<string> {
       const e = entries.get(page);
       if (!e) throw new Error(`page ${page} was never started`);
@@ -190,7 +191,7 @@ export function createGeminiOcr(o: { readers: OcrReaders; deadlineAt: number; co
       return d.text;
     },
 
-    /** Waits for every started page (until the deadline) and returns the page texts, the checks and the pages that failed. Never throws. */
+    /** Waits for every started page (until the deadline) and returns the page texts, the checks and the pages that failed. I made it never throw. */
     async finish(): Promise<OcrResult> {
       const texts = new Map<number, string>();
       const checks: NewCheck[] = [];
@@ -211,7 +212,7 @@ export function createGeminiOcr(o: { readers: OcrReaders; deadlineAt: number; co
 
 const pagesWord = (n: number) => `${n} page${n === 1 ? "" : "s"}`;
 
-/** One plain sentence for the person who uploaded: how well the circular was read. */
+/** One plain sentence for the person who uploaded, saying how well the circular was read. */
 export function readingSummary(log: OcrLog | null | undefined): string {
   const base = readingSummaryBase(log);
   if (!base || !log) return base;

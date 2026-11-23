@@ -2,7 +2,7 @@
 //
 // READ-ONLY. Measures the REAL circular search (the same HTTP endpoint the
 // omnibar uses, semantic mode) against questions whose correct answers were
-// verified by reading the actual circular PDFs. Writes nothing to the
+// verified by reading the actual circular PDFs. It writes nothing to the
 // database and changes no app code.
 //
 // HOW TO RUN (two terminals):
@@ -10,7 +10,7 @@
 //        npm run dev
 //   2) Terminal B, same folder, after "Ready" appears in terminal A:
 //        node scripts/circular-battery.mjs
-//   By default every question is sent with ?retrievalOnly=1 (a dev-only hook in the
+//   By default I send every question with ?retrievalOnly=1 (a dev-only hook in the
 //   route): it skips the employee/holiday answer paths, so NO model call is made
 //   and no Groq tokens are used. Questions that expect a direct (non-circular)
 //   answer, marked full:true, run the normal full path instead.
@@ -20,7 +20,7 @@
 // OUTPUT: a pass/fail line per question, a summary, and a report file
 // circular-battery-report.txt (send that file back for analysis).
 //
-// ID NOTE: ids are circulars.id from YOUR database (verified from your
+// ID NOTE: ids are circulars.id from MY database (verified from my
 // Supabase listings). Each case lists the evidence it was built from.
 
 import { writeFileSync } from "fs";

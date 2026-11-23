@@ -1,6 +1,6 @@
 // src/tools/converter/holdRepeat.ts
 //
-// PRESS AND HOLD: fire once at once, and, if the press is kept, again and again (after `delay`, then every `every` milliseconds) until it is let go. Used by the spinner arrows of the colour boxes, so a held arrow
+// Press and hold: fire once at once, and, if the press is kept, again and again (after `delay`, then every `every` milliseconds) until it is let go. I use it for the spinner arrows of the colour boxes, so a held arrow
 // changes the number one step at a time, rapidly, in its own direction. Returns the function that ends the hold; ending it twice does no harm.
 
 export const HOLD_DELAY_MS = 350;

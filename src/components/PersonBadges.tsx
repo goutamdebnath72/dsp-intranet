@@ -1,7 +1,7 @@
 // src/components/PersonBadges.tsx
 //
 // The small badges after a person's name on a card (step 47b): EXE (an executive, as before) and PhD (a non-medical employee on the manual list of employees/honorific.ts).
-// A doctor has no PhD badge: the "Dr." before the name and the designation under it already say it. The PhD badge is a badge and not text added to the name, so the name stays clean
+// A doctor has no PhD badge: the "Dr." before the name and the designation under it already say it. I made PhD a badge and not text added to the name, so the name stays clean
 // for Copy, the table, the CSV and the sort order.
 
 import React from "react";

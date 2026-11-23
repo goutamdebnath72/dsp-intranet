@@ -1,6 +1,6 @@
 // src/lib/circulars/admin/api.ts
 //
-// HTTP dispatch for the Circular Manager facility endpoint (Modular Facility Kit).
+// This file does the HTTP dispatch for the Circular Manager facility endpoint (Modular Facility Kit).
 
 import { authorityOf } from "@/lib/facility/authority";
 import { resolveGrantTarget } from "@/lib/facility/authorise";
@@ -102,15 +102,15 @@ export async function handleCircularAdmin(body: unknown, ctx: ApiContext): Promi
   if (!authority) return reply(403, { error: "Only the HOD of C&IT, or an authorised delegate, can manage circulars." });
   if (HOD_OPS.has(op) && authority !== "hod") return reply(403, { error: "Only the HOD of C&IT can authorise or withdraw delegates." });
 
-  // 1. List Recent Circulars (default last 5)
+  // Step 1: I list the recent circulars (default: the last 5)
   if (op === "recent") {
-    // a whole number from 1 to 50 (an unchecked value allowed a huge or negative LIMIT)
+    // A whole number from 1 to 50: an unchecked value allowed a huge or negative LIMIT, so I clamp it
     const limit = Math.min(50, Math.max(1, Math.trunc(num(b.limit) ?? 5)));
     const circulars = await store.listRecentCirculars(ctx.db, limit);
     return reply(200, { circulars });
   }
 
-  // 3. Delegation (HOD-only)
+  // Step 3: delegation (HOD-only)
   if (op === "delegates") {
     const delegates = await store.listCircularDelegates(ctx.db);
     return reply(200, { delegates });

@@ -1,7 +1,7 @@
 // src/tools/gratuity/topic.ts
 //
 // WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words that ask for the gratuity calculator.
-// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. It is listed once, in src/tools/registry.ts.
+// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. I list it once, in src/tools/registry.ts.
 import { defineTopic } from "@/tools/types";
 
 export const gratuityTopic = defineTopic({

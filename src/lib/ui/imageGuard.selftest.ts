@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/ui/imageGuard.selftest.ts
-// No photograph can be saved from the app: which elements are guarded, when a picture's address is answered, the rules in globals.css (no drag, nothing printed), the guard mounted in the layout, the middleware that refuses
+// Here I check that no photograph can be saved from the app: which elements are guarded, when a picture's address is answered, the rules in globals.css (no drag, nothing printed), the guard mounted in the layout, the middleware that refuses
 // a picture opened on its own, and the same rule on the employees' photograph route.
 import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";

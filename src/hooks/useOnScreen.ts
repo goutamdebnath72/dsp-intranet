@@ -1,6 +1,6 @@
 // src/hooks/useOnScreen.ts
 //
-// IS THIS ELEMENT ON THE SCREEN RIGHT NOW? Returns a ref (not state: reading it never draws the page again) that is true while any part of the element is in the window. The three auto-scrolling lists of the home page read it
+// Is this element on the screen right now? I return a ref, not state, so reading it never draws the page again; it is true while any part of the element is in the window. The three auto-scrolling lists of the home page read it
 // in their frame loop and stand still while they are below the fold (nobody sees them move, and every frame of theirs was layout work). With `pauseOffscreenScrollers: false` in src/lib/perf/switches.js it is always true: the previous way.
 import { useEffect, useRef, type MutableRefObject, type RefObject } from "react";
 import { PERF } from "@/lib/perf/switches";

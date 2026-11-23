@@ -2,14 +2,14 @@
 //
 // "THROUGH WHOM": when the question asks who issues, approves or sanctions something and the table has a column for it, the key findings must say it too (prompt rule WHO ISSUES,
 // APPROVES OR SANCTIONS). The model sometimes leaves the table to say it alone (the Zero Tolerance answer, 11 Nov 2026: a full "Issued through" column and two findings that never
-// mention it). This is the plain-code backstop: ONE finding built from the cells of that column, in their own words, and only when the findings do not already name them.
+// mention it). So I added this plain-code backstop: ONE finding built from the cells of that column, in their own words, and only when the findings do not already name them.
 // Pure: no I/O, no model. Nothing is added when the question does not ask, when there is no such column, or when the findings already say it.
 
 import type { SynthesisTable } from "./executiveSynthesis";
 
-/** The question asks who does it: "through whom", "by whom", "who issues / approves / sanctions", "which authority", "issued by". */
+/** Matches a question that asks who does it: "through whom", "by whom", "who issues / approves / sanctions", "which authority", "issued by". */
 const ASKS_WHO = /\b(?:through\s+whom|by\s+whom|who\s+(?:issues?|approves?|sanctions?|signs?|imposes?|authori[sz]es?)|which\s+(?:authority|officer|department)|(?:issued|approved|sanctioned|imposed)\s+(?:by|through))\b/i;
-/** The column that holds it. */
+/** Matches the column that holds the answer. */
 const WHO_COLUMN = /\b(?:issued\s+(?:through|by)|issuing\s+authority|approved\s+by|approving\s+authority|sanctioned\s+by|sanctioning\s+authority|imposed\s+by|through\s+whom|by\s+whom|authority)\b/i;
 const NOT_NAMED = /^(?:not\s+(?:applicable|permitted|allowed|stated)|n\/?a|nil|none|-|—)/i;
 
@@ -20,7 +20,7 @@ export function issuerColumn(table: SynthesisTable): number {
   return table.columns.findIndex((c, i) => i > 0 && WHO_COLUMN.test(c || ""));
 }
 
-/** One finding that says who issues, from the table's own column, or null. `findings` are the texts already written: nothing is added when they already name every issuer. */
+/** Returns one finding that says who issues, built from the table's own column, or null. `findings` are the texts already written: I add nothing when they already name every issuer. */
 export function describeIssuers(table: SynthesisTable | null | undefined, query: string, findings: string[]): { text: string; sources: number[] } | null {
   if (!table || !ASKS_WHO.test(query || "")) return null;
   const col = issuerColumn(table);
@@ -39,7 +39,7 @@ export function describeIssuers(table: SynthesisTable | null | undefined, query:
   }
 
   const said = norm(findings.join(" "));
-  if (groups.size > 0 && [...groups.values()].every((g) => said.includes(norm(g.value)))) return null; // the findings already name them
+  if (groups.size > 0 && [...groups.values()].every((g) => said.includes(norm(g.value)))) return null; // the findings already name them, so I add nothing
   if (groups.size === 0 && /\b(?:no(?:t)?\s+(?:one|issuer|authority|stated|named)|names?\s+no|not\s+(?:stated|named))\b/i.test(findings.join(" "))) return null;
 
   const sources = table.sources ?? [];

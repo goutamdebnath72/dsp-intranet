@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/HospitalAnswerCard.selftest.tsx
-// The hospital answer card: the title with its Open / Closed badge, the verdict, THE TABLE FIRST, short bullet points, the pointer in its own box (one point per line), the red notes.
-// Nothing is drawn for what is missing, and all text is escaped.
+// My test of the hospital answer card: the title with its Open / Closed badge, the verdict, THE TABLE FIRST, short bullet points, the pointer in its own box (one point per line), the red notes.
+// I draw nothing for what is missing, and all text is escaped.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -117,7 +117,7 @@ for (const tone of ["open", "closed", "unknown", "info"] as const) {
   const t = h(<HospitalAnswerCard answer={{ title: "T", status: { tone, text: `verdict ${tone}` } }} />);
   ok(`verdict ${tone} has its own colour classes`, t.includes(`data-tone="${tone}"`) && /bg-(green|red|amber|slate)-100/.test(t));
 }
-// a list of departments whose names open their own OPD (owner, 23 Nov 2026)
+// a list of departments whose names open their own OPD (I asked for this on 23 Nov 2026)
 {
   const answer = { title: "OPD departments and OPD numbers", table: { columns: ["Department", "OPD / clinic"], rows: [["Eye", "OPD 14B"], ["Gynae & Obs", "OPD 46"]], asks: ["Eye opd", "Gynae & Obs opd"] } };
   const withAsk = h(<HospitalAnswerCard answer={answer} onAsk={() => undefined} />);

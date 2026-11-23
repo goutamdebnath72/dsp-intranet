@@ -2,8 +2,8 @@
 
 // src/components/facility/NonExecutive.tsx
 //
-// THE TWO SMALL PARTS of "authorising a NON-EXECUTIVE", one for every tool (owner, 2 Nov 2026): the red question with a tick and a cross, and the amber chip that marks him in the list of authorised people.
-// The HOD can give a tool to a non-executive, but only after this confirmation; the server refuses it without (src/lib/facility/authority.ts).
+// The two small parts of "authorising a NON-EXECUTIVE", one for every tool (my decision, 2 Nov 2026): the red question with a tick and a cross, and the amber chip that marks him in the list of authorised people.
+// I let the HOD give a tool to a non-executive only after this confirmation; the server refuses it without (src/lib/facility/authority.ts).
 
 import React from "react";
 import { Check, X } from "lucide-react";
@@ -21,10 +21,10 @@ export function NonExecutiveAsk({ name, ticket, busy, onYes, onNo }: { name: str
   );
 }
 
-/** Marks a non-executive in the list of authorised people. */
+/** I use this chip to mark a non-executive in the list of authorised people. */
 export function NonExecutiveChip() {
   return <span data-nonexec-chip="true" className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Non-executive</span>;
 }
 
-/** The look of the row of a non-executive in a list (amber instead of white). */
+/** The look of the row of a non-executive in a list: amber instead of white. */
 export const NONEXEC_ROW = "border-amber-200 bg-amber-50/80";

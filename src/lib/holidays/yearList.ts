@@ -1,6 +1,6 @@
 // src/lib/holidays/yearList.ts
 //
-// Pure wording helper: [2020, 2021, 2022, 2024] -> "2020 to 2022, 2024". Used to tell the person which years the
+// A pure wording helper: [2020, 2021, 2022, 2024] -> "2020 to 2022, 2024". I use it to tell the person which years the
 // holiday calendar actually holds, whenever they ask about a year that is not loaded.
 
 export function formatYearList(years: number[]): string {

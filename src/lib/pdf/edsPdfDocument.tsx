@@ -1,16 +1,16 @@
 // src/lib/pdf/edsPdfDocument.tsx
 //
 // THE PAINTER of the EDS PDF: takes the document model (edsPdfModel.ts) and lays it out on A4 pages with @react-pdf/renderer. It decides nothing about the content.
-// Loaded only when someone clicks "Download PDF" (the library is large). Every block that must stay whole (a finding, a chart card, a table row) is unbreakable, so a page
+// It is loaded only when someone clicks "Download PDF" (the library is large). I make every block that must stay whole (a finding, a chart card, a table row) unbreakable, so a page
 // never cuts one in half; a long table continues on the next page.
 import React from "react";
 import { Circle, Document, G, Line, Page, Path, StyleSheet, Svg, Text as PdfText, View } from "@react-pdf/renderer";
 import { splitScripts, tableFitsOnePage, type BarModel, type CellModel, type ChartModel, type KpiModel, type LineModel, type PdfModel, type PieModel, type Run, type ScatterModel, type TableModel, type TimelineModel } from "./edsPdfModel";
 import { FAMILY, runStyle } from "./edsPdfFonts";
 
-// The body line height (1.45) is set on EVERY text, not on the page and not on a wrapper: a page-level line height makes the library drop the footer's "Page x of y" (and the whole
+// I set the body line height (1.45) on EVERY text, not on the page and not on a wrapper: a page-level line height makes the library drop the footer's "Page x of y" (and the whole
 // footer), and a line height inherited through a wrapper View is applied wider than 1.45 (the question, the table headings and the sources came out spaced out, and the section bars sat
-// below their headings). A style given to a text overrides this one. EXCEPT the footer's page number: a text with a `render` function and ANY line height is dropped by the library, so it uses the library's own Text, with none.
+// below their headings). A style given to a text overrides this one. EXCEPT the footer's page number: a text with a `render` function and ANY line height is dropped by the library, so that one uses the library's own Text, with none.
 const BODY_LINE_HEIGHT = 1.45;
 const Text = ({ style, ...rest }: any) => <PdfText style={[{ lineHeight: BODY_LINE_HEIGHT }, style]} {...rest} />;
 
@@ -30,7 +30,7 @@ const C = {
   white: "#ffffff",
 };
 
-const NO_LIFT = 1.65; // pt: lifts the digit in the numbered circles to the exact centre
+const NO_LIFT = 1.65; // pt: I lift the digit in the numbered circles to the exact centre
 
 const s = StyleSheet.create({
   page: { paddingTop: 66, paddingBottom: 58, paddingHorizontal: 42, fontFamily: FAMILY.body, fontSize: 10, color: C.body },
@@ -56,7 +56,7 @@ const s = StyleSheet.create({
   para: { marginBottom: 6, fontSize: 10.4, lineHeight: 1.5, color: C.text },
   finding: { flexDirection: "row", marginBottom: 6 },
   noBox: { width: 15, height: 15, borderRadius: 7.5, backgroundColor: C.amber, alignItems: "center", justifyContent: "center", marginRight: 8, marginTop: 1 },
-  // the digit's ink sits 1.65pt below the centre of its line box (measured on the rendered page at 600 dpi: the font's ascent is larger than its descent), so the digit is lifted by that much
+  // The digit's ink sits 1.65pt below the centre of its line box (measured on the rendered page at 600 dpi: the font's ascent is larger than its descent), so I lift the digit by that much
   noText: { fontSize: 8, fontWeight: 700, color: C.white, lineHeight: 1, position: "relative", top: -NO_LIFT, left: 0.12 },
   findingBody: { flex: 1, fontSize: 10.2, lineHeight: 1.5, color: C.text },
   ref: { fontSize: 7.5, fontWeight: 700, color: C.amberDark },
@@ -110,7 +110,7 @@ function Runs({ runs, style, heading = false, color, ...rest }: { runs: Run[]; s
   );
 }
 
-/** A plain string drawn with the right font for each script in it (a rupee sign, Hindi or Bengali words): the same as Runs, for text that is not markdown. */
+/** I draw a plain string with the right font for each script in it (a rupee sign, Hindi or Bengali words); it is the same as Runs, for text that is not markdown. */
 function T({ children, style, heading = false, bold = false, color, ...rest }: { children: string; style?: any; heading?: boolean; bold?: boolean; color?: string; [k: string]: any }) {
   return <Runs runs={splitScripts(String(children ?? "")).map((r) => ({ ...r, bold }))} style={style} heading={heading} color={color} {...rest} />;
 }
@@ -136,7 +136,7 @@ const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1)}…`
 
 /* ---------- charts ---------- */
 
-/** Text inside a drawing: position, size, weight, colour and anchor in one place (the library reads the size and font from `style`). A drawing cannot mix fonts, so a rupee sign is written "Rs " there. */
+/** Text inside a drawing: position, size, weight, colour and anchor in one place (the library reads the size and font from `style`). A drawing cannot mix fonts, so I write a rupee sign as "Rs " there. */
 function SvgText({ x, y, size = 7, color = C.muted, weight = 400, anchor = "start", children }: { x: number; y: number; size?: number; color?: string; weight?: number; anchor?: "start" | "middle" | "end"; children: string }) {
   return (
     <PdfText x={x} y={y} textAnchor={anchor} fill={color} style={{ fontFamily: FAMILY.body, fontSize: size, fontWeight: weight }}>
@@ -342,11 +342,12 @@ function Table({ t, heading }: { t: TableModel; heading?: string }) {
     </View>
   );
   return (
-    // a table that FITS a page (by its estimated height, not by its row count) is one block (it moves to the next page whole, with its heading). A taller one STARTS ON A NEW PAGE and runs on, repeating its heading row on every page it continues onto: started lower on a page, the library leaves the (repeated) heading row alone at the foot of that page and puts the first row on the next one (found on the Zero Tolerance answer, 11 Nov 2026)
+    // A table that FITS a page (by its estimated height, not by its row count) is one block: it moves to the next page whole, with its heading. A taller one STARTS ON A NEW PAGE and runs on, repeating its heading row on every page it continues onto.
+    // Started lower on a page, the library leaves the (repeated) heading row alone at the foot of that page and puts the first row on the next one (found on the Zero Tolerance answer, 11 Nov 2026), which is why I do it this way.
     <View style={{ marginBottom: 12 }} wrap={!whole} break={!whole}>
       {heading ? <Section title={heading} ahead={0} /> : null}
       {t.title ? <T style={s.tableTitle} heading color={C.muted}>{t.title.toUpperCase()}</T> : null}
-      {/* in a long table the heading row is `fixed`: it is drawn again at the top of every page the table continues onto */}
+      {/* In a long table I make the heading row `fixed`: it is drawn again at the top of every page the table continues onto */}
       <View style={s.tableHead} fixed={!whole}>
         {t.columns.map((c, ci) => (
           <View key={ci} style={[s.th, { width: `${t.widths[ci] ?? 100 / t.columns.length}%` }]}>
@@ -424,7 +425,7 @@ export function EdsPdfDocument({ model }: { model: PdfModel }) {
                   </Text>
                 </View>
               );
-              // the heading travels with the first finding
+              // I let the heading travel with the first finding
               return i === 0 ? <View key={i} wrap={false}><Section title="Key findings" ahead={0} />{row}</View> : row;
             })}
           </View>
@@ -432,7 +433,7 @@ export function EdsPdfDocument({ model }: { model: PdfModel }) {
 
         {model.charts.map((c, i) =>
           i === 0 ? (
-            // the heading travels with the first card
+            // Same here: the heading travels with the first card
             <View key={i} wrap={false}>
               <Section title="Charts" ahead={0} />
               <ChartCard m={c} />
@@ -457,7 +458,7 @@ export function EdsPdfDocument({ model }: { model: PdfModel }) {
                   </View>
                 </View>
               );
-              // the heading travels with the first source (before, the heading could stand alone at the foot of a page)
+              // I let the heading travel with the first source; before, the heading could stand alone at the foot of a page
               return i === 0 ? <View key={src.n} wrap={false}><Section title="Sources" ahead={0} />{row}</View> : row;
             })}
           </View>

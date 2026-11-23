@@ -1,6 +1,6 @@
 // src/tools/railway/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the live-data card (the trains at Durgapur Railway Station, and in a second tab those of Asansol Junction that Durgapur does not stop; the panel title names both stations and the tabs below carry the full names). What the search line needs to know is in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the live-data card (the trains at Durgapur Railway Station, and in a second tab those of Asansol Junction that Durgapur does not stop; I name both stations in the panel title and the tabs below carry the full names). What the search line needs to know is in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";

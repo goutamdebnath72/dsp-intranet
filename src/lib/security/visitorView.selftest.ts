@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/security/visitorView.selftest.ts
-// THE CUT-DOWN VIEW OF AN EMPLOYEE FOR A PERSON WHO HAS NOT SIGNED IN (option C; kept ready, switched off): a name and a department; cards cut down to an allow-list, table columns taken out, nothing else changed, the original untouched.
+// Here I check the cut-down view of an employee for a person who has not signed in (option C; kept ready, switched off): a name and a department; cards cut down to an allow-list, table columns taken out, nothing else changed, the original untouched.
 import { readFileSync } from "node:fs";
 import { VISITOR_CUT_ENABLED, visitorCard, visitorView } from "./visitorView";
 
@@ -14,7 +14,7 @@ ok("a card loses the ticket, the P.No., the designation (and code), the discipli
 const unknownField = visitorCard({ ...card, newSecretField: "x" } as never) as Record<string, unknown>;
 ok("a field added to the card later is hidden until it is allowed (an allow-list, not a deny-list)", !("newSecretField" in unknownField));
 
-// an answer: cards anywhere in it, and tables
+// A test answer with cards anywhere in it, and tables.
 const answer = { kind: "count", answer: "Found 2", people: [card, { ...card, id: "u2", name: "Other", ticketNo: "500001" }], analytics: { table: { columns: [{ key: "name", label: "Name" }, { key: "ticket_no", label: "Ticket no" }, { key: "designation", label: "Designation" }, { key: "department", label: "Department" }, { key: "contact_no", label: "Mobile" }], rows: [{ name: "A", ticket_no: "412345", designation: "GM", department: "C&IT", contact_no: "9434791234" }], total: 1 } }, total: 2 };
 const frozen = JSON.stringify(answer);
 const out = visitorView(answer) as typeof answer;

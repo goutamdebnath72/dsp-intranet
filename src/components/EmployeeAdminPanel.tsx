@@ -2,15 +2,15 @@
 
 // src/components/EmployeeAdminPanel.tsx
 //
-// THE EMPLOYEE MANAGER (step 66a; owner, 1 Nov 2026). It opens in the answer area of the search bar when the HOD of C&IT (or an executive he has authorised) types that he wants to add, change or delete an
+// THE EMPLOYEE MANAGER (step 66a; my request, 1 Nov 2026). It opens in the answer area of the search bar when the HOD of C&IT (or an executive he has authorised) types that he wants to add, change or delete an
 // employee, or to authorise or withdraw an executive. Nothing is protected by what this panel hides: the SERVER decides who may do what (src/lib/employees/admin/api.ts) and checks every rule again.
-// The panel only tells the person early: the same validation function runs here as the person types (so a mistake is shown at once and the button stays off until the record is right) and again on the server.
-//   THIS FILE holds the state and the requests. The rules of the form (what is open when, what changed) are in employeeFormModel.ts; THE LOOK (progress rail, step cards, ID card, action bar) is in EmployeeAdminUi.tsx.
-//   Four sections that open FROM TOP TO BOTTOM (step 66e): Identity -> Posting (opens when the Identity is complete) -> Service dates (when Posting is complete; the HOD ONLY: an authorised executive sees a locked
+// The panel only tells the person early: I run the same validation function here as the person types (so a mistake is shown at once and the button stays off until the record is right) and again on the server.
+//   This file holds the state and the requests. I kept the rules of the form (what is open when, what changed) in employeeFormModel.ts, and THE LOOK (progress rail, step cards, ID card, action bar) in EmployeeAdminUi.tsx.
+//   I open four sections FROM TOP TO BOTTOM (step 66e): Identity -> Posting (opens when the Identity is complete) -> Service dates (when Posting is complete; the HOD ONLY: an authorised executive sees a locked
 //   card) -> Contact (when the dates are complete, by cohort, see contact.ts). The button stays off until the whole record is right.
-//   Adding and changing have SEPARATE forms: what was typed or loaded in one is never in the other.
+//   I gave adding and changing SEPARATE forms: what was typed or loaded in one is never in the other.
 //   Mobile numbers and e-mails are shown as the search cards show them (masked); typing replaces, empty keeps.
-// Plain text only (React escapes it). No <form> tag: the search modal already holds a text area, and forms must not nest; Enter in a field is left alone (the buttons act).
+// Plain text only (React escapes it). I use no <form> tag: the search modal already holds a text area, and forms must not nest; Enter in a field is left alone (the buttons act).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DateTime } from "luxon";
@@ -28,7 +28,7 @@ import { photoSrc, preparePhoto, type PhotoDeps } from "@/lib/employees/photo/cl
 import { browserPhotoDeps } from "@/lib/employees/photo/browserDeps";
 import { NONEXEC_ROW, NonExecutiveAsk, NonExecutiveChip } from "./facility/NonExecutive";
 
-// what the tests and the rest of the app have always imported from this file
+// I re-export the form model here because the tests and the rest of the app have always imported it from this file
 export * from "./employeeFormModel";
 export { DROPDOWN_STYLE, EmployeeAdminHeader, EmployeeForm, EmployeeHistory, EmployeeList, EmployeePreviewCard, ReviewView, TabBar } from "./EmployeeAdminUi";
 
@@ -36,7 +36,7 @@ export { DROPDOWN_STYLE, EmployeeAdminHeader, EmployeeForm, EmployeeHistory, Emp
 type Reply = { ok: boolean; status: number; body: Record<string, unknown> };
 const TIMEOUT_MS = 20000;
 
-/** One form's state: its values, the fields the person has been in, the server's errors, the review step and the same-name question. Adding and changing each get their own. */
+/** I keep one form's state here: its values, the fields the person has been in, the server's errors, the review step and the same-name question. Adding and changing each get their own. */
 function useFormBlock(initial: FormValues) {
   const [values, setValues] = useState<FormValues>(initial);
   const [touched, setTouched] = useState<Set<string>>(new Set());
@@ -51,14 +51,14 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
   const role: Authority = open.role;
   const isHod = role === "hod";
   const alive = useRef(true);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []); // StrictMode mounts, unmounts and mounts again: switch on at EVERY mount
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []); // StrictMode mounts, unmounts and mounts again, so I switch on at EVERY mount
 
   const initialTab: Tab = open.op === "modify" ? "modify" : open.op === "delete" && isHod ? "delete" : open.op === "delegate" && isHod ? "people" : "add";
   const [tab, setTab] = useState<Tab>(initialTab);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "warn" | "error"; text: string } | null>(null);
-  // the name is already known (step 67b): it travelled with the answer that opened the panel (the people directory's name, the one the history records), or else it is in the login cookie's session. The header has it on the
-  // first paint and NO request is made for it. Only when neither has it is it asked for (below). It is only shown: nothing is decided on it.
+  // The name is already known (step 67b): it travelled with the answer that opened the panel (the people directory's name, the one the history records), or else it is in the login cookie's session. The header has it on the
+  // first paint and NO request is made for it. I ask for it only when neither has it (below). It is only shown: nothing is decided on it.
   const sessionName = useSessionName();
   const initialName = (typeof open.name === "string" && open.name.trim()) || sessionName || null;
   const [me, setMe] = useState<string | null>(initialName);
@@ -82,7 +82,7 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
   const fail = (r: Reply) => setMessage({ tone: "error", text: typeof r.body.error === "string" ? r.body.error : "That did not work. Please try again." });
 
   useEffect(() => {
-    // without a name in the answer that opened the panel (an older answer, or the name could not be read) the name is asked for, and SHOWN AS SOON AS IT ARRIVES: it never waits for the lookups
+    // Without a name in the answer that opened the panel (an older answer, or the name could not be read) I ask for it and SHOW IT AS SOON AS IT ARRIVES: it never waits for the lookups
     if (!initialName) void call({ op: "me" }).then((m) => { if (alive.current && m.ok && typeof m.body.name === "string" && m.body.name.trim()) setMe(m.body.name.trim()); }).catch(() => undefined);
     void (async () => {
       const l = await call({ op: "lookups" });
@@ -92,11 +92,11 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
     })();
   }, [call, initialName]);
 
-  // ---- the forms: ADDING and CHANGING each have their own state (step 66b): what is typed or loaded in one is never in the other ----
+  // ---- the forms: I give ADDING and CHANGING each their own state (step 66b): what is typed or loaded in one is never in the other ----
   const addB = useFormBlock({ ...EMPTY_FORM, name: open.op === "add" ? (open.prefill?.name ?? "") : "", ticketNo: open.op === "add" ? (open.prefill?.ticket ?? "") : "" });
   const modB = useFormBlock(EMPTY_FORM);
   const [original, setOriginal] = useState<EmployeeRecord | null>(null);
-  // TWO PEOPLE AT ONCE (step 67b): set when a save is refused because somebody else changed the record first (the record as it is now, and who changed it last); the card lets the person choose
+  // TWO PEOPLE AT ONCE (step 67b): I set this when a save is refused because somebody else changed the record first (the record as it is now, and who changed it last); the card then lets the person choose
   const [stale, setStale] = useState<{ current: EmployeeRecord; last: LastChange | null } | null>(null);
   const lk: Lookups = lookups ?? { grades: [], departments: [] };
   const mode: "add" | "modify" = tab === "modify" && original ? "modify" : "add";
@@ -123,22 +123,22 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validation, B.touched, B.serverErrors]);
 
-  // the sections open FROM TOP TO BOTTOM (employeeFormModel.ts): Posting when the Identity is complete, the dates when Posting is complete, Contact when the dates are complete
+  // I open the sections FROM TOP TO BOTTOM (employeeFormModel.ts): Posting when the Identity is complete, the dates when Posting is complete, Contact when the dates are complete
   const unlocked = unlockedSections(values, lk, liveErrors, { mode, datesVisible, loaded: !!lookups });
 
-  // the PHOTO (optional; step 70): one draft for an add and one for a modify; what is chosen is checked in the browser (one face, a square around it) and is sent only AFTER the employee is saved
+  // The PHOTO (optional; step 70): I keep one draft for an add and one for a modify. What is chosen is checked in the browser (one face, a square around it) and is sent only AFTER the employee is saved
   type PhotoDraft = { ui: PhotoUiState; blob: Blob | null; remove: boolean; had: boolean };
   const NO_PHOTO: PhotoDraft = { ui: { kind: "empty" }, blob: null, remove: false, had: false };
   const [photoAdd, setPhotoAdd] = useState<PhotoDraft>(NO_PHOTO);
   const [photoMod, setPhotoMod] = useState<PhotoDraft>(NO_PHOTO);
   const photo = mode === "modify" ? photoMod : photoAdd;
-  // a photo chosen or removed IS a change of the record (the review lists it; the save button waits for it)
+  // A photo chosen or removed IS a change of the record: the review lists it and the save button waits for it
   const photoChange: ChangeView | null = mode === "modify" ? (photo.blob ? { field: "photo", label: "Photo", from: photo.had ? "the saved photo" : "—", to: "a new photo (the face is found and the square is cut)" } : photo.remove ? { field: "photo", label: "Photo", from: "the saved photo", to: "removed" } : null) : null;
   const changeList = mode === "modify" && original ? [...changesOf(original, values, lk, datesVisible), ...(photoChange ? [photoChange] : [])] : [];
   const valid = !!validation && validation.ok;
   const complete = valid && unlocked.contact;
   const submitDisabled = !lookups || !valid || !unlocked.contact || (mode === "modify" && changeList.length === 0) || (mode === "modify" && !!stale);
-  // the reason the button is off: the first thing missing, in the order of the form (employeeFormModel.ts)
+  // The reason the button is off: I show the first thing missing, in the order of the form (employeeFormModel.ts)
   const submitHint = mode === "modify" && stale ? "Somebody else changed this record: choose one of the two buttons above first." : reasonFor(liveErrors, unlocked, { loaded: !!lookups, valid, mode, changes: changeList.length });
 
   const onFormChange = (next: FormValues, field: string) => { B.setValues(next); B.setTouched((t) => new Set(t).add(field)); B.setServerErrors({}); B.setConflicts([]); setMessage(null); };
@@ -162,7 +162,7 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
     else if (res.status === "invalid") { B.setServerErrors(res.errors ?? {}); B.setReview(false); setMessage({ tone: "error", text: "Please correct what is marked." }); }
     else if (res.status === "stale" && res.current) { setStale({ current: res.current, last: res.last ?? null }); B.setReview(false); B.setConflicts([]); }
     else if (res.status === "unchanged") {
-      // no field changed: if a photo was chosen or removed, that is the change
+      // No field changed: if a photo was chosen or removed, I count that as the change
       const pending = mode === "modify" && !!(photoMod.blob || photoMod.remove);
       const pp = pending && original ? await syncPhoto(original.id, mode) : null;
       setMessage(pp ? { tone: "error", text: `The photo was not saved: ${pp}` } : { tone: "ok", text: pending ? "The photo was saved." : "Nothing was changed." });
@@ -172,7 +172,7 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
     else setMessage({ tone: "error", text: "You are not allowed to do that." });
   };
 
-  // the two ways on after "somebody else changed this record": take their version, or keep my edits on top of it (a three-way merge: only the fields I changed are mine)
+  // After "somebody else changed this record" I offer two ways on: take their version, or keep my edits on top of it (a three-way merge: only the fields I changed are mine)
   const takeTheirs = () => {
     if (!stale) return;
     setOriginal(stale.current); modB.reset(formFromRecord(stale.current, lk)); setStale(null);
@@ -205,7 +205,7 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
     }, 300);
     return () => clearTimeout(timer);
   }, [query, tab, original, call]);
-  // ---- the PHOTO (optional; step 70): one draft for an add and one for a modify; what is chosen is checked in the browser (one face, a square around it) and is sent only AFTER the employee is saved ----
+  // ---- the PHOTO (optional; step 70): I keep one draft for an add and one for a modify; what is chosen is checked in the browser (one face, a square around it) and is sent only AFTER the employee is saved ----
   const setPhoto = (m: "add" | "modify", p: PhotoDraft) => (m === "modify" ? setPhotoMod(p) : setPhotoAdd(p));
   const onPhotoPick = async (file: File) => {
     const m = mode, cur = m === "modify" ? photoMod : photoAdd;
@@ -215,7 +215,7 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
     setPhoto(m, r.ok ? { ui: { kind: "ready", previewUrl: r.previewUrl }, blob: r.blob, remove: false, had: cur.had } : { ...cur, blob: null, ui: { kind: "error", message: r.reason } });
   };
   const onPhotoRemove = () => { const m = mode, cur = m === "modify" ? photoMod : photoAdd; setPhoto(m, { ui: { kind: "empty" }, blob: null, remove: cur.had, had: cur.had }); };
-  // the photo he already has (Modify): asked once when a person is opened
+  // I ask for the photo he already has (Modify) only once, when a person is opened
   const originalId = original ? original.id : null;
   useEffect(() => {
     if (originalId === null) { setPhotoMod(NO_PHOTO); return; }
@@ -230,7 +230,7 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [originalId]);
-  /** Sends the chosen photo (or the removal) for a person who is now saved; returns the reason in words if it did not work, else null. */
+  /** Sends the chosen photo (or the removal) for a person who is now saved. If it did not work I return the reason in words, else null. */
   const syncPhoto = async (id: number, m: "add" | "modify"): Promise<string | null> => {
     const d = m === "modify" ? photoMod : photoAdd;
     if (!d.blob && !d.remove) return null;
@@ -275,7 +275,7 @@ export function EmployeeAdminPanel({ open, photoDeps = browserPhotoDeps }: { ope
   const [delegates, setDelegates] = useState<DelegateView[] | null>(null);
   const [find, setFind] = useState("");
   const [found, setFound] = useState<Array<{ ticket: string; name: string; designation: string; department: string; nonExecutive?: boolean }> | null>(null);
-  const [asking, setAsking] = useState<string | null>(null); // the ticket of a NON-EXECUTIVE the HOD is being asked to confirm
+  const [asking, setAsking] = useState<string | null>(null); // The ticket of a NON-EXECUTIVE that the HOD is being asked to confirm
   const [history, setHistory] = useState<AuditView[] | null>(null);
   const loadDelegates = useCallback(async () => { const r = await call({ op: "delegates" }); if (alive.current) { if (r.ok) setDelegates((r.body.delegates as DelegateView[]) ?? []); else setMessage({ tone: "error", text: typeof r.body.error === "string" ? r.body.error : "That did not work." }); } }, [call]);
   const loadHistory = useCallback(async () => { const r = await call({ op: "audit" }); if (alive.current) { if (r.ok) setHistory((r.body.history as AuditView[]) ?? []); else setMessage({ tone: "error", text: typeof r.body.error === "string" ? r.body.error : "That did not work." }); } }, [call]);

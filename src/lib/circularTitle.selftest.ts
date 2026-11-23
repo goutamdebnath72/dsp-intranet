@@ -1,6 +1,6 @@
 // src/lib/circularTitle.selftest.ts
 // Run:  npx tsx src/lib/circularTitle.selftest.ts
-// The titles below are REAL ones, copied from the circulars list and the legacy app's table of contents.
+// I use REAL titles below, copied from the circulars list and the legacy app's table of contents.
 import { formatCircularTitle } from "./circularTitle";
 
 let pass = 0;

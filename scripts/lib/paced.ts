@@ -1,5 +1,5 @@
-// scripts/lib/paced.ts: THE PLANT'S RAILRADAR KEY, ONE REQUEST AT A TIME, never closer than `gapMs` (2.2 s = 27 a minute; the key's limit is 30). A refusal for going over the minute's limit (429) is waited out (65 s) and tried
-// again, up to three times; only then is it handed back. `count()` is the number of requests made (a refused one counts too: RailRadar counts every request). Used by the scripts that collect fares.
+// scripts/lib/paced.ts: the plant's RailRadar key, used ONE REQUEST AT A TIME, never closer than `gapMs` (2.2 s = 27 a minute; the key's limit is 30). A refusal for going over the minute's limit (429) is waited out (65 s) and tried
+// again, up to three times; only then is it handed back. `count()` is the number of requests made (a refused one counts too, because RailRadar counts every request). The scripts that collect fares use this.
 import type { Fetcher } from "../../src/lib/live/fare";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

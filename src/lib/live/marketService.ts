@@ -1,9 +1,9 @@
 // src/lib/live/marketService.ts
 //
-// THE SENSEX, NIFTY AND WATCH-LIST ANSWER, with a copy kept for the bad minutes. Yahoo Finance turns away anyone who asks too fast, so each symbol is asked one at a time, kept five minutes in memory, and at the first
-// "too many requests" no more are asked. A symbol that could not be had now falls back to its LAST GOOD QUOTE: first the one in memory, then the one saved in the database (src/lib/live/marketStore.ts, which survives a
+// The Sensex, Nifty and watch-list answer, with a copy kept for the bad minutes. Yahoo Finance turns away anyone who asks too fast, so I ask for each symbol one at a time, keep it five minutes in memory, and at the first
+// "too many requests" I ask for no more. A symbol that could not be had now falls back to its LAST GOOD QUOTE: first the one in memory, then the one saved in the database (src/lib/live/marketStore.ts, which survives a
 // restart). Those quotes are shown as they were, with `saved` saying which ones and when they were received, so the card can say "not live" and never shows an old figure as new. Only when there is nothing at all
-// is it an error. Every fresh quote is saved. Pure but for what it is handed (the fetcher, the memory, the store), so it is tested without the network.
+// is it an error. Every fresh quote is saved. This is pure but for what it is handed (the fetcher, the memory, the store), so it is tested without the network.
 import { DateTime } from "luxon";
 import { INDICES, WATCHLIST, buildMarkets, type Instrument, type MarketsData, type Quote } from "./markets";
 import type { MarketStore, SavedQuote } from "./marketStore";
@@ -12,9 +12,9 @@ export const QUOTE_TTL_MS = 5 * 60 * 1000;
 const keyOf = (symbol: string) => `quote:${symbol}`;
 
 export interface MarketDeps {
-  /** asks the source for one symbol: a quote, null when the answer holds no usable price, and a throw when it fails */
+  /** Asks the source for one symbol: it returns a quote, null when the answer holds no usable price, and throws when it fails. */
   fetchOne(inst: Instrument): Promise<Quote | null>;
-  /** whether a failure is the source turning us away (then no more symbols are asked) */
+  /** Tells whether a failure is the source turning us away; then I ask for no more symbols. */
   isTurnedAway(e: unknown): boolean;
   recall(key: string): { value: Quote; at: number } | null;
   remember(key: string, value: Quote): void;
@@ -45,7 +45,7 @@ export async function marketsAnswer(d: MarketDeps): Promise<MarketsData> {
     }
     lacking.push({ inst, kept });
   }
-  // what could not be had now: the last good quote in memory, else the one saved in the database
+  // What could not be had now: I use the last good quote in memory, else the one saved in the database.
   if (lacking.length) {
     const saved = await d.store.all().catch(() => new Map<string, SavedQuote>());
     for (const { inst, kept } of lacking) {

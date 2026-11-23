@@ -1,6 +1,6 @@
 -- 27_train_fare_leg_asn.sql
 --
--- The saved fares from Asansol (ASN) to EVERY STOP AFTER ASANSOL on the route of each train of the Asansol tab (src/lib/live/fareLegStore.ts, station "ASN"). Same shape as public.train_fare_leg
+-- Here I save the fares from Asansol (ASN) to EVERY STOP AFTER ASANSOL on the route of each train of the Asansol tab (src/lib/live/fareLegStore.ts, station "ASN"). Same shape as public.train_fare_leg
 -- (22_train_fare_leg.sql), which holds Durgapur's. Collected by scripts/harvest-legs.ts --station ASN while the paid fare month lasts (to 14 Dec 2026); the end-of-run fare of each train is in public.train_fare_asn.
 --
 -- Safe to run more than once. The application also creates this table by itself on first use if its database user may; running this file is the clean way.

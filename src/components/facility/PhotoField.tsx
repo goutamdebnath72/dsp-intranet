@@ -2,8 +2,8 @@
 
 // src/components/facility/PhotoField.tsx
 //
-// THE PHOTO FIELD of an employee (step 69d; owner, 2 Nov 2026): optional, in the Identity card. It only DRAWS the five states of a photo and calls what it is given (`onPick` with the file, `onRemove`):
-// the checking of the picture (is there one face, the square around it) is done elsewhere, so this part stays simple and can be looked at on its own.
+// The photo field of an employee (step 69d; my decision, 2 Nov 2026): optional, in the Identity card. It only DRAWS the five states of a photo and calls what it is given (`onPick` with the file, `onRemove`):
+// the checking of the picture (is there one face, the square around it) is done elsewhere, so I keep this part simple and it can be looked at on its own.
 //   empty    nothing yet (or the person has no photo): the invitation, with the format asked for in words
 //   checking the file is being looked at
 //   ready    a new photo was chosen and made square: shown here and on the ID card, saved with the employee
@@ -23,7 +23,7 @@ export type PhotoUiState =
 export const PHOTO_ACCEPT = "image/jpeg,image/png,image/webp";
 export const PHOTO_HINT = "Provide a coloured, high-resolution, passport-size photo of the face (JPG, JPEG, PNG or WebP; up to 8 MB; at least 400 × 400 pixels). It is made square around the face for you.";
 
-/** The picture the ID card should show, if any. */
+/** Returns the picture the ID card should show, if any. */
 export const photoUrlOf = (s: PhotoUiState): string | null => (s.kind === "ready" ? s.previewUrl : s.kind === "saved" ? s.url : null);
 
 const BTN = "inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-50";

@@ -1,7 +1,7 @@
 // src/app/api/tools/intent/route.ts
 //
-// WHICH UTILITY DOES THIS LINE MEAN? (POST {"line": "..."} -> {ok, id|null, confidence}). Called by the search box only for a whole sentence that no utility's words settle, after Enter. It sends the one line (long digit runs
-// and e-mail addresses blanked, never an ID query) and the list of utilities to the AI (Gemini), and gives back only a utility id that is really in the list. Nothing is stored. Only a signed-in user may ask; a person
+// Which utility does this line mean? (POST {"line": "..."} -> {ok, id|null, confidence}). The search box calls this only for a whole sentence that no utility's words settle, after Enter. I send the one line (long digit runs
+// and e-mail addresses blanked, never an ID query) and the list of utilities to the AI (Gemini), and give back only a utility id that is really in the list. Nothing is stored. Only a signed-in user may ask; a person
 // can ask at most 12 times a minute; the same line is answered from memory for an hour. TOOL_INTENT_AI=off switches it off (the box then simply searches).
 import { NextResponse } from "next/server";
 import { getSessionTicket } from "@/lib/apiAuth";

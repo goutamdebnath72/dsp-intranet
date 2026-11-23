@@ -1,8 +1,8 @@
 // src/lib/ingestion/schedule/ingest.selftest.ts
 // Run:  NL2SQL_TEST_ADMIN_URL=postgres://user:pass@host:5432/postgres npx tsx src/lib/ingestion/schedule/ingest.selftest.ts
 //
-// Needs a Postgres server it may create a SCRATCH database on (it creates "ingest_selftest" and drops it at the end). The page reading is a stand-in:
-// what is tested here is everything AFTER the reading: checking against HR, the decision to store or not, storing (replacing), the time budget, the
+// This needs a Postgres server where it may create a SCRATCH database (it creates "ingest_selftest" and drops it at the end). The page reading is a stand-in:
+// what I test here is everything AFTER the reading: checking against HR, the decision to store or not, storing (replacing), the time budget, the
 // failure paths, the log, and what deleting a circular does.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -67,7 +67,7 @@ const fakeReaders = { primary: { name: "fake", read: async () => "{}" }, checker
   await pg.query(readFileSync(join(SQLDIR, "99_local_test_standins.sql"), "utf8"));
   await pg.query(`INSERT INTO public.designation_grade VALUES (1, 401, 'S-1', 'nonexec', 24)`);
   for (const f of ["01_nlq_schema_views_role.sql", "02_nl2sql_log_tables.sql", "08_health_checkups.sql", "09_circular_ingest_log.sql"]) await pg.query(readFileSync(join(SQLDIR, f), "utf8"));
-  // HR: four people in four departments
+  // The HR data: four people in four departments
   const depts: Array<[number, number, string]> = [[1, 32001, "SMS-BOF (MECH)"], [2, 10001, "CO & CC (MECH)"], [3, 12000, "CO & CC (BATTERY)"], [4, 82100, "POWER PLANT (OPRN)"]];
   for (const [id, code, name] of depts) await pg.query(`INSERT INTO public.sail_department (id, code, name, cohort_scope) VALUES ($1,$2,$3,'shared')`, [id, code, name]);
   const people: Array<[string, string, number]> = [["241022", "AMIT BANERJEE", 1], ["266200", "ANATH BANDHU KARMAKAR", 2], ["242126", "SAMIRAN PATI", 3], ["329737", "ARUN GOSWAMI", 4]];

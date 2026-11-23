@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/nameSpelling.selftest.ts
-// Step 55b: the spelling safety net. A name word no real name is spelled like is replaced by the nearest real spelling when nobody is found; a known word is never touched; a name that is
+// Step 55b: the spelling safety net. A name word that no real name is spelled like is replaced by the nearest real spelling when nobody is found; a known word is never touched; a name that is
 // simply not in the directory is never turned into somebody else's.
 
 import { buildVocabulary, candidateWords, correctSql, editDistance, isKnownWord, nameLiteralsIn, nearestWords, spellingKey, spellingNote, spellingRetry, withoutGlides } from "./nameSpelling";
@@ -13,16 +13,16 @@ const names = ["GOSWAMI", "RUPAK", "KUMAR", "ROY", "DAS", "SARKAR", "MAJUMDAR", 
 const vocab = buildVocabulary(names.map((w, i) => ({ w, n: 10 - (i % 5) })));
 const best = (t: string) => nearestWords(t, vocab).map((n) => n.word);
 
-// ---- the glide rule: w and y after a consonant and before a vowel are silent
+// ---- the glide rule: I treat w and y after a consonant and before a vowel as silent
 ok("Goswami, Goshami, Gosyami, Gosami share one key", new Set(["GOSWAMI", "GOSHAMI", "GOSYAMI", "GOSAMI"].map(spellingKey)).size === 1, JSON.stringify(["GOSWAMI", "GOSHAMI", "GOSYAMI", "GOSAMI"].map(spellingKey)));
 ok("Swapan = Sapan, Biswas = Bishwas = Bisas, Dwijen = Dijen, Sandhya = Sandha", spellingKey("SWAPAN") === spellingKey("SAPAN") && spellingKey("BISWAS") === spellingKey("BISHWAS") && spellingKey("BISWAS") === spellingKey("BISAS") && spellingKey("DWIJEN") === spellingKey("DIJEN") && spellingKey("SANDHYA") === spellingKey("SANDHA"));
 ok("a w or y at the start of a word, or before a consonant, is kept: Wasim, Yash, Kumari", withoutGlides("WASIM") === "WASIM" && withoutGlides("YASH") === "YASH" && withoutGlides("SWM") === "SWM");
 ok("different names do not share a key: Goswami / Banerjee, Tapan / Saran", spellingKey("GOSWAMI") !== spellingKey("BANERJEE") && spellingKey("TAPAN") !== spellingKey("SARAN"));
 
-// ---- the edit distance: one slip, a swapped pair counts as one
+// ---- the edit distance: one slip counts as one, and a swapped pair counts as one too
 ok("edit distance: equal, one slip, a swap, an insertion", editDistance("RUPAK", "RUPAK") === 0 && editDistance("RUPAK", "RUPAC") === 1 && editDistance("RUPAK", "RUPKA") === 1 && editDistance("RUPK", "RUPAK") === 1 && editDistance("ABC", "") === 3);
 
-// ---- the owner's spellings of Goswami (26 Oct 2026)
+// ---- my spellings of Goswami (26 Oct 2026)
 for (const t of ["gosyami", "gosami", "goshami", "Gosyami", "GOSYAMI"]) ok(`"${t}" is Goswami`, JSON.stringify(best(t)) === '["GOSWAMI"]', JSON.stringify(best(t)));
 ok("'gosamy' (the vowel and the glide both off) is Goswami too", JSON.stringify(best("gosamy")) === '["GOSWAMI"]', JSON.stringify(best("gosamy")));
 ok("one slip: 'goswmi' (a letter missing) is Goswami", JSON.stringify(best("goswmi")) === '["GOSWAMI"]');
@@ -37,7 +37,7 @@ ok("a word far from every name stays as it is: 'abcdefgh', 'zzzzzz', 'quentin'",
 ok("names that are different families are not merged: 'singh' stays known, 'sinha' stays known, 'banerji' goes to Banerjee only", isKnownWord("singh", vocab) && isKnownWord("sinha", vocab) && best("banerjii").every((w) => w === "BANERJEE"));
 ok("a tie keeps both candidates (at most three): 'karmakr' is Karmakar or Karmaker", JSON.stringify(best("karmakr").sort()) === '["KARMAKAR","KARMAKER"]', JSON.stringify(best("karmakr")));
 
-// ---- the everyday typos: a missing letter, swapped letters, and not guessing
+// ---- the everyday typos: a missing letter and swapped letters, and no guessing
 ok("a missing letter: 'kuma' is Kumar, 'snjay' is Sanjay, 'majumdr' is Majumdar or Majumder (a tie: both kept)", JSON.stringify(best("kuma")) === '["KUMAR"]' && JSON.stringify(best("snjay")) === '["SANJAY"]' && JSON.stringify(best("majumdr").sort()) === '["MAJUMDAR","MAJUMDER"]', JSON.stringify([best("kuma"), best("snjay"), best("majumdr")]));
 ok("'sanjy' sounds like Sanjay AND Sanjoy: it is KNOWN (the phonetic search finds both), so the net leaves it alone", isKnownWord("sanjy", vocab) && best("sanjy").length === 0);
 ok("two letters swapped: 'rupka' is Rupak, 'sakrar' is Sarkar, 'goswmai' is Goswami", JSON.stringify(best("rupka")) === '["RUPAK"]' && JSON.stringify(best("sakrar")) === '["SARKAR"]' && JSON.stringify(best("goswmai")) === '["GOSWAMI"]', JSON.stringify([best("rupka"), best("sakrar"), best("goswmai")]));
@@ -46,7 +46,7 @@ ok("but any other change of the first letter is a different name: 'sarup' is not
 const crowded = buildVocabulary(["BALAN", "BULAN", "BELAN", "BILAN", "BOLAN"].map((w) => ({ w, n: 1 })));
 ok("equally near to MORE than three names: nothing is guessed", nearestWords("bxlan", crowded).length === 0, JSON.stringify(nearestWords("bxlan", crowded)));
 
-// ---- the other close names are shown too (a word one slip from SEVERAL names is a guess: the person sees what else could have been meant)
+// ---- the other close names are shown too (a word one slip from SEVERAL names is a guess, so the person sees what else could have been meant)
 const vClose = buildVocabulary([{ w: "SOMEN", n: 9 }, { w: "SOREN", n: 4 }, { w: "SOMAN", n: 2 }, { w: "SEN", n: 30 }]);
 ok("candidateWords lists everything that could be meant, the best first: 'soen' is SEN, then SOMEN and SOREN", JSON.stringify(candidateWords("soen", vClose).map((n) => n.word)) === '["SEN","SOMEN","SOREN"]', JSON.stringify(candidateWords("soen", vClose).map((n) => n.word)));
 ok("...but only the best is searched: nearestWords('soen') is SEN", JSON.stringify(nearestWords("soen", vClose).map((n) => n.word)) === '["SEN"]');
@@ -79,15 +79,15 @@ ok("the corrected SQL still has exactly the shape the guard expects (one SELECT,
 ok("the note names the typed word and the nearest spelling", spellingNote([{ typed: "gosyami", corrected: ["GOSWAMI"], alsoClose: [] }]) === "No name is spelled “Gosyami” (nearest: Goswami): showing the nearest real spelling instead.", spellingNote([{ typed: "gosyami", corrected: ["GOSWAMI"], alsoClose: [] }]));
 ok("two words, and a tie", spellingNote([{ typed: "rupk", corrected: ["RUPAK"], alsoClose: [] }, { typed: "karmakr", corrected: ["KARMAKAR", "KARMAKER"], alsoClose: [] }]) === "No name is spelled “Rupk” (nearest: Rupak) or “Karmakr” (nearest: Karmakar or Karmaker): showing the nearest real spellings instead.");
 
-// ---- Datta is Dutta (the owner, 22 Nov 2026): the same code in the program, as nlq.spelling_fix gives it in the database
+// ---- Datta is Dutta (my rule, 22 Nov 2026): the same code in the program as nlq.spelling_fix gives it in the database
 import { foldToken } from "../employees/namePredicate";
 ok("Datta, Datt, Dutt and Dutta share one code", new Set(["DATTA", "DATT", "DUTT", "DUTTA", "datta"].map((w) => foldToken(w, true))).size === 1);
 ok("...and stay different from Dey, Dhar, Datar and Dattatreya", ["DEY", "DHAR", "DATAR", "DATTATREYA"].every((w) => foldToken(w, true) !== foldToken("DUTTA", true)));
 ok("a typed Dutta is a known word when the directory has only Datta", isKnownWord("DUTTA", buildVocabulary([{ w: "DATTA", n: 3 }, { w: "DEBAPRIYA", n: 3 }])));
-const rule = /\bDATT(?:A)?\b/i; // the same pattern as \mDATT(?:A)?\M in sql/06_spelling_families.sql
+const rule = /\bDATT(?:A)?\b/i; // same pattern as \mDATT(?:A)?\M in sql/06_spelling_families.sql
 ok("the pattern of the rule touches Datta and Datt as whole words only", ["DATTA", "DATT", "Datta Roy"].every((t) => rule.test(t)) && ["DATTATREYA", "DATTANI", "DATA", "DATAR"].every((t) => !rule.test(t)));
 
-// ---- the second search needs nothing from the database when there is nothing to correct
+// ---- the second search must need nothing from the database when there is nothing to correct
 (async () => {
   const noDb = { withClient: async () => { throw new Error("the database must not be touched"); } } as never;
   ok("no name word in the SQL: no search, no database", (await spellingRetry("SELECT count(*) FROM nlq.employees", noDb)) === null);

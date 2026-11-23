@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/search/frontGate.selftest.ts
-// No database, no network. The directory's name words are a STAND-IN list here (the real list is every name word of
-// nlq.employees); what is tested is the gate's logic, and the zero-false-skip rule on your own acceptance questions.
+// No database, no network. Here the directory's name words are a STAND-IN list (the real list is every name word of
+// nlq.employees); what I test is the gate's logic, and the zero-false-skip rule on your own acceptance questions.
 
 import { readFileSync } from "node:fs";
 import { decideModelSkip, frontGateEnabled, loadDirectoryNameWords, resetDirectoryWordsCache } from "./frontGate";
@@ -11,7 +11,7 @@ const ok = (name: string, cond: boolean, extra = "") => {
   else { fail++; console.log(`FAIL ${name} ${extra}`); }
 };
 
-// ---- the stand-in directory: the kind of words an Indian steel-plant directory holds, incl. the names in the questions
+// ---- the stand-in directory: the kind of words an Indian steel-plant directory holds, including the names in the questions
 const DIRECTORY = new Set(
   ("mohd mohammad anwar ullah rana saha sunil amit sen das kumar roy ray rao rai bhattacharya bhattacharjee homroy koyeli bhupinder singh popli " +
     "sanjay debnath goutam soumit biswajit bhattacharjee prasenjit khan mazumdar majumdar mazumder ashish agrawal samapti prasad ghosh banerjee " +

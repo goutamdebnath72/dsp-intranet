@@ -1,30 +1,30 @@
 // src/lib/employees/intentClassifier.ts
 //
 // LLM-based intent classification for the employee-query omnibar. This is
-// the PRIMARY router now (see queryOrchestrator.ts) -- parser.ts's
+// now the PRIMARY router (see queryOrchestrator.ts); parser.ts's
 // parseAnalytics remains only as the fallback path, because no finite set
 // of hand-coded phrasing patterns can cover every way a person might ask
 // the same question, in English, Hindi, or Bengali (see chat, 29 Sep 2026,
 // for the full reasoning behind this architecture change).
 //
-// STRICT SEPARATION OF CONCERNS: this file's ONLY job is to turn a raw
+// Strict separation of concerns: this file's ONLY job is to turn a raw
 // query string into a small, strictly-typed intent object. It NEVER touches
 // the database, NEVER fabricates a final answer, and NEVER invents a
 // designation/department/name that wasn't grounded against the real,
 // already-built resolution layers (designationGrades.ts, sailDepartments.ts,
 // rosterQuery.ts) by the caller (queryOrchestrator.ts). If the model's
-// output doesn't parse as valid JSON matching the schema below, this
-// returns null -- signaling the caller to fall back to the deterministic
+// output doesn't parse as valid JSON matching the schema below, I return
+// null, which tells the caller to fall back to the deterministic
 // parser rather than trust a malformed result.
 //
-// Reuses generateChatResponse (src/lib/ai-services.ts) -- the SAME Groq
+// I reuse generateChatResponse (src/lib/ai-services.ts), the SAME Groq
 // call already used by Executive Deep Synthesis and holiday-circular
-// extraction, rather than introducing a second, parallel way of calling an
+// extraction, rather than introduce a second, parallel way of calling an
 // LLM in this codebase.
 //
-// NOT EMPIRICALLY TESTED IN THIS ENVIRONMENT: this sandbox has no network
+// Not empirically tested in this environment: this sandbox has no network
 // access to Groq's API (not in the allowed domain list), so the actual live
-// classification accuracy -- especially for Hindi/Bengali script input --
+// classification accuracy, especially for Hindi/Bengali script input,
 // has NOT been verified the way the phonetic-matching fixes were, with real
 // data and real query results. Treat the first deployment as a pilot that
 // needs real testing against real queries, not a finished, proven feature.
@@ -34,34 +34,44 @@ import type { NamePredicate } from "./namePredicate";
 
 export interface ParsedIntent {
   op: "count" | "list" | "breakdown" | "clarify" | "unsupported";
-  /** Free-text designation term as the person said it ("GM", "officer",
-   *  "S-7", "employees", "staff") -- resolved by the caller via
-   *  designationGrades.ts. Null if the query isn't scoped to any
-   *  designation/cohort (e.g. a pure name search, or a plain dept headcount). */
+  /**
+   * Free-text designation term as the person said it ("GM", "officer",
+   * "S-7", "employees", "staff"); the caller resolves it via
+   * designationGrades.ts. Null if the query isn't scoped to any
+   * designation/cohort (e.g. a pure name search, or a plain dept headcount).
+   */
   designationTerm: string | null;
-  /** Free-text department mention, in whatever language/script/short form
-   *  was used -- resolved by the caller via sailDepartments.ts. Null if no
-   *  department was mentioned. */
+  /**
+   * Free-text department mention, in whatever language/script/short form
+   * was used; the caller resolves it via sailDepartments.ts. Null if no
+   * department was mentioned.
+   */
   departmentText: string | null;
-  /** A person-name search, if that's what was asked -- a compositional
-   *  predicate tree (REPLACED 29 Sep 2026: the previous flat
-   *  `{value, mode, excludePositions}` shape required a new field for every
-   *  new logical combination a question could express, e.g. "kumar as a
-   *  word but not first or last" silently lost its exclusion because
-   *  "anyword" was the closest available category. A small set of
-   *  primitives combined via AND/OR/NOT composes for free -- see
-   *  namePredicate.ts. Every leaf value MUST be transliterated to Latin
-   *  script by the model, however it was originally written. */
+  /**
+   * A person-name search, if that's what was asked: a compositional
+   * predicate tree (I REPLACED the previous flat shape on 29 Sep 2026:
+   * `{value, mode, excludePositions}` required a new field for every
+   * new logical combination a question could express, e.g. "kumar as a
+   * word but not first or last" silently lost its exclusion because
+   * "anyword" was the closest available category). A small set of
+   * primitives combined via AND/OR/NOT composes for free; see
+   * namePredicate.ts. Every leaf value MUST be transliterated to Latin
+   * script by the model, however it was originally written.
+   */
   nameQuery: NamePredicate | null;
-  /** Set only when op is "clarify" -- a short, specific question to show
-   *  the person instead of guessing. */
+  /**
+   * Set only when op is "clarify": a short, specific question to show
+   * the person instead of guessing.
+   */
   clarifyQuestion: string | null;
-  /** Model's own confidence. "low" makes the caller prefer falling back to
-   *  the deterministic parser (or clarifying) over trusting a guess --
-   *  correctness over speed is the explicit priority here (see chat). */
+  /**
+   * The model's own confidence. "low" makes the caller prefer falling back to
+   * the deterministic parser (or clarifying) over trusting a guess. My explicit
+   * priority here is correctness over speed (see chat).
+   */
   confidence: "high" | "medium" | "low";
   /**
-   * ADDED for the hybrid learned-pattern cache (29 Sep 2026, see
+   * Added for the hybrid learned-pattern cache (29 Sep 2026, see
    * patternCache.ts): the question's INVARIANT shape, with whichever of
    * designationTerm/departmentText/nameQuery.value was actually extracted
    * replaced by the literal placeholder token {designation}, {department},
@@ -130,8 +140,8 @@ Do not attempt to resolve WHICH specific department or WHICH exact designation g
 function safeParseIntent(raw: string): ParsedIntent | null {
   let obj: unknown;
   try {
-    // Defensive: strip a markdown fence if the model added one despite
-    // instructions not to -- cheap insurance, not a substitute for the
+    // Defensive: I strip a markdown fence if the model added one despite
+    // instructions not to. It is cheap insurance, not a substitute for the
     // schema validation below.
     const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
     obj = JSON.parse(cleaned);
@@ -147,13 +157,13 @@ function safeParseIntent(raw: string): ParsedIntent | null {
   const VALID_LEAF_TYPES = new Set(["wordEquals", "wordIsFirst", "wordIsLast", "substring", "fuzzy"]);
   /**
    * Recursively validate an untrusted JSON value as a NamePredicate tree.
-   * Returns null on ANY structural problem at ANY depth -- a partially
+   * I return null on ANY structural problem at ANY depth: a partially
    * malformed compound condition is worse than none, since silently
    * dropping part of a nested tree would reproduce the exact "lost
    * exclusion" bug this whole redesign exists to fix.
    */
   function parseNamePredicate(v: unknown, depth: number): NamePredicate | null {
-    if (depth > 6) return null; // sane recursion cap -- a legitimate question never nests this deep
+    if (depth > 6) return null; // sane recursion cap; a legitimate question never nests this deep
     if (typeof v !== "object" || v === null) return null;
     const n = v as Record<string, unknown>;
     if (typeof n.type !== "string") return null;
@@ -181,14 +191,14 @@ function safeParseIntent(raw: string): ParsedIntent | null {
   let nameQuery: ParsedIntent["nameQuery"] = null;
   if (o.nameQuery !== null && o.nameQuery !== undefined) {
     nameQuery = parseNamePredicate(o.nameQuery, 0);
-    if (!nameQuery) return null; // malformed nameQuery is worse than none -- don't guess at it
+    if (!nameQuery) return null; // malformed nameQuery is worse than none, so I don't guess at it
   }
 
   const VALID_CONF = new Set(["high", "medium", "low"]);
   const confidence =
     typeof o.confidence === "string" && VALID_CONF.has(o.confidence)
       ? (o.confidence as ParsedIntent["confidence"])
-      : "low"; // missing/invalid confidence defaults to low, never high
+      : "low"; // missing or invalid confidence defaults to low, never high
 
   return {
     op: o.op as ParsedIntent["op"],
@@ -204,7 +214,7 @@ function safeParseIntent(raw: string): ParsedIntent | null {
 
 /**
  * Classify a raw query into a structured intent. Returns null on ANY
- * failure (network error, malformed JSON, schema violation) -- the caller
+ * failure (network error, malformed JSON, schema violation). The caller
  * (queryOrchestrator.ts) MUST fall back to the deterministic parser rather
  * than treat null as "unsupported".
  */
@@ -214,11 +224,11 @@ export async function classifyQueryIntent(query: string): Promise<ParsedIntent |
   try {
     const raw = await generateChatResponse(`${SYSTEM_PROMPT}\n\nQuestion: ${q}`, {
       jsonMode: true,
-      // FIXED (29 Sep 2026): was 300, far too small -- confirmed live as
+      // Fixed 29 Sep 2026: it was 300, far too small, and confirmed live as
       // the actual root cause of every classification failure so far
       // (Groq's error showed an EMPTY failed_generation, meaning the model
       // spent its whole token budget before producing any usable output,
-      // not that it produced malformed JSON). 3000 matches this app's own
+      // not that it produced malformed JSON). I chose 3000 because it matches this app's own
       // already-proven working budget for the same kind of structured-JSON
       // task with the same model family (see ai-services.ts's header
       // comment on Executive Deep Synthesis's own call).
@@ -227,17 +237,17 @@ export async function classifyQueryIntent(query: string): Promise<ParsedIntent |
     const parsed = safeParseIntent(raw);
     if (!parsed) {
       // The call succeeded but the response didn't validate against the
-      // schema -- log the RAW text so a real cause (markdown fence despite
+      // schema. I log the RAW text so a real cause (markdown fence despite
       // instructions, missing field, wrong type) is visible instead of an
       // unexplained null.
       console.log("[intentClassifier] LLM call succeeded but output failed schema validation. Raw response:", raw);
     }
     return parsed;
   } catch (err) {
-    // TEMPORARY DIAGNOSTIC (29 Sep 2026) -- the call itself threw. Logging
+    // Temporary diagnostic (29 Sep 2026): the call itself threw. I log
     // the real error so "missing GROQ_API_KEY", "AI_ENVIRONMENT not set to
     // cloud (falls back to local Ollama, which isn't running)", and a
-    // genuine network/firewall failure are distinguishable instead of all
+    // genuine network/firewall failure can be told apart instead of all
     // looking like an identical silent null.
     console.log("[intentClassifier] generateChatResponse threw:", err instanceof Error ? err.message : err);
     return null;

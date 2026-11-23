@@ -1,4 +1,4 @@
-// scripts/eds-store.ts: look at, or empty, the permanent store of Executive Deep Synthesis briefings (table public.eds_briefing).
+// scripts/eds-store.ts: lets me look at, or empty, the permanent store of Executive Deep Synthesis briefings (table public.eds_briefing).
 //   npx tsx --env-file=.env.local scripts/eds-store.ts list
 //   npx tsx --env-file=.env.local scripts/eds-store.ts clear "retention"      (removes the briefings whose question contains that text)
 //   npx tsx --env-file=.env.local scripts/eds-store.ts clear --all

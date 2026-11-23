@@ -2,7 +2,7 @@
 // Run:  npx tsx src/lib/search/synthesisRules.selftest.ts      (no network, no database)
 //
 // The synthesis model is steered by rules written in its prompt; nothing else stops it from attaching a date from a NEIGHBOURING row to a
-// person in a roster (the number exists in the text, so the figure check passes). This keeps those rules from being deleted by accident.
+// person in a roster (the number exists in the text, so the figure check passes). I wrote this test so those rules are not deleted by accident.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -26,7 +26,7 @@ check("scale guard: one axis has one unit: a unit offering \"X or Y\", or items 
 check("stored briefings: the key carries a signature of the prompt, so a changed prompt can never serve a briefing made with the old one", /const ENGINE_SIG = `\$\{EDS_ENGINE_VERSION\}\.\$\{PROMPT_SIG\}`/.test(src) && /createHash\("sha256"\)\.update\(SYSTEM_PROMPT\)/.test(src));
 check("chart rule: the type is decided by the data (decideChartType), a pie of multipliers is columns", /export function decideChartType/.test(src) && /isMagnitudeNotShare\(unit\)/.test(src));
 
-// the rules added after the first live runs of the EDS test list (10 Nov 2026): a ladder question must name its items, an issuer needs its own column, a rule's NAME is not a request to compare, no sentence twice in a row
+// These are the rules added after the first live runs of the EDS test list (10 Nov 2026): a ladder question must name its items, an issuer needs its own column, a rule's NAME is not a request to compare, no sentence twice in a row
 check("prompt rule: the items asked about stay in the table (a table of stages alone is incomplete)", /THE ITEMS ASKED ABOUT STAY IN THE TABLE/.test(src) && /one row per item/.test(src));
 check("prompt rule: who issues / approves has a column of its own, and 'Not stated in circular' where nobody is named", /WHO ISSUES, APPROVES OR SANCTIONS/.test(src) && /column of its own/.test(src));
 check("prompt rule: 'revised' / 'amended' inside a NAME is not a request to compare editions", /A NAME IS NOT A REQUEST TO COMPARE/.test(src) && /WHAT DIFFERS applies only when the question asks/.test(src));

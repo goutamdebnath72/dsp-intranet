@@ -1,8 +1,8 @@
 // src/components/tools/UtilityServicesPage.tsx
 //
-// THE PAGE OF ALL THE UTILITY SERVICES (typed "utility services", "utilities", "all utilities"): every helper of the app beside its main search as a card, A to Z, in the look of the list of calculators.
+// This is the page of all the utility services (typed "utility services", "utilities", "all utilities"): every helper of the app beside its main search as a card, A to Z, in the look of the list of calculators.
 // A card opens its service: a calculator or reader on its page (with a Back arrow to this page), a live card (prices, news, weather, trains, the guides) in place (also with Back). Two filters: calculators & readers,
-// information & guides. The cards come from the registry (serviceCards.ts); this file names no topic. Nothing is sent anywhere by it.
+// information & guides. The cards come from the registry (serviceCards.ts); I keep this file free of topic names. Nothing is sent anywhere by it.
 "use client";
 
 import React, { useMemo, useState } from "react";

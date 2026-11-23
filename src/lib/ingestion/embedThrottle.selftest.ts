@@ -1,5 +1,5 @@
 // src/lib/ingestion/embedThrottle.selftest.ts
-// Run:  npx tsx src/lib/ingestion/embedThrottle.selftest.ts      (no network, no database, no real waiting: the clock is fake)
+// Run:  npx tsx src/lib/ingestion/embedThrottle.selftest.ts      (needs no network, no database and no real waiting: the clock is fake)
 import { applyWithQuotaWait, isQuotaError, memoized, throttled, type Clock } from "./embedThrottle";
 
 let pass = 0;
@@ -11,7 +11,7 @@ const check = (label: string, ok: boolean, detail = "") => {
     console.log(`  FAIL  ${label}${detail ? " -- " + detail : ""}`);
   }
 };
-// a fake clock: sleeping just moves time forward
+// a fake clock: when it sleeps, time just moves forward
 const fakeClock = () => {
   let t = 1_000_000;
   const slept: number[] = [];

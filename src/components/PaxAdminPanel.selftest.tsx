@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/PaxAdminPanel.selftest.tsx
-// Step 64a: the PAX directory editor as it is drawn: the three inputs, the questions when an entry clashes with a saved one, the lists, the tabs each person sees, and that all text is escaped.
-// (The clicks and the requests are covered by the server tests: src/lib/pax/admin/*.selftest.ts.)
+// Step 64a: here I test the PAX directory editor as it is drawn: the three inputs, the questions when an entry clashes with a saved one, the lists, the tabs each person sees, and that all text is escaped.
+// The clicks and the requests are not tested here; the server tests cover them: src/lib/pax/admin/*.selftest.ts.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -94,7 +94,7 @@ ok("a delegate who somehow gets the 'delegate' op still gets no people tab conte
 ok("the tabs are a real tab list with the chosen one marked", hod.includes('role="tablist"') && /role="tab" aria-selected="true"[^>]*>[^<]*(<svg[^>]*>.*?<\/svg>)?Add/.test(hod.replace(/\n/g, "")));
 ok("all panel text is escaped (a prefill with a tag is text)", !h(<PaxAdminPanel open={{ op: "add", role: "hod", prefill: { department: "<img src=x onerror=alert(1)>" } }} />).includes("<img"));
 
-// ---- the Add tab: "Check and save" stays OFF until the department is typed and the PAX number is valid (owner, 31 Oct 2026) ----
+// ---- the Add tab: "Check and save" stays OFF until the department is typed and the PAX number is valid (my rule, 31 Oct 2026) ----
 const addOff = (el: string) => /<button[^>]*disabled=""[^>]*>Check and save</.test(el);
 const addPanel = (prefill?: { department?: string; number?: string }) => h(<PaxAdminPanel open={{ op: "add", role: "hod", ...(prefill ? { prefill } : {}) }} initialDepartments={DEPTS} />);
 const empty = addPanel();
@@ -161,7 +161,7 @@ ok("with no name in the answer the LOGIN COOKIE's session name is used at once (
 ok("the name from the answer (the people directory's, the one the history records) wins over the session's", actorOf(withSession("login name", <PaxAdminPanel open={{ op: "add", role: "hod", name: "DIRECTORY NAME" }} />)) === "DIRECTORY NAME");
 ok("a blank name in the answer falls back to the session's; a blank session name is no name", actorOf(withSession("SESSION NAME", <PaxAdminPanel open={{ op: "add", role: "hod", name: "   " }} />)) === "SESSION NAME" && actorOf(withSession("   ", <PaxAdminPanel open={{ op: "add", role: "hod" }} />)) === undefined && actorOf(withSession(null, <PaxAdminPanel open={{ op: "add", role: "hod" }} />)) === undefined);
 ok("a name is trimmed and escaped (a tag in it is text)", actorOf(h(<PaxAdminPanel open={{ op: "add", role: "hod", name: "  RAKESH OJHA  " }} />)) === "RAKESH OJHA" && !h(<PaxAdminPanel open={{ op: "add", role: "hod", name: "<img src=x onerror=alert(1)>" }} />).includes("<img"));
-ok("the editor asks the server for the name ONLY when neither the answer nor the session has it", /if \(initialName\) return; \/\/ the name came with the answer: nothing to ask/.test(nameSrc) && /useState<string \| null>\(initialName\)/.test(nameSrc));
+ok("the editor asks the server for the name ONLY when neither the answer nor the session has it", /if \(initialName\) return; \/\/ The name came with the answer, so there is nothing to ask/.test(nameSrc) && /useState<string \| null>\(initialName\)/.test(nameSrc));
 
 // ---- TWO PEOPLE AT ONCE (step 67b): the card shown when a save is refused because somebody else changed the line first ----
 import { Notice, StaleCard, rebaseEntry, theirEntryChanges, wordOfField } from "./PaxAdminUi";
@@ -204,7 +204,7 @@ ok("a refusal for a wrong number is shown as an error with the server's sentence
 // ---- STEP 69b ----
 ok("the PAX tab and the list button are called MODIFY too (the two tools read alike)", /\{ id: "modify", label: "Modify",/.test(readFileSync("src/components/PaxAdminPanel.tsx", "utf8")) && /actionLabel="Modify" actionClass=\{SECONDARY\} busy=\{busy\} onPick=\{startEdit\}/.test(readFileSync("src/components/PaxAdminPanel.tsx", "utf8")));
 
-// ---- the department is a list to choose from, not a box to type in (owner, 23 Nov 2026) ----
+// ---- the department is a list to choose from, not a box to type in (my rule, 23 Nov 2026) ----
 {
   const withList = F({ department: "garage", location: "", number: "" }, { departments: ["CISF", "Garage"] });
   ok("with a list the department is a dropdown button (the listed spelling shown), and there is NO text box for it", /data-pax-department-select/.test(withList) && />Garage</.test(withList) && !/<input[^>]*id="pax-add-department"/.test(withList) && /aria-haspopup="listbox"|role="combobox"|aria-expanded/.test(withList));
@@ -222,7 +222,7 @@ ok("the PAX tab and the list button are called MODIFY too (the two tools read al
   ok("the departments are asked from the server with their own request, answered only to a person who may use the editor (after the authority check)", /"departments", "add"/.test(api2) && api2.indexOf('if (op === "departments")') > api2.indexOf("if (!authority) return reply(403"));
 }
 
-// ---- the change form's button: any real change saves (owner, 23 Nov 2026); the number-only rule of 31 Oct is one constant away ----
+// ---- the change form's button: any real change saves (my decision, 23 Nov 2026); the number-only rule of 31 Oct is one constant away ----
 {
   const panelSrc = readFileSync("src/components/PaxAdminPanel.tsx", "utf8");
   ok("the change form saves when the department, the location or the number has changed (CHANGE_NEEDS_NEW_NUMBER = false); true brings back the number-only rule of 31 Oct", /const CHANGE_NEEDS_NEW_NUMBER = false;/.test(panelSrc) && /editClean\.department !== editing\.department \|\| editClean\.location !== editing\.location/.test(panelSrc) && /CHANGE_NEEDS_NEW_NUMBER \? editNumberChanged : editChanged\) && editValid\.ok/.test(panelSrc));

@@ -1,7 +1,7 @@
 // src/lib/search/rankAdjust.ts
 //
-// Pure post-ranking adjustments for the omnibar's circular search (semantic
-// mode, Latin non-quoted queries only). No DB, no model, no state: the same
+// These are pure post-ranking adjustments for the omnibar's circular search (semantic
+// mode, Latin non-quoted queries only). I keep them free of DB, model and state: the same
 // function is exercised offline against recorded battery results.
 //
 // Each rule is a statement a human reader would agree with:
@@ -16,7 +16,7 @@
 //                are the answer and must rank among the best.
 //   4. CUTOFF    When the best result is strong, results far below it are noise.
 //
-// Quoted and Indic-script queries are returned untouched.
+// I return quoted and Indic-script queries untouched.
 
 import { AUDIENCE_WORDS, contentTokens, isHolidayTopic } from "./topicGate";
 
@@ -25,14 +25,14 @@ export interface RankItem {
   type: string; // "circular" | "announcement" | "holiday"
   headline?: string | null;
   matchPercentage: number;
-  /** true for holiday-list circulars found only by headline embedding (they have no body text) */
+  /** True for holiday-list circulars found only by headline embedding; they have no body text */
   fromHeadlineEmbedding?: boolean;
 }
 
 export interface RankOptions {
-  /** results more than this many points below the best are dropped (when best >= 85); default 12 */
+  /** I drop results more than this many points below the best (when best >= 85); default 12 */
   margin?: number;
-  /** max headline-embedding holiday lists kept when the question names no year */
+  /** The most headline-embedding holiday lists I keep when the question names no year */
   maxHolidayLists?: number;
 }
 
@@ -40,12 +40,12 @@ const AMENDING_RE = /\b(corrigendum|corrigenda|addendum|amendment|amended|revise
 const AMENDING_NOISE = new Set(["circular", "notice", "corrigendum", "corrigenda", "addendum", "amendment", "amended", "revised", "revision", "modification", "order", "amount"]);
 const INDIC = /[\p{Script=Devanagari}\p{Script=Bengali}]/u;
 const CONTRACT_RE = /\bcontract(?:or|ors|s|ual)?\b/i;
-// What a QUESTION says when it is about contractor workers: the headline word, but also the short forms people
-// type ("CW", "labour", "workers"). Used for the question only; headlines are tested with CONTRACT_RE.
+// This is what a QUESTION says when it is about contractor workers: the headline word, but also the short forms people
+// type ("CW", "labour", "workers"). I use it for the question only; headlines are tested with CONTRACT_RE.
 const CONTRACT_QUERY_RE = /\b(contract(?:or|ors|s|ual)?|cws?|labou?rs?|workers?)\b/i;
 const EMPLOYEE_EXPLICIT_RE = /\b(employee|employees|executive|executives|officer|officers|regular|permanent|staff|non-executive|non-executives)\b/i;
 
-/** Every year a text states, including ranges: "2024-25" -> 2024, 2025; "01.01.2025" -> 2025. */
+/** Returns every year a text states, including ranges: "2024-25" -> 2024, 2025; "01.01.2025" -> 2025. */
 export function yearsIn(text: string): number[] {
   const out = new Set<number>();
   for (const m of (text || "").matchAll(/\b(20\d{2})(?:\s*[-\u2013/]\s*(\d{2,4}))?\b/g)) {
@@ -61,10 +61,10 @@ export function yearsIn(text: string): number[] {
 }
 
 /**
- * With no year in the question, yearly copies of the same holiday policy
- * ("Compensatory Off (2020 holiday policy)" ... "(2026 holiday policy)") collapse to the
- * newest one: the question is about the policy as it stands now. With a year in the
- * question the list is returned unchanged (the year rule ranks them instead).
+ * With no year in the question, I collapse yearly copies of the same holiday policy
+ * ("Compensatory Off (2020 holiday policy)" ... "(2026 holiday policy)") to the
+ * newest one, because the question is about the policy as it stands now. With a year in the
+ * question I return the list unchanged: the year rule ranks them instead.
  */
 export function collapseYearlyPolicyCopies<T extends RankItem>(q: string, items: T[]): T[] {
   if (!q || INDIC.test(q) || q.includes('"') || yearsIn(q).length) return items;
@@ -96,17 +96,17 @@ export function applyRankAdjustments<T extends RankItem>(q: string, items: T[], 
 
   // 2. AUDIENCE / POPULATION:
   // In DSP / SAIL, company employees (executives, non-executives, officers, staff) and contractor workers
-  // are distinct populations with separate circulars and holiday lists. This is a RANKING matter, not a
+  // are distinct populations with separate circulars and holiday lists. I treat this as a RANKING matter, not a
   // filter: a headline that says "Contractor Workers" can still be the one right answer (GPAIS premium,
-  // wage rates, biometric attendance exist ONLY as contractor circulars), so it is demoted, never hidden,
+  // wage rates, biometric attendance exist ONLY as contractor circulars), so I demote it and never hide it,
   // except in the one case below. (An earlier version hid every such headline; real queries such as
   // "revised GPAIS premium amount" or "daily rate of wages" then lost their only correct circular.)
   const isDoc = (it: RankItem) => it.type === "circular" || it.type === "announcement";
   const isContractorDoc = (it: RankItem) => isDoc(it) && CONTRACT_RE.test(it.headline || "");
-  // 2a. A question about contractor workers: regular-employee holiday documents do not answer it
+  // 2a. For a question about contractor workers I drop regular-employee holiday documents, since they do not answer it
   //     (a contractor holiday circular is itself a holiday document and must stay).
   let list = items.filter((it) => !(qContract && isHolidayDoc(it) && !isContractorDoc(it)));
-  // 2b. A question that explicitly names employees/executives/officers: contractor circulars are dropped,
+  // 2b. A question that explicitly names employees/executives/officers: I drop contractor circulars,
   //     but only if something else remains (otherwise the user would see an empty page for a real topic).
   //     "Something else" must be a real alternative: a regular document scoring at least as high. A contractor
   //     circular that is clearly the best match ("nodal officers GPAIS premium": "officers" is just a noun there)
@@ -116,7 +116,7 @@ export function applyRankAdjustments<T extends RankItem>(q: string, items: T[], 
     if (bestRegular >= 0) list = list.filter((it) => !isContractorDoc(it) || it.matchPercentage > bestRegular);
   }
 
-  // 1b. no year asked: collapse yearly copies of the same holiday policy to the newest one
+  // 1b. No year asked: I collapse yearly copies of the same holiday policy to the newest one
   list = collapseYearlyPolicyCopies(q, list);
 
   const adjusted = list.map((it) => {
@@ -124,7 +124,7 @@ export function applyRankAdjustments<T extends RankItem>(q: string, items: T[], 
     const h = it.headline || "";
     const hy = yearsIn(h);
 
-    // 3. holiday-topic: holiday notes / lists are the answer (floor applied BEFORE the year rule)
+    // 3. Holiday topic: holiday notes / lists are the answer, so I apply the floor BEFORE the year rule
     if (holidayTopic && !qContract && isHolidayDoc(it) && !isContractorDoc(it)) pct = Math.max(pct, 86);
 
     // 1. year
@@ -134,17 +134,17 @@ export function applyRankAdjustments<T extends RankItem>(q: string, items: T[], 
       pct += Math.max(0, Math.min(6, Math.max(...hy) - 2020));
     }
 
-    // 2c. demotion: a contractor circular ranks below the equivalent regular-employee one when the question
-    //     is not about contractors (more strongly when it explicitly names employees). Headline-embedded
-    //     holiday lists are included: they are exactly where the two audiences get mixed up.
+    // 2c. Demotion: a contractor circular ranks below the equivalent regular-employee one when the question
+    //     is not about contractors (more strongly when it explicitly names employees). I include headline-embedded
+    //     holiday lists: they are exactly where the two audiences get mixed up.
     if (!qContract && isContractorDoc(it)) pct -= qExplicitEmployee ? 30 : 12;
 
     return { ...it, matchPercentage: Math.max(40, Math.min(99, Math.round(pct))) };
   });
 
-  // 5. an amending document (corrigendum, addendum, amendment, revised ...) outranks the
-  //    circular it amends when both are in the results: the question's answer is the
-  //    amended version ("Rs 15,000 is to be read as Rs 14,999"). Dates are not used: they
+  // 5. An amending document (corrigendum, addendum, amendment, revised ...) outranks the
+  //    circular it amends when both are in the results, because the answer to the question is the
+  //    amended version ("Rs 15,000 is to be read as Rs 14,999"). I do not use dates: they
   //    are entered by hand and cannot be trusted for this.
   const amends = (it: { headline?: string | null }) => AMENDING_RE.test(it.headline || "");
   const words = (it: { headline?: string | null }) =>
@@ -162,7 +162,7 @@ export function applyRankAdjustments<T extends RankItem>(q: string, items: T[], 
 
   adjusted.sort((a, b) => b.matchPercentage - a.matchPercentage);
 
-  // cap headline-only holiday lists when no year was asked (newest first by the recency bonus above)
+  // I cap headline-only holiday lists when no year was asked (newest first by the recency bonus above)
   let listsKept = 0;
   let out = adjusted.filter((it) => {
     if (!it.fromHeadlineEmbedding || qYears.length) return true;

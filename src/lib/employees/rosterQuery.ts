@@ -1,26 +1,18 @@
 // src/lib/employees/rosterQuery.ts
 //
-// THE people worker, rebuilt entirely on `employee_roster` (Stage 8). This
-// REPLACES the old queryPeople() in analytics.ts, which queried
-// public."user"/public.departments directly and sorted by a parsed ticket
-// number -- confirmed (chat, 28 Sep 2026) to be the root cause of every
-// "wrong seniority order" bug found this session.
+// This is THE people worker, rebuilt entirely on `employee_roster` (Stage 8). It REPLACES the old queryPeople() in analytics.ts, which
+// queried public."user"/public.departments directly and sorted by a parsed ticket number. That was confirmed (chat, 28 Sep 2026) to be
+// the root cause of every "wrong seniority order" bug found this session.
 //
 // Design notes, decided in chat:
-//   - employee_roster.{name, designation_grade_id, sail_department_id,
-//     global_seniority_rank} are AUTHORITATIVE -- read directly, never from
-//     public."user", until the next roster refresh.
-//   - public."user" is joined ONLY for contactNo/email (the masked-reveal
-//     CUG feature), which the roster does not carry.
-//   - er.cohort ('executive' | 'nonexecutive') is used directly for broad
-//     exec/nonexec/combined-employee filtering -- simpler and more robust
-//     than deriving it from designation_grade.track.
-//   - 3 of 6,493 roster rows have user_id IS NULL (confirmed: transferred-out
-//     executives, not a data bug). LEFT JOIN means they still appear in
-//     lists/counts with name/designation/department but no contact fields --
-//     matches how they'd already be unreachable via login/reveal anyway.
-//   - Sort is ALWAYS `ORDER BY er.global_seniority_rank ASC` -- no exceptions,
-//     no ticketNo fallback. This is the one rule the project calls
+//   - employee_roster.{name, designation_grade_id, sail_department_id, global_seniority_rank} are AUTHORITATIVE: I read them directly,
+//     never from public."user", until the next roster refresh.
+//   - public."user" is joined ONLY for contactNo/email (the masked-reveal CUG feature), which the roster does not carry.
+//   - I use er.cohort ('executive' | 'nonexecutive') directly for broad exec/nonexec/combined-employee filtering; it is simpler and
+//     more robust than deriving it from designation_grade.track.
+//   - 3 of 6,493 roster rows have user_id IS NULL (confirmed: transferred-out executives, not a data bug). The LEFT JOIN means they still
+//     appear in lists/counts with name/designation/department but no contact fields; they would already be unreachable via login/reveal anyway.
+//   - My rule: the sort is ALWAYS `ORDER BY er.global_seniority_rank ASC`, no exceptions, no ticketNo fallback. This is the one rule I call
 //     "no-compromise."
 
 import { formatDepartmentDisplay } from "@/lib/employees/sailDepartments";
@@ -34,22 +26,18 @@ import { maskPno } from "@/lib/security/maskPno";
 export type NameMatchMode = "surname" | "firstname" | "anyword" | "contains" | "auto";
 
 export interface RosterFilters {
-  nameFragment?: string | null; // partial/phonetic -- legacy, used by the deterministic parser path
-  nameExact?: string | null; // quoted: exact whole-word, case-insensitive, position-independent
+  nameFragment?: string | null; // partial/phonetic, legacy: still used by the deterministic parser path
+  nameExact?: string | null; // quoted values: exact whole-word match, case-insensitive, position-independent
   /**
-   * Compositional name search (REPLACED 29 Sep 2026: the old flat
-   * `mode`+`excludePositions` scheme was itself a form of patchwork -- a
-   * new enum value/field was needed for every new logical combination a
-   * question could express. This is a small set of primitives
-   * (wordEquals/wordIsFirst/wordIsLast/substring/fuzzy) combined via
-   * AND/OR/NOT, which composes for free -- see namePredicate.ts. Set by
-   * the LLM orchestrator (queryOrchestrator.ts); the deterministic parser
-   * path continues to use the simpler nameFragment/nameExact fields above,
-   * unaffected.
+   * Compositional name search (REPLACED 29 Sep 2026). I decided the old flat `mode`+`excludePositions` scheme was itself a form of
+   * patchwork: a new enum value/field was needed for every new logical combination a question could express. Now there is a small set of
+   * primitives (wordEquals/wordIsFirst/wordIsLast/substring/fuzzy) combined via AND/OR/NOT, which composes for free; see namePredicate.ts.
+   * The LLM orchestrator (queryOrchestrator.ts) sets it; the deterministic parser path continues to use the simpler nameFragment/nameExact
+   * fields above, unaffected.
    */
   namePredicate?: import("./namePredicate").NamePredicate | null;
-  gradeIds?: number[] | null; // designation_grade.id values (specific title/S-grade)
-  cohort?: "executive" | "nonexecutive" | null; // broad class, incl. "employees" = omit both filters entirely
+  gradeIds?: number[] | null; // holds designation_grade.id values (a specific title/S-grade)
+  cohort?: "executive" | "nonexecutive" | null; // broad class; "employees" means I omit both filters entirely
   sailDeptIds?: number[] | null; // sail_department.id values
 }
 export interface RosterQuery {
@@ -122,11 +110,11 @@ function maskEmail(e: string | null): string | null {
 function rowToEmployee(r: any): EmployeeResult {
   const ticket = (r.ticket_no || "").trim();
   return {
-    id: r.user_id || `roster:${r.id}`, // fall back to a roster-scoped id for the 3 unlinked rows
+    id: r.user_id || `roster:${r.id}`, // for the 3 unlinked rows I fall back to a roster-scoped id
     type: "employee",
     name: r.name,
     ticketNo: ticket,
-    sailPNo: maskPno(r.sail_pno), // masked: the P.No. is also the first password
+    sailPNo: maskPno(r.sail_pno), // masked here because the P.No. is also the first password
     designation: r.designation_title || null,
     department: formatDepartmentDisplay(r.dept_name),
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
@@ -163,13 +151,10 @@ export async function queryRoster(spec: RosterQuery): Promise<RosterQueryResult>
   const { where, params } = buildWhere(spec.filters);
 
   if (spec.filters.namePredicate) {
-    // VERIFIED PATH (added 29 Sep 2026, per explicit request): count and
-    // list must never disagree, and every returned row must independently
-    // satisfy the exact condition -- so both come from ONE pass over a
-    // bounded candidate set, re-checked in plain code (evaluateNamePredicate
-    // in namePredicate.ts), not trusted from SQL compilation alone. The
-    // 2000-row cap is a generous safety bound (DSP's total headcount is
-    // ~6,500), not a real limit on any sensible query.
+    // VERIFIED PATH (added 29 Sep 2026, at my explicit request): count and list must never disagree, and every returned row must
+    // independently satisfy the exact condition. So both come from ONE pass over a bounded candidate set, re-checked in plain code
+    // (evaluateNamePredicate in namePredicate.ts), not trusted from SQL compilation alone. I treat the 2000-row cap as a generous safety
+    // bound (DSP's total headcount is ~6,500), not a real limit on any sensible query.
     const candidateRows: any[] = await d.query(
       `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE ${where} ORDER BY er.global_seniority_rank ASC LIMIT 2000`,
       params,
@@ -202,7 +187,7 @@ export async function queryRoster(spec: RosterQuery): Promise<RosterQueryResult>
   return { count, people: rows.map(rowToEmployee) };
 }
 
-/** Convenience: list people by a resolved set of grade ids, dept-scoped. */
+/** A convenience wrapper: lists people by a resolved set of grade ids, dept-scoped. */
 export async function listByGrades(
   gradeIds: number[],
   sailDeptIds: number[] | null,

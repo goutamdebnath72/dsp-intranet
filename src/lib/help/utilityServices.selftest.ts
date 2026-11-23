@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/help/utilityServices.selftest.ts
-// The "Utility Services" tab of the guide: the term, the services with their bold names, the words that open each one (every word is on the tested "What to type" list), and the facts the services' prose keeps.
+// I check the "Utility Services" tab of the guide: the term, the services with their bold names, the words that open each one (every word is on the tested "What to type" list), and the facts the services' prose keeps.
 // The prose is the text the services had in the introduction of the Sample questions tab, moved unchanged; the pins that guarded it moved here with it.
 import { CALCULATORS_LINE, UTILITY_HOW, UTILITY_LEAD, UTILITY_LIMITS, UTILITY_SERVICES, UTILITY_TITLE } from "./utilityServices";
 import { allReferenceStrings, QUICK_REFERENCE } from "./quickReference";
@@ -42,7 +42,7 @@ const wordOf = (title: string) => title.toLowerCase().replace(/ \(.*$/, "").spli
 ok("the Calculators line names the command and says Enter opens a menu", CALCULATORS_LINE.command === "calculators" && /Enter/.test(CALCULATORS_LINE.after) && /menu/.test(CALCULATORS_LINE.after));
 ok("every tool of the calculators menu is named in that line (a new tool cannot be forgotten)", menuTitles.length >= 10 && menuTitles.every((m) => lineText.includes(wordOf(m))), menuTitles.filter((m) => !lineText.includes(wordOf(m))).join(" | "));
 
-// ---- the prose that moved: the railway, steel and DA entries are short and keep their facts
+// ---- the prose that moved: the railway, steel and DA entries are short and I keep their facts
 const svc = (l: string) => UTILITY_SERVICES.find((x) => x.label === l)!;
 const rail = UTILITY_SERVICES.find((a) => /railway/i.test(a.label))!;
 ok("the railway entry names BOTH stations as two tabs, Durgapur (DGR) and Asansol Junction (ASN), and says in brief WHY Asansol is there: trains that pass Durgapur without stopping, and trains that stop at Asansol but do not come to Durgapur, which a person at Durgapur can only take from Asansol", /Durgapur and Asansol/.test(rail.label) && /two tabs/.test(rail.detail) && /Durgapur \(DGR\)/.test(rail.detail) && /Asansol Junction \(ASN\)/.test(rail.detail) && /pass Durgapur without stopping/.test(rail.detail) && /stop at Asansol but do not come to Durgapur at all/.test(rail.detail) && /a person at Durgapur has to go to Asansol/.test(rail.detail) && /is there because/.test(rail.detail));

@@ -1,12 +1,12 @@
 // src/lib/nl2sql/display.ts
 //
-// How an answer written by the language model is PRESENTED. Pure functions, no database, no React, safe to
+// This file decides how an answer written by the language model is PRESENTED. Pure functions, no database, no React, safe to
 // import from both the server (omnibar.ts) and the browser (AnswerResult.tsx).
 //
 // The model may suggest a presentation (a "display" hint next to its SQL):
 //     {"view": "cards" | "table" | "bar", "title": "...", "columns": [{"key": "...", "label": "..."}],
 //      "bar": {"label": "<text column>", "value": "<numeric column>"}}
-// The model PROPOSES, this module VERIFIES against the real result and falls back to a layout chosen from
+// The model PROPOSES, I VERIFY against the real result here and fall back to a layout chosen from
 // the shape of the data. So a missing, malformed or wrong hint can never break an answer, and:
 //
 //   GUARANTEE: every column the SQL returned is shown, exactly once. A hint can reorder and retitle the
@@ -27,9 +27,9 @@ export interface DisplayColumn {
 export interface ResolvedDisplay {
   view: ViewKind;
   title: string | null;
-  /** ALL result columns, in display order. */
+  /** Holds ALL result columns, in display order. */
   columns: DisplayColumn[];
-  /** Set when a bar chart is possible (one text column + one numeric column, 2..40 rows). */
+  /** I set this only when a bar chart is possible (one text column + one numeric column, 2..40 rows). */
   bar: { label: string; value: string } | null;
 }
 
@@ -64,7 +64,7 @@ const KNOWN_LABELS: Record<string, string> = {
   total: "Total",
 };
 
-/** A readable column title: a known title, else the column name with spaces and a capital. */
+/** Gives a readable column title: a known title if I have one, else the column name with spaces and a capital. */
 export function defaultLabel(key: string): string {
   const k = String(key).trim();
   const known = KNOWN_LABELS[k.toLowerCase()];
@@ -74,7 +74,7 @@ export function defaultLabel(key: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-/** Plain text only: no control characters, collapsed spaces, capped. (The page also escapes everything.) */
+/** I keep plain text only: no control characters, collapsed spaces, capped. The page also escapes everything. */
 export function cleanText(v: unknown, max: number): string {
   if (typeof v !== "string") return "";
   // eslint-disable-next-line no-control-regex
@@ -85,7 +85,7 @@ export function cleanText(v: unknown, max: number): string {
 
 const NUMERIC_STRING = /^-?\d+(\.\d+)?$/;
 const CODE_NAME = /(^id$|_id$|_code$|_no$|^ticket|pno$)/i;
-// A numeric column named percent / percentage / pct (e.g. percent_of_garage, pct_of_total) is shown with a % sign.
+// I show a numeric column named percent / percentage / pct (e.g. percent_of_garage, pct_of_total) with a % sign.
 const PERCENT_NAME = /(^|_)(percent|percentage|pct)(_|$)/i;
 
 function isNumberLike(v: unknown): boolean {
@@ -119,7 +119,7 @@ function findColumn(name: unknown, columns: string[]): string | null {
   return columns.find((c) => c.toLowerCase() === n) ?? null;
 }
 
-/** A bar chart needs a text column and a numeric column, and 2..40 rows. */
+/** I allow a bar chart only when there is a text column and a numeric column, and 2..40 rows. */
 function validBar(label: string | null, value: string | null, columns: DisplayColumn[], rows: Row[]) {
   if (!label || !value || label === value) return null;
   if (rows.length < 2 || rows.length > 40) return null;
@@ -131,8 +131,8 @@ function validBar(label: string | null, value: string | null, columns: DisplayCo
 }
 
 /**
- * Decide how to present a result. `hint` is whatever the model sent (anything at all, even garbage).
- * Returns null for a single plain number (the page shows that as the large figure, no table needed).
+ * Decides how to present a result. `hint` is whatever the model sent (anything at all, even garbage).
+ * I return null for a single plain number: the page shows that as the large figure, no table needed.
  */
 export function resolveDisplay(
   hint: unknown,
@@ -149,7 +149,7 @@ export function resolveDisplay(
     const h: any = hint && typeof hint === "object" && !Array.isArray(hint) ? hint : {};
     const kinds = new Map(columnNames.map((c) => [c, columnKind(c, safeRows)] as const));
 
-    // columns: the hint's order and titles for real columns first, then every remaining column
+    // columns: I take the hint's order and titles for real columns first, then every remaining column
     const order: { key: string; label: string }[] = [];
     const used = new Set<string>();
     const hinted: unknown[] = Array.isArray(h.columns) ? h.columns.slice(0, 40) : [];
@@ -164,7 +164,7 @@ export function resolveDisplay(
     for (const key of columnNames) if (!used.has(key)) order.push({ key, label: defaultLabel(key) });
     const columns: DisplayColumn[] = order.map((o) => ({ key: o.key, label: o.label, kind: kinds.get(o.key) ?? "text" }));
 
-    // a bar chart: from the hint when valid, else detected when the result is exactly one text + one numeric column
+    // a bar chart: from the hint when valid, else I detect it when the result is exactly one text + one numeric column
     const hb = h.bar && typeof h.bar === "object" ? h.bar : {};
     let bar = validBar(findColumn(hb.label ?? hb.x, columnNames), findColumn(hb.value ?? hb.y, columnNames), columns, safeRows);
     if (!bar && columnNames.length === 2 && safeRows.length >= 2 && safeRows.length <= 30) {
@@ -174,8 +174,8 @@ export function resolveDisplay(
       if (num && txt) bar = validBar(txt.key, num.key, columns, safeRows);
     }
 
-    // the view: the model's choice when it is possible, else chosen from the shape of the data
-    // A list of PEOPLE always opens on the person cards (they carry the most: P.No, department, contact buttons, and
+    // the view: I take the model's choice when it is possible, else I choose from the shape of the data
+    // I always open a list of PEOPLE on the person cards (they carry the most: P.No, department, contact buttons, and
     // every extra column as a labelled chip); the table is one click away. Only a person who literally asked for a
     // table gets the table first.
     let view: ViewKind | null = pickView(h.view);
@@ -190,7 +190,7 @@ export function resolveDisplay(
     const title = cleanText(h.title, 80) || null;
     return { view, title, columns, bar };
   } catch {
-    // never let a presentation problem break an answer: a plain table of everything
+    // My rule: never let a presentation problem break an answer; fall back to a plain table of everything
     const cols = Array.isArray(columnNames) ? columnNames : [];
     return cols.length ? { view: "table", title: null, columns: cols.map((c) => ({ key: c, label: defaultLabel(c), kind: "text" as ColumnKind })), bar: null } : null;
   }
@@ -206,8 +206,8 @@ export interface DepartmentGroup<T> {
 
 /**
  * When a list of people falls into a few CONSECUTIVE department blocks (executives first under one code, then the
- * sections), return those blocks so the page can show one heading per block instead of repeating the department on
- * every card. Order is never changed. Returns null when grouping would not help: fewer than 4 people, someone with no
+ * sections), I return those blocks so the page can show one heading per block instead of repeating the department on
+ * every card. I never change the order. Returns null when grouping would not help: fewer than 4 people, someone with no
  * department, more than 6 blocks, or blocks averaging fewer than 2 people.
  */
 export function departmentGroups<T extends { department?: string | null; departmentCode?: string | null }>(people: T[]): DepartmentGroup<T>[] | null {
@@ -229,7 +229,7 @@ export function departmentGroups<T extends { department?: string | null; departm
 
 export function formatCell(value: unknown, kind: ColumnKind): string {
   if (value === null || value === undefined || value === "") return "\u2014";
-  // a list in one cell (array_agg of names) reads "A, B, C" -- the default String() gives "A,B,C" with no space
+  // a list in one cell (array_agg of names) reads "A, B, C" because I join it myself; the default String() gives "A,B,C" with no space
   if (Array.isArray(value)) return value.length ? value.map((v) => String(v)).join(", ") : "\u2014";
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (kind === "number" && isNumberLike(value)) {
@@ -240,7 +240,7 @@ export function formatCell(value: unknown, kind: ColumnKind): string {
     return `${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
   }
   if (kind === "date") {
-    // Luxon (step 65c): a date without a time is that calendar day (read in UTC, so that no zone moves it); a moment is shown in the zone of the machine, as before
+    // Luxon (step 65c): I read a date without a time as that calendar day (in UTC, so that no zone moves it); a moment is shown in the zone of the machine, as before
     const d = toDateTime(value instanceof Date ? value : String(value));
     if (d.isValid) return d.setLocale("en-GB").toLocaleString({ day: "2-digit", month: "short", year: "numeric" });
   }
@@ -255,7 +255,7 @@ export function pageProgress(shown: number, total: number, pageSize = 100): { re
   return { remaining, label, progress: `${shown.toLocaleString()} of ${total.toLocaleString()} shown` };
 }
 
-/** The table with one more page of rows appended (the original is not changed). */
+/** Returns the table with one more page of rows appended; I do not change the original. */
 export function mergePage<T extends { rows: Row[]; total: number; truncated: boolean }>(table: T, page: { rows: Row[]; total?: number; hasMore: boolean }): T {
   return { ...table, rows: [...table.rows, ...page.rows], total: typeof page.total === "number" ? page.total : table.total, truncated: page.hasMore };
 }
@@ -272,7 +272,7 @@ export function sortRows(rows: Row[], key: string, kind: ColumnKind, dir: "asc" 
       const vb = b.r[key];
       const na = va === null || va === undefined || va === "";
       const nb = vb === null || vb === undefined || vb === "";
-      if (na || nb) return na && nb ? a.i - b.i : na ? 1 : -1; // empty cells always last
+      if (na || nb) return na && nb ? a.i - b.i : na ? 1 : -1; // I put empty cells last, always
       const c = isNum ? Number(va) - Number(vb) : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
       return c !== 0 ? sign * c : a.i - b.i;
     })
@@ -280,7 +280,7 @@ export function sortRows(rows: Row[], key: string, kind: ColumnKind, dir: "asc" 
 }
 
 /**
- * The filter box above a list. Several things can be asked at once, separated by a comma (or ; | or the word "or"): "gm, dgm, agm". Each one is either
+ * I let the filter box above a list take several things at once, separated by a comma (or ; | or the word "or"): "gm, dgm, agm". Each one is either
  *   - a DESIGNATION (in any case, with or without dots: gm, dgm, agm, ed, dic, Dy. general manager, asst.general manager, sr mgr ...): the rows with exactly
  *     that designation, however it is spelled in the list; or
  *   - text, found anywhere in the row as before (a name, a ticket, a department, a code); dots and spaces do not matter ("asst.general" finds "Asst. General").
@@ -310,13 +310,13 @@ export function filterRows(rows: Row[], columns: DisplayColumn[], query: string)
 
 function csvCell(value: unknown, kind: ColumnKind): string {
   let s = value === null || value === undefined ? "" : typeof value === "boolean" ? (value ? "Yes" : "No") : Array.isArray(value) ? value.map((v) => String(v)).join(", ") : String(value);
-  // a spreadsheet would run a cell that starts with = + - @ as a formula: neutralise text cells (never plain numbers)
+  // A spreadsheet would run a cell that starts with = + - @ as a formula, so I neutralise text cells (never plain numbers).
   if (kind !== "number" && kind !== "percent" && /^[=+\-@\t\r]/.test(s) && !NUMERIC_STRING.test(s.trim())) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export function toCsv(columns: DisplayColumn[], rows: Row[]): string {
-  // Numbers stay raw in the file (a spreadsheet can use them); a percentage column says so in its heading.
+  // I keep numbers raw in the file so a spreadsheet can use them; a percentage column says so in its heading.
   const head = columns
     .map((c) => csvCell(c.kind === "percent" && !/%|percent/i.test(c.label) ? `${c.label} (%)` : c.label, "text"))
     .join(",");
@@ -330,18 +330,18 @@ export function toTsv(columns: DisplayColumn[], rows: Row[]): string {
 }
 
 // ---- honest row counts and export labels ------------------------------------------------------------
-// A long list is loaded 100 rows at a time. The header and the Copy / CSV buttons must say how much they cover, so nobody
+// I load a long list 100 rows at a time. The header and the Copy / CSV buttons must say how much they cover, so nobody
 // takes the first 100 rows of 259 for the whole list.
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
-/** "2 rows" / "12 of 100 rows" / "100 loaded rows (259 in all)" / "12 of 100 loaded rows (259 in all)". */
+/** Returns the row-count label: "2 rows" / "12 of 100 rows" / "100 loaded rows (259 in all)" / "12 of 100 loaded rows (259 in all)". */
 export function rowCountLabel(shown: number, loaded: number, total: number, truncated: boolean): string {
   if (!truncated || total <= loaded) return shown === loaded ? `${fmt(shown)} ${shown === 1 ? "row" : "rows"}` : `${fmt(shown)} of ${fmt(loaded)} rows`;
   return `${shown === loaded ? fmt(loaded) : `${fmt(shown)} of ${fmt(loaded)}`} loaded rows (${fmt(total)} in all)`;
 }
 
-/** What Copy and CSV cover: a visible suffix like " (100 of 259)" and a tooltip, only when the list is not fully loaded. */
+/** This says what Copy and CSV cover: a visible suffix like " (100 of 259)" and a tooltip, and I add them only when the list is not fully loaded. */
 export function exportNote(shown: number, total: number, truncated: boolean): { suffix: string; title: string } {
   if (!truncated || total <= shown) return { suffix: "", title: "" };
   return {
@@ -352,7 +352,7 @@ export function exportNote(shown: number, total: number, truncated: boolean): { 
 
 /**
  * The big number and "N rows." at the top of a table answer say how many rows there are. For ONE row (a lookup of one person or one ticket) that is
- * noise: the table already shows it. Only that case is hidden: a count answer ("how many ...", a single number) and any list of 2 or more keep theirs.
+ * noise, since the table already shows it, so I hide it in that case only: a count answer ("how many ...", a single number) and any list of 2 or more keep theirs.
  */
 export function isSingleRowTable(kind: string | undefined, count: number | undefined, hasTable: boolean): boolean {
   return kind === "total" && count === 1 && hasTable;

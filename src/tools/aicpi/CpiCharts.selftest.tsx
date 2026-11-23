@@ -1,5 +1,5 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/aicpi/CpiCharts.selftest.tsx
-// The CPI column charts: three sector tabs and a State chosen from a list, the inflation of 1, 3, 5 and 10 years in four tabs, the scale (bars start at zero for a rate, at 100 for the index, and say so), a month with no figure is a gap,
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/tools/aicpi/CpiCharts.selftest.tsx
+// The CPI column charts are checked here: three sector tabs and a State chosen from a list, the inflation of 1, 3, 5 and 10 years in four tabs, the scale (bars start at zero for a rate, at 100 for the index, and say so), a month with no figure is a gap,
 // and the words that say what the CPI is and is not. Drawn from MoSPI's own reply of 14 Nov 2026.
 import { readFileSync } from "node:fs";
 import React from "react";

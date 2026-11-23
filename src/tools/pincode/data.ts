@@ -1,6 +1,6 @@
 // src/tools/pincode/data.ts
 //
-// THE DATA OF THE DURGAPUR AREAS CARD (PIN codes, DMC wards, legislative seats). NOTHING HERE IS FETCHED: there is no live source, so it is a reviewed file, with its sources and its date.
+// THE DATA OF THE DURGAPUR AREAS CARD (PIN codes, DMC wards, legislative seats). NOTHING HERE IS FETCHED: there is no live source, so I keep it as a reviewed file, with its sources and its date.
 //
 // SOURCES
 //  * PIN codes and post offices: India Post's PIN directory (the department of posts), read through the free service api.postalpincode.in on 15 Nov 2026, for every code from 713200 to 713299
@@ -15,8 +15,8 @@
 //    from the page images because the machine reading missed the line, and the odd ones checked against their images. The stations' addresses (police.ts) are from the Asansol-Durgapur Police Commissionerate's own site.
 //
 // HOW THE AREA NAMES WERE MADE: the Bengali names are as printed in the roll, read from the page images and checked one by one (a first machine reading was corrected against each image). The English
-//   spelling beside each is a TRANSLITERATION of the Bengali (not an official spelling); an entry marked `u` (unsure) is one whose reading or spelling is to be confirmed. The roll's "999" line (overseas electors) is not an area and is left out.
-// The wards may be re-drawn: a delimitation that would raise the corporation from 43 to 53 wards has been reported (not confirmed), so this file is the 43-ward map of the 2026 draft roll.
+//   spelling beside each is a TRANSLITERATION of the Bengali, not an official spelling; an entry marked `u` (unsure) is one whose reading or spelling still has to be confirmed. I left out the roll's "999" line (overseas electors) because it is not an area.
+// The wards may be re-drawn: a delimitation that would raise the corporation from 43 to 53 wards has been reported (not confirmed), so I keep this file as the 43-ward map of the 2026 draft roll.
 //
 // Shapes: an area is [bengali, english, pin, u, police] (u = 1 when unsure; police = D, C, N or K: the police station printed on the roll part the area is in, see police.ts).
 
@@ -1130,7 +1130,7 @@ export const WARDS: readonly Ward[] = [
     ] },
 ];
 
-/** the three gram panchayats of Kanksa block in the Durgapur Purba seat (parts 213-291 of the roll) */
+/** These are the three gram panchayats of Kanksa block that sit in the Durgapur Purba seat (parts 213-291 of the roll) */
 export const PANCHAYATS: readonly Panchayat[] = [
   { id: "amlajora", bn: "আমলাজোড়া", en: "Amlajora", parts: 27, pins: [["713212", 12], ["713169", 9], ["713148", 4], ["713218", 2]], thanas: [["K", 27]], areas: [
       ["রাজবাঁধ জি,টি রোডের দক্ষিনে জেলাপরিষদ রাস্তার সমগ্র পশ্চিম অংশ", "Rajbandh south of G.T. Road, entire western part of Zilla Parishad road", "713212", 0, "K"],

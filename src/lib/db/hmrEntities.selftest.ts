@@ -1,6 +1,6 @@
 // src/lib/db/hmrEntities.selftest.ts
 // Run:  TEST_DATABASE_URL=postgres://user:pass@host:5432/dbname npx tsx src/lib/db/hmrEntities.selftest.ts
-// Needs any scratch/dev Postgres it may CREATE and DROP a table named zz_hmr_probe in. Skips itself if TEST_DATABASE_URL is unset.
+// Needs any scratch/dev Postgres in which it may CREATE and DROP a table named zz_hmr_probe. It skips itself if TEST_DATABASE_URL is unset.
 import "reflect-metadata";
 import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { hasExactMetadata, installDevEntityNameFallback } from "./hmrEntities";
@@ -20,7 +20,7 @@ const check = (label: string, ok: boolean, detail = "") => {
   }
 };
 
-// Each call = a NEW class object with the same name and mapping: what a re-evaluated module produces in `next dev`.
+// Each call makes a NEW class object with the same name and mapping, which is what a re-evaluated module produces in `next dev`.
 function defineCircular() {
   @Entity({ name: "zz_hmr_probe" })
   class Circular {
@@ -72,7 +72,7 @@ function defineOther() {
     await ds.getRepository(C2).delete({ id: saved.id });
     check("AFTER the fix: delete() works", (await ds.query(`SELECT count(*)::int n FROM zz_hmr_probe`))[0].n === 2);
 
-    // 3. reload detection must still work: the strict check must NOT be fooled by the fallback
+    // Step 3: reload detection must still work, so the strict check must NOT be fooled by the fallback
     check("the strict check still says the copy is NOT the registered class (a real reload stays detectable)", hasExactMetadata(ds, C1) && !hasExactMetadata(ds, C2));
     check("...while hasMetadata() now says yes for the copy (which is why the strict check exists)", ds.hasMetadata(C2));
 

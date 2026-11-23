@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/CircularAnswerCard.selftest.tsx
-// Renders the real answer card to static HTML: which circular each row comes from, the caveat, the note.
+// Renders the real answer card to static HTML to check which circular each row comes from, the caveat and the note.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

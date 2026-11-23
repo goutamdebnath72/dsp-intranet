@@ -1,21 +1,21 @@
 // src/lib/ingestion/indicRepair.ts
 //
-// HINDI AND BENGALI LETTER SLIPS: found by plain code, repaired only from the OTHER independent reading, never invented.
+// Hindi and Bengali letter slips: plain code finds them, and I repair them only from the OTHER independent reading, never by invention.
 //
-// What the circular PRINTS is a record: a spelling slip in the printed circular ("ठेकेदारो", "त्यौहारिय") is kept exactly as printed (a corrector, human or model, is wrong
-// often enough: on the stored archive a strong model flagged 15 words and 4 of them were correct words). What is NOT a record is a slip of the READER: a letter of the wrong
-// script (a Korean letter where "क्र" is printed), or a letter sequence that cannot occur in the language (a virama followed by a vowel sign). That kind is detectable
-// without a dictionary, and the second reader (which read the same page independently) usually has the right word. So:
+// What the circular PRINTS is a record: a spelling slip in the printed circular ("ठेकेदारो", "त्यौहारिय") is kept exactly as printed, because a corrector, human or model, is wrong
+// often enough (on the stored archive a strong model flagged 15 words and 4 of them were correct words). What is NOT a record is a slip of the READER: a letter of the wrong
+// script (a Korean letter where "क्र" is printed), or a letter sequence that cannot occur in the language (a virama followed by a vowel sign). That kind can be detected
+// without a dictionary, and the second reader (which read the same page independently) usually has the right word. So my steps are:
 //   1. a token of the primary reading with such a defect is looked up in the checker's reading;
-//   2. it is replaced only by a clean token of the checker that fits (the stray letters stand for 1-4 letters of it) and that is the ONLY fit on the page, or stands next to the same neighbour word;
+//   2. I replace it only with a clean token of the checker that fits (the stray letters stand for 1-4 letters of it) and that is the ONLY fit on the page, or stands next to the same neighbour word;
 //   3. a defect with no such token is left as read and REPORTED, never guessed.
 // Pure: no I/O, no model.
 
-// Greek is left out on purpose: mu, omega and alpha are real symbols in a technical circular; the other scripts never are
+// I leave Greek out on purpose: mu, omega and alpha are real symbols in a technical circular, while the other scripts never are
 const STRAY =/[\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Hebrew}\p{Script=Thai}]+/gu;
 const INDIC_LETTER = /[ऄ-हक़-ॡঅ-হড়-ৡ]/u;
 
-// per script: virama, dependent vowel signs, other combining marks that cannot follow a virama
+// Per script I list the virama, the dependent vowel signs and the other combining marks that cannot follow a virama
 const SCRIPTS = [
   { name: "Devanagari", virama: "्", signs: "ा-ौॕ-ॗॢॣ", marks: "ऀ-ः़" },
   { name: "Bengali", virama: "্", signs: "া-ৌৗৢৣ", marks: "ঁ-ঃ়" },
@@ -29,11 +29,11 @@ const DEFECTS = SCRIPTS.map((s) => ({
 
 export interface IndicDefect { kind: "stray-script" | "malformed-sequence"; detail: string }
 
-/** What is wrong with one token (a word with its punctuation), or null. Only tokens that hold a Devanagari or Bengali letter or a stray letter are looked at. */
+/** Says what is wrong with one token (a word with its punctuation), or null. I only look at tokens that hold a Devanagari or Bengali letter or a stray letter. */
 export function indicDefect(token: string): IndicDefect | null {
   const stray = token.match(STRAY);
   if (stray && (INDIC_LETTER.test(token) || /[.।|]/.test(token) || true)) {
-    // a stray-script letter is a slip whenever it sits in a circular of these languages (the archive has Latin, Devanagari and Bengali only)
+    // A stray-script letter counts as a slip whenever it sits in a circular of these languages, because the archive has Latin, Devanagari and Bengali only
     return { kind: "stray-script", detail: stray.join("") };
   }
   if (!INDIC_LETTER.test(token)) return null;
@@ -46,7 +46,7 @@ export function indicDefect(token: string): IndicDefect | null {
   return null;
 }
 
-/** Canonical form of the Hindi and Bengali words of a text (Unicode NFC, which writes ड़ ढ़ য় ড় ঢ় the one standard way), so a word typed in one form is found in the other. The letters are the same letters. */
+/** Gives the canonical form of the Hindi and Bengali words of a text (Unicode NFC, which writes ड़ ढ़ য় ড় ঢ় the one standard way), so a word typed in one form is found in the other. The letters are the same letters. */
 export function canonicalIndic(text: string): string {
   return text.replace(/\S*[ऀ-৿]\S*/gu, (w) => w.normalize("NFC"));
 }
@@ -57,7 +57,7 @@ const tokensOf = (s: string): string[] => s.split(/\s+/).filter(Boolean);
 export interface IndicRepair { from: string; to: string; why: string }
 export interface IndicUnresolved { token: string; why: string }
 
-/** The pattern a defective token stands for: each run of stray letters may be 1 to 4 letters of the right word. */
+/** Builds the pattern a defective token stands for: I let each run of stray letters be 1 to 4 letters of the right word. */
 function patternOf(token: string): RegExp | null {
   const parts = token.split(STRAY);
   if (parts.length < 2) return null;
@@ -79,7 +79,7 @@ function distance(a: string, b: string, cap: number): number {
 
 /**
  * Repairs the defective tokens of `primary` from `checker` (the other reading of the same page). Returns the repaired text, what was repaired, and what could not be.
- * `checker` may be empty or null: then nothing is repaired and every defect is reported.
+ * `checker` may be empty or null: then I repair nothing and report every defect.
  */
 export function repairIndic(primary: string, checker: string | null | undefined): { text: string; repairs: IndicRepair[]; unresolved: IndicUnresolved[] } {
   const repairs: IndicRepair[] = [];

@@ -1,6 +1,6 @@
 // src/lib/accessLog/admin/store.ts
 //
-// Database queries and storage logic for Contact Access Log facility (Modular Facility Kit).
+// All database queries and storage logic for the Contact Access Log facility (Modular Facility Kit) live here.
 
 import type { DataSource } from "typeorm";
 import type { Actor, AuditRow, DelegateResult, DelegateView, FacilityDb } from "@/lib/facility/types";
@@ -16,7 +16,7 @@ import { toIsoInstant } from "@/lib/dates";
 
 export type AccessLogDb = FacilityDb;
 
-/** A typed % or _ is a letter to look for, not a wildcard (backslash is Postgres' default LIKE escape). */
+/** I treat a typed % or _ as a letter to look for, not a wildcard (backslash is Postgres' default LIKE escape). */
 const likeEscape = (v: string) => v.replace(/[\\%_]/g, (c) => "\\" + c);
 
 export async function queryAccessLogs(
@@ -38,7 +38,7 @@ export async function queryAccessLogs(
     .map((s) => s.trim().toLowerCase())
     .filter((s) => s && s !== "all");
 
-  // whole numbers only (a fraction made the LIMIT/OFFSET cast fail with a 500; a huge page is capped)
+  // I accept whole numbers only: a fraction made the LIMIT/OFFSET cast fail with a 500, and a huge page is capped.
   const page = Math.min(100000, Math.max(1, Math.trunc(Number(filters.page) || 1)));
   const pageSize = Math.min(200, Math.max(1, Math.trunc(Number(filters.pageSize) || 50)));
   const offset = (page - 1) * pageSize;
@@ -46,7 +46,7 @@ export async function queryAccessLogs(
   const sortKey = (filters.sort || "accessedAt").trim();
   const dir = (filters.dir || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
 
-  // Check if optional "action" column exists in public.contact_access_log
+  // I check whether the optional "action" column exists in public.contact_access_log
   const colRows = await ds.query(
     `SELECT 1 FROM information_schema.columns
      WHERE table_schema='public' AND table_name='contact_access_log'
@@ -59,7 +59,7 @@ export async function queryAccessLogs(
   const where: string[] = [];
   const params: unknown[] = [];
 
-  // A day means the INDIA day (the old route did the same): the database clock is UTC, so "to 7 Oct" must end at the end of
+  // For me a day means the INDIA day (the old route did the same): the database clock is UTC, so "to 7 Oct" must end at the end of
   // 7 Oct IST, not at 05:30 IST on the 8th.
   if (from) {
     params.push(from);
@@ -240,7 +240,7 @@ export async function grantAccessLogDelegate(
   actor: Actor,
   target: { ticket: string; name: string },
 ): Promise<DelegateResult> {
-  // allowNonExecutive: false is enforced in registry for "access_log"
+  // I enforce allowNonExecutive: false in the registry for "access_log"
   return grantDelegate(db, "access_log", actor, target);
 }
 
@@ -257,8 +257,8 @@ export async function accessLogRecentAudit(db: AccessLogDb): Promise<AuditRow[]>
 }
 
 /**
- * The log of who saw private contact data is itself private: LOOKING at it is recorded (action "view": who, when, with
- * which filters and how many lines were returned; never the lines themselves). One row per distinct look: the same person
+ * The log of who saw private contact data is itself private, so LOOKING at it is recorded (action "view": who, when, with
+ * which filters and how many lines were returned; never the lines themselves). I write one row per distinct look: the same person
  * with the same filters within two minutes (paging back and forth, a refresh) does not write another row, so the history
  * stays readable. The authority is decided again here under the tool's lock.
  */

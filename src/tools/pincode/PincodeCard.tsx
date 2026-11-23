@@ -1,11 +1,11 @@
 // src/tools/pincode/PincodeCard.tsx
 //
-// THE DURGAPUR AREAS CARD, seen through the lens of the Steel Plant: its township's PIN codes first, then the 43 wards of the Durgapur Municipal Corporation with the areas of each, then the two assembly seats and the police stations.
+// THE DURGAPUR AREAS CARD, seen through the lens of the Steel Plant: I show its township's PIN codes first, then the 43 wards of the Durgapur Municipal Corporation with the areas of each, then the two assembly seats and the police stations.
 // Tab 1 "PIN codes": the 19 codes of the city (713201 to 713219), each with its post offices and the wards that use it, in ITS OWN COLOUR; the Steel Plant's own post offices are marked. Tab 2 "DMC wards": every ward,
 // its seat, its PINs and its areas (in English), with a search. Tab 3 "Assembly seats": Durgapur Purba and Durgapur Paschim, the wards of each, and the three gram panchayats
 // of Kanksa that Durgapur Purba adds. Tab 4 "Police stations": which areas are under which of the four stations the roll names (Durgapur, Coke Oven, Kanksa, New Township), with the station's address
-// from the Commissionerate's site, and a search that tells which station an area is under. The colour of a PIN is the same on every tab, and a PIN's number is always written too: colour is never the only sign.
-// Nothing is fetched: the data is a reviewed file with its sources and date (data.ts, which also says how the English spellings were made).
+// from the Commissionerate's site, and a search that tells which station an area is under. The colour of a PIN is the same on every tab, and I always write the PIN's number too: colour is never the only sign.
+// I fetch nothing: the data is a reviewed file with its sources and date (data.ts, which also says how the English spellings were made).
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -31,7 +31,7 @@ const PILL = "from-violet-600 to-indigo-600 shadow-violet-600/30";
 
 /* ---------- small pieces ---------- */
 
-/** a PIN code in its own colour; a button when it can be pressed (it then filters the wards to that PIN) */
+/** A PIN code in its own colour; it is a button when it can be pressed, and then it filters the wards to that PIN */
 function PinChip({ pin, count, onClick, big = false, hint }: { pin: string; count?: number; onClick?: () => void; big?: boolean; hint?: string }) {
   const st = pinStyle(pin);
   const body = (
@@ -55,7 +55,7 @@ function SeatTag({ seat }: { seat: Seat }) {
   return <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold" style={{ background: s.soft, borderColor: `${s.color}55`, color: s.ink }} data-seat={seat}><span aria-hidden="true" className="h-2 w-2 rounded-sm" style={{ background: s.color }} />{s.name}</span>;
 }
 
-/** the search box. The browser draws its own cross (blue, on hover) inside a search input; it is switched off, so the card's one cross is the only one: it shows when something is typed, turns red on hover and on keyboard focus, and after a click the cursor is back in the box. */
+/** The search box. The browser draws its own cross (blue, on hover) inside a search input; I switch it off, so the card's one cross is the only one: it shows when something is typed, turns red on hover and on keyboard focus, and after a click the cursor is back in the box. */
 function SearchBox({ value, onChange, label, placeholder }: { value: string; onChange: (v: string) => void; label: string; placeholder: string }) {
   const input = useRef<HTMLInputElement>(null);
   return (
@@ -69,7 +69,7 @@ function SearchBox({ value, onChange, label, placeholder }: { value: string; onC
   );
 }
 
-/** the English name of an area, with the other name of a place written after the word it belongs to */
+/** I write the English name of an area with the other name of a place right after the word it belongs to */
 function AreaRow({ a, police = false }: { a: Area; police?: boolean }) {
   const st = POLICE[a[4]];
   return (
@@ -196,10 +196,10 @@ function PinsTab({ go, initialQuery = "" }: { go: (tab: PincodeTab, query?: stri
 
 /* ---------- tab 2: DMC wards ---------- */
 
-/** "Durgapur PS", "Coke Oven PS": the short name of a station */
+/** The short name of a station: "Durgapur PS", "Coke Oven PS" */
 const shortName = (p: Police) => POLICE[p].name.replace(" Police Station", " PS");
 
-/** a police station in its own colour: a button when it can be pressed */
+/** A police station in its own colour; it is a button when it can be pressed */
 function PoliceTag({ p, count, onClick }: { p: Police; count?: number; onClick?: () => void }) {
   const st = POLICE[p];
   const body = (<><ShieldCheck size={12} aria-hidden="true" /><span>{shortName(p)}</span>{count !== undefined && <span className="text-[10px] font-semibold opacity-70">×{count}</span>}</>);
@@ -212,7 +212,7 @@ function PoliceTag({ p, count, onClick }: { p: Police; count?: number; onClick?:
   );
 }
 
-/** PRESSING A PIN ON A WARD (OR PANCHAYAT) CARD takes you to that PIN's areas in the long list: the list is opened if it is closed, the window scrolls to the PIN's group, and the group is lit for a moment. */
+/** PRESSING A PIN ON A WARD (OR PANCHAYAT) CARD takes you to that PIN's areas in the long list: I open the list if it is closed, scroll the window to the PIN's group, and light the group for a moment. */
 function usePinJump(open: boolean, openIt: () => void, attr = "data-pin-group", tone: (key: string) => { border: string; soft: string } = pinStyle) {
   const root = useRef<HTMLDivElement & HTMLElement>(null);
   const calm = useReducedMotion();
@@ -232,7 +232,7 @@ function usePinJump(open: boolean, openIt: () => void, attr = "data-pin-group", 
     const t = setTimeout(() => setFlash(null), 1800);
     return () => clearTimeout(t);
   }, [flash]);
-  /* a closed list takes a moment to open (0.22 s) and the window can only scroll as far as the list has grown, so the scroll waits until it has opened */
+  /* A closed list takes a moment to open (0.22 s) and the window can only scroll as far as the list has grown, so I make the scroll wait until the list has opened */
   const jump = (pin: string) => { if (!open) openIt(); setWant({ pin, wait: open ? 0 : 450 }); };
   const lit = (pin: string): React.CSSProperties | undefined => (flash === pin ? { boxShadow: `0 0 0 3px ${tone(pin).border}`, background: tone(pin).soft } : undefined);
   return { root, jump, lit };
@@ -393,7 +393,7 @@ function SeatsTab({ go }: { go: (tab: PincodeTab, query?: string) => void }) {
 const placeKey = (x: PolicePlace) => (x.ward ? `w${x.ward.ward}` : `g${x.panchayat!.id}`);
 const placeTone = (key: string) => ({ border: key.startsWith("w") ? "#cbd5e1" : "#c4b5fd", soft: "#f8fafc" });
 
-/** a telephone number you can press: a landline of Durgapur (0343-2564081) or a mobile (9147889404), as a tel: link */
+/** A telephone number you can press: a landline of Durgapur (0343-2564081) or a mobile (9147889404), drawn as a tel: link */
 function PhoneLink({ n, light = false }: { n: string; light?: boolean }) {
   const digits = n.replace(/\D/g, "");
   const href = `tel:+91${digits.startsWith("0") ? digits.slice(1) : digits}`;
@@ -401,7 +401,7 @@ function PhoneLink({ n, light = false }: { n: string; light?: boolean }) {
   return <a href={href} data-phone={n} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold tabular-nums transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${cls}`}><Phone size={11} aria-hidden="true" />{n}</a>;
 }
 
-/** an investigation centre or outpost: its name, where it is, its number, and the station it is under */
+/** One row for an investigation centre or outpost: I show its name, where it is, its number, and the station it is under */
 function UnitRow({ u, under }: { u: PoliceUnit; under: Police | null }) {
   const st = under ? POLICE[under] : null;
   return (
@@ -416,7 +416,7 @@ function UnitRow({ u, under }: { u: PoliceUnit; under: Police | null }) {
   );
 }
 
-/** one station: its address from the Commissionerate's site, how many wards, polling areas and areas it has, a row of its wards (pressing one jumps to it), and the areas of each place under it */
+/** One station: I show its address from the Commissionerate's site, how many wards, polling areas and areas it has, a row of its wards (pressing one jumps to it), and the areas of each place under it */
 function StationCard({ p, places, parts, areasFound, open, onToggle, searching }: { p: Police; places: PolicePlace[]; parts: number; areasFound: number; open: boolean; onToggle: () => void; searching: boolean }) {
   const st = POLICE[p];
   const { root, jump, lit } = usePinJump(open, onToggle, "data-place-group", placeTone);
@@ -556,7 +556,7 @@ function PoliceTab({ query, setQuery }: { query: string; setQuery: (q: string) =
 
 /* ---------- the card ---------- */
 
-/** `initialQuery` is what the search line asked for: "ward 22" on the wards tab, or a PIN or a post office's name on the PIN tab */
+/** `initialQuery` carries what the search line asked for: "ward 22" on the wards tab, or a PIN or a post office's name on the PIN tab */
 export function PincodeCard({ initialTab = "pins", initialQuery = "" }: { initialTab?: PincodeTab; initialQuery?: string }) {
   const [tab, setTab] = useState<PincodeTab>(initialTab);
   const [query, setQuery] = useState(initialTab === "wards" ? initialQuery : "");

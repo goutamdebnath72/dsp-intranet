@@ -1,6 +1,6 @@
 // src/lib/employees/admin/validate.ts
 //
-// THE RULES OF AN EMPLOYEE RECORD (step 66a; owner, 1 Nov 2026). PURE: the same function runs in the panel (so a mistake is shown as it is typed) and on the server (so nothing depends on the panel).
+// THE RULES OF AN EMPLOYEE RECORD (step 66a; my request, 1 Nov 2026). PURE: I run the same function in the panel (so a mistake is shown as it is typed) and on the server (so nothing depends on the panel).
 //   Ticket          six digits, not starting with 0. An executive's ticket starts with 4 (and the cohort follows from it: it is never typed); 49xxxx is a direct recruit (a Management Trainee); any other digit after the 4 is promoted.
 //   Name            letters, spaces and . ' - only; kept in capitals, one space between words (as the roster has it).
 //   Designation     must exist, and must fit the ticket: a non-executive grade (S-1 ... S-11) for a non-executive, a managerial or medical grade for an executive.
@@ -9,7 +9,7 @@
 //   Contact         (contact.ts) an executive: NIC mail @sail.in, web-mail @saildsp.co.in, a CUG mobile (94347 + 9, 2 or 3), OPTIONAL; a non-executive: one e-mail (any domain) and an optional mobile.
 //   Dates           (only the HOD of C&IT sees and sets them) a real calendar day; born not before 1930 and not in the future; joined not in the future; joined at 18 or later, at 23 or later for a direct recruit;
 //                   not past the retirement day (the last day of the month in which 60 is reached). Joining after 32 is allowed but WARNED (an age relaxation may be real).
-// Luxon only.
+// I use Luxon only.
 
 import { DateTime } from "luxon";
 import { IST } from "@/lib/dates";
@@ -17,7 +17,7 @@ import { isMtTicket, minJoiningAge, parseDay, retirementDate, jubileeDate, ZONE 
 import { CUG_RE, CUG_RULE, MOBILE_RE, NIC_DOMAIN, WEBMAIL_DOMAIN, endsWithDomain, isEmail, normalizeMobile } from "./contact";
 import type { Cohort, DepartmentRef, EmployeeInput, FieldErrors, GradeRef, Lookups } from "./types";
 
-/** A ticket number: six digits, never starting with 0. */
+/** A ticket number: six digits, and I never allow it to start with 0. */
 export const isTicket = (t: string): boolean => /^[1-9]\d{5}$/.test(String(t).trim());
 export const cohortOfTicket = (ticketNo: string): Cohort => (/^4\d{5}$/.test(String(ticketNo).trim()) ? "executive" : "nonexecutive");
 
@@ -31,13 +31,13 @@ export const MIN_BIRTH = "1930-01-01";
 
 export interface ValidateOptions {
   today: DateTime;
-  /** Only the HOD of C&IT sees and sets the two dates: for anybody else they are ignored (the stored ones are kept). */
+  /** Only the HOD of C&IT sees and sets the two dates. For anybody else I ignore them and keep the stored ones. */
   canEditDates: boolean;
-  /** In a change the ticket is fixed: it is not an input. */
+  /** In a change the ticket is fixed, so it is not an input. */
   fixedTicket?: string;
-  /** A new employee must have a SAIL P.No.; in a change it is required only when he has one already. */
+  /** A new employee must have a SAIL P.No.; in a change I require it only when he has one already. */
   requirePno?: boolean;
-  /** The person already has a mobile number in his login account: an executive's mobile may then stay empty (unchanged). */
+  /** The person already has a mobile number in his login account, so an executive's mobile may stay empty (unchanged). */
 }
 
 export type Validated = { ok: true; value: EmployeeInput; warnings: string[] } | { ok: false; errors: FieldErrors };
@@ -91,16 +91,16 @@ export function validateEmployee(raw: Record<string, unknown>, lookups: Lookups,
   if (position !== null && (Number.isNaN(position) || position < 1 || position > 9999)) errors.position = "The position in the grade is a whole number from 1 to 9999 (leave it empty to place the person last in the grade).";
 
   const address = cleanText(raw.address, 300);
-  // contact: the rules differ by cohort (contact.ts). What does not belong to the cohort is not an input: it is ignored.
+  // contact: the rules differ by cohort (contact.ts). What does not belong to the cohort is not an input, so I ignore it.
   const nicRaw = cleanText(raw.emailNic, 120).toLowerCase(), webRaw = cleanText(raw.webmail, 120).toLowerCase(), mailRaw = cleanText(raw.email, 120).toLowerCase();
   const mobileRaw = normalizeMobile(raw.mobile);
-  const mobileTyped = String(raw.mobile ?? "").trim() !== ""; // something was typed: even only letters is judged (and refused), never silently dropped
+  const mobileTyped = String(raw.mobile ?? "").trim() !== ""; // something was typed: I judge it even if it is only letters, and refuse it, never silently drop it
   let emailNic = "", webmail = "", email = "", mobile = "";
   if (isTicket(ticketNo)) {
     if (cohort === "executive") {
       if (nicRaw) { if (!isEmail(nicRaw) || !endsWithDomain(nicRaw, NIC_DOMAIN)) errors.emailNic = `The NIC mail ends with ${NIC_DOMAIN}.`; else emailNic = nicRaw; }
       if (webRaw) { if (!isEmail(webRaw) || !endsWithDomain(webRaw, WEBMAIL_DOMAIN)) errors.webmail = `The web-mail ends with ${WEBMAIL_DOMAIN}.`; else webmail = webRaw; }
-      if (mobileRaw || mobileTyped) { if (!CUG_RE.test(mobileRaw)) errors.mobile = `Not a CUG number. The CUG number: ${CUG_RULE}`; else mobile = mobileRaw; } // OPTIONAL (step 69b): added later when it arrives
+      if (mobileRaw || mobileTyped) { if (!CUG_RE.test(mobileRaw)) errors.mobile = `Not a CUG number. The CUG number: ${CUG_RULE}`; else mobile = mobileRaw; } // OPTIONAL (step 69b): I add it later, when it arrives
     } else {
       if (mailRaw) { if (!isEmail(mailRaw)) errors.email = "This is not an e-mail address."; else email = mailRaw; }
       if (mobileRaw || mobileTyped) { if (!MOBILE_RE.test(mobileRaw)) errors.mobile = "A mobile number is 10 digits and does not start with 0."; else mobile = mobileRaw; }

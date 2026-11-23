@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/security/security.selftest.ts
-// THE SECURITY HARDENING OF 21 NOV 2026, one assertion each: the limiters behave; the login counts wrong passwords and checks unknown tickets in the same time; no other sign-in provider exists; the session is
+// Here I check the security hardening of 21 Nov 2026, one assertion each: the limiters behave; the login counts wrong passwords and checks unknown tickets in the same time; no other sign-in provider exists; the session is
 // 24 hours; the model route is limited; a reveal has a cap; the headers are set; the status page and the old debug route are closed; no raw error text goes to the browser.
 import { readFileSync, existsSync } from "node:fs";
 import { createFailureLock, createLimiter, clientIp } from "./rateLimit";

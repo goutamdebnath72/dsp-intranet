@@ -1,8 +1,10 @@
 // src/lib/nl2sql/text.ts
 
-/** Normalize a question so the same question typed slightly differently maps
- *  to one key (case, spacing, stray punctuation). Double quotes are KEPT: they
- *  change the meaning (exact match). */
+/**
+ * I normalize a question so the same question typed slightly differently maps
+ *  to one key (case, spacing, stray punctuation). I KEEP double quotes: they
+ *  change the meaning (exact match).
+ */
 export function normalizeQuestion(q: string): string {
   return (q || "")
     .toLowerCase()
@@ -13,7 +15,7 @@ export function normalizeQuestion(q: string): string {
     .slice(0, 300);
 }
 
-/** Collapse whitespace so two SQL strings that differ only in layout compare equal. */
+/** I collapse whitespace so two SQL strings that differ only in layout compare equal. */
 export function normalizeSql(sql: string): string {
   return (sql || "").replace(/\s+/g, " ").replace(/;+\s*$/, "").trim().toLowerCase();
 }

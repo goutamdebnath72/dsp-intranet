@@ -1,8 +1,8 @@
 // src/tools/converter/ColourPanel.tsx
 //
-// THE COLOUR CONVERTER, RGB <-> HEX <-> HSL, laid out like the converter's other panels: RGB on the left (three boxes, red, green, blue, each 0 to 255), HEX in the middle (a dark panel), HSL on the right (three boxes,
+// The colour converter, RGB <-> HEX <-> HSL, laid out like the converter's other panels: RGB on the left (three boxes, red, green, blue, each 0 to 255), HEX in the middle (a dark panel), HSL on the right (three boxes,
 // hue 0 to 360, saturation and lightness 0 to 100), and under them the colour itself with its three written forms. Type in any of the three and the other two follow; while what is typed is not a colour the other
-// panels keep the last good one and say what is wrong. HSL is in whole numbers, so a colour typed in HSL comes back as the nearest RGB (the note under the panels says so). The sums are in colour.ts.
+// panels keep the last good one and say what is wrong. I keep HSL in whole numbers, so a colour typed in HSL comes back as the nearest RGB (the note under the panels says so). The sums are in colour.ts.
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -35,15 +35,15 @@ const WRONG: Record<Model, string> = {
 };
 
 /**
- * One number box with a spinner: a small up arrow above the number and a down arrow below it, shown while the pointer is over the box (or the box is being typed in), so they never cover the digits.
- * The Up and Down keys do the same (Shift moves by 10). The arrows only write new text into the box; what that text means is decided by the same reading as if it had been typed.
- * An arrow that is pressed and kept pressed goes on stepping, rapidly and one step at a time, until it is let go (holdRepeat.ts).
+ * One number box with a spinner: a small up arrow above the number and a down arrow below it, shown while the pointer is over the box (or the box is being typed in), so I keep them from covering the digits.
+ * The Up and Down keys do the same (Shift moves by 10). The arrows only write new text into the box, and I decide what that text means by the same reading as if it had been typed.
+ * I let an arrow that is pressed and kept pressed go on stepping, rapidly and one step at a time, until it is let go (holdRepeat.ts).
  */
 function StepBox({ label, short, value, fallback, min, max, inputMode, maxLength, invalid, onText }: {
   label: string; short: string; value: string; fallback: number; min: number; max: number; inputMode: "numeric" | "decimal"; maxLength: number; invalid: boolean; onText: (text: string) => void;
 }) {
   const step = (dir: number) => onText(stepPart(value, dir, min, max, fallback));
-  // the repeating timer must always step from the box's latest text, not the text it had when the press began
+  // My repeating timer has to step from the box's latest text, not the text it had when the press began
   const latest = useRef(step);
   latest.current = step;
   const stopHold = useRef<(() => void) | null>(null);
@@ -53,14 +53,14 @@ function StepBox({ label, short, value, fallback, min, max, inputMode, maxLength
     onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
       if (e.button !== 0) return;
       e.preventDefault();
-      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* the hold still ends on the next release */ }
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* I make sure the hold still ends on the next release */ }
       release();
       stopHold.current = startHold(() => latest.current(dir));
     },
     onPointerUp: release,
     onPointerCancel: release,
     onLostPointerCapture: release,
-    // a click that is not a pointer press (a screen reader's "activate") is one step
+    // I count a click that is not a pointer press (a screen reader's "activate") as one step
     onClick: (e: React.MouseEvent) => { if (e.detail === 0) step(dir); },
   });
   const arrow = "pointer-events-none absolute inset-x-1.5 flex h-3.5 items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-slate-200 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
@@ -83,11 +83,11 @@ export function ColourPanel({ startHex = DEFAULT_HEX }: { startHex?: string }) {
   const [rgb, setRgb] = useState<Three>(rgbBoxes(first));
   const [hex, setHex] = useState(toHex(first));
   const [hsl, setHsl] = useState<Three>(hslBoxes(first));
-  // the last colour that was valid: the swatch and the copies always show a real colour
+  // The last colour that was valid, so that the swatch and the copies always show a real colour
   const [colour, setColour] = useState<Rgb>(first);
   const [bad, setBad] = useState<Model | null>(null);
 
-  /** a good colour came from one panel: the other two are written from it (the one being typed in is left as typed) */
+  /** A good colour came from one panel: I write the other two from it and leave the one being typed in as typed. */
   const follow = (c: Rgb, from: Model) => {
     setColour(c);
     if (from !== "rgb") setRgb(rgbBoxes(c));

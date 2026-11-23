@@ -1,6 +1,6 @@
 // src/lib/nl2sql/sqlFormat.ts
 //
-// How the "SQL the model wrote" panel LOOKS. The model sometimes writes a long single line; this lays it out, one clause to a line, for reading:
+// This decides how the "SQL the model wrote" panel LOOKS. The model sometimes writes a long single line, so I lay it out, one clause to a line, for reading:
 //
 //   SELECT ticket_no, name, department_code, department, checkup_date, circular
 //   FROM nlq.health_checkups
@@ -8,8 +8,8 @@
 //     AND schedule_year = 2026
 //   ORDER BY checkup_date
 //
-// DISPLAY ONLY: the SQL that is run, logged and stored is never touched. A text that already has line breaks (the model laid it out itself) is left as
-// it is. Text inside quotes, and anything inside brackets (a function's arguments, a sub-query), is never split.
+// DISPLAY ONLY: I never touch the SQL that is run, logged and stored. A text that already has line breaks (the model laid it out itself) is left as
+// it is. I never split text inside quotes, or anything inside brackets (a function's arguments, a sub-query).
 
 const CLAUSES = ["UNION ALL", "UNION", "FROM", "LEFT JOIN", "RIGHT JOIN", "FULL JOIN", "INNER JOIN", "CROSS JOIN", "JOIN", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET"];
 const isWordChar = (c: string | undefined) => !!c && /[A-Za-z0-9_]/.test(c);
@@ -23,7 +23,7 @@ function keywordAt(sql: string, i: number, words: string[]): string | null {
 }
 
 export function formatSqlForDisplay(sql: string): string {
-  if (!sql || /\n/.test(sql.trim())) return sql; // empty, or already laid out
+  if (!sql || /\n/.test(sql.trim())) return sql; // nothing to do when it is empty or already laid out
   const src = sql.trim().replace(/\s+/g, " ");
   let out = "";
   let depth = 0;
@@ -53,7 +53,7 @@ export function formatSqlForDisplay(sql: string): string {
       if (keywordAt(src, i, ["BETWEEN"])) between = true;
       const bo = keywordAt(src, i, ["AND", "OR"]);
       if (bo && (clause === "WHERE" || clause === "HAVING")) {
-        if (bo === "AND" && between) between = false; // x BETWEEN 1 AND 5: this AND is part of the BETWEEN
+        if (bo === "AND" && between) between = false; // in x BETWEEN 1 AND 5 this AND is part of the BETWEEN
         else {
           out = out.replace(/ +$/, "") + "\n  " + bo;
           i += bo.length - 1;

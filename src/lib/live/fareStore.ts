@@ -1,14 +1,14 @@
 // src/lib/live/fareStore.ts
 //
-// THE SAVED FARES (table public.train_fare, src/lib/nl2sql/sql/21_train_fare.sql). The plant uses RailRadar's paid fare service for ONE month only (to 14 Dec 2026), so every fare received is SAVED here with the time it
-// was received, and the card shows that time ("Fares last received ..."). After the month the rows simply stay. One row per train, replaced whenever the train's fares are received again.
-// Nothing here may break a card: database trouble is logged once and the store then answers "nothing saved" (get) or does nothing (put), exactly like src/lib/search/edsStore.ts, whose pattern this follows.
+// THE SAVED FARES (table public.train_fare, src/lib/nl2sql/sql/21_train_fare.sql). The plant uses RailRadar's paid fare service for one month only (to 14 Dec 2026), so I save every fare received here with the time it
+// was received, and the card shows that time ("Fares last received ..."). After the month the rows simply stay. There is one row per train, replaced whenever the train's fares are received again.
+// Nothing here may break a card: database trouble is logged once and the store then answers "nothing saved" (get) or does nothing (put), exactly like src/lib/search/edsStore.ts, whose pattern I follow.
 import { DateTime } from "luxon";
 import type { ClassFare, FareSet } from "./fare";
 
 export interface FareRow {
   set: FareSet;
-  /** when the fares were received from RailRadar (ISO, UTC) */
+  /** The time the fares were received from RailRadar (ISO, UTC). */
   receivedAt: string;
 }
 
@@ -21,7 +21,7 @@ interface Queryable {
   query(sql: string, params?: unknown[]): Promise<any>;
 }
 
-/** the stations whose trains have saved fares: Durgapur (the Durgapur tab) and Asansol (the trains of the Asansol tab, which do not stop at Durgapur, so no train is in both tables). Each has its own table, so that nothing already saved is touched. */
+/** The stations whose trains have saved fares: Durgapur (the Durgapur tab) and Asansol (the trains of the Asansol tab, which do not stop at Durgapur, so no train is in both tables). I gave each its own table, so that nothing already saved is touched. */
 export type FareStation = "DGR" | "ASN";
 export const FARE_TABLES: Record<FareStation, string> = { DGR: "train_fare", ASN: "train_fare_asn" };
 export const fareTableStatements = (st: FareStation): string[] => {
@@ -44,7 +44,7 @@ export const FARE_TABLE_STATEMENTS: string[] = fareTableStatements("DGR");
 
 const rowsOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.rows) ? r.rows : []);
 
-/** a saved row read back and CHECKED: a row that is not the shape written is treated as not saved, never shown */
+/** A saved row read back and CHECKED: I treat a row that is not the shape written as not saved and never show it. */
 export function fareFromRow(x: any, from: FareStation = "DGR"): FareRow | null {
   try {
     const classes = (typeof x.classes === "string" ? JSON.parse(x.classes) : x.classes) as ClassFare[];
@@ -66,7 +66,7 @@ export function typeormFareStore(ds: Queryable, station: FareStation = "DGR"): F
   let warned = false;
 
   const ensure = (): Promise<boolean> => {
-    // a good (or still pending) check stands; a failed one is not repeated for 10 minutes
+    // A good (or still pending) check stands; I do not repeat a failed one for 10 minutes.
     if (ready && (failedAt === 0 || Date.now() - failedAt < 10 * 60 * 1000)) return ready;
     failedAt = 0;
     ready = (async () => {
@@ -116,7 +116,7 @@ export function typeormFareStore(ds: Queryable, station: FareStation = "DGR"): F
   };
 }
 
-// One store per database connection, so the "does the table exist" check is made once per server and not once per request.
+// One store per database connection, so I make the "does the table exist" check once per server and not once per request.
 const stores = new WeakMap<object, Partial<Record<FareStation, FareStore>>>();
 export function fareStoreFor(ds: Queryable, station: FareStation = "DGR"): FareStore {
   const per = stores.get(ds) ?? {};

@@ -1,7 +1,7 @@
 // src/lib/holidays/policyChunks.ts
 //
-// Generates and embeds the holiday policy chunks (see holiday-policy-
-// chunk.model.ts) that make free-text holiday policy questions searchable --
+// I generate and embed the holiday policy chunks (see holiday-policy-
+// chunk.model.ts) here, so free-text holiday policy questions become searchable:
 // things structured queryHolidays() queries can never fully answer, like
 // "can a new joiner get a full RH quota" or "what happens if my restricted
 // holiday coincides with my weekly off". Two source types:
@@ -13,8 +13,8 @@
 //     a short synthesized sentence naming the holiday and date, so the
 //     chunk is self-contained even without its row's other context.
 //
-// Called from holidays/admin/store.ts after a year's holidays/rhQuota are
-// written -- idempotent (deletes then re-inserts this year's chunks), same
+// holidays/admin/store.ts calls this after a year's holidays/rhQuota are
+// written. It is idempotent (it deletes then re-inserts this year's chunks), the same
 // pattern as every other per-year sync in this codebase.
 
 import { getDb } from "@/lib/db";
@@ -33,10 +33,10 @@ export interface ReclassificationInput {
 }
 
 /**
- * Rebuild a year's holiday policy chunks from scratch: the policyNotes
+ * Rebuilds a year's holiday policy chunks from scratch: the policyNotes
  * array (as given in the enriched upload JSON) plus every holiday that
  * carries a non-null `note` (already persisted on holidayyear rows by the
- * time this runs). Deletes this year's existing chunks first, so re-running
+ * time this runs). I delete this year's existing chunks first, so re-running
  * (e.g. re-uploading a corrected file) never duplicates.
  */
 export async function syncHolidayPolicyChunks(
@@ -69,7 +69,7 @@ export async function syncHolidayPolicyChunks(
 
   for (const r of reclassifications) {
     if (!r.note || !r.note.trim()) continue;
-    // Synthesized so the chunk reads sensibly in isolation -- the raw note
+    // I synthesize the text so the chunk reads sensibly in isolation: the raw note
     // text alone often starts mid-sentence ("One Festival Holiday namely...")
     // without naming which holiday or year it's actually about.
     const synthesized = `${r.holidayName} (${r.date}, ${year}): ${r.note}`;
@@ -100,7 +100,7 @@ async function embedChunkText(text: string): Promise<number[]> {
 // connection while embedding over the network: called inside the manager's transaction it (a) held the tool's global
 // write lock during every network call, (b) committed even when the surrounding transaction rolled back, and (c) swallowed
 // an embedding failure, leaving the year's chunks deleted or half rewritten while the tool said "ok".
-// So: buildPolicyChunkRows embeds everything FIRST (no lock, no transaction; it throws if any embedding fails, so nothing
+// So here I do it differently: buildPolicyChunkRows embeds everything FIRST (no lock, no transaction; it throws if any embedding fails, so nothing
 // is touched), and writePolicyChunkRows then replaces the year's rows inside the caller's transaction.
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -124,14 +124,14 @@ export async function buildPolicyChunkRows(
   }
   for (const r of reclassifications) {
     if (!r.note || !r.note.trim()) continue;
-    // Synthesized so the chunk reads sensibly in isolation (see syncHolidayPolicyChunks).
+    // I synthesize the text so the chunk reads sensibly in isolation (see syncHolidayPolicyChunks).
     const text = `${r.holidayName} (${r.date}, ${year}): ${r.note}`;
     rows.push({ sourceType: "reclassification", topic: null, holidayName: r.holidayName, text, embedding: await embedChunkText(text) });
   }
   return rows;
 }
 
-/** Replace the year's policy chunks with these rows, on the caller's connection (inside its transaction). */
+/** Replaces the year's policy chunks with these rows, on the caller's connection (inside its transaction). */
 export async function writePolicyChunkRows(
   q: (sql: string, params?: unknown[]) => Promise<any[]>,
   year: number,

@@ -1,8 +1,8 @@
 // src/lib/ingestion/schedule/deskew.ts
 //
 // Scanned pages are tilted by a fraction of a degree (up to 0.4 degrees on the roster pages): a long vertical rule drifts ~25 px across the
-// page, which breaks any straight-line search and puts a row's text at a different height from the ruled line beside it. So every page
-// is straightened first. The tilt is MEASURED from the page itself: the angle at which the long rules (vertical) line up best.
+// page, which breaks any straight-line search and puts a row's text at a different height from the ruled line beside it. So I straighten every page
+// first. The tilt is MEASURED from the page itself: the angle at which the long rules (vertical) line up best.
 import type { Gray } from "./lines";
 
 export interface Tilt {
@@ -12,7 +12,7 @@ export interface Tilt {
   strength: number;
 }
 
-/** Score a candidate tilt: the sharper the column profile along tilted vertical paths, the better the rules line up. */
+/** I score a candidate tilt this way: the sharper the column profile along tilted vertical paths, the better the rules line up. */
 function score(g: Gray, k: number, step: number): { sharp: number; peak: number } {
   const { width: W, height: H, data } = g;
   const col = new Float64Array(W);
@@ -37,7 +37,7 @@ function score(g: Gray, k: number, step: number): { sharp: number; peak: number 
   return { sharp, peak };
 }
 
-/** Measure the tilt of a page from its vertical rules: coarse search, then a finer one around the best. */
+/** Measures the tilt of a page from its vertical rules: a coarse search first, then a finer one around the best. */
 export function estimateTilt(g: Gray, maxTilt = 0.02): Tilt {
   const step = 3;
   let best = { k: 0, s: -1, peak: 0 };
@@ -54,7 +54,7 @@ export function estimateTilt(g: Gray, maxTilt = 0.02): Tilt {
   return { k: best.k, strength: best.peak / rows };
 }
 
-/** Rotate the picture so that the rules become vertical/horizontal. Returns the straightened PNG and the angle used (degrees, clockwise). */
+/** Rotates the picture so that the rules become vertical/horizontal. Returns the straightened PNG and the angle used (degrees, clockwise). */
 export async function deskewPng(png: Buffer, k: number): Promise<{ png: Buffer; angleDeg: number }> {
   const angleDeg = (Math.atan(k) * 180) / Math.PI;
   if (Math.abs(angleDeg) < 0.02) return { png, angleDeg: 0 };

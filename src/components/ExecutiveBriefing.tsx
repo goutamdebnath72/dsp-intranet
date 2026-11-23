@@ -50,7 +50,7 @@ import type {
 interface ExecutiveBriefingProps {
   data: SynthesisResult;
   onOpenCircular?: (id: number) => void;
-  /** the question that was asked: printed in the PDF ("Question asked") */
+  /** This is the question that was asked; I print it in the PDF as "Question asked". */
   question?: string | null;
 }
 
@@ -70,7 +70,7 @@ const SERIES_B = "#0ea5e9";
 
 const CHART_HEIGHT = 260;
 
-/** 2 when any value of the chart has paise (so "₹1,720.30" is not printed as "₹1,720.3" beside "₹52.00"), otherwise undefined (whole numbers stay whole). */
+/** Returns 2 when any value of the chart has paise, so that "₹1,720.30" is not printed as "₹1,720.3" beside "₹52.00"; otherwise undefined, and whole numbers stay whole. */
 export function chartDecimals(chart: { items: Array<{ value: number; secondaryValue?: number }> }): number | undefined {
   return chart.items.some((i) => !Number.isInteger(i.value) || (typeof i.secondaryValue === "number" && !Number.isInteger(i.secondaryValue))) ? 2 : undefined;
 }
@@ -164,7 +164,7 @@ export const DSP_ABBREVIATIONS: Record<string, string> = {
   CMO: "Central Marketing Organisation (Kolkata)",
   CET: "Centre for Engineering and Technology (Ranchi)",
   SSO: "Safety Organisation (Ranchi)",
-  // SAP ERP projects of the SAIL units, and the SAP modules / tools named with them
+  // The SAP ERP projects of the SAIL units, and the SAP modules / tools named with them.
   RACE: "Rapid Acceleration of Competitive Edge (SAP ERP project, DSP)",
   VIKRAM: "Value Integration through Information & Knowledge for Responsive & Agile Management (SAP ERP project, BSP)",
   SHAKTI: "Synergy and Harmony for Achieving Knowledge and Technological Integration (SAP ERP project, BSL)",
@@ -194,7 +194,7 @@ import { KNOWN_SENSES } from "@/lib/search/abbreviationSenses";
 import { isIdentifierLabel, isLongDigitRun } from "@/lib/ui/identifiers";
 
 /**
- * One abbreviation, two meanings, chosen by what else the reply speaks of. "APO" is Assistant Personnel Officer in an ordinary circular, and the SAP
+ * I keep one abbreviation with two meanings and choose the meaning by what else the reply speaks of. "APO" is Assistant Personnel Officer in an ordinary circular, and the SAP
  * module Advanced Planner & Optimizer when the reply is about SAP / ERP (the module named with SD, SRM and the SAIL ERP project names).
  */
 export const ABBREVIATION_SENSE_BY_CONTEXT: Record<string, { when: RegExp; expansion: string }> = {
@@ -221,18 +221,18 @@ export function extractRelevantAbbreviations(data: SynthesisResult): Array<[stri
   ];
   const corpus = corpusParts.join(" ");
 
-  // The circulars' own sense comes first: a short form the circular defines ("financial assistance (FA)") or uses in a way the second reading
-  // (edsVerify.ts) could settle ("as per TA rules": the travelling allowance, not the Township Administration) beats the list below.
+  // The circulars' own sense comes first, and I let it beat the list below: a short form the circular defines ("financial assistance (FA)") or uses in a way the second reading
+  // (edsVerify.ts) could settle ("as per TA rules": the travelling allowance, not the Township Administration).
   const own: Record<string, string> = data.abbreviations || {};
   const found: Array<[string, string]> = [];
   for (const [abbr, expansion] of Object.entries(DSP_ABBREVIATIONS)) {
     const escaped = abbr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // case-sensitive: an abbreviation is written in capitals ("ED", "TA" must not match the words "ed" and "ta")
-    const regex = new RegExp(`(?:^|[\\s(,./:;])(${escaped})s?(?:[\\s),./:;]|$)`); // "IITs" is the abbreviation IIT
+    // I match case-sensitively because an abbreviation is written in capitals: "ED" and "TA" must not match the words "ed" and "ta".
+    const regex = new RegExp(`(?:^|[\\s(,./:;])(${escaped})s?(?:[\\s),./:;]|$)`); // a plural "IITs" counts as the abbreviation IIT
     if (regex.test(corpus)) {
       const alt = ABBREVIATION_SENSE_BY_CONTEXT[abbr];
-      // a short form with more than one confirmed sense that nothing has settled (no ruling from the second reading, no context rule) shows BOTH senses,
-      // never the list's one alone: "TA" in "as per TA rules" is the travelling allowance, and showing "Township Administration" there was wrong (11 Nov 2026)
+      // A short form with more than one confirmed sense that nothing has settled (no ruling from the second reading, no context rule) shows BOTH senses, never the list's one alone.
+      // My reason: "TA" in "as per TA rules" is the travelling allowance, and showing "Township Administration" there was wrong (11 Nov 2026).
       const unsettled = !own[abbr] && !alt && (KNOWN_SENSES[abbr]?.length ?? 0) > 1;
       found.push([abbr, own[abbr] || (alt && alt.when.test(corpus) ? alt.expansion : unsettled ? KNOWN_SENSES[abbr].join(" or ") : expansion)]);
     }
@@ -241,7 +241,7 @@ export function extractRelevantAbbreviations(data: SynthesisResult): Array<[stri
     if (!found.some(([a]) => a === abbr)) found.push([abbr, expansion]);
   }
 
-  // Also check for dynamic patterns in corpus: "Full Phrase (ABBR)"
+  // I also look for dynamic patterns in the corpus: "Full Phrase (ABBR)"
   const dynamicMatch = corpus.matchAll(/\b([A-Za-z][A-Za-z\s&]{2,80})\s*\(([A-Z]{2,6})\)/g);
   for (const m of dynamicMatch) {
     const full = m[1].trim();
@@ -260,39 +260,39 @@ export function extractRelevantAbbreviations(data: SynthesisResult): Array<[stri
   return found;
 }
 
-/** True when the bracketed text names who approves ("Head of P&A", "Concerned Functional Director", "CGM", "Chief Executive"), not a note ("Mandatory", "Phase-1 Enrolment"). */
+/** I call the bracketed text an authority only when it names who approves ("Head of P&A", "Concerned Functional Director", "CGM", "Chief Executive"), not when it is a note ("Mandatory", "Phase-1 Enrolment"). */
 export function looksLikeAuthority(text: string): boolean {
   return /\b(head|director|manager|chief|executive|authority|officer|hod|cgm|gm|dgm|agm|ed|chairman|committee|board|secretary|administrator|administration|p&a|incharge|in-charge|competent|approv\w*|sanction\w*)\b/i.test(text || "");
 }
 
-/** True when the bracket holds money ("officer Rs - 250/- and employees/CW-Rs- 100/-", "Officers: Rs.500/-"): that is the penalty or the rate itself, never a note and never an approver (the word "officer" in it does not make it one). */
+/** I treat a bracket as money when it holds an amount ("officer Rs - 250/- and employees/CW-Rs- 100/-", "Officers: Rs.500/-"): that is the penalty or the rate itself, never a note and never an approver, and the word "officer" in it does not make it one. */
 export function bracketIsAmount(text: string): boolean {
   return /(?:₹|\bRs\b\.?)\s*[-:]?\s*\d|\d\s*\/-/i.test(text || "");
 }
 
 /**
- * Splits a cell of the "value (bracket) [condition]" shape, or returns null when it is not that shape. Not split: a bracket glued to the word before it ("Section no: 5(Xii)" is a clause
- * reference, one thing), and a bracket that holds money (it stays inside the value: the penalty is the answer, not a footnote).
+ * Splits a cell of the "value (bracket) [condition]" shape, or returns null when it is not that shape. I do not split a bracket glued to the word before it ("Section no: 5(Xii)" is a clause
+ * reference, one thing), nor a bracket that holds money: it stays inside the value, because the penalty is the answer, not a footnote.
  */
 export function splitValueBracket(trimmed: string): { rate: string; bracket: string; condition: string } | null {
   const m = trimmed.match(/^(.+?)\s+\(([^()]+)\)\s*(?:\[([^\]]+)\])?$/);
   if (!m) return null;
-  // a bracket that only finishes the phrase before it is part of the sentence, not a note or an approver: "... Projects & TS (Elec.)" (an abbreviation ending in a full stop, after "&", "and", "of"...)
+  // A bracket that only finishes the phrase before it is part of the sentence for me, not a note or an approver: "... Projects & TS (Elec.)" (an abbreviation ending in a full stop, after "&", "and", "of"...)
   if (/^[^\s()]+\.$/.test(m[2].trim()) || /(?:&|\b(?:and|or|of|to|in|for|on|at))$/i.test(m[1].trim())) return null;
-  // a bare title followed by its function ("Director (Personnel)", "Chief General Manager (HR)") is ONE designation: the bracket is part of the name, not a footnote
+  // A bare title followed by its function ("Director (Personnel)", "Chief General Manager (HR)") is ONE designation, so I keep the bracket as part of the name, not as a footnote.
   if (m[1].trim().split(/\s+/).length <= 4 && /\b(?:director|manager|officer|executive|head|chairman|secretary|incharge|in-charge|chief)$/i.test(m[1].trim()) && m[2].trim().split(/\s+/).length <= 3 && !/\d/.test(m[2]) && !m[3]) return null;
-  // a lead of nine or more words is a sentence of the circular ("Submit entry forms at ... by 15th January, 2026 (6:00 PM)"), not a value with a footnote: it stays one plain line, not a bold lead with a detached note;
-  // an approver in the bracket still splits (the long rate before "(Head of P&A)" is a rate)
+  // A lead of nine or more words is a sentence of the circular ("Submit entry forms at ... by 15th January, 2026 (6:00 PM)"), not a value with a footnote, so I keep it as one plain line instead of a bold lead with a detached note.
+  // An approver in the bracket still splits it: the long rate before "(Head of P&A)" is a rate.
   if (m[1].trim().split(/\s+/).length >= 9 && !looksLikeAuthority(m[2]) && !m[3]) return null;
   if (bracketIsAmount(m[2])) {
-    // the money stays in the value; only a trailing [condition] is split off
+    // The money stays in the value; I split off only a trailing [condition].
     return m[3] ? { rate: `${m[1].trim()} (${m[2].trim()})`, bracket: "", condition: m[3].trim() } : null;
   }
   return { rate: m[1].trim(), bracket: m[2].trim(), condition: (m[3] || "").trim() };
 }
 
 export function renderEnterpriseTableCell(cell: string, colIndex: number, colName: string) {
-  const trimmed = (cell || "").replace(/\s*\[\s*\]/g, "").trim(); // an empty condition "[]" is nothing
+  const trimmed = (cell || "").replace(/\s*\[\s*\]/g, "").trim(); // an empty condition "[]" counts as nothing
 
   // 1. First column (Parameter / Period / Milestone)
   if (colIndex === 0) {
@@ -352,8 +352,8 @@ export function renderEnterpriseTableCell(cell: string, colIndex: number, colNam
     );
   }
 
-  // 3a. AN IDENTIFIER IS NOT AN AMOUNT (src/lib/ui/identifiers.ts): a cell that is only digits under an identifier heading (Account Number, IFSC, Policy No.), or a run of nine digits or more, is shown as
-  // the circular prints it, digits unbroken: never grouped with commas and never turned into a number (a long account number would lose its last digits as one).
+  // 3a. An identifier is not an amount (src/lib/ui/identifiers.ts): a cell that is only digits under an identifier heading (Account Number, IFSC, Policy No.), or a run of nine digits or more, is shown as
+  // the circular prints it, digits unbroken. I never group it with commas and never turn it into a number, because a long account number would lose its last digits as one.
   {
     const idDigits = /^\d+(?:[,\s]\d{2,4}){0,6}$/.test(trimmed) ? trimmed.replace(/[,\s]/g, "") : "";
     if (idDigits && (isLongDigitRun(idDigits) || (isIdentifierLabel(colName) && /^\d+$/.test(idDigits) && idDigits.length >= 5))) {
@@ -361,10 +361,10 @@ export function renderEnterpriseTableCell(cell: string, colIndex: number, colNam
     }
   }
 
-  // 3b. A bare amount ("13478.00", "₹ 3350.00"): the same Indian digit grouping the findings use ("13,478.00"), the decimals as the circular prints them
+  // 3b. A bare amount ("13478.00", "₹ 3350.00") gets the same Indian digit grouping the findings use ("13,478.00"), with the decimals as the circular prints them.
   const bare = /^(₹|Rs\.?)?\s*(\d{1,3}(?:,\d{2,3})*|\d+)(\.\d+)?(\/-)?$/.exec(trimmed);
   const bareInt = bare ? Number(bare[2].replace(/,/g, "")) : NaN;
-  // a whole number that reads as a YEAR (2024) is not an amount: it is left as it is
+  // I leave a whole number that reads as a YEAR (2024) as it is: it is not an amount.
   if (bare && !(!bare[3] && !bare[1] && bareInt >= 1900 && bareInt <= 2100)) {
     const intPart = Number(bare[2].replace(/,/g, ""));
     const dec = bare[3] ? bare[3].length - 1 : 0;
@@ -449,7 +449,7 @@ function PieViz({ chart }: { chart: SynthesisChart }) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
   const share = (v: number) => (total > 0 ? (Math.round((v / total) * 1000) / 10).toFixed(1) : "0.0");
   // The ring shows the proportions; the list beside it gives every part its amount and its share (a ring alone hides the small parts), and the
-  // centre gives the whole. (Our own list instead of the chart library's legend: it also keeps the chart free of the measuring loop of that legend.)
+  // centre gives the whole. I use my own list instead of the chart library's legend because it also keeps the chart free of the measuring loop of that legend.
   return (
     <div className="flex w-full flex-col items-center gap-3 md:flex-row md:items-center">
       <div className="relative h-[240px] w-full md:w-[46%]">
@@ -833,7 +833,7 @@ function ChartCard({
   );
 }
 
-/** "Source: [Circular 046 (2022)]": which circular a chart or a table was read from. Nothing is drawn when the briefing names none. */
+/** "Source: [Circular 046 (2022)]" shows which circular a chart or a table was read from. I draw nothing when the briefing names none. */
 function SourceRow({
   ids,
   citations,
@@ -857,11 +857,13 @@ function SourceRow({
  * Citation chip
  * ================================================================== */
 
-/* Inline markdown for a single finding line — renders **bold** etc. but keeps
- * everything inline (no block <p>) so the citation chip sits on the same line. */
-/** Rupee amounts in running text get the same Indian digit grouping as the charts and tables ("₹ 2400/-" -> "₹ 2,400/-"); "/-" and decimals stay as written. */
+/*
+ * Inline markdown for a single finding line: it renders **bold** etc. but keeps
+ * everything inline (no block <p>), so I can put the citation chip on the same line.
+ */
+/** I give rupee amounts in running text the same Indian digit grouping as the charts and tables ("₹ 2400/-" -> "₹ 2,400/-"); "/-" and decimals stay as written. */
 export function groupRupees(text: string): string {
-  // (an amount of more than fifteen digits is not an amount: it is an identifier and keeps its digits)
+  // (an amount of more than fifteen digits is not an amount for me: it is an identifier and keeps its digits)
   return (text || "").replace(/(₹|Rs\.?)(\s*)(\d{4,})(\.\d+)?/g, (_m, sym: string, sp: string, int: string, dec?: string) => (int.length > 15 ? _m : `${sym}${sp}${Number(int).toLocaleString("en-IN")}${dec ?? ""}`));
 }
 
@@ -870,7 +872,7 @@ function renderInlineMarkdown(input: unknown): React.ReactNode[] {
     typeof input === "string" ? input : input == null ? "" : String(input),
   );
   if (!text) return [];
-  // Split on **bold** and *italic*; render the rest as plain text. This avoids
+  // I split on **bold** and *italic* and render the rest as plain text. This avoids
   // react-markdown entirely (its v10 build asserts children must be a string
   // and was crashing the briefing), while covering the only inline markdown the
   // synthesis emits.
@@ -954,7 +956,7 @@ function CitationChips({
  * Main component
  * ================================================================== */
 
-/** One comparison table, with its caption (when it has one) and the circular(s) it was read from. */
+/** Draws one comparison table, with its caption (when it has one) and the circular(s) it was read from. */
 function TableBlock({
   table,
   citations,
@@ -981,7 +983,7 @@ function TableBlock({
                 {table.columns.map((c, i) => (
                   <th
                     key={i}
-                    // first column 28%; the others share the rest equally (2 value columns = 36% each, 3 = 24% each)
+                    // I give the first column 28% and let the others share the rest equally (2 value columns = 36% each, 3 = 24% each).
                     style={{ width: i === 0 ? "28%" : `${72 / Math.max(1, table.columns.length - 1)}%` }}
                     className={`px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider ${
                       i === 0 ? "text-slate-600" : "text-slate-800"
@@ -1066,7 +1068,7 @@ export function ExecutiveBriefing({
             </div>
           )}
         </div>
-        {/* only an Executive Deep Synthesis reply is drawn by this component, so only it has the PDF button */}
+        {/* This component draws only an Executive Deep Synthesis reply, so only that reply gets the PDF button. */}
         {hasPdfContent(data) && <EdsPdfButton data={data} question={question} abbreviations={abbreviations} />}
       </div>
 

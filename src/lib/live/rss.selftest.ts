@@ -37,7 +37,7 @@ let threw = false; try { buildNews("hi", [null, null, null], NOW); } catch { thr
 ok("when no feed answers, it is an error", threw);
 ok("three languages, each with feeds, and a whitelist of the language", Object.keys(NEWS_SOURCES).join() === "en,hi,bn" && NEWS_SOURCES.en.length === 7 && isLang("bn") && !isLang("fr") && !isLang(null));
 
-// the business tab: four papers' own free feeds (saved slices of the real feeds of 13 Nov 2026)
+// The business tab: four papers' own free feeds (saved slices of the real feeds of 13 Nov 2026).
 const NOW_B = DateTime.fromISO("2026-11-13T08:00:00Z");
 const et = parseRss(fx("rss-et-industry.xml"), "The Economic Times"), mint = parseRss(fx("rss-mint-companies.xml"), "Mint"), bl = parseRss(fx("rss-bl-business.xml"), "The Hindu BusinessLine"), wsj = parseRss(fx("rss-wsj-business.xml"), "The Wall Street Journal");
 ok("each business feed gives its ten stories with a link on its own site and a time", [[et, "economictimes.indiatimes.com"], [mint, "www.livemint.com"], [bl, "www.thehindubusinessline.com"], [wsj, "www.wsj.com"]].every(([f, host]) => (f as typeof et).length === 10 && (f as typeof et).every((i) => new URL(i.link).hostname === host && i.publishedAt !== "")), [et, mint, bl, wsj].map((f) => f.length).join());
@@ -53,7 +53,7 @@ ok("when none of the four answers, it is an error", threwB);
 ok("the business sources are exactly the four free ones, each on its own https site; Business Standard and Financial Express are not asked (their servers refuse automated requests)", BUSINESS_SOURCES.map((s) => s.name).join() === "The Economic Times,Mint,The Hindu BusinessLine,The Wall Street Journal" && BUSINESS_SOURCES.every((s) => s.url.startsWith("https://")) && !BUSINESS_SOURCES.some((s) => /business-standard|financialexpress/.test(s.url)));
 ok("the tabs are Business first, then the three languages; the route accepts biz and the languages, nothing else", NEWS_TABS.join() === "biz,en,hi,bn" && isTab("biz") && isTab("hi") && !isTab("sports") && !isTab(null) && !isLang("biz") && SOURCES_OF("biz") === BUSINESS_SOURCES && SOURCES_OF("en") === NEWS_SOURCES.en);
 
-// the wire order and what a refresh changed
+// I test the wire order and what a refresh changed.
 const st = (t: string, at: string) => ({ title: t, link: "https://x.com/" + t, publishedAt: at, source: "S", summary: "" });
 ok("newest first; a story without a time goes last in its own order; ties keep their order", newestFirst([st("old", "2026-11-13T01:00:00Z"), st("none1", ""), st("new", "2026-11-13T05:00:00Z"), st("none2", ""), st("tie", "2026-11-13T05:00:00Z")]).map((i) => i.title).join() === "new,tie,old,none1,none2");
 const before = [st("a", "2026-11-13T05:00:00Z"), st("b", "2026-11-13T04:00:00Z"), st("c", "2026-11-13T03:00:00Z")];
@@ -62,7 +62,7 @@ const d = diffStories(before, after);
 ok("a refresh's difference is only arrivals and departures, by link: n1 came, c left", d.added.map((i) => i.title).join() === "n1" && d.removed.map((i) => i.title).join() === "c");
 ok("the same stories give no difference, whatever their order; an empty screen takes everything as new", diffStories(before, [...before].reverse()).added.length === 0 && diffStories(before, [...before].reverse()).removed.length === 0 && diffStories([], after).added.length === 3);
 
-// ONE STORY, ONE ROW: the same event from different papers, worded differently (checked on the 474 real headlines of nine feeds on 13 Nov 2026)
+// One story, one row: the same event from different papers, worded differently (checked on the 474 real headlines of nine feeds on 13 Nov 2026).
 const real = JSON.parse(fx("headlines-2026-11-13.json")) as Array<{ source: string; title: string }>;
 const counts = wordCounts(real.map((r) => r.title)), total = real.length;
 const same = (a: string, b: string) => sameStory(a, b, counts, total);
@@ -84,7 +84,7 @@ ok("figures decide: the same words with different figures are two stories; the s
 ok("telling words: filler, months, years, plurals and apostrophes are left out", storyWords("Today's LIVE updates: What the Budget 2026 means in November").join() === "budget,mean" && storyWords("B'luru Metro’s Pink Lines").join() === "bluru,metro,pink,line");
 ok("a hundred identical-template headlines do not make a story: the batch's common words do not count as distinctive", (() => { const c = wordCounts(Array.from({ length: 20 }, (_, k) => `Sensex Nifty close lower as IT stocks drag, story ${k}`)); return !sameStory("Sensex Nifty close lower as IT stocks drag today", "Sensex Nifty close higher as IT stocks lead", c, 20); })());
 
-// the merge on the real batch: each story once, from the paper that had it first, the others named
+// Here I run the merge on the real batch: each story once, from the paper that had it first, and the others named.
 const NOW_R = DateTime.fromISO("2026-11-13T08:00:00Z");
 const bySource = new Map<string, Array<{ title: string; link: string; publishedAt: string; source: string; summary: string }>>();
 real.forEach((r, k) => { const l = bySource.get(r.source) ?? []; l.push({ title: r.title, link: `https://x.com/${k}`, publishedAt: new Date(Date.parse("2026-11-13T07:00:00Z") - l.length * 4 * 60000 - [...r.source].length * 1000).toISOString(), source: r.source, summary: "" }); bySource.set(r.source, l); });
@@ -106,7 +106,7 @@ const dd = diffStories([{ link: "L1", id: "A" }, { link: "L2" }, { link: "L3" }]
 ok("a refresh's difference by story identity: A is CHANGED (a later headline, same story), L4 came, L3 left, L2 is untouched", dd.changed.map((i) => i.link).join() === "L1b" && dd.added.map((i) => i.link).join() === "L4" && dd.removed.map((i) => i.link).join() === "L3");
 ok("a story a paper repeats itself is shown once but names no 'also' (that paper is the one shown)", (() => { const mk = (n: number, t: string) => ({ title: t, link: "https://x.com/" + n, publishedAt: "2026-11-13T06:10:00Z", source: "Same", summary: "" }); const m = mergeFeeds([[mk(1, "Microsoft outage disrupts Outlook Teams Copilot services India"), mk(2, "Microsoft outage disrupts Outlook Teams Copilot services India US")]], 10, NOW_R); return m.length === 1 && !m[0].also; })());
 
-// Bengali and Hindi: a word keeps its vowel signs (they are combining marks, not letters)
+// Bengali and Hindi: I want a word to keep its vowel signs (they are combining marks, not letters).
 ok("Bengali and Hindi words are whole: 'সৌরভের' and 'পরিবর্তন' are one word each, not letters and fragments; the Devanagari 'प्रधानमंत्री' too", (() => { const b = storyWords("কেন সৌরভের সিএবি-তে ‘পরিবর্তন’ চান বিধায়ক সৌরভ"), h = storyWords("प्रधानमंत्री मोदी ने बेंगलुरु मेट्रो की पिंक लाइन का उद्घाटन किया"); return b.includes("সৌরভের") && b.includes("পরিবর্তন") && b.includes("বিধায়ক") && !b.some((w) => [...w].length < 2) && h.includes("प्रधानमंत्री") && h.includes("बेंगलुरु") && h.includes("उद्घाटन"); })());
 ok("the same event worded alike in Bengali is one story; two different things about one person are not", sameStory("প্রধানমন্ত্রী মোদী পিঙ্ক লাইন মেট্রো উদ্বোধন করলেন বেঙ্গালুরু", "বেঙ্গালুরু মেট্রো পিঙ্ক লাইন উদ্বোধন প্রধানমন্ত্রী মোদী") && !sameStory("সৌরভ গঙ্গোপাধ্যায় সিএবি নির্বাচন প্রার্থী", "সৌরভ গঙ্গোপাধ্যায় বিজ্ঞাপন নতুন চুক্তি"));
 const ab = parseRss(fx("rss-anandabazar-gn.xml"), "Anandabazar Patrika", true);
@@ -115,7 +115,7 @@ ok("the printed edition's page listings ('... | রাজ্য - page 3') are t
 const bnNews = buildNews("bn", [fx("rss-anandabazar-gn.xml"), null, fx("rss-sangbad.xml"), null], NOW_B);
 ok("the Bengali tab: Anandabazar is the FIRST source, its printed-page listings never reach the card, and it names itself", NEWS_SOURCES.bn[0].name === "Anandabazar Patrika" && NEWS_SOURCES.bn[0].splitSource === true && bnNews.used.includes("Anandabazar Patrika") && !bnNews.items.some((i) => isPrintedPage(i.title)) && bnNews.items.some((i) => i.source === "Anandabazar Patrika"), bnNews.items.map((i) => i.source + ":" + i.title.slice(0, 20)).join(" | "));
 
-// Hindi: the five papers of the owner's list, in his order of priority, each from its own online edition's free feed
+// Hindi: the five papers of my list, in my order of priority, each from its own online edition's free feed.
 const hiNames = ["दैनिक भास्कर", "दैनिक जागरण", "अमर उजाला", "हिन्दुस्तान", "नवभारत टाइम्स"];
 ok("the Hindi tab is exactly the owner's five papers in his order: Dainik Bhaskar, Dainik Jagran, Amar Ujala, Hindustan, Navbharat Times; every address is https, none is BBC or an aggregator", NEWS_SOURCES.hi.map((s) => s.name).join() === hiNames.join() && NEWS_SOURCES.hi.every((s) => s.url.startsWith("https://") && !s.splitSource) && /bhaskar\.com/.test(NEWS_SOURCES.hi[0].url) && /jagran\.com/.test(NEWS_SOURCES.hi[1].url) && /amarujala\.com/.test(NEWS_SOURCES.hi[2].url) && /livehindustan\.com/.test(NEWS_SOURCES.hi[3].url) && /navbharattimes\.indiatimes\.com/.test(NEWS_SOURCES.hi[4].url));
 const hiFeeds = ["rss-bhaskar.xml", "rss-jagran.xml", "rss-amarujala.xml", "rss-hindustan.xml", "rss-navbharattimes.xml"].map((f, k) => parseRss(fx(f), hiNames[k]));
@@ -128,7 +128,7 @@ const rahul = hiNews.items.filter((i) => /फोन टैप/.test(i.title));
 ok("the one story that several Hindi papers carried (Rahul Gandhi's phone-tapping claim) is ONE card, not one per paper", rahul.length <= 1, String(rahul.length));
 ok("the papers a card names are in the owner's order of priority, whatever the order they came in", (() => { const mk = (src: string, t: string, at: string) => ({ title: t, link: "https://x.com/" + src, publishedAt: at, source: src, summary: "" }); const t = "राहुल गांधी का फोन टैपिंग का आरोप सबूत मोदी सरकार बहस"; const m = mergeFeeds([[mk("पहला", t + " एक", "2026-11-13T09:50:00Z")], [mk("दूसरा", t + " दो", "2026-11-13T09:10:00Z")], [mk("तीसरा", t + " तीन", "2026-11-13T09:30:00Z")]], 5, NOW_H); return m.length === 1 && m[0].firstSource === "दूसरा" && m[0].source === "पहला" && m[0].also?.join() === "दूसरा,तीसरा"; })());
 
-// English: the owner's priority. The Telegraph, The Hindu and The Times of India are the top level (the same), Hindustan Times and The Indian Express the second, the rest after them.
+// English: this is my priority. The Telegraph, The Hindu and The Times of India are the top level (the same), Hindustan Times and The Indian Express the second, the rest after them.
 const enNames = ["The Telegraph", "The Hindu", "Times of India", "Hindustan Times", "The Indian Express", "NDTV", "BBC News India"];
 ok("the English tab is in the owner's order: The Telegraph, The Hindu, Times of India, Hindustan Times, The Indian Express, then NDTV and BBC News India", NEWS_SOURCES.en.map((s) => s.name).join() === enNames.join() && NEWS_SOURCES.en.every((s) => s.url.startsWith("https://")));
 ok("their PRIORITY is a weight: the top three are equal at 3 (the same level), Hindustan Times and The Indian Express equal at 2, the others 1", NEWS_SOURCES.en.map((s) => s.weight ?? 1).join() === "3,3,3,2,2,1,1");
@@ -140,7 +140,7 @@ ok("The Indian Express's own free feed is read: ten dated headlines with an http
 const enAll = ["rss-telegraph-gn.xml", "rss-thehindu.xml", "rss-thehindu.xml", "rss-thehindu.xml", "rss-indianexpress.xml", null, null].map((f) => (f ? fx(f) : null));
 const enNews = buildNews("en", enAll, DateTime.fromISO("2026-11-13T09:30:00Z"));
 ok("every Telegraph story on the card is named 'The Telegraph' (not 'Telegraph India')", enNews.items.filter((i) => /telegraph/i.test(i.source)).every((i) => i.source === "The Telegraph") && enNews.used.includes("The Telegraph"));
-// the weights, on feeds long enough to show the shares
+// The weights, tested on feeds long enough to show the shares.
 const lots = (src: string, n: number) => Array.from({ length: n }, (_, k) => ({ title: `${src} unique story number ${k} about topic${src}${k} alpha${k}${src}`, link: `https://x.com/${src}/${k}`, publishedAt: "2026-11-13T07:00:00Z", source: src, summary: "" }));
 const tiered = mergeFeeds([lots("A", 20), lots("B", 20), lots("C", 20), lots("D", 20), lots("E", 20), lots("F", 20), lots("G", 20)], 15, DateTime.fromISO("2026-11-13T09:30:00Z"), 36, [3, 3, 3, 2, 2, 1, 1]);
 const share = (s: string) => tiered.filter((i) => i.source === s).length;

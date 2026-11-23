@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/hospital/qualification.selftest.ts
-// Step 56a: "list of DNB doctors" (owner, 26 Oct 2026). The model took DNB to mean EVERY doctor and listed all 52. A qualification is not in the HR directory; the hospital's staff list prints it for each
-// doctor, so the answer is read from there, as printed, and says what it does NOT know (the doctors whose qualification is not recorded).
+// Step 56a: "list of DNB doctors" (my question, 26 Oct 2026). The model took DNB to mean EVERY doctor and listed all 52. A qualification is not in the HR directory; the hospital's staff list prints it for each
+// doctor, so I read the answer from there, as printed, and it says what it does NOT know (the doctors whose qualification is not recorded).
 
 import { DateTime } from "luxon";
 import { answerHospital, nice, qualificationsAsked, specialisationOf } from "./engine";
@@ -24,7 +24,7 @@ const noQual = pool.filter((p) => !printed(p).trim());
 const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
 
 (async () => {
-  // ---- the question of the owner, and the way people write it
+  // ---- my question, and the way people write it
   const dnbDocs = pool.filter((p) => /\bDNB\b/.test(printed(p)));
   ok("known fact (26 Oct 2026): exactly ONE doctor on the lists prints DNB: Rajeev Kumar, ticket 499169, DNB(MEDICINE)", dnbDocs.length === 1 && dnbDocs[0].name === "RAJEEV KUMAR" && dnbDocs[0].ticket === "499169" && dnbDocs[0].qualification === "DNB(MEDICINE)");
   for (const q of ["list of DNB doctors.", "list of DNB doctors", "list of dnb doctors", "how many doctors have DNB", "doctors with D.N.B.", "show me the DNB doctors", "which doctors are DNB"]) {
@@ -58,7 +58,7 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   r = await answerHospital("list of MD doctors in medicine", ctx);
   ok("with a department: only that department's doctors (Medicine), every one with MD(MEDICINE)", r.card.title === "Doctors with MD in Medicine" && rowsOf(r).length >= 1 && rowsOf(r).every((x) => x[4] === "Medicine" && /^MD/.test(x[2])), JSON.stringify(rowsOf(r)));
 
-  // ---- "list the doctors with their degrees" (26 Oct 2026: it fell through to four unrelated circulars at 77 to 87 per cent)
+  // ---- "list the doctors with their degrees" (26 Oct 2026: it used to fall through to four unrelated circulars at 77 to 87 per cent)
   const recorded = pool.filter((p) => printed(p).trim());
   for (const q of ["list the doctors with their degrees", "doctors with qualification", "what are the qualifications of the doctors", "how many doctors are qualified"]) {
     const d: any = await answerHospital(q, ctx);
@@ -70,7 +70,7 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   r = await answerHospital("qualifications of ent doctors", ctx);
   ok("with a department: that department's doctors only (ENT)", r?.card.title === "Doctors and their qualifications in ENT" && rowsOf(r).length >= 1 && rowsOf(r).every((x) => x[4] === "ENT"), JSON.stringify(rowsOf(r)));
 
-  // ---- the SPECIALISATION (step 57a). A degree or qualification is any of MBBS, MD, MS ...; a SPECIALISATION comes only from a POSTGRADUATE qualification (MD, MS, DNB, DrNB, MCh, DM, MDS, a
+  // ---- the SPECIALISATION (step 57a). A degree or qualification is any of MBBS, MD, MS ...; my rule: a SPECIALISATION comes only from a POSTGRADUATE qualification (MD, MS, DNB, DrNB, MCh, DM, MDS, a
   // postgraduate diploma such as DGO, DPM, DIH, D.Ortho, MRCOG). MBBS alone: none. No qualification recorded: not known. A bare "MS": postgraduate, subject not stated.
   const POSTGRAD = /\b(MD|MS|DNB|DR\.?\s?NB|MCH|DM|MDS|DGO|DPM|DIH|MRCOG)\b|\bD\.?\s?ORTHO\b/;
   const pgDocs = pool.filter((p) => POSTGRAD.test(printed(p)));
@@ -108,14 +108,14 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   ok("...and No, with what he holds", no?.summary === "No: Dr. Dipak Singh's qualification is MD(MEDICINE), not DNB." && no.card.status.tone === "closed", no?.summary);
   ok("DrNB is a different degree: No, and it says so", /^No: Dr\. A K Sahay's qualification is MCH & DRNB PLASTIC SURGERY, not DNB\. DrNB is the National Board's super-specialty degree: a different qualification\.$/.test((await answerHospital("is dr a k sahay a DNB doctor", ctx))?.summary ?? ""));
   ok("a doctor whose qualification is not recorded: 'I cannot say', never No", /cannot say whether he or she holds DNB\./.test((await answerHospital(`is dr ${noQual[0].name.toLowerCase()} a DNB doctor`, ctx))?.summary ?? ""));
-  // the list of the non-permanent doctors follows the same rule
+  // I apply the same rule to the list of the non-permanent doctors
   const np: any = await answerHospital("list the contractual doctors", ctx);
   const npRow = (name: string) => (np.card.table.rows as string[][]).find((row) => row[0] === `Dr. ${name}`);
   ok("contractual doctors: MBBS alone = 'none (MBBS only)' (known), not 'not recorded yet'", npRow("Daisy Bhengra")?.[2] === "none (MBBS only)" && npRow("Titas Chakraborty")?.[2] === "none (MBBS only)", JSON.stringify(npRow("Daisy Bhengra")));
   ok("...no qualification recorded = still 'not recorded yet'; a recorded specialization is untouched", npRow("Ajay Varghese")?.[2] === "not recorded yet" && npRow("Abhishek Mandal")?.[2] === "Surgery");
   ok("...and the list says what 'none (MBBS only)' means", (np.card.notes ?? []).some((l: string) => l.includes("a doctor with MBBS alone has no specialization")));
 
-  // ---- the CLEAN ANSWER FIRST (step 57b, owner 26 Oct 2026: "DNB(MEDICINE) at the very first, bold and bigger; a clean green Yes or a red No; the rest short"). The headline is the one statement; the title is a caption; one sentence; bullets only where they matter.
+  // ---- the CLEAN ANSWER FIRST (step 57b, my words of 26 Oct 2026: "DNB(MEDICINE) at the very first, bold and bigger; a clean green Yes or a red No; the rest short"). The headline is the one statement; the title is a caption; one sentence; bullets only where they matter.
   const headOf = (x: any) => x?.card.headline as { text: string; tone: string } | undefined;
   ok("specialisation of dr rajeev kumar: the headline is DNB(MEDICINE), one sentence, one bullet (the department), the rule folded", headOf(rk)?.text === "DNB(MEDICINE)" && headOf(rk)?.tone === "info" && rk.card.status.text === "Dr. Rajeev Kumar's specialisation is Medicine." && JSON.stringify(rk.card.lines) === '["Department: Medicine."]' && rk.card.details.length === 1 && rk.card.details[0].summary === "How is a specialisation decided?", JSON.stringify([rk.card.headline, rk.card.status, rk.card.lines]));
   ok("...the plain-text answer (summary) is unchanged", rk.summary === "Dr. Rajeev Kumar's specialisation is Medicine (qualification DNB(MEDICINE)).");
@@ -132,13 +132,13 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   ok("doctors with DM: the headline is None (amber)", headOf(await answerHospital("doctors with DM", ctx))?.text === "None" && headOf(await answerHospital("doctors with DM", ctx))?.tone === "unknown");
   ok("the doctors with their degrees: the headline is the count of those recorded", headOf(await answerHospital("list the doctors with their degrees", ctx))?.text === `${recorded.length} doctors`);
   ok("the specialisations: the headline is the number of specialisations", headOf(await answerHospital("the specialisation of doctors in dsp", ctx))?.text === `${specs.size} specialisations`);
-  // an ordinary OPD verdict gets the big Yes / No too (done() does it for every open / closed answer)
+  // I give an ordinary OPD verdict the big Yes / No too; done() does it for every open / closed answer.
   const ask = (q: string, iso: string) => answerHospital(q, { now: DateTime.fromISO(iso, { zone: "Asia/Kolkata" }), holidaysOn: async () => ({ yearLoaded: true, hits: [] }) } as never);
   const opd: any = await ask("is the opd open on sunday", "2026-10-26T11:00:00");
   ok("an OPD verdict: a big red No or green Yes first (tone from the verdict), the text unchanged", !!headOf(opd) && ["yes", "no"].includes(headOf(opd)!.tone) && /^(Yes|No): /.test(opd.card.status.text), JSON.stringify([opd?.card.headline, opd?.card.status]));
   ok("an answer that is not a verdict has no Yes / No headline (a list of doctors of a department)", headOf(await answerHospital("list of ent doctors", ctx)) === undefined);
 
-  // ---- the LEVEL of a degree (step 58a). Owner, 26 Oct 2026: "list the doctors having post graduate degree on medicine" listed MBBS doctors: "post graduate" is every degree ABOVE graduate (the table of degrees).
+  // ---- the LEVEL of a degree (step 58a). My question of 26 Oct 2026, "list the doctors having post graduate degree on medicine", listed MBBS doctors. My rule: "post graduate" is every degree ABOVE graduate (the table of degrees).
   ok("every printed qualification of the doctors is KNOWN to the table of degrees (none unrecognised): otherwise a level would be a guess", pool.every((p) => !printed(p).trim() || parseQualification(p.qualification).unrecognised.length === 0), pool.filter((p) => printed(p).trim() && parseQualification(p.qualification).unrecognised.length).map((p) => p.qualification).join(" ; "));
   const lvOf = (p: any) => highestLevel(p.qualification);
   ok("the levels of the doctors: MBBS alone = graduate, the rest postgraduate, one super-specialty (Dr. A K Sahay)", pool.filter((p) => lvOf(p) === "graduate").length === mbbsOnly.length && pool.filter((p) => lvOf(p) === "postgraduate").length === pgDocs.length - 1 && pool.filter((p) => lvOf(p) === "superspecialty").map((p) => p.name).join() === "A K SAHAY");
@@ -165,11 +165,11 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   ok("one doctor: Yes for Dr. Rajeev Kumar (DNB), a red No for Dr. Kunj Bihari Singh (MBBS), Not known when nothing is recorded", (await answerHospital("is dr rajeev kumar post graduate", ctx))?.summary === "Yes: Dr. Rajeev Kumar holds DNB(MEDICINE), a postgraduate degree." && (await answerHospital("is dr kunj bihari singh post graduate", ctx))?.summary === "No: Dr. Kunj Bihari Singh's qualification is MBBS, a graduate degree, not a postgraduate one." && headOf(await answerHospital(`is dr ${noQual[0].name.toLowerCase()} post graduate`, ctx))?.text === "Not known");
   ok("...the headlines of those: Yes (yes), No (no)", headOf(await answerHospital("is dr rajeev kumar post graduate", ctx))?.tone === "yes" && headOf(await answerHospital("is dr kunj bihari singh post graduate", ctx))?.tone === "no");
   ok("not taken: a policy or circular, employees, a plain 'degrees' list keeps its own answer", !(await answerHospital("post graduate degree policy circular", ctx)) && !(await answerHospital("list of employees who are post graduate", ctx)) && (await answerHospital("list the doctors with their degrees", ctx))?.card.title === "Doctors and their qualifications");
-  // the model's guard for employee questions about a degree or a level (the directory holds no qualification of an employee)
+  // I guard the model against employee questions about a degree or a level, because the directory holds no qualification of an employee
   ok("the guard: employee questions that name a degree or a level (and cannot be a designation)", ["list the employees who are post graduate", "employees with btech degree", "how many employees have a phd", "list employees with mba", "which employees have a degree in engineering"].every((q) => isQualificationQuestion(q)));
   ok("...but not designations: Graduate Engineer Trainee, Diploma Trainee, or plain questions", !["list the graduate engineer trainees", "list diploma trainees", "how many executives are there in c&it", "list the executives who are graduates"].some((q) => isQualificationQuestion(q)));
 
-  // ---- "MD" and "DM" are degrees AND abbreviations that belong to names ("Md. Anwar"): the screens of 26 Oct 2026 12:47 showed "is dr rajeev kumar a MD doctor?" answering with the LIST of 17 MD doctors
+  // ---- "MD" and "DM" are degrees AND abbreviations that belong to names ("Md. Anwar"): my screens of 26 Oct 2026 12:47 showed "is dr rajeev kumar a MD doctor?" answering with the LIST of 17 MD doctors
   const mdNo: any = await answerHospital("is dr rajeev kumar a MD doctor?", ctx);
   ok("'is dr rajeev kumar a MD doctor?': a red No (he holds DNB), not the list of MD doctors", mdNo?.summary === "No: Dr. Rajeev Kumar's qualification is DNB(MEDICINE), not MD." && headOf(mdNo)?.text === "No" && headOf(mdNo)?.tone === "no" && !mdNo.card.table, mdNo?.summary);
   const mdYes: any = await answerHospital("is dr dipak singh a MD doctor?", ctx);
@@ -178,7 +178,7 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   ok("MS has always worked (it is a word that is not a name); MD and DM now behave the same", (await answerHospital("is dr rajeev kumar a MS doctor?", ctx))?.summary === "No: Dr. Rajeev Kumar's qualification is DNB(MEDICINE), not MS.");
   ok("the lists are unchanged: 'list of MD doctors' is still the list, with or without a department, and 'doctors with DM' is still None", rowsOf(await answerHospital("list of MD doctors", ctx)).length === count(/\bMD\b/) && rowsOf(await answerHospital("list of MD doctors in medicine", ctx)).length === 3 && headOf(await answerHospital("doctors with DM", ctx))?.text === "None");
 
-  // ---- step 59b: the owner's screens of 26 Oct 2026 13:09 to 13:12 (post graduate on medicine / surgery, how many post graduate, super speciality)
+  // ---- step 59b: my screens of 26 Oct 2026 13:09 to 13:12 (post graduate on medicine / surgery, how many post graduate, super speciality)
   ok("the level sentence is ONE short line, no list of degrees: 'A postgraduate degree or higher, among the doctors of Medicine.'", med.card.status.text === "A postgraduate degree or higher, among the doctors of Medicine." && sur.card.status.text === "A postgraduate degree or higher, among the doctors of Surgery.", med.card.status.text);
   ok("...for all doctors the gap follows it: 'A postgraduate degree or higher. The qualification is not recorded for N of the M doctors, so this list may be incomplete.'", allPg.card.status.text === `A postgraduate degree or higher. The qualification is not recorded for ${noQual.length} of the ${pool.length} doctors, so this list may be incomplete.`, allPg.card.status.text);
   ok("what counts as postgraduate is folded away: MD, MS, DNB, MDS, MCh, DM, the postgraduate diplomas, above graduate; MBBS and BDS are graduate", med.card.details.some((d: { summary: string; text: string }) => d.summary === "What counts as postgraduate?" && /every degree ABOVE graduate/.test(d.text) && /MBBS and BDS are graduate/.test(d.text)) && !/\bMD, MS, DNB/.test(med.card.status.text));
@@ -197,7 +197,7 @@ const rowsOf = (r: any): string[][] => r?.card?.table?.rows ?? [];
   ok("the doctors of a department still work", r?.card.title === "Doctors of ENT");
   ok("qualificationsAsked: dnb, d n b, drnb are told apart; plain words are none", JSON.stringify(qualificationsAsked("list of dnb doctors").map((x) => x.key)) === '["DNB"]' && JSON.stringify(qualificationsAsked("doctors with d n b").map((x) => x.key)) === '["DNB"]' && JSON.stringify(qualificationsAsked("who are the drnb doctors").map((x) => x.key)) === '["DRNB"]' && qualificationsAsked("list of doctors in medicine").length === 0);
 
-  // ---- the SQL path: when such a question does reach the model (it also filters the people), the model is told that a qualification is not in the directory
+  // ---- the SQL path: when such a question does reach the model (it also filters the people), I tell the model that a qualification is not in the directory
   const prompt = (question: string) => buildPrompt({ question, context: { designations: [], departments: real } as never, examples: [] });
   ok("the rule says that the directory holds no qualification, that 'DNB doctors' is not 'doctors', and what to return", QUALIFICATION_DOC.includes("NOT in the directory") && /NOT "doctors"/.test(QUALIFICATION_DOC) && QUALIFICATION_DOC.includes("unanswerable_reason") && QUALIFICATION_DOC.includes("does not record qualifications"));
   ok("a question that names a qualification gets it: DNB doctors with a mail, an MBBS holder, a degree", isQualificationQuestion("list of DNB doctors with nic mail") && isQualificationQuestion("who holds a dnb") && isQualificationQuestion("mbbs doctors with mobile") && isQualificationQuestion("doctors with an md degree"));

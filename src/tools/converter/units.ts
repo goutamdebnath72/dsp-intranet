@@ -1,22 +1,22 @@
 // src/tools/converter/units.ts
 //
-// UNIT CONVERSION FOR THE SEARCH BAR: "5 km in miles", "98.6 f to c", "1 bhp in kw", "180 degrees to radians", "2 kgf/cm2 to bar".
-// Pure: a table of units with their factor to the base unit of their kind, and a strict parser. Nothing is stored or sent anywhere.
+// Unit conversion for the search bar: "5 km in miles", "98.6 f to c", "1 bhp in kw", "180 degrees to radians", "2 kgf/cm2 to bar".
+// This file is pure: a table of units with their factor to the base unit of their kind, and a strict parser. I store nothing and send nothing anywhere.
 //
-// Where a word has more than one meaning, the table says which meaning it took and the answer SAYS SO (a note): "ton" (metric tonne), "bhp"/"hp" (mechanical, 745.7 W)
+// Where a word has more than one meaning, I record in the table which meaning I took, and the answer SAYS SO (a note): "ton" (metric tonne), "bhp"/"hp" (mechanical, 745.7 W)
 // against "PS" (metric, 735.5 W), "calorie" (the small calorie; a food Calorie is the kilocalorie), "gallon" (US; the imperial gallon is separate).
 
 export type UnitKind = "length" | "area" | "volume" | "mass" | "temperature" | "angle" | "energy" | "force" | "power" | "pressure" | "speed" | "time";
 
 export interface UnitDef {
   id: string;
-  /** how the unit is written in an answer */
+  /** The label is how I write the unit in an answer. */
   label: string;
   kind: UnitKind;
-  /** how many base units one of this unit is (temperature has its own rules) */
+  /** I keep here how many base units one of this unit is (temperature has its own rules). */
   factor: number;
   aliases: string[];
-  /** said in the answer when the word has more than one meaning */
+  /** I say this note in the answer when the word has more than one meaning. */
   note?: string;
 }
 
@@ -47,7 +47,7 @@ export const UNITS: UnitDef[] = [
   U("acre", "acre", "area", 4046.8564224, ["acre", "acres"]),
   U("ha", "hectare", "area", 10000, ["ha", "hectare", "hectares"]),
   U("mi2", "square mile", "area", 2589988.110336, ["sq mi", "sqmi", "mi2", "sq mile", "sq miles"]),
-  // Indian land units. The katha and the bigha are NOT the same size in every state, so each size is a unit of its own (the label names the place) and a bare word is read as the West Bengal one, with a note.
+  // Indian land units. The katha and the bigha are NOT the same size in every state, so I made each size a unit of its own (the label names the place) and I read a bare word as the West Bengal one, with a note.
   // West Bengal: 1 bigha = 20 katha (cottah) = 14,400 sq ft, 1 katha = 16 chhatak = 720 sq ft; Assam: 1 bigha = 5 katha = 14,400 sq ft (so the Assam bigha is the same size); Bihar (Patna): 1 bigha = 20 katha = 27,225 sq ft.
   U("decimal", "decimal (1/100 acre)", "area", 4046.8564224 / 100, ["decimal", "decimals", "dismil", "dismils", "shatak", "shatok"], "decimal (dismil) = 1/100 of an acre = 435.6 sq ft, as in land records"),
   U("katha", "katha / cottah (West Bengal)", "area", 720 * 0.09290304, ["katha", "kattha", "kottah", "cottah", "cotta", "kotha", "katha wb", "katha west bengal", "west bengal katha", "wb katha", "katha bengal", "cottah wb", "kottah wb"], "katha (cottah, kottah) read as the West Bengal size, 720 sq ft; other states use other sizes (Assam 2,880 sq ft, Patna 1,361.25 sq ft): choose the state's own unit from the list, and rely on the land record for an exact area"),
@@ -142,7 +142,7 @@ export const UNITS: UnitDef[] = [
   U("wk", "week", "time", 604800, ["week", "weeks", "wk", "wks"]),
 ];
 
-/** temperature is not a ratio: Celsius, Fahrenheit and Kelvin convert through kelvin */
+/** Temperature is not a ratio, so I convert Celsius, Fahrenheit and Kelvin through kelvin. */
 export const TEMPERATURES: Array<{ id: string; label: string; aliases: string[]; toK: (v: number) => number; fromK: (k: number) => number }> = [
   { id: "C", label: "°C", aliases: ["c", "°c", "celsius", "centigrade", "deg c", "degc", "degree celsius", "degrees celsius", "degree c", "degrees c"], toK: (v) => v + 273.15, fromK: (k) => k - 273.15 },
   { id: "F", label: "°F", aliases: ["f", "°f", "fahrenheit", "deg f", "degf", "degree fahrenheit", "degrees fahrenheit", "degree f", "degrees f"], toK: (v) => ((v - 32) * 5) / 9 + 273.15, fromK: (k) => ((k - 273.15) * 9) / 5 + 32 },
@@ -170,7 +170,7 @@ export function findUnit(word: string): UnitDef | null {
   const w = norm(word);
   if (!w) return null;
   if (BY_ALIAS.has(w)) return BY_ALIAS.get(w)!;
-  // a plural the table does not list ("kilometres per hour" is listed; "yards" is listed; "tolas" is listed): drop one "s"
+  // I drop one "s" for a plural the table does not list ("kilometres per hour" is listed; "yards" is listed; "tolas" is listed).
   if (w.endsWith("s") && BY_ALIAS.has(w.slice(0, -1))) return BY_ALIAS.get(w.slice(0, -1))!;
   return null;
 }
@@ -184,14 +184,14 @@ export interface Conversion {
   value: number;
   from: string;
   to: string;
-  /** the ids of the two units in the table (what the converter card selects) */
+  /** These are the ids of the two units in the table; the converter card selects them. */
   fromId: string;
   toId: string;
-  /** the two units as the person wrote them ("km", "miles"): what the answer shows */
+  /** The two units as the person wrote them ("km", "miles"): this is what the answer shows. */
   fromText: string;
   toText: string;
   result: number;
-  /** one unit of "from" in "to": "1 km = 0.621371 mile" */
+  /** How much of "to" one unit of "from" is, as in "1 km = 0.621371 mile". */
   oneUnit: number;
   notes: string[];
 }
@@ -204,7 +204,7 @@ export interface Mismatch {
   message: string;
 }
 
-/** Converts `value` between two units written as words; null when either is not a known unit. */
+/** Converts `value` between two units written as words; I return null when either is not a known unit. */
 export function convertWords(value: number, fromWord: string, toWord: string): Conversion | Mismatch | null {
   const ft = findTemperature(fromWord), tt = findTemperature(toWord);
   if (ft && tt) {
@@ -231,13 +231,13 @@ const VALUE = String.raw`([-+]?(?:\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d+)?(?:e[-+]?\d
 const JOIN = String.raw`(?:in|to|into|as|=|->|→|equals?)`;
 const CONVERT_RE = new RegExp(`^(?:convert\\s+)?(?:${VALUE}\\s*)?([^\\d\\s].*?)\\s+${JOIN}\\s+(.+?)\\s*\\??$`, "i");
 
-/** Reads "5 km in miles", "convert 98.6 f to c", "1 bhp to kw". Returns null unless BOTH sides are known units. */
+/** Reads "5 km in miles", "convert 98.6 f to c", "1 bhp to kw". I return null unless BOTH sides are known units. */
 export function parseConversion(raw: string): Conversion | Mismatch | null {
   const q = (raw || "").trim().replace(/^(?:what\s+is|what's|how\s+much\s+is)\s+/i, "");
   if (!q || q.length > 80) return null;
   const m = CONVERT_RE.exec(q);
   if (!m) return null;
-  const value = m[1] === undefined ? 1 : Number(m[1].replace(/,/g, "")); // "bhp to ps" is one bhp, as Google reads it
+  const value = m[1] === undefined ? 1 : Number(m[1].replace(/,/g, "")); // I read "bhp to ps" as one bhp, the way Google reads it
   if (!Number.isFinite(value)) return null;
   return convertWords(value, m[2], m[3]);
 }

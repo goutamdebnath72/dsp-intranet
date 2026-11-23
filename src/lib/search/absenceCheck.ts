@@ -1,8 +1,8 @@
 // src/lib/search/absenceCheck.ts
 //
-// A WRONG "NOT STATED" IS A WRONG ANSWER. The model sometimes writes "Not stated in circular" in a comparison-table cell for an item that the circular DOES list
-// (the 2025 holiday list names Bhatridwitiya on 23 October; the briefing said "Not stated"). The prompt asks the model not to; this is the plain-code check that does
-// not depend on the model obeying: for every "not stated" cell, the item in that row is looked up in the text of the circular(s) of that column. If the circular names
+// A wrong "not stated" is a wrong answer. The model sometimes writes "Not stated in circular" in a comparison-table cell for an item that the circular DOES list
+// (the 2025 holiday list names Bhatridwitiya on 23 October; the briefing said "Not stated"). I ask the model in the prompt not to do this, but this is the plain-code check that does
+// not depend on the model obeying: for every "not stated" cell, I look up the item of that row in the text of the circular(s) of that column. If the circular names
 // it, the cell is replaced by the circular's own words (a short quotation), never by a value the code makes up.
 //
 // Pure: no I/O, no model, the same input always gives the same output.
@@ -19,20 +19,20 @@ export interface AbsenceFix {
   column: string;
   sourceId: number;
   quote: string;
-  /** the sentence of the circular that also speaks of the item, when there is one beside the list entry ("... will be treated as additional Festival Holiday ...") */
+  /** Holds the sentence of the circular that also speaks of the item, when there is one beside the list entry ("... will be treated as additional Festival Holiday ...") */
   also?: string;
-  /** the kind of list that names the item ("restricted holiday"), when the circular's headings say */
+  /** Holds the kind of list that names the item ("restricted holiday"), when the circular's headings say so. */
   section?: string | null;
 }
 
-/** A "not stated" cell that was CHECKED against the circular of its column and is true: none of the item's names appears in that circular. */
+/** A "not stated" cell that I CHECKED against the circular of its column and found true: none of the item's names appears in that circular. */
 export interface ConfirmedAbsence {
   row: string;
   column: string;
   sourceIds: number[];
 }
 
-/** Words that name a kind of day or a category, not the item itself: never enough to say "the circular names this item". */
+/** These words name a kind of day or a category, not the item itself, so I never let them alone decide that "the circular names this item". */
 const GENERIC = new Set([
   "holiday", "holidays", "festival", "festivals", "category", "closed", "public", "restricted", "additional", "puja", "pujas", "day", "days", "birth", "birthday",
   "other", "others", "total", "number", "amount", "amounts", "rate", "rates", "scheme", "schemes", "employees", "employee", "workers", "worker", "circular", "notice",
@@ -44,28 +44,28 @@ const NOT_STATED = /^\s*(?:(?:not\s+(?:stated|specified|mentioned|given|availabl
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const words = (s: string): string[] => (s.normalize("NFC").toLowerCase().match(/[\p{L}]+/gu) ?? []);
 
-/** The words of a row label that identify the item: at least 5 letters, and not a generic word. */
+/** I take the words of a row label that identify the item: at least 5 letters, and not a generic word. */
 export function distinctiveWords(label: string): string[] {
   return [...new Set(words(label).filter((w) => w.length >= 5 && !GENERIC.has(w)))];
 }
 
-/** The sources a column of the table speaks of: those whose headline carries the column's heading ("2025"), or the year in it ("2025 Date" -> 2025). A heading that carries no year gives none. */
+/** Returns the sources a column of the table speaks of: those whose headline carries the column's heading ("2025"), or the year in it ("2025 Date" -> 2025). A heading that carries no year gives none. */
 export function sourcesOfColumn(heading: string, sources: AbsenceSource[]): AbsenceSource[] {
   const h = heading.trim();
   if (h.length < 3) return [];
   const whole = (needle: string) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRe(needle)}(?:$|[^\\p{L}\\p{N}])`, "iu");
   const exact = sources.filter((s) => whole(h).test(s.headline));
   if (exact.length) return exact;
-  // a heading that is not itself in a headline maps to a circular only through a YEAR ("2025 Date" -> the circular of 2025): a year names an edition, a word like "Locations" names nothing
+  // A heading that is not itself in a headline maps to a circular only through a YEAR ("2025 Date" -> the circular of 2025), because a year names an edition while a word like "Locations" names nothing.
   const years = [...new Set(h.match(/\b(?:19|20)\d{2}\b/g) ?? [])];
   if (!years.length) return [];
   return sources.filter((s) => years.every((y) => whole(y).test(s.headline)));
 }
 
-/** The first and last character of every numbered table entry of a flattened text ("SL. No.: 28 | HOLIDAYS: ... | Day: Thursday"). */
+/** Gives the first and last character of every numbered table entry of a flattened text ("SL. No.: 28 | HOLIDAYS: ... | Day: Thursday"). */
 function entriesOf(flat: string): Array<{ from: number; to: number }> {
   const marks: Array<{ at: number; end: number }> = [];
-  // a numbered entry is "SL. NO.: 28 |" or, where the scan lost the table's headings, "Column 1: 30. |"
+  // I treat a numbered entry as "SL. NO.: 28 |" or, where the scan lost the table's headings, "Column 1: 30. |"
   for (const m of flat.matchAll(/\b(?:sl\.?\s*(?:no\.?)?\s*:?|column\s*1\s*:)\s*\d+\.?\s*\|/gi)) marks.push({ at: m.index!, end: m.index! + m[0].length });
   return marks.map((m, i) => ({ from: m.end, to: i + 1 < marks.length ? marks[i + 1].at : flat.length }));
 }
@@ -77,16 +77,16 @@ const clip = (piece: string, max: number): string => {
   return cut.slice(0, Math.max(cut.lastIndexOf(" "), 40)).trim();
 };
 
-/** A table entry as the text of the circular stores it ("HOLIDAYS: Rath Yatra | DATE: 27th June | Day: Friday") is read as "Rath Yatra · 27th June · Friday": the values, in the circular's own words and order, without the column names. */
+/** A table entry as the text of the circular stores it ("HOLIDAYS: Rath Yatra | DATE: 27th June | Day: Friday") is read here as "Rath Yatra · 27th June · Friday": the values, in the circular's own words and order, without the column names. */
 export function readable(entry: string): string {
   const parts = entry.split("|").map((p) => p.trim().replace(/^[A-Za-z][A-Za-z0-9 .&/]{0,24}:\s*/, "").trim()).filter(Boolean);
   return parts.length > 1 ? parts.join(" · ") : entry.trim();
 }
 
 /**
- * The kind of list a table entry stands in, from the nearest HEADING before it ("RESTRICTED HOLIDAYS (RH)", "FESTIVAL HOLIDAYS", "CLOSED/ PUBLIC HOLIDAYS"): said in the cell, so a reader
+ * I find the kind of list a table entry stands in from the nearest HEADING before it ("RESTRICTED HOLIDAYS (RH)", "FESTIVAL HOLIDAYS", "CLOSED/ PUBLIC HOLIDAYS"). It is said in the cell, so a reader
  * does not take a restricted holiday for a festival holiday. Only a heading written in capitals counts (prose such as "treated as an additional Festival Holiday" is not a heading), and
- * only when the entry numbers run on from the heading without starting over or jumping: a restart or a jump means another list began (or text is missing) and then the kind is NOT said.
+ * only when the entry numbers run on from the heading without starting over or jumping: a restart or a jump means another list began (or text is missing), and then I do NOT say the kind.
  */
 function sectionBefore(flat: string, at: number): string | null {
   const before = flat.slice(0, at);
@@ -100,19 +100,19 @@ function sectionBefore(flat: string, at: number): string | null {
   let last = 0;
   for (const m of before.slice(from).matchAll(/\bsl\.?\s*(?:no\.?)?\s*:?\s*(\d+)\.?\s*\|/gi)) {
     const n = Number(m[1]);
-    if (n < last || n > last + 3) return null; // a restart, or a jump (text between is missing): the list of this entry is not certain
+    if (n < last || n > last + 3) return null; // after a restart or a jump (text between is missing) I am not certain which list this entry belongs to
     last = n;
   }
   return kind;
 }
 
 /**
- * The circular's own words where the item is named: the table ENTRY that names it (one row; one with a figure preferred), AND the sentence that speaks of it outside any list,
+ * Returns the circular's own words where the item is named: the table ENTRY that names it (one row; one with a figure preferred), AND the sentence that speaks of it outside any list,
  * when there is one (the 2025 list names Bhatridwitiya as a restricted holiday, and a sentence says it "will be treated as additional Festival Holiday": the entry alone would
  * mislead). With no entry, the sentence stands alone.
  */
 function quoteFor(text: string, word: string, labelWords: string[] = []): { text: string; section: string | null; also?: string } | null {
-  // a signature or a logo the scan put between two entries is not the circular's text
+  // A signature or a logo that the scan put between two entries is not the circular's text, so I blank it out.
   const flat = text.replace(/\[(?:handwritten|logo)[^\]]*\]/gi, " ").replace(/\s+/g, " ");
   const re = new RegExp(`(?<![\\p{L}])${escapeRe(word)}`, "giu");
   const entries = entriesOf(flat);
@@ -121,23 +121,23 @@ function quoteFor(text: string, word: string, labelWords: string[] = []): { text
   let proseWithFigure: string | null = null;
   for (const m of flat.matchAll(re)) {
     const at = m.index!;
-    // a word counts as part of a table ENTRY only when it stands in the entry's name fields (the first two "|"-separated fields): the last entry of a list runs on into the prose
-    // that follows it, and a word in that prose is not that row's item
+    // I count a word as part of a table ENTRY only when it stands in the entry's name fields (the first two "|"-separated fields): the last entry of a list runs on into the prose
+    // that follows it, and a word in that prose is not that row's item.
     const entry = entries.find((e) => {
       if (at < e.from || at >= e.to) return false;
       const first = flat.indexOf("|", e.from), second = first < 0 ? -1 : flat.indexOf("|", first + 1);
-      return at < (second < 0 ? Math.min(e.to, (first < 0 ? e.from : first) + 60) : Math.min(second, e.to)); // an entry with fewer fields: the name field and a little after it
+      return at < (second < 0 ? Math.min(e.to, (first < 0 ? e.from : first) + 60) : Math.min(second, e.to)); // for an entry with fewer fields I take the name field and a little after it
     });
     if (entry) {
       const q = readable(clip(flat.slice(entry.from, entry.to), 170));
-      // among the entries that hold the word ("Christmas Eve", "Christmas Day"; "Durgapuja - Maha Navami", "... Maha Ashtami") the one that holds MOST of the row's own words is the row's
+      // Among the entries that hold the word ("Christmas Eve", "Christmas Day"; "Durgapuja - Maha Navami", "... Maha Ashtami") I pick the one that holds MOST of the row's own words as the row's.
       const own = new Set(words(readable(clip(flat.slice(entry.from, entry.to), 170)).split(" · ")[0] ?? ""));
       const score = labelWords.filter((w) => own.has(w)).length;
       const hit = { text: q, section: sectionBefore(flat, at), score };
       if (!tableQuote || score > tableQuote.score || (score === tableQuote.score && /\d/.test(q) && !/\d/.test(tableQuote.text))) tableQuote = hit;
       continue;
     }
-    // the sentence around the word: from the sentence's start (a full stop up to 150 characters before) to its end (a full stop up to 240 characters after), else a window
+    // I take the sentence around the word: from the sentence's start (a full stop up to 150 characters before) to its end (a full stop up to 240 characters after), else a window.
     const dotBefore = flat.lastIndexOf(". ", at);
     const start = dotBefore >= 0 && at - dotBefore <= 150 ? dotBefore + 2 : Math.max(0, at - 40);
     const dotAfter = flat.indexOf(". ", at);
@@ -156,7 +156,7 @@ function quoteFor(text: string, word: string, labelWords: string[] = []): { text
 }
 
 /**
- * Replaces every "not stated" cell whose item the column's circular names by that circular's own words. A cell is left alone when the column maps to no circular,
+ * Replaces every "not stated" cell whose item the column's circular names by that circular's own words. I leave a cell alone when the column maps to no circular,
  * when the row has no distinctive word, or when the circular does not contain it (a true "not stated").
  */
 export function checkAbsences(table: SynthesisTable, sources: AbsenceSource[]): { table: SynthesisTable; fixes: AbsenceFix[]; confirmed: ConfirmedAbsence[] } {
@@ -165,13 +165,13 @@ export function checkAbsences(table: SynthesisTable, sources: AbsenceSource[]): 
   const colSources = table.columns.map((c, i) => (i === 0 ? [] : sourcesOfColumn(c, sources)));
   const rows = table.rows.map((row) => {
     const label = row[0] ?? "";
-    // a label with a figure names a period or a step, not an item of the circular. A label that lists names ("Diwali / Kali Puja", "Saraswati Puja / Basant Panchami") is one item
-    // under several names: the circular may use any of them, so each name is looked up on its own, in the label's order.
+    // A label with a figure names a period or a step, not an item of the circular. A label that lists names ("Diwali / Kali Puja", "Saraswati Puja / Basant Panchami") is one item
+    // under several names: the circular may use any of them, so I look up each name on its own, in the label's order.
     const aliases = /\d/.test(label) ? [] : label.split(/\s*\/\s*|\s+or\s+/i).map(distinctiveWords).filter((k) => k.length);
     if (!aliases.length) return row;
     return row.map((cell, ci) => {
       if (ci === 0 || !NOT_STATED.test(cell ?? "") || !colSources[ci].length) return cell;
-      // the item is named when its longest distinctive word is in the circular and at least half of its distinctive words are
+      // I call the item named when its longest distinctive word is in the circular and at least half of its distinctive words are.
       for (const src of colSources[ci]) {
         const present = new Set(words(src.text));
         for (const keys of aliases) {
@@ -191,15 +191,17 @@ export function checkAbsences(table: SynthesisTable, sources: AbsenceSource[]): 
   return { table: fixes.length ? { ...table, rows } : table, fixes, confirmed };
 }
 
-/* ------------------------------------------------------------------ *
+/*
+ * ------------------------------------------------------------------ *
  * The TEXT of the reply must not contradict the corrected table. A finding or the overview that says an item the circular names is "not stated" /
- * "absent" / "only in ..." for a period the table now shows as listed is a wrong sentence. It is REMOVED (never rewritten: the code makes no claim of its own;
- * a missing sentence is better than a wrong one, and the table below carries the circular's own words).
- * ------------------------------------------------------------------ */
+ * "absent" / "only in ..." for a period the table now shows as listed is a wrong sentence. I REMOVE it and never rewrite it: the code makes no claim of its own,
+ * and a missing sentence is better than a wrong one, since the table below carries the circular's own words.
+ * ------------------------------------------------------------------
+ */
 
 const NEGATION = /\b(?:not\s+(?:stated|specified|mentioned|given|listed|included|named|provided|available|found|notified|declared|present)|no\s+(?:mention|entry|listing|such)|(?:does|do|did)\s+not\s+(?:list|include|mention|name|contain|appear|state|specify|have|feature)|is\s+absent|absent|omitted|missing|unlisted|only\s+(?:in|appears|listed)|appears\s+only|exclusive(?:ly)?\s+to)\b/i;
 
-/** The sentences of a text: split after a full stop followed by a capital letter, and at semicolons. Joined back with a space, nothing is lost. */
+/** Splits a text into sentences after a full stop followed by a capital letter, and at semicolons. Joined back with a space, nothing is lost. */
 const sentencesOf = (text: string): string[] => text.split(/(?<=[.!?])\s+(?=[A-Z"“(])|(?<=;)\s+/).map((s) => s.trim()).filter(Boolean);
 
 function mentions(sentence: string, fix: AbsenceFix): boolean {
@@ -208,7 +210,7 @@ function mentions(sentence: string, fix: AbsenceFix): boolean {
   if (!keys.length) return false;
   const longest = [...keys].sort((a, b) => b.length - a.length)[0];
   if (!lower.includes(longest)) return false;
-  // the sentence must speak of the period/edition of the corrected cell: its year (or the heading itself when it has none)
+  // The sentence has to speak of the period/edition of the corrected cell: its year (or the heading itself when it has none).
   const years = fix.column.match(/\b(?:19|20)\d{2}\b/g);
   return years ? years.every((y) => lower.includes(y)) : lower.includes(fix.column.trim().toLowerCase());
 }
@@ -226,13 +228,15 @@ export function dropContradictedClaims(text: string, fixes: AbsenceFix[]): { tex
 }
 
 
-/* ------------------------------------------------------------------ *
+/*
+ * ------------------------------------------------------------------ *
  * WHAT DIFFERS, from the table itself. A question that compares years or editions asks what differs; the model often answers in one vague sentence ("dates shift each year").
  * The cells the checks above settled give a plain, exact answer without any claim made by the code: which items the circular of a year carries only under another kind of
- * list (a restricted holiday), and which it does not name at all. Built from the circular's own headings and the checked table; never from the model's words.
- * ------------------------------------------------------------------ */
+ * list (a restricted holiday), and which it does not name at all. I build this from the circular's own headings and the checked table, never from the model's words.
+ * ------------------------------------------------------------------
+ */
 
-/** The column headings without the words they all share ("2024 Date", "2025 Date" -> "2024", "2025"). */
+/** Returns the column headings without the words they all share ("2024 Date", "2025 Date" -> "2024", "2025"). */
 function shortHeadings(columns: string[]): string[] {
   const values = columns.slice(1);
   if (values.length < 2) return columns;
@@ -252,7 +256,7 @@ export function describeDifferences(table: SynthesisTable, fixes: AbsenceFix[], 
     return [...by].map(([row, cols]) => `${row} (${cols.join(", ")})`);
   };
   const parts: string[] = [];
-  const unit = heads.slice(1).every((h) => /^(?:19|20)\d{2}\b/.test(h)) ? "years" : "columns"; // "years" when the columns are years, else plainly "columns"
+  const unit = heads.slice(1).every((h) => /^(?:19|20)\d{2}\b/.test(h)) ? "years" : "columns"; // I say "years" when the columns are years, else plainly "columns"
   const kinds = [...new Set(fixes.map((f) => f.section).filter((k): k is string => !!k))];
   for (const k of kinds) {
     const list = group(fixes.filter((f) => f.section === k));

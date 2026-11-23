@@ -3,12 +3,12 @@ import { getDb } from "@/lib/db";
 import { TDocument } from "pdf-to-text";
 import { generateEmbedding, normalizeVector } from "./geminiEmbedding";
 
-// Re-exported so every existing import of these from "@/lib/ai/embedding.service" keeps working (they now live in geminiEmbedding.ts).
+// I re-export these so every existing import of them from "@/lib/ai/embedding.service" keeps working (they now live in geminiEmbedding.ts).
 export { generateEmbedding, normalizeVector };
 
 
 /**
- * Extracts raw text from a PDF buffer.
+ * I use this to extract raw text from a PDF buffer.
  */
 async function extractTextFromPDF(fileBuffer: Buffer): Promise<string> {
   const { pdf } = await (eval('import("pdf-to-text")') as Promise<{
@@ -21,7 +21,7 @@ async function extractTextFromPDF(fileBuffer: Buffer): Promise<string> {
 }
 
 /**
- * Generates embedding for a circular and saves to the database.
+ * Here I generate the embedding for a circular and save it to the database.
  */
 export async function generateAndSaveEmbedding(
   circularId: number,

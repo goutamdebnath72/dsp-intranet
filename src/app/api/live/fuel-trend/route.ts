@@ -1,8 +1,8 @@
 // src/app/api/live/fuel-trend/route.ts
 //
-// THE KOLKATA PRICE OF PETROL, DIESEL AND LPG OVER THE LAST YEAR. Reads nothing from the caller. Petrol and diesel: the daily table of the Petroleum Planning & Analysis Cell (a PDF found on its page,
-// read with pdf-parse). LPG: GoodReturns' monthly table for Kolkata. Each is checked by src/lib/live/fuelTrend.ts (a changed source is an error, never a wrong price); when one cannot be had, the copy
-// kept with the app takes its place and the card says so. The two kinds are asked separately, so a failure of one does not take the other down.
+// The Kolkata price of petrol, diesel and LPG over the last year. I read nothing from the caller. Petrol and diesel: the daily table of the Petroleum Planning & Analysis Cell (a PDF found on its page,
+// read with pdf-parse). LPG: GoodReturns' monthly table for Kolkata. src/lib/live/fuelTrend.ts checks each one (a changed source is an error, never a wrong price); when one cannot be had, the copy
+// kept with the app takes its place and the card says so. I ask for the two kinds separately, so a failure of one does not take the other down.
 import { plainBytes } from "@/lib/pdf/plainBytes";
 import { DateTime } from "luxon";
 import snapshot from "@/lib/live/fuelTrendSnapshot.json";
@@ -54,7 +54,7 @@ export async function GET() {
         if (validSeries(saved)) { lpgSeries = saved; notes.push(`The LPG table could not be read just now (${lpg.reason instanceof Error ? lpg.reason.message : "no answer"}), so the LPG prices are a copy saved on ${longDate(SAVED.savedOn)}.`); }
         else notes.push("The LPG table could not be read just now, so LPG cannot be shown.");
       }
-      // THE YEAR RUNS FROM THE SAME DATE A YEAR BACK TO TODAY: the last published price is carried on to today (a price stays until it is changed), and the card says so
+      // The year runs from the same date a year back to today: I carry the last published price on to today (a price stays until it is changed), and the card says so
       let carriedFrom: string | null = null;
       if (petrol) { const w = inYearWindow(petrol); petrol = w.series; carriedFrom = w.carriedFrom ?? carriedFrom; }
       if (diesel) { const w = inYearWindow(diesel); diesel = w.series; carriedFrom = w.carriedFrom ?? carriedFrom; }

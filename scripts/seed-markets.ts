@@ -1,10 +1,10 @@
-// scripts/seed-markets.ts: SAVE THE LAST GOOD QUOTE OF EACH SYMBOL of the Sensex, Nifty and watch-list card (table public.market_quote, src/lib/nl2sql/sql/24_market_quote.sql), slowly, so that the card has a copy to show
-// when Yahoo Finance turns the app away. The app saves every quote it fetches by itself; this is for the first fill (or a refill after DELETE FROM public.market_quote) when Yahoo is in a mood to answer one at a time.
+// scripts/seed-markets.ts: SAVES THE LAST GOOD QUOTE OF EACH SYMBOL of the Sensex, Nifty and watch-list card (table public.market_quote, src/lib/nl2sql/sql/24_market_quote.sql), slowly, so that the card has a copy to show
+// when Yahoo Finance turns the app away. The app saves every quote it fetches by itself; I use this script for the first fill (or a refill after DELETE FROM public.market_quote) when Yahoo is in a mood to answer one at a time.
 //   npx tsx --env-file=.env.local scripts/seed-markets.ts                  every symbol, 4 seconds apart, waiting and trying again when Yahoo says "too many requests"
 //   npx tsx --env-file=.env.local scripts/seed-markets.ts --gap-ms 6000    seconds apart, in ms
 //   npx tsx --env-file=.env.local scripts/seed-markets.ts --tries 6        attempts for each symbol (default 5, with a wait of a minute after each refusal)
 //   npx tsx --env-file=.env.local scripts/seed-markets.ts list             what is saved
-// Safe to stop and run again: each quote is saved as soon as it is had, and a newer one replaces an older one of its symbol.
+// It is safe to stop and run again: each quote is saved as soon as it is had, and a newer one replaces an older one of its symbol.
 import { Pool } from "pg";
 import { DateTime } from "luxon";
 import { getJson, UpstreamError } from "../src/lib/live/http";

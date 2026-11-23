@@ -1,7 +1,7 @@
 // src/components/tools/live/NewsCard.tsx
 //
-// TODAY'S HEADLINES, LIVE: the Business tab first (The Economic Times, Mint, The Hindu BusinessLine, The Wall Street Journal), then English, Hindi and Bengali, from the publishers' own free feeds.
-// It keeps itself current: every minute it asks again, quietly (nothing is replaced by a loading box), and the new stories slide in at the top of a list that does not jump (LiveStories.tsx).
+// Today's headlines, live: the Business tab first (The Economic Times, Mint, The Hindu BusinessLine, The Wall Street Journal), then English, Hindi and Bengali, from the publishers' own free feeds.
+// I made it keep itself current: every minute it asks again, quietly (nothing is replaced by a loading box), and the new stories slide in at the top of a list that does not jump (LiveStories.tsx).
 // Checking pauses while the page is hidden and can be paused by hand (LiveStrip.tsx). Headlines and links only; each story opens on the publisher's page in a new tab; the feeds that did not answer
 // are named. Nothing typed is sent anywhere (the request carries only the tab).
 "use client";
@@ -14,16 +14,16 @@ import { LiveGate, SourceLine } from "./LivePieces";
 import { LiveStories } from "./LiveStories";
 import { LiveStrip, modeOf } from "./LiveStrip";
 
-/** how often the open tab asks again: the route keeps one answer for a minute, so a faster pace would only ask the same answer */
+/** How often the open tab asks again: the route keeps one answer for a minute, so a faster pace would only ask for the same answer. */
 export const NEWS_REFRESH_MS = 60_000;
 
 export function NewsCard({ start = "biz" }: { start?: NewsTab }) {
   const [lang, setLang] = useState<NewsTab>(start);
   const [paused, setPaused] = useState(false);
   const { state, env, error, reload, refresh, refreshing, lagging } = useLive<NewsData>(`/api/live/news?lang=${lang}`, true, { refreshMs: paused ? 0 : NEWS_REFRESH_MS });
-  // what is held may belong to the tab that was open a moment ago: only the open tab's answer is shown
+  // What is held may belong to the tab that was open a moment ago, so I show only the open tab's answer.
   const mine = env && env.data.lang === lang ? env : null;
-  // when the last answer came in (for the countdown and the bar)
+  // When the last answer came in (for the countdown and the bar).
   const [arrivedAt, setArrivedAt] = useState(() => Date.now());
   useEffect(() => { setArrivedAt(Date.now()); }, [mine, lang]);
   return (
@@ -37,7 +37,7 @@ export function NewsCard({ start = "biz" }: { start?: NewsTab }) {
         {mine && (
           <>
             <LiveStrip fetchedAt={mine.fetchedAt} arrivedAt={arrivedAt} everyMs={NEWS_REFRESH_MS} mode={modeOf(paused, lagging)} refreshing={refreshing} onTogglePause={() => setPaused((p) => !p)} onRefresh={refresh} />
-            {/* a tab change is a soft cross-fade; a refresh of the same tab never remounts the list */}
+            {/* A tab change is a soft cross-fade; I never remount the list on a refresh of the same tab. */}
             <AnimatePresence mode="wait" initial={false}>
               <motion.div key={lang} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                 <LiveStories items={mine.data.items} lang={lang === "biz" ? "en" : lang} empty="No headlines came through just now." />

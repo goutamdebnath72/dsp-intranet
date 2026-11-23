@@ -1,5 +1,5 @@
 // src/lib/ui/stickyToast.selftest.ts  (run: npx tsx --tsconfig tsconfig.selftest.json src/lib/ui/stickyToast.selftest.ts)
-// Guard: the "upload finished" toast (top-centre, stays until its cross is clicked) was lost once when the admin dashboard page was retired. These checks keep it from being lost again.
+// Guard: the "upload finished" toast (top-centre, stays until its cross is clicked) was lost once when the admin dashboard page was retired. These checks make sure it is not lost again.
 import { readFileSync } from "node:fs";
 
 let passed = 0, failed = 0;

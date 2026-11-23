@@ -11,7 +11,8 @@
     "typeorm": "tsx ./node_modules/typeorm/cli.js",
     "wipe:circulars": "node scripts/wipe-circulars.mjs",
     "test:search": "node scripts/test-search.mjs",
-    "errors": "tsx --env-file=.env.local scripts/errors.ts"
+    "errors": "tsx --env-file=.env.local scripts/errors.ts",
+    "docs:api": "node scripts/docs/build-api-docs.mjs"
   },
   "dependencies": {
     "@auth/typeorm-adapter": "^2.11.2",

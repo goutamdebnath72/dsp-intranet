@@ -1,15 +1,12 @@
 // src/lib/holidays/terms.ts
 //
-// Deterministic term/date parsing for holiday queries. No AI. Mirrors the
-// employees parser's style: plain regex + a small curated map, grounded in
-// the live corpus (scripts/probe-holidays.mjs, scripts/probe-holidays-battery.mjs).
+// Deterministic term/date parsing for holiday queries. No AI. I mirror the employees parser's style: plain regex plus a small curated map, grounded in the live corpus (scripts/probe-holidays.mjs, scripts/probe-holidays-battery.mjs).
 //
 // Enum ground truth (confirmed against the live DB, 2026-09-21 probe):
 //   CH = Closed Holiday    (mandatory, non-optional -- Independence Day,
 //        Republic Day, Gandhi Jayanti, May Day, SAIL Foundation Day). NOT
-//        "Compensated" -- the model file's inline comment is wrong; fixed
-//        here (the term mapping), left alone there (renaming that comment
-//        is cosmetic and out of scope for Stage 2).
+//        "Compensated" -- the model file's inline comment is wrong. I fixed it here (the term mapping) and left it alone there:
+//        renaming that comment is cosmetic and out of scope for Stage 2.
 //   FH = Festival Holiday  (fixed religious/festival calendar -- Diwali,
 //        Durga Puja tithis, Eid, Christmas, Good Friday, Janmashtami, etc.)
 //   RH = Restricted Holiday (the large optional pick-list -- Holi, Bengali
@@ -43,10 +40,8 @@ export const TYPE_LABEL: Record<HolidayType, string> = {
   [HolidayType.RH]: "Restricted",
 };
 
-// Confirmed from the actual holiday-list circulars for every seeded year
-// (2020-2026) -- this exact category table (name + description) appears
-// verbatim at the top of each one, unchanged year to year. Not derived,
-// not guessed -- copied from source.
+// I confirmed this from the actual holiday-list circulars for every seeded year (2020-2026): this exact category table (name + description) appears verbatim at the top of each one, unchanged year to year.
+// It is not derived and not guessed, it is copied from source.
 export const CATEGORY_LABEL: Record<"A" | "B" | "C" | "D", string> = {
   A: "Executives (Works & Non-Works)",
   B: "Non-industrial non-executives (Offices, Education Deptt & Kolkata Branch)",
@@ -54,7 +49,7 @@ export const CATEGORY_LABEL: Record<"A" | "B" | "C" | "D", string> = {
   D: "Non-executive Trainees",
 };
 
-/** Resolve a free-text holiday-type mention to its enum, or null if none found. */
+/** I resolve a free-text holiday-type mention to its enum, or return null if none is found. */
 export function resolveHolidayType(normalizedText: string): HolidayType | null {
   for (const { re, type } of TYPE_TERMS) {
     if (re.test(normalizedText)) return type;
@@ -64,16 +59,16 @@ export function resolveHolidayType(normalizedText: string): HolidayType | null {
 
 // ----------------------------------------------------------------------------
 // Employee category (A/B/C/D) -- as distinct from HolidayType (CH/FH/RH).
-// Needed for questions like "how many RH can Category B take" or "which FH
+// I need it for questions like "how many RH can Category B take" or "which FH
 // does Category A get", which filter by WHO the entitlement applies to, not
 // by which kind of holiday it is.
 // ----------------------------------------------------------------------------
-// "cat" / "category" must be a WHOLE word, so "categories", "catering" or "catalogue" can never be read as
+// I require "cat" / "category" to be a WHOLE word, so "categories", "catering" or "catalogue" can never be read as
 // "cat" + a token (that is how "which categories get it" used to become "Category EGORIES is not valid").
 const CATEGORY_RE = /\bcat(?:egory)?\b[.\s-]*([a-z0-9]+)\b/gi;
-// Ordinary English words that naturally follow the word "category" ("which category gets Diwali",
+// These are ordinary English words that naturally follow the word "category" ("which category gets Diwali",
 // "category wise quota", "category of employees"). They are NOT an attempt to name a category.
-// A token outside this list (z, 5, ab, abc ...) is still an attempted category and is rejected loudly.
+// I still treat a token outside this list (z, 5, ab, abc ...) as an attempted category, and I reject it loudly.
 const NOT_A_CATEGORY_TOKEN = new Set([
   "of", "is", "are", "was", "were", "wise", "gets", "get", "getting", "can", "could", "does", "do", "did",
   "has", "have", "had", "for", "in", "on", "at", "to", "and", "or", "as", "by", "with", "which", "what",
@@ -84,38 +79,42 @@ const NOT_A_CATEGORY_TOKEN = new Set([
 ]);
 const VALID_CATEGORIES = new Set(["A", "B", "C", "D"]);
 
-/** Result of trying to resolve a "Category X" mention: either a real,
- *  known category (A-D), or an explicit mention of something that ISN'T
- *  one (e.g. "category Z", "category 5", "category abc") -- these two
- *  cases must never be conflated. Conflating them (treating an
- *  unrecognized token the same as "no category was mentioned at all")
- *  would silently answer a nonsense category as if it were an unfiltered
- *  query -- see resolveCategory's docstring below. */
+/**
+ * The result of trying to resolve a "Category X" mention: either a real,
+ * known category (A-D), or an explicit mention of something that ISN'T
+ * one (e.g. "category Z", "category 5", "category abc"). I never let these two
+ * cases be conflated. Conflating them (treating an
+ * unrecognized token the same as "no category was mentioned at all")
+ * would silently answer a nonsense category as if it were an unfiltered
+ * query -- see resolveCategory's docstring below.
+ */
 export type CategoryResolution =
   | { valid: true; category: string }
   | { valid: false; input: string };
 
-/** Resolve a free-text "Category X" mention to its single-letter code, or
- *  flag it as invalid, or return null if no "cat"/"category" mention
- *  exists in the text at all. Accepts "category b", "cat b", "cat. b",
- *  "category-b", case-insensitively. A valid category is always returned
- *  as the uppercase letter, matching how categories are stored
- *  (holidayyear.categories, e.g. "A,B", and holiday_rh_quota.category).
+/**
+ * I resolve a free-text "Category X" mention to its single-letter code, or
+ * flag it as invalid, or return null if no "cat"/"category" mention
+ * exists in the text at all. It accepts "category b", "cat b", "cat. b",
+ * "category-b", case-insensitively. A valid category is always returned
+ * as the uppercase letter, matching how categories are stored
+ * (holidayyear.categories, e.g. "A,B", and holiday_rh_quota.category).
  *
- *  The captured token is whatever whole word follows "cat"/"category" --
- *  word-bounded on BOTH sides, not just a single character -- so "category
- *  b" (one letter) and "category abc" or "category 5" (not a single valid
- *  letter) are all recognized as an attempted category mention and can be
- *  told apart from each other, rather than a multi-character token simply
- *  failing to match at all and silently falling back to null.
+ * The captured token is whatever whole word follows "cat"/"category" --
+ * word-bounded on BOTH sides, not just a single character -- so "category
+ * b" (one letter) and "category abc" or "category 5" (not a single valid
+ * letter) are all recognized as an attempted category mention and can be
+ * told apart from each other. I do not let a multi-character token simply
+ * fail to match at all and silently fall back to null.
  *
- *  Distinguishing "not mentioned" (null) from "mentioned but invalid"
- *  ({valid:false}) matters: a caller that only checked "is category
- *  truthy?" would treat "how many RH can category Z take" the same as a
- *  plain unfiltered "how many RH", silently answering a question that was
- *  never asked instead of saying Category Z doesn't exist. */
+ * I keep "not mentioned" (null) apart from "mentioned but invalid"
+ * ({valid:false}) because it matters: a caller that only checked "is category
+ * truthy?" would treat "how many RH can category Z take" the same as a
+ * plain unfiltered "how many RH", silently answering a question that was
+ * never asked instead of saying Category Z doesn't exist.
+ */
 export function resolveCategory(normalizedText: string): CategoryResolution | null {
-  // First mention whose token is not just an ordinary word following "category".
+  // I take the first mention whose token is not just an ordinary word following "category".
   for (const m of normalizedText.matchAll(CATEGORY_RE)) {
     if (NOT_A_CATEGORY_TOKEN.has(m[1].toLowerCase())) continue;
     const token = m[1].toUpperCase();
@@ -159,10 +158,12 @@ export function parseMonthName(normalizedText: string): number | null {
   return MONTH_NAMES[m[0]] ?? null;
 }
 
-/** All DISTINCT months named anywhere in the query, in the order first
- *  mentioned -- for "holidays in March and April 2025" style queries.
- *  parseMonthName (singular) only ever looks at the first match; this is
- *  the same underlying regex, just collecting every match instead of one. */
+/**
+ * Returns all DISTINCT months named anywhere in the query, in the order first
+ * mentioned, for "holidays in March and April 2025" style queries.
+ * parseMonthName (singular) only ever looks at the first match; I use the
+ * same underlying regex here, just collecting every match instead of one.
+ */
 export function parseMonthNames(normalizedText: string): number[] {
   const matches = normalizedText.match(MONTH_WORD_RE);
   if (!matches) return [];
@@ -184,14 +185,16 @@ export interface SimpleDate {
   day: number;
 }
 
-/** Try to read ONE date out of a short fragment (already isolated by the
- *  caller -- see parseDateRange). Tries, in order: numeric "dd mm yyyy"
- *  (the shape normTerm produces from "10/03/2025" or "10-03-2025", since it
- *  turns "/" and "-" into spaces before this ever runs), "dd <month name>
- *  [yyyy]", and "<month name> dd [yyyy]". Returns null rather than guess if
- *  none of these three specific, well-defined shapes match -- an unrecognized
- *  format should surface as "I couldn't read this date," never as a
- *  silently-wrong one. */
+/**
+ * I try to read ONE date out of a short fragment (already isolated by the
+ * caller -- see parseDateRange). Tries, in order: numeric "dd mm yyyy"
+ * (the shape normTerm produces from "10/03/2025" or "10-03-2025", since it
+ * turns "/" and "-" into spaces before this ever runs), "dd <month name>
+ * [yyyy]", and "<month name> dd [yyyy]". It returns null rather than guess if
+ * none of these three specific, well-defined shapes match: an unrecognized
+ * format should surface as "I couldn't read this date," never as a
+ * silently-wrong one.
+ */
 function tryParseOneDate(fragment: string): SimpleDate | null {
   let m = fragment.match(/\b(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\b/);
   if (m) {
@@ -222,24 +225,24 @@ function tryParseOneDate(fragment: string): SimpleDate | null {
 export type DateRangeResult =
   | { kind: "range"; from: SimpleDate; to: SimpleDate }
   // A "from X to Y" / "between X and Y" STRUCTURE was clearly present, but
-  // one or both sides couldn't be read as a real date -- this must surface
+  // one or both sides couldn't be read as a real date. I make this surface
   // as a clear "couldn't understand" response, never silently fall back to
   // a full-year list as if the range had never been mentioned.
   | { kind: "ambiguous" }
   // Both sides read as real dates, but at least one omitted its year.
-  // Deliberately NOT compensated by borrowing the other side's year or
-  // defaulting to the current year -- an incomplete query must be named as
+  // I deliberately do NOT compensate by borrowing the other side's year or
+  // defaulting to the current year: an incomplete query must be named as
   // incomplete, not silently completed on the asker's behalf. See the
   // "garbage in, garbage out" principle: a person who gets an unstated
   // assumption instead of a clear rejection never learns to ask a complete
   // question next time.
   | { kind: "missing-year" }
-  // No range structure detected at all -- the caller should treat this
+  // No range structure detected at all, so the caller should treat this
   // query as an ordinary (non-range) holiday question.
   | null;
 
 const RANGE_STRUCTURE_RE = /\b(from|between)\b.+\b(to|and|till|until)\b/;
-// Require something date-SHAPED to be present at all before treating a
+// I require something date-SHAPED to be present at all before treating a
 // "from X to Y" query as a date-range attempt -- otherwise a perfectly
 // ordinary "holidays from 2023 to 2025" (a bare year mention, not a date)
 // would get intercepted here and reported as an unparseable range, when it
@@ -247,10 +250,10 @@ const RANGE_STRUCTURE_RE = /\b(from|between)\b.+\b(to|and|till|until)\b/;
 // dd-mm-yy(yy)-shaped numeric triple; a bare 4-digit year alone doesn't
 // count (it never has the internal spacing a 3-part triple needs).
 //
-// Deliberately widened to 2-4 digit trailing numbers, not just 20xx: a
+// I deliberately widened it to 2-4 digit trailing numbers, not just 20xx: a
 // genuine attempt at a date with a 2-digit year ("1/3/25 to 30/6/25") must
 // still be recognized as a date-range ATTEMPT so it gets the explicit
-// "couldn't read this, use dd/mm/yyyy" rejection -- tryParseOneDate below
+// "couldn't read this, use dd/mm/yyyy" rejection. tryParseOneDate below
 // still only accepts a full 4-digit year as valid, so this widening alone
 // can't cause a 2-digit year to be silently accepted; it only prevents the
 // query from being mistaken for "no range attempted at all" and silently
@@ -259,13 +262,15 @@ const RANGE_LOOKS_DATE_SHAPED_RE = new RegExp(
   MONTH_WORD_RE.source + "|" + /\b\d{1,2}\s+\d{1,2}\s+\d{2,4}\b/.source,
 );
 
-/** Detects and parses an explicit custom date range ("from 10/03/2025 to
- *  15/06/2025", "between 1st March and 30th June 2025"). Deliberately
- *  narrow: only the three date shapes tryParseOneDate understands, and only
- *  within a single calendar year (see the caller in parser.ts for why a
- *  range spanning two years is reported as unsupported rather than
- *  silently mishandled). Both dates must state their own year explicitly --
- *  see "missing-year" above for why this is never inferred or defaulted. */
+/**
+ * I detect and parse an explicit custom date range ("from 10/03/2025 to
+ * 15/06/2025", "between 1st March and 30th June 2025"). It is deliberately
+ * narrow: only the three date shapes tryParseOneDate understands, and only
+ * within a single calendar year (see the caller in parser.ts for why a
+ * range spanning two years is reported as unsupported rather than
+ * silently mishandled). Both dates must state their own year explicitly;
+ * see "missing-year" above for why I never infer or default it.
+ */
 export function parseDateRange(normalizedText: string, now: DateTime): DateRangeResult {
   if (!RANGE_STRUCTURE_RE.test(normalizedText)) return null;
   if (!RANGE_LOOKS_DATE_SHAPED_RE.test(normalizedText)) return null;
@@ -273,7 +278,7 @@ export function parseDateRange(normalizedText: string, now: DateTime): DateRange
   const split = normalizedText.match(/^(.*?)\b(?:from|between)\b(.+?)\b(?:to|and|till|until)\b(.+)$/);
   // The RANGE_STRUCTURE_RE test above guarantees a "from/between ... to/and/
   // till/until ..." shape exists, but re-matching with capture groups here
-  // could still fail on a pathological ordering -- treat that as ambiguous,
+  // could still fail on a pathological ordering. I treat that as ambiguous,
   // not a crash.
   if (!split) return { kind: "ambiguous" };
 
@@ -283,8 +288,8 @@ export function parseDateRange(normalizedText: string, now: DateTime): DateRange
   const b = tryParseOneDate(fragB);
   if (!a || !b) return { kind: "ambiguous" };
 
-  // Neither side's year is inferred from the other, and neither defaults to
-  // the current year -- a date range with an unstated year is an incomplete
+  // I infer neither side's year from the other, and neither defaults to
+  // the current year: a date range with an unstated year is an incomplete
   // query, not a query this parser should complete on the person's behalf.
   if (isNaN(a.year) || isNaN(b.year)) return { kind: "missing-year" };
 
@@ -303,17 +308,19 @@ export type RelativeMonthsResult =
   | { kind: "months"; year: number; months: number[] }
   // The range would need to cross into a different calendar year (e.g.
   // "previous 2 months" asked in January, or "next 3 months" asked in
-  // November) -- deliberately unsupported rather than silently clipped or
-  // silently shifted to the other year, per the same year-boundary
+  // November). I deliberately do not support this rather than silently clip or
+  // silently shift it to the other year, following the same year-boundary
   // discipline as parseDateRange's cross-year rejection.
   | { kind: "cross-year"; wouldBeYear: number }
   | null;
 
-/** "next month" / "next 2 months" / "next three months" / "previous month" /
- *  "previous 4 months" -- resolved relative to `now`'s month, always within
- *  `now`'s year. "Next month" means the single month right after the
- *  current one (not including the current month); "next 2 months" means
- *  the two months after that, and so on. Same shape for "previous." */
+/**
+ * "next month" / "next 2 months" / "next three months" / "previous month" /
+ * "previous 4 months" are resolved relative to `now`'s month, always within
+ * `now`'s year. "Next month" means the single month right after the
+ * current one (not including the current month); "next 2 months" means
+ * the two months after that, and so on. The shape is the same for "previous."
+ */
 export function parseRelativeMonths(normalizedText: string, now: DateTime): RelativeMonthsResult {
   const m = normalizedText.match(RELATIVE_MONTHS_RE);
   if (!m) return null;
@@ -376,7 +383,7 @@ export function parseExplicitDate(
   }
 
   // Bare "dd mm" (Indian DD/MM convention; normTerm already turned "/" and
-  // "-" into spaces). Only a fallback -- requires both numbers to be
+  // "-" into spaces). I use it only as a fallback and require both numbers to be
   // plausible day/month values, to avoid eating unrelated number pairs.
   m = normalizedText.match(/\b(\d{1,2})\s+(\d{1,2})\b(?!\s*\d)/);
   if (m) {
@@ -393,7 +400,7 @@ export function parseExplicitDate(
 
 // ----------------------------------------------------------------------------
 // Relative dates ("today", "tomorrow", "next monday") -> a concrete DateTime.
-// Luxon only, per project rule.
+// My project rule: Luxon only.
 // ----------------------------------------------------------------------------
 const WEEKDAYS: Record<string, number> = {
   monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7,
@@ -419,7 +426,7 @@ export function parseRelativeDate(normalizedText: string, now: DateTime): DateTi
 // Relative / explicit YEAR resolution ("this year", "last year", "2026", ...).
 // Returns every year mentioned, in reading order, resolved to a concrete
 // number via Luxon's current year. Callers still MUST check the year is
-// actually loaded in holidayyear before answering from it -- this function
+// actually loaded in holidayyear before answering from it: this function
 // never invents data, it only resolves what the text says into a number.
 // ----------------------------------------------------------------------------
 export function extractYears(normalizedText: string, now: DateTime): number[] {
@@ -442,15 +449,17 @@ export function extractYears(normalizedText: string, now: DateTime): number[] {
 }
 
 // ----------------------------------------------------------------------------
-// Holiday-name matching against the live corpus. Short in-memory cache (the
+// Holiday-name matching against the live corpus. I keep a short in-memory cache (the
 // table changes rarely, and this mirrors the existing "static list of known
 // terms" pattern used for designations/departments -- except sourced live
 // from the DB instead of hardcoded, so it never drifts from the real data).
 // ----------------------------------------------------------------------------
 
-/** One holidaymaster row's canonical name plus any known alternate spellings
- *  (e.g. "Doljatra" carrying alias "Dol Yatra"). Aliases let a query using
- *  either spelling resolve to the same row -- see findHolidayNameInText. */
+/**
+ * One holidaymaster row's canonical name plus any known alternate spellings
+ * (e.g. "Doljatra" carrying alias "Dol Yatra"). Aliases let a query using
+ * either spelling resolve to the same row -- see findHolidayNameInText.
+ */
 export interface HolidayNameRecord {
   name: string;
   aliases: string[];
@@ -460,18 +469,18 @@ const nameCache = new Map<number | "all", { records: HolidayNameRecord[]; at: nu
 const NAME_CACHE_TTL_MS = 5 * 60 * 1000;
 
 /**
- * Fetch known holiday names (+ aliases) for name matching. When `year` is
+ * I fetch known holiday names (+ aliases) for name matching. When `year` is
  * given, results are scoped to holidaymaster rows that actually have a
- * holidayyear instance that year -- critical because this corpus's exact
+ * holidayyear instance that year. This is critical because this corpus's exact
  * printed spelling for the same conceptual holiday genuinely drifts year to
  * year (sometimes just whitespace, e.g. "Dashami / Dussehra" vs "Dashami/
  * Dussehra"; sometimes a real respelling, e.g. "Pongal" vs "Pongol"). An
  * unscoped search across every year at once has no way to prefer the
  * spelling that's actually correct for the year being asked about, and can
- * resolve to a different year's variant entirely -- which then fails to
+ * resolve to a different year's variant entirely, which then fails to
  * match anything when looked up against the year the person actually meant.
- * When `year` is omitted (no year known yet, e.g. bare "when is Holi"),
- * falls back to the original unscoped, all-years search.
+ * When `year` is omitted (no year known yet, e.g. bare "when is Holi"), I
+ * fall back to the original unscoped, all-years search.
  */
 export async function getHolidayNames(year?: number | null): Promise<HolidayNameRecord[]> {
   const key: number | "all" = year ?? "all";
@@ -489,7 +498,7 @@ export async function getHolidayNames(year?: number | null): Promise<HolidayName
           [year],
         )
       : await d.query(`SELECT DISTINCT name, aliases FROM holidaymaster`);
-    // A year with no data loaded has no names of its own. Fall back to every known name, so that
+    // A year with no data loaded has no names of its own. I fall back to every known name, so that
     // "when is Diwali in 2019?" is still recognised as a holiday question and is answered at once with
     // "I don't have holiday data loaded for 2019 yet" (which the answer code already produces), instead of
     // being passed to the language model, which cost about 5,000 tokens and 5 to 12 seconds to say nothing useful.
@@ -506,12 +515,12 @@ export async function getHolidayNames(year?: number | null): Promise<HolidayName
 }
 
 /**
- * Find the longest name-or-alias that appears as a whole phrase in the query
- * (case/punctuation-insensitive via normTerm on both sides). Mirrors
- * findDepartmentInText's longest-match-wins approach. Requires >= 4
- * characters to avoid accidental short-token hits. Always returns the
- * CANONICAL holidaymaster.name -- even when what actually matched in the
- * query text was one of that row's aliases -- so every caller downstream
+ * I find the longest name-or-alias that appears as a whole phrase in the query
+ * (case/punctuation-insensitive via normTerm on both sides). It mirrors
+ * findDepartmentInText's longest-match-wins approach. It requires >= 4
+ * characters to avoid accidental short-token hits. It always returns the
+ * CANONICAL holidaymaster.name, even when what actually matched in the
+ * query text was one of that row's aliases, so every caller downstream
  * (the hijack guard, and the name filter handed to queryHolidays' DB
  * lookups, which match against the literal `name` column) keeps working
  * against a real holidaymaster.name without needing to know aliases exist.
@@ -529,9 +538,9 @@ export function findHolidayNameInText(
     // name or annotation (e.g. "Diwali (Deepavali)", "Id-ul-Zuha (Bakrid)
     // (*)"). Without this, only the full name typed verbatim would ever
     // match, so a plain "when is Diwali", "when is Onam", or "when is
-    // Bakrid" would silently fail even when that holiday is loaded --
-    // split on "/" (on the RAW name, before normTerm turns "/" into a
-    // space) for each slash-joined part, and for each of those, also
+    // Bakrid" would silently fail even when that holiday is loaded.
+    // So I split on "/" (on the RAW name, before normTerm turns "/" into a
+    // space) for each slash-joined part, and for each of those I also
     // generate the bare name with any "(...)" removed AND the content
     // inside each "(...)" on its own, so both halves of a parenthetical
     // are independently matchable.
@@ -556,7 +565,7 @@ export function findHolidayNameInText(
 }
 
 // ----------------------------------------------------------------------------
-// Phonetic fallback -- ONLY tried when findHolidayNameInText (structural +
+// Phonetic fallback. I try it ONLY when findHolidayNameInText (structural +
 // alias matching above) finds nothing. This is the third layer of the
 // hybrid plan: structural/alias matching catches everything it can find as
 // a literal substring; phonetic matching catches SPELLING/TRANSLITERATION
@@ -564,27 +573,27 @@ export function findHolidayNameInText(
 // Shivratri/Shivaratri, Janmashtami/Janmasthami, Pongal/Pongol). It
 // deliberately CANNOT and must not be relied on for genuinely different
 // names of the same festival that don't sound alike (Kali Puja vs Shyama
-// Puja) -- those need an explicit holidaymaster.aliases entry instead;
-// phonetic matching is not a substitute for that.
+// Puja): those need an explicit holidaymaster.aliases entry instead.
+// Phonetic matching is not a substitute for that.
 // ----------------------------------------------------------------------------
 
 // A small set of question-framing words that are never part of a holiday
-// name, stripped in addition to the domain scaffolding (type/year/month/day)
-// so what's left is name-shaped before it's handed to the phonetic function
-// -- which expects a name-like string, not a full sentence.
-// "in" added after a live bug: "when is shivaratri in 2024" strips the year
+// name. I strip them in addition to the domain scaffolding (type/year/month/day)
+// so that what is left is name-shaped before it is handed to the phonetic function,
+// which expects a name-like string, not a full sentence.
+// I added "in" after a live bug: "when is shivaratri in 2024" strips the year
 // via stripDomainScaffolding but left a dangling "in", producing the
-// fragment "shivaratri in" instead of "shivaratri" -- which then fails to
+// fragment "shivaratri in" instead of "shivaratri", which then fails to
 // phonetically match "Maha Shivratri" (holiday_phonetic_match saw an extra
 // stray word it was never meant to encode). Confirmed live in the app
 // (Stage 4 Step 3 test): the query fell through to circular search instead
-// of resolving via the phonetic layer. Root cause was this preposition
+// of resolving via the phonetic layer. The root cause was this preposition
 // never being in the strip list, not the phonetic function itself.
 const QUESTION_FRAME_WORDS = /\b(when|what|which|is|are|falls?|fall|falling|date|on|in|the|a|an|of)\b/g;
 
-// Local copy of parser.ts's HOLIDAY_WORD -- terms.ts can't import it back
+// This is a local copy of parser.ts's HOLIDAY_WORD. terms.ts can't import it back
 // from parser.ts (parser.ts already imports from terms.ts; that would be
-// circular), and the constant is tiny and unlikely to drift.
+// circular), and I judged the constant tiny and unlikely to drift.
 const HOLIDAY_WORD_LOCAL = /\bholidays?\b/;
 
 function stripDomainScaffolding(q: string): string {
@@ -598,12 +607,14 @@ function stripDomainScaffolding(q: string): string {
   return t;
 }
 
-/** Isolate the name-shaped remainder of a query for the phonetic fallback
- *  (e.g. "when is diwali in 2024" -> "diwali"). Separate from
- *  leftoverAfterStrip in parser.ts, which serves a different purpose (the
- *  hijack guard) and must NOT strip question-framing words -- there, a bare
- *  leftover "when" would correctly still count as "something real is being
- *  asked," whereas here it would only get in the way of the name match. */
+/**
+ * I isolate the name-shaped remainder of a query for the phonetic fallback
+ * (e.g. "when is diwali in 2024" -> "diwali"). It is separate from
+ * leftoverAfterStrip in parser.ts, which serves a different purpose (the
+ * hijack guard) and must NOT strip question-framing words: there, a bare
+ * leftover "when" would correctly still count as "something real is being
+ * asked," whereas here it would only get in the way of the name match.
+ */
 function extractNameFragment(q: string): string {
   let t = stripDomainScaffolding(q);
   t = t.replace(QUESTION_FRAME_WORDS, " ");
@@ -611,7 +622,7 @@ function extractNameFragment(q: string): string {
 }
 
 /**
- * Phonetic name match. Built as a self-contained fallback using Postgres's
+ * Phonetic name match. I built it as a self-contained fallback using Postgres's
  * stock fuzzystrmatch extension (dmetaphone) -- see phonetic_setup_final.sql
  * for the migration, which was actually installed and tested locally
  * (not just written) before this was wired in: 4 of 5 real corpus spelling
@@ -621,10 +632,10 @@ function extractNameFragment(q: string): string {
  * consonant sounds to an English-oriented algorithm) is covered separately
  * via an explicit alias in that same migration.
  *
- * Requires holidaymaster.name_phonetic to exist and be populated (see the
- * migration). Safe to ship before that migration runs: if the column/
+ * It requires holidaymaster.name_phonetic to exist and be populated (see the
+ * migration). It is safe to ship before that migration runs: if the column/
  * function isn't there yet, the query throws, is caught, and this simply
- * returns null -- identical to having no phonetic layer at all. The moment
+ * returns null, identical to having no phonetic layer at all. The moment
  * the migration is applied, this starts working with no further code
  * changes.
  */
@@ -657,8 +668,8 @@ export async function findHolidayNamePhonetic(
         );
     return rows[0]?.name ?? null;
   } catch {
-    // Expected until the phonetic_setup_final.sql migration is applied --
-    // not worth logging on every query (see docstring above).
+    // This is expected until the phonetic_setup_final.sql migration is applied,
+    // and I do not think it worth logging on every query (see docstring above).
     return null;
   }
 }

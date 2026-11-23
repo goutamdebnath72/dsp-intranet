@@ -1,7 +1,7 @@
 // src/lib/ingestion/schedule/schedule.selftest.ts
 // Run:  npx tsx src/lib/ingestion/schedule/schedule.selftest.ts      (no Gemini, no network, no database)
 //
-// The roster reading is tested on pages DRAWN here (a table with ruled lines, merged date cells, a group split by a page break, a stray mark,
+// I test the roster reading on pages DRAWN here (a table with ruled lines, merged date cells, a group split by a page break, a stray mark,
 // a typo in a date) with scripted stand-ins for the Gemini readers. Nothing real (no employee) is in the repository.
 import { clusterLines, findHorizontalLines, findVerticalLines, loadGray, type Gray } from "./lines";
 import { deskewPng, estimateTilt } from "./deskew";
@@ -38,34 +38,34 @@ async function toPng(px: Uint8Array): Promise<Buffer> {
   const sharp = (await import("sharp")).default;
   return sharp(Buffer.from(px), { raw: { width: W, height: H, channels: 1 } }).png().toBuffer();
 }
-const RULES = [100, 200, 400, 800, 900, 1050, 1150]; // the table's vertical rules: 6 columns, the last is DATE
-/** "digits" for the date cell: a row of 8 solid blocks the way a printed date would look to the blob finder */
+const RULES = [100, 200, 400, 800, 900, 1050, 1150]; // My table's vertical rules: 6 columns, the last is DATE
+/** "digits" for the date cell: I draw a row of 8 solid blocks the way a printed date would look to the blob finder */
 function ink(px: Uint8Array, cx: number, cy: number) {
   for (let i = 0; i < 8; i++) rect(px, cx - 44 + i * 11, cy - 14, cx - 44 + i * 11 + 7, cy + 14);
 }
 
 interface PageSpec {
   top: number;
-  rows: number; // data rows, 40 px each, starting at 300
-  /** y of the horizontal rules across the DATE band */
+  rows: number; // Data rows are 40 px each, starting at 300
+  /** The y of each horizontal rule across the DATE band */
   dateRules: number[];
-  /** [y centre] of the printed dates */
+  /** The y centre of each printed date */
   inks: number[];
 }
 async function drawPage(spec: PageSpec): Promise<Buffer> {
   const px = blank();
   const bottom = 300 + spec.rows * 40;
   for (const x of RULES) rect(px, x - 1, spec.top, x + 2, bottom);
-  for (let r = 0; r <= spec.rows; r++) rect(px, 905, 300 + r * 40 - 1, 1045, 300 + r * 40 + 2); // the ruled line under every row, in the DEPARTMENT column
+  for (let r = 0; r <= spec.rows; r++) rect(px, 905, 300 + r * 40 - 1, 1045, 300 + r * 40 + 2); // I draw the ruled line under every row, in the DEPARTMENT column
   for (const y of spec.dateRules) rect(px, 1050, y - 1, 1150, y + 2);
   for (const cy of spec.inks) ink(px, 1100, cy);
   return toPng(px);
 }
 
-/** a name made of letters only: 1 -> ALPHA, 2 -> BRAVO ... */
+/** Names are made of letters only here: 1 -> ALPHA, 2 -> BRAVO ... */
 const WORDS = ["ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF", "HOTEL", "INDIA", "JULIET", "KILO", "LIMA", "MIKE", "NOVEMBER", "OSCAR", "PAPA", "QUEBEC", "ROMEO", "SIERRA", "TANGO", "UNIFORM", "VICTOR", "WHISKEY", "XRAY", "YANKEE", "ZULU"];
 const letters = (n: number) => WORDS[(n - 1) % WORDS.length];
-/** the readers' JSON for rows firstSerial .. firstSerial+n-1 */
+/** I build the readers' JSON for rows firstSerial .. firstSerial+n-1 */
 const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: any, serial: number) => void) =>
   JSON.stringify({ title: title ?? "", month: null, rows: Array.from({ length: n }, (_, i) => { const s = firstSerial + i; const r: any = { serial: s, ticket: String(100000 + s), name: `PERSON ${letters(s)}`, deptCode: String(30000 + s), department: "SMS (OPRN)" }; mutate?.(r, s); return r; }) });
 
@@ -116,18 +116,18 @@ const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: a
   const dc0 = findDateCells(g0, fr0)!;
   check("the DATE box and its two cells (cut by one rule)", Math.round(dc0.band.xL) === 1050 && dc0.cells.length === 2 && Math.abs(dc0.cells[0].y1 - 500.5) < 3, JSON.stringify(dc0.cells));
 
-  // a date cell with: the date, a speck of dust far from it, and a stroke of a rule that wandered into the cell
+  // I draw a date cell with the date, a speck of dust far from it, and a stroke of a rule that wandered into the cell
   const px1 = blank();
   ink(px1, 1100, 400);
   rect(px1, 1060, 320, 1063, 323); // dust
-  rect(px1, 1055, 300, 1059, 700); // a long stroke (a rule that is not where it should be)
+  rect(px1, 1055, 300, 1059, 700); // A long stroke: a rule that is not where it should be
   const g1: Gray = { data: px1, width: W, height: H };
   const cropped = await cropCellText(g1, { xL: 1050, xR: 1150 }, { y0: 290, y1: 710, openTop: false, openBottom: false });
   const cmeta = cropped ? await sharp(cropped.png).metadata() : null;
   check("the printed date is cut out on its own: the dust and the stray stroke do not stretch the crop; its centre is where the digits are", !!cropped && Math.abs(cropped.cy - 400) < 4 && (cmeta?.width ?? 9999) < 400, JSON.stringify({ cy: cropped?.cy, w: cmeta?.width }));
   check("a blank cell gives nothing (the date is printed on the other side of a page break)", (await cropCellText({ data: blank(), width: W, height: H }, { xL: 1050, xR: 1150 }, { y0: 290, y1: 710, openTop: false, openBottom: false })) === null);
 
-  // ================================================================== the whole roster, two pages (read by two scripted Gemini readers; the geometry decides the dates' rows)
+  // ================================================================== the whole roster, two pages: two scripted Gemini readers read them, and the geometry decides the dates' rows
   // page 1: rows 1-12.  groups of 5: rows 1-5 | 6-10 | 11-15, the last cut by the page break (rows 11-12 here, 13-15 on page 2)
   // page 2: rows 13-25. group C continues (13-15, open top; its date is printed HERE), D = 16-20, E = 21-25 with a stray rule at y=700 cutting its cell
   const p1 = await drawPage({ top: 300, rows: 12, dateRules: [300, 500, 700], inks: [400, 600] });
@@ -155,14 +155,14 @@ const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: a
   check("the stray rule inside the last merged cell does not split it: rows 21-25 all have 2025-01-14", res.rows.slice(20).every((r) => r.checkupDate === "2025-01-14"));
   check("five groups of five, and nothing to warn about", res.groups.length === 5 && res.groups.every((g) => g.rows === 5) && res.warnings.length === 0, JSON.stringify([res.groups, res.warnings]));
 
-  // -- the checker reads a different ticket and a different department code: kept as alternatives for the HR check, no warning
+  // -- the checker reads a different ticket and a different department code: I keep both as alternatives for the HR check, with no warning
   const alt = await extractScheduleGemini([p1, p2], { readers: scripted({ checkerRows: (page) => (page === 1 ? rowsJson(1, 12, "HEALTH CHECK UP SCHEDULE FOR THE MONTH OF JANUARY 2025", (r, s) => { if (s === 3) { r.ticket = "100093"; r.deptCode = "30043"; } }) : rowsJson(13, 13)) }) });
   check("a ticket and a code the checker read differently are kept as alternatives (ticketAlt, codeAlt) and the primary's reading stays", alt.rows[2].ticket === "100003" && alt.rows[2].ticketAlt?.join() === "100093" && alt.rows[2].departmentCode === "30003" && alt.rows[2].codeAlt?.join() === "30043" && alt.warnings.length === 0, JSON.stringify(alt.rows[2]));
 
-  // -- the readers find a different number of rows: a warning (the schedule is not stored)
+  // -- the readers find a different number of rows: I give a warning (the schedule is not stored)
   const cnt = await extractScheduleGemini([p1, p2], { readers: scripted({ checkerRows: (page) => (page === 1 ? rowsJson(1, 11, "T") : rowsJson(13, 13)) }) });
   check("a different number of rows between the two readers is a warning", cnt.warnings.some((w) => /different number of rows/.test(w)), JSON.stringify(cnt.warnings));
-  // -- the table has more ruled rows than the readers found
+  // -- here the table has more ruled rows than the readers found
   const fewer = await extractScheduleGemini([p1, p2], { readers: scripted({ primaryRows: (page) => (page === 1 ? rowsJson(1, 9, "HEALTH CHECK UP SCHEDULE FOR THE MONTH OF JANUARY 2025") : rowsJson(13, 13)) }) });
   check("rows the readers did not find (the table has 12 ruled rows, they found 9) are a warning", fewer.warnings.some((w) => /ruled rows/.test(w)), JSON.stringify(fewer.warnings));
   // -- one reader only
@@ -172,15 +172,15 @@ const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: a
   const junk = await extractScheduleGemini([p1, p2], { readers: scripted({ primaryRows: () => "I cannot read this" }) });
   check("a reply that is not a roster reading is a warning and no rows", junk.rows.length === 0 && junk.warnings.some((w) => /could not be read/.test(w)));
 
-  // -- a date that does not fit the schedule is never stored as if it were fine
+  // -- my rule: a date that does not fit the schedule is never stored as if it were fine
   const bad = await extractScheduleGemini([p1, p2], { readers: scripted({ dates: ["01-01-25", "02-02-25", "11/012/25", "13-01-25", "14-01-25"], strong: ["02-02-25"] }) });
   check("a date of another month (02-02-25 in a January schedule) leaves its rows WITHOUT a date, and the run says so", bad.rows.slice(5, 10).every((r) => r.checkupDate === null) && bad.warnings.some((w) => /no check-up date/.test(w)), JSON.stringify(bad.warnings));
-  // -- the cheap date reader fails the month check, the strong one is right
+  // -- here the cheap date reader fails the month check and the strong one is right
   const fixed = await extractScheduleGemini([p1, p2], { readers: scripted({ dates: ["01-01-25", "02-02-25", "11/012/25", "13-01-25", "14-01-25"], strong: ["02-01-25"] }) });
   check("when the cheap reader's date is not a date of the month, the stronger reader is asked and its date is used", fixed.rows.slice(5, 10).every((r) => r.checkupDate === "2025-01-02") && fixed.warnings.length === 0, JSON.stringify(fixed.warnings));
-  // -- a faint rule the image analysis missed: the double-height interval is split, so the rows and the intervals agree again
+  // -- a faint rule the image analysis missed: I split the double-height interval so the rows and the intervals agree again
   {
-    // page like page 3 of a real roster: a title interval and a heading interval above the data; the first three rows have no ruled line between them
+    // This page is like page 3 of a real roster: a title interval and a heading interval above the data; the first three rows have no ruled line between them
     const edges = [220, 308, 358, 485, 527, 569, 611, 653];
     const cells = [{ y0: 220, y1: 308, openTop: false, date: null, printed: null }, { y0: 308, y1: 358, openTop: false, date: null, printed: null }, { y0: 358, y1: 653, openTop: false, date: "2025-01-01", printed: "01-01-25" }];
     const al = alignRows(edges, cells, 7);
@@ -204,7 +204,7 @@ const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: a
     { ticket: "100002", name: "AMIT KUMAR DAS", codes: ["amit", "kumar", "das"], departmentCode: "32000" },
     { ticket: "100003", name: "P O ROY", codes: ["roi"], departmentCode: "32000" },
     { ticket: "100004", name: "RITA SEN", codes: ["rita", "sen"], departmentCode: "85110" },
-    { ticket: "100005", name: "RITA SEN", codes: ["rita", "sen"], departmentCode: "85110" }, // a namesake in the same department
+    { ticket: "100005", name: "RITA SEN", codes: ["rita", "sen"], departmentCode: "85110" }, // I added a namesake in the same department
     { ticket: "100006", name: "MANOJ KUMAR ROY", codes: ["manoj", "kumar", "roi"], departmentCode: "46000" },
     { ticket: "100007", name: "SUBHAS KUMAR ROY", codes: ["subhas", "kumar", "roi"], departmentCode: "46000" },
   ];
@@ -217,13 +217,13 @@ const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: a
   check("...and two of three words is only partial (SUBIR KUMAR ROY is not SUBHAS KUMAR ROY)", nameFit(["subir", "kumar", "roi"], ["subhas", "kumar", "roi"]) === "partial");
   const rowsH = [
     mk("100001", "SANJAY ROY", "32100", 1), // verified
-    mk("100002", "AMIT KR DAS", "32000", 2), // KR is not a code word: still all of the shorter name matches? -> see below
-    mk("100003", "PERE PADEN OUSEPH ROY", "32000", 3), // partial name, department agrees -> verified
-    mk("999999", "SANJAY ROY", "32100", 4), // ticket unknown, but ONE person has this name and department -> corrected (and 100001 is then duplicated)
+    mk("100002", "AMIT KR DAS", "32000", 2), // KR is not a code word: does all of the shorter name still match? See below
+    mk("100003", "PERE PADEN OUSEPH ROY", "32000", 3), // Partial name and the department agrees, so I call it verified
+    mk("999999", "SANJAY ROY", "32100", 4), // Ticket unknown, but ONE person has this name and department, so it is corrected (and 100001 is then duplicated)
     mk("100004", "RITA SEN", "85110", 5), // ticket fine -> verified
-    mk(null, "RITA SEN", "85110", 6), // no ticket, TWO namesakes in the department -> unverified
-    mk("100006", "SUBIR KUMAR ROY", "46000", 7), // ticket exists, name only partly fits (someone else's ticket?) and department agrees -> verified partial
-    mk("100007", "MIHIR KUMAR ROY", "99999", 8), // partial name and a different department -> unverified
+    mk(null, "RITA SEN", "85110", 6), // No ticket and TWO namesakes in the department, so I leave it unverified
+    mk("100006", "SUBIR KUMAR ROY", "46000", 7), // The ticket exists, the name only partly fits (someone else's ticket?) and the department agrees, so I call it verified partial
+    mk("100007", "MIHIR KUMAR ROY", "99999", 8), // Partial name and a different department, so unverified
   ];
   const codes: string[][] = [["sanjai", "roi"], ["amit", "das"], ["pere", "paden", "ouseph", "roi"], ["sanjai", "roi"], ["rita", "sen"], ["rita", "sen"], ["subir", "kumar", "roi"], ["mihir", "kumar", "roi"]];
   const v = verifyAgainstHr(rowsH, codes, hr);
@@ -247,7 +247,7 @@ const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: a
   check("a name cut differently from HR's is verified on its ticket", spaced.status === "verified");
   check("every row keeps what was read from the page (ticket as printed, name as printed)", v.every((r, i) => r.ticket === rowsH[i].ticket && r.name === rowsH[i].name));
 
-  // ================================================================== the department code against the department NAME on the same row
+  // ================================================================== I check the department code against the department NAME on the same row
   const pairs = [{ code: "10001", name: "CO & CC (MECH)" }, { code: "12000", name: "CO & CC (BATTERY)" }, { code: "3301", name: "M&HS(1)" }, { code: "103", name: "LAW" }, { code: "103", name: "P.R.O." }, { code: "85110", name: "PLANT GARAGE (M.H.E.O.D.)" }];
   const rw = (code: string | null, dept: string, alt: string[] = []): ScheduleRow => ({ ...mk("100001", "A B", code ?? "", 1), departmentCode: code, department: dept, codeAlt: alt });
   const fx = fixCodesByDepartment([rw("40001", "CO & CC (MECH)"), rw("10001", "CO & CC (MECH)"), rw("42000", "CO & CC (BATTERY)"), rw("13301", "M&HS(1)"), rw(null, "CO & CC (MECH)")], pairs);
@@ -275,7 +275,7 @@ const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: a
   const vc = verifyAgainstHr([{ ...mk("242599", "NOBODY LIKE THEM", "44000", 1), ticketAlt: ["242501"] }], [["nobodi", "laik", "tem"]], hrAlt)[0];
   check("an alternative that is an employee with a DIFFERENT name is not accepted", vc.status === "unverified" && vc.ticketNo === null);
 
-  // ================================================================== the safeguard: a code is never overridden when ITS department is the printed one (12 Oct report, rows 35 and 322)
+  // ================================================================== the safeguard: I never override a code when ITS department is the printed one (12 Oct report, rows 35 and 322)
   const zpairs = [{ code: "57500", name: "WHEEL & AXLE PLANT (OPRN - ZONE I)" }, { code: "58500", name: "WHEEL & AXLE PLANT (OPRN - ZONE II)" }, { code: "3301", name: "M&HS(1)" }, { code: "10001", name: "CO & CC (MECH)" }];
   const zr = fixCodesByDepartment([rw("58500", "WHEEL & AXLE PLANT (OPRN - ZONE I"), rw("58500", "WHEEL & AXLE PLANT (OPRN - ZONE [i"), rw("57500", "WHEEL & AXLE PLANT (OPRN - ZONE I)"), rw("58500", "WHEEL & AXLE PLANT (OPRN - ZONE II")], zpairs);
   check("a right code is NOT 'corrected' when the printed department is clipped (ZONE II printed as ZONE I, which is the exact name of the OTHER department): 58500 stays", zr[0].departmentCode === "58500" && !zr[0].codeNote && zr[1].departmentCode === "58500" && !zr[1].codeNote && zr[3].departmentCode === "58500", JSON.stringify(zr.map((r) => [r.departmentCode, r.codeNote])));
@@ -294,7 +294,7 @@ const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: a
   const cl3 = verifyAgainstHr([mk("241296", "SOMEONE ELSE ENTIRELY", "26001", 1)], [["samion", "alsa"]], hrC)[0];
   check("a name that is not close is not accepted even in the same department", cl3.status === "unverified");
 
-  // ================================================================== a dropped database connection must not kill a long run
+  // ================================================================== my rule: a dropped database connection must not kill a long run
   class FakeClient {
     static ends = 0;
     static connects = 0;
@@ -333,7 +333,7 @@ const rowsJson = (firstSerial: number, n: number, title?: string, mutate?: (r: a
   check("an 'error' event on a connection (the one that crashed your first run) is absorbed, not thrown", idleSurvived && idle.handlers.length >= 1);
   check("what counts as a connection problem: ETIMEDOUT, ECONNRESET, 'Connection terminated', 'timeout exceeded when trying to connect' -- and what does not: a wrong password, a missing table", ["read ETIMEDOUT", "read ECONNRESET", "Connection terminated unexpectedly", "timeout exceeded when trying to connect", "getaddrinfo ENOTFOUND db.example.com"].every((m) => isConnectionError(new Error(m))) && !isConnectionError(new Error("password authentication failed")) && !isConnectionError(new Error('relation "public.x" does not exist')));
 
-  // ================================================================== a saved reading must not outlive the code that made it
+  // ================================================================== my rule: a saved reading must not outlive the code that made it
   const fdir = mkdtempSync(pjoin(tmpdir(), "fp-"));
   try {
     writeFileSync(pjoin(fdir, "a.ts"), "export const a = 1;\n");

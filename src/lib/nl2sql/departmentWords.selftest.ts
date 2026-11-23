@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/departmentWords.selftest.ts
-// Step 55a: "refractory" = its three rows, "garage" = the Plant Garage, "township garage" = a closed department. Resolved, never asked; the rewritten question names the rows exactly
+// Step 55a: "refractory" = its three rows, "garage" = the Plant Garage, "township garage" = a closed department. These are resolved, never asked; the rewritten question names the rows exactly
 // (checked against the 300 real department rows); nothing else is touched.
 
 import real from "./__fixtures__/departments.real.json";
@@ -23,7 +23,7 @@ ok("garage about people: the word becomes the six rows of the Plant Garage by na
 ok("...the note says what garage means and that the township garage is closed", /“Garage” means the Plant Garage \(all its six sections\)\./.test(w?.note ?? "") && (w?.note ?? "").includes(TOWNSHIP_GARAGE_CLOSED));
 ok("a bare word: 'garage' and 'Garage staff'", resolveDepartmentWords("garage")?.question === PLANT_GARAGE_ROWS && resolveDepartmentWords("Garage staff")?.question === `${PLANT_GARAGE_ROWS} staff`);
 for (const q of ["people in mhemd", "executives in M.H.E.M.D.", "executives in m h e o d", "executives in plant garage (tech)", "executives in plant garage mhemd", "executives in plant garage office", "executives in plant garage (OFFICE - MAINT)"]) ok(`a section is named already, left alone: ${q}`, resolveDepartmentWords(q) === null);
-// the family name typed in full is the six rows too (it used to be only a hint to the model, which could select the one row called PLANT GARAGE)
+// Typing the family name in full gives the six rows too; it used to be only a hint to the model, which could select the one row called PLANT GARAGE.
 w = resolveDepartmentWords("how many executives are there in plant garage");
 ok("'plant garage' typed: the six rows by name and code", w?.question === `how many executives are there in ${PLANT_GARAGE_ROWS}` && /“Plant Garage” means all its six sections: 85000, 85070, 85110, 85200, 85330 and 85430\./.test(w?.note ?? "") && !w?.closed, JSON.stringify(w));
 ok("...'Plant Garage' in capitals and inside a longer sentence", resolveDepartmentWords("list the PLANT GARAGE executives")?.question === `list the ${PLANT_GARAGE_ROWS} executives`);
@@ -72,12 +72,12 @@ const base = resolveDepartmentWords("executives in refractory")!.note!;
 ok("the number of Coke Oven Refractory people is filled in: 5, 1, none", /counted in both\.$/.test(finishDepartmentNote(base, 5)) && finishDepartmentNote(base, 5).includes("its 5 people are counted in both") && finishDepartmentNote(base, 1).includes("its 1 person is counted in both") && finishDepartmentNote(base, null).includes("its people are counted in both") && finishDepartmentNote(base, 0).includes("its people are counted in both"));
 ok("...and no placeholder is ever left in the note", !finishDepartmentNote(base, 5).includes("{{") && !finishDepartmentNote(base, null).includes("{{"));
 
-// ---- NEVER a loop: what the words become is not resolved again
+// ---- this must NEVER loop: what the words become is not resolved again
 for (const q of ["how many executives are there in garage", "garage", "refractory", "executives in refractory, list them", "executives in plant garage and township garage", "csd", "how many executives in csd", "central stores"]) {
   const r = resolveDepartmentWords(q);
   ok(`no loop: "${q}"`, !r?.question || resolveDepartmentWords(r.question) === null, r?.question);
 }
-// ---- other questions are never touched
+// ---- I never touch other questions
 for (const q of ["how many executives are there in main hospital", "how many executives work in each section of C&IT", "who is more senior, Mohd Anwar Ullah or Rana Saha", "list the employees whose name has kumar as a word", "restricted holidays in March 2026", "how many executives are there in heavy maintenance, list them?", "list of ent doctors", "is the hospital open on monday?"]) ok(`never touched: ${q}`, resolveDepartmentWords(q) === null);
 
 console.log(`departmentWords selftest: ${pass} passed, ${fail} failed`);

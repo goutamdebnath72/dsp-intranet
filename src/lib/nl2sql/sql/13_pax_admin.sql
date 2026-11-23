@@ -1,5 +1,5 @@
 -- 13_pax_admin.sql : the PAX admin panel (step 64a). Run ONCE in the Supabase SQL editor. It only ADDS two tables; public.pax_directory is not changed.
---   pax_delegate        the executives the HOD C&IT has authorised to change PAX numbers (a revoked line is kept, with who revoked it and when)
+--   pax_delegate        the executives the HOD C&IT has authorised to change PAX numbers (I keep a revoked line, with who revoked it and when)
 --   pax_directory_audit one line for every add, change, delete, authorisation and revocation, with who did it (ticket and name from the login) and the line before and after. APPEND ONLY.
 -- Like pax_directory, both are closed to the public API roles: only the application's own connection reads and writes them.
 
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.pax_delegate (
   revoked_by_name   text,
   CHECK ((revoked_at IS NULL) = (revoked_by_ticket IS NULL))
 );
--- an executive is authorised at most once at a time
+-- I allow an executive to be authorised at most once at a time
 CREATE UNIQUE INDEX IF NOT EXISTS pax_delegate_one_active ON public.pax_delegate (ticket_no) WHERE revoked_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS public.pax_directory_audit (
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.pax_directory_audit (
 );
 CREATE INDEX IF NOT EXISTS pax_directory_audit_at ON public.pax_directory_audit (at DESC);
 
--- the history cannot be changed or erased, not even by the application
+-- The history must not be changed or erased, not even by the application
 CREATE OR REPLACE FUNCTION public.pax_audit_immutable() RETURNS trigger LANGUAGE plpgsql AS $f$
 BEGIN
   RAISE EXCEPTION 'pax_directory_audit is append only';

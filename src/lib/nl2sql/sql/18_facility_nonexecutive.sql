@@ -1,6 +1,6 @@
 -- 18_facility_nonexecutive.sql  (step 69c)
 --
--- A tool can now be given to a NON-EXECUTIVE too (the HOD confirms it in the screen: "are you sure you want to authorise a non-executive?"). Step 68a limited facility_delegate.ticket_no to an
+-- I now allow a tool to be given to a NON-EXECUTIVE too (the HOD confirms it in the screen: "are you sure you want to authorise a non-executive?"). Step 68a limited facility_delegate.ticket_no to an
 -- executive's ticket (six digits starting with 4); this file widens it to any employee's ticket: six digits, not starting with 0. Nothing else changes: the rows that exist stay as they are.
 -- Safe to run more than once. Run it in the Supabase SQL editor (the whole file at once); the last SELECT shows the rule now in force.
 

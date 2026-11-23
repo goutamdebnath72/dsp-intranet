@@ -1,7 +1,7 @@
 // src/tools/calculator/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the full calculator (its tile and its page) and the answer to a typed sum.
-// Its logic is in the files beside this one, what the search line needs to know in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// How this topic looks in the panel of the search bar: the full calculator (its tile and its page) and the answer to a typed sum.
+// Its logic is in the files beside this one, and what the search line needs to know is in topic.ts. I list it once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";
@@ -22,7 +22,7 @@ export const calcUi: TopicUi = {
     render: () => <CalculatorCard />,
   },
   hits: [
-    // a number typed in a base ("0xFF", "255 to binary"): the scientific calculator itself, open on it in that base; not focused, so that typing in the search line goes on
+    // A number typed in a base ("0xFF", "255 to binary"): I show the scientific calculator itself, open on it in that base; I do not focus it, so that typing in the search line goes on
     onHit("calcbase", (hit) => <CalculatorCard key={`${hit.base}|${hit.value}`} start="sci" startBase={hit.base} startValue={hit.value} autoFocus={false} />),
     onHit("expression", (hit, c) => {
       const text = hit.result.exact ?? formatNumber(hit.result.value);

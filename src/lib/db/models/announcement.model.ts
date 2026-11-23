@@ -35,11 +35,11 @@ export class Announcement {
   @Column({ type: "varchar", nullable: false })
   title!: string;
 
-  // Rich-text body as sanitized HTML (formatting preserved for display).
+  // Rich-text body as sanitized HTML, with the formatting preserved for display.
   @Column({ type: "text", nullable: true })
   content?: string;
 
-  // Plain-text projection of `content` (HTML stripped) — what we embed and
+  // Plain-text projection of `content` (HTML stripped): what I embed and
   // run literal search on, so the AI never sees markup.
   @Column({ type: "text", name: "contentText", nullable: true })
   contentText?: string | null;
@@ -55,8 +55,8 @@ export class Announcement {
   authorTicketNo!: string;
 
   // Vector embedding for the Omnibar semantic search (768-dim, Gemini).
-  // select:false so normal queries don't drag the vector across the wire;
-  // search SQL selects it explicitly.
+  // I set select:false so normal queries do not drag the vector across the wire;
+  // the search SQL selects it explicitly.
   @Column({ type: "vector", nullable: true, select: false } as any)
   embedding?: any;
 

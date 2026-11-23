@@ -1,8 +1,8 @@
 // src/tools/vin/VinCard.tsx
 //
 // "HOW TO READ A VIN": the 17 characters are typed (or arrive from the search line) and each part is explained: country, manufacturer, the maker's descriptor, position 9 (a check digit where there is
-// one), the model year, the plant, the serial number, and Hyundai's month letter on the chassis plate. Each kind of part has its own colour on the plate and in the list. Under the reading, the literature
-// (VinGuide.tsx). Computed in the browser from src/tools/vin/vin.ts; nothing typed is stored or sent.
+// one), the model year, the plant, the serial number, and Hyundai's month letter on the chassis plate. I give each kind of part its own colour on the plate and in the list. Under the reading comes the literature
+// (VinGuide.tsx). It is computed in the browser from src/tools/vin/vin.ts; nothing typed is stored or sent.
 "use client";
 
 import React, { useState } from "react";
@@ -12,7 +12,7 @@ import { SECTIONS, VIN_SAMPLES, checkSteps, readVin, splitVin, type VinPart } fr
 import { inputCls } from "@/components/tools/toolAtoms";
 import { VinGuide } from "./VinGuide";
 
-/** one colour for each kind of part, on the plate and in the list */
+/** One colour for each kind of part, on the plate and in the list */
 const PART_STYLE: Record<VinPart["id"], { cell: string; chip: string; bar: string }> = {
   country: { cell: "bg-sky-400/20 text-sky-200 ring-sky-400/50", chip: "bg-sky-100 text-sky-800", bar: "bg-sky-400" },
   maker: { cell: "bg-teal-400/20 text-teal-200 ring-teal-400/50", chip: "bg-teal-100 text-teal-800", bar: "bg-teal-400" },

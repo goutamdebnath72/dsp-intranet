@@ -1,4 +1,4 @@
-/** Self-test of the saved page checks. Run: npx tsx --tsconfig tsconfig.json src/lib/search/pageChecks.selftest.ts (no database). */
+/** Self-test of the saved page checks; it needs no database. Run: npx tsx --tsconfig tsconfig.json src/lib/search/pageChecks.selftest.ts */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPageUnits, planChunks } from "../ingestion/chunking";
@@ -30,7 +30,7 @@ ok("empty lists in the row are fine", JSON.stringify(freshChecks([row(1, "A B", 
   ok("it asks for this circular only", asked.length === 1 && asked[0] === 82);
   ok("a missing table (the SQL was not run) or any database trouble gives no check and no error", (await loadPageChecks(async () => { throw new Error('relation "circular_page_check" does not exist'); }, 5, chunks)) === undefined);
 
-  // THE INVARIANT the saving relies on: the stored chunks of a page, joined, ARE the page text the re-read stored (checked on the real wage notice)
+  // THE INVARIANT my saving relies on: the stored chunks of a page, joined, ARE the page text the re-read stored (checked on the real wage notice)
   const wage: string = JSON.parse(readFileSync(join(__dirname, "..", "ingestion", "__fixtures__", "pilot-readings.json"), "utf8")).find((x: { id: string }) => x.id === "wage-notice").pipeline;
   const stored = planChunks(buildPageUnits([wage], (wage + " \n").replace(/\s+/g, " ").trim())).map((c) => ({ page: c.page, index: c.index, text: c.text }));
   ok("REAL wage notice: the stored chunks of the page, joined, equal the page reading (so a check made on the reading is about the stored text)", normPageText(storedPageTexts(stored).get(1) ?? "") === normPageText(wage));

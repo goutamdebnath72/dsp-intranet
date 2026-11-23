@@ -17,7 +17,7 @@ const MainMenu: React.FC = () => {
   return (
     <nav className="flex flex-grow items-center justify-end gap-6 lg-custom:gap-10">
       {menuData.map((item) => {
-        // If a menu item has no columns, render it as a simple button
+        // A menu item with no columns I render as a simple button.
         if (item.columns.length === 0) {
           return (
             <button
@@ -30,14 +30,14 @@ const MainMenu: React.FC = () => {
           );
         }
 
-        // Otherwise, render the full MegaMenuItem
+        // Otherwise I render the full MegaMenuItem.
         return <MegaMenuItem key={item.title} menuItem={item} />;
       })}
     </nav>
   );
 };
 
-// This is the main Header component
+// This is my main Header component.
 export default function Header() {
   const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
 
@@ -54,7 +54,7 @@ export default function Header() {
               <Image
                 src="/vibrant-logo.webp"
                 alt="DSP Intranet Logo"
-                width={PERF.rightSizedLogos ? 96 : 1024} // the logo is drawn 40-48 px high: ask for a picture that size (src/lib/perf/switches.js: rightSizedLogos), not 1024 px
+                width={PERF.rightSizedLogos ? 96 : 1024} // the logo is drawn 40-48 px high, so I ask for a picture that size (src/lib/perf/switches.js: rightSizedLogos), not 1024 px
                 height={PERF.rightSizedLogos ? 96 : 1024}
                 className="h-10 lg-custom:h-12 w-auto"
               />

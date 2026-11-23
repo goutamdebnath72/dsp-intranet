@@ -1,13 +1,13 @@
 // src/lib/nl2sql/nameSpelling.ts
 //
-// The SPELLING SAFETY NET for name searches (step 55b).
+// This is the SPELLING SAFETY NET for name searches (step 55b).
 //
 // WHY: the name search compares a typed word with a name word through a phonetic CODE (indic_fold): two spellings match only when their codes are EQUAL. That cannot reach 100%: the code
 // can be taught Roy = Ray and Majumdar = Mazumder, but every new way to write a Bengali name ("Gosyami", "Gosami", "Goshami" for Goswami) is a new rule, and one word off in one name
 // word dropped the person ("rupak gosyami" found nobody although "Rupak" was perfect). Rules alone will never close it.
-// WHAT: when a name search finds NOBODY, each name word of the SQL is looked at. A word that no real name is spelled (or coded) like is replaced by the NEAREST real name word of the
+// WHAT: when a name search finds NOBODY, I look at each name word of the SQL. A word that no real name is spelled (or coded) like is replaced by the NEAREST real name word of the
 // directory, and the same SQL is run again, so every other condition of the question stays. The answer says so ("No name is spelled “Gosyami”: showing the nearest spelling, Goswami.").
-// HOW NEAR: the words are compared by a key that treats W and Y after a consonant and before a vowel as silent (Goswami = Goshami = Gosyami = Gosami, Swapan, Biswas, Dwijen, Sandhya:
+// HOW NEAR: I compare the words by a key that treats W and Y after a consonant and before a vowel as silent (Goswami = Goshami = Gosyami = Gosami, Swapan, Biswas, Dwijen, Sandhya:
 // the Bengali ব-ফলা and য-ফলা), then folded like the database does. Words that SOUND the same under that key are accepted; a weaker match must be one slip in the letters (two in a long
 // word; a swapped pair of letters counts as one) AND keep the first sound. A word of fewer than 4 letters is never corrected. Only a word that is not already known (the same word, or the same code, as a real name) is touched, so a correct word is never "improved", and a
 // question whose people simply do not exist stays empty (nothing is invented). No database change: the vocabulary is read from nlq.employees.name_words and kept for ten minutes.
@@ -18,14 +18,14 @@ import { runReadOnly, type ExecOptions } from "./executor";
 import type { QueryResultData, SqlClient } from "./types";
 
 const letters = (w: string): string => String(w ?? "").toUpperCase().replace(/[^A-Z]/g, "");
-/** W or Y after a consonant and before a vowel is silent in a Bengali name (Goswami = Goshami = Gosyami). */
+/** W or Y after a consonant and before a vowel is silent in a Bengali name (Goswami = Goshami = Gosyami), so I drop it. */
 export const withoutGlides = (w: string): string => letters(w).replace(/([BCDFGHJKLMNPQRSTVXZ])[WY](?=[AEIOU])/g, "$1");
-/** The key two spellings of one name share. */
+/** This is the key that two spellings of one name share. */
 export const spellingKey = (w: string): string => foldToken(withoutGlides(w), false);
-/** The code the database itself gives a word (what nlq.word_like compares), for either position. */
+/** The code the database itself gives a word (what nlq.word_like compares), for either position; I need the same codes here. */
 const databaseCodes = (w: string): string[] => [foldToken(letters(w), false), foldToken(letters(w), true)];
 
-/** Edit distance with a swap of two neighbouring letters counted as ONE slip (rupak / rupka). */
+/** Edit distance in which a swap of two neighbouring letters counts as ONE slip (rupak / rupka). */
 export function editDistance(a: string, b: string): number {
   const n = a.length, m = b.length;
   if (!n) return m;
@@ -72,10 +72,10 @@ export function isKnownWord(token: string, vocab: NameVocabulary): boolean {
 export interface Nearest { word: string; keyDistance: number; plainDistance: number; count: number }
 
 /**
- * Every real name word that could be meant by a typed word, the best first. A candidate is accepted when it SOUNDS the same under the key (distance 0: strong evidence), or when the key is near
+ * Every real name word that a typed word could mean, the best first. I accept a candidate when it SOUNDS the same under the key (distance 0: strong evidence), or when the key is near
  * AND the letters are one slip away, or when the letters alone are one slip away (two in a word of 9+ letters) and the first sound is the same: the key collapses vowels, so one missing letter
  * can look like a distance of 2 or 3 there (KUMA / KUMAR). A different first sound is a different name ("swapan" is not "tapan"); the first two letters swapped ("raup" / "arup") is one slip.
- * Nothing for a known word (the phonetic search already finds it) or a word of fewer than 4 letters.
+ * I return nothing for a known word (the phonetic search already finds it) or a word of fewer than 4 letters.
  */
 export function candidateWords(token: string, vocab: NameVocabulary): Nearest[] {
   const t = letters(token);
@@ -90,7 +90,7 @@ export function candidateWords(token: string, vocab: NameVocabulary): Nearest[] 
     const plainDistance = editDistance(t, w);
     if (plainDistance > Math.max(2, Math.ceil(t.length / 3))) continue;
     const keyDistance = editDistance(tk, wk);
-    // the first two letters swapped ("RAUP" for "ARUP") is one slip too; any other change of the first letter is a different sound
+    // the first two letters swapped ("RAUP" for "ARUP") is one slip too; any other change of the first letter is a different sound, so I do not accept it
     const sameStart = tk[0] === wk[0] || (t.length > 1 && t[0] === w[1] && t[1] === w[0]);
     const accepted = keyDistance === 0 || (keyDistance <= maxKey && sameStart && plainDistance <= maxPlain) || (sameStart && plainDistance <= maxPlain);
     if (accepted) found.push({ word: w, keyDistance, plainDistance, count: vocab.count.get(w) ?? 1 });
@@ -100,8 +100,8 @@ export function candidateWords(token: string, vocab: NameVocabulary): Nearest[] 
 }
 
 /**
- * The real name words NEAREST to a typed word: the best tier only, at most `max`; nothing when the word is equally near to MORE than `max` names (then any choice would be a guess).
- * A name that is simply not in the directory must stay "not found", never become somebody else.
+ * The real name words NEAREST to a typed word: the best tier only, at most `max`; I return nothing when the word is equally near to MORE than `max` names (then any choice would be a guess).
+ * A name that is simply not in the directory must stay "not found" and never become somebody else.
  */
 export function nearestWords(token: string, vocab: NameVocabulary, max = 3): Nearest[] {
   const found = candidateWords(token, vocab);
@@ -115,7 +115,7 @@ export function nearestWords(token: string, vocab: NameVocabulary, max = 3): Nea
 // ---- the name words inside a model's SQL --------------------------------------------------------
 export interface NameLiteral { start: number; end: number; text: string; literal: string; build: (word: string) => string }
 
-/** nlq.word_like(name_words, name_codes, 'x') and its first_/last_ forms, and the exact form 'X' = ANY(name_words). */
+/** Finds nlq.word_like(name_words, name_codes, 'x') and its first_/last_ forms, and the exact form 'X' = ANY(name_words). */
 export function nameLiteralsIn(sql: string): NameLiteral[] {
   const out: NameLiteral[] = [];
   const call = /nlq\.(first_word_like|last_word_like|word_like)\(\s*([A-Za-z_][\w.]*)\s*,\s*([A-Za-z_][\w.]*)\s*,\s*'((?:[^']|'')*)'\s*\)/gi;
@@ -129,14 +129,14 @@ export function nameLiteralsIn(sql: string): NameLiteral[] {
   return out.sort((a, b) => a.start - b.start);
 }
 
-export interface SpellingChange { typed: string; corrected: string[]; /** other real names that are nearly as close (at most two): the person can see what else could have been meant */ alsoClose: string[] }
+export interface SpellingChange { typed: string; corrected: string[]; /** other real names that are nearly as close (at most two), so the person can see what else could have been meant */ alsoClose: string[] }
 
-/** The SQL with every unknown name word replaced by its nearest real spelling(s); null when nothing was changed. */
+/** Returns the SQL with every unknown name word replaced by its nearest real spelling(s); null when nothing was changed. */
 export function correctSql(sql: string, vocab: NameVocabulary): { sql: string; changes: SpellingChange[] } | null {
   const changes: SpellingChange[] = [];
   let result = sql;
   for (const lit of nameLiteralsIn(sql).reverse()) {
-    if (!/^[A-Za-z]+$/.test(lit.literal)) continue; // one plain word only
+    if (!/^[A-Za-z]+$/.test(lit.literal)) continue; // I touch one plain word only
     const near = nearestWords(lit.literal, vocab);
     if (!near.length) continue;
     const replacement = near.length === 1 ? lit.build(near[0].word) : `(${near.map((n) => lit.build(n.word)).join(" OR ")})`;
@@ -150,7 +150,7 @@ export function correctSql(sql: string, vocab: NameVocabulary): { sql: string; c
 const nice = (w: string): string => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
 const joinWords = (ws: string[]): string => (ws.length <= 1 ? (ws[0] ?? "") : `${ws.slice(0, -1).join(", ")} or ${ws[ws.length - 1]}`);
 
-/** The sentence under the answer. */
+/** Builds the sentence under the answer. */
 export function spellingNote(changes: SpellingChange[]): string {
   const parts = changes.map((c) => `“${nice(c.typed)}” (nearest: ${joinWords(c.corrected.map(nice))}${c.alsoClose.length ? `; also close: ${joinWords(c.alsoClose.map(nice))}` : ""})`);
   return `No name is spelled ${parts.join(" or ")}: showing the nearest real spelling${changes.some((c) => c.corrected.length > 1) ? "s" : ""} instead.`;
@@ -170,12 +170,12 @@ async function loadVocabulary(withClient: WithClient): Promise<NameVocabulary> {
   return vocab;
 }
 
-/** The name words of the directory (letters only, upper case, at least 3 letters), for the search bar's "looks like a name" hint: the words only, with nobody attached. Kept for ten minutes, like the rest. */
+/** The name words of the directory (letters only, upper case, at least 3 letters), for the search bar's "looks like a name" hint: I give the words only, with nobody attached. Kept for ten minutes, like the rest. */
 export async function directoryNameWords(withClient: WithClient): Promise<string[]> {
   return (await loadVocabulary(withClient)).words;
 }
 
-/** The second search: the same SQL with the nearest real spellings. Null when nothing could be corrected or the corrected SQL finds nobody either. */
+/** The second search: the same SQL with the nearest real spellings. It gives null when nothing could be corrected or when the corrected SQL finds nobody either. */
 export async function spellingRetry(sql: string, deps: { withClient: WithClient; exec?: ExecOptions }): Promise<{ sql: string; data: QueryResultData; note: string } | null> {
   if (!nameLiteralsIn(sql).length) return null;
   const fixed = correctSql(sql, await loadVocabulary(deps.withClient));

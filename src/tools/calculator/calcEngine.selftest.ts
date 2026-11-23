@@ -4,7 +4,7 @@ import { initialState, press, setMode, displayNumber, pendingText, keyFor, recal
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 
-/** press a run of keys written like "2+3*4=": digits and the usual signs, plus words for the others, separated by spaces: "5 fact" */
+/** Presses a run of keys written like "2+3*4=": digits and the usual signs, plus words for the others, separated by spaces: "5 fact". */
 const MAP: Record<string, Key> = { "+": "add", "-": "sub", "*": "mul", "/": "div", "=": "eq", "(": "lp", ")": "rp", "^": "pow", "%": "pct", ".": ".", "~": "neg" };
 function run(keys: string, mode: Mode = "basic", from?: CalcState): CalcState {
   let s = from ?? initialState(mode);

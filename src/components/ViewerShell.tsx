@@ -1,6 +1,6 @@
 // src/components/ViewerShell.tsx
 //
-// THE FULL-SCREEN VIEWER LAYER, once: the dark blurred layer over the page with a header that holds the cross (to close) and the title, and room below for whatever is being viewed. It is the layer of the circular viewer
+// This is the full-screen viewer layer, written once: the dark blurred layer over the page, with a header that holds the cross (to close) and the title, and room below for whatever is being viewed. I use it as the layer of the circular viewer
 // (src/components/CircularViewerLightbox.tsx, whose pages are pictures) and of the announcement PDF viewer (src/components/AnnouncementPdfViewer.tsx, whose body is the PDF), so that both look and close the same way.
 // Nothing here knows what is shown: the caller puts its own canvas in `children`.
 "use client";
@@ -20,9 +20,9 @@ export function ViewerShell({
   title: React.ReactNode;
   onClose: () => void;
   closeLabel?: string;
-  /** the layer's stacking class (the circular viewer's own is z-[150]) */
+  /** The layer's stacking class; the circular viewer's own is z-[150]. */
   zClass?: string;
-  /** marks the layer as taking Escape for itself (TopBar's handler then leaves that key alone; see ImageLightbox) */
+  /** Marks the layer as taking Escape for itself, so TopBar's handler leaves that key alone (see ImageLightbox). */
   escapeOwn?: boolean;
   children: React.ReactNode;
 }) {

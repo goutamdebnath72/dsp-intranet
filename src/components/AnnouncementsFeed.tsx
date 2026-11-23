@@ -2,7 +2,7 @@
 "use client";
 
 import { PERF } from "@/lib/perf/switches";
-import { useOnScreen } from "@/hooks/useOnScreen"; // the list stands still while it is off the screen
+import { useOnScreen } from "@/hooks/useOnScreen"; // I keep the list still while it is off the screen
 import React, { useState, useRef, useEffect } from "react";
 import AnnouncementModal from "./AnnouncementModal";
 import {
@@ -31,7 +31,7 @@ type Announcement = {
   date: string;
   authorTicketNo: string;
   isRead?: boolean;
-  /** the PDF of the announcement (name and size), or null */
+  /** The announcement's PDF (name and size), or null. */
   file?: { name: string; bytes: number } | null;
 };
 
@@ -57,7 +57,7 @@ export function AnnouncementsFeed() {
       keepPreviousData: false,
       revalidateOnFocus: true,
       revalidateOnMount: true,
-      focusThrottleInterval: PERF.feedFocusThrottleSeconds * 1000, // asked again on a return to the window, at most once in this time (src/lib/perf/switches.js)
+      focusThrottleInterval: PERF.feedFocusThrottleSeconds * 1000, // I ask again on a return to the window, at most once in this time (src/lib/perf/switches.js)
     },
   );
 
@@ -79,7 +79,7 @@ export function AnnouncementsFeed() {
     return hoursOld < EDIT_DELETE_WINDOW_HOURS;
   };
 
-  // Manage/edit announcement via Omnibar
+  // I manage and edit an announcement through the Omnibar
   const handleEdit = (_id: number, e: React.MouseEvent) => {
     e.stopPropagation();
     window.dispatchEvent(new CustomEvent("open-omnibar"));
@@ -186,13 +186,13 @@ export function AnnouncementsFeed() {
     return (
       <div ref={listRef} className="flex flex-col">
         {dataToRender.map((item, index) => {
-          const hasContent = !!item.content || !!item.file; // an announcement that is only a title and a PDF opens too
+          const hasContent = !!item.content || !!item.file; // I let an announcement that is only a title and a PDF open too
           const itemDate = DateTime.fromISO(item.date as any);
           const showNewChip = !item.isRead;
           const isClickableToMarkRead = !hasContent && showNewChip && session;
           const isOwner = canModify(item);
 
-          // The card is a plain box. What opens the announcement (or marks it read) is ONE button INSIDE it, and the owner's edit and delete buttons sit NEXT TO that button, not in it:
+          // I make the card a plain box. What opens the announcement (or marks it read) is ONE button INSIDE it, and my edit and delete buttons sit NEXT TO that button, not in it:
           // a button inside a button is invalid HTML (React reports it as a hydration error, and a click on the inner one is also a click on the outer one).
           const clickable = hasContent || isClickableToMarkRead;
           const onOpen = hasContent

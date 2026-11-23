@@ -1,11 +1,11 @@
 // src/app/api/omnibar/more/route.ts
 //
-// "Show more" for a long list: the next page (100 rows) of an answer the omnibar already gave.
+// "Show more" for a long list: I give the next page (100 rows) of an answer the omnibar already gave.
 // POST { logId, offset, labels? } -> { ok, columns, rows, people, total, hasMore }
 //
 //   * Signed-in people only (the whole directory must not be one click away for a stranger).
-//   * The browser sends NO SQL. It sends the id of the answer; the SQL is loaded from the answer's own log row, checked
-//     again by the same guard, and run by the same read-only executor, with the same stable order as page one.
+//   * The browser sends NO SQL. It sends the id of the answer; I load the SQL from the answer's own log row, check it
+//     again with the same guard, and run it with the same read-only executor, with the same stable order as page one.
 
 import { NextResponse } from "next/server";
 import { withDefaultClient } from "@/lib/nl2sql/db";
@@ -46,9 +46,9 @@ export async function POST(req: Request) {
 
     const data = await withDefaultClient((c) => runReadOnly(c, g.sql, { rowLimit: PAGE_SIZE, offset, timeoutMs: 5000 }));
     const people = data.columns.includes("ticket_no") ? await withDefaultClient((c) => peoplePage(c, data, body?.labels)) : null;
-    // The page's rows get the same presentation as page one: no internal rank, plus the cohort column.
+    // I give the page's rows the same presentation as page one: no internal rank, plus the cohort column.
     const hz = presentPeople(data.columns, data.rows, people);
-    // masked on the way out like page one (src/lib/security/sensitiveFields.ts); the person is signed in
+    // I mask it on the way out like page one (src/lib/security/sensitiveFields.ts); the person is signed in
     return NextResponse.json(maskAnswer({
       ok: true,
       columns: hz.columns,

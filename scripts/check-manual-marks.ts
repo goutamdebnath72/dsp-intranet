@@ -1,6 +1,6 @@
 // scripts/check-manual-marks.ts
 //
-// For every quote the DSP history card takes from a PDF it opens in its own viewer (the two JO Manuals, SAIL's Steel Cities book, the annual reports, the Lok Sabha replies, the obituary): is it on the PDF page that
+// For every quote the DSP history card takes from a PDF it opens in its own viewer (the two JO Manuals, SAIL's Steel Cities book, the annual reports, the Lok Sabha replies, the obituary), I check: is it on the PDF page that
 // the card's page link opens, and does the viewer's highlight (src/tools/dsphistory/highlight.ts, on pdf.js's reading of the page) find it there?
 // Run from the project root:  npx tsx --tsconfig tsconfig.selftest.json scripts/check-manual-marks.ts [folder]   (the folder holds the JO Manuals, default ~/Downloads/jo; the published PDFs are downloaded once into the system's temp folder)
 // Last run: every quote marked on its page, none outside the page.
@@ -21,7 +21,7 @@ async function bytesOf(id: string): Promise<Uint8Array> {
   const d = DOCS[id];
   if (d.file) return new Uint8Array(readFileSync(`${folder}/${d.file}`));
   const f = `${cache}/${id}.pdf`;
-  if (!existsSync(f)) execFileSync("curl", ["-sSL", "--fail", "--max-time", "600", "-o", f, d.remote as string]); // curl: sail.co.in's certificate chain is incomplete and Node refuses it
+  if (!existsSync(f)) execFileSync("curl", ["-sSL", "--fail", "--max-time", "600", "-o", f, d.remote as string]); // I use curl here because sail.co.in's certificate chain is incomplete and Node refuses it.
   return new Uint8Array(readFileSync(f));
 }
 async function pieces(id: string, n: number) {

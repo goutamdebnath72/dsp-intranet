@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/FormerNameNotice.selftest.tsx
-// Step 59a: the note above the answer when the question used a former name of a department; and its place in the query modal (above the results of ANY answer, from the question that was searched).
+// Step 59a: I check the note above the answer when the question used a former name of a department, and its place in the query modal (above the results of ANY answer, from the question that was searched).
 
 import React from "react";
 import { readFileSync } from "node:fs";

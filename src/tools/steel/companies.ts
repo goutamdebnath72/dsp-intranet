@@ -1,7 +1,7 @@
 // src/tools/steel/companies.ts
 //
 // THE COMPANIES' OWN QUARTERLY FIGURES for the steel card: crude steel production, sales volume, EBITDA per tonne (and the realisation per tonne where the company states it), revenue, EBITDA and profit, for each
-// quarter from April-June 2024. Every figure is one the company STATES in its own results press release, presentation or exchange filing: nothing is computed, estimated or filled from memory, and a figure the company
+// quarter from April-June 2024. Every figure is one the company STATES in its own results press release, presentation or exchange filing: I compute nothing, estimate nothing and fill nothing from memory, and a figure the company
 // does not state is null (drawn as a dash). Each quarter lists the documents it was read from, with the line that holds the figures. The bases differ (the card says so): compare volumes with volumes, and read a
 // company's EBITDA per tonne as that company's own measure. Read on 15 Nov 2026; the companies restate earlier quarters slightly, and each quarter here is as that quarter's own release gave it.
 
@@ -12,11 +12,11 @@ export interface CompanyQuarter {
   /** "Jul-Sep 2026" */ period: string;
   /** production in million tonnes */ production: number | null;
   /** sales or deliveries in million tonnes */ sales: number | null;
-  /** net realisation, rupees per tonne, when the company states it */ realisation: number | null;
+  /** Net realisation in rupees per tonne; I fill it only when the company states it. */ realisation: number | null;
   /** EBITDA per tonne, rupees, as the company states it */ ebitdaPerTonne: number | null;
   /** rupees crore */ revenue: number | null;
-  /** true when a figure of this quarter comes from a report of the company's call, not from a company document */ secondary: boolean;
-  /** the same quarter as the company restated it later, on today's scope, where its scope changed (JSW without BPSL): what a change on the year is worked out against */ sameScope?: { production?: number; sales?: number; ebitdaPerTonne?: number };
+  /** I set this to true when a figure of this quarter comes from a report of the company's call, not from a company document. */ secondary: boolean;
+  /** The same quarter as the company restated it later, on today's scope, where its scope changed (JSW without BPSL); I work a change on the year out against this. */ sameScope?: { production?: number; sales?: number; ebitdaPerTonne?: number };
   ebitda: number | null;
   pat: number | null;
   sources: CompanySource[];

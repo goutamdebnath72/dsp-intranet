@@ -1,9 +1,7 @@
 // src/lib/nl2sql/context.ts
 //
-// The live reference data the model needs to resolve words like "GM" or
-// "plant garage" to real rows: the designation list (30 rows) and the
-// department list (~300 rows), read from the database through the SAME
-// read-only path as any other query, and cached for a few minutes.
+// The live reference data the model needs to resolve words like "GM" or "plant garage" to real rows: the designation list (30 rows) and the
+// department list (~300 rows). I read it from the database through the SAME read-only path as any other query, and cache it for a few minutes.
 
 import type { SqlClient } from "./types";
 import { runReadOnly } from "./executor";
@@ -45,7 +43,7 @@ const QUESTION_STOP = new Set([
   "nic", "mail", "word", "words", "last", "first", "middle", "top", "designation", "wise", "breakdown", "work", "working", "plant", "dsp", "sail", "company",
 ]);
 
-/** Same normalization as the database function nlq.norm(). */
+/** I keep this the same normalization as the database function nlq.norm(). */
 function normText(s: string): string {
   return s.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -55,18 +53,15 @@ function meaningfulWords(s: string): string[] {
 }
 
 /**
- * The full department list (~300 rows) is about half of a prompt and the
- * language model's per-minute token allowance is limited, so only the
- * departments that look relevant to THIS question are shown. Relevance is a
- * plain word overlap between the question and the department name (plus the
- * known short forms, e.g. "etl" brings in ELECTRICAL TECHNICAL LAB). Nothing is
- * lost for correctness: a department not shown is still matched by name inside
+ * The full department list (~300 rows) is about half of a prompt and the language model's per-minute token allowance is limited, so I show only the
+ * departments that look relevant to THIS question. Relevance is a plain word overlap between the question and the department name (plus the
+ * known short forms, e.g. "etl" brings in ELECTRICAL TECHNICAL LAB). Nothing is lost for correctness: a department not shown is still matched by name inside
  * the SQL (nlq.norm(name) LIKE ...), and the prompt says so.
  */
 export function selectRelevantDepartments(question: string, all: DepartmentRow[], max = 25): DepartmentRow[] {
   const qNorm = " " + normText(question) + " ";
   const qWords = new Set(meaningfulWords(question));
-  const stems: string[] = []; // a short form named in the question: the rows whose name STARTS with its full name ("cocc" -> "CO & CC (BATTERY)")
+  const stems: string[] = []; // when a short form is named in the question I take the rows whose name STARTS with its full name ("cocc" -> "CO & CC (BATTERY)")
   for (const [name, aliases] of DEPARTMENT_SHORT_FORMS) {
     if (aliases.some((a) => qNorm.includes(" " + normText(a) + " "))) {
       meaningfulWords(name).forEach((w) => qWords.add(w));
@@ -89,11 +84,11 @@ export function selectRelevantDepartments(question: string, all: DepartmentRow[]
   return scored.slice(0, max).map((x) => x.d);
 }
 
-/** Departments whose own name must NOT start a family of their own: "ed" is also the designation Executive Director. */
+/** Do not let these departments' own names start a family of their own: "ed" is also the designation Executive Director. */
 const NO_AUTO_FAMILY = new Set(["ed"]);
 
 /**
- * The departments a question names, each with ALL its rows in the live list (the people sit in the section rows):
+ * I return the departments a question names, each with ALL its rows in the live list, because the people sit in the section rows:
  *   1. the groups written in departmentAliases.ts: nicknames and groupings that the names cannot tell (cocc, W&A, hydraulic lab, main hospital ...);
  *   2. every other department named by its OWN name (the part before the bracket): all the rows that start with it (ACVS and ACVS - OFFICE, L & D with L & D IND and L & D OFFICE ...).
  */
@@ -104,8 +99,8 @@ export function departmentFamilies(question: string, all: DepartmentRow[]): { na
     return n === p || n.startsWith(p + " ");
   };
   const out: { name: string; rows: DepartmentRow[] }[] = [];
-  // step 60d: the LONGEST name wins. "centre for human resource development" (CL&D) contains "human resource" (the HR department): a family whose every match lies INSIDE a longer match of ANOTHER family is dropped
-  // (owner's check, 26 Oct 2026: the question got the 11 HR rows as well and the model answered with 107 HR people). A family that is also named elsewhere in the question stays.
+  // Step 60d: the LONGEST name wins. "centre for human resource development" (CL&D) contains "human resource" (the HR department): I drop a family whose every match lies INSIDE a longer match of ANOTHER family
+  // (my check, 26 Oct 2026: the question got the 11 HR rows as well and the model answered with 107 HR people). A family that is also named elsewhere in the question stays.
   const spansOf = (a: string): [number, number][] => {
     const n = " " + normText(a) + " ";
     const r: [number, number][] = [];
@@ -119,12 +114,12 @@ export function departmentFamilies(question: string, all: DepartmentRow[]): { na
   };
   for (const f of DEPARTMENT_FAMILIES) {
     if (shadowedByLonger(f)) continue;
-    if (f.unlessText?.test(qNorm)) continue; // e.g. another plant's CHRD (step 60c)
+    if (f.unlessText?.test(qNorm)) continue; // for example another plant's CHRD (step 60c)
     if (!f.aliases.some((a) => qNorm.includes(" " + normText(a) + " "))) continue;
     const rows = all.filter((d) => f.prefixes.some((p) => startsWith(d, p)) || (f.stems ?? []).some((s) => normText(d.name).startsWith(s)));
     if (rows.length) out.push({ name: f.name, rows });
   }
-  // C & IT and Plant Garage are listed by code in EVERY prompt already (MULTI_ROW_DEPARTMENTS): they are not repeated here
+  // C & IT and Plant Garage are already listed by code in EVERY prompt (MULTI_ROW_DEPARTMENTS), so I do not repeat them here
   const byCode = new Set(MULTI_ROW_DEPARTMENTS.flatMap((m) => m.codes));
   const covered = new Set([...out.flatMap((f) => f.rows.map((r) => r.id)), ...all.filter((d) => byCode.has(d.code)).map((d) => d.id)]);
   const seen = new Set<string>();
@@ -144,7 +139,7 @@ export function departmentFamilies(question: string, all: DepartmentRow[]): { na
   return [...out, ...kept];
 }
 
-/** What the model is told about them (empty when the question names none, so the prompt does not grow). */
+/** What the model is told about them; the text is empty when the question names none, so the prompt does not grow. */
 export function formatFamilies(families: { name: string; rows: DepartmentRow[] }[]): string {
   if (!families.length) return "";
   return (

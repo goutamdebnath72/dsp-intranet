@@ -1,6 +1,6 @@
 // src/lib/announcements/admin/api.ts
 //
-// HTTP dispatch for the Announcement Manager facility endpoint (Modular Facility Kit).
+// This is my HTTP dispatch for the Announcement Manager facility endpoint (Modular Facility Kit).
 
 import { authorityOf } from "@/lib/facility/authority";
 import { resolveGrantTarget } from "@/lib/facility/authorise";
@@ -18,11 +18,11 @@ export interface ApiContext {
   db: AnnouncementDb;
   findByName: (name: string) => Promise<EmployeeResult[]>;
   findByTicket: (ticket: string) => Promise<EmployeeResult[]>;
-  /** the PDF that came with a publish or a modify (multipart form), or none */
+  /** The PDF that came with a publish or a modify (multipart form), or none. */
   upload?: UploadedPdf | null;
-  /** where PDFs are kept (the real storage when left out) */
+  /** Where PDFs are kept; when left out, the real storage is used. */
   storage?: FileStorage;
-  /** how an announcement is prepared for the search bar (the real parts when the route gives them; left out = nothing is prepared, as in the tests of the rest) */
+  /** How an announcement is prepared for the search bar. The route gives the real parts; if I leave it out, nothing is prepared, as in the tests of the rest. */
   indexDeps?: IndexDeps;
 }
 
@@ -77,7 +77,7 @@ export function errorReply(e: unknown): ApiReply {
       setupNeeded: true,
     });
   }
-  // The first PDF ever attached tries to create public.announcement_file itself; if the database user may not, this is what is said.
+  // The first PDF ever attached tries to create public.announcement_file itself. If the database user is not allowed to, this is the message I give.
   if ((code === "42501" || code === "42P01") && /announcement_file/.test(String(err?.message ?? ""))) {
     return reply(503, {
       error: "Attaching a PDF needs setup in the database. Run src/lib/nl2sql/sql/28_announcement_file.sql once in Supabase SQL editor.",
@@ -110,12 +110,12 @@ export async function findPeopleToAuthorise(q: string, ctx: Pick<ApiContext, "fi
   }));
 }
 
-/** The plain words of a body as it will be saved (what the passages are made from). */
+/** The plain words of a body as it will be saved; I make the passages from these. */
 function plainBody(content: string): string | null {
   return htmlToPlainText(sanitizeAnnouncementHtml(content)) || null;
 }
 
-/** Prepares the announcement for the search bar and says in a sentence what happened. Never throws. */
+/** I prepare the announcement for the search bar and say in one sentence what happened. This never throws. */
 async function indexAndDescribe(db: AnnouncementDb, deps: IndexDeps, input: { id: number; bodyText: string | null; bytes?: Buffer }): Promise<{ status: IndexOutcome["status"]; message: string }> {
   const outcome = await indexAnnouncement(db, deps, input);
   return { status: outcome.status, message: describeOutcome(outcome) };
@@ -148,7 +148,7 @@ export async function handleAnnouncementAdmin(body: unknown, ctx: ApiContext): P
     const date = typeof b.date === "string" ? b.date : undefined;
     const res = await store.publishAnnouncement(ctx.db, actor, { title, content, date, file: ctx.upload ?? undefined }, ctx.storage);
     if (res.status === "invalid") return reply(400, { error: res.reason });
-    // Its text, and the PDF that came with it, are prepared for the search bar now (a failure never fails the publish: the reply says what happened)
+    // Its text, and the PDF that came with it, are prepared for the search bar now. A failure never fails the publish: I let the reply say what happened.
     const indexing = ctx.indexDeps ? await indexAndDescribe(ctx.db, ctx.indexDeps, { id: res.id, bodyText: plainBody(content), bytes: ctx.upload?.bytes }) : undefined;
     return reply(200, { status: "ok", id: res.id, ...(indexing ? { indexing } : {}) });
   }
@@ -174,12 +174,12 @@ export async function handleAnnouncementAdmin(body: unknown, ctx: ApiContext): P
       });
     }
     if (res.status === "invalid") return reply(400, { error: res.reason });
-    // The text is prepared again (it may have changed); the PDF only if a new one came (a kept PDF keeps its index)
+    // I prepare the text again because it may have changed; the PDF only if a new one came (a kept PDF keeps its index).
     const indexing = ctx.indexDeps ? await indexAndDescribe(ctx.db, ctx.indexDeps, { id, bodyText: plainBody(content), bytes: ctx.upload?.bytes }) : undefined;
     return reply(200, { status: "ok", ...(indexing ? { indexing } : {}) });
   }
 
-  // 3b. Prepare an announcement for the search bar again (its text or its PDF failed, or was never prepared): the text from the database, the PDF from storage
+  // 3b. I prepare an announcement for the search bar again (its text or its PDF failed, or was never prepared): the text comes from the database, the PDF from storage
   if (op === "reindex") {
     const id = num(b.id);
     if (!id) return reply(400, { error: "Missing announcement id." });

@@ -11,7 +11,7 @@ export const tyreTopic = defineTopic({
   form: {
     rank: 80,
     nouns: ["tyre", "tyres", "tire", "tires", "size", "sizes", "specification", "specifications", "spec", "specs", "meaning", "meanings", "decode", "reader", "read", "reading", "guide", "chart", "code", "explained", "load", "speed", "index", "rating", "ratings", "symbol", "symbols", "and", "car", "wheel", "wheels", "rim", "rims", "alloy", "marking", "markings", "flange", "offset"],
-    // the tyre reader needs a tyre word; the wheel (rim) guide sits under it, so "wheel size", "rim specification", "alloy wheel markings" open it too (a wheel word alone stays an ordinary search)
+    // I require a tyre word for the tyre reader. The wheel (rim) guide sits under it, so "wheel size", "rim specification", "alloy wheel markings" open it too (a wheel word alone stays an ordinary search)
     wants: (c) => (c.has(["tyre", "tyres", "tire", "tires"]) && c.only())
       || (c.has(["rim", "rims", "wheel", "wheels", "alloy"]) && c.has(["size", "sizes", "spec", "specs", "specification", "specifications", "marking", "markings", "meaning", "meanings", "decode", "reader", "guide", "chart", "code", "explained"]) && c.only()),
   },

@@ -1,7 +1,7 @@
 // src/tools/gratuity/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the gratuity calculator: its tile and its page.
-// Its logic is in the files beside this one, what the search line needs to know in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the gratuity calculator, with its tile and its page.
+// Its logic is in the files beside this one, and what the search line needs to know is in topic.ts. I list it once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";

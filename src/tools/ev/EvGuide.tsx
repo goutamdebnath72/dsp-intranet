@@ -1,6 +1,6 @@
 // src/tools/ev/EvGuide.tsx
 //
-// THE SECOND TAB OF THE ELECTRIC-CAR WINDOW: "EV specifications explained": six distinct, colour-coded sections (the two numbers, power, the battery, the Blade battery, AC and DC charging, the socket) that say what each word
+// This is the second tab of the electric-car window, "EV specifications explained": six distinct, colour-coded sections (the two numbers, power, the battery, the Blade battery, AC and DC charging, the socket) that say what each word
 // of a spec sheet means in plain words, then one worked example with the figures worked out from the same arithmetic as the charging-time tab. The text is in evGuideData.ts. Nothing is fetched, stored or sent.
 "use client";
 
@@ -57,7 +57,7 @@ function Section({ s }: { s: GuideSection }) {
   );
 }
 
-/** the worked example: every figure is computed here, from the same arithmetic as the charging-time tab and the converter */
+/** The worked example: every figure is computed here, from the same arithmetic as the charging-time tab and the converter. */
 export function Example() {
   const e = EXAMPLE;
   const ac = estimateCharge({ ...EV_DEFAULTS, capacityKwh: e.capacityKwh, fromPct: 10, toPct: 90, carAcKw: e.acKw, kmPerKwh: e.kmPerKwh }, { kind: "AC", kw: e.acKw });

@@ -7,8 +7,8 @@
 //  2 "Companies": SAIL, Tata Steel, JSW Steel and Jindal Steel & Power quarter by quarter, from their own results: production, sales, EBITDA per tonne, and the results.
 //  3 "SAIL & CPSEs": SAIL, RINL and NMDC Steel month by month (the Ministry's tables), SAIL against the same month a year earlier.
 //  4 "India & world": India's crude steel, consumption and trade by year, and the biggest producers.
-// There is NO price list of SAIL, Tata Steel or JSW to show: the mills sell at their own dealer rates, which differ by city, size and day, and none publishes them. The card says so, and compares the companies by
-// what they themselves report (the Companies tab). Nothing here is fetched: the figures are reviewed files with their sources and dates (mos.ts, companies.ts); a figure that is not published is a dash.
+// There is NO price list of SAIL, Tata Steel or JSW to show: the mills sell at their own dealer rates, which differ by city, size and day, and none publishes them. The card says so, and I compare the companies by
+// what they themselves report (the Companies tab). I fetch nothing here: the figures are reviewed files with their sources and dates (mos.ts, companies.ts); a figure that is not published is a dash.
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -36,7 +36,7 @@ const TABS: Array<{ id: SteelTab; text: string }> = [
   { id: "india", text: "India & world" },
 ];
 const PILL = "from-sky-600 to-blue-700 shadow-sky-600/30";
-/** one colour for each DSP product (whole class names, so that Tailwind finds them): the strip and price tile (grad), the mill chip (chip), the card's edge (border) and the small labels (label) */
+/** I give each DSP product one colour, written as whole class names so that Tailwind finds them: the strip and price tile (grad), the mill chip (chip), the card's edge (border) and the small labels (label). */
 const DSP_ACCENT: Record<string, { grad: string; chip: string; border: string; label: string }> = {
   tmt: { grad: "from-orange-500 to-amber-600", chip: "bg-orange-100 text-orange-800", border: "border-orange-200", label: "text-orange-700" },
   channel: { grad: "from-blue-600 to-indigo-600", chip: "bg-blue-100 text-blue-800", border: "border-blue-200", label: "text-blue-700" },
@@ -54,7 +54,7 @@ const DSP_CAPACITY_TILES = [
 
 /* ---------- small pieces ---------- */
 
-/** a percentage change as a chip: green for up, red for down, grey for none; "no figure" when it cannot be worked out */
+/** I show a percentage change as a chip: green for up, red for down, grey for none, and "no figure" when it cannot be worked out. */
 function Delta({ p, label }: { p: number | null; label?: string }) {
   if (p === null) return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">no figure</span>;
   const tone = p > 0 ? "bg-emerald-100 text-emerald-800" : p < 0 ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-600";
@@ -66,7 +66,7 @@ function Band({ icon, tone, children }: { icon: React.ReactNode; tone: "sky" | "
   return <p className={`flex items-start gap-2 rounded-2xl border px-3 py-2 text-xs leading-relaxed ${c}`}>{icon}<span>{children}</span></p>;
 }
 
-/** a few of the documents are read from a copy of the company's filing (on a data site or an exchange's mirror): say so beside the link */
+/** A few of the documents are read from a copy of the company's filing (on a data site or an exchange's mirror), so I say so beside the link. */
 function hostNote(url: string): React.ReactNode {
   const host = (/^https?:\/\/([^/]+)/.exec(url)?.[1] ?? "").replace(/^www\./, "");
   const copy = /tijorifinance|links\.sgx/.test(host);
@@ -77,7 +77,7 @@ function ExtLink({ href, children }: { href: string; children: React.ReactNode }
   return <a className="inline-flex items-center gap-0.5 font-semibold underline-offset-2 hover:underline" href={href} target="_blank" rel="noopener noreferrer">{children}<ExternalLink size={11} aria-hidden="true" /></a>;
 }
 
-/** bars for every month from the first to the last of a series, a month with no figure left as a gap */
+/** Bars for every month from the first to the last of a series; I leave a month with no figure as a gap. */
 function monthBars(rows: ReadonlyArray<{ month: string; v: number | null }>, unit: string, digits = 2): Bar[] {
   if (!rows.length) return [];
   const by = new Map(rows.map((r) => [r.month, r.v]));
@@ -175,14 +175,14 @@ function PricesTab() {
 
 /* ---------- tab: DSP products ---------- */
 
-/** the day's change a trade site prints beside a quote, in rupees: ▲ green, ▼ red, nothing when it prints none */
+/** I show the day's change a trade site prints beside a quote, in rupees: ▲ green, ▼ red, nothing when it prints none. */
 function RupeeMove({ change }: { change: number | null }) {
   if (change === null) return null;
   const tone = change > 0 ? "bg-emerald-100 text-emerald-800" : change < 0 ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-600";
   return <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold ${tone}`} data-move>{change > 0 ? "▲" : change < 0 ? "▼" : ""} {inr(Math.abs(change))}<span className="ml-1 font-semibold opacity-70">on the day</span></span>;
 }
 
-/** what DSP produced: by year, the three units of 2024-25, the product mix of 2025-26 and the wheels and axles; every figure as SAIL's reports state it, a dash where they do not */
+/** Here I show what DSP produced: by year, the three units of 2024-25, the product mix of 2025-26 and the wheels and axles. Every figure is as SAIL's reports state it, and I put a dash where they do not. */
 function DspProduction() {
   const years = [...DSP_YEARS].reverse();
   const split = fy25Split();
@@ -408,9 +408,9 @@ const METRICS: Array<{ id: Metric; text: string; unit: string; title: string; di
 ];
 const quarterAxis = (q: string) => (q.startsWith("Q1") ? q : q.slice(0, 2));
 
-/** the latest quarter of a company that has the figure, with the same quarter a year earlier and the quarter before, when the company stated them */
+/** Returns the latest quarter of a company that has the figure, with the same quarter a year earlier and the quarter before, when the company stated them. */
 export function latestOf(c: Company, m: Metric): { q: CompanyQuarter; yoy: number | null; qoq: number | null; sameScope: boolean } | null {
-  // a change is worked out against the earlier quarter as the company itself restated it on today's scope (JSW without BPSL), when it did
+  // I work out a change against the earlier quarter as the company itself restated it on today's scope (JSW without BPSL), when it did.
   const base = (cq: CompanyQuarter | undefined): { v: number | null; restated: boolean } => {
     const r = cq?.sameScope?.[m as "production" | "sales" | "ebitdaPerTonne"];
     return r !== undefined ? { v: r, restated: true } : { v: cq?.[m] ?? null, restated: false };
@@ -425,7 +425,7 @@ export function latestOf(c: Company, m: Metric): { q: CompanyQuarter; yoy: numbe
 }
 
 function CompaniesTab() {
-  // a metric to compare needs at least two companies that state it (SAIL alone states its realisation: that is on the SAIL tab)
+  // A metric to compare needs at least two companies that state it; SAIL alone states its realisation, so that is on the SAIL tab.
   const have = METRICS.filter((m) => COMPANIES.filter((c) => c.quarters.some((q) => q[m.id] !== null)).length >= 2);
   const [metric, setMetric] = useState<Metric>("production");
   const meta = METRICS.find((m) => m.id === metric) ?? METRICS[0];
@@ -523,7 +523,7 @@ function SailTab() {
   const last = latestSail();
   const pick = (r: never) => (r as { [k in SailItem]: number | null })[item];
   const yoy = yearOnYear(SAIL_MONTHLY, last.month, pick);
-  // the year to date is the Ministry's own cumulative figure, not the months added up (revisions differ in the second decimal)
+  // For the year to date I use the Ministry's own cumulative figure, not the months added up (revisions differ in the second decimal).
   const nowFy: number | null = last.month === SAIL_CUMULATIVE.lastMonth ? SAIL_CUMULATIVE[item].now : fyToDate(SAIL_MONTHLY, last.month, pick);
   const thenFy: number | null = last.month === SAIL_CUMULATIVE.lastMonth ? SAIL_CUMULATIVE[item].prev : fyToDate(SAIL_MONTHLY, monthShift(last.month, -12), pick);
   const bars = monthBars(SAIL_MONTHLY.map((r) => ({ month: r.month, v: r[item] })), "MT", 3);
@@ -689,7 +689,7 @@ function IndiaTab() {
 
 /* ---------- the card ---------- */
 
-/** `initialTab` is the tab the search line asked for ("steel prices" opens Prices, "steel companies" Companies, "sail steel production" the SAIL tab) */
+/** `initialTab` is the tab the search line asked for: I open Prices for "steel prices", Companies for "steel companies" and the SAIL tab for "sail steel production". */
 export function SteelCard({ initialTab = "prices" }: { initialTab?: SteelTab }) {
   const [tab, setTab] = useState<SteelTab>(initialTab);
   return (

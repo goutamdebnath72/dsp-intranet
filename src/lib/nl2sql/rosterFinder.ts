@@ -1,13 +1,13 @@
 // src/lib/nl2sql/rosterFinder.ts
 //
-// THE DEPARTMENT & DESIGNATION FINDER (People selection, facet "Department & designation"): the reader PICKS a department and/or a designation (and may type part of a name), so nothing has to be understood:
-// the list is a FIXED SQL TEMPLATE filled with whole numbers (ids from the two pickers) and a name made only of letters. No language model is involved, the SQL goes through the same guard, the same
-// read-only executor, the same log row and the same cards, masking and "Show more" paging as every answer the model writes. Pure here (the SQL and its words); the run is in omnibar.ts (runRosterFinder).
+// THE DEPARTMENT & DESIGNATION FINDER (People selection, facet "Department & designation"): I built it so the reader PICKS a department and/or a designation (and may type part of a name), so nothing has to be understood:
+// the list is a FIXED SQL TEMPLATE filled with whole numbers (ids from the two pickers) and a name made only of letters. No language model is involved; the SQL goes through the same guard, the same
+// read-only executor, the same log row and the same cards, masking and "Show more" paging as every answer the model writes. This file is pure (the SQL and its words); the run is in omnibar.ts (runRosterFinder).
 
 export interface FinderInput {
   departmentId?: number | null;
   gradeId?: number | null;
-  /** part of a name, to narrow the list (letters, spaces, dots, hyphens, apostrophes only) */
+  /** Part of a name that narrows the list; I allow only letters, spaces, dots, hyphens and apostrophes. */
   name?: string | null;
 }
 
@@ -18,7 +18,7 @@ const positiveInt = (v: unknown): number | null => {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 };
 
-/** the words of a name filter: letters (any script) only, each 2 to 30 long, at most 4 words */
+/** Returns the words of a name filter: letters (any script) only, each 2 to 30 long, at most 4 words. */
 export function nameWords(raw: unknown): string[] {
   const s = String(raw ?? "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\s.'-]/gu, " ");
   return s.split(/[\s.'-]+/).filter((w) => w.length >= 2 && w.length <= 30).slice(0, 4);
@@ -32,13 +32,13 @@ export function planFinder(input: FinderInput): FinderPlan {
   const where: string[] = [];
   if (departmentId !== null) where.push(`department_id = ${departmentId}`);
   if (gradeId !== null) where.push(`grade_id = ${gradeId}`);
-  // every word must be like a word of the name (spelled alike by sound); the word is letters only, so it is safe inside quotes
+  // Every word must be like a word of the name (spelled alike by sound). The word is letters only, so it is safe inside quotes.
   for (const w of words) where.push(`nlq.word_like(name_words, name_codes, '${w.replace(/'/g, "''")}')`);
   const sql = `SELECT ticket_no, name, designation, department_code, department, global_seniority_rank FROM nlq.employees WHERE ${where.join(" AND ")} ORDER BY global_seniority_rank`;
   return { ok: true, sql, wanted: { departmentId, gradeId, name: words.length ? words.join(" ") : null } };
 }
 
-/** the sentence that says what was listed (the answer's own words; the model is not asked) */
+/** Returns the sentence that says what was listed: the answer's own words, and I do not ask the model. */
 export function finderUnderstoodAs(w: { gradeTitle?: string | null; departmentName?: string | null; name?: string | null }): string {
   const parts: string[] = [];
   parts.push(w.gradeTitle ? `${w.gradeTitle}` : "Employees");

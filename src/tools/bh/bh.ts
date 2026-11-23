@@ -1,25 +1,25 @@
 // src/tools/bh/bh.ts
 //
-// THE BHARAT (BH) SERIES: the vehicle registration mark that stays valid in every State and Union Territory. This file holds what can be computed: how to read a BH mark ("26 BH 1234 AA"),
-// who is eligible, and the motor vehicle (road) tax. Pure; nothing typed is stored or sent anywhere.
+// The Bharat (BH) series: the vehicle registration mark that stays valid in every State and Union Territory. This file holds what can be computed: how to read a BH mark ("26 BH 1234 AA"),
+// who is eligible, and the motor vehicle (road) tax. It is pure; nothing typed is stored or sent anywhere.
 //
-// SOURCES (read in November 2026): the Central Motor Vehicles (Twentieth Amendment) Rules, 2021, G.S.R. 594(E) of 26 August 2021, in force from 15 September 2021 (draft: G.S.R. 276(E) of 6 April 2021),
+// Sources (read in November 2026): the Central Motor Vehicles (Twentieth Amendment) Rules, 2021, G.S.R. 594(E) of 26 August 2021, in force from 15 September 2021 (draft: G.S.R. 276(E) of 6 April 2021),
 // as reproduced with the Press Information Bureau release of 28 August 2021; the change of December 2022 that allowed an ordinary registration to be converted; and published guides of 2025-2026.
-// The rules are quoted where they are exact. Where the sources differ or are silent the card says so; the Parivahan portal and the registering authority (the RTO) have the last word.
+// I quote the rules where they are exact. Where the sources differ or are silent the card says so; the Parivahan portal and the registering authority (the RTO) have the last word.
 import { DateTime } from "luxon";
 
-/** the day the BH series came into force */
+/** This is the day the BH series came into force. */
 export const BH_START = { year: 2021, day: "15 September 2021" };
 
-/** the letters that may be used in the last part of the mark: A to Z without I and O (they look like 1 and 0) */
+/** The letters allowed in the last part of the mark: A to Z without I and O, since they look like 1 and 0. */
 export const BH_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 export interface BhPlate {
-  /** the last two digits of the year, as typed ("26") */
+  /** Holds the last two digits of the year, as typed ("26"). */
   yy: string;
-  /** the four digits ("1234") */
+  /** Holds the four digits ("1234"). */
   number: string;
-  /** one or two letters ("AA") */
+  /** Holds one or two letters ("AA"). */
   letters: string;
 }
 
@@ -33,7 +33,7 @@ export interface BhPart {
 export interface BhReading {
   ok: true;
   plate: BhPlate;
-  /** the mark as it is written on the plate: "26 BH 1234 AA" */
+  /** Holds the mark as it is written on the plate: "26 BH 1234 AA". */
   shown: string;
   parts: BhPart[];
   facts: Array<{ label: string; value: string }>;
@@ -44,17 +44,17 @@ export interface BhProblem { ok: false; typed: boolean; issues: string[] }
 
 const PLATE_RE = /^(\d{2})BH(\d{4})([A-Z]{1,2})$/;
 
-/** The mark typed with spaces, hyphens or none ("26bh1234aa", "26-BH-1234-AA"), or null when it is not shaped like one. Letters I and O are let through so that they can be named. */
+/** Takes the mark typed with spaces, hyphens or none ("26bh1234aa", "26-BH-1234-AA"), and returns null when it is not shaped like one. I let the letters I and O through so that they can be named. */
 export function parseBhShape(raw: string): BhPlate | null {
   const q = (raw || "").toUpperCase().replace(/[\s\-.]+/g, "");
   const m = PLATE_RE.exec(q);
   return m ? { yy: m[1], number: m[2], letters: m[3] } : null;
 }
 
-/** true for a line that is a BH mark (used by the search line to open the reader at once) */
+/** Returns true for a line that is a BH mark; the search line uses it to open the reader at once. */
 export const looksLikeBh = (raw: string): boolean => (raw || "").length <= 20 && parseBhShape(raw) !== null;
 
-/** the place of a letter set in the order A to Z, then AA to ZZ (24 + 576 = 600 sets), or null when it uses I or O */
+/** Gives the place of a letter set in the order A to Z, then AA to ZZ (24 + 576 = 600 sets), or null when it uses I or O. */
 export function letterSetNumber(letters: string): { n: number; of: number } | null {
   const idx = (c: string) => BH_LETTERS.indexOf(c);
   if ([...letters].some((c) => idx(c) < 0)) return null;
@@ -69,7 +69,7 @@ export const BH_SAMPLES: Array<{ label: string; text: string }> = [
   { label: "24 BH 9876 ZK", text: "24 BH 9876 ZK" },
 ];
 
-/** Reads a BH mark part by part. `nowYear` fixes "this year" for the tests. */
+/** I read a BH mark part by part; `nowYear` fixes "this year" for the tests. */
 export function readBh(raw: string, nowYear: number = DateTime.now().year): BhReading | BhProblem {
   const typed = (raw || "").trim() !== "";
   if (!typed) return { ok: false, typed: false, issues: [] };
@@ -107,7 +107,7 @@ export function readBh(raw: string, nowYear: number = DateTime.now().year): BhRe
 
 export interface BhGroup { id: string; label: string; eligible: boolean; proof: string; note: string }
 
-/** The groups the Ministry named (press release of 28 August 2021). The registering authority verifies the proof. */
+/** These are the groups the Ministry named (press release of 28 August 2021). The proof is verified by the registering authority. */
 export const BH_GROUPS: BhGroup[] = [
   { id: "defence", label: "Defence personnel", eligible: true, proof: "the official identity card", note: "Defence personnel are named in the Ministry's list." },
   { id: "central", label: "Central Government employee", eligible: true, proof: "the official identity card", note: "Employees of the Central Government are named in the Ministry's list." },
@@ -129,7 +129,7 @@ export const BH_FUELS: Array<{ id: BhFuel; label: string; adjust: number }> = [
   { id: "electric", label: "Electric (2 points less)", adjust: -2 },
 ];
 
-/** the three price bands of rule 51B: below Rs 10 lakh 8%, Rs 10-20 lakh 10%, above Rs 20 lakh 12% (invoice price without GST) */
+/** The three price bands of rule 51B: below Rs 10 lakh 8%, Rs 10-20 lakh 10%, above Rs 20 lakh 12% (invoice price without GST). */
 export const BH_BANDS: Array<{ label: string; base: number }> = [
   { label: "below ₹10 lakh", base: 8 },
   { label: "₹10 lakh to ₹20 lakh", base: 10 },
@@ -138,7 +138,7 @@ export const BH_BANDS: Array<{ label: string; base: number }> = [
 
 const LAKH = 100000;
 
-/** a number with Indian grouping (12,34,567), with up to two decimals only when it has them; no dependence on the machine's locale */
+/** Writes a number with Indian grouping (12,34,567), with up to two decimals only when it has them; I do not depend on the machine's locale. */
 export function inGroups(n: number): string {
   const [whole, frac] = (Math.round(n * 100) / 100).toString().split(".");
   const g = whole.length > 3 ? `${whole.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ",")},${whole.slice(-3)}` : whole;
@@ -147,21 +147,23 @@ export function inGroups(n: number): string {
 
 export interface BhTax {
   band: number;
-  /** the rate, in per cent of the invoice price, after the diesel or electric change */
+  /** Holds the rate, in per cent of the invoice price, after the diesel or electric change. */
   rate: number;
-  /** the tax for two years, rounded up to the next rupee */
+  /** Holds the tax for two years, rounded up to the next rupee. */
   twoYear: number;
-  /** the tax for each year from the fourteenth year, half of the two-year tax, rounded up */
+  /** Holds the tax for each year from the fourteenth year: half of the two-year tax, rounded up. */
   annual: number;
-  /** seven payments of two years make the first fourteen years */
+  /** Seven payments of two years make the first fourteen years. */
   fourteenYears: number;
-  /** the steps of the sum, in words */
+  /** Holds the steps of the sum, in words. */
   steps: string[];
 }
 export interface BhTaxProblem { error: string }
 
-/** The two-year tax of rule 51B: invoice price (without GST) x rate x 1.25 x 2 / 15, rounded up to the next rupee. 1.25 x 2 / 15 is 1/6, so it is price x rate / 600.
- *  Done in whole paise so that no rounding of the computer can move the answer by a rupee. */
+/**
+ * The two-year tax of rule 51B: invoice price (without GST) x rate x 1.25 x 2 / 15, rounded up to the next rupee. 1.25 x 2 / 15 is 1/6, so it is price x rate / 600.
+ * I do it in whole paise so that no rounding of the computer can move the answer by a rupee.
+ */
 export function bhTax(price: number, fuel: BhFuel): BhTax | BhTaxProblem {
   if (!Number.isFinite(price) || price <= 0) return { error: "Type the invoice price of the vehicle, without GST, in rupees." };
   if (price > 1000 * LAKH * 100) return { error: "That price is more than ₹1,000 crore. Check the number." };

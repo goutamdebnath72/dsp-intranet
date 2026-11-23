@@ -149,7 +149,7 @@ export const links = [
     category: "quicklink",
   },
   {
-    // MODIFIED: Changed SRM Dgp to SRM, category to quicklink, icon to Handshake
+    // I changed SRM Dgp to SRM, the category to quicklink and the icon to Handshake
     title: "SRM", // Changed title
     href: "https://srm.saildsp.co.in/irj/portal", // Kept specific link
     icon: "Handshake", // Changed icon
@@ -228,7 +228,7 @@ export const links = [
   { title: "C & IT", href: "http://www.dsp.com/dsp/cit/cit.shtml", icon: "Laptop", category: "department" },
   { title: "CCM", href: "http://www.dsp.com/dsp/ccm/ccm.shtml", icon: "Construction", category: "department" },
   { title: "CEM", href: "#", icon: "/cem.png", category: "department" },
-  // step 60a: the Training Department -> CHRD (Centre for Human Resource Development) -> Centre for L & D (CL&D, Learning and Development). The link shows the CURRENT name; the old names, the full forms and the short forms are `aliases` that the site search matches (siteSearch.ts).
+  // Step 60a: the Training Department -> CHRD (Centre for Human Resource Development) -> Centre for L & D (CL&D, Learning and Development). The link shows the CURRENT name; I keep the old names, the full forms and the short forms as `aliases` that the site search matches (siteSearch.ts).
   { title: "Centre for L & D (CL&D)", subtitle: "(formerly CHRD, earlier the Training Department)", aliases: ["CHRD", "C.H.R.D", "Centre for Human Resource Development", "Center for Human Resource Development", "Training Department", "Training Dept", "Training Deptt", "CL&D", "L&D", "L & D", "Centre for L & D", "Center for L & D", "Centre for Learning and Development", "Center for Learning and Development", "Learning and Development"], href: "http://10.141.4.76/chrd/home/", icon: "UserCog", category: "department" },
   {
     title: "CO & CC",
@@ -329,7 +329,7 @@ export const links = [
     category: "department",
   },
 
-  // SAIL INTRANET SITES (Keep as is, SRM Dgp was moved above)
+  // SAIL INTRANET SITES (keep as is; I moved SRM Dgp above)
   { title: "ASP", href: "#", icon: "Factory", category: "sail" },
   { title: "BSL", href: "#", icon: "Building", category: "sail" },
   { title: "BSP CHRD", href: "#", icon: "Users", category: "sail" },

@@ -1,7 +1,7 @@
 // src/app/api/employees/admin/route.ts
 //
 // POST /api/employees/admin  { op: "me" | "lookups" | "search" | "get" | "add" | "modify" | "delete" | "delegates" | "find-executive" | "grant" | "revoke" | "audit", ... }
-// The employee manager's requests (step 66a). The person is the LOGIN SESSION's; the rules are in src/lib/employees/admin/api.ts.
+// These are the employee manager's requests (step 66a). The person is the LOGIN SESSION's; the rules are in src/lib/employees/admin/api.ts.
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";

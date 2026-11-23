@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/AnnouncementFile.selftest.tsx
-// The PDF of an announcement on the screens: the card and frame in the announcement's window, the picker of the manager, the mark on its cards and on the home page's two lists.
+// I check the PDF of an announcement on the screens: the card and frame in the announcement's window, the picker of the manager, the mark on its cards and on the home page's two lists.
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/hospital/discipline.selftest.ts
-// Step 53a: a doctor's discipline: from the printed qualification, found by ticket, never guessed.
+// Step 53a: a doctor's discipline comes from the printed qualification, is found by ticket, and is never guessed.
 
 import { disciplineFromQualification, disciplineOfTicket } from "./discipline";
 import { STAFF } from "./opdData";

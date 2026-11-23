@@ -1,31 +1,29 @@
 // src/lib/nl2sql/guard.ts
 //
-// SECOND line of defence for LLM-written SQL (the FIRST is the database
-// itself: a read-only transaction, a role that can only SELECT from three
-// views, and a statement timeout -- see executor.ts and sql/01_*.sql).
+// This is the SECOND line of defence for LLM-written SQL; the FIRST is the database itself: a read-only transaction, a role that can only SELECT from three
+// views, and a statement timeout (see executor.ts and sql/01_*.sql).
 //
-// This guard parses the SQL with a real PostgreSQL parser and walks the whole
-// syntax tree. It accepts ONE read-only statement that touches only the
-// approved views and calls only approved functions. Anything it cannot parse
-// or cannot positively approve is rejected: the model is then told why and
-// gets to try again (see generator.ts), so a too-strict rejection costs one
-// retry, while a too-lenient one could cost real damage. Strict wins.
+// Here I parse the SQL with a real PostgreSQL parser and walk the whole syntax tree. The guard accepts ONE read-only statement that touches only the
+// approved views and calls only approved functions. Anything it cannot parse or cannot positively approve is rejected: the model is then told why and
+// gets to try again (see generator.ts). I keep it strict on purpose, because a too-strict rejection costs one retry, while a too-lenient one could cost real damage. Strict wins.
 
 import { parse } from "pgsql-ast-parser";
 
 export type GuardResult = { ok: true; sql: string } | { ok: false; reason: string };
 
-/** The only relations the model may read. */
+/** I let the model read only these relations. */
 export const ALLOWED_RELATIONS = new Set(["employees", "designations", "departments", "health_checkups"]);
 export const ALLOWED_SCHEMA = "nlq";
 
-/** Our own helper functions, callable as nlq.<name>. */
+/** These are my own helper functions, callable as nlq.<name>. */
 export const NLQ_FUNCTIONS = new Set(["code", "norm", "word_like", "first_word_like", "last_word_like"]);
 
-/** Built-in functions the model may call. Deliberately a short allow-list:
- *  no pg_sleep, set_config, pg_read_file, nextval, dblink, lo_*, etc. */
+/**
+ * Built-in functions the model may call. I keep this a deliberately short allow-list:
+ * no pg_sleep, set_config, pg_read_file, nextval, dblink, lo_*, etc.
+ */
 export const ALLOWED_FUNCTIONS = new Set([
-  // array quantifiers (the parser represents `x = ANY(arr)` as a call)
+  // array quantifiers; the parser represents `x = ANY(arr)` as a call, which is why they sit in this list
   "any", "all", "some", "exists",
   // aggregates
   "count", "sum", "avg", "min", "max", "array_agg", "string_agg", "bool_and", "bool_or", "every",
@@ -48,8 +46,9 @@ export const ALLOWED_FUNCTIONS = new Set([
 
 const MAX_SQL_CHARS = 8000;
 
-/** Remove '...' string literals and "..." quoted identifiers so structural
- *  checks (comments, semicolons) don't trip over their contents. */
+/**
+ * I remove '...' string literals and "..." quoted identifiers first, so the structural checks (comments, semicolons) do not trip over their contents.
+ */
 export function stripLiterals(sql: string): string {
   return sql.replace(/'(?:[^']|'')*'/g, "''").replace(/"(?:[^"]|"")*"/g, '""');
 }
@@ -83,7 +82,7 @@ export function guardSql(rawSql: string): GuardResult {
   }
   if (statements.length !== 1) return { ok: false, reason: "Exactly one SQL statement is required." };
 
-  // Names of CTEs defined anywhere in the statement -- legal table references.
+  // Names of CTEs defined anywhere in the statement: I treat them as legal table references.
   const cteNames = new Set<string>();
   const problems: string[] = [];
 
@@ -141,7 +140,7 @@ export function guardSql(rawSql: string): GuardResult {
         }
       }
 
-      // The SAIL personal number is also the first password of every account: it is never selected, filtered or sorted on here (a filter would tell a stranger whose number a guess is). Whoever needs it finds
+      // The SAIL personal number is also the first password of every account, so I never let it be selected, filtered or sorted on here (a filter would tell a stranger whose number a guess is). Whoever needs it finds
       // the person and presses "reveal" on the card, which asks for a sign-in and is logged. (SELECT * is not refused; the answer's own P.No. column is masked on its way out: src/lib/security/sensitiveFields.ts.)
       if (t === "ref" && String(node.name ?? "").toLowerCase() === "sail_pno") {
         problems.push(`The column "sail_pno" (the SAIL personal number) is not available: it is the first password. Do not select, filter or sort by it; answer with unanswerable_reason saying that the person's number is shown on their card with a reveal button.`);

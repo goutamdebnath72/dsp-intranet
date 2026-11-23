@@ -12,7 +12,7 @@ import { DateTime } from "luxon";
 import { HolidayType } from "./holiday-master.model";
 
 /**
- * ValueTransformer to automatically bridge native database JS Dates
+ * I use this ValueTransformer to bridge the native JS Dates from the database
  * to Luxon DateTime objects across the Next.js application layer.
  */
 const LuxonDateTimeTransformer: ValueTransformer = {
@@ -54,9 +54,9 @@ export class HolidayYear {
   holidayMasterId!: number;
 
   // Which employee categories this specific FH instance applies to (e.g.
-  // "A,B" or "B"). Only meaningful for FH rows — null for CH (applies to
-  // everyone) and RH (categories' entitlement there is a quota, not a
-  // per-holiday fact — see the separate holiday_rh_quota table).
+  // "A,B" or "B"). Only meaningful for FH rows: null for CH (applies to
+  // everyone) and for RH (there the categories' entitlement is a quota, not a
+  // per-holiday fact -- see the separate holiday_rh_quota table).
   @Column({ type: "varchar", nullable: true })
   categories?: string | null;
 
@@ -67,7 +67,7 @@ export class HolidayYear {
   // their 2nd Saturday off-day that year, to keep their FH total at 18;
   // 2026's circular does the same thing with Bengali New Year's Day instead,
   // for the same reason (SAIL Foundation Day falling on a 4th Saturday).
-  // Represented as a SECOND holidayyear row for the same holidayMasterId
+  // I represent it as a SECOND holidayyear row for the same holidayMasterId
   // and year, with holidayType = FH and this note explaining why -- the
   // existing RH row for that same master/year is untouched. Null for
   // ordinary rows.

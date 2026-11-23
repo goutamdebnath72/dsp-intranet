@@ -1,16 +1,16 @@
 // src/lib/nl2sql/deptColumns.ts
 //
-// A department shown by its code alone, or by its name alone, is half an answer: DSP has near-identical names
+// I count a department shown by its code alone, or by its name alone, as half an answer: DSP has near-identical names
 // (six Plant Garage sections) and six codes shared by two different departments. This looks at the columns the
 // model's SQL RETURNS and says so when only one of the pair is there. The pipeline then gives the model one chance
-// to put both in. Pure and deterministic -- it reads the SQL, it does not ask a model.
+// to put both in. It is pure and deterministic: it reads the SQL, it does not ask a model.
 
 import { parse } from "pgsql-ast-parser";
 
 const CODE_NAMES = new Set(["department_code", "dept_code", "section_code"]);
 const NAME_NAMES = new Set(["department", "department_name", "dept_name", "dept", "section", "section_name"]);
 
-/** The names of the columns the final SELECT returns, or null when they cannot be known (SELECT *, parse failure). */
+/** Returns the names of the columns the final SELECT returns, or null when they cannot be known (SELECT *, parse failure). */
 export function outputColumnNames(sql: string): string[] | null {
   let stmts;
   try {
@@ -20,7 +20,7 @@ export function outputColumnNames(sql: string): string[] | null {
   }
   if (stmts.length !== 1) return null;
   let st: any = stmts[0];
-  // unwrap WITH ... and set operations down to the SELECT that shapes the result columns
+  // I unwrap WITH ... and set operations down to the SELECT that shapes the result columns.
   for (let i = 0; i < 8; i++) {
     if (st.type === "with") st = st.in;
     else if (st.type === "union" || st.type === "union all") st = st.left;
@@ -38,7 +38,7 @@ export function outputColumnNames(sql: string): string[] | null {
   return names;
 }
 
-/** null = fine (both, or neither, or unknown). Otherwise an instruction for the model. */
+/** null means fine (both, or neither, or unknown); otherwise it returns an instruction for the model. */
 export function checkDepartmentColumns(sql: string): string | null {
   const names = outputColumnNames(sql);
   if (!names) return null;
@@ -57,8 +57,8 @@ export function checkDepartmentColumns(sql: string): string | null {
  * Two DIFFERENT departments can share one number (101, 103, 21000, 40017, 83002, 98902: an executive-only department and
  * a non-executive-only one). Matching rows to each other on department_code therefore merges them: "executives but no
  * non-executives under the same code" then wrongly drops BLAST FURNACE (OPERATION) because a different department with
- * the same number has non-executives. Departments are compared by department_id (a department ROW), never by number alone.
- * Only comparisons BETWEEN TWO COLUMNS are judged; filtering on a list of codes is fine.
+ * the same number has non-executives. I compare departments by department_id (a department ROW), never by number alone.
+ * I judge only comparisons BETWEEN TWO COLUMNS; filtering on a list of codes is fine.
  */
 export function checkDepartmentIdentity(sql: string): string | null {
   let stmts;

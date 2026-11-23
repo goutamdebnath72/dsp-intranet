@@ -1,7 +1,7 @@
 // src/components/help/UtilityServicesTab.tsx
 //
-// THE "UTILITY SERVICES" TAB OF THE USER GUIDE (text and data in src/lib/help/utilityServices.ts): what the services are, how to get any of them, each service by its bold name with the words that open it
-// (click them to put them in the search bar), the calculators menu, the sample questions of the services (passed in as children, because that block belongs to the guide's own file), and what they cannot do yet.
+// This is the "Utility Services" tab of the user guide (text and data in src/lib/help/utilityServices.ts): what the services are, how to get any of them, each service by its bold name with the words that open it
+// (click them to put them in the search bar), the calculators menu, the sample questions of the services (I pass them in as children, because that block belongs to the guide's own file), and what they cannot do yet.
 "use client";
 
 import React, { useMemo } from "react";
@@ -9,13 +9,13 @@ import { Calculator, CircleAlert, CornerDownLeft, LayoutGrid, Wrench, Zap } from
 import { allReferenceStrings } from "@/lib/help/quickReference";
 import { CALCULATORS_LINE, SERVICES_LINE, UTILITY_HOW, UTILITY_LEAD, UTILITY_LIMITS, UTILITY_SERVICES, UTILITY_TITLE } from "@/lib/help/utilityServices";
 
-/** whether the words show their answer as you type (true) or need the Enter key, as the "What to type" list says of the same words */
+/** Says whether the words show their answer as you type (true) or need the Enter key, as the "What to type" list says of the same words. */
 function useInstant(): (q: string) => boolean {
   const map = useMemo(() => new Map(allReferenceStrings().map((x) => [x.q.toLowerCase(), x.instant])), []);
   return (q) => map.get(q.toLowerCase()) === true;
 }
 
-/** the words that open a service, each a button that puts them in the search bar */
+/** The words that open a service, each a button that puts them in the search bar. */
 function TypeChips({ words, onTry, instantOf }: { words: string[]; onTry?: (q: string) => void; instantOf: (q: string) => boolean }) {
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1.5" data-type-chips>

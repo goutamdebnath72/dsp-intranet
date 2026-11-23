@@ -1,7 +1,7 @@
 // src/lib/employees/photo/api.ts
 //
-// THE PHOTO REQUESTS (step 70): POST = upload or remove (HOD or an authorised delegate, as for the employee records); GET = the picture itself or its version (anybody who is LOGGED IN: owner's decision, 2 Nov 2026).
-// The route (src/app/api/employees/photo/route.ts) only reads the request and hands it here, so the rules can be tested without a server.
+// The photo requests (step 70): POST = upload or remove (HOD or an authorised delegate, as for the employee records); GET = the picture itself or its version (anybody who is LOGGED IN: my decision, 2 Nov 2026).
+// The route (src/app/api/employees/photo/route.ts) only reads the request and hands it here, so I can test the rules without a server.
 
 import { authorityOf } from "@/lib/facility/authority";
 import type { Actor } from "@/lib/facility/types";

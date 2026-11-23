@@ -1,7 +1,7 @@
 // src/lib/announcements/admin/intent.ts
 //
-// Omnibar intent detection for Announcement Management facility.
-// Identifies when an authorised user wants to post, publish, manage, or delegate announcements.
+// Omnibar intent detection for the Announcement Management facility.
+// I treat a typed line as this intent when an authorised user wants to post, publish, manage, or delegate announcements.
 
 import type { AnnouncementAdminOp } from "./types";
 
@@ -17,15 +17,15 @@ export function detectAnnouncementAdminIntent(typed: string): AnnouncementAdminI
   const norm = typed.toLowerCase().trim();
   if (!norm) return null;
 
-  // Must mention announcement / notice and an administrative action word
+  // The line must mention announcement / notice and an administrative action word.
   if (!CUE.test(norm) || !ADMIN_WORDS.test(norm)) {
-    // Also catch direct phrases like "announcement admin", "announcement management", "manage announcements", "post announcement"
+    // I also catch direct phrases like "announcement admin", "announcement management", "manage announcements", "post announcement"
     if (!/\bannouncements?\s+(?:admin|manager|management|dashboard|post|publish)\b/i.test(norm)) {
       return null;
     }
   }
 
-  // Pure questions about announcement content ("what is the announcement on bonus", "show today's announcements") are NOT admin intents
+  // I do not treat pure questions about announcement content ("what is the announcement on bonus", "show today's announcements") as admin intents.
   if (
     /^(?:what|which|where|when|tell\s+me|show|display|find|search|is\s+there\s+any|any\s+new|list\s+all)\b/i.test(norm) &&
     !/^(?:how\s+to\s+(?:post|publish|add)|where\s+to\s+(?:post|publish))\b/i.test(norm)
@@ -45,11 +45,11 @@ export function detectAnnouncementAdminIntent(typed: string): AnnouncementAdminI
     op = "publish";
   }
 
-  // Check if headline was suggested in quotes: post announcement "Safety Day Celebrations"
+  // I check whether the headline was suggested in quotes: post announcement "Safety Day Celebrations"
   const quoted = /"([^"]+)"|'([^']+)'/.exec(typed);
   const title = quoted ? (quoted[1] || quoted[2]).trim() : undefined;
 
-  // Check if an announcement id was mentioned: edit announcement 12
+  // I check whether an announcement id was mentioned: edit announcement 12
   const idMatch = /\b(?:announcement|notice)\s+#?(\d+)\b/i.exec(norm);
   const editId = idMatch ? Number(idMatch[1]) : undefined;
 

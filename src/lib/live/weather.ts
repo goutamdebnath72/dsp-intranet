@@ -1,14 +1,14 @@
 // src/lib/live/weather.ts
 //
-// THE WEATHER AT DURGAPUR, NOW AND FOR THE WEEK, from Open-Meteo (https://open-meteo.com): a free forecast service that needs no key and no sign-up (weather data by Open-Meteo.com, CC BY 4.0, for non-commercial use).
-// Only the place is sent (Durgapur's own coordinates, fixed below): nothing the reader types goes anywhere. The answer is CHECKED before it is shown: every list the same length, every date and number valid, the
+// The weather at Durgapur, now and for the week, from Open-Meteo (https://open-meteo.com): a free forecast service that needs no key and no sign-up (weather data by Open-Meteo.com, CC BY 4.0, for non-commercial use).
+// I send only the place (Durgapur's own coordinates, fixed below): nothing the reader types goes anywhere. I CHECK the answer before it is shown: every list the same length, every date and number valid, the
 // figures plausible for the place, and the "now" reading not old; a source that sends something else is an error, and the card shows the last good answer or says so.
 //
-// WHAT IS SHOWN: the reading now (temperature, what it feels like, humidity, wind with its direction, rain in the last hour, and the sky in words), the next 24 hours three hours at a time, and seven days (the sky,
+// What is shown: the reading now (temperature, what it feels like, humidity, wind with its direction, rain in the last hour, and the sky in words), the next 24 hours three hours at a time, and seven days (the sky,
 // the highest and lowest temperature, the chance of rain and the rain expected, sunrise and sunset, the UV index). The sky in words comes from the WMO weather code that Open-Meteo gives (the standard table below).
 import { DateTime } from "luxon";
 
-/** Durgapur, West Bengal (the city's own coordinates, to two places: the forecast is for this grid point) */
+/** Durgapur, West Bengal (the city's own coordinates, to two places): the forecast is for this grid point. */
 export const PLACE = { name: "Durgapur", lat: 23.52, lon: 87.31, zone: "Asia/Kolkata" } as const;
 const FIELDS = {
   current: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,is_day",
@@ -17,7 +17,7 @@ const FIELDS = {
 };
 export const WEATHER_URL = `https://api.open-meteo.com/v1/forecast?latitude=${PLACE.lat}&longitude=${PLACE.lon}&current=${FIELDS.current}&daily=${FIELDS.daily}&hourly=${FIELDS.hourly}&forecast_days=7&timezone=${encodeURIComponent(PLACE.zone)}`;
 
-/** the sky in words, from the WMO weather code (the standard table; a code that is not in it is "Not reported", never a guess) */
+/** The sky in words, from the WMO weather code (the standard table). A code that is not in it is "Not reported"; I never guess. */
 export const SKY: Record<number, string> = {
   0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Rime fog",
   51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle", 56: "Freezing drizzle", 57: "Heavy freezing drizzle",
@@ -27,7 +27,7 @@ export const SKY: Record<number, string> = {
   95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Thunderstorm with heavy hail",
 };
 export const skyText = (code: number): string => SKY[code] ?? "Not reported";
-/** what kind of picture the sky is, for the card's icon */
+/** What kind of picture the sky is, for the card's icon. */
 export type SkyKind = "clear" | "partly" | "cloud" | "fog" | "drizzle" | "rain" | "storm" | "snow" | "unknown";
 export function skyKind(code: number): SkyKind {
   if (code === 0 || code === 1) return "clear";
@@ -42,7 +42,7 @@ export function skyKind(code: number): SkyKind {
 }
 
 const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
-/** the direction the wind blows FROM, in words ("W", "NNE") */
+/** Gives the direction the wind blows FROM, in words ("W", "NNE"). */
 export const compass = (deg: number): string => COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
 
 export interface WeatherNow { time: string; temp: number; feels: number; humidity: number; windKmh: number; windFrom: string; rainMm: number; code: number; text: string; isDay: boolean }
@@ -67,10 +67,10 @@ const when = (v: unknown, what: string): DateTime => {
   return d;
 };
 
-/** How old the "now" reading may be (hours) before it is refused: the service refreshes it every quarter of an hour. */
+/** How old the "now" reading may be (hours) before I refuse it: the service refreshes it every quarter of an hour. */
 export const MAX_AGE_HOURS = 3;
 
-/** Reads and checks Open-Meteo's answer. `now` is the time at Durgapur (the "now" reading must be within MAX_AGE_HOURS of it). */
+/** This reads and checks Open-Meteo's answer. `now` is the time at Durgapur (the "now" reading must be within MAX_AGE_HOURS of it). */
 export function parseWeather(json: unknown, now: DateTime = DateTime.now()): Weather {
   const j = json as Record<string, Record<string, unknown> | undefined>;
   const cur = j?.current, day = j?.daily, hr = j?.hourly;
@@ -90,7 +90,7 @@ export function parseWeather(json: unknown, now: DateTime = DateTime.now()): Wea
     text: skyText(code(cur.weather_code)),
     isDay: cur.is_day === 1,
   };
-  // the next 24 hours, three hours at a time, from the hour now
+  // I take the next 24 hours, three hours at a time, from the hour now.
   const ht = arr(hr, "time", Array.isArray(hr.time) ? hr.time.length : -1);
   const n = ht.length;
   const htemp = arr(hr, "temperature_2m", n), hrain = arr(hr, "precipitation_probability", n), hcode = arr(hr, "weather_code", n);

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/ui/answerHeadline.selftest.tsx
-// Step 61a: the clean answer first, for holiday and health check-up answers (owner's standing rule of 26 Oct 2026).
+// Step 61a: the clean answer first, for holiday and health check-up answers (my standing rule of 26 Oct 2026).
 
 import React from "react";
 import { readFileSync } from "node:fs";
@@ -14,7 +14,7 @@ const ok = (name: string, cond: boolean, extra = "") => {
   else { fail++; console.log(`FAIL ${name} ${extra}`); }
 };
 
-// ---- under a Yes or No the sentence does not repeat the word
+// ---- under a Yes or No I do not repeat the word in the sentence
 ok("'Yes — 23 October 2025 is a holiday.' -> '23 October 2025 is a holiday.'", afterVerdict("Yes — 23 October 2025 is a holiday.") === "23 October 2025 is a holiday.");
 ok("'No, 5 July 2026 is not a holiday.' -> '5 July 2026 is not a holiday.'", afterVerdict("No, 5 July 2026 is not a holiday.") === "5 July 2026 is not a holiday.");
 ok("a sentence that does not start with a verdict stays as it is", afterVerdict("Holi falls on 4 March 2026 (Restricted).") === "Holi falls on 4 March 2026 (Restricted).");
@@ -50,7 +50,7 @@ ok("not a health check-up question -> none", healthHeadline("when is the holiday
 ok("no rows, or no date column, or a date that is not a date -> none", healthHeadline("when is the health check-up of ticket 1", cols, []) === null && healthHeadline("when is the health check-up of ticket 1", ["ticket_no", "name"], [{ ticket_no: "1", name: "A" }]) === null && healthHeadline("when is the health check-up of ticket 1", cols, [row("1", "soon")]) === null);
 ok("a question that asks neither when nor which department -> none", healthHeadline("show the health check-up of ticket 266288", cols, [row("266288", "2026-01-05")]) === null);
 
-// ---- the screen really draws it (one place, above the count and the sentences), and the types are the same on both sides
+// ---- the screen really draws it (in one place, above the count and the sentences), and the types are the same on both sides
 const modal = readFileSync("src/components/OmnibarModal.tsx", "utf8");
 ok("OmnibarModal draws <AnswerHeadline headline={analytics.headline} /> before the count", modal.includes("<AnswerHeadline headline={analytics.headline} />") && modal.indexOf("<AnswerHeadline headline={analytics.headline} />") < modal.indexOf("analytics.count.toLocaleString()"));
 ok("the sentence under a Yes or No does not repeat it (lead and answer)", modal.includes("analytics.headline ? afterVerdict(analytics.lead) : analytics.lead") && modal.includes("analytics.headline ? afterVerdict(analytics.answer) : analytics.answer"));

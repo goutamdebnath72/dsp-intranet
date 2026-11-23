@@ -1,10 +1,10 @@
 // src/lib/security/otp.ts
 //
-// THE ONE-TIME CODE for a password change (pure: the clock, the random digits, the store, the sender and the limit are given by the caller, so every rule is tested without a phone).
+// The one-time code for a password change (pure: the clock, the random digits, the store, the sender and the limit are given by the caller, so I test every rule without a phone).
 //   a code is 6 digits, valid 5 minutes, kept only as a keyed hash (HMAC with the server secret and the ticket), tried at most 5 times, used once, one live code per person;
 //   a new code cannot be asked for within 60 seconds of the last, and at most 3 an hour;
 //   the code goes only to the destination of the SIGNED-IN person's own record (src/lib/security/passwordPolicy.ts destinationFor): the screen can never name where it goes.
-// WHAT IS NOT HERE: the gateway that really sends an SMS or an e-mail. `OtpSender` is the plug (src/lib/security/otpSender.ts); until a gateway is set up the sender says so, and the whole feature stays off.
+// Not here: the gateway that really sends an SMS or an e-mail. `OtpSender` is the plug (src/lib/security/otpSender.ts); until a gateway is set up the sender says so, and I keep the whole feature off.
 
 import type { Destination } from "./passwordPolicy";
 import { maskDestination } from "./passwordPolicy";
@@ -20,15 +20,15 @@ export interface OtpStore {
   put(ticket: string, row: OtpRow & { channel: string; sentTo: string }): Promise<void>;
   setTries(ticket: string, tries: number): Promise<void>;
   clear(ticket: string): Promise<void>;
-  /** how many codes were sent to this ticket in the last hour */
+  /** Counts how many codes were sent to this ticket in the last hour */
   sentInLastHour(ticket: string, now: number): Promise<number>;
 }
 export interface OtpSender { send(d: Destination, message: string): Promise<void> }
 export interface OtpDeps {
   now: () => number;
-  /** six decimal digits, from a cryptographic source */
+  /** Gives six decimal digits, from a cryptographic source */
   digits: () => string;
-  /** a keyed hash of (ticket, code) */
+  /** Returns a keyed hash of (ticket, code) */
   hash: (ticket: string, code: string) => string;
   store: OtpStore;
   sender: OtpSender;
@@ -49,7 +49,7 @@ export async function sendOtp(d: OtpDeps, ticket: string, dest: Destination): Pr
   }
   if ((await d.store.sentInLastHour(ticket, now)) >= OTP_MAX_PER_HOUR) return { ok: false, code: "too_many", error: "Too many codes were asked for in the last hour. Please try again later.", retryAfterSec: 600 };
   const code = d.digits();
-  // stored BEFORE it is sent, and removed again if the sending fails (no live code the person never received)
+  // I store it BEFORE it is sent, and remove it again if the sending fails, so there is no live code the person never received
   await d.store.put(ticket, { codeHash: d.hash(ticket, code), expiresAt: now + OTP_TTL_SEC * 1000, tries: 0, sentAt: now, channel: dest.channel, sentTo: maskDestination(dest) });
   try {
     await d.sender.send(dest, otpMessage(code));
@@ -78,7 +78,7 @@ export async function verifyOtp(d: OtpDeps, ticket: string, code: string): Promi
   return { ok: true };
 }
 
-/** equal-length text compared without stopping at the first difference */
+/** I compare equal-length text without stopping at the first difference */
 function sameText(a: string, b: string): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);

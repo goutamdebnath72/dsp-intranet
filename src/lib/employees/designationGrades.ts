@@ -1,15 +1,15 @@
 // src/lib/employees/designationGrades.ts
 //
-// DB-backed designation/rank layer. Replaces the old hardcoded RANKS[] /
-// HIERARCHY[] arrays in designations.ts entirely -- every title, code, track
+// DB-backed designation/rank layer. It replaces the old hardcoded RANKS[] /
+// HIERARCHY[] arrays in designations.ts entirely: every title, code, track
 // and rank_order value comes from `public.designation_grade` (30 rows, built
 // in the Stage 8 SAIL seniority project), never hardcoded here.
 //
 // Confirmed live (chat, 28 Sep 2026):
 //   - "Asst. Manager" appears at BOTH code 204 (paired with Medical Officer)
-//     and code 201 (paired with Junior Manager) -- two real, distinct grades
+//     and code 201 (paired with Junior Manager): two real, distinct grades
 //     (rank_order 12 and 13) that happen to share one display title. A bare,
-//     unqualified "Asst Manager" search combines both grade ids -- each
+//     unqualified "Asst Manager" search combines both grade ids. Each
 //     person's own designation_grade_id already correctly records which one
 //     they actually are; search just needs to not miss either.
 //   - "Director In-charge" (code 227, rank_order 1) is a real title the old
@@ -50,7 +50,7 @@ export async function loadDesignationGrades(): Promise<DesignationGradeRow[]> {
   return cache;
 }
 
-/** Force a re-read on next call -- for tests / after a live migration. */
+/** Force a re-read on the next call, for tests and after a live migration. */
 export function invalidateDesignationGradeCache(): void {
   cache = null;
 }
@@ -65,12 +65,12 @@ export function normTitle(s: string): string {
     .trim();
 }
 
-// Typed shorthand -> the EXACT stored title it means. Kept separate from the
+// Typed shorthand -> the EXACT stored title it means. I keep this separate from the
 // DB so a stored title can have several typable spellings without a
-// migration per spelling. Carried forward from the old RANKS aliases
-// (already validated over many prior sessions), plus the two fixes this
-// session found: "officer(s)" for exec, "non-ex"/"nonex"/"non ex" for
-// non-exec -- these were previously only in resolveDesignation(), never in
+// migration per spelling. It is carried forward from the old RANKS aliases
+// (already validated over many prior sessions), plus the two fixes found in this
+// session: "officer(s)" for exec, "non-ex"/"nonex"/"non ex" for
+// non-exec. These were previously only in resolveDesignation(), never in
 // the routing matcher, which is exactly why they mis-routed to circular
 // search (see chat).
 const TITLE_ALIASES: Record<string, string[]> = {
@@ -104,7 +104,7 @@ const ALIAS_TO_TITLE: Map<string, string> = (() => {
 })();
 
 // Whole-term group aliases (exec / nonexec / employees-combined). "employees"
-// is handled by the CALLER, not here -- it isn't a designation, it's the
+// is handled by the CALLER, not here: it isn't a designation, it's the
 // union of every grade in the table, which the caller can build directly
 // from loadDesignationGrades() without needing a special case here.
 const EXEC_TERMS = new Set(["executive", "executives", "exec", "execs", "officer", "officers"]);
@@ -117,10 +117,10 @@ const NONEXEC_TERMS = new Set([
 export interface DesignationResolution {
   gradeIds: number[];
   label: string;
-  // "combined" is synthetic -- built by parser.ts for the bare word
+  // "combined" is synthetic: parser.ts builds it for the bare word
   // "employees"/"staff"/etc, meaning BOTH cohorts with no filter at all
-  // (not a real designation_grade concept, so never returned by
-  // resolveDesignationTerm/findDesignationInText themselves).
+  // (not a real designation_grade concept, so resolveDesignationTerm/findDesignationInText
+  // themselves never return it).
   kind: "grade" | "exec" | "nonexec" | "combined";
 }
 
@@ -136,7 +136,7 @@ export async function resolveDesignationTerm(term: string): Promise<DesignationR
     return { gradeIds: grades.filter((g) => g.track === "nonexec").map((g) => g.id), label: "Non-executives", kind: "nonexec" };
   }
 
-  // S-grade pattern: s1, s 1, s-1, grade s1
+  // I match the S-grade pattern in these spellings: s1, s 1, s-1, grade s1
   const sm = n.match(/^(?:grade\s*)?s\s*(\d{1,2})$/);
   if (sm) {
     const title = `S-${parseInt(sm[1], 10)}`;
@@ -144,15 +144,15 @@ export async function resolveDesignationTerm(term: string): Promise<DesignationR
     if (rows.length) return { gradeIds: rows.map((g) => g.id), label: title, kind: "grade" };
   }
 
-  // Aliased title -- may resolve to MULTIPLE grade rows sharing one display
-  // title (confirmed intentional for "Asst. Manager" -- combine, don't pick).
+  // An aliased title may resolve to MULTIPLE grade rows sharing one display
+  // title (confirmed intentional for "Asst. Manager": I combine them, I don't pick one).
   const canonicalTitle = ALIAS_TO_TITLE.get(n);
   if (canonicalTitle) {
     const rows = grades.filter((g) => normTitle(g.title) === canonicalTitle);
     if (rows.length) return { gradeIds: rows.map((g) => g.id), label: rows[0].title, kind: "grade" };
   }
 
-  // Fallback: verbatim title match for anything typed in full that isn't in
+  // Fallback: a verbatim title match for anything typed in full that isn't in
   // TITLE_ALIASES yet (covers "Director In-charge", "Joint Director", etc.
   // typed exactly as stored, with no shorthand needed).
   const direct = grades.filter((g) => normTitle(g.title) === n);
@@ -172,9 +172,9 @@ function esc(s: string): string {
 
 /**
  * Find a designation term ANYWHERE in free text (word-bounded, not
- * position-anchored -- "in c&it list executives" and "list executives in
- * c&it" must both match). Longest known phrase wins. Used by parser.ts to
- * decide routing; replaces the old findDesignation()'s hand-rolled regex set
+ * position-anchored): "in c&it list executives" and "list executives in
+ * c&it" must both match. The longest known phrase wins. parser.ts uses this to
+ * decide routing. It replaces the old findDesignation() and its hand-rolled regex set
  * (which is what was missing "officer"/"non-ex" and caused the mis-routing).
  */
 export async function findDesignationInText(
@@ -195,7 +195,7 @@ export async function findDesignationInText(
     }
   }
 
-  // S-grade written with a hyphen/space run together, e.g. "s7", "grade s 7".
+  // S-grade written with a hyphen, a space, or run together, e.g. "s7", "grade s 7".
   const sm = nq.match(/ (?:grade )?s[- ]?(\d{1,2}) /);
   if (sm) {
     const resolved = await resolveDesignationTerm(`s ${sm[1]}`);
@@ -207,7 +207,7 @@ export async function findDesignationInText(
 
 /**
  * True only when the ENTIRE phrase is nothing but a recognised designation
- * term (plus its own plural) -- used to tell "for employees" apart from a
+ * term (plus its own plural). I use it to tell "for employees" apart from a
  * genuine department name (see parser.ts's findDeptScope).
  */
 export async function isFullyDesignationPhrase(phrase: string): Promise<boolean> {

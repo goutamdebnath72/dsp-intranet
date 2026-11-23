@@ -11,8 +11,7 @@ import {
 import { DateTime } from "luxon";
 
 /**
- * ValueTransformer to automatically bridge native database JS Dates
- * to Luxon DateTime objects across the Next.js application layer.
+ * I use this ValueTransformer to bridge the native database JS Dates to Luxon DateTime objects across the Next.js application layer.
  */
 const LuxonDateTimeTransformer: ValueTransformer = {
   to(value: DateTime | null | undefined): Date | null {
@@ -28,7 +27,7 @@ const LuxonDateTimeTransformer: ValueTransformer = {
 @Entity({ name: "user" })
 export class User {
   @PrimaryColumn({ type: "varchar" })
-  id!: string; // Generated via your application logic (e.g., CUID or UUID) before insertion
+  id!: string; // Generated in my application logic (e.g., CUID or UUID) before insertion
 
   @Column({ type: "varchar", nullable: true })
   name?: string;
@@ -38,11 +37,11 @@ export class User {
 
   @Column({
     type: "timestamp with time zone",
-    name: "emailVerified", // Retains legacy camelCase schema structure to protect live data
+    name: "emailVerified", // I keep the legacy camelCase schema structure here to protect live data
     nullable: true,
     transformer: LuxonDateTimeTransformer,
   })
-  emailVerified!: DateTime | null; // Flawless Luxon integration
+  emailVerified!: DateTime | null; // Integrates cleanly with Luxon
 
   @Column({ type: "varchar", nullable: true })
   image?: string;
@@ -73,32 +72,32 @@ export class User {
   // ==========================================
 
   /**
-   * Many Users belong to One Department
+   * I model it so that many Users belong to one Department.
    */
   @ManyToOne("Department", "users", { nullable: true, onDelete: "SET NULL" })
   @JoinColumn({ name: "departmentId" })
   department?: any;
 
   /**
-   * One User can have Many Auth Accounts (NextAuth Linkages)
+   * One User can have many Auth Accounts (NextAuth linkages).
    */
   @OneToMany("Account", "user", { cascade: true })
   accounts?: any[];
 
   /**
-   * One User can have Many active Auth Sessions
+   * I let one User have many active Auth Sessions.
    */
   @OneToMany("Session", "user", { cascade: true })
   sessions?: any[];
 
   /**
-   * One User tracks multiple read-confirmations for Announcements
+   * Here one User tracks multiple read-confirmations for Announcements.
    */
   @OneToMany("AnnouncementReadStatus", "user", { cascade: true })
   readAnnouncements?: any[];
 
   /**
-   * One User tracks multiple read-confirmations for Circulars
+   * Here one User tracks multiple read-confirmations for Circulars.
    */
   @OneToMany("CircularReadStatus", "user", { cascade: true })
   readCirculars?: any[];

@@ -5,7 +5,7 @@ import React from "react";
 import { ProductionGauge } from "./ProductionGauge";
 import { motion } from "framer-motion";
 
-// Mock data (Stable version without ticks)
+// Mock data (the stable version, without ticks)
 const productionDataStable = [
   { label: "Hot Metal Production", value: 8497, max: 12000, unit: "MT" },
   { label: "Crude Steel Production", value: 8084, max: 12000, unit: "MT" },
@@ -15,7 +15,7 @@ const productionDataStable = [
   { label: "Saleable Steel Production", value: 65088, max: 110000, unit: "MT" },
 ];
 
-// Animation variants for the container (used by the wrapper in HomepageNew)
+// The animation variants for the container; the wrapper in HomepageNew uses them
 export const dashboardContainerVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
@@ -25,12 +25,12 @@ export const dashboardContainerVariants = {
   },
 };
 
-// Renamed to avoid confusion, this component is now simpler
+// I renamed this to avoid confusion; the component is now simpler
 export function ProductionDashboard() {
   return (
-    // ✅ REMOVED the outer motion.div wrapper with conflicting styles
-    // The wrapper is now handled in HomepageNew.tsx
-    // Added internal padding with px-*
+    // I removed the outer motion.div wrapper with conflicting styles
+    // HomepageNew.tsx now handles the wrapper
+    // I added internal padding with px-*
     <div className="w-full px-4 sm:px-6 lg:px-8">
       <h2 className="text-xl sm:text-2xl font-bold font-heading text-neutral-800 mb-6 text-center">
         Production at a Glance
@@ -43,7 +43,7 @@ export function ProductionDashboard() {
             max={gauge.max}
             label={gauge.label}
             unit={gauge.unit}
-            // NO TICK PROPS PASSED
+            // I pass no tick props
           />
         ))}
       </div>

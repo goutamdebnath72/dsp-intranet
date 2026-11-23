@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/help/edsGuide.selftest.ts
-// The Deep search (EDS) tab of the guide must say what the code really does: every model, number and step is pinned to the code that has it, every question of the list is run through the real detector,
+// I want the Deep search (EDS) tab of the guide to say what the code really does: every model, number and step is pinned to the code that has it, every question of the list is run through the real detector,
 // and the list is checked against the project's own test files. If the code changes and the guide does not, this fails.
 import { readFileSync } from "node:fs";
 import { ASK_MODELS, ASK_STEPS, BEFORE_YOU_TEST, BUILD_TIPS, MODELS, NOT_DEEP, SCOPE, TEMPLATES, TEST_QUERIES, UPLOAD_MODELS, UPLOAD_STEPS, WHAT_IS } from "./edsGuide";

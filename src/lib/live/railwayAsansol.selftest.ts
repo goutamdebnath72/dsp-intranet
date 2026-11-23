@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/railwayAsansol.selftest.ts
-// The trains of Asansol that Durgapur does not stop: drawn from samples of RailRadar's real boards of Asansol and of Durgapur (with the pass-throughs), 16 Nov 2026. A train that stops at both is left out; one that
-// passes Durgapur without stopping is "pass"; one that is not in Durgapur's timetable at all is "away"; the local trains are apart; an answer that cannot tell the two kinds apart is refused.
+// I test the trains of Asansol that Durgapur does not stop, using samples of RailRadar's real boards of Asansol and of Durgapur (with the pass-throughs), 16 Nov 2026. A train that stops at both is left out; one that
+// passes Durgapur without stopping is "pass"; one that is not in Durgapur's timetable at all is "away"; the local trains are kept apart; an answer that cannot tell the two kinds apart is refused.
 import { readFileSync } from "node:fs";
 import { clock } from "./railway";
 import { filterAsansol, parseAsansol, type AsansolTrain } from "./railwayAsansol";

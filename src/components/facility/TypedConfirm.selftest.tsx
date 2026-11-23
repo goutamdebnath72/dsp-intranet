@@ -1,5 +1,5 @@
 // Run (from the project root):  npx tsx --tsconfig tsconfig.selftest.json src/components/facility/TypedConfirm.selftest.tsx
-// Step 69a: the shared "type it to confirm" box of every deletion: the value to type appears nowhere, pasting and dropping are refused, the box is an ordinary text box otherwise.
+// Step 69a: this checks the shared "type it to confirm" box of every deletion: the value to type appears nowhere, pasting and dropping are refused, the box is an ordinary text box otherwise.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

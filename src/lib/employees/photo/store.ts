@@ -1,7 +1,7 @@
 // src/lib/employees/photo/store.ts
 //
-// THE PHOTO TABLE (public.employee_photo, sql/19): which pictures an employee has and which version is current. Who may change a photo is who may change the employee (the kit's `begin`: HOD or a delegate);
-// every change is a line in the employee manager's history ("photo", changed or removed), and never holds the picture.
+// The photo table (public.employee_photo, sql/19): which pictures an employee has and which version is current. Whoever may change the employee may change a photo (the kit's `begin`: HOD or a delegate);
+// every change is a line in the employee manager's history ("photo", changed or removed), and that line never holds the picture.
 
 import { writeAudit } from "@/lib/facility/audit";
 import { Forbidden, begin } from "@/lib/facility/authority";
@@ -58,7 +58,7 @@ export async function removePhoto(db: EmpDb, actor: Actor, id: number): Promise<
   }
 }
 
-/** The photo goes with the employee (no history line: the deletion has its own). Returns the addresses to delete from the store. */
+/** The photo goes with the employee (no history line: the deletion has its own). It returns the addresses to delete from the store. */
 export async function purgePhoto(db: EmpDb, id: number): Promise<string[]> {
   const r = (await db.run((q) => q(`DELETE FROM public.employee_photo WHERE employee_id = $1 RETURNING master_url, thumb_url`, [id])))[0];
   return r ? [str(r.master_url), str(r.thumb_url)] : [];

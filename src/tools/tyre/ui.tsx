@@ -1,7 +1,7 @@
 // src/tools/tyre/ui.tsx
 //
 // HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the tyre and rim size reader: its tile, its page and the card for a typed tyre size.
-// Its logic is in the files beside this one, what the search line needs to know in topic.ts. It is listed once, in src/tools/registry.ui.tsx.
+// Its logic is in the files beside this one, and what the search line needs to know is in topic.ts. I list it only once, in src/tools/registry.ui.tsx.
 "use client";
 
 import React from "react";

@@ -1,27 +1,27 @@
 // src/app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth";
-// ⛔️ REMOVED: import { authOptions } from '@/lib/auth';
-// ✅ ADDED: Import the new async function
+// Removed: import { authOptions } from '@/lib/auth';
+// Added: I import the new async function instead.
 import { getAuthOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
 
 /**
- * ✅ NEW: Dynamic handler for NextAuth
- * This is the correct pattern for using async AuthOptions in the App Router.
+ * A dynamic handler for NextAuth.
+ * I use this pattern because it is the correct one for async AuthOptions in the App Router.
  */
 async function handler(
   req: NextRequest,
   context: { params: Promise<{ nextauth: string[] }> }
 ) {
-  // 1. Get the auth options (which are async)
+  // Step 1: I get the auth options (which are async)
   const authOptions = await getAuthOptions();
 
-  // 2. Call NextAuth with the 1-argument overload (options)
-  //    This returns a new handler function.
+  // Step 2: I call NextAuth with the 1-argument overload (options);
+  //    it returns a new handler function.
   const nextAuthHandler = NextAuth(authOptions);
 
-  // 3. Call the returned handler with the request and context
-  //    (We use 'as any' to satisfy older NextAuth type versions)
+  // Step 3: I call the returned handler with the request and context
+  //    (I use 'as any' to satisfy older NextAuth type versions)
   return nextAuthHandler(req as any, context);
 }
 

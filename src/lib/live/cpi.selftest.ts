@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/cpi.selftest.ts
-// The consumer price index of MoSPI: replies are checked (only the "General" rows, plausible figures), the answer is built from saved rows with nothing added, the inflation of the old and new series joins at
+// This tests the consumer price index of MoSPI: replies are checked (only the "General" rows, plausible figures), the answer is built from saved rows with nothing added, the inflation of the old and new series joins at
 // December 2025 / January 2026, the windows of 1, 3, 5, 10 years, and the days MoSPI releases. The sample is MoSPI's own reply of 14 Nov 2026 (all India, West Bengal, Kerala for 2026; all India Combined 2016 to 2025).
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
@@ -46,7 +46,7 @@ ok("months between two months, both included", monthsBetween("2025-11", "2026-02
 ok("MoSPI releases the 12th at 4 pm: before it the month before last is the latest due, after it the last month", latestDue(IST("2026-11-14T10:00")) === "2026-10" && latestDue(IST("2026-11-12T10:00")) === "2026-09" && latestDue(IST("2026-11-12T16:30")) === "2026-10" && latestDue(IST("2026-11-01T09:00")) === "2026-09" && latestDue(IST("2027-01-05T09:00")) === "2026-11" && latestDue(IST("2027-01-20T09:00")) === "2026-12");
 ok("the day the index of a month is due", dueDay("2026-10") === "12 November 2026" && dueDay("2026-12") === "12 January 2027", dueDay("2026-12"));
 
-// the asking: pages, months by year, everything
+// The asking: pages, months by year, everything.
 const calls: string[] = [];
 const pageGet = (rowsFor: (u: string) => any[], total = 1) => async (url: string) => { calls.push(url); const page = Number(/page=(\d+)/.exec(url)?.[1] ?? 1); return { data: page === 1 || total > 1 ? rowsFor(url) : [], meta_data: { page, totalPages: total }, statusCode: true }; };
 const gen = (n: number, month = "October") => Array.from({ length: n }, (_, i) => ({ division: "CPI (General)", group: null, base_year: "2024", sector: "Combined", state: `State ${i}`, year: "2026", month, index: "105", inflation: "3" }));

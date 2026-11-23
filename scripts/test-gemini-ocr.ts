@@ -16,7 +16,7 @@ async function main() {
     process.exit(1);
   }
 
-  // Allow overriding model via CLI or env, default to gemini-2.5-flash or gemini-3.8-flash
+  // I allow overriding the model via CLI or env; the default is gemini-2.5-flash or gemini-3.8-flash.
   const model = process.env.GEMINI_VISION_MODEL || "gemini-2.5-flash";
   console.log(`Using Gemini Vision Model: ${model}`);
 

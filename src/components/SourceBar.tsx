@@ -1,14 +1,14 @@
 // src/components/SourceBar.tsx
 //
-// The "Source" bar ABOVE a health check-up answer: which circular the answer was read from (the number and year the archive shows, and its title)
-// with a plain "Open circular" button. A click opens the circular in the SAME viewer the archive and the search use, at the page where the people in
-// the answer are listed, with a marker on that page: one click to check the answer against the original. It sits above the table, not under it, so it
+// The "Source" bar above a health check-up answer: which circular the answer was read from (the number and year the archive shows, and its title)
+// with a plain "Open circular" button. A click opens the circular in the same viewer the archive and the search use, at the page where the people in
+// the answer are listed, with a marker on that page: one click to check the answer against the original. I put it above the table, not under it, so it
 // is seen without scrolling and nobody has to find it by chance. When someone listed is not in the HR directory it says so, here, and only then.
 import { formatCircularTitle } from "@/lib/circularTitle";
 import { AlertTriangle, ExternalLink, FileText } from "lucide-react";
 import type { CircularSource } from "@/lib/nl2sql/clientTypes";
 
-/** "page 5" / "pages 5, 6, 8" (nothing when the page is not known). */
+/** Gives "page 5" / "pages 5, 6, 8" (nothing when the page is not known). */
 export function pagesText(pages: number[]): string {
   if (pages.length === 0) return "";
   return pages.length === 1 ? `page ${pages[0]}` : `pages ${pages.join(", ")}`;

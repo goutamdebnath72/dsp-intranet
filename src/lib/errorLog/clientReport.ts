@@ -2,7 +2,7 @@
 //
 // THE BROWSER'S HALF OF THE ERROR LOG, PRODUCTION ONLY (22 Nov 2026): a small script in <head> (so it is listening before React hydrates) sends every uncaught error and unhandled promise rejection to
 // POST /api/client-errors: the message, the stack and the page's PATH (never its query, never what the person typed or saw). At most 5 different ones per page load; the server limits and groups the rest.
-// Errors from a browser extension are not sent. Console messages, failed pictures and network failures are NOT sent from production (the development bridge, src/lib/dev/consoleBridge.ts, has them).
+// I do not send errors from a browser extension. Console messages, failed pictures and network failures are NOT sent from production (the development bridge, src/lib/dev/consoleBridge.ts, has them).
 
 export const CLIENT_ERROR_URL = "/api/client-errors";
 

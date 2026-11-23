@@ -1,7 +1,7 @@
 -- 26_train_fare_asn.sql
 --
--- The saved fares of the trains of the ASANSOL tab, from Asansol (ASN) to the end of each run (src/lib/live/fareStore.ts, station "ASN"): the trains that stop at Asansol and not at Durgapur. Same shape as
--- public.train_fare (21_train_fare.sql), which holds the trains that stop at Durgapur; no train is in both tables, because a train that stops at both is a Durgapur train. The fares are the railway's reservation
+-- Here I save the fares of the trains of the ASANSOL tab, from Asansol (ASN) to the end of each run (src/lib/live/fareStore.ts, station "ASN"): the trains that stop at Asansol and not at Durgapur. Same shape as
+-- public.train_fare (21_train_fare.sql), which holds the trains that stop at Durgapur; no train is in both tables, because a train that stops at both counts as a Durgapur train. The fares are the railway's reservation
 -- system's own, through RailRadar's paid fare service (used for one month only, to 14 Dec 2026); fetched_at is when they were received and the card shows it.
 --
 -- Safe to run more than once. The application also creates this table by itself on first use if its database user may; running this file is the clean way.

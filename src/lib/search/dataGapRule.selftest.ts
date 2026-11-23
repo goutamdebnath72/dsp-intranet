@@ -1,4 +1,4 @@
-/** Self-test of the data-gap routing rule. Run: npx tsx --tsconfig tsconfig.json src/lib/search/dataGapRule.selftest.ts (no database, no model). */
+/** Self-test of the data-gap routing rule. Run: npx tsx --tsconfig tsconfig.json src/lib/search/dataGapRule.selftest.ts (it needs no database and no model). */
 import { CONTACT_WITHHELD, PLAIN_DATA_GAP, continueToCirculars, friendlyUnanswerable } from "./dataGapRule";
 import { directoryWordIn, namesSomeone } from "./frontGate";
 

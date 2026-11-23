@@ -1,6 +1,6 @@
 // src/lib/facility/hubAccess.ts
 //
-// The management page's two questions to the database: what does this ticket hold, and what is its owner's name. Read only; the answer is the same rule every tool uses (authority.ts).
+// The management page's two questions to the database: what does this ticket hold, and what is the name of the person who holds it. Read only; I use the same rule every tool uses (authority.ts).
 
 import type { DataSource } from "typeorm";
 import { authoritiesOfAll } from "./authority";

@@ -1,7 +1,7 @@
 // src/lib/qualifications/parse.ts
 //
 // Reads a PRINTED qualification ("MD(MEDICINE)", "MBBS,DGO", "MCH & DRNB PLASTIC SURGERY", "M.Tech (CSE)", "Bachelor of Technology") with the table of degrees (degrees.ts): which degrees it names, the HIGHEST
-// level among them, and the subject (step 58a). A degree the table does not know is reported, never guessed.
+// level among them, and the subject (step 58a). I report a degree the table does not know and never guess it.
 //
 //   "MBBS,DGO"                     -> MBBS (graduate), DGO (postgraduate)     highest postgraduate
 //   "MCH & DRNB PLASTIC SURGERY"   -> MCh (super-specialty), DrNB (same)      highest superspecialty, subject PLASTIC SURGERY
@@ -9,11 +9,11 @@
 
 import { DEGREES, LEVEL_RANK, type DegreeDef, type Level } from "./degrees";
 
-/** Capitals, letters and digits only: "M.B.B.S." = "mbbs", "B. Tech" = "btech". */
+/** Reduces a text to capitals, letters and digits only: "M.B.B.S." = "mbbs", "B. Tech" = "btech". */
 export const keyOf = (s: string): string => String(s ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 const BY_KEY = new Map<string, DegreeDef>();
-/** A spelling that two different degrees claim (it must stay empty: qualifications.selftest.ts checks). */
+/** A spelling that two different degrees claim. This list must stay empty; qualifications.selftest.ts checks it. */
 export const KEY_CONFLICTS: string[] = [];
 for (const def of DEGREES) {
   for (const k of new Set([def.code, def.name, ...def.aliases].map(keyOf))) {
@@ -30,13 +30,13 @@ export interface ParsedQualification {
   degrees: ParsedDegree[];
   /** The highest level among the degrees, or null when none is recognised. */
   highest: Level | null;
-  /** The subject of the highest degree (or of the last degree that has one), upper case, or null. */
+  /** The subject of the highest degree (or of the last degree that has one), in upper case, or null. */
   subject: string | null;
-  /** Pieces of the printed text the table does not know. */
+  /** The pieces of the printed text that the table does not know. */
   unrecognised: string[];
 }
 
-/** Names and spellings that contain "and" or "&" themselves ("Bachelor of Medicine and Bachelor of Surgery", "DTM&H", "BVSc & AH"): protected before the text is split at "and" / "&". */
+/** Names and spellings that contain "and" or "&" themselves ("Bachelor of Medicine and Bachelor of Surgery", "DTM&H", "BVSc & AH"): I protect them before the text is split at "and" / "&". */
 const PROTECTED = DEGREES.flatMap((def) => [def.code, def.name, ...def.aliases])
   .filter((x) => /&|\band\b/i.test(x))
   .sort((a, b) => b.length - a.length)
@@ -96,8 +96,8 @@ export function parseQualification(printed: string | null | undefined): ParsedQu
   return result;
 }
 
-/** The highest level of a printed qualification, or null when it is empty or not recognised. */
+/** Returns the highest level of a printed qualification, or null when it is empty or not recognised. */
 export const highestLevel = (printed: string | null | undefined): Level | null => parseQualification(printed).highest;
 export const levelRank = (l: Level | null): number => (l ? LEVEL_RANK[l] : 0);
-/** Higher than graduate: postgraduate, super-specialty or doctorate. */
+/** Higher than graduate means postgraduate, super-specialty or doctorate. */
 export const isPostgraduateOrHigher = (printed: string | null | undefined): boolean => levelRank(highestLevel(printed)) >= LEVEL_RANK.postgraduate;

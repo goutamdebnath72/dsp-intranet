@@ -1,7 +1,7 @@
 // src/lib/holidays/admin/omnibar.ts
 //
 // Omnibar responder for Holiday Management.
-// Detects holiday admin intent and returns the payload to render the HolidayAdminPanel in the modal.
+// It detects holiday admin intent and returns the payload that renders the HolidayAdminPanel in the modal.
 
 import type { AnalyticsPayload } from "@/lib/employees/analytics";
 import type { HospitalAnswer } from "@/lib/hospital/types";

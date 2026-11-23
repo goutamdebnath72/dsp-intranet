@@ -1,19 +1,19 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/vin/vin.selftest.ts
-// (The numbers below are samples; none of them is a real person's vehicle.)
+// Note that the numbers below are samples; none of them is a real person's vehicle.
 import { FULL_FORMS, MONTH_CODES, SECTIONS, VIN_SAMPLES, WMIS, YEAR_CODES, checkSteps, looksLikeVin, modelYear, readVin, regionOf, splitVin, yearsFor } from "./vin";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 const rd = (q: string, y = 2026) => { const r = readVin(q, y); return r.ok ? r : null; };
 
-// the check digit: the calculation is the standard one (ISO 3779 / 49 CFR 565), proved on numbers whose digit is known
+// The check digit: I use the standard calculation (ISO 3779 / 49 CFR 565) and prove it on numbers whose digit is known.
 ok("known numbers get their known check digit: 1HGBH41JXMN109186 is X, 5YJSA1DG9DFP14705 is 9, 1M8GDM9AXKP042788 is X, all ones is 1", checkSteps("1HGBH41JXMN109186").digit === "X" && checkSteps("5YJSA1DG9DFP14705").digit === "9" && checkSteps("1M8GDM9AXKP042788").digit === "X" && checkSteps("11111111111111111").digit === "1");
 { const c = checkSteps("1HGBH41JXMN109186");
   ok("the steps are shown: 17 positions, position 9 has weight 0, the sum modulo 11 is the digit (10 is X)", c.steps.length === 17 && c.steps[8].weight === 0 && c.steps[0].weight === 8 && c.steps[16].weight === 2 && c.sum % 11 === c.remainder && c.remainder === 10 && c.digit === "X" && c.steps[1].value === 8 && c.steps[2].value === 7); }
 ok("the year codes: A 2010 (1980), K 2019 (1989), T 2026, Y 2030 (2000), 1 2031 (2001), 9 2039 (2009); never I O Q U Z 0", YEAR_CODES.length === 30 && yearsFor("A")?.join() === "1980,2010" && yearsFor("K")?.join() === "1989,2019" && yearsFor("T")?.join() === "1996,2026" && yearsFor("Y")?.join() === "2000,2030" && yearsFor("1")?.join() === "2001,2031" && yearsFor("9")?.join() === "2009,2039" && ["I", "O", "Q", "U", "Z", "0"].every((c) => yearsFor(c) === null));
 ok("the likely year is the latest one that is not later than next year: K is 2019, V is 2027 in 2026 but 1997 in 2024, 3 is 2003", modelYear("K", 2026)?.year === 2019 && modelYear("K", 2026)?.other === 1989 && modelYear("V", 2026)?.year === 2027 && modelYear("V", 2024)?.year === 1997 && modelYear("3", 2026)?.year === 2003 && modelYear("U", 2026) === null);
 
-// a Hyundai made in India (a made-up serial)
+// Here I use a Hyundai made in India (a made-up serial).
 const h = rd("MALBM51BLKM000001");
 ok("a Hyundai India number is read part by part: country, manufacturer, descriptor, position 9, year, plant, serial", !!h && h.parts.map((p) => p.id).join() === "country,maker,descriptor,check,year,plant,serial" && h.parts.map((p) => p.text).join("|") === "M|AL|BM51B|L|K|M|000001");
 ok("M with A is India, MAL is Hyundai Motor India", !!h && /India \(Asia\)/.test(h.parts[0].detail) && /MAL: Hyundai Motor India/.test(h.parts[1].detail) && h.wmi?.maker === "Hyundai Motor India");
@@ -24,7 +24,7 @@ ok("the plate may carry Hyundai's month letter after a star: *L is November, the
 ok("the month letters of Hyundai: A January ... H August, J September, K October, L November, M December (no I)", MONTH_CODES.A === "January" && MONTH_CODES.H === "August" && MONTH_CODES.J === "September" && MONTH_CODES.L === "November" && MONTH_CODES.M === "December" && !("I" in MONTH_CODES) && Object.keys(MONTH_CODES).length === 12);
 ok("an extension on another maker's number is not guessed", (() => { const x = rd("1HGBH41JXMN109186*A"); return !!x && !x.parts.some((p) => p.id === "month") && x.notes.some((n) => /only for Hyundai/.test(n)); })());
 
-// North America: the check digit is calculated
+// North America: here the check digit is calculated.
 const hn = rd("1HGBH41JXMN109186");
 ok("an American number with a right check digit says it is right", !!hn && hn.check.state === "valid" && /a check digit, and it is right/.test(hn.parts[3].detail) && /United States/.test(hn.parts[0].detail) && hn.wmi?.maker === "Honda" && hn.year?.year === 2021);
 const wrong = rd("1HGBH41J1MN109186");

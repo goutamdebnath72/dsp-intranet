@@ -1,14 +1,14 @@
 // src/components/usePeopleEvents.ts
 "use client";
 
-// THE DATA OF THE "PEOPLE & EVENTS" WIDGET (step 65a): one request for the three lists, and a fresh one at 12:00 AM India time (the lists change every day at midnight), also when a page that was
+// The data of the "People & Events" widget (step 65a): I make one request for the three lists, and a fresh one at 12:00 AM India time (the lists change every day at midnight), also when a page that was
 // left open comes back to the screen on a new day. The day is the day in India, whatever the zone of the visitor's own machine.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isoDay, msUntilNextMidnight, todayIST } from "@/lib/peopleEvents/rules";
 import type { PeopleEvents } from "@/lib/peopleEvents/query";
 
-/** A little after midnight, so the server is surely on the new day. */
+/** I wait a little after midnight so that the server is surely on the new day. */
 export const MIDNIGHT_GRACE_MS = 5000;
 
 export function usePeopleEvents() {
@@ -35,7 +35,7 @@ export function usePeopleEvents() {
   }, []);
 
   useEffect(() => {
-    alive.current = true; // StrictMode mounts, unmounts and mounts again: switch on at EVERY mount
+    alive.current = true; // StrictMode mounts, unmounts and mounts again, so I switch on at EVERY mount
     void load();
     let timer: ReturnType<typeof setTimeout>;
     const arm = () => {

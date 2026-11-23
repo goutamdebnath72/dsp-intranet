@@ -1,4 +1,4 @@
-// src/lib/nl2sql/eval/guard-cases.ts -- shared by the self-test.
+// src/lib/nl2sql/eval/guard-cases.ts -- I share these cases with the self-test.
 export const GUARD_ACCEPT: [string, string][] = [
   ["count", "SELECT count(*) AS count FROM nlq.employees WHERE name_words[1] = 'KUMAR'"],
   ["helpers", "SELECT ticket_no, name FROM nlq.employees WHERE nlq.word_like(name_words, name_codes, 'kumar') AND NOT nlq.first_word_like(name_words, name_codes, 'kumar') ORDER BY global_seniority_rank"],

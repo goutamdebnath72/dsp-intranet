@@ -1,4 +1,4 @@
-// scripts/eds-gold-keys.ts: the GOLD test of the EDS engine. Each question has an answer KEY written from the circular's own text (checked against the stored text
+// scripts/eds-gold-keys.ts: my GOLD test of the EDS engine. Each question has an answer KEY written from the circular's own text (checked against the stored text
 // of 9 Nov 2026): the facts a correct answer MUST contain (a fact is found when any one of its patterns matches the normalised answer) and the statements it must NOT make.
 // Normalisation (see eds-gold.ts): lower case; thousands commas removed; "24th" -> "24"; "Rs." / "₹" -> "rs".
 export interface GoldFact { fact: string; any: RegExp[]; }

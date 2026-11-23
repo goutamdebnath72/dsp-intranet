@@ -1,8 +1,8 @@
 "use client";
 // src/components/ClarifyChoices.tsx
 //
-// The options under a clarifying question about a department (step 49a), as CHECKBOXES (and, from step 54a, as RADIO buttons when the question is about a DOCTOR: exactly one): the person ticks the department or departments meant and presses Continue. The question that will
-// be searched for is shown and follows the ticks, so nothing is a surprise. "Select all" is a shortcut (only when there are two or more options); "None of these" and "documents"
+// The options under a clarifying question about a department (step 49a), as CHECKBOXES (and, from step 54a, as RADIO buttons when the question is about a DOCTOR: exactly one): the person ticks the department or departments meant and presses Continue. I show the question that will
+// be searched for and let it follow the ticks, so nothing is a surprise. "Select all" is a shortcut (only when there are two or more options); "None of these" and "documents"
 // are separate buttons, because they cannot be ticked together with a department. The question itself is the answer text above.
 
 import React, { useState } from "react";

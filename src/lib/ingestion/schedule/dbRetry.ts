@@ -1,9 +1,9 @@
 // src/lib/ingestion/schedule/dbRetry.ts
 //
 // The import takes minutes (the OCR), and a database connection held open all that time can be dropped by the network (it was, once: "read
-// ETIMEDOUT", an unhandled error event, and the whole run died with a stack trace). So the database is used in SHORT steps: connect, do one thing,
+// ETIMEDOUT", an unhandled error event, and the whole run died with a stack trace). So I use the database in SHORT steps: connect, do one thing,
 // disconnect, and if a step fails because the connection broke, do that step again on a new connection. A connection that breaks while idle can no
-// longer crash the program: its error is swallowed (it matters only if the step in progress needs it, and that step then fails and is retried).
+// longer crash the program: I swallow its error (it matters only if the step in progress needs it, and that step then fails and is retried).
 
 export interface Connectable {
   connect(): Promise<unknown>;

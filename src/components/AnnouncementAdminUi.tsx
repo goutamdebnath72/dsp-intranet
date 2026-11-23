@@ -1,7 +1,7 @@
 // src/components/AnnouncementAdminUi.tsx
 //
 // Presentational UI for the Announcement Manager Facility (Modular Facility Kit).
-// Matches the visual language of the Employee Manager, PAX Directory Editor,
+// I match the visual language of the Employee Manager, PAX Directory Editor,
 // Holiday Manager, and Circular Manager: glass cards, live validation, underline tabs,
 // consistent header inline layout, and NonExecutive delegation cards.
 
@@ -165,7 +165,7 @@ export function AnnouncementCard({
   item: AnnouncementItemView;
   onEdit?: (item: AnnouncementItemView) => void;
   onDelete?: (item: AnnouncementItemView) => void;
-  /** reads the PDF for the search bar again (shown for a PDF that was not read, or could not be) */
+  /** Reads the PDF for the search bar again; I show this button for a PDF that was not read, or could not be. */
   onReindex?: (item: AnnouncementItemView) => void;
   busy?: boolean;
 }) {
@@ -221,7 +221,7 @@ export function AnnouncementCard({
         {item.content ? (
           <div
             className="prose prose-sm max-w-none text-xs text-slate-600 line-clamp-3"
-            dangerouslySetInnerHTML={{ __html: sanitizeAnnouncementHtml(item.content) }} /* sanitised again on render, as in AnnouncementModal: a row saved before the sanitiser existed, or inserted by SQL, must never inject markup */
+            dangerouslySetInnerHTML={{ __html: sanitizeAnnouncementHtml(item.content) }} /* I sanitise again on render, as in AnnouncementModal: a row saved before the sanitiser existed, or inserted by SQL, must never inject markup. */
           />
         ) : item.contentText ? (
           <p className="text-xs text-slate-600 line-clamp-3">{item.contentText}</p>
@@ -238,8 +238,8 @@ export function AnnouncementCard({
 }
 
 /**
- * THE PDF PART OF THE PUBLISH / EDIT FORM. Nothing is uploaded here: it only chooses. `chosen` is the file picked now; `current` is the PDF the announcement already has (when editing);
- * `removeCurrent` says it is to be taken off. A PDF may stand alone: the body text is optional.
+ * This is the PDF part of the publish / edit form. Nothing is uploaded here: it only chooses. `chosen` is the file picked now; `current` is the PDF the announcement already has (when editing);
+ * `removeCurrent` says it is to be taken off. A PDF may stand alone, because I made the body text optional.
  */
 export function PdfPicker({
   chosen,
@@ -297,7 +297,7 @@ export function PdfPicker({
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) onChoose(f);
-          e.target.value = ""; // the same file can be chosen again
+          e.target.value = ""; // so the same file can be chosen again
         }}
       />
       {chosen ? (
@@ -422,7 +422,7 @@ export function HistoryList({ history }: { history: AnnouncementAuditView[] }) {
 }
 
 /**
- * How the announcement went into the search index: its PDF (read from its own text, or by AI where a page had none; searchable inside, or not and why) and its text. A part that is not in order says so, and one
+ * This shows how the announcement went into the search index: its PDF (read from its own text, or by AI where a page had none; searchable inside, or not and why) and its text. A part that is not in order says so, and one
  * button prepares the announcement again.
  */
 export function PdfSearchState({ item, onReindex, busy }: { item: AnnouncementItemView; onReindex?: (item: AnnouncementItemView) => void; busy?: boolean }) {

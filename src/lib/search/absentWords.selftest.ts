@@ -4,7 +4,7 @@ import { absentWords, judgeAbsent } from "./absentWords";
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
 
-// the owner's case: "LTC rules": ltc is in no document, rules is
+// my case: "LTC rules": ltc is in no document, rules is
 const a = judgeAbsent(["ltc", "rules"], ["ltc"]);
 ok("'ltc rules': half the words are in no document -> nothing is shown, the sentence names LTC", a.nothing && !a.partial && /mentions “LTC”/.test(a.sentence) && /choose Everything/.test(a.sentence), a.sentence);
 const b = judgeAbsent(["leave", "policy", "xyzzy"], ["xyzzy"]);
@@ -16,7 +16,7 @@ ok("no words, or no absent word, is quiet and never throws", !judgeAbsent([], ["
 ok("a repeated word counts once", judgeAbsent(["ltc", "ltc", "rules", "rules"], ["ltc"]).nothing);
 
 (async () => {
-  // the lookup: a fake data source that answers like the real query
+  // the lookup is a fake data source that answers like the real query
   const present = new Set(["rules", "leave"]);
   let calls = 0;
   const ds = { query: async (_sql: string, params: unknown[]) => { calls++; return (params[0] as string[]).map((t) => ({ tok: t, present: present.has(t) })); } } as never;

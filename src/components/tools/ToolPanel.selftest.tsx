@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/tools/ToolPanel.selftest.tsx
-// The tools panel of the search bar: what it shows for a typed line, the notice on every card, and that nothing typed can leave the browser.
+// This checks the tools panel of the search bar: what it shows for a typed line, the notice on every card, and that nothing typed can leave the browser.
 import React from "react";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -83,13 +83,13 @@ ok("the dropdown is placed before it opens: below first; above only when below i
 })());
 ok("a long number gets a smaller size so that it is seen whole, and the panel of a long text asks for more room", fitSize("12") === "text-4xl" && fitSize("1234567890123456") === "text-2xl" && fitSize("1".repeat(40)) === "text-lg" && panelWeight("1", "Metre") === 1 && panelWeight("12345678901234567890", "x") > 1.3 && panelWeight("1", "Mechanical horsepower (bhp) of a very long name indeed, in full") > panelWeight("1", "Metre") && panelWeight("1".repeat(80), "x") === 2.4);
 
-// nothing typed can leave the browser
+// Check: nothing typed can leave the browser.
 const src = (f: string) => readFileSync(f, "utf8").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 const panelSrc = src("src/components/tools/ToolPanel.tsx");
-// every file of every topic (src/tools/**), so that a topic added later is checked without anyone remembering to add it here
+// I check every file of every topic (src/tools/**), so that a topic added later is covered without anyone remembering to add it here.
 const walk = (d: string): string[] => readdirSync(d).flatMap((n) => (statSync(`${d}/${n}`).isDirectory() ? walk(`${d}/${n}`) : /\.tsx?$/.test(n) && !/selftest/.test(n) ? [`${d}/${n}`] : []));
 const topicFiles = walk("src/tools");
-// the DSP history card's viewer asks its own route about a fixed document id (never a typed word) before drawing a page: it is checked on its own below
+// The DSP history card's viewer asks its own route about a fixed document id (never a typed word) before drawing a page; I check it on its own below.
 const viewerFile = "src/tools/dsphistory/DocViewer.tsx";
 const topicSrc = topicFiles.filter((f) => !f.endsWith(viewerFile)).map(src).join("\n");
 const atomsSrc = src("src/components/tools/toolAtoms.tsx");

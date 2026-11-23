@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/fare.selftest.ts
-// The fares of a train from Durgapur: the reading of RailRadar's answers (the real replies of 14 Nov 2026 are below), the choice of the day, and the asking of all classes.
+// This tests the fares of a train from Durgapur: the reading of RailRadar's answers (the real replies of 14 Nov 2026 are below), the choice of the day, and the asking of all classes.
 import { DateTime } from "luxon";
 import { askFares, askLeg, askLocalFare, CLASSES, localLegs, parseSchedule, FARE_KEPT_S, journeyDateFor, LOCAL_CLASS, parseClassFare, parseLocalDistance, type Fetcher } from "./fare";
 
@@ -9,7 +9,7 @@ const throwsAsync = async (f: () => Promise<unknown>) => { try { await f(); retu
 const throws = (f: () => unknown) => { try { f(); return false; } catch { return true; } };
 
 const reply = (number: string, name: string, distance: number, b: Record<string, number>) => ({ success: true, data: { trainNumber: number, trainName: name, distance, breakdown: { baseFare: 0, reservationCharge: 0, superfastCharge: 0, tatkalFare: 0, goodsServiceTax: 0, cateringCharge: 0, dynamicFare: 0, otherCharge: 0, totalFare: 0, fuelAmount: 0, totalConcession: 0, wpServiceTax: 0, ...b } }, meta: { source: "prs" } });
-// real replies (Durgapur to the end of the run)
+// Real replies (Durgapur to the end of the run).
 const SHATABDI_CC = reply("12019", "Howrah - Ranchi Shatabdi Express", 268, { baseFare: 425, reservationCharge: 40, superfastCharge: 45, goodsServiceTax: 34, cateringCharge: 290, dynamicFare: 170, totalFare: 1005 });
 const MAIL = { SL: reply("13005", "Amritsar Mail", 1752, { baseFare: 730, reservationCharge: 20, totalFare: 750 }), "3A": reply("13005", "Amritsar Mail", 1752, { baseFare: 1793, reservationCharge: 40, goodsServiceTax: 92, totalFare: 1925 }), "2A": reply("13005", "Amritsar Mail", 1752, { baseFare: 2573, reservationCharge: 50, goodsServiceTax: 132, totalFare: 2755 }), "1A": reply("13005", "Amritsar Mail", 1752, { baseFare: 4354, reservationCharge: 60, goodsServiceTax: 221, totalFare: 4635 }) } as Record<string, unknown>;
 const NOT_AVAILABLE = { success: false, error: { code: "API:DATA_NOT_AVAILABLE", message: "The requested railway information is unavailable." } };
@@ -34,7 +34,7 @@ ok("it is the day in India, not the server's: 11 pm in London on Fri 13 Nov is a
 const calls: string[] = [];
 const fake = (table: Record<string, unknown>, status: Record<string, number> = {}): Fetcher => async (url) => { calls.push(url); const c = new URL(url).searchParams.get("classCode")!; return table[c] ? { status: status[c] ?? 200, json: table[c] } : { status: 404, json: NOT_AVAILABLE }; };
 
-// the local trains: the schedule of 63505 Barddhaman - Asansol MEMU (real, 14 Nov 2026, trimmed to the stops that matter)
+// The local trains: the schedule of 63505 Barddhaman - Asansol MEMU (real, 14 Nov 2026, trimmed to the stops that matter).
 const stop = (seq: number, code: string, distance: number, extra: Record<string, unknown> = {}) => ({ sequence: seq, station: { code }, distance, isReversal: false, ...extra });
 const SCHED = (route: unknown[], train: Record<string, unknown> = {}) => ({ success: true, data: { train: { number: "63505", name: "Barddhaman - Asansol MEMU", type: "MEMU", category: "Local", hasReversal: false, isPrsBookable: false, ...train }, route } });
 const S63505 = SCHED([stop(1, "BWN", 0), stop(9, "RBH", 55.4), stop(10, "DGR", 63.8), stop(16, "UDL", 80.7), stop(22, "ASN", 106.1)]);
@@ -58,7 +58,7 @@ const local = (status: number, json: unknown): Fetcher => async () => ({ status,
   await askLocalFare("63505", "ASN", async (u) => { asked.push(u); return { status: 200, json: S63505 }; }, "2026-11-14");
   ok("only ONE request is made for a local train (its schedule), not eight", asked.length === 1 && /\/v1\/trains\/63505\?haltsOnly=true$/.test(asked[0]));
 
-  // the legs: every stop after Durgapur
+  // The legs: every stop after Durgapur.
   const S2 = SCHED([stop(1, "BWN", 0), stop(5, "PAN", 48), stop(10, "DGR", 63.8), { ...stop(12, "OYR", 72.5), station: { code: "OYR", name: "Waria" } }, { ...stop(16, "UDL", 80.7), station: { code: "UDL", name: "Andal Jn" } }, { ...stop(22, "ASN", 106.1), station: { code: "ASN", name: "Asansol Jn" } }]);
   const sch = parseSchedule(S2, "63505");
   ok("the schedule gives the halts after Durgapur with their distance FROM Durgapur, in order, and Durgapur's own distance from the start", sch.stops.map((x) => `${x.code}:${x.km}`).join() === "OYR:8.7,UDL:16.9,ASN:42.3" && sch.durgapurKm === 63.8 && !sch.reverses && sch.stops[0].name === "Waria" && sch.trainName === "Barddhaman - Asansol MEMU");
@@ -78,7 +78,7 @@ const local = (status: number, json: unknown): Fetcher => async () => ({ status,
   ok("a mail train with sleeper, 3A, 2A and 1A gets exactly those four, cheapest first, and the classes it lacks are left out", set.classes.map((c) => c.code).join() === "SL,3A,2A,1A" && set.classes.map((c) => c.total).join() === "750,1925,2755,4635", set.classes.map((c) => c.code).join());
   ok("it carries the train, its name, the end station, the day asked for and the distance", set.train === "13005" && set.trainName === "Amritsar Mail" && set.from === "DGR" && set.to === "ASR" && set.journeyDate === "2026-11-21" && set.distanceKm === 1752);
   ok("it asked each of the eight classes once, from Durgapur, with the day, and the key is nowhere in an address", calls.length === 8 && CLASSES.length === 8 && calls.every((u) => /source=DGR&destination=ASR&journeyDate=2026-11-21&classCode=/.test(u) && !/rg_/.test(u) && !/key/i.test(u)));
-  // the starting station is a last argument, Durgapur unless given: the Asansol tab's trains have their fares from Asansol
+  // The starting station is a last argument, Durgapur unless given: the Asansol tab's trains have their fares from Asansol.
   const asnCalls: string[] = [];
   const asnSet = await askFares("13005", "ASR", "2026-11-21", async (u) => { asnCalls.push(u); return fake(MAIL)(u); }, "ASN");
   ok("asked FROM ASANSOL, each class is requested with source=ASN and the set says it is from ASN; asked without it, still Durgapur", asnCalls.length === 8 && asnCalls.every((u) => /source=ASN&destination=ASR&/.test(u)) && asnSet.from === "ASN" && set.from === "DGR");

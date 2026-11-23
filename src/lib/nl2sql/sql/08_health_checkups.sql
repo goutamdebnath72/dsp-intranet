@@ -6,8 +6,8 @@
 -- status: 'verified'   ticket and name agree with the HR directory
 --         'corrected'  the ticket was misread; the one HR employee with this name and department was used (status_note says so)
 --         'unverified' not confirmed against HR (usually a person no longer in the HR directory). The table keeps ticket_no NULL for these;
---                      the VIEW below still shows the ticket as PRINTED in the circular, with verified = false (Yes/No on screen), so a person
---                      is never shown without their ticket. Two cases are NOT shown with a ticket, because it may belong to someone else:
+--                      the VIEW below still shows the ticket as PRINTED in the circular, with verified = false (Yes/No on screen), so I never show a person
+--                      without their ticket. Two cases are NOT shown with a ticket, because it may belong to someone else:
 --                      the printed ticket is another HR employee's (status_note "belongs to") or appears twice in the schedule.
 
 CREATE TABLE IF NOT EXISTS public.health_checkup_schedule (
@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS health_checkup_ticket_idx   ON public.health_checkup_
 CREATE INDEX IF NOT EXISTS health_checkup_month_idx    ON public.health_checkup_schedule (schedule_year, schedule_month);
 CREATE INDEX IF NOT EXISTS health_checkup_date_idx     ON public.health_checkup_schedule (checkup_date);
 
--- What the question-answering engine may read. Dates come out as plain text 'YYYY-MM-DD' (no time-zone surprises, sorts correctly).
+-- This is what the question-answering engine may read. I give dates as plain text 'YYYY-MM-DD' (no time-zone surprises, sorts correctly).
 -- The department is the one PRINTED in that schedule (an employee may have moved since). name/name_words/name_codes come from HR when the
 -- ticket is confirmed, so the name helpers work exactly as on nlq.employees.
 CREATE OR REPLACE VIEW nlq.health_checkups AS
@@ -55,7 +55,7 @@ SELECT
   (h.status IN ('verified', 'corrected'))                                       AS verified,
   coalesce(e.name_words, regexp_split_to_array(upper(btrim(h.name_printed)), '\s+')) AS name_words,
   coalesce(e.name_codes, nlq.name_codes_of(h.name_printed))                     AS name_codes,
-  -- appended for the answer's "Source" line (a click opens the circular at the page of the person); the question-answering model is not told about them
+  -- I append these for the answer's "Source" line (a click opens the circular at the page of the person); I do not tell the question-answering model about them
   c.id                                                                          AS circular_id,
   c.headline                                                                    AS circular_title,
   h.page_number::int                                                            AS page_number

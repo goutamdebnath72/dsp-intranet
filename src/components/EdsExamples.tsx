@@ -1,8 +1,8 @@
 // src/components/EdsExamples.tsx
 //
-// THE SHELF OF PROVEN QUESTIONS, drawn in the search window while the Executive Deep Search button is chosen by an executive and nothing has been asked yet (the window decides when: src/components/OmnibarModal.tsx). It teaches by
+// THE SHELF OF PROVEN QUESTIONS, drawn in the search window while the Executive Deep Search button is chosen by an executive and nothing has been asked yet (the window decides when: src/components/OmnibarModal.tsx). I use it to teach by
 // example: what a deep question looks like, and what each kind asks for. Every question is a link; pressing it puts the question in the box and runs it at once (no Enter). A question the person writes himself still needs Enter.
-// The questions and their groups are src/lib/help/edsExamples.ts (which reads the guide's own list). The window scrolls this panel when it is taller than the window.
+// The questions and their groups are in src/lib/help/edsExamples.ts (which reads the guide's own list). The window scrolls this panel when it is taller than the window.
 "use client";
 
 import React from "react";

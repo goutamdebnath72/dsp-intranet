@@ -1,8 +1,8 @@
 // src/app/api/live/railway-fare-find/route.ts
 //
-// "FIND A FARE": (`from=ASN` for the Asansol tab: the fares from Asansol, from its own tables) ?stops=1 gives the stations that have a saved fare to them (for the search box); ?to=PNBE gives every train that goes from Durgapur to that station, with the saved fare of each class (src/lib/live/fareFind.ts).
-// DATABASE ONLY for the fares (nothing is asked of RailRadar's fare service: the plant pays for it for one month and the fares were collected then); the kept timetable (free plan, twelve hours) supplies the times and days.
-// The caller sends only a station code, checked to be letters and digits.
+// "Find a fare": (`from=ASN` for the Asansol tab: the fares from Asansol, from its own tables) ?stops=1 gives the stations that have a saved fare to them (for the search box); ?to=PNBE gives every train that goes from Durgapur to that station, with the saved fare of each class (src/lib/live/fareFind.ts).
+// DATABASE ONLY for the fares (I ask nothing of RailRadar's fare service: the plant pays for it for one month and the fares were collected then); the kept timetable (free plan, twelve hours) supplies the times and days.
+// The caller sends only a station code, which I check to be letters and digits.
 import { NextResponse, type NextRequest } from "next/server";
 import { DateTime } from "luxon";
 import { getDb } from "@/lib/db";
@@ -20,12 +20,12 @@ export const maxDuration = 20;
 const fail = (error: string, status: number) => NextResponse.json({ ok: false, error }, { status, headers: { "Cache-Control": "no-store" } });
 const SOURCE = "RailRadar (fares from the railway's reservation system)";
 
-/** the list of stations of each starting station is kept ten minutes in this copy's memory (the search box asks for it once per opening) */
+/** I keep the list of stations of each starting station for ten minutes in this copy's memory (the search box asks for it once per opening) */
 const stopsKept: Partial<Record<"DGR" | "ASN", { at: number; stops: StopInfo[] }>> = {};
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams;
-  // the station the fares start from: Durgapur unless the Asansol tab asks (`from=ASN`); nothing else is accepted
+  // The station the fares start from: Durgapur unless the Asansol tab asks (`from=ASN`). I accept nothing else.
   const from = q.get("from") === "ASN" ? "ASN" : "DGR";
   try {
     const store = legStoreFor(await getDb(), from);
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     if (!/^[A-Z0-9]{1,8}$/.test(to)) return fail("Send a station code (letters and digits).", 400);
     const rows = await store.toStop(to);
     if (rows.length === 0) return fail("No saved fare goes to this station.", 404);
-    // the times and days come from the kept timetable of the starting station (free data, with its saved copy); the fares are the saved ones only
+    // The times and days come from the kept timetable of the starting station (free data, with its saved copy); the fares are the saved ones only
     const railway: Railway | AsansolTrains | null = await (from === "ASN" ? loadAsansol() : loadRailway()).catch(() => null);
     const a = buildFind({ code: to, name: rows[0].leg.name }, rows, railway, await store.coverage(), DateTime.now());
     if (!a) return fail("No saved fare goes to this station.", 404);

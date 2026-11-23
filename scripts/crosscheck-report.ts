@@ -1,19 +1,19 @@
 // scripts/crosscheck-report.ts
 //
-// THE ENGLISH / HINDI / BENGALI CROSS-CHECK OF THE ARCHIVE. For every stored circular whose pages say the same thing in different scripts (English and Hindi,
+// The English / Hindi / Bengali cross-check of the archive. For every stored circular whose pages say the same thing in different scripts (English and Hindi,
 // English and Bengali, or all three), it lists the numbers read differently on two pages (probably a misreading on one of them), the garbled longer forms
 // of a number, and the numbers on one page only. The languages may be pages of ONE circular, or SEPARATE circulars with the same title and a language tag
-// ("... (Eng)", "... (Hin)", "... (Beng)"): a circular's family is a set of witnesses to it. It uses the text already in the database: no Gemini, no cost.
+// ("... (Eng)", "... (Hin)", "... (Beng)"): I treat a circular's family as a set of witnesses to it. It uses the text already in the database: no Gemini, no cost.
 // See src/lib/ingestion/crossCheck.ts and currency.ts.
 //
 //   npx tsx --env-file=.env.local scripts/crosscheck-report.ts                 REPORT ONLY (nothing is written to the database)
 //   npx tsx --env-file=.env.local scripts/crosscheck-report.ts --apply         the same, and STORE the checks the report describes
 //   npx tsx --env-file=.env.local scripts/crosscheck-report.ts --ids 48,85     only these circulars        (also: --limit 20)
 //
-// WHAT --apply STORES (table circular_page_check, the checks the answer card's gate reads): per page, the numbers two readings agree on (confirmed) and the
+// What --apply STORES (table circular_page_check, the checks the answer card's gate reads): per page, the numbers two readings agree on (confirmed) and the
 // readings the other pages contradict (unconfirmed: the answer card then REFUSES an answer that rests on one). A check a second reader (Gemini) stored for
 // the same page text is kept and merged: what it confirmed is never marked unconfirmed. A check about other text (the page was re-read since) is replaced.
-// A circular's checks are written for ITS OWN pages only, never for its witnesses'. Safe to run again: the same input gives the same rows. Needs DATABASE_URL.
+// I write a circular's checks for ITS OWN pages only, never for its witnesses'. Safe to run again: the same input gives the same rows. Needs DATABASE_URL.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { Client } from "pg";
@@ -46,7 +46,7 @@ async function main() {
   const written: { id: number; page: number; confirmed: number; unconfirmed: string[] }[] = [];
   let pagesToWrite = 0, pagesSaved = 0, newlyConfirmed = 0;
   try {
-    // everything is loaded first: a circular's witnesses (the same circular in other languages) are looked for in the WHOLE archive, whatever --ids says
+    // I load everything first: a circular's witnesses (the same circular in other languages) are looked for in the WHOLE archive, whatever --ids says.
     const rows: { id: number; serialNumber: number | null; headline: string }[] = (
       await client.query(`SELECT c.id, c."serialNumber", c.headline FROM public.circulars c WHERE EXISTS (SELECT 1 FROM public.circular_chunks cc WHERE cc.circular_id = c.id) ORDER BY c.id`)
     ).rows;
@@ -71,8 +71,8 @@ async function main() {
       const groups = crossCheckWithWitnesses(me.pages, witnesses);
       const rupee = me.pages.map((p) => ({ page: p.page, suspects: attachedDigitSuspects(p.text), junk: rupeeSlotJunk(p.text) })).filter((r) => r.suspects.length || r.junk.length);
       items.push({ id: me.id, serial: me.serial, headline: me.headline, pages: me.pages.length, groups, scripts: pageScripts(me.pages), rupee, siblings: sib });
-      // the checks of this circular's OWN pages: from the English / Hindi / Bengali groups (its witnesses' pages are never written to), and from an amount with a stray
-      // leading digit (the rupee sign read as a digit): one set, as stored
+      // These are the checks of this circular's OWN pages: from the English / Hindi / Bengali groups (I never write to its witnesses' pages), and from an amount with a stray
+      // leading digit (the rupee sign read as a digit): one set, as stored.
       const twin = combineChecks(twinChecks(groups, (p) => !isWitness(p)), slotChecks(me.pages));
       if (!twin.length) continue;
       pagesToWrite += twin.length;

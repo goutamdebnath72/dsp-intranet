@@ -1,6 +1,6 @@
 // src/lib/security/changePassword.ts
 //
-// A PERSON CHANGES HIS OWN PASSWORD (pure: the database, bcrypt, the lock, the clock and the one-time code are given by the caller, so every rule is tested without any of them).
+// A person changes his own password (pure: the database, bcrypt, the lock, the clock and the one-time code are given by the caller, so I can test every rule without any of them).
 //   who:        the SIGN-IN's ticket only (the route reads it from the session; nothing the browser says about who it is counts)
 //   proof:      the current password, checked with bcrypt; wrong ones are counted and, after 5 in 15 minutes, refused outright (so a borrowed, unlocked screen cannot be used to learn the password)
 //   the HOD:    during the DEVELOPMENT phase the password of the HOD of C&IT is known to two people, the HOD and the developer, and is NOT changed here (set with scripts/set-user-password.ts). When the app goes
@@ -8,7 +8,7 @@
 //   the new one: at least 8 characters, not the current or any of the last 5, not the ticket number, not the SAIL P.No. (the first password of everybody, which many people know), not one character repeated.
 //   the life:   valid 180 days; when it has run out the window comes up by itself after sign-in, with the days in the message (src/lib/security/passwordPolicy.ts).
 //   the OTP:    when PASSWORD_OTP is on, a one-time code sent to the person's own mobile (else e-mail) is needed as well (src/lib/security/otp.ts). Built; switched off.
-// A session already open stays open until it ends (24 hours at most): the sign-in is a signed token, not a row to delete.
+// A session already open stays open until it ends (24 hours at most), because the sign-in is a signed token, not a row I can delete.
 
 import { DateTime } from "luxon";
 import { ageStatus, destinationFor, expiredMessage, maskDestination, PASSWORD_VALID_DAYS, REUSED_MESSAGE, SAME_AS_CURRENT_MESSAGE, validityNote, type Channel, type Destination } from "./passwordPolicy";
@@ -20,10 +20,10 @@ export const MAX_LENGTH = 128;
 export const HOD_LOCKED_MESSAGE =
   "The password of the HOD of C&IT is kept as it is while the app is in its development phase: the HOD and the developer both need to know it. The HOD will be able to change it here, to a password of his own choice, when the app goes into production.";
 
-/** the host's APP_PHASE: only the exact word "production" (any case) is production; empty or anything else is development */
+/** I read the host's APP_PHASE this way: only the exact word "production" (any case) is production; empty or anything else is development */
 export const isProductionPhase = (phase: string | undefined | null): boolean => (phase ?? "").trim().toLowerCase() === "production";
 
-/** why a new password is not acceptable, in plain words; null when it is */
+/** Says why a new password is not acceptable, in plain words; null when it is */
 export function checkNewPassword(next: string, ctx: { current: string; ticket: string; pno: string | null }): string | null {
   if (next.length < MIN_LENGTH) return `Use at least ${MIN_LENGTH} characters.`;
   if (next.length > MAX_LENGTH) return `Use at most ${MAX_LENGTH} characters.`;
@@ -46,18 +46,18 @@ export interface OtpPolicy {
 export interface Person { id: string; hash: string | null; pno: string | null; mobile?: string | null; email?: string | null }
 
 export interface ChangeDeps {
-  /** the signed-in ticket from the session, or null */
+  /** Holds the signed-in ticket from the session, or null */
   ticket: string | null;
   isHod: (ticket: string) => boolean;
-  /** true when the app is in its production phase (the HOD may then change his own) */
+  /** True when the app is in its production phase; only then do I let the HOD change his own */
   hodMayChange: boolean;
   load: (ticket: string) => Promise<Person | null>;
-  /** writes the new hash to the person's row and records the change (the day, and the replaced hash into the history) */
+  /** Writes the new hash to the person's row and records the change (the day, and the replaced hash into the history) */
   save: (c: { id: string; ticket: string; newHash: string; replacedHash: string }) => Promise<void>;
   compare: (plain: string, hash: string) => Promise<boolean>;
   hash: (plain: string) => Promise<string>;
   lock: Lock;
-  /** the hashes of the earlier passwords, newest first ([] when the history is not available) */
+  /** Gives the hashes of the earlier passwords, newest first ([] when the history is not available) */
   history: (ticket: string) => Promise<string[]>;
   otp: OtpPolicy;
 }
@@ -70,7 +70,7 @@ export type Outcome =
 const refuse = (status: 400 | 401 | 403 | 429, code: Code, error: string, retryAfterSec?: number): Outcome =>
   ({ status, body: { ok: false, error, code, ...(retryAfterSec ? { retryAfterSec } : {}) } });
 
-/** what the screen asks first: may this person change the password here? */
+/** I use this for what the screen asks first: may this person change the password here? */
 export function mayChange(d: Pick<ChangeDeps, "ticket" | "isHod" | "hodMayChange">): { canChange: boolean; reason?: string } {
   if (!d.ticket) return { canChange: false, reason: "Please sign in." };
   if (d.isHod(d.ticket) && !d.hodMayChange) return { canChange: false, reason: HOD_LOCKED_MESSAGE };
@@ -94,14 +94,14 @@ export async function changePassword(d: ChangeDeps, input: unknown): Promise<Out
   if (!(await d.compare(b.current, me.hash))) { d.lock.fail(ticket); return refuse(403, "wrong_current", "The current password is not correct."); }
   d.lock.reset(ticket);
 
-  // the new password itself: the rules, then the last 5
+  // Next the new password itself: I check the rules, then the last 5
   const why = checkNewPassword(b.next, { current: b.current, ticket, pno: me.pno });
   if (why) return refuse(400, "weak", why);
   for (const old of await d.history(ticket)) {
     if (await d.compare(b.next, old)) return refuse(400, "reused", REUSED_MESSAGE);
   }
 
-  // the one-time code (only when it is switched on), checked last so that a code is not used up by a password that was going to be refused anyway
+  // I check the one-time code (only when it is switched on) last, so that a code is not used up by a password that was going to be refused anyway
   if (d.otp.on) {
     const dest = destinationFor(me);
     if (dest) {
@@ -122,11 +122,11 @@ export interface Status {
   canChange: boolean;
   reason?: string;
   validDays: number;
-  /** the window must be filled in now (the password has run out) */
+  /** True when the window must be filled in now (the password has run out) */
   required: boolean;
-  /** the plain sentence for the window when `required` */
+  /** The plain sentence I show in the window when `required` */
   requiredMessage?: string;
-  /** the note under the heading: how long the current password lasts, and what a new one is */
+  /** The note under the heading: how long the current password lasts, and what a new one is */
   note?: string;
   daysLeft?: number;
   expiresOn?: string;
@@ -139,7 +139,7 @@ export interface StatusDeps {
   hodMayChange: boolean;
   /** epoch milliseconds */
   now: () => number;
-  /** the recorded day of the last change, in epoch milliseconds; null when none is recorded; undefined when the records are not available */
+  /** The recorded day of the last change, in epoch milliseconds; null when none is recorded; undefined when the records are not available */
   changedAt: (ticket: string) => Promise<number | null | undefined>;
   startClock: (ticket: string) => Promise<void>;
   otp: { on: boolean; noChannel: "allow" | "block" };
@@ -158,7 +158,7 @@ export async function passwordStatus(d: StatusDeps): Promise<Status> {
   const recorded = await d.changedAt(ticket);
   if (recorded !== undefined) {
     let age = ageStatus(recorded, d.now());
-    if (age.state === "unrecorded") { await d.startClock(ticket); age = ageStatus(d.now(), d.now()); } // his 180 days begin at this sign-in
+    if (age.state === "unrecorded") { await d.startClock(ticket); age = ageStatus(d.now(), d.now()); } // I start his 180 days at this sign-in
     if (age.state === "expired") {
       st.required = true;
       st.requiredMessage = expiredMessage();

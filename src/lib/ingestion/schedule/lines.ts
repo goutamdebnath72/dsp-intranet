@@ -1,17 +1,17 @@
 // src/lib/ingestion/schedule/lines.ts
 //
-// Ruled lines of a scanned table, found from the PIXELS (a "line" is a long thin run of dark pixels, with small gaps allowed).
+// I find the ruled lines of a scanned table from the PIXELS (a "line" is a long thin run of dark pixels, with small gaps allowed).
 // The roster circulars print each check-up date ONCE, in a merged cell that spans a whole group of rows; the text alone can not say which rows
-// the date covers, the ruled lines around that cell can. Pure functions on a grey-scale array, so they are tested without any image file.
+// the date covers, the ruled lines around that cell can. These are pure functions on a grey-scale array, so they are tested without any image file.
 
 export interface Gray {
-  data: Uint8Array; // one byte per pixel, 0 = black, 255 = white
+  data: Uint8Array; // one byte per pixel (0 = black, 255 = white)
   width: number;
   height: number;
 }
 
 export interface Line {
-  /** centre of the line across its thickness (y for a horizontal line, x for a vertical one) */
+  /** Centre of the line across its thickness (y for a horizontal line, x for a vertical one). */
   pos: number;
   /** extent along the line */
   from: number;
@@ -19,7 +19,7 @@ export interface Line {
   thickness: number;
 }
 
-export const DARK = 170; // a pixel darker than this belongs to a line (thin scanned lines are grey, not black)
+export const DARK = 170; // any pixel darker than this belongs to a line, because thin scanned lines are grey, not black
 
 export async function loadGray(png: Buffer): Promise<Gray> {
   const sharp = (await import("sharp")).default;
@@ -35,18 +35,18 @@ function transpose(g: Gray): Gray {
 
 interface Opts {
   minLen: number; // shortest line
-  maxGap?: number; // gap of white pixels that does not break a line
-  maxThickness?: number; // thicker than this is a block, not a line
+  maxGap?: number; // a gap of white pixels that I do not let break a line
+  maxThickness?: number; // I count anything thicker than this as a block, not a line
   thr?: number;
-  /** only look between these positions along the line (default: the whole width) */
+  /** I only look between these positions along the line (default: the whole width). */
   windowFrom?: number;
   windowTo?: number;
-  /** only look between these rows (default: all) */
+  /** I only look between these rows (default: all). */
   rowFrom?: number;
   rowTo?: number;
 }
 
-/** Horizontal lines of a picture. */
+/** Finds the horizontal lines of a picture. */
 export function findHorizontalLines(g: Gray, o: Opts): Line[] {
   const thr = o.thr ?? DARK;
   const maxGap = o.maxGap ?? 4;
@@ -106,7 +106,7 @@ export function findHorizontalLines(g: Gray, o: Opts): Line[] {
     .sort((p, q) => p.pos - q.pos);
 }
 
-/** Vertical lines of a picture (same method on the transposed picture). */
+/** Finds the vertical lines of a picture, with the same method on the transposed picture. */
 export function findVerticalLines(g: Gray, o: Opts): Line[] {
   const t = transpose(g);
   return findHorizontalLines(t, {
@@ -118,7 +118,7 @@ export function findVerticalLines(g: Gray, o: Opts): Line[] {
   });
 }
 
-/** Lines at nearly the same position are one line (a double-drawn or smeared rule). */
+/** I treat lines at nearly the same position as one line (a double-drawn or smeared rule). */
 export function clusterLines(lines: Line[], tol: number): Line[] {
   const out: Line[] = [];
   for (const l of [...lines].sort((a, b) => a.pos - b.pos)) {

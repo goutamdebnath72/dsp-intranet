@@ -20,10 +20,10 @@ import {
   dashboardContainerVariants,
 } from "./ProductionDashboard";
 import { motion } from "framer-motion";
-import { PERF } from "@/lib/perf/switches"; // which speed changes run: src/lib/perf/switches.js
+import { PERF } from "@/lib/perf/switches"; // the speed changes that run are chosen in src/lib/perf/switches.js
 import { HERO_SRC } from "@/lib/perf/heroPicture";
 import { whenIdle } from "@/lib/ui/lazyLoad";
-import { getFriendlyFirstName } from "@/lib/utils/nameHelper"; // ✅ Imported our smart name helper
+import { getFriendlyFirstName } from "@/lib/utils/nameHelper"; // Imported my smart name helper
 
 // --- 2. ADDED NEW LINK TYPE ---
 type Link = {
@@ -40,9 +40,9 @@ interface HomepageProps {
   quickLinksData: Link[];
   departmentData: Link[];
   sailSitesData: Link[];
-  /** the circulars uploaded in the last 24 hours (from the server; the same for everyone), so a logged-out visitor sees the red badge at once */
+  /** I send the circulars uploaded in the last 24 hours from the server (the same list for everyone), so a logged-out visitor sees the red badge at once */
   recentCircularIds?: number[] | null;
-  /** true when the visitor has no login cookie at all (certainly logged out): the badge is then part of the first HTML */
+  /** true when the visitor has no login cookie at all (certainly logged out); I then make the badge part of the first HTML */
   visitorHasNoLoginCookie?: boolean;
 }
 
@@ -77,7 +77,7 @@ export function HomepageNew({
   recentCircularIds,
   visitorHasNoLoginCookie,
 }: HomepageProps) {
-  // The name comes from the SAME verified session the header uses -- never from the server. The server can only
+  // I take the name from the SAME verified session the header uses and never from the server. The server can only
   // see the persistent login cookie, so it used to print a previous user's name next to a "Login" button.
   const { data: session, status } = useVerifiedSession();
   const firstName =
@@ -86,7 +86,7 @@ export function HomepageNew({
   const [isPaused, setIsPaused] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  // the plant video (4.4 MB) starts once the page has loaded, so it does not compete with the scripts and the hero picture for the line; the hero picture shows (as the poster) until it plays
+  // I start the plant video (4.4 MB) once the page has loaded, so it does not compete with the scripts and the hero picture for the line; the hero picture shows (as the poster) until it plays
   const [videoReady, setVideoReady] = useState(!PERF.deferHomeVideo);
   useEffect(() => {
     if (videoReady) return;
@@ -102,7 +102,7 @@ export function HomepageNew({
   );
   const [isAppDrawerOpen, setIsAppDrawerOpen] = useState(false);
 
-  // The "new circular" state (the red circle on the thumbnail AND the highlighted rows in the modal) is owned by ONE hook, so they always agree.
+  // I keep the "new circular" state (the red circle on the thumbnail AND the highlighted rows in the modal) in ONE hook, so the two always agree.
   const circularStatus = useCircularStatus(status, recentCircularIds, visitorHasNoLoginCookie);
 
   // Opening the modal asks the server again, so a circular uploaded since the page loaded shows up.
@@ -111,7 +111,7 @@ export function HomepageNew({
     void circularStatus.refresh();
   };
 
-  // Opening a circular: for a logged-in person it stops being new at once (and the read is saved); for a logged-out person nothing changes.
+  // Opening a circular: for a logged-in person it stops being new at once (and I save the read); for a logged-out person nothing changes.
   const handleCircularSelect = (id: number) => {
     setSelectedCircularId(id);
     return circularStatus.markOpened(id);
@@ -161,7 +161,7 @@ export function HomepageNew({
             <h1 className="font-black text-5xl tracking-tight text-white">
               Welcome,{" "}
               {status === "loading" ? (
-                // A visible placeholder while the session is verified, so there is never a blank gap.
+                // I show a visible placeholder while the session is verified, so there is never a blank gap.
                 <span
                   aria-hidden
                   className="inline-block h-[0.65em] w-40 animate-pulse rounded-md bg-white/30 align-baseline"
@@ -224,7 +224,7 @@ export function HomepageNew({
                       <PauseCircle
                         size={64}
                         className={`text-white/80 transition-opacity duration-300 ${
-                          // by CSS alone (group-hover) the page is not drawn again at each mouse move over the video
+                          // I do this by CSS alone (group-hover), so the page is not drawn again at each mouse move over the video
                           PERF.cssVideoHover ? "opacity-0 group-hover:opacity-100" : isHovering ? "opacity-100" : "opacity-0"
                         }`}
                         strokeWidth={1}
@@ -244,7 +244,7 @@ export function HomepageNew({
                         className="flex items-center gap-4 p-2 rounded-lg hover:bg-white/50 transition-colors group h-[90px]"
                       >
                         {PERF.localNewsThumbs ? (
-                          // drawn here, not fetched from placehold.co (an outside site: with no internet out of the plant the request hangs)
+                          // I draw this here and do not fetch it from placehold.co (an outside site: with no internet out of the plant the request hangs)
                           <div
                             role="img"
                             aria-label={item.title}

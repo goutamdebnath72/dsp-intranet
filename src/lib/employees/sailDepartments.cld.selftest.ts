@@ -1,6 +1,6 @@
 // Run (from the project root; needs a scratch Postgres):
 //   NL2SQL_TEST_ADMIN_URL=postgres://postgres:pw@127.0.0.1:5432/postgres npx tsx --tsconfig tsconfig.json src/lib/employees/sailDepartments.cld.selftest.ts
-// Step 60c: the OLDER rule-based engine (the safety net when the model is down or rate-limited) knows the CL&D names too. In the owner's check of 26 Oct 2026 the model was rate-limited, the older engine could not
+// Step 60c: the OLDER rule-based engine (the safety net when the model is down or rate-limited) has to know the CL&D names too. In my check of 26 Oct 2026 the model was rate-limited, the older engine could not
 // ground "centre for human resource development" and the question fell to the circular search (80 s, an unrelated circular). The test runs the REAL lookup against a small database that holds the real rows.
 
 import { Client } from "pg";
@@ -16,7 +16,7 @@ const ok = (name: string, cond: boolean, extra = "") => {
   else { fail++; console.log(`FAIL ${name} ${extra}`); }
 };
 const DB = "sail_dept_selftest";
-const FIVE = [17, 138, 140, 201, 286]; // L & D (107), L & D (TECH) (10770), L & D IND (9008), L & D OFFICE (9001), L & D (9003): the owner's list
+const FIVE = [17, 138, 140, 201, 286]; // L & D (107), L & D (TECH) (10770), L & D IND (9008), L & D OFFICE (9001), L & D (9003): my list
 const sorted = (a: number[]) => [...a].sort((x, y) => x - y);
 
 async function main() {
@@ -46,7 +46,7 @@ async function main() {
   const { findSailDepartmentInText, resolveSailDepartment } = await import("./sailDepartments");
   NodeModule._load = originalLoad;
 
-  // ---- every name of the department grounds to the five rows, as a department phrase and inside a sentence
+  // ---- I check that every name of the department grounds to the five rows, as a department phrase and inside a sentence
   const names = ["cl&d", "CL & D", "cl and d", "centre for l&d", "Centre for L & D", "center for l & d", "learning and development", "Centre for Learning and Development", "chrd", "CHRD", "c.h.r.d", "centre for human resource development", "Center for Human Resource Development", "training department", "training dept", "l & d", "L and D"];
   for (const n of names) {
     const r = await resolveSailDepartment(n);
@@ -54,11 +54,11 @@ async function main() {
     const t = await findSailDepartmentInText(`list the employees of the ${n} please`);
     ok(`findSailDepartmentInText("... ${n} ...") = the five L & D rows`, !!t && JSON.stringify(sorted(t.group.ids)) === JSON.stringify(FIVE), JSON.stringify(t));
   }
-  // ---- the very question of the owner's check (model rate-limited): the older engine grounds the department text it classified
+  // ---- the very question of my check (model rate-limited): the older engine grounds the department text it classified
   const g = await resolveSailDepartment("centre for human resource development");
   ok("the department text the older engine classified in the owner's check ('centre for human resource development') now grounds", !!g && g.ids.length === 5);
 
-  // ---- another plant's CHRD is NOT this department
+  // ---- I keep another plant's CHRD out: it is NOT this department
   for (const q of ["employees of bsp chrd", "list the employees of bhilai chrd", "rourkela chrd staff", "bokaro chrd", "iisco chrd", "employees of the training department of bhilai", "sail chrd employees"]) {
     const t = await findSailDepartmentInText(q);
     ok(`another plant's CHRD: "${q}" is not the Durgapur CL&D rows`, !t || JSON.stringify(sorted(t.group.ids)) !== JSON.stringify(FIVE), JSON.stringify(t));

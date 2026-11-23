@@ -1,8 +1,8 @@
 // src/tools/weather/topic.ts
 //
-// WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words of the Durgapur weather card ("durgapur weather report with forecast"). The data, its source and its checks are in
-// src/lib/live/weather.ts; how it looks is in WeatherCard.tsx and ui.tsx. It is listed once, in src/tools/registry.ts.
-// Only Durgapur is known: a line that names another place ("weather in delhi") is not this card's, because every word of a line must be one of the key words, the extra words below or a filler.
+// What the search line needs to know about this topic (pure, no React): the words of the Durgapur weather card ("durgapur weather report with forecast"). The data, its source and its checks are in
+// src/lib/live/weather.ts; how it looks is in WeatherCard.tsx and ui.tsx. I list it once, in src/tools/registry.ts.
+// Only Durgapur is known: a line that names another place ("weather in delhi") is not this card's, because I require every word of a line to be one of the key words, the extra words below or a filler.
 import { defineTopic } from "@/tools/types";
 
 export const weatherTopic = defineTopic({

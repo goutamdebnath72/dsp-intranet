@@ -1,14 +1,14 @@
 -- 29_announcement_search_index.sql
 --
--- THE SEARCH INDEX OF AN ANNOUNCEMENT (src/lib/announcements/searchIndex/): prepared the way a circular is prepared, for the search bar to find an announcement by its title, by its BODY TEXT and by what its PDF says.
+-- THE SEARCH INDEX OF AN ANNOUNCEMENT (src/lib/announcements/searchIndex/): I prepare it the way a circular is prepared, so that the search bar can find an announcement by its title, by its BODY TEXT and by what its PDF says.
 --
 --   announcement_chunk   the passages (about 200 words each) with a vector (768, the same Gemini embedding as circulars): source 'body' = the announcement's own text; source 'pdf' = the PDF, by page.
 --   announcement_page    the picture of each page of the PDF (kept in Vercel Blob, as circulars keep theirs; the address is never sent to the browser: /api/announcements/<id>/page/<n> serves it).
 --   announcement_index   one row per announcement: how each part went (ready | failed, and why), how many pages came from the PDF's own text and how many had to be read by AI (OCR), and the PDF's whole text
 --                        (used for the announcement's own vector and for the answers drawn from it).
 --
--- A true PDF is read from its own text layer (exact, free); a page with no usable text layer (a scan, an infographic) is read by Gemini, exactly as a circular's pages are.
--- Tables of their own, so that announcements and their PDFs work whether or not this file has been run (the search then finds titles and body words only).
+-- I read a true PDF from its own text layer (exact, free); a page with no usable text layer (a scan, an infographic) is read by Gemini, exactly as a circular's pages are.
+-- These are tables of their own, so that announcements and their PDFs work whether or not this file has been run (the search then finds titles and body words only).
 -- Safe to run more than once. The application also creates the tables by itself the first time something is indexed, if its database user may; running this file is the clean way.
 -- Deleting an announcement deletes its rows here (ON DELETE CASCADE); the application deletes the page pictures from Blob.
 

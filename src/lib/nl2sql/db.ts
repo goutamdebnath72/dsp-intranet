@@ -1,10 +1,8 @@
 // src/lib/nl2sql/db.ts
 //
-// Connection provider for the web route. Preferred: a DEDICATED restricted
-// login (env NL2SQL_DATABASE_URL, see sql/03_*.sql) -- it can never leave the
-// nlq_reader role. Fallback: the app's own TypeORM connection, switching to
-// nlq_reader per query (SET LOCAL ROLE). Not used by the command-line tools,
-// which open their own `pg` connection.
+// Connection provider for the web route. Preferred: a DEDICATED restricted login (env NL2SQL_DATABASE_URL, see sql/03_*.sql) -- it can never leave the
+// nlq_reader role. Fallback: the app's own TypeORM connection, which I switch to nlq_reader per query (SET LOCAL ROLE). The command-line tools do not use this:
+// they open their own `pg` connection.
 
 import type { SqlClient } from "./types";
 

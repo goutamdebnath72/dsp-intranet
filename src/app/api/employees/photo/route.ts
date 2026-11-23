@@ -1,7 +1,7 @@
 // src/app/api/employees/photo/route.ts
 //
 // POST /api/employees/photo  (multipart: op = "upload" | "remove", id, file)   and   GET /api/employees/photo?id=..&size=thumb|master  (or &meta=1).
-// The rules are in src/lib/employees/photo/api.ts; the pictures are in Vercel Blob and are only ever served through here, to a logged-in person (step 70).
+// The rules are in src/lib/employees/photo/api.ts. I keep the pictures in Vercel Blob and serve them only through this route, to a logged-in person (step 70).
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
@@ -18,7 +18,7 @@ const ctxOf = async () => { const ds = await getDb(); return { actor: await sess
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  // A missing or unreadable Content-Length is refused (it used to count as 0, so a chunked body was read in full before any size check).
+  // I refuse a missing or unreadable Content-Length. It used to count as 0, so a chunked body was read in full before any size check.
   const declaredBytes = Number(request.headers.get("content-length") ?? NaN);
   if (!Number.isFinite(declaredBytes)) return NextResponse.json({ error: "Length required." }, { status: 411 });
   if (declaredBytes > 6 * 1024 * 1024) return NextResponse.json({ error: "Too large." }, { status: 413 });
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  // a photograph is answered to a page that shows it, not to a request to open it on its own (the address typed, "Open image in new tab", "Save link as"); the pages ask for the data of a picture (meta=1) as JSON, which is not a picture
+  // I answer for a photograph only to a page that shows it, not to a request to open it on its own (the address typed, "Open image in new tab", "Save link as"); the pages ask for the data of a picture (meta=1) as JSON, which is not a picture
   if (!new URL(request.url).searchParams.has("meta") && !imageFetchAllowed(request.headers)) return NextResponse.json({ error: "Pictures are shown in the pages of this site only." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   try {
     const url = new URL(request.url);

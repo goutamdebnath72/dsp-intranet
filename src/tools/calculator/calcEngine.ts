@@ -1,6 +1,6 @@
 // src/tools/calculator/calcEngine.ts
 //
-// THE ENGINE OF THE FULL CALCULATOR (basic and scientific, laid out like the Mac's). A pure state machine: `press(state, key)` gives the next state. No screen, no storage, nothing sent anywhere;
+// The engine of the full calculator (basic and scientific, laid out like the Mac's). It is a pure state machine: `press(state, key)` gives the next state. No screen, no storage, nothing sent anywhere;
 // the memory (mc, m+, m-, mr) and the history live only in the state of the window.
 //
 // How it behaves, as the Mac's does:
@@ -8,8 +8,8 @@
 //   SCIENTIFIC the usual precedence: 2 + 3 × 4 = 14, with brackets, powers, roots and the functions; "2nd" swaps the inverse and alternate functions.
 //   "=" pressed again repeats the last operation (2 + 3 = = gives 8); "%" is the pocket-calculator percent (200 + 10 % = 220);
 //   trig works in degrees or radians (Rad / Deg); EE enters an exponent (1.5 EE 3 = 1500); a function (sin, √, x²…) acts on the number shown at once.
-// Answers are cleaned to 12 significant digits, so that 0.1 + 0.2 shows 0.3 and sin 180° shows 0.
-// NUMBER BASE (scientific only): DEC, BIN, OCT or HEX. In BIN, OCT and HEX the entry is the digits of the number in that base ("FF", "-1010"), whole numbers only: a result with a fraction is an error ("Whole numbers
+// I clean answers to 12 significant digits, so that 0.1 + 0.2 shows 0.3 and sin 180° shows 0.
+// Number base (scientific only): DEC, BIN, OCT or HEX. In BIN, OCT and HEX the entry is the digits of the number in that base ("FF", "-1010"), whole numbers only: I make a result with a fraction an error ("Whole numbers
 // only"), never rounded, and so is one beyond 2^53 - 1, which a float cannot hold exactly ("Too large for this base"). `enabled(state, key)` says which keys mean something in the base (a digit the base does not
 // have, and the keys that make fractions, do not); the calculator greys the others and the engine ignores them, from this one list. The working numbers (the stack, the memory) are plain values, so a change of base
 // only changes how they are written.
@@ -22,29 +22,29 @@ type Item = { t: "n"; v: number } | { t: "o"; v: BinOp } | { t: "(" };
 
 export interface HistoryItem {
   expr: string;
-  /** the value, as plain decimal text */
+  /** Holds the value, as plain decimal text. */
   result: string;
-  /** the base the line was calculated in (decimal when not said) */
+  /** Holds the base the line was calculated in (decimal when not said). */
   base?: Base;
 }
 
 export interface CalcState {
   mode: Mode;
-  /** the number being typed or shown, as text ("12.5", "-3", "1.5e+3") */
+  /** Holds the number being typed or shown, as text ("12.5", "-3", "1.5e+3"). */
   entry: string;
-  /** the next digit starts a new number (a result, an operator or a function has just been pressed) */
+  /** True when the next digit starts a new number (a result, an operator or a function has just been pressed). */
   fresh: boolean;
-  /** an operator or an opening bracket was the last thing pressed: the next number is still to come */
+  /** True when an operator or an opening bracket was the last thing pressed: the next number is still to come. */
   awaiting: boolean;
-  /** what is waiting to be calculated: numbers, operators, opening brackets */
+  /** Holds what is waiting to be calculated: numbers, operators, opening brackets. */
   stack: Item[];
   memory: number;
   deg: boolean;
   second: boolean;
-  /** the number base of the entry (decimal in the basic calculator) */
+  /** The number base of the entry (decimal in the basic calculator). */
   base: Base;
   error: string | null;
-  /** the last operation, for a repeated "=" */
+  /** I keep the last operation here, for a repeated "=". */
   repeat: { op: BinOp; operand: number } | null;
   history: HistoryItem[];
 }
@@ -66,10 +66,10 @@ const MAX_DIGITS = 15;
 class CalcError extends Error {}
 const fail = (msg = "Not a number"): never => { throw new CalcError(msg); };
 
-/** the number of a typed entry */
+/** Gives the number of a typed entry. */
 export const valueOf = (entry: string): number => Number(entry);
 
-/** a result as an entry: 12 significant digits, plain unless huge or tiny */
+/** Turns a result into an entry: 12 significant digits, plain unless huge or tiny. */
 export function toEntry(v: number): string {
   if (!Number.isFinite(v)) return fail("Not a number");
   if (v === 0) return "0";
@@ -81,37 +81,37 @@ export function toEntry(v: number): string {
 
 // ---- number bases ----
 export const BASES: ReadonlyArray<readonly [Base, string, string]> = [[10, "DEC", "decimal"], [2, "BIN", "binary"], [8, "OCT", "octal"], [16, "HEX", "hexadecimal"]];
-/** the largest whole number a float holds exactly */
+/** The largest whole number a float holds exactly. */
 export const BASE_LIMIT = Number.MAX_SAFE_INTEGER;
 
-/** the digit a key types ("7", "hC" is C), or null */
+/** Gives the digit a key types ("7", "hC" is C), or null. */
 export function digitOf(key: Key): string | null {
   if (/^[0-9]$/.test(key)) return key;
   return /^h[A-F]$/.test(key) ? key.slice(1) : null;
 }
 
-/** a whole number written in the base, upper case ("FF", "-1010"); a fraction or a number beyond 2^53 - 1 is an error */
+/** Writes a whole number in the base, upper case ("FF", "-1010"); I treat a fraction or a number beyond 2^53 - 1 as an error. */
 export function toBaseText(v: number, base: Base): string {
   if (!Number.isInteger(v)) return fail("Whole numbers only");
   if (Math.abs(v) > BASE_LIMIT) return fail("Too large for this base");
   return `${v < 0 ? "-" : ""}${Math.abs(v).toString(base).toUpperCase()}`;
 }
 
-/** the value of an entry of the state's base */
+/** Gives the value of an entry of the state's base. */
 export const valueIn = (s: { entry: string; base: Base }): number => (s.base === 10 ? Number(s.entry) : parseInt(s.entry, s.base));
 
-/** a result as an entry of the base: 12 significant digits in decimal, every digit in another base */
+/** Turns a result into an entry of the base: 12 significant digits in decimal, every digit in another base. */
 const entryOf = (base: Base, v: number): string => (base === 10 ? toEntry(v) : toBaseText(v, base));
-/** a whole value as plain decimal text with every digit ("9007199254740991"), as the history and a change to decimal need */
+/** Writes a whole value as plain decimal text with every digit ("9007199254740991"), which the history and a change to decimal need. */
 const wholeText = (v: number): string => (Number.isInteger(v) && Math.abs(v) <= BASE_LIMIT ? String(v) : toEntry(v));
 
-/** a whole number in each of the four bases, as the display writes them (null for a fraction or a number too large) */
+/** Gives a whole number in each of the four bases, as the display writes them (null for a fraction or a number too large). */
 export function inAllBases(v: number): Array<{ base: Base; label: string; text: string }> | null {
   if (!Number.isInteger(v) || Math.abs(v) > BASE_LIMIT) return null;
   return BASES.map(([base, label]) => ({ base, label, text: base === 10 ? displayNumber(String(v)) : displayNumber(toBaseText(v, base), base) }));
 }
 
-/** which keys mean something in the number base: all of them in decimal; in the others the digits the base has (A-F only in HEX), the four rules, powers, brackets, memory, the square, cube and factorial, and nothing that makes a fraction */
+/** Says which keys mean something in the number base: all of them in decimal; in the others I allow the digits the base has (A-F only in HEX), the four rules, powers, brackets, memory, the square, cube and factorial, and nothing that makes a fraction. */
 const WHOLE_KEYS = new Set<Key>(["ac", "back", "neg", "add", "sub", "mul", "div", "pow", "eq", "lp", "rp", "sq", "cube", "fact", "mc", "mplus", "mminus", "mr", "second"]);
 export function enabled(s: Pick<CalcState, "base">, key: Key): boolean {
   const d = digitOf(key);
@@ -136,7 +136,7 @@ function apply(op: BinOp, a: number, b: number): number {
   }
 }
 
-/** numbers and operators in turn: left to right (basic) or by precedence (scientific) */
+/** Evaluates numbers and operators in turn: left to right (basic) or by precedence (scientific). */
 function evalItems(items: Item[], sci: boolean): number {
   const nums: number[] = [];
   const ops: BinOp[] = [];
@@ -155,7 +155,7 @@ function evalItems(items: Item[], sci: boolean): number {
 
 const rad = (x: number, deg: boolean): number => (deg ? (x * Math.PI) / 180 : x);
 const unrad = (x: number, deg: boolean): number => (deg ? (x * 180) / Math.PI : x);
-/** a trig result that is zero but for the error of a float */
+/** Catches a trig result that is zero but for the error of a float. */
 const clean = (x: number): number => (Math.abs(x) < 1e-14 ? 0 : x);
 
 function unary(key: Key, v: number, deg: boolean): number {
@@ -195,21 +195,21 @@ function unary(key: Key, v: number, deg: boolean): number {
 const UNARY = new Set<Key>(["sq", "cube", "sqrt", "cbrt", "inv", "fact", "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "ln", "log10", "log2", "exp", "tenx", "twox"]);
 const BINARY = new Set<Key>(["add", "sub", "mul", "div", "pow", "root", "logy"]);
 
-/** what is waiting, as text: "2 + ( 3 ×" */
+/** Writes what is waiting as text: "2 + ( 3 ×" */
 export function pendingText(s: CalcState): string {
   return s.stack.map((it) => (it.t === "n" ? shownValue(it.v, s.base) : it.t === "o" ? SYMBOL[it.v] : "(")).join(" ");
 }
 
-/** a value as the display writes it in the base (a value that cannot be written in the base is written in decimal) */
+/** Writes a value as the display writes it in the base (a value that cannot be written in the base is written in decimal). */
 export function shownValue(v: number, base: Base): string {
   if (base !== 10 && Number.isInteger(v) && Math.abs(v) <= BASE_LIMIT) return displayNumber(toBaseText(v, base), base);
   return displayNumber(toEntry(v));
 }
 
-/** an entry as it is shown: Indian digit grouping (12,34,567.5), the decimals as typed, an exponent as it is */
+/** Writes an entry as it is shown: Indian digit grouping (12,34,567.5), the decimals as typed, an exponent as it is. */
 export function displayNumber(entry: string, base: Base = 10): string {
   if (base !== 10) {
-    // BIN and HEX in groups of four digits, OCT in threes, from the right
+    // I group BIN and HEX in fours and OCT in threes, from the right.
     const neg = entry.startsWith("-");
     const body = neg ? entry.slice(1) : entry;
     const n = base === 8 ? 3 : 4;
@@ -228,7 +228,7 @@ export function displayNumber(entry: string, base: Base = 10): string {
 
 const lastIs = (s: CalcState, t: "o" | "("): boolean => s.stack.length > 0 && s.stack[s.stack.length - 1].t === t;
 
-/** everything that is waiting, finished: a closing bracket for each open one, then the sum */
+/** Finishes everything that is waiting: a closing bracket for each open one, then the sum. */
 function finish(stack: Item[], v: number, sci: boolean): { result: number; single: { op: BinOp; operand: number } | null } {
   let cur = v;
   let rest = stack;
@@ -244,9 +244,9 @@ function finish(stack: Item[], v: number, sci: boolean): { result: number; singl
 
 const wipe = (s: CalcState): CalcState => ({ ...initialState(s.mode), memory: s.memory, deg: s.deg, second: s.second, base: s.base, history: s.history });
 
-/** The next state when `key` is pressed. `random` is a number in [0,1) for the Rand key (given from outside to keep this pure). */
+/** Gives the next state when `key` is pressed. `random` is a number in [0,1) for the Rand key; I pass it in from outside to keep this function pure. */
 export function press(prev: CalcState, key: Key, random = 0.5): CalcState {
-  if (!enabled(prev, key)) return prev; // a key the number base does not have (a 9 in binary, a sine in hexadecimal) does nothing
+  if (!enabled(prev, key)) return prev; // I ignore a key the number base does not have (a 9 in binary, a sine in hexadecimal)
   const s: CalcState = prev.error ? (/^[0-9.]$|^h[A-F]$|^ac$/.test(key) ? wipe(prev) : prev) : prev;
   if (s.error) return s;
   try {
@@ -287,12 +287,12 @@ function step(s: CalcState, key: Key, random: number): CalcState {
   if (key === "neg") return s.entry === "0" ? s : done({ entry: s.entry.startsWith("-") ? s.entry.slice(1) : `-${s.entry}` });
   if (key === "back") {
     if (s.fresh) return s;
-    let e = s.entry.slice(0, -1).replace(/e[+-]?$/, ""); // an exponent sign with no digit after it goes too
+    let e = s.entry.slice(0, -1).replace(/e[+-]?$/, ""); // I drop an exponent sign with no digit after it as well
     if (e === "" || e === "-") e = "0";
     return done({ entry: e });
   }
   if (key === "ac") {
-    if (!s.fresh && s.entry !== "0") return done({ entry: "0", fresh: true }); // "C": clears the number being typed only
+    if (!s.fresh && s.entry !== "0") return done({ entry: "0", fresh: true }); // "C" clears the number being typed only
     return wipe(s);
   }
   if (key === "second") return done({ second: !s.second });
@@ -309,7 +309,7 @@ function step(s: CalcState, key: Key, random: number): CalcState {
     const top = s.stack[s.stack.length - 1];
     const prevNum = s.stack[s.stack.length - 2];
     let r = v / 100;
-    if (top && top.t === "o" && (top.v === "add" || top.v === "sub") && prevNum && prevNum.t === "n") r = (prevNum.v * v) / 100; // 200 + 10 % is 200 + 20
+    if (top && top.t === "o" && (top.v === "add" || top.v === "sub") && prevNum && prevNum.t === "n") r = (prevNum.v * v) / 100; // Percent here: 200 + 10 % is 200 + 20
     return done({ entry: toEntry(r), fresh: true, awaiting: false });
   }
 
@@ -335,7 +335,7 @@ function step(s: CalcState, key: Key, random: number): CalcState {
     }
     if (s.awaiting && lastIs(s, "(")) return s;
     if (!sci) {
-      // immediate execution: finish the operation before this one
+      // Immediate execution: I finish the operation before this one.
       if (s.stack.length === 2 && !s.awaiting) {
         const r = evalItems([...s.stack, { t: "n", v }], false);
         return done({ stack: [{ t: "n", v: r }, { t: "o", v: op }], entry: toEntry(r), fresh: true, awaiting: true, repeat: null });
@@ -347,7 +347,7 @@ function step(s: CalcState, key: Key, random: number): CalcState {
 
   if (key === "eq") {
     if (s.stack.length === 0) {
-      if (!s.repeat) return done({ entry: entryOf(s.base, v), fresh: true }); // a typed 1.5e+3 is shown as 1500
+      if (!s.repeat) return done({ entry: entryOf(s.base, v), fresh: true }); // Shows a typed 1.5e+3 as 1500
       const r = apply(s.repeat.op, v, s.repeat.operand);
       const text = `${shownValue(v, s.base)} ${SYMBOL[s.repeat.op]} ${shownValue(s.repeat.operand, s.base)}`;
       return done({ entry: entryOf(s.base, r), fresh: true, history: [...s.history, { expr: text, result: s.base === 10 ? toEntry(r) : wholeText(r), base: s.base }].slice(-30) });
@@ -359,17 +359,17 @@ function step(s: CalcState, key: Key, random: number): CalcState {
   return s;
 }
 
-/** the scientific mode and the basic one share the entry; the pending work is dropped when the mode changes */
+/** The scientific mode and the basic one share the entry; I drop the pending work when the mode changes. */
 export function setMode(s: CalcState, mode: Mode): CalcState {
   if (s.mode === mode) return s;
-  // the basic calculator is decimal only: a number in another base goes over as the same value in decimal
+  // The basic calculator is decimal only, so a number in another base goes over as the same value in decimal.
   const toDecimal = mode === "basic" && s.base !== 10 ? { base: 10 as Base, entry: wholeText(valueIn(s)) } : {};
   return { ...s, mode, stack: [], awaiting: false, repeat: null, second: false, fresh: true, ...toDecimal };
 }
 
 /**
- * The number base changed: the entry is the same value written in the new base. Only the scientific calculator has bases. A fraction (or a number too large) cannot be written in BIN, OCT or HEX: that is an
- * error ("Whole numbers only"), never a rounded number, and so is a fraction waiting among the working numbers.
+ * The number base changed: the entry is the same value written in the new base. Only the scientific calculator has bases. A fraction (or a number too large) cannot be written in BIN, OCT or HEX: I make that an
+ * error ("Whole numbers only"), never a rounded number, and the same for a fraction waiting among the working numbers.
  */
 export function setBase(s: CalcState, base: Base): CalcState {
   if (s.base === base || s.mode !== "sci") return s;
@@ -383,7 +383,7 @@ export function setBase(s: CalcState, base: Base): CalcState {
   }
 }
 
-/** a calculator that opens on a value in a base (what a typed "0xFF" or "255 to binary" opens): the scientific calculator showing the value; a value that cannot be written in the base opens in decimal */
+/** Builds a calculator that opens on a value in a base (what a typed "0xFF" or "255 to binary" opens): the scientific calculator showing the value; a value that cannot be written in the base opens in decimal. */
 export function startAt(base: Base, value: number): CalcState {
   const s0 = initialState("sci");
   try {
@@ -393,11 +393,11 @@ export function startAt(base: Base, value: number): CalcState {
   }
 }
 
-/** The calculator key a keyboard key stands for (null for any other key, and for a shortcut with Ctrl or Cmd, which is not ours). */
+/** Gives the calculator key that a keyboard key stands for (null for any other key, and for a shortcut with Ctrl or Cmd, which does not belong to the calculator). */
 export function keyFor(k: string, ctrlOrMeta = false, base: Base = 10): Key | null {
   if (ctrlOrMeta) return null;
   if (/^[0-9]$/.test(k)) return k as Key;
-  if (base === 16 && /^[a-fA-F]$/.test(k)) return `h${k.toUpperCase()}` as Key; // in HEX the letters A-F are digits (C is no longer Clear: Delete still is)
+  if (base === 16 && /^[a-fA-F]$/.test(k)) return `h${k.toUpperCase()}` as Key; // In HEX I take the letters A-F as digits (C is no longer Clear: Delete still is)
   switch (k) {
     case ".": case ",": return ".";
     case "+": return "add";
@@ -416,7 +416,7 @@ export function keyFor(k: string, ctrlOrMeta = false, base: Base = 10): Key | nu
   }
 }
 
-/** A result from the history put back as the number shown. */
+/** Puts a result from the history back as the number shown. */
 export function recall(s: CalcState, entry: string): CalcState {
   if (s.base === 10) return { ...s, entry, fresh: true, awaiting: false, error: null };
   try {
@@ -427,7 +427,7 @@ export function recall(s: CalcState, entry: string): CalcState {
   }
 }
 
-/** a history line's result as it was calculated: in its own base, written as the display writes it */
+/** Gives a history line's result as it was calculated: in its own base, written as the display writes it. */
 export function historyResult(h: HistoryItem): string {
   const base = h.base ?? 10;
   return base === 10 ? displayNumber(h.result) : shownValue(Number(h.result), base);

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/search/circularAnswer.selftest.ts
-// No database, no network, no model: the model is a fake function.
+// No database, no network, no model: the model is a fake function here.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -10,7 +10,7 @@ import {
 } from "./circularAnswer";
 
 let pass = 0, fail = 0;
-// the answer module prints why it refused; the tests make it refuse on purpose, so the messages are collected, not shown
+// The answer module prints why it refused, and these tests make it refuse on purpose, so I collect the messages instead of showing them.
 let sink: string[] | null = null;
 console.info = (...a: unknown[]) => { if (sink) sink.push(a.join(" ")); };
 const ok = (name: string, cond: boolean, extra = "") => {
@@ -20,12 +20,12 @@ const ok = (name: string, cond: boolean, extra = "") => {
 const eq = (name: string, got: unknown, want: unknown) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)} want ${JSON.stringify(want)}`);
 
 // ---------------------------------------------------------------- fixtures
-// 1. WHAT THE APP'S OWN TABLE READER PRODUCES for the wage notice (run on the real page on 17 Oct): every cell carries its column label.
+// 1. What the app's own table reader produces for the wage notice (run on the real page on 17 Oct): every cell carries its column label.
 const ROW_W = "Area: 1} WORKS | BASIC: 3350.00 | VDA: 13478.00 | CONSTITUENT FDA: 375.00 | OF MONTHLY HRA: 1720.30 | WAGES REF: 52.00 | INC: 270.00 | AWA: 1750.00 | TOTAL: 20995.30 | Wages Per Day: 808";
 const ROW_P = "Area: 2|PROJECTS | BASIC: 3350.00 | VDA: 13478.00 | CONSTITUENT FDA: 375.00 | OF MONTHLY HRA: 1720.30 | WAGES REF: 52.00 | INC: 270.00 | AWA: 0.00 | TOTAL: 19245.30 | Wages Per Day: 740";
 const ROW_T = "Area: 3} TOWN | BASIC: 3250.00 | VDA: 13450.00 | CONSTITUENT FDA: 375.00 | OF MONTHLY HRA: 1707.50 | WAGES REF: 52.00 | INC: 455.90 | AWA: 1750.00 | TOTAL: 21040.40 | Wages Per Day: 809";
 const WAGE_GOOD = `Steel Authority of India Limited NOTICE for CONTRACT WORKERS Minimum Rate of Wages w.e.f. 01.01.2024\n[TABLE]\n${ROW_W}\n${ROW_P}\n${ROW_T}\n[/TABLE]\nNon-works area:- Will be published on availability of Govt Gazette in this regard.`;
-// 2. WHAT WAS ACTUALLY STORED in the live database (copied from the screenshot of 17 Oct): the daily-wage column is gone, a number is garbled.
+// 2. What was actually stored in the live database (copied from the screenshot of 17 Oct): the daily-wage column is gone, and a number is garbled.
 const G_W = "WORKS 3350.00] 13478.00 375.00 1720.30 52.00 270.00 1750.00 20995.30";
 const G_P = "PROJECTS 3350.00] 13478.00 375.00 1720.30 52.00 27000] 000] 1924530";
 const WAGE_DAMAGED = `Steel Authority of India Limited NOTICE for CONTRACT WORKERS Minimum Rate of Wages w.e.f. 01.01.2024 Daily Wages (Rs. Per Day of duty)\n${G_W}\n${G_P}\nTOWN 3250.00 13450.00 375.00 1707.50 52.00 455.90 1750.00 21040.40`;
@@ -210,7 +210,7 @@ ok("the request carries each document's date", prompt.includes("(dated 2023-12-1
   eq("a number word is turned into a figure only before a unit of time", [withUnit("Four (04)", "Four (04) days Casual Leave"), withUnit("five", "five of them"), withUnit("one", "one"), withUnit("two persons", "two persons"), withUnit("Five Star", "Five Star")], ["Four (04)", "five", "one", "two persons", "Five Star"]);
   eq("a time the model wrote in words is shown short too, and a date or other text is not touched", [withUnit("2 hours 30 minutes", "2 hours 30 minutes"), withUnit("10 Seconds", "10 Seconds"), withUnit("31.08.2026", "31.08.2026"), withUnit("90 days", "90 days")], ["2 hr 30 min", "10 sec", "31.08.2026", "90 days"]);
   eq("a number is never found inside a longer one", withUnit("15", "locked for 215 minutes"), "15");
-  // through the whole verification: the answer is verified with the bare value (as before), and only then shown with its unit
+  // This goes through the whole verification: I verify the answer with the bare value (as before), and only then show it with its unit.
   const P_TRI = { n: 1, type: "announcement", id: 21, title: "Trinetra Cyber Security Hardening Policy", date: "2026-11-17T04:00:00.000Z", page: 1, text: TRI, parts: [{ page: 1, text: TRI }] } as any;
   const fa = verifyAnswer({ answerable: true, title: "Account Lock Policy", rows: [{ label: "Account locked duration", column: "Account lock policy", value: "15", source: 1, quote: "If an incorrect password is entered 5 times in a row, your account will be locked for 15 minutes." }], note: "" }, [P_TRI]);
   ok("the verified answer shows the figure as 15 min", fa.ok && fa.value.rows[0].value === "15 min", reason(fa));
@@ -229,7 +229,7 @@ function ROW_W_UNIT(): string { return ROW_W; }
   eq("a number inside a sentence is never touched, nor a time without a dash before it", [tidyInfographicDebris("The meeting will be held at 10:30 in the committee room on the second floor."), tidyInfographicDebris("Employees must report within 5 days of the order and carry 2 photographs with them.")], ["The meeting will be held at 10:30 in the committee room on the second floor.", "Employees must report within 5 days of the order and carry 2 photographs with them."]);
   eq("a cleaning that would leave less than a sentence is not done", tidyInfographicDebris("OTP 123456 1 2 Both OTPs"), "OTP 123456 1 2 Both OTPs");
   eq("a sentence with nothing to clean comes back as it was, spaces tidied", tidyInfographicDebris("  Your password   must be at least eight characters long.  "), "Your password must be at least eight characters long.");
-  // through the whole path: the note of the answer is the cleaned sentence of the document
+  // This goes through the whole path: the note of the answer is the cleaned sentence of the document.
   const DOC = "Step one. OTP 123456 1 2 Both OTPs are required to be shared immediately with the vendor's executive, as the OTPs remain valid for only five minutes. - 05:00 - 3 Video verification of both the applicant and the Authorized Signatory will be conducted through a link sent to the registered e-mail ID.";
   const PDOC = { n: 1, type: "announcement", id: 21, title: "DSC", date: null, page: 1, text: DOC, parts: [{ page: 1, text: DOC }] } as any;
   const fv = verifyAnswer({ answerable: true, title: "OTP Validity", rows: [{ label: "OTPs validity", column: "", value: "five minutes", source: 1, quote: "as the OTPs remain valid for only five minutes." }], note: "" }, [PDOC]);
@@ -273,7 +273,7 @@ function ROW_W_UNIT(): string { return ROW_W; }
     const wage: string = JSON.parse(readFileSync(join(__dirname, "..", "ingestion", "__fixtures__", "pilot-readings.json"), "utf8")).find((x: { id: string }) => x.id === "wage-notice").pipeline;
     const Q = "what daily wage rates are notified for contractor workers for 2024";
     // EXACTLY what the re-read stores: whitespace collapsed to single spaces (so the table rows are glued together), then 200-word chunks
-    // (a chunk break can fall in the middle of a row), joined for the model with a blank line between chunks
+    // (a chunk break can fall in the middle of a row), joined for the model with a blank line between chunks.
     const flat = (wage + " \n").replace(/\s+/g, " ").trim();
     const docW: DocInput = { type: "circular", id: 82, title: "Notice for Contract Workers - Daily Rate of Wages w.e.f 01.01.2024", date: "2023-12-16", chunks: planChunks(buildPageUnits([wage], flat)).map((c) => ({ page: c.page, index: c.index, text: c.text })) };
     const pw = buildPassages(Q, [docW]);
@@ -299,7 +299,7 @@ function ROW_W_UNIT(): string { return ROW_W; }
     ok("REAL wage notice: a value that is only the START of a longer number is refused (808 against 8080)", !trap.ok && /not in its quote|does not stand beside/.test(trap.reason), trap.ok ? "ACCEPTED" : trap.reason);
     const trapOk = verifyAnswer({ answerable: true, title: "Wages", note: "", rows: [{ label: "SAMPLE", column: "Daily Wages", value: "8080", source: 1, quote: trapRow }] }, [mk(1, 9, "Trap", null, `Notice\n[TABLE]\n${trapRow}\n[/TABLE]`)]);
     ok("...while the whole number 8080 is accepted", trapOk.ok, trapOk.ok ? "" : trapOk.reason);
-    // ---- a quote that LEAVES CELLS OUT (what a model naturally writes): accepted only when every piece is word for word, in order, in ONE row
+    // ---- a quote that LEAVES CELLS OUT (what a model naturally writes): I accept it only when every piece is word for word, in order, in ONE row
     const q = (label: string, value: string, quote: string, column = "Daily Wages"): ModelAnswer => ({ answerable: true, title: "Daily wage rates from 01.01.2024", note: "", rows: [{ label, column, value, source: 1, quote }] });
     const FULL = rowOf("WORKS").replace(/^SL\.: 1 \| /, "SL.: 1 | ");
     const yes = (name: string, a: ModelAnswer) => { const r = verifyAnswer(a, pw); ok(name, r.ok, r.ok ? "" : r.reason); };
@@ -310,8 +310,8 @@ function ROW_W_UNIT(): string { return ROW_W; }
     yes("REAL stored form: the same with an ellipsis", q("WORKS", "808", "Area: WORKS | ... | Daily Wages (Rs. Per Day of duty): 808"));
     yes("REAL stored form: the same with a unicode ellipsis", q("PROJECTS", "740", "Area: PROJECTS … Daily Wages (Rs. Per Day of duty): 740"));
     yes("REAL stored form: heading, row start and the wage cell (the heading sits above row 1)", q("WORKS", "808", "Heading: CONSTITUENT OF MONTHLY WAGES SL.: 1 | Area: WORKS | BASIC: 3350.00 | Daily Wages (Rs. Per Day of duty): 808"));
-    // the quote is a POINTER now: a quote that is not a copy (a made-up join, pieces in the wrong order, a misnamed cell, a paraphrase) is replaced by the
-    // document's own words when the FACT it points at is true in the document; the card then shows the document's words, not the model's
+    // The quote is a POINTER now. A quote that is not a copy (a made-up join, pieces in the wrong order, a misnamed cell, a paraphrase) is replaced by the
+    // document's own words when the FACT it points at is true in the document; the card then shows the document's words, not the model's.
     const fact = (name: string, a: ModelAnswer, shows: RegExp) => { const r = verifyAnswer(a, pw); ok(name, r.ok && shows.test(r.value.rows[0].quote), r.ok ? r.value.rows[0].quote : r.reason); };
     fact("REAL stored form: a made-up join of the heading with another row, about a TRUE fact, shows the document's real row", q("TOWN SERV(ELECT)", "809", "Heading: CONSTITUENT OF MONTHLY WAGES SL.: 3 | Area: TOWN SERV(ELECT) | BASIC: 3250.00 | Daily Wages (Rs. Per Day of duty): 809"), /^SL\.: 3 \| Area: TOWN SERV\(ELECT\) \| BASIC: 3250\.00 \|.*Daily Wages \(Rs\. Per Day of duty\): 809$/);
     yes("REAL stored form: a row that the chunk break cut in the middle (the model quotes straight across the break)", q("WORKS", "808", "Area: WORKS | BASIC: 3350.00 | VDA: 13478.00 | FDA: 375.00 | HRA: 1720.30 | REF ALLOW: 52.00 | INC: 270.00 | AWA: 1750.00 | TOTAL: 20995.30 | Daily Wages (Rs. Per Day of duty): 808"));
@@ -362,13 +362,13 @@ function ROW_W_UNIT(): string { return ROW_W; }
     ok("GATE: a value with no digits is not affected by a check", noDigits.ok, noDigits.ok ? "" : noDigits.reason);
     const dateVal = verifyAnswer({ answerable: true, title: "Trial date", note: "", rows: [{ label: "Trial", column: "", value: "5th December 2024", source: 1, quote: "Trial on 5th December 2024 at ASP Stadium" }] }, [{ ...mk(1, 7, "Football trial", null, "Football. Trial on 5th December 2024 at ASP Stadium at 10 00 AM sharp.", 1), checks: { 1: { confirmed: [], unconfirmed: ["2024"] } } }]);
     ok("GATE: a date whose year is unconfirmed is refused", !dateVal.ok && /not confirmed/.test(dateVal.reason), dateVal.ok ? "ACCEPTED" : dateVal.reason);
-    // a quote that leaves cells out is still found on its page (the longest piece), and a row cut by a chunk break counts every page
+    // A quote that leaves cells out is still found on its page (the longest piece), and a row cut by a chunk break counts every page.
     const twoPage: Passage = { ...mk(1, 9, "Two pages", null, "x", 1), text: "Page one text. Area: NORTH | Rate: 12345 per day.\n\nPage two text. Area: SOUTH | Rate: 12345 per day.", parts: [{ page: 1, text: "Page one text. Area: NORTH | Rate: 12345 per day." }, { page: 2, text: "Page two text. Area: SOUTH | Rate: 12345 per day." }], checks: { 1: { confirmed: [], unconfirmed: ["12345"] }, 2: { confirmed: ["12345"], unconfirmed: [] } } };
     const tw = (area: string) => verifyAnswer({ answerable: true, title: "Rate", note: "", rows: [{ label: area, column: "Rate", value: "12345", source: 1, quote: `Area: ${area} | Rate: 12345` }] }, [twoPage]);
     const north = tw("NORTH"), south = tw("SOUTH");
     ok("GATE: the page that holds the quote decides (page 1 does not confirm 12345)", !north.ok && /page 1/.test(north.reason), north.ok ? "ACCEPTED" : north.reason);
     ok("GATE: ...and page 2, which confirms it, accepts it", south.ok, south.ok ? "" : south.reason);
-    // buildPassages carries the checks through
+    // buildPassages has to carry the checks through
     const withChecks = buildPassages("gift card", [{ type: "circular", id: 51, title: "Gift", date: null, chunks: [{ page: 1, index: 0, text: gift }], checks: CHK }]);
     ok("buildPassages passes the checks on to the passage", JSON.stringify(withChecks[0].checks) === JSON.stringify(CHK));
     ok("...and adds nothing when there are none", !("checks" in buildPassages("gift card", [{ type: "circular", id: 51, title: "Gift", date: null, chunks: [{ page: 1, index: 0, text: gift }] }])[0]));
@@ -430,7 +430,7 @@ function ROW_W_UNIT(): string { return ROW_W; }
       if (r.ok) accepted++; else misses.push(`${a.label} / ${sn} / ${col}: ${r.reason}`);
     }
     ok(`COMBINATIONS: every TRUE wage fact is accepted whatever the quote style and column wording (${accepted} of ${total})`, accepted === total, misses.slice(0, 4).join(" || "));
-    // the FALSE claims: a wage under another area's label, a total or basic as the daily wage, a value that is not in the document
+    // the FALSE claims I try: a wage under another area's label, a total or basic as the daily wage, a value that is not in the document
     let refused = 0, falseTotal = 0;
     const leaks: string[] = [];
     const falseClaims: { label: string; value: string; col: string; area: (typeof AREAS)[number] }[] = [];
@@ -495,7 +495,7 @@ function ROW_W_UNIT(): string { return ROW_W; }
     const range = verifyAnswer({ answerable: true, title: "Final", note: "", rows: [{ label: "Final", column: "", value: "20.12.2024", source: 1, quote: "The final is on 20th December 2024" }] }, [dp]);
     ok("dates: another date of the same passage is accepted for its own row", range.ok, range.ok ? "" : range.reason);
 
-    // type clash
+    // the type clash
     const clash = (label: string, column: string, value: string) => { const x = verifyAnswer({ answerable: true, title: "T", note: "", rows: [{ label, column, value, source: 1, quote: 'may please be read as "Rs.14,999/-"' }] }, [mk(1, 49, "Gift card corrigendum", "2026-08-08", 'the amount of the Gift Card mentioned as "Rs.15,000/-" may please be read as "Rs.14,999/-". All other terms remain unchanged until 15.08.2026.')]); return x; };
     ok("type: a date label over an amount is refused", !clash("Last date", "", "Rs.14,999/-").ok && /says a date/.test((clash("Last date", "", "Rs.14,999/-") as { reason: string }).reason));
     ok("type: an amount label over a date is refused", (() => { const x = verifyAnswer({ answerable: true, title: "T", note: "", rows: [{ label: "Gift card amount", column: "", value: "15.08.2026", source: 1, quote: "until 15.08.2026" }] }, [mk(1, 49, "Gift card corrigendum", "2026-08-08", "All other terms remain unchanged until 15.08.2026.")]); return !x.ok && /says an amount/.test(x.reason); })());
@@ -544,7 +544,7 @@ function ROW_W_UNIT(): string { return ROW_W; }
     clearAnswerCache();
   }
 
-  { // a claim of recency is not provable from a few retrieved circulars
+  { // a claim of recency cannot be proved from a few retrieved circulars
     const two = [mk(1, 1, "Football trial 2022", "2022-12-19", "The selection trial shall be held on 24th December, 2022 at Nehru Stadium at sharp 3 pm."), mk(2, 2, "Football trial 2024", "2024-12-03", 'The selection trial shall be held on 5" December, 2024 at ASP Stadium at 10 00 AM sharp.')];
     const base = { answerable: true, title: "Selection trial dates", rows: [{ label: "Trial 2022", column: "Selection trial date", value: "24th December, 2022", source: 1, quote: "selection trial shall be held on 24th December, 2022" }, { label: "Trial 2024", column: "Selection trial date", value: "5 December, 2024", source: 2, quote: 'selection trial shall be held on 5" December, 2024' }] };
     const latest = verifyAnswer({ ...base, note: "The 2024 trial is the latest" }, two);
@@ -579,7 +579,7 @@ function ROW_W_UNIT(): string { return ROW_W; }
     const cutRows = verifyAnswer({ ...GOOD, note: "Entitlement is calculated proportionately to the worker's engagement period.", rows: Array.from({ length: 13 }, () => WAGE_ROWS[0]) }, [P_WAGE]);
     ok("the SYSTEM's own note about cut rows is not filtered by the rule", cutRows.ok && cutRows.value.note === "The document lists more than are shown here.", cutRows.ok ? cutRows.value.note : cutRows.reason);
 
-    // Circular 22 contractor holidays & compensation for working on them:
+    // Circular 22: contractor holidays and the compensation for working on them:
     const circ22Text = `I. CLOSED/PUBLIC HOLIDAYS: SL. NO: 1 | HOLIDAY: Republic Day | DATE: 26th January | DAY: Sunday SL. NO: 2 | HOLIDAY: May Day | DATE: 1st May | DAY: Thursday SL. NO: 3 | HOLIDAY: Independence Day | DATE: 15th August | DAY: Friday SL. NO: 4 | HOLIDAY: Mahatma Gandhi's Birthday | DATE: 2nd October | DAY: Thursday If a contractor worker is required to work on the above-mentioned Public Holidays, a compensatory off within two months / within the contract period or one day's wage in lieu thereof will be granted. The contractor workers whose weekly off-day coincides with the any of the above mentioned Public Holidays, they can avail a compensatory off only within two months or within the contract period whichever is earlier.`;
     const circ22Doc = mk(1, 22, "Circular - Holidays and leaves for contractor workers in DSP -2025", "2024-12-27", circ22Text, 2);
     const holidayAns: ModelAnswer = {

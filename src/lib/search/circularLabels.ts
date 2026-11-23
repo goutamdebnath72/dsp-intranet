@@ -1,15 +1,15 @@
 // src/lib/search/circularLabels.ts
 //
-// How a reader names a circular: the number the archive shows in its year list ("007"), with the year, since serial numbers restart
-// every January: "Circular 007 (2026)". Same three-digit padding as the circulars modal, and the same year rule as the upload
+// How a reader names a circular: the number the archive shows in its year list ("007"), together with the year, since serial numbers restart
+// every January: "Circular 007 (2026)". I use the same three-digit padding as the circulars modal, and the same year rule as the upload
 // (the year of the published date, which is what numbers the serial). The database's internal id is never shown to anyone.
 
 export interface QueryClient {
-  // TypeORM's DataSource.query returns the rows themselves; node-postgres returns { rows }. Both are accepted.
+  // TypeORM's DataSource.query returns the rows themselves; node-postgres returns { rows }. I accept both.
   query(text: string, params?: unknown[]): Promise<any>;
 }
 
-/** "Circular 007 (2026)", or null when the serial or the year is not known (the caller then names the circular by its title). */
+/** Returns "Circular 007 (2026)", or null when the serial or the year is not known (the caller then names the circular by its title). */
 export function circularLabel(serial: number | null | undefined, year: number | null | undefined): string | null {
   const s = Number(serial);
   const y = Number(year);
@@ -17,7 +17,7 @@ export function circularLabel(serial: number | null | undefined, year: number | 
   return `Circular ${String(s).padStart(3, "0")} (${y})`;
 }
 
-/** circular id -> "Circular 007 (2026)". Ids with no serial are simply absent. Never throws: a failed lookup gives an empty map. */
+/** Maps circular id -> "Circular 007 (2026)". Ids with no serial are simply absent. It never throws: a failed lookup gives an empty map. */
 export async function fetchCircularLabels(db: QueryClient, ids: number[]): Promise<Map<number, string>> {
   const out = new Map<number, string>();
   const clean = [...new Set(ids.filter((n) => Number.isInteger(n)))];

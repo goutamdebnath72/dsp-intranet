@@ -1,6 +1,6 @@
 // Run (from the project root; needs a scratch Postgres):
 //   NL2SQL_TEST_ADMIN_URL=postgres://postgres:pw@127.0.0.1:5432/postgres npx tsx --tsconfig tsconfig.json src/lib/employees/holidayHeadline.selftest.ts
-// Step 61a: the holiday answers carry the clean answer FIRST (a Yes or No for "is 24 November 2026 a holiday?", the date for "when is Holi 2026?"). The REAL answer code (employees/analytics.ts and holidays/analytics.ts)
+// Step 61a: I want the holiday answers to carry the clean answer FIRST (a Yes or No for "is 24 November 2026 a holiday?", the date for "when is Holi 2026?"). The REAL answer code (employees/analytics.ts and holidays/analytics.ts)
 // runs against a small database with holiday rows of the real shape; the app's database layer (TypeORM and its models) is replaced by a stand-in that runs the same SQL.
 
 import { Client } from "pg";

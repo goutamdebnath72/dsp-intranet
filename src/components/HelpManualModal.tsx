@@ -55,15 +55,15 @@ import {
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  /** which tab to show when the guide opens (default: the sample questions) */
+  /** Which tab to show when the guide opens; the default is the sample questions. */
   initialTab?: GuideTab;
-  /** a signed-in executive: the Deep search (EDS) tab says so */
+  /** Set for a signed-in executive; the Deep search (EDS) tab then says so. */
   isExecutive?: boolean;
-  /** puts a sample question in the search bar (the reader still presses Enter) */
+  /** Puts a sample question in the search bar; the reader still has to press Enter. */
   onTry?: (question: string) => void;
 };
 
-/** the four tabs, in order: the main features and their sample questions; how it works (with the list of what to type); the Utility Services; the deep search (EDS) */
+/** The four tabs, in my order: the main features and their sample questions; how it works (with the list of what to type); the Utility Services; the deep search (EDS). */
 export type GuideTab = "samples" | "utility" | "how" | "eds";
 
 const SECTION_ICONS: Record<SectionIcon, React.ReactNode> = {
@@ -82,7 +82,7 @@ const SECTION_ICONS: Record<SectionIcon, React.ReactNode> = {
   megaphone: <Megaphone size={17} />,
 };
 
-/** A question with its [blanks] highlighted. */
+/** I show a question with its [blanks] highlighted. */
 function QuestionText({ q }: { q: string }) {
   return (
     <>
@@ -99,7 +99,7 @@ function QuestionText({ q }: { q: string }) {
   );
 }
 
-/** How a question is run: it appears as you type, or it waits for the Enter key. Said on every question, in the same two marks. */
+/** Shows how a question is run: it appears as you type, or it waits for the Enter key. I say it on every question, in the same two marks. */
 function RunBadge({ instant }: { instant?: boolean }) {
   return instant ? (
     <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800" title="The result appears as you type. No Enter needed.">
@@ -121,7 +121,7 @@ function QuestionRow({ q, note, instant, onTry }: { q: string; note?: string; in
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
     } catch {
-      /* clipboard not available: the Try button still works */
+      /* If the clipboard is not available, the Try button still works. */
     }
   };
   return (
@@ -160,7 +160,7 @@ function QuestionRow({ q, note, instant, onTry }: { q: string; note?: string; in
   );
 }
 
-/** A section of the sample questions, closed or open. */
+/** One section of the sample questions, which I show closed or open. */
 function SampleBlock({ s, open, onToggle, onTry }: { s: SampleSection; open: boolean; onToggle: () => void; onTry?: (q: string) => void }) {
   const count = s.questions.length;
   return (
@@ -223,13 +223,13 @@ function SampleBlock({ s, open, onToggle, onTry }: { s: SampleSection; open: boo
   );
 }
 
-/** The sample questions of the Utility Services, one block (open), at the end of the Utility Services tab. */
+/** I put the sample questions of the Utility Services in one block (open), at the end of the Utility Services tab. */
 function UtilitySamples({ onTry }: { onTry?: (q: string) => void }) {
   const [open, setOpen] = useState(true);
   return <SampleBlock s={TOOLS_SECTION} open={open} onToggle={() => setOpen((v) => !v)} onTry={onTry} />;
 }
 
-/** The "Sample questions" tab: how to ask, then every area of the search with questions to try. */
+/** In the "Sample questions" tab I first say how to ask, then list every area of the search with questions to try. */
 function SamplesTab({ onTry, onOpenUtility, onOpenEds }: { onTry?: (q: string) => void; onOpenUtility?: () => void; onOpenEds?: () => void }) {
   const [text, setText] = useState("");
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(["people"]));
@@ -320,7 +320,7 @@ function SamplesTab({ onTry, onOpenUtility, onOpenEds }: { onTry?: (q: string) =
   );
 }
 
-// A small presentational helper for a titled section.
+// My small presentational helper for a titled section.
 function Section({
   icon,
   title,
@@ -355,19 +355,19 @@ function Pill({ children }: { children: React.ReactNode }) {
 
 export default function HelpManualModal({ isOpen, onClose, initialTab = "samples", isExecutive = false, onTry }: Props) {
   const [tab, setTab] = useState<GuideTab>(initialTab);
-  // each time the guide opens it shows the tab it was asked for
+  // Each time the guide opens it shows the tab it was asked for.
   useEffect(() => {
     if (isOpen) setTab(initialTab);
   }, [isOpen, initialTab]);
 
-  // Background scroll-lock (the page scroller is <html>, per globals.css).
+  // I lock the background scroll (the page scroller is <html>, per globals.css).
   useEffect(() => {
     if (!isOpen) return;
     const lock = lockPageScroll(); // one shared lock (src/lib/ui/scrollLock.ts)
     return () => lock.release();
   }, [isOpen]);
 
-  // Close on Escape.
+  // I close the guide on Escape.
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -414,7 +414,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                   <X size={22} />
                 </button>
               </div>
-              {/* hover:!text-… : globals.css sets button:hover to the primary blue with !important, which is invisible on this blue header; the ! keeps the tab text white (the chosen tab stays dark blue on its white) */}
+              {/* hover:!text-… : globals.css sets button:hover to the primary blue with !important, which is invisible on this blue header; I use the ! to keep the tab text white (the chosen tab stays dark blue on its white) */}
               <div role="tablist" className="mt-4 flex gap-1">
                 {([
                   ["samples", "Sample questions"],
@@ -447,7 +447,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                 <EdsTab isExecutive={isExecutive} onTry={onTry} />
               ) : (
               <>
-              {/* How the bar answers: what the first tab (the buttons, one by one) does not say. */}
+              {/* How the bar answers: I put here what the first tab (the buttons, one by one) does not say. */}
               <Section
                 icon={<Search size={17} />}
                 title="How the search bar answers"
@@ -678,7 +678,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                 </ul>
               </Section>
 
-              {/* Live cards: what the samples and the words page do not say */}
+              {/* Live cards: here I say what the samples and the words page do not. */}
               <Section icon={<BarChart3 size={17} />} title="Live cards: source, time and tabs">
                 <p>
                   Prices, markets, news, weather, flights, trains, fares, the
@@ -731,7 +731,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                 </ul>
               </Section>
 
-              {/* Contact details: what the people section of the samples does not say */}
+              {/* Contact details: here I say what the people section of the samples does not. */}
               <Section
                 icon={<UserRound size={17} />}
                 title="Contact details: reveal and copy"
@@ -884,7 +884,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = "samples
                 </ul>
               </Section>
 
-              {/* What to type: the list of every feature and the words that open it (it was a tab of its own; merged here so that the guide keeps four tabs) */}
+              {/* What to type: the list of every feature and the words that open it (it was a tab of its own; I merged it here so that the guide keeps four tabs) */}
               <div id="what-to-type" data-what-to-type>
                 <QuickReferenceTab onTry={onTry} />
               </div>

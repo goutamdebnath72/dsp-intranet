@@ -1,7 +1,7 @@
 // src/records/collisions.ts
 //
-// THE REGISTER OF CLASHES: lines where two readings are possible, and what the planner says about each. Data, not code; every row is an assertion in records.selftest.ts.
-// A clash found in live use is one more row. `expect` is a domain, "ask" (two readings are close: nothing is suggested, the reader chooses) or null (only text: the bar's usual paths decide).
+// The register of clashes: lines where two readings are possible, and what the planner says about each. This is data, not code; every row is an assertion in records.selftest.ts.
+// I add a clash found in live use as one more row. `expect` is a domain, "ask" (two readings are close: nothing is suggested, the reader chooses) or null (only text: the bar's usual paths decide).
 
 import type { DomainId } from "./types";
 

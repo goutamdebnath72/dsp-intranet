@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/railway/FareFinder.selftest.tsx
-// "Find a fare": the closed box, the result list (order, switches, dates, honesty lines).
+// Checks "Find a fare": the closed box, the result list (order, switches, dates, honesty lines).
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";

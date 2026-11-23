@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/pax/admin/omnibar.selftest.ts
-// Step 64a: the search bar and the PAX editor. A sentence that means "change the PAX directory" opens the editor for the HOD C&IT and for an executive he authorised; for anyone else a plain message says why not.
+// Step 64a: tests for the search bar and the PAX editor. A sentence that means "change the PAX directory" opens the editor for the HOD C&IT and for an executive he authorised; for anyone else a plain message says why not.
 // The person is the LOGIN's ticket, never anything typed. A question about the directory is NOT such a sentence and goes on exactly as before.
 
 import { readFileSync } from "node:fs";

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/security/revealFields.selftest.ts
-// THE TICKET NUMBER AND THE SAIL P.No. ARE REVEALED ON A PRESS, AFTER SIGN-IN, AND LOGGED: the reveal route takes the four fields (mobile, email, sailpno, ticket), the P.No. has a cap of its own and is not
+// What I test here: the ticket number and the SAIL P.No. are revealed on a press, after sign-in, and logged. The reveal route takes the four fields (mobile, email, sailpno, ticket), the P.No. has a cap of its own and is not
 // shown if it cannot be logged, every route that returns people or tables masks its answer, and the card has a button for each.
 import { readFileSync } from "node:fs";
 import { mayReveal, mayRevealPno, PNO_REVEALS_PER_HOUR, REVEALS_PER_HOUR } from "./revealCap";
@@ -9,7 +9,7 @@ const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++;
 const src = (p: string) => readFileSync(p, "utf8");
 
 (async () => {
-  // the caps, with a fake log
+  // I test the caps with a fake log
   ok("the P.No. cap is far below the general one", PNO_REVEALS_PER_HOUR > 0 && PNO_REVEALS_PER_HOUR * 3 <= REVEALS_PER_HOUR, `${PNO_REVEALS_PER_HOUR} / ${REVEALS_PER_HOUR}`);
   const logOf = (n: number) => async (sql: string) => { void sql; return [{ n }]; };
   ok("below the P.No. cap a reveal is allowed, at the cap it is not", (await mayRevealPno(logOf(PNO_REVEALS_PER_HOUR - 1), "498301")) === true && (await mayRevealPno(logOf(PNO_REVEALS_PER_HOUR), "498301")) === false);
@@ -25,7 +25,7 @@ const src = (p: string) => readFileSync(p, "utf8");
   ok("it takes the P.No. and the ticket from the person's own record (or the roster row of a card with no account)", /"sailPNo" AS "sailPNo"/.test(rev) && /roster:\(/.test(rev) && /FROM public\.employee_roster WHERE id = \$1/.test(rev));
   ok("every reveal is written to the log under its field name, and a P.No. is NOT shown when it could not be logged", /\[\s*crypto\.randomUUID\(\),[\s\S]*?\bfield,/.test(rev) && /field === "sailpno" && !logged/.test(rev));
 
-  // every route that returns people or tables masks the answer
+  // I check that every route that returns people or tables masks its answer
   const routes: Array<[string, RegExp]> = [
     ["src/app/api/employees/search/route.ts", /maskAnswer\(ticket \|\| !VISITOR_CUT_ENABLED \? results : visitorView\(results\), \{ signedIn: !!ticket \}\)/],
     ["src/app/api/ai-search/route.ts", /maskAnswer\(cut, \{ signedIn \}\)/],

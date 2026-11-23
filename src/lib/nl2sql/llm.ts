@@ -1,8 +1,7 @@
 // src/lib/nl2sql/llm.ts
 //
-// Standalone model adapter (Groq's OpenAI-compatible endpoint), deliberately
-// NOT importing the app's ai-services.ts so the experiment stays isolated and
-// can run from a plain command line. Same model default and call shape as the
+// This is a standalone model adapter (Groq's OpenAI-compatible endpoint). I deliberately do NOT import the app's ai-services.ts, so the experiment stays isolated and
+// can run from a plain command line. It has the same model default and call shape as the
 // app's own working Groq call.
 
 import type { LlmFn } from "./types";
@@ -11,7 +10,7 @@ import { chatModels, geminiGenerate, preferGroq } from "../ai/geminiChat";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Seconds Groq asks us to wait: the Retry-After header, else "try again in 12.5s" in the message. */
+/** Seconds Groq asks me to wait: the Retry-After header, else "try again in 12.5s" in the message. */
 function retryAfterSeconds(res: Response, bodyText: string): number | null {
   const h = Number(res.headers.get("retry-after"));
   if (Number.isFinite(h) && h > 0) return h;
@@ -26,7 +25,7 @@ export interface TokenUsage { prompt: number; completion: number; total: number;
 /**
  * Groq adapter. Everything below is read at CALL time from the environment, and every lever is OFF unless you set it:
  *   GROQ_MODEL             the main model (default openai/gpt-oss-120b)
- *   GROQ_FALLBACK_MODELS   comma-separated backups used ONLY when the main model is rate-limited for more than ~2 s.
+ *   GROQ_FALLBACK_MODELS   comma-separated backups, used ONLY when the main model is rate-limited for more than ~2 s.
  *                          Each Groq model has its OWN free allowance, so a backup answers at once instead of waiting.
  *                          A backup may write weaker SQL than the main model: measure it with eval/run-live.ts first.
  *   GROQ_REASONING_EFFORT  low | medium | high -- how much a reasoning model "thinks" (less = fewer tokens, faster)
@@ -46,7 +45,7 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
         model,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
-        // Large on purpose: reasoning models spend part of this budget thinking
+        // I made this large on purpose: reasoning models spend part of this budget thinking
         // before the visible JSON (a too-small budget was the root cause of an
         // earlier "empty output" failure in this app).
         max_tokens: opts.maxTokens ?? 6000,
@@ -54,8 +53,8 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
         ...(effort ? { reasoning_effort: effort } : {}),
       });
 
-    let mi = 0; // index of the model in use
-    let waits = 0; // how many times we slept for a per-minute limit
+    let mi = 0; // index of the model I am using
+    let waits = 0; // counts the times I slept for a per-minute limit
     for (;;) {
       const model = models[mi];
       const started = Date.now();
@@ -70,7 +69,7 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
           prompt: Number(data.usage?.prompt_tokens ?? 0),
           completion: Number(data.usage?.completion_tokens ?? 0),
           total: Number(data.usage?.total_tokens ?? 0),
-          // Groq reports cached prompt tokens here for models with prompt caching; absent -> 0.
+          // Groq reports cached prompt tokens here for models with prompt caching; when absent I count 0.
           cached: Number(data.usage?.prompt_tokens_details?.cached_tokens ?? 0),
         };
         const left = res.headers.get("x-ratelimit-remaining-tokens");
@@ -80,14 +79,14 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
             `${left !== null ? `, ${left} tokens left this minute` : ""}${mi > 0 ? " [BACKUP MODEL]" : ""}`,
         );
         if (opts.onUsage && data.usage) opts.onUsage(usage);
-        traceModelCall({ model, ...usage, ms: Date.now() - started }); // front-path trace (passive)
+        traceModelCall({ model, ...usage, ms: Date.now() - started }); // passive trace for the front path
         return String(data.choices?.[0]?.message?.content ?? "");
       }
       const text = await res.text();
       if (res.status === 429) {
         const daily = /per day|\bTPD\b|\bRPD\b/i.test(text);
         const wait = retryAfterSeconds(res, text);
-        // Another model has its own allowance: use it NOW unless the wait is only a moment.
+        // Another model has its own allowance, so I use it NOW unless the wait is only a moment.
         if (mi + 1 < models.length && (daily || wait === null || wait > 2)) {
           console.warn(`[nl2sql] ${model} is rate-limited${daily ? " (daily allowance)" : wait !== null ? ` (wait ${wait.toFixed(1)} s)` : ""}: switching to ${models[mi + 1]}`);
           mi++;
@@ -98,12 +97,12 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
             `The AI model's free daily allowance for ${model} is used up, so questions that need the model cannot be answered until it resets. Groq says: ${text.slice(0, 220)}`,
           );
         }
-        // 429 = "too many tokens/requests this minute": wait as told and retry.
-        // (413 = this single request is bigger than the whole allowance: retrying cannot help.)
+        // A 429 means "too many tokens/requests this minute": I wait as told and retry.
+        // (A 413 means this single request is bigger than the whole allowance: retrying cannot help.)
         if (waits < 2 && wait !== null && wait <= maxWait) {
           waits++;
           console.warn(`[nl2sql] Groq rate limit (429): waiting ${wait.toFixed(1)} s before retry ${waits} of 2 -- this is why an answer can take long`);
-          traceWait(Math.ceil(wait * 1000) + 500); // front-path trace (passive)
+          traceWait(Math.ceil(wait * 1000) + 500); // passive trace for the front path
           await sleep(Math.ceil(wait * 1000) + 500);
           continue;
         }
@@ -115,7 +114,7 @@ export function groqLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; onU
 
 /**
  * Gemini adapter with the same LlmFn shape as groqLlm. The model answers JSON only (the NL2SQL
- * pipeline parses JSON). Thinking is "low": SQL writing needs a little reasoning, not a lot, and
+ * pipeline parses JSON). I set thinking to "low": SQL writing needs a little reasoning, not a lot, and
  * a large thinking budget makes every employee question slow and dearer.
  *   GEMINI_CHAT_MODEL  main model (default gemini-3.8-flash); falls back to gemini-flash-latest.
  */
@@ -135,7 +134,7 @@ export function geminiLlm(opts: { maxTokens?: number; maxWaitSeconds?: number; o
 }
 
 /**
- * The model function the app uses. Which provider:
+ * This is the model function the app uses. Which provider it picks:
  *   LLM_PROVIDER=gemini | groq   explicit choice;
  *   otherwise Gemini whenever GEMINI_API_KEY exists (Groq's free tier proved unusable and its
  *   paid tier is closed), and Groq only when it is the only key present.

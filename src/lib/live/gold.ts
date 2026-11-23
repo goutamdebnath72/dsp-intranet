@@ -1,10 +1,10 @@
 // src/lib/live/gold.ts
 //
-// GOLD AND SILVER IN INDIA, from the page of the India Bullion and Jewellers Association (IBJA), whose rates are the ones the trade follows. The page carries today's rates in labelled cells
-// (lblGold999_AM ...) and, for its own chart, the PM rate of every trading day for the last four months or so (hidden fields HdnGold and HdnSilver, as JSON): that is the "trend", and it is OFFICIAL
+// GOLD AND SILVER IN INDIA, from the page of the India Bullion and Jewellers Association (IBJA). I use it because its rates are the ones the trade follows. The page carries today's rates in labelled cells
+// (lblGold999_AM ...) and, for its own chart, the PM rate of every trading day for the last four months or so (hidden fields HdnGold and HdnSilver, as JSON). That is the "trend", and it is OFFICIAL
 // data, not an estimate. Gold is per 10 grams, silver per kilogram, before GST and making charges.
 //   24 carat = 999 purity, 22 carat = 916 purity.
-// Pure: the page's text in, the numbers out (tested on a saved copy of the page).
+// This file is pure: the page's text goes in, the numbers come out (tested on a saved copy of the page).
 import { DateTime } from "luxon";
 import { fromYearAgo, reachesYearAgo } from "./yearWindow";
 
@@ -16,51 +16,51 @@ export interface MetalPoint {
   gold24: number;
   gold22: number;
   silver: number;
-  /** true for a day worked out from the gold/silver ETF (before IBJA's own page begins), never for an IBJA rate */
+  /** I set this to true for a day worked out from the gold/silver ETF (before IBJA's own page begins), and never for an IBJA rate. */
   est?: boolean;
-  /** set on the first point of the year when there is no rate for that exact day (a weekend or a holiday): the day of the rate it really is (the last one before) */
+  /** Set on the first point of the year when there is no rate for that exact day (a weekend or a holiday). It holds the day of the rate it really is (the last one before). */
   carried?: string;
 }
 
-/** How the days before IBJA's page begins were worked out, and how close that method came on the days where both exist. */
+/** Records how the days before IBJA's page begins were worked out, and how close that method came on the days where both exist. */
 export interface Estimate {
-  /** first and last estimated day, YYYY-MM-DD */
+  /** The first and last estimated day, YYYY-MM-DD. */
   from: string;
   to: string;
-  /** the first day of IBJA's own record */
+  /** The first day of IBJA's own record. */
   officialFrom: string;
-  /** how many days exist in both records (the days the method was checked on) */
+  /** How many days exist in both records, that is, the days I checked the method on. */
   checkedDays: number;
-  /** average and largest difference (percent) from IBJA's rate on those days */
+  /** Average and largest difference (percent) from IBJA's rate on those days. */
   gold: { avgPct: number; maxPct: number };
   silver: { avgPct: number; maxPct: number };
-  /** set when the fund prices are the copy kept with the app (the live source did not answer): the last day that copy covers */
+  /** Set when the fund prices are the copy kept with the app because the live source did not answer: it is the last day that copy covers. */
   savedThrough?: string;
 }
 
 export interface MetalRates {
-  /** today's opening (AM) rates; PM is added when IBJA has published it */
+  /** Today's opening (AM) rates. I add PM when IBJA has published it. */
   gold24Per10g: number;
   gold22Per10g: number;
   gold24PerGram: number;
   gold22PerGram: number;
   silverPerKg: number;
   silverPerGram: number;
-  /** which session these are: "AM" or "PM" */
+  /** Which session these rates are from: "AM" or "PM". */
   session: "AM" | "PM";
-  /** set only when IBJA has no rates for today (Saturday, Sunday, a central government holiday, or a working day's morning before the first rate is up): the date (YYYY-MM-DD) of the last day it published, whose closing (PM) rates these are */
+  /** Set only when IBJA has no rates for today (Saturday, Sunday, a central government holiday, or a working day's morning before the first rate is up). It is the date (YYYY-MM-DD) of the last day IBJA published, whose closing (PM) rates these are. */
   asOf?: string;
-  /** the page's own words when it has no rates for today ("Rates are not published on Central Govt. Holidays & SAT/SUN", or on a working day's morning "Rates will be uploaded soon") */
+  /** The page's own words when it has no rates for today ("Rates are not published on Central Govt. Holidays & SAT/SUN", or on a working day's morning "Rates will be uploaded soon"). */
   notPublished?: string;
-  /** the change against the last PM close in the history */
+  /** The change against the last PM close in the history. */
   change: { gold24: { abs: number; pct: number } | null; gold22: { abs: number; pct: number } | null; silver: { abs: number; pct: number } | null };
-  /** the PM rate of each trading day, oldest first */
+  /** The PM rate of each trading day, oldest first. */
   history: MetalPoint[];
   /** "13 Jul to 11 Nov 2026" */
   rangeText: string;
-  /** present when earlier days were added by estimate (marked est. in `history`) */
+  /** Present when I added earlier days by estimate (they are marked est. in `history`). */
   estimate?: Estimate;
-  /** why the earlier days could not be added this time (the chart then shows IBJA's own days only) */
+  /** Says why the earlier days could not be added this time; the chart then shows IBJA's own days only. */
   estimateUnavailable?: string;
 }
 
@@ -99,14 +99,14 @@ const isoOf = (label: string): string | null => {
 
 const pct = (now: number, then: number | undefined) => (then ? { abs: Math.round(now - then), pct: Math.round(((now - then) / then) * 10000) / 100 } : null);
 
-/** The rates and the trend from the text of the IBJA page; null when the page does not hold them (the page changed, or it is not the page). */
+/** Returns the rates and the trend from the text of the IBJA page, or null when the page does not hold them (the page changed, or it is not the page). */
 export function parseIbja(html: string): MetalRates | null {
   const am999 = cell(html, "lblGold999_AM"), pm999 = cell(html, "lblGold999_PM");
   const am916 = cell(html, "lblGold916_AM"), pm916 = cell(html, "lblGold916_PM");
   const amAg = cell(html, "lblSilver999_AM"), pmAg = cell(html, "lblSilver999_PM");
   let g24 = pm999 ?? am999, g22 = pm916 ?? am916, ag = pmAg ?? amAg;
   let session: "AM" | "PM" = pm999 ? "PM" : "AM";
-  // no rates for today: only when the page SAYS so (its own message) are the closing rates of the last published day used, and they are shown as that day's; any other page without the rates is an error, never a guess.
+  // No rates for today: only when the page SAYS so (its own message) do I use the closing rates of the last published day, and I show them as that day's. Any other page without the rates is an error, never a guess.
   // The page says so in two cases: a Saturday, a Sunday or a holiday ("Rates are not published on Central Govt. Holidays & SAT/SUN") and a working day's morning, before IBJA has put up its first rate of the day ("Rates will be uploaded soon").
   const said = /id="lbl_Message">([^<]*(?:Rates are not published|Rates will be uploaded soon)[^<]*)</.exec(html)?.[1].replace(/&amp;/g, "&").trim();
   const noRatesToday = !g24 || !g22 || !ag;
@@ -153,17 +153,17 @@ export function parseIbja(html: string): MetalRates | null {
 
 
 // ---- THE YEAR BEFORE IBJA'S PAGE BEGINS ----
-// IBJA's page keeps only about four months. For the earlier days (up to a year) the closing price of the gold and silver ETFs traded on the NSE (Nippon India "Gold BeES" and "Silver BeES"), which move with the Indian
-// price, is scaled to IBJA's rate on the days where both exist. That is an ESTIMATE and is always shown as one: dashed, marked "est.", with how close the method came. If the ETF record is missing, too short, or does not
-// follow IBJA closely enough on the overlap, nothing is added and the chart stays on IBJA's own days.
+// IBJA's page keeps only about four months. For the earlier days (up to a year) I take the closing price of the gold and silver ETFs traded on the NSE (Nippon India "Gold BeES" and "Silver BeES"), which move with the Indian
+// price, and scale it to IBJA's rate on the days where both exist. That is an ESTIMATE and I always show it as one: dashed, marked "est.", with how close the method came. If the ETF record is missing, too short, or does not
+// follow IBJA closely enough on the overlap, I add nothing and the chart stays on IBJA's own days.
 
 export interface EtfSeries {
-  /** YYYY-MM-DD (Indian date), oldest first */
+  /** Dates are YYYY-MM-DD (Indian date), oldest first. */
   dates: string[];
   closes: number[];
 }
 
-/** The daily closes from a Yahoo chart answer (range 1y, interval 1d); null when it does not hold a usable record. */
+/** Returns the daily closes from a Yahoo chart answer (range 1y, interval 1d), or null when it does not hold a usable record. */
 export function parseEtfSeries(json: unknown): EtfSeries | null {
   const res = (json as { chart?: { result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> } })?.chart?.result?.[0];
   const ts = res?.timestamp, cl = res?.indicators?.quote?.[0]?.close;
@@ -183,7 +183,7 @@ export function parseEtfSeries(json: unknown): EtfSeries | null {
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** the scale from the ETF to IBJA, from the days both exist; null when the two do not follow each other closely (then no estimate is made) */
+/** This gives the scale from the ETF to IBJA, worked out from the days both exist. It is null when the two do not follow each other closely, and then I make no estimate. */
 function fit(history: MetalPoint[], pick: (p: MetalPoint) => number, etf: EtfSeries): { scale: number; avgPct: number; maxPct: number; days: number } | null {
   const at = new Map(etf.dates.map((d, i) => [d, etf.closes[i]] as const));
   const ratios: number[] = [];
@@ -195,15 +195,15 @@ function fit(history: MetalPoint[], pick: (p: MetalPoint) => number, etf: EtfSer
   const scale = mean(ratios);
   const errs = ratios.map((x) => (Math.abs(x - scale) / scale) * 100);
   const avgPct = mean(errs), maxPct = Math.max(...errs);
-  // a method that is off by this much on the days it can be checked is not shown at all
+  // I do not show a method at all when it is off by this much on the days it can be checked.
   if (maxPct > 3 || avgPct > 1.2) return null;
   return { scale, avgPct: r2(avgPct), maxPct: r2(maxPct), days: ratios.length };
 }
 
-/** IBJA's rates with the earlier days added by estimate (see above); the rates themselves are returned unchanged when no honest estimate can be made. */
+/** Returns IBJA's rates with the earlier days added by estimate (see above). When no honest estimate can be made, I return the rates themselves unchanged. */
 export function extendHistory(rates: MetalRates, gold: EtfSeries | null, silver: EtfSeries | null, savedThrough?: string, now: DateTime = DateTime.now()): MetalRates {
   if (!gold || !silver || rates.history.length < 40) return rates;
-  // a record that stops well before IBJA's first day would leave a hole between the estimate and the real rates
+  // I watch for a record that stops well before IBJA's first day: it would leave a hole between the estimate and the real rates.
   const gapDays = (a: string, b: string) => DateTime.fromISO(b, { zone: ZONE }).diff(DateTime.fromISO(a, { zone: ZONE }), "days").days;
   if (gapDays(gold.dates[gold.dates.length - 1], rates.history[0].date) > 6 || gapDays(silver.dates[silver.dates.length - 1], rates.history[0].date) > 6) return rates;
   const g = fit(rates.history, (p) => p.gold24, gold), s = fit(rates.history, (p) => p.silver, silver);
@@ -219,7 +219,7 @@ export function extendHistory(rates: MetalRates, gold: EtfSeries | null, silver:
     added.push({ date: d, gold24: g24, gold22: Math.round(g24 * k22), silver: Math.round(sv * s.scale), est: true });
   });
   if (added.length < 20) return rates;
-  // THE YEAR RUNS FROM THE SAME DATE A YEAR BACK TO THE LATEST IBJA DAY (see yearWindow.ts): the record is cut at that date, its first point holding the rate in force on it; if the fund record does not reach back that far, it is left as it is
+  // My rule: the year runs from the same date a year back to the latest IBJA day (see yearWindow.ts). I cut the record at that date, its first point holding the rate in force on it; if the fund record does not reach back that far, I leave it as it is.
   const whole = [...added, ...rates.history];
   const history = reachesYearAgo(whole, now) ? fromYearAgo(whole, now) : whole;
   const first = history[0], last = history[history.length - 1];
@@ -241,7 +241,7 @@ export function extendHistory(rates: MetalRates, gold: EtfSeries | null, silver:
   };
 }
 
-/** whether a saved answer of the gold route is the shape the card draws (the rates and a record of days): a saved copy that is not is never shown */
+/** Tells whether a saved answer of the gold route is the shape the card draws (the rates and a record of days). I never show a saved copy that is not. */
 export function looksLikeGoldAnswer(x: unknown): x is MetalRates {
   const r = x as MetalRates | null;
   const fin = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n > 0;

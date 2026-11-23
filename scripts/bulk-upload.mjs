@@ -1,11 +1,11 @@
 // scripts/bulk-upload.mjs
 //
-// Bulk-uploads circulars through the REAL POST /api/circulars endpoint —
+// I use this to bulk-upload circulars through the REAL POST /api/circulars endpoint,
 // the exact same backend path the admin modal uses (OCR -> chunk -> embed
 // -> atomic DB transaction -> blob store). No shortcuts, no direct DB writes.
 //
-// It is driven entirely by a manifest CSV so the title<->file pairing is the
-// one you verified, never guessed at upload time.
+// It is driven entirely by a manifest CSV, so the title<->file pairing is the
+// one I verified, never guessed at upload time.
 //
 // PREREQUISITES:
 //   1. Dev server running:            npm run dev
@@ -18,7 +18,7 @@
 //   - folder              : the sub-folder under --files that holds the PDF
 //   - confirmed_title     : the headline to store (exact wording)
 //   - publishedAt_YYYY-MM-DD : issue date, strict YYYY-MM-DD
-//   (status / evidence_notes are ignored by this script — they're for you.)
+//   (status / evidence_notes are ignored by this script, they are for you.)
 //
 // USAGE:
 //   node scripts/bulk-upload.mjs \
@@ -36,10 +36,10 @@
 //     --start <n>         1-based row to start from (resume after a failure)
 //
 // BEHAVIOUR:
-//   - Prints the full pairing table, then WAITS for you to type "yes".
-//   - Uploads strictly in manifest order, one at a time (serials are assigned
+//   - It prints the full pairing table, then WAITS for you to type "yes".
+//   - It uploads strictly in manifest order, one at a time (serials are assigned
 //     per-year by the backend; sequential upload keeps them deterministic).
-//   - HALTS on the first failure and tells you which row, so a bad upload can
+//   - It HALTS on the first failure and tells you which row, so that a bad upload can
 //     never silently corrupt the set. Re-run with --start <n> to resume.
 
 import { readFileSync, existsSync } from "fs";
@@ -169,7 +169,7 @@ async function uploadOne(rec) {
 
   const fd = new FormData();
   fd.append("headline", rec.title);
-  fd.append("publishedAt", rec.publishedAt); // ISO date string, as the picker sends
+  fd.append("publishedAt", rec.publishedAt); // An ISO date string, as the picker sends it.
   if (TICKET) fd.append("authorTicketNo", String(TICKET));
   fd.append("file", new Blob([buf], { type }), basename(rec.filename));
 

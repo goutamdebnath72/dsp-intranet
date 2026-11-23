@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/peopleEvents/rules.selftest.ts
-// Step 65a: the date rules of the People & Events widget. PURE.
+// Step 65a: this tests the date rules of the People & Events widget. PURE.
 
 import { DateTime } from "luxon";
 import { checkDates, isBirthdayOn, isMtTicket, jubileeDate, jubileeInMonthOf, minJoiningAge, msUntilNextMidnight, parseDay, retirementDate, retiresInMonthOf, todayIST, ZONE } from "./rules";

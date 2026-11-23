@@ -1,12 +1,12 @@
 // src/lib/ai/geminiEmbedding.ts
 //
-// Talking to Google's embedding model. NO database, NO TypeORM entities here, on purpose: a standalone script (such as
+// This file talks to Google's embedding model. I keep the database and the TypeORM entities out of it on purpose: a standalone script (such as
 // scripts/test-eds-query.ts or scripts/reingest-circulars-gemini.ts, run with tsx) can import this without loading the entity classes, whose decorators need TypeScript's
 // emitDecoratorMetadata and so cannot run under tsx. embedding.service.ts re-exports everything below, so existing imports are unchanged.
-import { withTermFamilies } from "@/lib/search/termFamilies"; // pure (no database): words people use for the same thing
+import { withTermFamilies } from "@/lib/search/termFamilies"; // Pure, no database: words people use for the same thing.
 
 /**
- * Normalizes an embedding vector to unit length.
+ * I normalize an embedding vector to unit length.
  */
 export function normalizeVector(vec: number[]): number[] {
   const sumSquares = vec.reduce((s, v) => s + v * v, 0);
@@ -19,12 +19,12 @@ export function normalizeVector(vec: number[]): number[] {
  *
  * One omnibar question is embedded by up to five search engines (policy / content search,
  * announcements, holiday policy, headline search). They run in parallel with the SAME text, so
- * without sharing a single question costs up to five identical Google calls. Under load (or a
+ * without sharing, a single question costs up to five identical Google calls. Under load (or a
  * test run) that exhausts the per-minute allowance and the failed calls silently turn into
  * empty search results.
  *
- * Here identical (text, taskType) requests share ONE in-flight call and its result for a few
- * minutes. A FAILED call is never cached. Only search queries are cached; document embeddings
+ * Here I make identical (text, taskType) requests share ONE in-flight call and its result for a few
+ * minutes. I never cache a FAILED call. I cache only search queries; document embeddings
  * at ingestion are all distinct and are not.
  */
 const QUERY_EMBEDDING_TTL_MS = 5 * 60 * 1000;
@@ -40,7 +40,7 @@ async function fetchEmbeddingWithRetry(
   geminiTaskType: string,
   apiKey: string,
 ): Promise<number[]> {
-  // Updated endpoint pointing to the active gemini-embedding-001 model
+  // The endpoint now points to the active gemini-embedding-001 model.
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${apiKey}`;
   let lastError: Error | null = null;
 
@@ -51,7 +51,7 @@ async function fetchEmbeddingWithRetry(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "models/gemini-embedding-001", // Replaced deprecated text-embedding-004
+          model: "models/gemini-embedding-001", // Replaced the deprecated text-embedding-004 here.
           content: { parts: [{ text }] },
           taskType: geminiTaskType,
           outputDimensionality: 768,
@@ -93,7 +93,7 @@ async function fetchEmbeddingWithRetry(
 }
 
 /**
- * Generates a 768-dimensional embedding vector directly via Google Gemini API.
+ * I generate a 768-dimensional embedding vector directly via the Google Gemini API.
  */
 export async function generateEmbedding(
   text: string,
@@ -104,7 +104,7 @@ export async function generateEmbedding(
     throw new Error("Missing GEMINI_API_KEY in environment variables.");
   }
 
-  // a QUESTION that uses one word of a term family (biometric, face recognition, RFID, BAMS) is embedded together with the family's other words: the typed words stay, the others are added (src/lib/search/termFamilies.ts)
+  // When a QUESTION uses one word of a term family (biometric, face recognition, RFID, BAMS), I embed it together with the family's other words: the typed words stay and the others are added (src/lib/search/termFamilies.ts).
   if (taskType === "search_query") text = withTermFamilies(text);
 
   const geminiTaskType =
@@ -128,11 +128,11 @@ export async function generateEmbedding(
 
   const promise = run();
   queryEmbeddingCache.set(key, { at: now, promise });
-  // never keep a failure: the next caller must be able to try again
+  // I never keep a failure, so the next caller can try again.
   promise.catch(() => {
     if (queryEmbeddingCache.get(key)?.promise === promise) queryEmbeddingCache.delete(key);
   });
-  // bound the memory: drop the oldest entries
+  // I bound the memory by dropping the oldest entries.
   if (queryEmbeddingCache.size > QUERY_EMBEDDING_MAX_ENTRIES) {
     const oldest = Array.from(queryEmbeddingCache.entries())
       .sort((a, b) => a[1].at - b[1].at)

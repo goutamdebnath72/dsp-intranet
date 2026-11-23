@@ -1,7 +1,7 @@
 // src/lib/live/fareFind.ts
 //
-// "FIND A FARE": the trains that go from Durgapur (or from Asansol, on the Asansol tab) to a station the user picks, with the saved fare of each class, built from the saved fares to every stop (public.train_fare_leg) joined with the kept timetable (the
-// departure at Durgapur, the days, the kind of train). Pure: the rows, the timetable and the clock are handed in. Nothing here asks RailRadar: the fares were collected while the paid month lasted.
+// "FIND A FARE": I list the trains that go from Durgapur (or from Asansol, on the Asansol tab) to a station the user picks, with the saved fare of each class. I build it from the saved fares to every stop (public.train_fare_leg) joined with the kept timetable (the
+// departure at Durgapur, the days, the kind of train). This file is pure: the rows, the timetable and the clock are handed in. Nothing here asks RailRadar, because the fares were collected while the paid month lasted.
 import { DateTime } from "luxon";
 import type { ClassFare } from "./fare";
 import { fareServiceOpen } from "./fareService";
@@ -9,24 +9,24 @@ import type { Coverage, StopInfo, StopTrainRow } from "./fareLegStore";
 import type { Day, Kind, Railway, Train } from "./railway";
 import type { AsansolTrains } from "./railwayAsansol";
 
-/** the stations that have a saved fare to them (for the search box) */
+/** The stations that have a saved fare to them, used by the search box. */
 export interface StopsAnswer { stops: StopInfo[] }
 
 export interface FindTrain {
   number: string;
   name: string;
-  /** "Express", "Superfast", "Vande Bharat", "Shatabdi", "MEMU (local)"...; empty when the timetable is not at hand */
+  /** One of "Express", "Superfast", "Vande Bharat", "Shatabdi", "MEMU (local)"...; I leave it empty when the timetable is not at hand. */
   label: string;
   kind: Kind | null;
-  /** at the starting station (Durgapur, or Asansol); null when the timetable is not at hand */
+  /** The departure at the starting station (Durgapur, or Asansol); I set null when the timetable is not at hand. */
   departure: string | null;
   arrival: string | null;
   days: Day[];
-  /** where the train's run ends (the name RailRadar gives it and the code) */
+  /** Where the train's run ends: the name RailRadar gives it, and the code. */
   endsAt: { code: string; name: string } | null;
   distanceKm: number;
   classes: ClassFare[];
-  /** the fares are hints from the railway's fare table (a local train) */
+  /** True when the fares are hints from the railway's fare table (a local train). */
   hint: boolean;
   receivedAt: string;
 }
@@ -35,16 +35,16 @@ export interface FindAnswer {
   stop: { code: string; name: string };
   trains: FindTrain[];
   coverage: Coverage;
-  /** the OLDEST fare among the trains shown (none is older) */
+  /** The OLDEST fare among the trains shown, so none is older than this. */
   receivedAt: string;
-  /** the paid month is over: nothing is refreshed any more */
+  /** True when the paid month is over: nothing is refreshed any more. */
   frozen: boolean;
 }
 
-/** the cheapest fare of a train to the stop (the lowest class), for sorting; Infinity when it has none */
+/** The cheapest fare of a train to the stop (its lowest class), used for sorting; I return Infinity when it has none. */
 export const cheapest = (t: FindTrain): number => (t.classes.length ? Math.min(...t.classes.map((c) => c.total)) : Infinity);
 
-/** every train of a timetable, whichever of the two shapes it has: Durgapur's (in groups by direction) or Asansol's (two lists) */
+/** I return every train of a timetable, whichever of the two shapes it has: Durgapur's (in groups by direction) or Asansol's (two lists). */
 export function trainsOf(t: Railway | AsansolTrains | null): Train[] {
   if (!t) return [];
   if (Array.isArray(t.express)) return [...t.express, ...(t.local as Train[])];
@@ -52,7 +52,7 @@ export function trainsOf(t: Railway | AsansolTrains | null): Train[] {
   return [...r.express.east, ...r.express.west, ...r.express.other, ...r.local.east, ...r.local.west, ...r.local.other];
 }
 
-/** the trains to a station: from the saved fares and the timetable (null when the timetable could not be read); null when no train has a saved fare to it */
+/** I build the trains to a station from the saved fares and the timetable (null when the timetable could not be read); the result is null when no train has a saved fare to it. */
 export function buildFind(stop: { code: string; name: string }, rows: StopTrainRow[], railway: Railway | AsansolTrains | null, coverage: Coverage, now: DateTime, until?: string): FindAnswer | null {
   if (rows.length === 0) return null;
   const all: Train[] = trainsOf(railway);
@@ -74,7 +74,7 @@ export function buildFind(stop: { code: string; name: string }, rows: StopTrainR
       receivedAt: r.receivedAt,
     };
   });
-  // by the time the train is at Durgapur (the departure, else the arrival), trains without a time last, then by number
+  // I sort by the time the train is at Durgapur (the departure, else the arrival), put trains without a time last, and then order by number.
   trains.sort((a, b) => {
     const ta = a.departure ?? a.arrival, tb = b.departure ?? b.arrival;
     if (ta === null && tb === null) return a.number.localeCompare(b.number);

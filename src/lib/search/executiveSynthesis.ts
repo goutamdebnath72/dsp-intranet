@@ -15,7 +15,7 @@ import { scoreBriefing, pickBest, isMagnitudeNotShare, smallNumbersIn, subjectQu
 import type { EdsRow, EdsStore } from "./edsStore";
 import { withKpiCards } from "./kpiFromTable";
 import { withConditionFindings } from "./conditionFinding";
-import { PERF } from "@/lib/perf/switches"; // how the briefing is made fast: src/lib/perf/switches.js ("Executive Deep Search" block)
+import { PERF } from "@/lib/perf/switches"; // I describe how the briefing is made fast in src/lib/perf/switches.js ("Executive Deep Search" block)
 
 const ollamaDispatcher = new Agent({
   headersTimeout: 10 * 60 * 1000,
@@ -23,29 +23,28 @@ const ollamaDispatcher = new Agent({
   connectTimeout: 60 * 1000,
 });
 
-/* ------------------------------------------------------------------ *
+/*
+ * ------------------------------------------------------------------ *
  * TYPED SYNTHESIS CONTRACT
- * The frontend consumes this object directly — no markdown string, no
- * embedded HTML-comment chart directive. Every claim-bearing element
- * carries a `sources[]` array of circular ids so the UI can render
- * citation chips that open the existing CircularViewerLightbox.
+ * The frontend consumes this object directly: no markdown string and no embedded HTML-comment chart directive. I made every claim-bearing element
+ * carry a `sources[]` array of circular ids, so the UI can render citation chips that open the existing CircularViewerLightbox.
  *
- * The LLM NEVER names a chart type. It emits typed datasets tagged with
- * an `intent`; the chart type is chosen deterministically here.
- * ------------------------------------------------------------------ */
+ * The LLM NEVER names a chart type. I let it emit typed datasets tagged with an `intent`; the chart type is chosen deterministically here.
+ * ------------------------------------------------------------------
+ */
 
 export type ChartType =
   | "pie" // parts of one whole
-  | "bar" // same measure across 2+ entities/periods (grouped columns)
-  | "line" // ordered numeric value over time (trend)
-  | "timeline" // ordered milestones / phased rollouts
-  | "scatter" // correlation between two numeric axes
-  | "kpi"; // standalone headline numbers (metric cards)
+  | "bar" // use it when the same measure is compared across 2+ entities/periods (grouped columns)
+  | "line" // an ordered numeric value over time (a trend)
+  | "timeline" // ordered milestones or phased rollouts
+  | "scatter" // a correlation between two numeric axes
+  | "kpi"; // standalone headline numbers, drawn as metric cards
 
 export interface SynthesisChartItem {
   label: string;
   value: number;
-  secondaryValue?: number; // second series (bar) OR y-axis (scatter)
+  secondaryValue?: number; // holds the second series (bar) OR the y-axis (scatter)
   detail?: string;
 }
 
@@ -53,24 +52,24 @@ export interface SynthesisChart {
   type: ChartType;
   title: string;
   subtitle?: string;
-  entityLabels?: [string, string]; // bar (series names) / scatter (axis names)
-  unit?: string; // e.g. "₹", "days", "%"
+  entityLabels?: [string, string]; // names: the series names for a bar, the axis names for a scatter
+  unit?: string; // examples: "₹", "days", "%"
   items: SynthesisChartItem[];
-  /** circular ids the figures of this chart come from (shown as chips under its title) */
+  /** The circular ids the figures of this chart come from; I show them as chips under its title. */
   sources?: number[];
 }
 
 export interface SynthesisFinding {
   text: string;
-  sources: number[]; // circular ids backing this finding
+  sources: number[]; // the circular ids that back this finding
 }
 
 export interface SynthesisTable {
-  columns: string[]; // 2 to 4 columns (the parameter + up to 3 entities / periods)
+  columns: string[]; // 2 to 4 columns: the parameter plus up to 3 entities / periods
   rows: string[][];
-  /** circular ids the table comes from (shown as chips under it) */
+  /** The circular ids the table comes from; I show them as chips under it. */
   sources?: number[];
-  /** a short caption saying what the table holds (shown above it; needed when there are two tables) */
+  /** A short caption saying what the table holds. I show it above the table, and it is needed when there are two tables. */
   title?: string;
 }
 
@@ -78,29 +77,31 @@ export interface SynthesisCitation {
   id: number;
   headline: string;
   publishedAt: string | null;
-  /** how the archive names it to the reader: "Circular 046 (2022)" (the chip on a finding shows this) */
+  /** How the archive names it to the reader: "Circular 046 (2022)"; the chip on a finding shows this. */
   label?: string;
 }
 
 export interface SynthesisResult {
   overview: string;
-  headline?: string; // short striking title for the briefing
+  headline?: string; // I want a short, striking title for the briefing
   keyFindings: SynthesisFinding[];
   table?: SynthesisTable | null;
-  /** a SECOND table, only when the inquiry has a second, separate structured part (e.g. an amounts schedule AND a wage table) */
+  /** A SECOND table, which I allow only when the inquiry has a second, separate structured part (e.g. an amounts schedule AND a wage table). */
   extraTable?: SynthesisTable | null;
   charts: SynthesisChart[];
   citations: SynthesisCitation[];
-  /** abbreviations the circulars define themselves ("financial assistance (FA)") and the reply uses: { FA: "Financial Assistance" } */
+  /** Abbreviations that the circulars define themselves ("financial assistance (FA)") and the reply uses, e.g. { FA: "Financial Assistance" }. */
   abbreviations?: Record<string, string>;
-  /** the second reading (edsVerify.ts): whether it ran, and what it changed */
+  /** The second reading (edsVerify.ts): I record whether it ran and what it changed. */
   verification?: { checked: boolean; changes: string[] };
   error?: string;
 }
 
-/* ------------------------------------------------------------------ *
- * What the LLM returns — a data-only payload.
- * ------------------------------------------------------------------ */
+/*
+ * ------------------------------------------------------------------ *
+ * This is what the LLM returns: a data-only payload.
+ * ------------------------------------------------------------------
+ */
 
 type RawIntent =
   | "breakdown"
@@ -150,15 +151,12 @@ function emptyResult(msg: string): SynthesisResult {
   };
 }
 
-// Per-circular context budget for the synthesis prompt. The route supplies
-// the FULL circular text including multi-page annexures and tables. With Gemini Pro
-// (2M token window), we allow up to 60,000 characters per circular so full
-// 10+ page circulars (e.g. Circular 3 higher education bond schedules) are intact.
+// I set the per-circular context budget for the synthesis prompt. The route supplies the FULL circular text including multi-page annexures and tables.
+// With Gemini Pro (2M token window) I allow up to 60,000 characters per circular, so full 10+ page circulars (e.g. Circular 3 higher education bond schedules) stay intact.
 const SYNTH_CONTEXT_BUDGET = 60000;
-// ...but ALL the circulars together are capped as well (up to 5 sources). Real circulars average ~7.7k
-// characters so this rarely bites; it stops a worst case (5 x 60k = ~100k tokens, more for Hindi/Bengali)
-// from blowing the 52 s deadline and the cost. The share per source is total / number of sources, never
-// above SYNTH_CONTEXT_BUDGET; the numeric-priority condenser below trims a source that exceeds its share.
+// ...but ALL the circulars together are capped as well (up to 5 sources). Real circulars average ~7.7k characters, so this rarely bites;
+// it stops a worst case (5 x 60k = ~100k tokens, more for Hindi/Bengali) from blowing the 52 s deadline and the cost. The share per source is total / number of sources,
+// never above SYNTH_CONTEXT_BUDGET; the numeric-priority condenser below trims a source that exceeds its share.
 const SYNTH_TOTAL_BUDGET = 150000;
 
 function condenseForSynthesis(text: string, budget: number = SYNTH_CONTEXT_BUDGET): string {
@@ -169,8 +167,7 @@ function condenseForSynthesis(text: string, budget: number = SYNTH_CONTEXT_BUDGE
   const numeric: string[] = [];
   const prose: string[] = [];
   for (const l of lines) {
-    // "numeric-dense" = contains ₹/Rs, a decimal, a 3+ digit run, a date, or a
-    // code — the stuff a figures question needs.
+    // I call a line "numeric-dense" when it contains ₹/Rs, a decimal, a 3+ digit run, a date, or a code: the stuff a figures question needs.
     if (
       /[₹]|\bRs\.?\b/i.test(l) ||
       /\d+\.\d+/.test(l) ||
@@ -184,8 +181,7 @@ function condenseForSynthesis(text: string, budget: number = SYNTH_CONTEXT_BUDGE
     }
   }
 
-  // Lead with the opening prose (context/headline area), then pack numeric
-  // lines, then any remaining prose — all clamped to budget.
+  // I lead with the opening prose (context/headline area), then pack the numeric lines, then any remaining prose, all clamped to budget.
   const ordered = [...prose.slice(0, 6), ...numeric, ...prose.slice(6)];
   let out = "";
   for (const l of ordered) {
@@ -198,46 +194,27 @@ function condenseForSynthesis(text: string, budget: number = SYNTH_CONTEXT_BUDGE
 // ----------------------------------------------------------------------------
 // SOURCE RELEVANCE PRE-FILTER
 //
-// This is a second, independent checkpoint layered on top of the existing
-// search/qualification ranking in route.ts -- it does not replace or touch
-// that ranking (which stays untouched, same blast-radius reasoning as the
-// earlier smartSemanticRouter.ts fix). It only removes candidates that
-// ranking let through but that are DECISIVELY wrong on two specific,
-// checkable axes, BEFORE they ever reach the LLM as context -- not just
-// hidden from the citation list afterward (that's the separate, already-
-// shipped keyFindings-based filter further down in buildResult; this is
-// upstream of it, so a wrong source doesn't even get a chance to influence
-// what the model writes).
+// This is a second, independent checkpoint layered on top of the existing search/qualification ranking in route.ts. I did not replace or touch
+// that ranking (it stays untouched, for the same blast-radius reason as the earlier smartSemanticRouter.ts fix). The filter only removes candidates
+// that ranking let through but that are DECISIVELY wrong on two specific, checkable axes, BEFORE they ever reach the LLM as context. They are not just
+// hidden from the citation list afterward (that is the separate, already-shipped keyFindings-based filter further down in buildResult); this one is
+// upstream of it, so a wrong source does not even get a chance to influence what the model writes.
 //
-//   1. YEAR MISMATCH: the query names an explicit year, and the candidate's
-//      own HEADLINE names a DIFFERENT explicit year. Deliberately checks the
-//      HEADLINE's own stated year, not `publishedAt`'s calendar year -- this
-//      corpus's holiday-list circulars are routinely published in December
-//      of the PRIOR year (the 2023 Holiday List circular is dated
-//      26/12/2022), so comparing publishedAt's year directly would wrongly
-//      exclude the correct source. A circular whose own title says "-2025"
-//      answering a question about 2023 is unambiguously wrong regardless of
-//      when it was filed.
-//   2. POPULATION MISMATCH: the query does not mention contract/contractor
-//      workers at all, but the candidate's headline is specifically about
-//      contract/contractor workers -- a distinct, differently-administered
-//      population in this corpus (see the recurring "Holidays & Leaves for
-//      Contractor Workers" circulars), never the right source for an
-//      ordinary DSP-employee policy question.
+//   1. YEAR MISMATCH: the query names an explicit year, and the candidate's own HEADLINE names a DIFFERENT explicit year. I deliberately check
+//      the HEADLINE's own stated year, not `publishedAt`'s calendar year: this corpus's holiday-list circulars are routinely published in December
+//      of the PRIOR year (the 2023 Holiday List circular is dated 26/12/2022), so comparing publishedAt's year directly would wrongly exclude the
+//      correct source. A circular whose own title says "-2025" answering a question about 2023 is unambiguously wrong regardless of when it was filed.
+//   2. POPULATION MISMATCH: the query does not mention contract/contractor workers at all, but the candidate's headline is specifically about
+//      contract/contractor workers. They are a distinct, differently-administered population in this corpus (see the recurring "Holidays & Leaves for
+//      Contractor Workers" circulars), never the right source for an ordinary DSP-employee policy question.
 //
-// Both checks are decisive (not scored/probabilistic) on purpose: this is
-// exactly what was missing when "why is Maha Shivratri an extra holiday in
-// 2023?" pulled in a 2025-dated Holiday List circular and two contractor-
-// worker circulars at 88-90% match -- nothing upstream ever asked "does
-// this source even claim to be about the right year and the right
-// population," only "is this vector/lexically close enough."
+// Both checks are decisive (not scored/probabilistic) on purpose: this is exactly what was missing when "why is Maha Shivratri an extra holiday in
+// 2023?" pulled in a 2025-dated Holiday List circular and two contractor-worker circulars at 88-90% match. Nothing upstream ever asked "does
+// this source even claim to be about the right year and the right population," only "is this vector/lexically close enough."
 //
-// Deliberately narrow: this does NOT attempt full topical/semantic
-// relevance -- a same-year, same-population but only tangentially related
-// source (e.g. a generic Compensatory Off policy chunk) still passes this
-// filter. Closing that gap is a much larger piece of work, intentionally
-// left for a dedicated pass on the executive synthesis engine, not bundled
-// into this fix.
+// I kept it deliberately narrow: it does NOT attempt full topical/semantic relevance. A same-year, same-population but only tangentially related
+// source (e.g. a generic Compensatory Off policy chunk) still passes this filter. Closing that gap is a much larger piece of work, intentionally
+// left for a dedicated pass on the executive synthesis engine, not bundled into this fix.
 // ----------------------------------------------------------------------------
 const YEAR_RE = /\b(20\d{2})\b/g;
 const CONTRACTOR_RE = /\bcontract(?:or)?s?\b/i;
@@ -270,13 +247,9 @@ function filterSourcesForRelevance(
     return !yearMismatch && !populationMismatch;
   });
 
-  // Safety net: never zero out the candidate pool entirely. An imperfect
-  // answer from the original ranking is better than no answer at all if
-  // these heuristics happen to reject everything (e.g. every candidate's
-  // headline genuinely lacks a year and the query is very specific). If
-  // this fallback fires often in practice, that's a sign the heuristics
-  // need revisiting -- not a reason to hide the gap behind a silently empty
-  // result.
+  // Safety net: I never zero out the candidate pool entirely. An imperfect answer from the original ranking is better than no answer at all if
+  // these heuristics happen to reject everything (e.g. every candidate's headline genuinely lacks a year and the query is very specific).
+  // If this fallback fires often in practice, that is a sign the heuristics need revisiting, not a reason to hide the gap behind a silently empty result.
   return clean.length > 0 ? clean : records;
 }
 
@@ -411,12 +384,12 @@ HARD ACCURACY RULES:
 - Output strictly parseable JSON. No prose outside the JSON.`;
 
 /**
- * Said to the writer ONLY when an announcement is among the sources (a briefing made from circulars alone reads exactly what it always read, and its stored copies stay valid). Announcements are short notices of
- * the plant, often bound to a period, so the rules are about dates and about never presenting an old notice as current.
+ * I say this to the writer ONLY when an announcement is among the sources (a briefing made from circulars alone reads exactly what it always read, and its stored copies stay valid).
+ * Announcements are short notices of the plant, often bound to a period, so the rules are about dates and about never presenting an old notice as current.
  */
 export const ANNOUNCEMENT_BRIEF = `ANNOUNCEMENTS AMONG THE RECORDS: a record headed [Announcement id=...] is an announcement of the plant (a short notice, often tied to a period), not a circular; its content is its body text and/or the text of the PDF attached to it. Use it exactly as you use a circular: read it, and cite it by its id in "sources" (the rule "id must be one of the provided [Circular id=...] values" covers [Announcement id=...] too). Name it in text only by its "cite as" label or its title, never by its id. An announcement's Date is the day it was published; the dates INSIDE it (effective from, last date, closure period, deadline) say what it holds for: report them as stated, never say it still applies after the period it names, and when its Date is older than the inquiry's time say so. Where an announcement and a circular, or two announcements, differ on the same point, give each with its source and date; do not choose silently. An announcement that does not answer the inquiry is not cited.`;
 
-/** The part of a stored briefing's validity that the circulars' fingerprint cannot know: WHICH announcements it was made from and what they said. Empty when there is none (a briefing from circulars alone is unchanged). */
+/** This is the part of a stored briefing's validity that the circulars' fingerprint cannot know: WHICH announcements it was made from and what they said. It is empty when there is none (a briefing from circulars alone is unchanged). */
 export function announcementFingerprint(records: SearchResultRow[]): string {
   const ann = records.filter((r) => isAnnouncementSourceId(r.id));
   if (ann.length === 0) return "";
@@ -425,29 +398,29 @@ export function announcementFingerprint(records: SearchResultRow[]): string {
   return `|a:${h.digest("hex").slice(0, 16)}`;
 }
 
-/** A short signature of the prompt: part of the key of a stored briefing, so a changed prompt can never serve a briefing made with the old one. */
+/** A short signature of the prompt. It is part of the key of a stored briefing, so a changed prompt can never serve a briefing made with the old one. */
 const PROMPT_SIG = createHash("sha256").update(SYSTEM_PROMPT).digest("hex").slice(0, 10);
 
 // ----------------------------------------------------------------------------
 // ONE BRIEFING PER QUESTION: stored, scored, consistent.
 //
-// A question's briefing is made ONCE and then read back:
+// I make a question's briefing ONCE and then read it back:
 //   1. this server's memory (valid while the archive of circulars is unchanged),
 //   2. the permanent store (edsStore.ts, table eds_briefing): any server, any day, until the archive or the engine changes,
 //   3. otherwise it is MADE: several candidates are written at once, each is scored by plain code (edsQuality.ts), the best one is kept, and, if it is
 //      good enough, written to the store. Two servers making the same question together both end up showing the row that was stored first.
 // A question typed with other capitals, spaces or punctuation is the same question. A question worded differently is a different question.
-// If the model cannot be reached (no credit, outage) a briefing stored for an older archive is shown rather than nothing.
+// If the model cannot be reached (no credit, outage), I show a briefing stored for an older archive rather than nothing.
 // ----------------------------------------------------------------------------
 /** Change this when the scoring or the chart/table rules change: every stored briefing made under the old rules is then made afresh. */
 const EDS_ENGINE_VERSION = "77.7";
 const ENGINE_SIG = `${EDS_ENGINE_VERSION}.${PROMPT_SIG}`;
 const MEMORY_MAX = 100;
-const MEMORY_TTL_NO_STORE_MS = 30 * 60 * 1000; // without the store a server cannot know the archive changed, so its memory is short
+const MEMORY_TTL_NO_STORE_MS = 30 * 60 * 1000; // without the store a server cannot know the archive changed, so I keep its memory short
 const SEED_BASE = 7;
-/** The whole making of one briefing (writing, checking, storing) must end within this: under the route's maxDuration (120 s, src/app/api/ai-search/route.ts). */
+/** The whole making of one briefing (writing, checking, storing) must end within this, which is under the route's maxDuration (120 s, src/app/api/ai-search/route.ts). */
 const EDS_DEADLINE_MS = 110_000;
-/** the second reading needs at least this much of the deadline left to be attempted at all */
+/** I attempt the second reading only when at least this much of the deadline is left */
 const VERIFY_MIN_MS = 15_000;
 
 const memory = new Map<string, { at: number; fingerprint: string; result: SynthesisResult }>();
@@ -458,26 +431,26 @@ export function clearExecutiveSynthesisCache(): void {
   inflight.clear();
 }
 
-/** The identity of a question: capitals, spaces and punctuation do not matter; the engine signature does. */
+/** The identity of a question: capitals, spaces and punctuation do not matter, but the engine signature does. */
 export function edsKeyFor(q: string): string {
   const norm = (q || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
   return createHash("sha256").update(`${ENGINE_SIG}|${norm}`).digest("hex");
 }
 
 export interface SynthesisOptions {
-  /** the permanent store (the route passes the database one); none = this server's memory only */
+  /** the permanent store (the route passes the database one); none means this server's memory only */
   store?: EdsStore | null;
-  /** how many candidates to write and score (default env EDS_CANDIDATES, else 2; 1 to 3) */
+  /** how many candidates to write and score (default env EDS_CANDIDATES, else 2; allowed 1 to 3) */
   candidates?: number;
-  /** test hook: the model's raw JSON for candidate number i */
+  /** test hook: gives the model's raw JSON for candidate number i */
   generate?: (userPrompt: string, system: string, i: number) => Promise<string>;
-  /** test hook: the verifier's raw JSON (edsVerify.ts). With `generate` set and this unset, no verification runs. */
+  /** test hook: gives the verifier's raw JSON (edsVerify.ts). With `generate` set and this unset, no verification runs. */
   verify?: (userPrompt: string, system: string) => Promise<string>;
-  /** test hook: with `generate` set, the one repair attempt runs only when this is true (it adds a model call, which the engine tests count) */
+  /** test hook: with `generate` set, the one repair attempt runs only when this is true, because it adds a model call, which the engine tests count */
   repair?: boolean;
 }
 
-/** The score's structural notes a writer can act on, turned into instructions (empty when there are none). */
+/** The score's structural notes that a writer can act on, turned into instructions (empty when there are none). */
 export function structuralRepairs(notes: string[]): string[] {
   const out: string[] = [];
   for (const n of notes) {
@@ -497,14 +470,14 @@ function remember(key: string, fingerprint: string, result: SynthesisResult): vo
 export async function executeExecutiveSynthesis(
   q: string,
   records: SearchResultRow[],
-  // circular id -> "Circular 007 (2026)" (the number the circulars modal shows, plus the year). Used to name a circular to the reader.
+  // circular id -> "Circular 007 (2026)" (the number the circulars modal shows, plus the year). I use it to name a circular to the reader.
   labels?: Map<number, string>,
   opts: SynthesisOptions = {},
 ): Promise<SynthesisResult> {
   const key = edsKeyFor(q);
   const store = opts.store ?? null;
 
-  // the state of the archive: what a stored briefing must have been made from to be shown
+  // the state of the archive: what a stored briefing must have been made from for me to show it
   let fingerprint = "";
   let storeUsable = false;
   if (store) {
@@ -516,7 +489,7 @@ export async function executeExecutiveSynthesis(
     }
   }
 
-  fingerprint += announcementFingerprint(records); // a briefing made from announcements is valid only while those announcements, as they were read, are the same
+  fingerprint += announcementFingerprint(records); // a briefing made from announcements stays valid only while those announcements, as they were read, are the same
 
   const mem = memory.get(key);
   if (mem && mem.fingerprint === fingerprint && (storeUsable || Date.now() - mem.at < MEMORY_TTL_NO_STORE_MS)) return mem.result;
@@ -530,14 +503,14 @@ export async function executeExecutiveSynthesis(
           remember(key, fingerprint, row.result);
           return row.result;
         }
-        stale = row; // made from an older archive: only used if the model cannot be reached
+        stale = row; // made from an older archive: I use it only if the model cannot be reached
       }
     } catch (e: any) {
       console.warn("[EDS] store read failed:", e?.message || e);
     }
   }
 
-  // one making at a time per question on this server
+  // I allow one making at a time per question on this server
   const running = inflight.get(key);
   if (running) return running;
   const job = makeBriefing(q, records, labels, opts, { key, fingerprint, storeUsable, stale }).finally(() => inflight.delete(key));
@@ -586,13 +559,13 @@ JSON Output:`;
   const sourceText = sources.map((r) => r.chunkText || "").join("\n");
   const wanted = Math.round(Number(opts.candidates ?? process.env.EDS_CANDIDATES ?? 2));
   const n = Math.min(3, Math.max(1, Number.isFinite(wanted) ? wanted : 2));
-  // PERF.edsDrafts "hedged": ONE draft is written (a second only when the first is late: the hedge below); "both": n drafts side by side, the best kept (the previous way). The drafts of one question were word for word alike
-  // at temperature 0, so the second added cost and the wait for the slower of the two, not quality; the gold test (scripts/eds-gold.ts) is the check.
+  // PERF.edsDrafts "hedged": ONE draft is written (a second only when the first is late: the hedge below); "both": n drafts side by side, the best kept (the previous way).
+  // The drafts of one question were word for word alike at temperature 0, so the second added cost and the wait for the slower of the two, not quality; the gold test (scripts/eds-gold.ts) is the check.
   // (a number of candidates asked for on purpose, by the caller or by EDS_CANDIDATES, is always honoured: the switch changes only the default)
   const drafts = PERF.edsDrafts === "hedged" && opts.candidates === undefined && !process.env.EDS_CANDIDATES ? 1 : n;
   const hedgeAfterMs = PERF.edsHedgeSeconds > 0 ? PERF.edsHedgeSeconds * 1000 : undefined;
 
-  // true when a model other than the main (pro) one answered, because the main one was out of quota or down: such a briefing is shown once but never kept
+  // true when a model other than the main (pro) one answered, because the main one was out of quota or down: I show such a briefing once but never keep it
   let weakerModel = false;
   const noteModel = (m: string, main: string = synthesisModels()[0]) => { if (m && m !== main && !/pro/i.test(m)) weakerModel = true; };
   const callModel = async (i: number, prompt: string = userPrompt): Promise<string> => {
@@ -617,8 +590,8 @@ JSON Output:`;
       if (!ollamaRes.ok) throw new Error(`Local Ollama error: ${await ollamaRes.text()}`);
       return (await ollamaRes.json()).message?.content || "";
     }
-    // One hardened call (src/lib/ai/geminiChat.ts): per-attempt timeout and a total deadline under EDS_DEADLINE_MS (the route allows 120 s), thinking at
-    // "low" with its tokens added to the budget, a cut-off answer is an error, the key travels in a header, a bad key / billing stop is not retried.
+    // One hardened call (src/lib/ai/geminiChat.ts): a per-attempt timeout and a total deadline under EDS_DEADLINE_MS (the route allows 120 s), thinking at
+    // "low" with its tokens added to the budget. A cut-off answer is an error, the key travels in a header, and a bad key / billing stop is not retried.
     const thinkingEnv = (process.env.GEMINI_SYNTHESIS_THINKING || "").trim().toLowerCase();
     const thinking: ThinkingLevel = thinkingEnv === "minimal" || thinkingEnv === "medium" || thinkingEnv === "high" ? thinkingEnv : "low";
     const reply = await geminiGenerate(prompt, {
@@ -627,7 +600,7 @@ JSON Output:`;
       models: synthesisModels(),
       maxOutputTokens: 6000,
       temperature: 0.0,
-      seed: SEED_BASE + i * 12, // a fixed, different seed per candidate: repeatable, yet not the same draw twice
+      seed: SEED_BASE + i * 12, // I give each candidate a fixed, different seed: repeatable, yet not the same draw twice
       thinking,
       attemptTimeoutMs: 45_000,
       totalTimeoutMs: 60_000,
@@ -641,12 +614,12 @@ JSON Output:`;
   const settled = await Promise.allSettled(Array.from({ length: drafts }, (_, i) => callModel(i)));
   const cands: Array<{ result: SynthesisResult; score: BriefingScore; differences: { text: string; sources: number[] } | null; scoreCtx: ScoreContext }> = [];
   let firstError: unknown = null;
-  /** one raw answer -> a built, checked and scored candidate (null when unreadable) */
+  /** Turns one raw answer into a built, checked and scored candidate (null when unreadable). */
   const processCandidate = (raw: string): (typeof cands)[number] | null => {
     const stats: BuildStats = { droppedFigures: 0 };
     const result = buildResult(raw, citations, validIds, sourceText, labels, stats);
     if (result.error) return null; // unreadable output
-    // a "Not stated" cell for an item the column's circular names is a wrong answer: replace it by the circular's own words (absenceCheck.ts, plain code)
+    // A "Not stated" cell for an item that the column's circular names is a wrong answer, so I replace it by the circular's own words (absenceCheck.ts, plain code).
     const absence = sources.map((r) => ({ id: r.id, headline: r.headline || "", text: r.chunkText || "" }));
     const allFixes: AbsenceFix[] = [];
     const allConfirmed: ConfirmedAbsence[] = [];
@@ -663,7 +636,7 @@ JSON Output:`;
         console.log(`[EDS] absence check: ${fixed.fixes.length} "not stated" cell(s) of the ${key === "table" ? "table" : "second table"} corrected (${fixed.fixes.map((f) => `${f.row} / ${f.column}`).join("; ")})`);
       }
     }
-    // the sentences of the reply must not contradict the corrected table: a sentence that says the item is absent for that period is removed, not rewritten
+    // The sentences of the reply must not contradict the corrected table: I remove a sentence that says the item is absent for that period, rather than rewrite it.
     if (allFixes.length) {
       const gone: string[] = [];
       result.keyFindings = result.keyFindings.flatMap((f) => {
@@ -676,7 +649,7 @@ JSON Output:`;
       if (o.removed.length) result.overview = o.text.trim() || "The table below sets out the comparison, in the words of the circulars.";
       if (gone.length) console.log(`[EDS] absence check: ${gone.length} sentence(s) that contradicted the corrected table removed (${gone.map((g) => g.slice(0, 60)).join(" | ")})`);
     }
-    // wordingGuard.ts: an authority named only as the holder of a DISCRETION ("Discretion of Head of Safety") is not the one who issues; and speed / force words the circulars never use are taken out
+    // wordingGuard.ts: an authority named only as the holder of a DISCRETION ("Discretion of Head of Safety") is not the one who issues; and I take out speed / force words the circulars never use.
     for (const key of ["table", "extraTable"] as const) {
       const t = result[key];
       if (!t) continue;
@@ -707,12 +680,12 @@ JSON Output:`;
       const o = restoreAllAbbreviations(result, sourceText);
       if (o.changed.length) { Object.assign(result, o.result); console.log(`[EDS] wording guard: cut abbreviation(s) restored to the circulars' form (${[...new Set(o.changed)].join("; ")})`); }
     }
-    // an account, policy or cheque number is written as the circular prints it, digits unbroken (src/lib/ui/identifiers.ts)
+    // I write an account, policy or cheque number as the circular prints it, digits unbroken (src/lib/ui/identifiers.ts)
     {
       const o = normaliseIdentifiers(result);
       if (o.changed.length) { Object.assign(result, o.result); console.log(`[EDS] identifier(s) written without separators (${[...new Set(o.changed)].join("; ")})`); }
     }
-    // "Not applicable" in a cell is a claim the circular must print; a case it merely does not list is "Not stated in circular" (wordingGuard.ts)
+    // "Not applicable" in a cell is a claim that the circular must print; a case it merely does not list is "Not stated in circular" (wordingGuard.ts)
     {
       const o = fixUnprintedNotApplicable(result, sourceText);
       if (o.changed) { Object.assign(result, o.result); console.log(`[EDS] wording guard: ${o.changed} cell(s) "Not applicable" -> "Not stated in circular" (the circulars never say so)`); }
@@ -731,7 +704,7 @@ JSON Output:`;
 
   let best = pickBest(cands);
   if (!best || best.score.total === 0) {
-    // Nothing usable. A briefing stored for an older archive is better than none.
+    // Nothing usable came back. I prefer a briefing stored for an older archive to none.
     if (ctx.stale) return ctx.stale.result;
     if (firstError instanceof GeminiError) return emptyResult(`Executive synthesis unavailable: ${firstError.message}`);
     if (firstError) {
@@ -745,11 +718,11 @@ JSON Output:`;
   }
 
   // ---- ONE REPAIR ATTEMPT -----------------------------------------------------------------------------------------------------
-  // A fault plain code can SEE in the best candidate's structure (a year the inquiry names with no column in the table; a comparison with no
-  // table; an evolution with no timeline) is put to the writer once more, named, and the new answer is kept only if it scores higher.
-  // General: the faults are the score's own notes (edsQuality.ts), not anything about this question.
+  // A fault that plain code can SEE in the best candidate's structure (a year the inquiry names with no column in the table; a comparison with no
+  // table; an evolution with no timeline) is put to the writer once more, named, and I keep the new answer only if it scores higher.
+  // This is general: the faults are the score's own notes (edsQuality.ts), not anything about this question.
   // ---- THE SECOND READING, STARTED (edsVerify.ts) ---------------------------------------------------------------------------
-  // The best candidate is read against the circulars by a second model call (below, "THE SECOND READING"). With PERF.edsVerifyDuringRepair the reading of the best draft STARTS NOW, side by side with the repair attempt that
+  // A second model call reads the best candidate against the circulars (below, "THE SECOND READING"). With PERF.edsVerifyDuringRepair the reading of the best draft STARTS NOW, side by side with the repair attempt that
   // follows, instead of after it: when the repair is not kept (the usual case) its answer is already there; when the repair IS kept, the repaired answer is read again, as before (the earlier reading is dropped).
   const verifyOff = (process.env.EDS_VERIFY || "").trim().toLowerCase() === "off" || (!!opts.generate && !opts.verify);
   type VerifyCall = Promise<{ raw: string } | { skipped: string } | { error: string }>;
@@ -788,7 +761,7 @@ JSON Output:`;
     try {
       const prompt = `${userPrompt.replace(/\n\nJSON Output:$/, "")}\n\nA previous answer to this inquiry had these faults, found by checking its structure. Write the answer again without them:\n- ${repairs.join("\n- ")}\n\nJSON Output:`;
       const again = processCandidate(await callModel(n, prompt));
-      // the repaired answer is kept when it scores higher, or when the named faults are gone and it scores within 5 points: a definite fault in the
+      // I keep the repaired answer when it scores higher, or when the named faults are gone and it scores within 5 points: a definite fault in the
       // structure (a year with no column) weighs more than a few soft points of wording or coverage
       const faultsGone = !!again && structuralRepairs(again.score.notes).length === 0;
       if (again && (again.score.total > best.score.total || (faultsGone && again.score.total >= best.score.total - 5))) {
@@ -803,11 +776,11 @@ JSON Output:`;
   }
 
   // ---- THE SECOND READING (edsVerify.ts) ----------------------------------------------------------------------------------
-  // What the reading reports is applied only where plain code can check it (a quote found verbatim in the circulars, figures the circulars write, the circulars' own words). "failed" = the call could not be
+  // I apply what the reading reports only where plain code can check it (a quote found verbatim in the circulars, figures the circulars write, the circulars' own words). "failed" = the call could not be
   // made or gave no report: the briefing is shown as it is, but NOT stored, so the next ask reads it again.
   let verifyState: "done" | "failed" | "off" = "off";
   if (!verifyOff) {
-    if (!verifyCall || best !== bestBeforeRepair) verifyCall = startVerify(best); // not started early, or the repair changed the answer: read the answer that stands
+    if (!verifyCall || best !== bestBeforeRepair) verifyCall = startVerify(best); // not started early, or the repair changed the answer, so I read the answer that stands
     const called = await verifyCall;
     if ("skipped" in called) {
       verifyState = "failed";
@@ -827,7 +800,7 @@ JSON Output:`;
           const guard = figureGuard(sourceText, labels);
           const out = applyVerdict(best.result, verdict, { sources: sources.map((r) => ({ id: r.id, text: r.chunkText || "" })), figuresSafe: guard.figuresSafe, question: q });
           best.result = { ...out.result, verification: { checked: true, changes: out.changes } };
-          // a column the reading added carries "Not stated in circular" where it had no quote: those cells get the absence check too (plain code, as before)
+          // a column that the reading added carries "Not stated in circular" where it had no quote: I give those cells the absence check too (plain code, as before)
           if (out.changes.some((c) => c.startsWith("column added"))) {
             const absence = sources.map((r) => ({ id: r.id, headline: r.headline || "", text: r.chunkText || "" }));
             for (const key of ["table", "extraTable"] as const) {
@@ -850,9 +823,9 @@ JSON Output:`;
   }
   if (verifyState !== "done" && best.result.verification === undefined) best.result = { ...best.result, verification: { checked: false, changes: [] } };
 
-  // what differs between the editions, said exactly from the checked cells (absenceCheck.ts: describeDifferences); one more finding, only when there is room.
-  // Added AFTER the contradiction filter and the verifier: its own sentences name items, years and "only", which the filter would take for a claim of absence.
-  // "what differs between the columns" means something only when the columns are editions, years or versions of ONE thing: the question compares, or the columns are years. Two different
+  // What differs between the editions, said exactly from the checked cells (absenceCheck.ts: describeDifferences); one more finding, only when there is room.
+  // I add it AFTER the contradiction filter and the verifier, because its own sentences name items, years and "only", which the filter would take for a claim of absence.
+  // "What differs between the columns" means something only when the columns are editions, years or versions of ONE thing: the question compares, or the columns are years. Two different
   // topics side by side (a Gaurav Diwas notice and a Flag Day notice) have no "differences": the finding was noise there (query 4, 11 Nov 2026).
   const columnsAreEditions = /\b(?:compar\w*|differ\w*|chang\w*|versus|vs\.?|between|evolv\w*|revis\w*|amend\w*|earlier|later|previous)\b/i.test(q) || (!!best.result.table && best.result.table.columns.slice(1).length >= 2 && best.result.table.columns.slice(1).every((h) => /\b(?:19|20)\d{2}\b/.test(h)));
   if (best.differences && columnsAreEditions && best.result.keyFindings.length < 6) {
@@ -867,19 +840,19 @@ JSON Output:`;
       console.log("[EDS] a \"who issues it\" finding was added from the table's own column");
     }
   }
-  best.result = fixUnprintedNotApplicable(normaliseIdentifiers(best.result).result, sourceText).result; // also what the second reading wrote
-  best.result = withConditionFindings(best.result); // a condition the table gives to a row, said in the sentences too (conditionFinding.ts)
-  best.result = withKpiCards(best.result); // big number cards from a short one-amount-per-row table (kpiFromTable.ts), after every correction of the table
+  best.result = fixUnprintedNotApplicable(normaliseIdentifiers(best.result).result, sourceText).result; // this also covers what the second reading wrote
+  best.result = withConditionFindings(best.result); // a condition that the table gives to a row, said in the sentences too (conditionFinding.ts)
+  best.result = withKpiCards(best.result); // big number cards from a short one-amount-per-row table (kpiFromTable.ts); I run it after every correction of the table
   best.score = scoreBriefing(best.result, best.scoreCtx);
 
-  // Keep it only if it is good enough: a poor briefing is shown, but the next ask tries again instead of repeating it for ever.
+  // I keep a briefing only if it is good enough: a poor briefing is shown, but the next ask tries again instead of repeating it for ever.
   if (weakerModel) console.warn("[EDS] a fallback model answered: the briefing is shown, but not kept (the next ask tries the main model again)");
   if (best.score.total >= STORE_MIN_SCORE && verifyState !== "failed" && !weakerModel) {
     let standing = best.result;
     if (store && ctx.storeUsable) {
       try {
         const row = await store.put({ key: ctx.key, fingerprint: ctx.fingerprint, result: best.result, score: best.score.total, query: q, engine: ENGINE_SIG });
-        standing = row.result; // the row that stands: ours, or the one another server stored first
+        standing = row.result; // the row that stands: mine, or the one another server stored first
       } catch (e: any) {
         console.warn("[EDS] store write failed:", e?.message || e);
       }
@@ -890,11 +863,12 @@ JSON Output:`;
   return best.result;
 }
 
-/* ------------------------------------------------------------------ *
- * Parse the model payload -> typed SynthesisResult.
- * Chart TYPE is decided here, deterministically, from dataset.intent
- * and the shape of the data — never by the LLM.
- * ------------------------------------------------------------------ */
+/*
+ * ------------------------------------------------------------------ *
+ * Parse the model payload into a typed SynthesisResult.
+ * I decide the chart TYPE here, deterministically, from dataset.intent and the shape of the data, never by the LLM.
+ * ------------------------------------------------------------------
+ */
 
 function coerceNumber(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -933,13 +907,13 @@ function chartTypeFor(intent: RawIntent | undefined): ChartType | null {
  *  - two series (a second value on the items) are columns, whatever the intent said;
  *  - a pie that fails those tests is columns (one series).
  */
-/** A label that spans a period ("MAR-25 TO AUG-25", "Jan - Mar", "2022 \u2013 2024") is a range, not one moment. */
+/** A label that spans a period ("MAR-25 TO AUG-25", "Jan - Mar", "2022 \u2013 2024") counts as a range, not one moment. */
 export function isRangeLabel(label: string | undefined): boolean {
   return /\b(?:to|through|thru|till|until)\b|\s[\u2013\u2014-]\s|\d\s*[\u2013\u2014]\s*\d/i.test(label || "");
 }
 
 /**
- * Which of the circulars handed over CORRECT, AMEND or EXTEND another one of them ("the amount mentioned as Rs.15,000/- may be read as Rs.14,999/-",
+ * Finds which of the circulars handed over CORRECT, AMEND or EXTEND another one of them ("the amount mentioned as Rs.15,000/- may be read as Rs.14,999/-",
  * "the last date is extended to ..."): such a circular refers to the earlier one by its subject words. Returns, for each, the ids it amends.
  */
 export function amendmentsAmong(sources: Array<{ id: number; headline?: string | null; chunkText?: string | null }>): Array<{ id: number; amends: number[] }> {
@@ -955,7 +929,7 @@ export function amendmentsAmong(sources: Array<{ id: number; headline?: string |
         const shared = [...bs].filter((st) => aStems.has(st)).length;
         const own = stemsOf(a.headline || "");
         const union = new Set([...own, ...bs]).size || 1;
-        const sameNotice = [...bs].filter((st) => own.has(st)).length / union >= 0.6; // the same notice in another language is not an amendment of itself
+        const sameNotice = [...bs].filter((st) => own.has(st)).length / union >= 0.6; // the same notice in another language is not an amendment of itself, so I exclude it
         return shared >= 2 && !sameNotice;
       })
       .map((b) => b.id);
@@ -964,13 +938,13 @@ export function amendmentsAmong(sources: Array<{ id: number; headline?: string |
   return out;
 }
 
-/** Words that say the numbers are ceilings, maxima or per-level amounts: separate figures side by side, never the parts of one total. */
+/** Words that say the numbers are ceilings, maxima or per-level amounts: they are separate figures side by side, never the parts of one total. */
 const NOT_A_WHOLE = /\b(maxim\w*|minim\w*|highest|lowest|top|up ?to|ceiling|cap|limit\w*|per level|each level|at most|at least)\b/i;
 
 export function decideChartType(intent: RawIntent | undefined, unit: string | undefined, items: Array<{ secondaryValue?: number; label?: string }>, describedAs?: string): ChartType | null {
   const asked = chartTypeFor(intent);
   if (!asked) return null;
-  // a line joins single moments in time: when one of its points is a RANGE ("Mar to Aug") the line would show a slope that does not exist: columns
+  // A line joins single moments in time. When one of its points is a RANGE ("Mar to Aug") the line would show a slope that does not exist, so I draw columns.
   if (asked === "line" && items.some((i) => isRangeLabel(i.label))) return "bar";
   const twoSeries = items.some((i) => typeof i.secondaryValue === "number");
   if (asked === "pie") {
@@ -984,7 +958,7 @@ export function decideChartType(intent: RawIntent | undefined, unit: string | un
 function buildChart(ds: RawDataset, validIds?: Set<number>): SynthesisChart | null {
   const asked = chartTypeFor(ds.intent);
   if (!asked) return null;
-  // the type follows the data (decideChartType): a pie of multipliers is columns
+  // the type follows the data (decideChartType): a pie of multipliers becomes columns
   const type = decideChartType(
     ds.intent,
     ds.unit,
@@ -992,8 +966,8 @@ function buildChart(ds: RawDataset, validIds?: Set<number>): SynthesisChart | nu
     `${ds.title || ""} ${ds.subtitle || ""}`,
   ) as ChartType;
 
-  // Scale coherence guard: ONE axis has ONE unit. A unit that offers two alternatives ("X or Y": two different bases on the same axis), or items that are
-  // marked as measured against two different bases ("(base: A)" and "(base: B)"), cannot be drawn honestly: no chart (the table carries the facts).
+  // Scale coherence guard: ONE axis has ONE unit. I draw no chart (the table carries the facts) for a unit that offers two alternatives ("X or Y": two different bases on the same axis),
+  // or for items that are marked as measured against two different bases ("(base: A)" and "(base: B)"), because they cannot be drawn honestly.
   if (ds.unit && /\bor\b/i.test(ds.unit)) {
     return null;
   }
@@ -1035,7 +1009,7 @@ function buildChart(ds: RawDataset, validIds?: Set<number>): SynthesisChart | nu
       continue;
     }
 
-    // pie / bar / line / kpi: primary value must be numeric
+    // for pie / bar / line / kpi the primary value must be numeric
     if (!label) continue;
     const v = coerceNumber(it.value);
     if (v === null) continue;
@@ -1047,7 +1021,7 @@ function buildChart(ds: RawDataset, validIds?: Set<number>): SynthesisChart | nu
     items.push(item);
   }
 
-  // two series with no names of their own ("Value" / "Comparison") cannot be read: a bar of 3 against a bar of 6, and no word for what either is, misleads. Such a chart is not shown.
+  // Two series with no names of their own ("Value" / "Comparison") cannot be read: a bar of 3 against a bar of 6, and no word for what either is, misleads. I do not show such a chart.
   if (type === "bar" && items.some((i) => typeof i.secondaryValue === "number")) {
     const names = Array.isArray(ds.entityLabels) && ds.entityLabels.length === 2 ? ds.entityLabels.map((n) => String(n).trim()) : [];
     if (names.length !== 2 || names.some((n) => !n || /^(?:value|comparison|series\s*\d?|[ab]|x|y)$/i.test(n))) return null;
@@ -1067,10 +1041,8 @@ function buildChart(ds: RawDataset, validIds?: Set<number>): SynthesisChart | nu
   let finalItems = items;
 
   // Deterministic bar -> pie reclassification.
-  // A "comparison" with only ONE category but a two-series item (value +
-  // secondaryValue) is really a breakdown of that single thing into two
-  // parts (e.g. one award: Winner vs Runner-up). A grouped bar with one
-  // x-group reads as two floating bars; a pie of the two parts is clearer.
+  // A "comparison" with only ONE category but a two-series item (value + secondaryValue) is really a breakdown of that single thing into two
+  // parts (e.g. one award: Winner vs Runner-up). A grouped bar with one x-group reads as two floating bars, so I find a pie of the two parts clearer.
   if (
     type === "bar" &&
     items.length === 1 &&
@@ -1111,11 +1083,11 @@ function buildChart(ds: RawDataset, validIds?: Set<number>): SynthesisChart | nu
   return chart;
 }
 
-/* Build the comparison table, applying three sparsity guards:
+/*
+ * Builds the comparison table, and I apply three sparsity guards here:
  *  (a) drop any comparison column (index >= 1) whose every body cell is empty;
  *  (b) drop rows left with no informative value after (a);
- *  (c) drop the whole table if it is still mostly empty (< 40% informative
- *      body cells) — a wall of "Not stated" is noise, the overview already
+ *  (c) drop the whole table if it is still mostly empty (< 40% informative body cells), because a wall of "Not stated" is noise and the overview already
  *      states the gap.
  */
 export function buildTable(
@@ -1141,9 +1113,9 @@ export function buildTable(
     );
   if (rows.length === 0) return null;
 
-  // (a) Identify value columns (index >= 1) that are entirely empty.
+  // (a) I identify the value columns (index >= 1) that are entirely empty.
   const keepCol = columns.map((_, ci) => {
-    if (ci === 0) return true; // always keep the parameter/label column
+    if (ci === 0) return true; // I always keep the parameter/label column
     return rows.some((r) => !isEmptyCell(r[ci]));
   });
 
@@ -1152,14 +1124,14 @@ export function buildTable(
     rows = rows.map((r) => r.filter((_, ci) => keepCol[ci]));
   }
 
-  // If only the label column survives, there is nothing to compare.
+  // If only the label column survives, there is nothing to compare, so I return null.
   if (columns.length < 2) return null;
 
-  // (b) Drop rows whose value cells are all empty.
+  // (b) I drop the rows whose value cells are all empty.
   rows = rows.filter((r) => r.slice(1).some((c) => !isEmptyCell(c)));
   if (rows.length === 0) return null;
 
-  // (c) Overall informativeness of the remaining value cells.
+  // (c) the overall informativeness of the remaining value cells
   let valueCells = 0;
   let informative = 0;
   for (const r of rows) {
@@ -1170,10 +1142,8 @@ export function buildTable(
   }
   if (valueCells === 0 || informative / valueCells < 0.4) return null;
 
-  // Drop DERIVED columns. A fabricated area (e.g. "Projects") is often produced
-  // by copying a real column and zeroing one component. Detect a value column
-  // that equals an earlier value column on every row except where one side is
-  // zero/empty — that is not independent data, it is manufactured.
+  // I drop DERIVED columns. A fabricated area (e.g. "Projects") is often produced by copying a real column and zeroing one component.
+  // I detect a value column that equals an earlier value column on every row except where one side is zero/empty: that is not independent data, it is manufactured.
   // A DATE is not a quantity: "24th January [Friday]" and "24th January [Saturday]" both read as 24 when only the digits are kept, so the real columns of a holiday list
   // (the same date every year, a different weekday) were taken for copies of each other and dropped. A cell with a month, a weekday or an ordinal date is never compared as a number.
   const DATE_WORDS = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b\d{1,2}(?:st|nd|rd|th)\b/i;
@@ -1187,7 +1157,7 @@ export function buildTable(
   const isTotalLabel = (label: string): boolean =>
     /total|grand|sum|net|gross/i.test(label);
 
-  // Pure identical copy of another column (including any total rows).
+  // A pure identical copy of another column (including any total rows).
   const isExactCopy = (bi: number, ai: number): boolean => {
     let real = 0;
     for (const r of rows) {
@@ -1200,11 +1170,9 @@ export function buildTable(
     return real >= 3;
   };
 
-  // Column B is DERIVED from A if, ignoring TOTAL rows (which are just the
-  // consequence of the components), B equals A on the component rows except
-  // where B zeroes out a component A has. A differing TOTAL is expected and is
-  // NOT evidence of independence. Requires >=1 zeroed component so a genuine
-  // second area (all components independently different) is never flagged.
+  // Column B is DERIVED from A if, ignoring TOTAL rows (which are just the consequence of the components), B equals A on the component rows except
+  // where B zeroes out a component A has. A differing TOTAL is expected and is NOT evidence of independence.
+  // I require >=1 zeroed component, so a genuine second area (all components independently different) is never flagged.
   const isDerivedOf = (bi: number, ai: number): boolean => {
     let equalRows = 0;
     let dropRows = 0;
@@ -1224,7 +1192,7 @@ export function buildTable(
       ) {
         dropRows++; // b dropped a component that a has
       } else {
-        return false; // a genuine independent value -> not derived
+        return false; // a genuine independent value, so not derived
       }
     }
     return (
@@ -1248,14 +1216,15 @@ export function buildTable(
   if (dropCols.size > 0) {
     columns = columns.filter((_, ci) => !dropCols.has(ci));
     rows = rows.map((r) => r.filter((_, ci) => !dropCols.has(ci)));
-    if (columns.length < 2) return null; // nothing real left to compare
+    if (columns.length < 2) return null; // nothing real is left to compare
   }
 
   return { columns, rows };
 }
 
-/* A cell / finding that conveys no information — "Not stated in circular",
- * "N/A", "-", "—", "not available", empty, etc. */
+/*
+ * A cell / finding that conveys no information: "Not stated in circular", "N/A", "-", "—", "not available", empty, etc.
+ */
 function isEmptyCell(v: string): boolean {
   const t = v.trim().toLowerCase().replace(/[.\s]+$/g, "");
   if (t === "") return true;
@@ -1271,10 +1240,10 @@ function isEmptyCell(v: string): boolean {
   );
 }
 
-/* A "finding" that is really just a statement of absence — e.g.
- * "Number of awards per month: not stated in circular". Unlike a table cell,
- * the non-informative phrase can sit anywhere in the sentence (often after a
- * colon), so we scan the whole text rather than only its start. */
+/*
+ * A "finding" that is really just a statement of absence, e.g. "Number of awards per month: not stated in circular". Unlike a table cell,
+ * the non-informative phrase can sit anywhere in the sentence (often after a colon), so I scan the whole text rather than only its start.
+ */
 function isNonFinding(text: string): boolean {
   if (isEmptyCell(text)) return true;
   const t = text.toLowerCase();
@@ -1295,7 +1264,7 @@ function isNonFinding(text: string): boolean {
  */
 const NUMBER_WORDS: Record<string, string> = { once: "1", twice: "2", thrice: "3", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10" };
 export function canonicalCell(cell: string): string {
-  let c = (cell || "").replace(/\s+/g, " ").replace(/\s*\[\s*\]/g, "").trim(); // an empty condition "[]" is nothing
+  let c = (cell || "").replace(/\s+/g, " ").replace(/\s*\[\s*\]/g, "").trim(); // an empty condition "[]" counts as nothing
   if (!c) return c;
   // "Four times of the X" / "4 times the X" / "Twice of the X" -> "4x X" / "2x X"
   c = c.replace(/\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten)\s+times\s+(?:of\s+)?(?:the\s+)?/gi, (_m, n: string) => `${NUMBER_WORDS[n.toLowerCase()] ?? n}x `);
@@ -1303,16 +1272,16 @@ export function canonicalCell(cell: string): string {
   c = c.replace(/(\d)\s*[x\u00d7]\s+/g, "$1x "); // "4 x X", "4× X" -> "4x X"
   // "(Auth: Head of P&A)" / "(Authority: ...)" / "(Approver: ...)" -> "(Head of P&A)"
   c = c.replace(/\(\s*(?:auth(?:ority)?|approv(?:er|al)|sanction(?:ing)?\s+authority|competent\s+authority)\s*[:\-]\s*/gi, "(");
-  // the generic "(Competent Authority)" says nothing about WHO: it is not a name, so it is not shown
+  // the generic "(Competent Authority)" says nothing about WHO: it is not a name, so I do not show it
   c = c.replace(/\s*\(\s*(?:the\s+)?(?:concerned\s+|respective\s+)?(?:competent\s+)?authority\s*\)/gi, "").trim();
-  // a condition in square brackets goes last: "<rate> [cond] (auth)" -> "<rate> (auth) [cond]"
+  // I put a condition in square brackets last: "<rate> [cond] (auth)" -> "<rate> (auth) [cond]"
   const m = c.match(/^(.*?)\s*(\[[^\]]+\])\s*(\([^()]+\))\s*$/);
   if (m) c = `${m[1]} ${m[3]} ${m[2]}`.replace(/\s+/g, " ").trim();
   return c;
 }
 
 /**
- * The first date a timeline label names ("31.10.2023", "28.12.2023 to 30.12.2023", "5th December, 2024", "Dec 2024", "2024-12-05"), as a sortable number; null when it names none.
+ * The first date that a timeline label names ("31.10.2023", "28.12.2023 to 30.12.2023", "5th December, 2024", "Dec 2024", "2024-12-05"), as a sortable number; null when it names none.
  */
 export function firstDateIn(label: string): number | null {
   const t = (label || "").trim();
@@ -1329,17 +1298,19 @@ export function firstDateIn(label: string): number | null {
   return null;
 }
 
-/** A timeline is in the order of time: when EVERY point names a date, they are sorted by it (the model sometimes lists a deadline after the start it precedes). Otherwise the order given stands. */
+/** A timeline is in the order of time: when EVERY point names a date, I sort them by it (the model sometimes lists a deadline after the start it precedes). Otherwise the order given stands. */
 export function chronologicalOrder<T extends { label: string }>(items: T[]): T[] {
   const dates = items.map((i) => firstDateIn(i.label));
   if (items.length < 2 || dates.some((d) => d === null)) return items;
   return items.map((it, i) => ({ it, i, d: dates[i] as number })).sort((a, b) => a.d - b.d || a.i - b.i).map((x) => x.it);
 }
 
-/* ---- dates: a date is grounded by WHAT date it is, not by how it is written ----
+/*
+ * ---- dates: a date is grounded by WHAT date it is, not by how it is written ----
  * The circular writes "31st December'2023"; the briefing writes "31.12.2023". Compared as numbers ("31.12", "2023") the second looked invented and the
- * finding holding it was thrown away. Both are read to day-month-year here, and a numeric date in the briefing that the circulars write in ANY form
- * is not checked digit by digit. A date the circulars do not contain is still checked like any figure (and fails). */
+ * finding holding it was thrown away. Here I read both to day-month-year, and a numeric date in the briefing that the circulars write in ANY form
+ * is not checked digit by digit. A date the circulars do not contain is still checked like any figure (and fails).
+ */
 const MONTH_NUMBER: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 const NUMERIC_DATE = /\b(\d{1,2})[./-](\d{1,2})[./-](\d{4})\b/g;
 const MONTH_NAMES = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
@@ -1362,7 +1333,7 @@ export function datesWritten(text: string): Set<string> {
   return set;
 }
 
-/** The text with every numeric date that the circulars contain (in any written form) taken out, so only the rest is checked as figures. */
+/** Returns the text with every numeric date that the circulars contain (in any written form) taken out, so that only the rest is checked as figures. */
 export function withoutKnownDates(text: string, sourceDates: Set<string>): string {
   return (text || "").replace(NUMERIC_DATE, (whole, d: string, m: string, y: string) => (sourceDates.has(`${Number(y)}-${Number(m)}-${Number(d)}`) ? " " : whole));
 }
@@ -1372,7 +1343,7 @@ export interface BuildStats {
   droppedFigures: number;
 }
 
-/** Exported for the grounding selftest (executiveGrounding.selftest.ts). */
+/** I export this for the grounding selftest (executiveGrounding.selftest.ts). */
 export function buildResult(
   rawJson: string,
   citations: SynthesisCitation[],
@@ -1397,20 +1368,17 @@ export function buildResult(
   } catch {
     return emptyResult("Synthesis output could not be parsed.");
   }
-  // The model sometimes copies a source's internal id into its wording ("per Circular 49"). Replace any such reference by the circular's
-  // archive label ("Circular 007 (2026)"; its title if the serial is unknown) now, before the figure-grounding checks below (they would otherwise drop a finding for containing the "ungrounded number" 49).
+  // The model sometimes copies a source's internal id into its wording ("per Circular 49"). I replace any such reference by the circular's
+  // archive label ("Circular 007 (2026)"; its title if the serial is unknown) now, before the figure-grounding checks below, which would otherwise drop a finding for containing the "ungrounded number" 49.
   parsed = sanitizeSourceRefs(parsed, buildSourceNames(citations, labels));
 
   const overview = (parsed.overview || "").toString().trim();
 
   // ---- NUMBER GROUNDING ----------------------------------------------------
-  // Every figure shown to the executive must literally exist in the retrieved
-  // circular text. Build a set of the numbers actually present in the source,
-  // then strip any figure the model produced that is NOT grounded. This kills
-  // hallucinated tables/charts/findings when the real table was never OCR'd,
-  // without needing embeddings. Small integers (<= 31, e.g. dates/counts/step
-  // numbers) are exempt from stripping to avoid false positives — the concern
-  // is invented rupee amounts and rates, not "3 stages" or "24 January".
+  // Every figure shown to the executive must literally exist in the retrieved circular text. I build a set of the numbers actually present in the source,
+  // then strip any figure the model produced that is NOT grounded. This kills hallucinated tables/charts/findings when the real table was never OCR'd,
+  // without needing embeddings. Small integers (<= 31, e.g. dates/counts/step numbers) are exempt from stripping to avoid false positives:
+  // the concern is invented rupee amounts and rates, not "3 stages" or "24 January".
   const { numberIsGrounded, figuresSafe, sourceDates, percentsSafe } = figureGuard(sourceText, labels);
 
   const keyFindings: SynthesisFinding[] = (parsed.keyFindings || [])
@@ -1423,8 +1391,7 @@ export function buildResult(
         : [];
       return { text, sources: srcs };
     })
-    // Drop empty findings, pure "not stated" non-findings, AND findings that
-    // assert an ungrounded figure (a hallucinated amount).
+    // I drop empty findings, pure "not stated" non-findings, AND findings that assert an ungrounded figure (a hallucinated amount).
     .filter((f) => {
       if (f.text.length === 0 || isNonFinding(f.text)) return false;
       if (!figuresSafe(f.text)) {
@@ -1433,7 +1400,7 @@ export function buildResult(
       }
       return true;
     })
-    // never more than 6 findings, and the model's own order (the prompt fixes it: periods, money, authorities, caveats)
+    // I allow never more than 6 findings, kept in the model's own order (the prompt fixes it: periods, money, authorities, caveats)
     .slice(0, 6);
 
   const makeTable = (raw: RawPayload["table"]): SynthesisTable | null => {
@@ -1452,7 +1419,7 @@ export function buildResult(
     return out;
   };
   const table: SynthesisTable | null = makeTable(parsed.table);
-  // a second table is kept only when there IS a first one, and it is not a copy of it
+  // I keep a second table only when there IS a first one, and it is not a copy of it
   let extraTable: SynthesisTable | null = parsed.table2 ? makeTable(parsed.table2) : null;
   if (extraTable && (!table || JSON.stringify(extraTable.rows) === JSON.stringify(table.rows))) extraTable = null;
 
@@ -1465,7 +1432,7 @@ export function buildResult(
     const g = groundChart(c, numberIsGrounded);
     droppedFigures += c.items.length - (g?.items.length ?? 0);
     if (!g) continue;
-    // two charts of the same numbers are one chart (a run that drew a pie AND columns of the same figures showed both); at most two charts
+    // two charts of the same numbers are one chart (a run that drew a pie AND columns of the same figures showed both); I allow at most two charts
     const sig = g.items.map((i) => `${i.value}/${i.secondaryValue ?? ""}`).join("|");
     if (seenCharts.has(sig)) continue;
     seenCharts.add(sig);
@@ -1473,35 +1440,25 @@ export function buildResult(
   }
 
   // ---- CITATION RELEVANCE FILTER ---------------------------------------
-  // `citations` (the parameter above) was built from ALL of the top-5
-  // candidate records handed to the LLM as context, BEFORE the LLM ever
-  // saw them -- every candidate that cleared the upstream search/qualify
-  // filter shows up here unconditionally, regardless of whether it turned
-  // out to be topically relevant to the actual answer. That's what let a
-  // wrong-year Holiday List circular and two contractor-worker circulars
-  // appear as confident "primary sources" for an unrelated 2023 Category-B
-  // holiday question -- they cleared the noise floor, but were never
+  // `citations` (the parameter above) was built from ALL of the top-5 candidate records handed to the LLM as context, BEFORE the LLM ever
+  // saw them. Every candidate that cleared the upstream search/qualify filter shows up here unconditionally, regardless of whether it turned
+  // out to be topically relevant to the actual answer. That is what let a wrong-year Holiday List circular and two contractor-worker circulars
+  // appear as confident "primary sources" for an unrelated 2023 Category-B holiday question: they cleared the noise floor, but were never
   // relevant to what got synthesized.
   //
-  // Key findings already track which ids they actually relied on
-  // (`keyFindings[].sources`, validated against `validIds` above); a
-  // source only earns a place in the final citation list if at least one
-  // surviving finding actually cites it. This does NOT touch the upstream
-  // qualification filter (route.ts) or which records get handed to the
-  // model at all -- only which of them get presented as "sources" in the
+  // Key findings already track which ids they actually relied on (`keyFindings[].sources`, validated against `validIds` above). So a
+  // source only earns a place in the final citation list if at least one surviving finding actually cites it. This does NOT touch the upstream
+  // qualification filter (route.ts) or which records get handed to the model at all, only which of them get presented as "sources" in the
   // final result.
   //
-  // Known limitation: `table` and `chart` items don't currently carry
-  // per-item source ids (only `keyFindings` do), so an answer consisting
-  // only of a table/chart with no key findings will end up with an empty
-  // citation list. That's a deliberate consequence of this narrow fix, not
-  // a bug -- extending source-tracking to tables/charts is a separate,
-  // larger change.
-  // a circular a table or a chart was read from is cited too (before, only findings counted: an answer that was all table and chart had no sources)
+  // Known limitation: `table` and `chart` items don't currently carry per-item source ids (only `keyFindings` do), so an answer consisting
+  // only of a table/chart with no key findings will end up with an empty citation list. That is a deliberate consequence of this narrow fix, not
+  // a bug; extending source-tracking to tables/charts is a separate, larger change.
+  // Update: a circular that a table or a chart was read from is cited too (before, only findings counted: an answer that was all table and chart had no sources)
   const citedIds = new Set<number>([...keyFindings.flatMap((f) => f.sources), ...(table?.sources ?? []), ...(extraTable?.sources ?? []), ...charts.flatMap((c) => c.sources ?? [])]);
   const filteredCitations = citations.filter((c) => citedIds.has(c.id)).map((c) => ({ ...c, label: c.label ?? labels?.get(c.id) }));
 
-  // The overview is the first thing read, so it is held to the same rule as the findings: a sentence that asserts a figure
+  // The overview is the first thing read, so I hold it to the same rule as the findings: a sentence that asserts a figure
   // found in no circular is dropped (before, only findings, the table and the charts were checked). If nothing safe is
   // left, the first verified finding stands in for it rather than an invented sentence.
   if (overview && !figuresSafe(overview)) droppedFigures++;
@@ -1534,10 +1491,10 @@ export function buildResult(
 
 /**
  * The figure guard of a set of circulars: `numberIsGrounded(n)` is true when the number is written in them, `figuresSafe(text)` when every
- * substantial number of the text is. Used by buildResult on the writer's output and by the verifier's repairs (edsVerify.ts) alike.
+ * substantial number of the text is. buildResult uses it on the writer's output, and the verifier's repairs (edsVerify.ts) use it alike.
  * Small whole numbers (3..31: a multiplier, a month, a count) must be WRITTEN in the circulars too, as digits or as a word ("Four times", "Twice",
  * "sixth"); 0, 1 and 2 stay free ("Standard HRR" is 1x; "two sides"). The archive's own name for a circular ("Circular 007 (2026)") has numbers
- * in it that are the archive's, not claims, and a date the circulars write is not a figure: neither is checked.
+ * in it that are the archive's, not claims, and a date the circulars write is not a figure: I check neither.
  */
 export function figureGuard(sourceText: string, labels?: Map<number, string>): { numberIsGrounded: (n: number) => boolean; figuresSafe: (text: string) => boolean; sourceDates: Set<string>; percentsSafe: (text: string) => boolean } {
   const groundedNumbers = extractGroundedNumbers(sourceText);
@@ -1573,17 +1530,17 @@ export function percentFiguresIn(text: string): Set<string> {
   return out;
 }
 
-// Normalize a number to a canonical key so 20995.30, 20995.3, "20,995.30" and
-// "20995.300" all compare equal. Keep up to 2 decimals (rupee paise).
+// I normalize a number to a canonical key so 20995.30, 20995.3, "20,995.30" and
+// "20995.300" all compare equal. I keep up to 2 decimals (rupee paise).
 function normalizeNum(n: number): string {
   return (Math.round(n * 100) / 100).toString();
 }
 
-// All numbers literally present in the source text, as a Set of normalized keys.
+// All numbers literally present in the source text, returned as a Set of normalized keys.
 function extractGroundedNumbers(text: string): Set<string> {
   const set = new Set<string>();
   if (!text) return set;
-  // strip thousands separators inside digit groups so "20,995.30" -> "20995.30"
+  // I strip thousands separators inside digit groups so "20,995.30" -> "20995.30"
   const normalized = text.replace(/(\d),(?=\d{3}\b)/g, "$1");
   const matches = normalized.match(/\d+(?:\.\d+)?/g) || [];
   for (const m of matches) {
@@ -1593,8 +1550,8 @@ function extractGroundedNumbers(text: string): Set<string> {
   return set;
 }
 
-// Extract the substantial numbers from a piece of model text (same
-// thousands-separator handling), for grounding checks.
+// Extracts the substantial numbers from a piece of model text (same
+// thousands-separator handling), for the grounding checks.
 function extractNumbersFromText(text: string): number[] {
   if (!text) return [];
   const normalized = text.replace(/(\d),(?=\d{3}\b)/g, "$1");
@@ -1602,9 +1559,9 @@ function extractNumbersFromText(text: string): number[] {
   return matches.map(Number).filter((n) => Number.isFinite(n));
 }
 
-// Drop table rows whose value cells contain an ungrounded number. A cell that
+// Drops the table rows whose value cells contain an ungrounded number. A cell that
 // is text-only (e.g. "Discontinued") is kept. If a value column ends up all
-// empty, buildTable's caller already handled emptiness; here we re-run the
+// empty, buildTable's caller already handled emptiness; here I re-run the
 // emptiness guard after grounding.
 function groundTable(
   table: SynthesisTable,
@@ -1632,13 +1589,13 @@ function groundTable(
   return { columns: table.columns, rows };
 }
 
-// Drop chart items whose numeric value(s) are ungrounded. If too few remain for
-// the chart type, drop the whole chart.
+// Drops the chart items whose numeric value(s) are ungrounded. If too few remain for
+// the chart type, I drop the whole chart.
 function groundChart(
   chart: SynthesisChart,
   ok: (n: number) => boolean,
 ): SynthesisChart | null {
-  // Timeline items are label/date driven, not magnitude — keep as-is.
+  // Timeline items are label/date driven, not magnitude, so I keep them as they are.
   if (chart.type === "timeline") return chart;
 
   const items = chart.items.filter((it) => {
@@ -1660,5 +1617,5 @@ function groundChart(
   return { ...chart, items };
 }
 
-// For tests only: the pure result builder.
+// For tests only: this exposes the pure result builder.
 export { buildResult as buildSynthesisResultForTest };

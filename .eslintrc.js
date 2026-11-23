@@ -1,11 +1,11 @@
-// TypeScript 5.9 + Next 16 + Sequelize compatible (eslint-config-next is kept at 15.5.x because 16.x needs ESLint 9 and flat config; moving to ESLint 9 is a separate job)
+// This is compatible with TypeScript 5.9 + Next 16 + Sequelize. I keep eslint-config-next at 15.5.x because 16.x needs ESLint 9 and flat config; moving to ESLint 9 is a separate job.
 module.exports = {
   root: true,
   parser: "@typescript-eslint/parser",
   parserOptions: {
     ecmaVersion: "latest",
     sourceType: "module",
-    warnOnUnsupportedTypeScriptVersion: false, // hides the 5.9 warning
+    warnOnUnsupportedTypeScriptVersion: false, // this hides the 5.9 warning
   },
   plugins: ["@typescript-eslint", "react", "react-hooks", "jsx-a11y"],
   extends: [
@@ -16,19 +16,19 @@ module.exports = {
     "plugin:jsx-a11y/recommended",
   ],
   rules: {
-    // ✅ relaxed JSX and TypeScript rules for your current codebase
+    // Relaxed JSX and TypeScript rules for my current codebase.
     "react/no-unescaped-entities": "off",
     "@next/next/no-img-element": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-unused-vars": "off",
 
-    // ✅ accessibility rules that are noisy for internal apps
+    // Accessibility rules that are noisy for internal apps.
     "jsx-a11y/no-static-element-interactions": "off",
     "jsx-a11y/click-events-have-key-events": "off",
     "jsx-a11y/no-autofocus": "off",
     "jsx-a11y/anchor-is-valid": "off",
 
-    // ✅ hooks
+    // Hooks rules.
     "react-hooks/exhaustive-deps": "off",
   },
 };

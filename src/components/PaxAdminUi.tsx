@@ -2,11 +2,11 @@
 
 // src/components/PaxAdminUi.tsx
 //
-// THE LOOK OF THE PAX DIRECTORY EDITOR (step 67a; owner, 1 Nov 2026: "implement it, keeping all the logic intact"). The same design family as the employee manager (glass cards, icon-led inputs with a live tick, a rail,
-// a sticky action bar that says in words why the button is off) with its own character: TEAL instead of indigo, underline tabs, ONE "line" card with a three-node rail (PAX has three fields), and a telephone-line
+// THE LOOK OF THE PAX DIRECTORY EDITOR (step 67a; my instruction of 1 Nov 2026: "implement it, keeping all the logic intact"). It is in the same design family as the employee manager (glass cards, icon-led inputs with a live tick, a rail,
+// a sticky action bar that says in words why the button is off) but with its own character: TEAL instead of indigo, underline tabs, ONE "line" card with a three-node rail (PAX has three fields), and a telephone-line
 // plate that shows how the entry will read in the directory.
 // NOTHING HERE DECIDES ANYTHING: these components are given everything (values, errors, who may do what) and draw it. The requests, the state and every rule stay in PaxAdminPanel.tsx and in lib/pax.
-// Plain text only (React escapes it). Every size is a Tailwind size the modal's own scale sheet (omniScale.css) knows, so the whole panel follows the modal's text scale.
+// I use plain text only (React escapes it), and only Tailwind sizes that the modal's own scale sheet (omniScale.css) knows, so the whole panel follows the modal's text scale.
 
 import React from "react";
 import { DateTime } from "luxon";
@@ -33,20 +33,20 @@ const INPUT_OK = "border-teal-200 bg-white";
 const INPUT_BAD = "border-rose-300 bg-white";
 export const PRIMARY = "inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 via-cyan-600 to-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/30 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:from-slate-300 disabled:via-slate-300 disabled:to-slate-300 disabled:shadow-none disabled:hover:brightness-100";
 export const SECONDARY = "inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-teal-300 hover:bg-teal-50/60 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
-/** The box of the typed confirmation of a deletion (shared component src/components/facility/TypedConfirm.tsx), in the PAX editor's colours. */
+/** This is the box of the typed confirmation of a deletion (shared component src/components/facility/TypedConfirm.tsx), drawn in the PAX editor's colours. */
 export const CONFIRM_INPUT = "h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-3 text-sm text-slate-900 shadow-inner outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100";
 
 export const DANGER = "inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-500/30 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-300 disabled:shadow-none";
 const ROW_ACTION = "rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition hover:border-teal-300 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50";
 const ROW_DANGER = "rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50";
 
-/** A round avatar with the initials of a name, in the family gradient. */
+/** Draws a round avatar with the initials of a name, in the family gradient. */
 export function Avatar({ name }: { name: string }) {
   const initials = name.split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
   return <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm ${GRAD}`} aria-hidden="true">{initials}</span>;
 }
 
-/** The frame of the whole editor: a soft gradient with two blurred lights behind it (overflow-clip, so that the sticky action bar can stick). */
+/** The frame of the whole editor: a soft gradient with two blurred lights behind it. I use overflow-clip so that the sticky action bar can stick. */
 export function PaxShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative isolate overflow-clip rounded-3xl border border-teal-100/80 bg-gradient-to-br from-white via-slate-50 to-teal-50/80 p-4 shadow-[0_24px_70px_-28px_rgba(13,148,136,0.45)] sm:p-5" data-pax-admin="true">
@@ -58,8 +58,8 @@ export function PaxShell({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The top line of the editor (owner, 31 Oct 2026): the title, then the NAME of the person who is logged in, then the role label ("HOD of C&IT" or "Authorised executive"), with the same gap between the three.
- * The name is the login's (the server's answer to `me`), shown as soon as it arrives; until then the line has the title and the role.
+ * The top line of the editor (my request, 31 Oct 2026): the title, then the NAME of the person who is logged in, then the role label ("HOD of C&IT" or "Authorised executive"), with the same gap between the three.
+ * The name is the login's (the server's answer to `me`); I show it as soon as it arrives, and until then the line has the title and the role.
  */
 export function PaxAdminHeader({ authority, name }: { authority: PaxAdminOpen["role"]; name?: string | null }) {
   const hod = authority === "hod";
@@ -76,7 +76,7 @@ export function PaxAdminHeader({ authority, name }: { authority: PaxAdminOpen["r
   );
 }
 
-/** Underline tabs with a glowing teal bar under the chosen one. */
+/** I draw underline tabs with a glowing teal bar under the chosen one. */
 export function PaxTabs<T extends string>({ tabs, tab, onTab }: { tabs: Array<{ id: T; label: string; icon: React.ReactNode; show: boolean }>; tab: T; onTab: (id: T) => void }) {
   return (
     <div role="tablist" aria-label="PAX directory editor" className="flex flex-wrap gap-x-1 border-b border-slate-200/80">
@@ -90,7 +90,7 @@ export function PaxTabs<T extends string>({ tabs, tab, onTab }: { tabs: Array<{ 
   );
 }
 
-/** A message after an action: green for what worked, amber for what needs a look, rose for what did not. */
+/** I show a message after an action in green for what worked, amber for what needs a look, and rose for what did not. */
 export function Notice({ tone, children }: { tone: "ok" | "warn" | "error"; children: React.ReactNode }) {
   const ok = tone === "ok", warn = tone === "warn";
   return (
@@ -108,14 +108,14 @@ export function Notice({ tone, children }: { tone: "ok" | "warn" | "error"; chil
 const FIELD_WORDS: Record<keyof FormValues, string> = { department: "Department", location: "Location", number: "PAX number" };
 export const wordOfField = (k: keyof FormValues): string => FIELD_WORDS[k];
 
-/** What the OTHER person changed: the line the person opened against the line as it is now (an empty location reads Office, the table's own word). */
+/** I work out what the OTHER person changed by comparing the line the person opened with the line as it is now (an empty location reads Office, the table's own word). */
 export function theirEntryChanges(original: PaxEntryView, current: PaxEntryView): Array<{ label: string; from: string; to: string }> {
   const rows: Array<[string, string, string]> = [["Department", original.department, current.department], ["Location", original.location || EMPTY_LOCATION, current.location || EMPTY_LOCATION], ["PAX number", original.number, current.number]];
   return rows.filter(([, a, b]) => a !== b).map(([label, from, to]) => ({ label, from, to }));
 }
 
 /**
- * THE THREE-WAY MERGE for a line. `base` is the form as it was when the person opened the line, `mine` what is in the form now, `theirs` the line as it is now. A field the person CHANGED keeps his value;
+ * I made this THE THREE-WAY MERGE for a line. `base` is the form as it was when the person opened the line, `mine` what is in the form now, `theirs` the line as it is now. A field the person CHANGED keeps his value;
  * every other field takes THEIR value, so he can never put back what the other person changed. `overlaps` are the fields BOTH changed to different values (his is kept, and he is told to look).
  */
 export function rebaseEntry(base: FormValues, mine: FormValues, theirs: FormValues): { values: FormValues; kept: Array<keyof FormValues>; overlaps: Array<keyof FormValues> } {
@@ -131,7 +131,7 @@ export function rebaseEntry(base: FormValues, mine: FormValues, theirs: FormValu
   return { values, kept, overlaps };
 }
 
-/** The card: who changed the line and when (the last change recorded), what changed, and the two safe ways on. Nothing of the person's was saved. */
+/** My card shows who changed the line and when (the last change recorded), what changed, and the two safe ways on. Nothing of the person's was saved. */
 export function StaleCard(props: { who: { name: string; ticket: string; at: string } | null; changes: Array<{ label: string; from: string; to: string }>; busy: boolean; onTheirs: () => void; onMine: () => void }) {
   const when = props.who ? DateTime.fromISO(props.who.at).setZone(IST).setLocale("en-IN").toLocaleString({ dateStyle: "medium", timeStyle: "short" }) : "";
   return (
@@ -160,7 +160,7 @@ export function StaleCard(props: { who: { name: string; ticket: string; at: stri
   );
 }
 
-/** A box with its icon on the left, for the search boxes (the three form fields use Field below). */
+/** I use this box, with its icon on the left, for the search boxes; the three form fields use Field below. */
 export function IconField({ id, label, icon, children }: { id: string; label: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
@@ -173,7 +173,7 @@ export function IconField({ id, label, icon, children }: { id: string; label: st
   );
 }
 
-/** The search for a saved line (Change and Delete). */
+/** This is the search I use for a saved line (Change and Delete). */
 export function SearchBar(props: { id: string; label: string; value: string; placeholder: string; busy: boolean; onChange: (v: string) => void; onSearch: () => void }) {
   return (
     <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm backdrop-blur" data-pax-search="true">
@@ -192,7 +192,7 @@ export function SearchBar(props: { id: string; label: string; value: string; pla
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 type Done = { department: boolean; location: boolean; number: boolean; all: boolean };
-/** Which of the three are right, by the SAME validation the panel and the server use (this file adds no rule of its own). */
+/** Tells which of the three are right, by the SAME validation the panel and the server use: I add no rule of my own in this file. */
 function doneOf(values: FormValues): Done {
   const v = validateEntry(values);
   const errs: FieldErrors = v.ok ? {} : v.errors;
@@ -200,7 +200,7 @@ function doneOf(values: FormValues): Done {
   return { department: d("department"), location: d("location"), number: d("number"), all: v.ok };
 }
 
-/** A compact three-node rail (the same idea as the employee form's progress, sized for three fields). */
+/** I made a compact three-node rail: the same idea as the employee form's progress, sized for three fields. */
 function LineRail({ done }: { done: Done }) {
   const nodes = [{ label: "Department", done: done.department }, { label: "Location", done: done.location, optional: true }, { label: "PAX number", done: done.number }];
   const firstOpen = nodes.findIndex((n) => !n.done && !n.optional);
@@ -226,7 +226,7 @@ function LineRail({ done }: { done: Done }) {
   );
 }
 
-/** The telephone-line plate: how the entry looks, and how it will read in the directory. */
+/** I draw the telephone-line plate to show how the entry looks and how it will read in the directory. */
 function LinePlate({ values, editing }: { values: FormValues; editing: boolean }) {
   const department = values.department.trim(), location = values.location.trim(), number = values.number.trim();
   return (
@@ -263,18 +263,18 @@ export function EntryFormView(props: {
   errors: FieldErrors;
   busy: boolean;
   submitLabel: string;
-  /** The button stays off (greyed) while this is true, whatever else is true; `submitHint` says in words what is still needed. Enter in a field does nothing then either. */
+  /** I keep the button off (greyed) while this is true, whatever else is true; `submitHint` says in words what is still needed. Enter in a field does nothing then either. */
   submitDisabled?: boolean;
   submitHint?: string;
-  /** TRUE when a saved line is being changed (the plate says "Editing" instead of "New line"). */
+  /** TRUE when a saved line is being changed; then the plate says "Editing" instead of "New line". */
   editing?: boolean;
   onChange: (next: FormValues) => void;
   onSubmit: () => void;
   onCancel?: () => void;
-  /** What belongs just above the action bar: the question asked when the entry clashes with a saved line. */
+  /** Put here whatever belongs just above the action bar: the question I ask when the entry clashes with a saved line. */
   children?: React.ReactNode;
   /**
-   * THE DEPARTMENTS TO CHOOSE FROM (owner, 23 Nov 2026): the department is picked from this list (the departments the directory already holds), never typed. null = the list is on its way; undefined = no list is given and the
+   * THE DEPARTMENTS TO CHOOSE FROM (my rule, 23 Nov 2026): the department is picked from this list (the departments the directory already holds), never typed. null = the list is on its way; undefined = no list is given and the
    * department is a text box (only the older tests draw it so).
    */
   departments?: string[] | null;
@@ -350,7 +350,7 @@ export function EntryFormView(props: {
         <aside className="order-first xl:order-none xl:sticky xl:top-3"><LinePlate values={values} editing={editing} /></aside>
       </div>
       {children}
-      {/* THE ACTION BAR IS DOCKED, NOT FLOATING (owner, 23 Nov 2026): solid white, square, with a rule and a soft upward shadow, flush with the bottom of the scrolling area (-bottom-2 cancels the 0.5rem padding of that area, so nothing of the form shows beneath it); the form scrolls above it */}
+      {/* THE ACTION BAR IS DOCKED, NOT FLOATING (my decision, 23 Nov 2026): solid white, square, with a rule and a soft upward shadow, flush with the bottom of the scrolling area (-bottom-2 cancels the 0.5rem padding of that area, so nothing of the form shows beneath it); the form scrolls above it */}
       <div className="sticky -bottom-2 z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-4 py-3 shadow-[0_-10px_14px_-12px_rgba(15,23,42,0.35)] sm:-mx-5 sm:-mb-5 sm:px-5" data-pax-actions="true">
         <button type="button" className={PRIMARY} disabled={busy || submitDisabled} onClick={onSubmit} aria-describedby={submitDisabled && submitHint ? `${idPrefix}-submit-hint` : undefined}>
           {submitLabel}<ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -372,7 +372,7 @@ export function EntryFormView(props: {
 // the question asked when an entry clashes, the lists, the history
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-/** The sentence for each kind of clash, in the table's own words. */
+/** Returns the sentence for each kind of clash, in the table's own words. */
 export function conflictText(c: PaxConflict, entry: FormValues): string {
   if (c.kind === "same-number") return `The number ${entry.number} is already assigned to ${Array.from(new Set(c.existing.map(placeName))).join("; ")}. A PAX number belongs to one place only.`;
   if (c.kind === "same-place") return `${placeName(c.existing[0])} is already saved with ${c.existing.map((e) => e.number).join(" / ")}.`;
@@ -474,8 +474,8 @@ const ACTION_WORD: Record<PaxAuditView["action"], string> = { add: "Added", modi
 const ACTION_DOT: Record<PaxAuditView["action"], string> = { add: "bg-emerald-500 ring-emerald-100", modify: "bg-sky-500 ring-sky-100", delete: "bg-rose-500 ring-rose-100", grant: "bg-teal-500 ring-teal-100", revoke: "bg-amber-500 ring-amber-100" };
 
 /**
- * The history as a table (owner, 31 Oct 2026): Department, Location, the number, and who did it (name, ticket number, designation). Two columns more say WHAT was done and WHEN, because without them
- * an added line and a deleted line look the same. For a change the new line is shown and the old one is said under "Changed"; for a deleted line, the line that went; an authorisation or a withdrawal has
+ * The history as a table (my request, 31 Oct 2026): Department, Location, the number, and who did it (name, ticket number, designation). I added two columns that say WHAT was done and WHEN, because without them
+ * an added line and a deleted line look the same. For a change I show the new line and say the old one under "Changed"; for a deleted line, the line that went; an authorisation or a withdrawal has
  * no line, so the executive concerned is named under the action and the three line columns show a dash. A coloured dot marks the kind of action.
  */
 export function HistoryList({ history }: { history: PaxAuditView[] }) {
@@ -523,7 +523,7 @@ export function HistoryList({ history }: { history: PaxAuditView[] }) {
 // the confirmations and the people
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-/** A confirmation that something will be removed: a rose card with a heading, the words, and the buttons (children). */
+/** I draw a confirmation that something will be removed as a rose card with a heading, the words, and the buttons (children). */
 export function ConfirmCard(props: { kind: "delete" | "revoke"; ariaLabel: string; icon: React.ReactNode; title: string; children: React.ReactNode }) {
   const mark = props.kind === "delete" ? { "data-pax-delete": "true" } : { "data-pax-revoke": "true" };
   return (
@@ -534,7 +534,7 @@ export function ConfirmCard(props: { kind: "delete" | "revoke"; ariaLabel: strin
   );
 }
 
-/** The line that is about to go: its place and its number struck through. */
+/** Shows the line that is about to go, with its place and its number struck through. */
 export function LineAboutToGo({ entry, hideNumber = false }: { entry: PaxEntryView; hideNumber?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-rose-100">
@@ -546,7 +546,7 @@ export function LineAboutToGo({ entry, hideNumber = false }: { entry: PaxEntryVi
   );
 }
 
-/** One person in the lists of authorised executives: an avatar, the name, a line under it, and a button. */
+/** I draw one person in the lists of authorised executives as an avatar, the name, a line under it, and a button. */
 export function PersonRow(props: { name: string; children: React.ReactNode; action: React.ReactNode; nonExecutive?: boolean; below?: React.ReactNode }) {
   return (
     <li data-pax-person={props.nonExecutive ? "non-executive" : "executive"} className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${props.nonExecutive ? NONEXEC_ROW : "border-slate-200 bg-white"}`}>
@@ -557,12 +557,12 @@ export function PersonRow(props: { name: string; children: React.ReactNode; acti
   );
 }
 
-/** A card around the "authorise an executive" search. */
+/** I put a card around the "authorise an executive" search. */
 export function AuthoriseCard({ children }: { children: React.ReactNode }) {
   return <div className="space-y-3 rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm backdrop-blur">{children}</div>;
 }
 
-/** The "Changing ..." line above the form of a saved line. */
+/** The "Changing ..." line I put above the form of a saved line. */
 export function ChangingBanner({ line }: { line: PaxEntryView }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-teal-100">

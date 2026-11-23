@@ -14,11 +14,11 @@ const LuxonDateTimeTransformer: ValueTransformer = {
 };
 
 /**
- * One row per subscribed user. Absence of a row means "never registered" --
+ * One row per subscribed user. No row means "never registered" --
  * distinct from `suppressAfterFirstView` being true with the notification
  * already seen, which means "registered, but currently muted." Deleting
- * this row IS the "complete unsubscribe" -- there is deliberately no
- * separate "subscribed: false" flag left behind, so re-registering later
+ * this row IS the "complete unsubscribe" -- I deliberately leave no
+ * separate "subscribed: false" flag behind, so re-registering later
  * starts fresh rather than silently reactivating old preferences.
  */
 @Entity({ name: "holidaynotificationsubscription" })
@@ -29,15 +29,15 @@ export class HolidayNotificationSubscription {
   @Column({ type: "varchar", name: "userId", unique: true, nullable: false })
   userId!: string;
 
-  // Default false: per the explicit instruction, the DEFAULT behaviour is
+  // Default false, as explicitly instructed: the DEFAULT behaviour is
   // to show the notification at every fresh login. Turning this on is an
   // opt-in "only show me this once" preference, not the default.
   @Column({ type: "boolean", name: "suppressAfterFirstView", default: false })
   suppressAfterFirstView!: boolean;
 
-  // Only meaningful when suppressAfterFirstView is true -- tracks whether
-  // the one allowed showing has already happened, so it isn't shown again
-  // on subsequent logins.
+  // Only meaningful when suppressAfterFirstView is true. It tracks whether
+  // the one allowed showing has already happened, so it is not shown again
+  // on later logins.
   @Column({ type: "boolean", name: "hasSeenFirstNotification", default: false })
   hasSeenFirstNotification!: boolean;
 

@@ -1,7 +1,7 @@
 // src/tools/converter/RatesSource.tsx
 //
-// WHERE THE CURRENCY CONVERTER'S RATES COME FROM, said under the converter like every other card says it: the European Central Bank's reference rates (through Frankfurter) and, for the Gulf currencies the ECB does not
-// publish, open.er-api.com (whose free terms ask for a link to Exchange Rate API, given here). Each name is a link to the provider; the date is the date of the rates. The text is read from the rates the server answered with
+// Where the currency converter's rates come from, said under the converter like every other card says it: the European Central Bank's reference rates (through Frankfurter) and, for the Gulf currencies the ECB does not
+// publish, open.er-api.com (whose free terms ask for a link to Exchange Rate API, given here). Each name is a link to the provider; the date is the date of the rates. I read the text from the rates the server answered with
 // (rates.source), so a provider that did not answer is not named.
 "use client";
 
@@ -10,7 +10,7 @@ import { DateTime } from "luxon";
 import { ExternalLink } from "lucide-react";
 import type { Rates } from "./currency";
 
-/** the providers a rates answer can name, in the words of the server's answer: each with how it is shown and where it is */
+/** The providers a rates answer can name, matched on the words of the server's answer: for each I keep how it is shown and where it is */
 export const RATE_PROVIDERS: Array<{ match: string; name: string; url: string }> = [
   { match: "European Central Bank", name: "European Central Bank reference rates (through Frankfurter)", url: "https://frankfurter.dev" },
   { match: "open.er-api.com", name: "Rates By Exchange Rate API (open.er-api.com)", url: "https://www.exchangerate-api.com" },

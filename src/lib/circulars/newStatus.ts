@@ -1,7 +1,7 @@
 // src/lib/circulars/newStatus.ts
 //
-// The ONE definition of which circulars count as NEW: those uploaded within the last CIRCULAR_NEW_THRESHOLD_HOURS hours (24). It does not depend on who is
-// asking, so the server can work it out without knowing anything about the visitor. Used by the /api/circulars/seen route (which then subtracts, for a
+// I keep the ONE definition of which circulars count as NEW here: those uploaded within the last CIRCULAR_NEW_THRESHOLD_HOURS hours (24). It does not depend on who is
+// asking, so the server can work it out without knowing anything about the visitor. It is used by the /api/circulars/seen route (which then subtracts, for a
 // logged-in person, the ones they have read) and by the home page (which hands this list to a logged-out visitor so the red badge shows at once).
 
 import type { DataSource } from "typeorm";

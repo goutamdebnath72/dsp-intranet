@@ -1,6 +1,6 @@
 // src/lib/perf/heroPicture.ts
 //
-// THE HOME PAGE'S HERO PICTURE: the lighter copy (210 KB, same picture) or the original (697 KB), as src/lib/perf/switches.js says (optimisedHeroPicture). One place, read by the page (which asks the browser to fetch it
+// THE HOME PAGE'S HERO PICTURE: I use the lighter copy (210 KB, same picture) or the original (697 KB), as src/lib/perf/switches.js says (optimisedHeroPicture). It lives in one place, read by the page (which asks the browser to fetch it
 // early) and by the hero itself (background and video poster), so they can never name two different files.
 import { PERF } from "@/lib/perf/switches";
 

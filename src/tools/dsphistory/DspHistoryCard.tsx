@@ -1,12 +1,12 @@
 // src/tools/dsphistory/DspHistoryCard.tsx
 //
-// THE DSP STORY CARD: how the Durgapur Steel Plant came to be, in five tabs.
+// The DSP story card: how the Durgapur Steel Plant came to be, in five tabs.
 //  1 "Story": the five dates, the plant in a few facts, and the whole timeline from 1954 to today, with SAIL's photographs and the source of every entry.
 //  2 "Who made it": the idea (Nehru), the British technology, Dr B C Roy, Pandit Nehru, the Queen's visit, the President, the site and the city.
 //  3 "First products": what the plant made at the very start, and what nobody wrote down.
 //  4 "Heads of DSP": the chronological list of the heads, by the title each bore (General Manager, Director-in-Charge, Managing Director, CEO, Director In-charge), with a picture where SAIL has one.
 //  5 "SAIL & units": the foundation of Hindustan Steel and of SAIL, its plants (with the country each came from) and its other bodies.
-// All of it is a reviewed file with its sources (history.ts): nothing is fetched. Where two sources differ the card shows both; where nothing is known it says so.
+// All of it comes from a reviewed file with its sources (history.ts), and I fetch nothing. Where two sources differ I show both; where nothing is known the card says so.
 "use client";
 
 import React, { useState } from "react";
@@ -36,9 +36,9 @@ function Band({ icon, tone, children }: { icon: React.ReactNode; tone: "rose" | 
   const c = tone === "rose" ? "border-rose-100 bg-rose-50/70 text-slate-700 [&>svg]:text-rose-700" : tone === "sky" ? "border-sky-100 bg-sky-50/70 text-slate-700 [&>svg]:text-sky-700" : "border-amber-200 bg-amber-50 text-amber-900";
   return <p className={`flex items-start gap-2 rounded-2xl border px-3 py-2 text-xs leading-relaxed ${c}`}>{icon}<span>{children}</span></p>;
 }
-/** THE ONE LOOK OF EVERY LINK ON THIS CARD (document names, page numbers, picture credits): at rest it reads as plain text of the surrounding colour (no underline, no colour); on hover ONLY its colour changes (the app's global rule, globals.css, a:hover, turns it blue; no underline), which is what tells the reader it is a link */
+/** The one look of every link on this card (document names, page numbers, picture credits): I want it at rest to read as plain text of the surrounding colour (no underline, no colour); on hover ONLY its colour changes (the app's global rule, globals.css, a:hover, turns it blue; no underline), which is what tells the reader it is a link */
 const LINK = "font-semibold";
-/** a note written with **two stars** round a phrase shows that phrase in bold (nothing else is read as markup) */
+/** A note written with **two stars** round a phrase shows that phrase in bold; I read nothing else as markup. */
 function Bold({ text }: { text: string }) {
   return <>{text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 === 1 ? <strong key={i} className="font-bold text-slate-900">{part}</strong> : <React.Fragment key={i}>{part}</React.Fragment>))}</>;
 }
@@ -46,7 +46,7 @@ function ExtLink({ href, children }: { href: string; children: React.ReactNode }
   return <a className={`inline-flex items-center gap-0.5 ${LINK}`} href={href} target="_blank" rel="noopener noreferrer">{children}<ExternalLink size={11} aria-hidden="true" /></a>;
 }
 
-/** the chip beside a head's name ("SAIL record", "Memoir"...): it looks as it always did and says what the entry rests on; a click (or Enter) opens that source at its place. It is a span with the role of a link, not an anchor or a button, so that the page's hover colour rule does not repaint it: only the pointer becomes a hand. */
+/** The chip beside a head's name ("SAIL record", "Memoir"...): it looks as it always did and says what the entry rests on; a click (or Enter) opens that source at its place. I made it a span with the role of a link, not an anchor or a button, so that the page's hover colour rule does not repaint it: only the pointer becomes a hand. */
 function BasisChip({ h }: { h: Head }) {
   const href = basisHref(h), src = basisSource(h);
   const cls = `rounded-full px-2 py-0.5 text-[11px] font-extrabold ${BASIS_STYLE[h.basis]}`;
@@ -66,14 +66,14 @@ function BasisChip({ h }: { h: Head }) {
   );
 }
 
-/** one of SAIL's photographs, with its caption, its date and its credit; the picture opens full size in a new tab */
+/** One of SAIL's photographs, with its caption, its date and its credit; I open the picture full size in a new tab. */
 function Photo({ id, className = "" }: { id: PhotoId; className?: string }) {
   const p = PHOTOS[id];
   const [big, setBig] = useState(false);
   return (
     <figure className={`overflow-hidden rounded-2xl bg-white shadow-sm ${className}`} data-photo={id}>
       <button type="button" onClick={() => setBig(true)} aria-label={`${p.caption}: view the picture larger`} data-photo-open={id} className={`group relative block w-full overflow-hidden bg-slate-100 text-left ${p.portrait ? "" : "aspect-[4/3]"}`}>
-        {/* NO PALE STRIP ROUND A PICTURE. The frame used to have a 1 px pale border; on a half pixel it smeared into a two-pixel, almost white strip against a dark picture (the Queen's picture, at its right edge). Now the picture reaches the frame's outer edge, with no border, and a faint dark ring (data-photo-edge) is drawn INSIDE the picture's edge. A landscape picture is also laid one pixel LARGER than its frame on every side and the frame clips the excess, so that no background can show at any zoom. A portrait is drawn whole. */}
+        {/* Important: no pale strip round a picture. The frame used to have a 1 px pale border; on a half pixel it smeared into a two-pixel, almost white strip against a dark picture (the Queen's picture, at its right edge). Now the picture reaches the frame's outer edge, with no border, and I draw a faint dark ring (data-photo-edge) INSIDE the picture's edge. I also lay a landscape picture one pixel LARGER than its frame on every side and let the frame clip the excess, so that no background can show at any zoom. A portrait is drawn whole. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={photoSrc(id)} alt={p.caption} loading="lazy" decoding="async" data-photo-img={p.portrait ? "whole" : "overscan"} className={p.portrait ? "mx-auto h-72 w-auto max-w-full object-contain" : "absolute inset-[-1px] h-[calc(100%+2px)] w-[calc(100%+2px)] max-w-none object-cover"} />
         <span aria-hidden="true" data-photo-edge className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/10" />
@@ -88,15 +88,15 @@ function Photo({ id, className = "" }: { id: PhotoId; className?: string }) {
   );
 }
 
-/** one source as the HOD checks it: the document (linked to the cited sentence on a web page), each cited page as its own link that opens THAT page of the PDF, and the words of the document that carry the claim */
+/** I show one source the way the HOD checks it: the document (linked to the cited sentence on a web page), each cited page as its own link that opens THAT page of the PDF, and the words of the document that carry the claim */
 export function SourceLine({ s, quote = true }: { s: Source; quote?: boolean }) {
   const openDoc = useOpenDoc();
-  /** a plant document kept on our own server (a JO Manual): the link opens the viewer at the page; without the viewer (outside the card) it is an ordinary link to the route */
+  /** For a plant document kept on our own server (a JO Manual) the link opens the viewer at the page; without the viewer (outside the card) I fall back to an ordinary link to the route */
   const docLink = (page: number, children: React.ReactNode, title: string, quotes: string[] = []) => (
     <a data-doc-link={s.doc} data-doc-page={page} className={LINK} href={docPageHref(s.doc as string, page)} target="_blank" rel="noopener noreferrer" title={title}
       onClick={openDoc ? (e) => { e.preventDefault(); openDoc({ doc: s.doc as string, page, quotes }); } : undefined}>{children}</a>
   );
-  // a source cited at PAGE NUMBERS: the numbers are the links (each opens its page) and the document's name is plain text; a source with no page number (a web page, cited at a sentence) is linked by its name
+  // For a source cited at PAGE NUMBERS the numbers are the links (each opens its page) and the document's name is plain text; I link a source with no page number (a web page, cited at a sentence) by its name
   const paged = !!s.pages && s.pages.length > 0;
   const doc = paged ? s.name : s.url ? <ExtLink href={pageHref(s) ?? s.url}>{s.name}</ExtLink> : s.doc ? docLink(1, s.name, "Opens the manual at its title page (sign-in needed)") : s.name;
   return (
@@ -119,7 +119,7 @@ export function SourceLine({ s, quote = true }: { s: Source; quote?: boolean }) 
   );
 }
 
-/** THE SOURCE OF A PART OF THE CARD: only the FIRST source in its list is shown (the owner's rule: one source, with its page link and its words; the others stay in history.ts but are not drawn). The links of the card are here and nowhere else. */
+/** The source of a part of the card: I show only the FIRST source in its list (my rule: one source, with its page link and its words; the others stay in history.ts but are not drawn). The links of the card are here and nowhere else. */
 function Sources({ sources, label = "Source", differsAt }: { sources: Source[]; label?: string; differsAt?: number[] }) {
   const shown = shownSources(sources, differsAt);
   if (shown.length === 0) return null;
@@ -267,7 +267,7 @@ function FirstTab() {
 
 /* ---------- tab 4: the heads ---------- */
 
-/** The picture of a head stands at the TOP LEFT of the row, its top edge level with the top of the visible letters of the name beside it (mt-1: the name's line box has about 4 px of room above its letters; measured on the rendered page). A button centres its content, so the button is self-start. */
+/** I put the picture of a head at the TOP LEFT of the row, its top edge level with the top of the visible letters of the name beside it (mt-1: the name's line box has about 4 px of room above its letters; measured on the rendered page). A button centres its content, so the button is self-start. */
 function Avatar({ head }: { head: Head }) {
   const [big, setBig] = useState(false);
   if (head.photo) {
@@ -330,10 +330,10 @@ function HeadsTab() {
 
 /* ---------- tab 5: SAIL and its units ---------- */
 
-/** the colour of the top edge of a unit's card, by its kind */
+/** I colour the top edge of a unit's card by its kind. */
 const kindColor: Record<string, string> = { "Integrated steel plant": "from-sky-600 to-indigo-600", "Special steel plant": "from-violet-600 to-purple-600", "Ferro alloy plant": "from-amber-500 to-orange-600", "Other unit": "from-slate-500 to-slate-600" };
 
-/** one unit of SAIL as a card */
+/** I draw one unit of SAIL as a card. */
 function UnitArticle({ u, className = "" }: { u: Unit; className?: string }) {
   return (
     <article data-unit={u.id} className={`relative overflow-hidden rounded-3xl border bg-white/85 p-4 pt-5 shadow-sm ${u.dsp ? "border-rose-300 ring-2 ring-rose-200" : "border-slate-200"} ${className}`}>
@@ -363,8 +363,10 @@ function UnitArticle({ u, className = "" }: { u: Unit; className?: string }) {
   );
 }
 
-/** Units that share ONE cell of the two-column grid, the second under the first: a short card (Chandrapur) goes under a card that would otherwise stand in a row beside a much taller one (Visvesvaraya), so the pair
- *  ends exactly where the tall card ends instead of leaving a gap in one card and a lonely card below. The first keeps its own height; the second stretches to fill what is left (the cell is as tall as the taller neighbour). */
+/**
+ * These units share ONE cell of the two-column grid, the second under the first: I put a short card (Chandrapur) under a card that would otherwise stand in a row beside a much taller one (Visvesvaraya), so the pair
+ *  ends exactly where the tall card ends instead of leaving a gap in one card and a lonely card below. The first keeps its own height; the second stretches to fill what is left (the cell is as tall as the taller neighbour).
+ */
 const STACKED_UNDER: Record<string, string> = { cfp: "ssp" };
 
 function SailTab() {
@@ -416,7 +418,7 @@ function SailTab() {
 
 /* ---------- the card ---------- */
 
-/** `initialTab` is the tab the search line asked for ("dsp heads" opens Heads, "queen elizabeth durgapur" Who made it) */
+/** `initialTab` is the tab the search line asked for: I open Heads for "dsp heads" and Who made it for "queen elizabeth durgapur". */
 export function DspHistoryCard({ initialTab = "story" }: { initialTab?: DspHistoryTab }) {
   const [tab, setTab] = useState<DspHistoryTab>(initialTab);
   const viewer = useDocViewer();

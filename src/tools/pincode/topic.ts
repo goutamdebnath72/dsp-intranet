@@ -1,10 +1,10 @@
 // src/tools/pincode/topic.ts
 //
 // WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words of the Durgapur areas card ("pin code", "dmc wards", "durgapur purba"). The data, its sources and its checks are in data.ts and
-// pincode.selftest.ts; how it looks is in PincodeCard.tsx and ui.tsx. It is listed once, in src/tools/registry.ts.
-// A line is this card's when it has a key word and every word is a key word, an extra word or a filler. "purba" and "paschim" are first names in the staff directory, so they are NEVER key words on their own: only the
+// pincode.selftest.ts; how it looks is in PincodeCard.tsx and ui.tsx. I list it once, in src/tools/registry.ts.
+// A line is this card's when it has a key word and every word is a key word, an extra word or a filler. "purba" and "paschim" are first names in the staff directory, so I NEVER make them key words on their own: only the
 // phrases "durgapur purba" and "durgapur paschim" are ("purba mitra" stays a person search). Numbers 1 to 43 (a ward) and the 19 PIN codes are extra words: "ward 22" and "pin 713203" open the card with that ward or that PIN.
-// `lang` says which tab to open and what to search for, as "tab|search" ("wards|ward 22", "pins|713203", "seats|", "police|ward 22").
+// I use `lang` to say which tab to open and what to search for, as "tab|search" ("wards|ward 22", "pins|713203", "seats|", "police|ward 22").
 import { defineTopic } from "@/tools/types";
 
 const WARD_NUMBERS = [...Array(43)].map((_, i) => String(i + 1));

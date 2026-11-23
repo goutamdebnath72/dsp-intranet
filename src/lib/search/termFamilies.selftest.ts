@@ -18,7 +18,7 @@ ok("the text-search pieces are valid tsquery fragments (words, or a phrase joine
 ok("every term of every family finds itself (the pattern matches its own text)", FAMILIES.every((f) => f.terms.every((t) => t.re.test(t.text))));
 ok("no word belongs to two families (a word's family must be one)", (() => { const seen = new Set<string>(); for (const f of FAMILIES) for (const t of f.terms) { if (seen.has(t.text)) return false; seen.add(t.text); } return true; })());
 
-// the places that use it
+// The places that use it
 const src = (p: string) => readFileSync(p, "utf8");
 ok("the embedding of every search question is made from the question and its family words", /withTermFamilies\(text\)/.test(src("src/lib/ai/geminiEmbedding.ts")));
 ok("the circulars' word search adds the family words", /termFamilyTsTerms\(/.test(src("src/lib/search/semanticPolicySearch.ts")));

@@ -1,6 +1,6 @@
 // src/lib/nl2sql/omnibar.ts
 //
-// THE OMNIBAR'S EMPLOYEE QUESTIONS NOW GO THROUGH THE LANGUAGE MODEL (it writes the read-only SQL).
+// The omnibar's employee questions now go through the language model, which writes the read-only SQL.
 //
 // Order of events for a question typed in the omnibar (semantic mode):
 //   1. Holiday questions that the existing deterministic holiday parser recognises are answered by it,
@@ -12,7 +12,7 @@
 //        - about employees but needs data we do not hold (salary ...) -> a plain explanation;
 //        - ambiguous -> a clarifying question.
 //   3. Safety net: if the model path is unavailable (provider limit or outage) or cannot produce a working
-//      query, the previous rule-based employee engine answers instead, so the omnibar never goes dark.
+//      query, the previous rule-based employee engine answers instead, so I never let the omnibar go dark.
 //
 // Kill switch: NL2SQL_OMNIBAR_ENABLED=false sends employee questions to the previous engine only.
 
@@ -51,19 +51,19 @@ import type { ScopeId } from "@/records/types";
 
 export type OmnibarPayload = AnalyticsPayload & {
   nl2sql?: Nl2SqlExtras;
-  /** Which route produced this answer (the footer's Yes/No is recorded against it). */
+  /** Says which route produced this answer; the footer's Yes/No is recorded against it. */
   source?: AnswerSource;
-  /** 1 for the first answer, 2 for the second attempt after a "No" ... */
+  /** Is 1 for the first answer and 2 for the second attempt after a "No" ... */
   attempt?: number;
-  /** The nl2sql_log row to rate, also for explanations / clarifying questions that carry no SQL. */
+  /** The nl2sql_log row to rate, which I also keep for explanations and clarifying questions that carry no SQL. */
   feedbackLogId?: number | null;
-  /** The structured data cannot answer this ("unanswerable"): the route may try the circulars before showing the explanation (step 38c). */
+  /** Set when the structured data cannot answer this ("unanswerable"); the route may then try the circulars before showing the explanation (step 38c). */
   unanswerable?: boolean;
 };
 
-/** A "No" on an earlier answer, asking for another attempt. */
+/** Describes a "No" on an earlier answer, which asks for another attempt. */
 export interface RetryInfo {
-  /** nl2sql_log row of the rejected answer (null when it was not model-written: holiday, old engine, circular). */
+  /** The nl2sql_log row of the rejected answer; null when it was not model-written (holiday, old engine, circular). */
   logId: number | null;
   reason: ReasonCode | null;
   note: string | null;
@@ -72,7 +72,7 @@ export interface RetryInfo {
 }
 
 /**
- * Reads a retry request from the search URL: ra = attempt number of the rejected answer (presence of ra means
+ * I read a retry request from the search URL: ra = attempt number of the rejected answer (if ra is present, it means
  * "this is a retry"), rl = its nl2sql_log id, rr = the reason code, rn = the person's own words.
  */
 export function parseRetry(sp: URLSearchParams): RetryInfo | null {
@@ -89,54 +89,56 @@ export function parseRetry(sp: URLSearchParams): RetryInfo | null {
   };
 }
 
-/** After this many attempts the system stops and records the case for review. */
+/** My limit: after this many attempts the system stops and records the case for review. */
 export const MAX_ATTEMPTS = 3;
 
 export interface OmnibarDeps {
   enabled: boolean;
   llm: LlmFn;
   withClient: <T>(fn: (c: SqlClient) => Promise<T>) => Promise<T>;
-  /** The existing deterministic holiday answer, or null when the question is not a holiday question. */
+  /** Returns the existing deterministic holiday answer, or null when the question is not a holiday question. */
   holiday: (q: string) => Promise<AnalyticsPayload | null>;
-  /** A question about the hospital OPD (days, doctors, open or closed, timings), answered from the hospital data with no model call (step 51a); null when the question is not about it. Optional, so older callers need nothing. */
+  /** Handles a question about the hospital OPD (days, doctors, open or closed, timings). I answer it from the hospital data with no model call (step 51a); null when the question is not about it. Optional, so older callers need nothing. */
   hospital?: (q: string) => Promise<AnalyticsPayload | null>;
-  /** A question about the PAX directory (step 63a): the land-line numbers of the departments and places, read from public.pax_directory with the application's OWN connection (never the model's read-only client, never the nlq schema); null when the question is not a PAX question. Optional, so older callers need nothing. */
+  /** Handles a question about the PAX directory (step 63a): the land-line numbers of the departments and places. I read them from public.pax_directory with the application's OWN connection, never the model's read-only client and never the nlq schema; null when the question is not a PAX question. Optional, so older callers need nothing. */
   pax?: (q: string) => Promise<AnalyticsPayload | null>;
-  /** A request to CHANGE employee data (step 66a): the HOD of C&IT, and an executive he has authorised, get the employee manager; everybody else, logged in or not, one plain sentence; null when the sentence is not such a request. */
+  /** Handles a request to CHANGE employee data (step 66a). The HOD of C&IT, and an executive he has authorised, get the employee manager; everybody else, logged in or not, gets one plain sentence. Returns null when the sentence is not such a request. */
   employeeAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
-  /** The date of birth or date of joining of an employee (step 65b): ONLY the HOD of C&IT may know them. For him an answer; for everybody else, logged in or not, one plain sentence; null when the sentence is not about an employee. The person is the LOGIN's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
+  /** Gives the date of birth or date of joining of an employee (step 65b): ONLY the HOD of C&IT may know them. He gets an answer; everybody else, logged in or not, gets one plain sentence; null when the sentence is not about an employee. The person is the LOGIN's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
   dates?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
-  /** A question about the FIRST DIGITS of executives' CUG numbers ("executives whose CUG number does not start with 943479"): read by rules, answered by the application's own code for a signed-in executive, never by the model (src/lib/contact/cugPattern.ts); null when the sentence is not such a question. */
+  /** Handles a question about the FIRST DIGITS of executives' CUG numbers ("executives whose CUG number does not start with 943479"). I read it by rules and answer it with the application's own code for a signed-in executive, never with the model (src/lib/contact/cugPattern.ts); null when the sentence is not such a question. */
   cugPattern?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
-  /** A request to CHANGE the PAX directory (step 64a): "add new pax number", "delete pax 42046", "delegate pax to ...". The editor opens for the HOD C&IT and for an executive he authorised; for anybody else a plain message says why not. The person is the login's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
+  /** Handles a request to CHANGE the PAX directory (step 64a): "add new pax number", "delete pax 42046", "delegate pax to ...". The editor opens for the HOD C&IT and for an executive he authorised; for anybody else a plain message says why not. The person is the login's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
   paxAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
-  /** A request to manage HOLIDAYS: "manage holidays", "holiday admin", "seed holiday", "clear holiday". */
+  /** Handles a request to manage HOLIDAYS: "manage holidays", "holiday admin", "seed holiday", "clear holiday". */
   holidayAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
-  /** A request to manage CIRCULARS: "circular management", "post circular", "upload circular", "new circular". */
+  /** Handles a request to manage CIRCULARS: "circular management", "post circular", "upload circular", "new circular". */
   circularAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
-  /** A request to manage ANNOUNCEMENTS: "announcement management", "post announcement", "publish announcement", "announcement admin". */
+  /** Handles a request to manage ANNOUNCEMENTS: "announcement management", "post announcement", "publish announcement", "announcement admin". */
   announcementAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
-  /** A request to view/manage CONTACT ACCESS LOG: "access log management", "contact access log admin", "access log". */
+  /** Handles a request to view or manage the CONTACT ACCESS LOG: "access log management", "contact access log admin", "access log". */
   accessLogAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
-  /** The MANAGEMENT PAGE ("management", "admin"): the titles of the management tools this person may open. Asks nobody for anything unless the sentence IS such a request; not signed in or no authority gets one plain sentence. */
+  /** Handles the MANAGEMENT PAGE ("management", "admin"): it lists the titles of the management tools this person may open. It asks nobody for anything unless the sentence IS such a request; someone not signed in, or without authority, gets one plain sentence. */
   managementHub?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
-  /** The previous rule-based employee engine (safety net). */
+  /** The previous rule-based employee engine, kept as my safety net. */
   legacy: (q: string) => Promise<AnalyticsPayload | null>;
-  /** Different people who must confirm an answer before it is served without the model. */
+  /** How many different people must confirm an answer before I serve it without the model. */
   verifiedMin: number;
-  /** Front-path gate (src/lib/search/frontGate.ts): the question cannot be an employee question, so skip the model (and the
-   *  old engine) and let the app continue with circular search. The holiday parser and verified answers still go first. */
+  /**
+   * Front-path gate (src/lib/search/frontGate.ts): the question cannot be an employee question, so I skip the model (and the
+   * old engine) and let the app continue with circular search. The holiday parser and verified answers still go first.
+   */
   skipModel?: boolean;
   /** The tickets of the PhD holders (employees/honorific.ts DR_TICKETS when absent); the tests give their own (step 56b). */
   phdTickets?: readonly string[];
-  /** The FIXED SELECTION the reader made (src/records/scope.ts): "auto" (default) lets every path run as before; a chosen one runs only its own paths, with the line made its own by the domain's cue word. */
+  /** The FIXED SELECTION the reader made (src/records/scope.ts). "auto" (the default) lets every path run as before; a chosen one runs only its own paths, with the line made its own by the domain's cue word. */
   scope?: ScopeId;
 }
 
-// Columns the person card already shows (the codes appear in brackets after the designation / department).
+// These are the columns the person card already shows; the codes appear in brackets after the designation / department.
 const CARD_SHOWS = new Set(["ticket_no", "name", "designation", "department", "sail_pno", "cohort", "discipline", "id", "department_code", "designation_code"]);
 
-/** Every OTHER column the answer returned goes on the person's card as a labelled chip, so nothing the SQL returned is lost on the cards. */
+/** Every OTHER column the answer returned goes on the person's card as a labelled chip, because I do not want anything the SQL returned to be lost on the cards. */
 export function withExtraFields(people: EmployeeResult[], display: ResolvedDisplay | null, rows: any[]): EmployeeResult[] {
   if (!display) return people;
   const extra = display.columns.filter((c) => !CARD_SHOWS.has(c.key));
@@ -154,7 +156,7 @@ export function withExtraFields(people: EmployeeResult[], display: ResolvedDispl
 }
 
 /**
- * The person cards for one page of an answer's rows ("Show more"): same cards as the first page (codes, extra-field chips).
+ * Builds the person cards for one page of an answer's rows ("Show more"): the same cards as the first page (codes, extra-field chips).
  * `labelColumns` is the column titles the page already shows, [{key, label}]; display.ts sanitises it like any other hint.
  */
 export async function peoplePage(client: SqlClient, data: QueryResultData, labelColumns?: unknown): Promise<EmployeeResult[]> {
@@ -165,7 +167,7 @@ export async function peoplePage(client: SqlClient, data: QueryResultData, label
   return withExtraFields(people, display, hz.rows);
 }
 
-/** When the answer includes the department / designation CODE (the person asked for it), put the code on that person's card. */
+/** When the answer includes the department / designation CODE (the person asked for it), I put the code on that person's card. */
 export function withDisplayCodes(people: EmployeeResult[], columns: string[], rows: any[]): EmployeeResult[] {
   const wantDept = columns.includes("department_code");
   const wantDesig = columns.includes("designation_code");
@@ -203,7 +205,7 @@ function rowToEmployee(r: any): EmployeeResult {
     type: "employee",
     name: r.name,
     ticketNo: String(r.ticket_no || "").trim(),
-    sailPNo: maskPno(r.sail_pno), // masked: the P.No. is also the first password
+    sailPNo: maskPno(r.sail_pno), // masked because the P.No. is also the first password
     designation: r.designation_title || null,
     designationTrack: r.designation_track || null,
     isDoctor: isDoctorPerson(r.designation_track, r.doctor_override) || undefined,
@@ -223,7 +225,7 @@ function rowToEmployee(r: any): EmployeeResult {
 
 /**
  * The omnibar's people cards need more than the four columns the model selects (P.No, contact flags,
- * the executive badge, the id used by the masked "reveal" button). They are looked up here, by ticket
+ * the executive badge, the id used by the masked "reveal" button), so I look them up here, by ticket
  * number, in the order the model's SQL returned them (its seniority order). Contact values are masked
  * exactly as the existing search masks them; the real values still come only through the existing
  * reveal endpoint. This runs with the application's normal database role, not the model's read-only one.
@@ -255,7 +257,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
   // The internal rank never reaches a screen, table or CSV: it becomes "Position in grade" (executives) or blank (see seniorityDisplay.ts).
   const presented = presentPeople(res.data.columns, rawRows, people);
   const columns = presented.columns;
-  // a doctor's name is shown with "Dr." before it (the stored name has none): in the table and the CSV as well as on the card
+  // A doctor's name is shown with "Dr." before it (the stored name has none), in the table and the CSV as well as on the card.
   const rows = withTitlesInRows(presented.rows, people);
   const extras: Nl2SqlExtras = {
     logId: res.logId,
@@ -270,7 +272,7 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
   };
   const tag = { source: res.source as AnswerSource, attempt, feedbackLogId: res.logId };
   const table = { columns, rows, total, truncated };
-  // How to show it: the model's suggestion, verified against the real result (or a layout chosen from the data's shape).
+  // How to show it: I use the model's suggestion, verified against the real result (or a layout chosen from the data's shape).
   // Every column the SQL returned stays visible. A single plain number needs no table.
   const hasPeopleList = columns.includes("ticket_no") && !!people;
   const tableRequested = /\b(table|tabular|spreadsheet|grid)\b/i.test(String((res as any).question ?? ""));
@@ -285,8 +287,8 @@ export function toPayload(res: Ok, people: EmployeeResult[] | null, userKey: str
     return {
       kind: "count",
       count: verdictText ? undefined : total,
-      // A comparison ("who is more senior, A or B") STATES its answer, computed from the data (never by the model). The sentence
-      // is then the whole headline: a bare row count above it ("2") would be a number with nothing to say what it counts.
+      // A comparison ("who is more senior, A or B") STATES its answer, computed from the data and never by the model. The sentence
+      // is then the whole headline, because a bare row count above it ("2") would be a number with nothing to say what it counts.
       answer: verdictText ?? peopleHeadline(total, truncated, people),
       people: withExtraFields(people, display, rows),
       ...(() => { const h = healthHeadline(String((res as any).question ?? ""), res.data.columns, rawRows as any); return h ? { headline: h } : {}; })(),
@@ -347,7 +349,7 @@ const isInfrastructureFailure = (msg: string) => /could not be reached|could not
 const GIVE_UP_MESSAGE =
   "I still could not get this right after a few tries. Your feedback has been saved for the team. Try rephrasing the question, or search the documents instead.";
 
-/** The note under an answer whose department word was resolved (step 55a). The number of Coke Oven Refractory people is counted from the directory; if that fails, no number is said. */
+/** The note under an answer whose department word was resolved (step 55a). I count the Coke Oven Refractory people from the directory; if that fails, no number is said. */
 async function noteFor(words: DepartmentWordResult | null, deps: OmnibarDeps): Promise<string | undefined> {
   if (!words?.note) return undefined;
   let people: number | null = null;
@@ -360,24 +362,24 @@ async function noteFor(words: DepartmentWordResult | null, deps: OmnibarDeps): P
 }
 
 export async function runOmnibar(typed: string, userKey: string | null, deps: OmnibarDeps, retry: RetryInfo | null = null): Promise<OmnibarPayload | null> {
-  let q = typed; // the question as searched: a department word may be replaced by the rows it means (step 55a)
+  let q = typed; // the question as searched; a department word may be replaced by the rows it means (step 55a)
   let departmentWords: DepartmentWordResult | null = null;
   const attempt = retry ? retry.attempt + 1 : 1;
   const tagLegacy = (p: AnalyticsPayload | null): OmnibarPayload | null => (p ? { ...p, source: "legacy", attempt } : null);
 
   if (!deps.enabled) return tagLegacy(await deps.legacy(q).catch(() => null));
 
-  // ---- a "No" on an earlier answer: choose a DIFFERENT way to answer, from the person's reason ----
+  // ---- a "No" on an earlier answer: I choose a DIFFERENT way to answer, from the person's reason ----
   if (retry) {
     if (retry.reason === "wanted_documents") return null; // different route: the app continues with circular search
     if (retry.attempt >= MAX_ATTEMPTS) return { kind: "clarify", answer: GIVE_UP_MESSAGE, source: "none", attempt };
   }
 
-  // THE READER'S FIXED SELECTION (src/records): under "Everything" every path below runs as it always did; under a chosen selection only that selection's own paths run, on the line made its own
+  // THE READER'S FIXED SELECTION (src/records): under "Everything" every path below runs as it always did; under a chosen selection only that selection's own paths run, on the line made its own.
   const scope: ScopeId = deps.scope ?? "auto";
   const may = (step: Parameters<typeof stepAllowed>[1]) => stepAllowed(scope, step);
   const ownLines = (line: string): string[] => domainById(scope)?.scopeLines(line) ?? [line];
-  // the forms of the line the selection's engine is given, in order, until one answers
+  // These are the forms of the line the selection's engine is given, tried in order until one answers.
   const firstAnswer = async <T,>(line: string, fn: (l: string) => Promise<T | null>): Promise<T | null> => {
     for (const l of ownLines(line)) {
       const r = await fn(l).catch(() => null);
@@ -387,84 +389,86 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
   };
 
   if (!retry) {
-    // 0-----. the MANAGEMENT PAGE: "management", "admin", "management page". It comes first: the page lists the tools, and each tool's own request below is checked again when a title is opened.
+    // 0-----. the MANAGEMENT PAGE: "management", "admin", "management page". I put it first: the page lists the tools, and each tool's own request below is checked again when a title is opened.
     const managementHub = deps.managementHub ? await deps.managementHub(q, userKey).catch(() => null) : null;
     if (managementHub) return { ...managementHub, source: "holiday", attempt };
 
-    // 0----. a request to CHANGE employee data (step 66a): "add new employee", "edit employee record", "change dob of X", "delete employee 498880", "delegate employee editing to X". The sentence is read first (pure) and an action word has to LEAD it, so a question about employees never lands here; only such a sentence asks who the person is.
+    // 0----. a request to CHANGE employee data (step 66a): "add new employee", "edit employee record", "change dob of X", "delete employee 498880", "delegate employee editing to X".
+    // The sentence is read first (pure) and an action word has to LEAD it, so a question about employees never lands here; only such a sentence asks who the person is.
     const employeeAdmin = deps.employeeAdmin ? await deps.employeeAdmin(q, userKey).catch(() => null) : null;
     if (employeeAdmin) return { ...employeeAdmin, source: "holiday", attempt };
 
-    // 0---. the date of birth / date of joining of an employee (step 65b): ONLY the HOD of C&IT; everybody else gets a plain refusal and the database is not asked for the dates. It comes FIRST: a question about somebody's dates is settled before any other route sees it.
+    // 0---. the date of birth / date of joining of an employee (step 65b): ONLY the HOD of C&IT; everybody else gets a plain refusal and the database is not asked for the dates.
+    // It comes FIRST on purpose: a question about somebody's dates is settled before any other route sees it.
     const dates = may("dates") && deps.dates ? await deps.dates(q, userKey).catch(() => null) : null;
     if (dates) return { ...dates, source: "holiday", attempt };
 
-    // 0--a. a question about the FIRST DIGITS of executives' CUG numbers: the model is never given the digits, so it would refuse; plain code reads the sentence and the application's own connection tests the digits (a signed-in executive only; the numbers stay masked)
+    // 0--a. a question about the FIRST DIGITS of executives' CUG numbers: the model is never given the digits, so it would refuse; plain code reads the sentence and the application's own connection tests the digits (a signed-in executive only; the numbers stay masked).
     const cugPattern = may("cugPattern") && deps.cugPattern ? await deps.cugPattern(q, userKey).catch(() => null) : null;
     if (cugPattern) return { ...cugPattern, source: "nl2sql", attempt };
 
-    // 0--. a request to CHANGE the PAX directory (step 64a): the sentence is read first (pure); only such a sentence asks who the person is. It comes before the question about the directory below.
+    // 0--. a request to CHANGE the PAX directory (step 64a): the sentence is read first (pure), and only such a sentence asks who the person is. It comes before the question about the directory below.
     const paxAdmin = deps.paxAdmin ? await deps.paxAdmin(q, userKey).catch(() => null) : null;
     if (paxAdmin) return { ...paxAdmin, source: "holiday", attempt };
 
-    // 0--b. a request to manage HOLIDAYS: "manage holidays", "holiday admin", "seed holiday 2026", "clear holiday 2026"
+    // 0--b. a request to manage HOLIDAYS: "manage holidays", "holiday admin", "seed holiday 2026", "clear holiday 2026".
     const holidayAdmin = deps.holidayAdmin ? await deps.holidayAdmin(q, userKey).catch(() => null) : null;
     if (holidayAdmin) return { ...holidayAdmin, source: "holiday", attempt };
 
-    // 0--c. a request to manage CIRCULARS: "circular management", "post circular", "upload circular", "new circular"
+    // 0--c. a request to manage CIRCULARS: "circular management", "post circular", "upload circular", "new circular".
     const circularAdmin = deps.circularAdmin ? await deps.circularAdmin(q, userKey).catch(() => null) : null;
     if (circularAdmin) return { ...circularAdmin, source: "holiday", attempt };
 
-    // 0--d. a request to manage ANNOUNCEMENTS: "announcement management", "post announcement", "publish announcement", "announcement admin"
+    // 0--d. a request to manage ANNOUNCEMENTS: "announcement management", "post announcement", "publish announcement", "announcement admin".
     const announcementAdmin = deps.announcementAdmin ? await deps.announcementAdmin(q, userKey).catch(() => null) : null;
     if (announcementAdmin) return { ...announcementAdmin, source: "holiday", attempt };
 
-    // 0--e. a request to view/manage CONTACT ACCESS LOG: "access log management", "contact access log admin", "access log"
+    // 0--e. a request to view/manage CONTACT ACCESS LOG: "access log management", "contact access log admin", "access log".
     const accessLogAdmin = deps.accessLogAdmin ? await deps.accessLogAdmin(q, userKey).catch(() => null) : null;
     if (accessLogAdmin) return { ...accessLogAdmin, source: "holiday", attempt };
 
-    // 0-. a question about the PAX directory (step 63a): "pax number of fire service", "who has 42046", "pax numbers outside plant", "pax not working": answered from Telecom's list, no model call.
+    // 0-. a question about the PAX directory (step 63a): "pax number of fire service", "who has 42046", "pax numbers outside plant", "pax not working". I answer it from Telecom's list, no model call.
     //     It comes BEFORE the hospital route because the word "pax" is explicit ("pax number of hospital opd" is a PAX question, not an OPD one); it takes nothing without a clear PAX signal (src/lib/pax/matcher.ts).
-    //     Tagged "holiday" for the feedback record, like the hospital's: the feedback table's list of sources has no PAX entry.
+    //     I tag it "holiday" for the feedback record, like the hospital's: the feedback table's list of sources has no PAX entry.
     const pax = may("pax") && deps.pax ? await firstAnswer(q, deps.pax) : null;
     if (pax) return { ...pax, source: "holiday", attempt };
 
     // 0. a question about the hospital OPD: answered from the hospital data, no model call (step 51a). It needs an explicit OPD cue, so it does not take holiday or employee questions.
-    //    Tagged "holiday" for the feedback record: the feedback table's list of sources has no "hospital" yet.
-    // under Degrees the hospital's list of doctors and their qualifications answers ONE kind of line, and only that: the degrees of the doctors ("list the degrees of the doctors"); nothing else of the hospital runs there
+    //    I tag it "holiday" for the feedback record, because the feedback table's list of sources has no "hospital" yet.
+    // Under Degrees the hospital's list of doctors and their qualifications answers ONE kind of line, and only that: the degrees of the doctors ("list the degrees of the doctors"); nothing else of the hospital runs there.
     const hospital = (may("hospital") || (scope === "degrees" && doctorDegreesAsked(q))) && deps.hospital ? await firstAnswer(q, deps.hospital) : null;
     if (hospital) return { ...hospital, source: "holiday", attempt };
 
-    // 0b. "who are the PhD holders": answered from the list of PhD holders kept by hand (employees/honorific.ts), no model call, never in the words of a circular (step 56b)
+    // 0b. "who are the PhD holders": answered from the list of PhD holders I keep by hand (employees/honorific.ts), no model call, never in the words of a circular (step 56b).
     const phd = !may("phd") ? null : await answerPhd(q, { withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.phdTickets).catch(() => null);
     if (phd?.kind === "none") return { kind: "count", count: 0, answer: phd.text, source: "nl2sql", attempt };
     if (phd?.kind === "people") return okToPayload(phd.res, userKey, deps, attempt, phd.note);
 
-    // 0c. a question about the DEGREES themselves ("what are the post graduate degrees in engineering", "is MD a postgraduate degree", "what is mtech"): answered from the table of degrees, no model call, never about people (step 61a)
+    // 0c. a question about the DEGREES themselves ("what are the post graduate degrees in engineering", "is MD a postgraduate degree", "what is mtech"): answered from the table of degrees, no model call, and never about people (step 61a).
     const degrees = may("degrees") ? ownLines(q).map((l) => answerDegreeQuestion(l)).find((r) => r) ?? null : null;
     if (degrees) return { kind: "count", answer: degrees.summary, hospital: degrees.card, source: "nl2sql", attempt };
 
-    // 1. holiday questions keep their deterministic answer
+    // 1. holiday questions keep their deterministic answer.
     const holiday = may("holiday") ? await firstAnswer(q, deps.holiday) : null;
     if (holiday) return { ...holiday, source: "holiday", attempt };
 
-    // 1b. a department word with more than one meaning is RESOLVED, not asked (step 55a): "refractory" = its three rows, "garage" = the Plant Garage, the township garage is closed
+    // 1b. a department word with more than one meaning is RESOLVED, not asked (step 55a): "refractory" = its three rows, "garage" = the Plant Garage (the township garage is closed).
     const words = may("departmentWords") ? resolveDepartmentWords(q) : null;
     if (words?.closed) return { kind: "count", count: 0, answer: words.closed, source: "nl2sql", attempt };
     if (words?.question) q = words.question;
     departmentWords = words;
 
-    // 2. a VERIFIED answer (confirmed at least once, never rejected): re-run it, no model call
+    // 2. a VERIFIED answer (confirmed at least once, never rejected) is re-run, with no model call.
     const verified = !may("verified") ? null : await answerFromVerified(q, userKey, { llm: deps.llm, withClient: deps.withClient, exec: { rowLimit: PAGE_SIZE } }, deps.verifiedMin).catch(() => null);
     if (verified) return okToPayload(verified, userKey, deps, attempt, await noteFor(departmentWords, deps));
   }
 
-  // 2b. front-path gate: not an employee question, so do not spend a model call on it (the app continues with circular search)
+  // 2b. front-path gate: not an employee question, so I do not spend a model call on it (the app continues with circular search).
   if (deps.skipModel && !retry) return null;
-  // a chosen selection that is not about people never reaches the model that writes employee SQL
+  // A chosen selection that is not about people never reaches the model that writes employee SQL.
   if (!may("model")) return null;
 
-  // a RETRY searches the original question again: its department words are resolved the same way (step 55a)
+  // A RETRY searches the original question again, and I resolve its department words the same way (step 55a).
   if (retry) {
     const again = resolveDepartmentWords(q);
     if (again?.closed) return { kind: "count", count: 0, answer: again.closed, source: "nl2sql", attempt };
@@ -472,7 +476,7 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
     departmentWords = again;
   }
 
-  // 3. the model writes the SQL (on a retry: told what was rejected and why)
+  // 3. the model writes the SQL (on a retry it is told what was rejected and why).
   let extra: PipelineExtra | undefined;
   if (retry) {
     const prior = retry.logId ? await deps.withClient((c) => loadLogRow(c, retry.logId as number)).catch(() => null) : null;
@@ -484,7 +488,7 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
 
   switch (res.kind) {
     case "out_of_scope":
-      return null; // not an employee question: the app continues with circular search
+      return null; // not an employee question, so the app continues with circular search
     case "clarify":
     case "unanswerable":
       return {
@@ -499,7 +503,7 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
     default: {
       const old = tagLegacy(await deps.legacy(q).catch(() => null));
       if (old) return old;
-      if (isInfrastructureFailure(res.message)) return null; // provider down: let circular search still work
+      if (isInfrastructureFailure(res.message)) return null; // provider down: I let circular search still work
       return { kind: "clarify", answer: res.message, source: "nl2sql", attempt, feedbackLogId: res.logId };
     }
   }
@@ -508,7 +512,7 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
 async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, attempt: number, departmentNote?: string): Promise<OmnibarPayload> {
   let people: EmployeeResult[] | null = null;
   // A health check-up SCHEDULE (nlq.health_checkups) is shown as the table it is -- ticket, name, department, DATE, circular -- not as person
-  // cards (which would show who, but not when).
+  // cards, which would show who but not when.
   const isSchedule = /\bhealth_checkups\b/i.test(String(res.sql ?? ""));
   if (res.data.columns.includes("ticket_no") && !isSchedule) {
     const tickets = res.data.rows.map((r) => String(r.ticket_no));
@@ -517,36 +521,36 @@ async function okToPayload(res: Ok, userKey: string | null, deps: OmnibarDeps, a
   }
   const payload = toPayload(res, people, userKey, attempt);
   // A schedule question with NO row ("ticket 228757 in the January 2025 schedule" when that ticket is only in January 2026) is not just "0 rows":
-  // it says which schedules exist, so the person can see whether the month was wrong or the person is not on the list.
+  // I say which schedules exist, so the person can see whether the month was wrong or the person is not on the list.
   if (isSchedule && res.data.total === 0) {
     const have = await deps
       .withClient(async (c) => (await c.query(`SELECT DISTINCT schedule, schedule_year, schedule_month_no FROM nlq.health_checkups ORDER BY schedule_year, schedule_month_no`)).rows as Array<{ schedule: string }>)
       .catch(() => null);
-    // A question about a TICKET that matches nothing is never a dead end: say who the ticket belongs to and which schedules it IS on.
+    // A question about a TICKET that matches nothing is never a dead end: I say who the ticket belongs to and which schedules it IS on.
     const asked = ticketsAsked(String((res as { question?: unknown }).question ?? ""), String(res.sql ?? ""));
     const askedLabel = scheduleAsked(String(res.sql ?? ""));
     const person = asked.length ? await ticketLookupNote((sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>), asked, askedLabel) : null;
     if (have) {
       payload.answer = emptyScheduleAnswer({ person, askedLabel, have: have.map((h) => h.schedule) });
-      if (payload.nl2sql) payload.nl2sql.plainAnswer = true; // a sentence, not a count: the screen does not draw its big "0" above it
+      if (payload.nl2sql) payload.nl2sql.plainAnswer = true; // a sentence, not a count, so the screen does not draw its big "0" above it
     }
-    // a schedule whose circular was uploaded but could not be read yet: say so, so the person knows why it is missing
+    // a schedule whose circular was uploaded but could not be read yet: I say so, so the person knows why it is missing
     const pending = await pendingScheduleNote((sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>));
     if (have && pending) payload.answer += ` ${pending}`;
-    // a DATE with no check-up: say what kind of day it was and which dates the month's list has (step 61a)
+    // A DATE with no check-up: I say what kind of day it was and which dates the month's list has (step 61a).
     const dayAsked = dateAsked(String(res.sql ?? ""));
     if (have && dayAsked) {
       const dayNote = await emptyDateNote((sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>), dayAsked);
       if (dayNote) payload.answer = payload.answer.replace(/^Nothing was found\.\s*/, "") ? `${dayNote} ${payload.answer.replace(/^Nothing was found\.\s*/, "")}` : dayNote;
     }
   }
-  // The circular(s) the answer was read from, for the "Source" line (a click opens the circular at the page of the people listed). Looked up by the
-  // system, not asked of the model; if anything goes wrong there is simply no source line.
+  // The circular(s) the answer was read from, for the "Source" line (a click opens the circular at the page of the people listed). The
+  // system looks them up and the model is not asked; if anything goes wrong there is simply no source line.
   if (isSchedule && res.data.total > 0 && payload.nl2sql) {
     const info = await buildSourceInfo(res.data.columns, res.data.rows as Array<Record<string, unknown>>, (sql, params) => deps.withClient(async (c) => (await c.query(sql, params)).rows as Array<Record<string, unknown>>)).catch(() => ({ sources: [], unconfirmed: [] as string[] }));
     if (info.sources.length) {
       payload.nl2sql.sources = info.sources;
-      // Who is not confirmed against HR is said ONLY when it applies (a column of "Yes" on every row would be noise for nearly every answer)
+      // Who is not confirmed against HR is said ONLY when it applies, because a column of "Yes" on every row would be noise for nearly every answer.
       const note = unconfirmedNote(info.unconfirmed, res.data.rows.length);
       if (note) payload.nl2sql.sourceNote = note;
     }
@@ -567,7 +571,7 @@ export async function runRosterFinder(input: FinderInput, userKey: string | null
   const g = guardSql(plan.sql);
   if (!g.ok) return { kind: "clarify", answer: "That list could not be prepared.", source: "none", attempt: 1 };
   const w = plan.wanted;
-  // the names (for the sentence), the rows and the departments covered are independent: asked TOGETHER, not one after the other (each trip to the database is ~100 ms)
+  // The names (for the sentence), the rows and the departments covered are independent, so I ask for them TOGETHER, not one after the other (each trip to the database is ~100 ms).
   const namesP = deps
     .withClient(async (c) => {
       const d = w.departmentId !== null ? (await c.query(`SELECT name FROM nlq.departments WHERE id = ${w.departmentId}`)).rows[0] : null;
@@ -591,9 +595,9 @@ export async function runRosterFinder(input: FinderInput, userKey: string | null
 }
 
 /**
- * THE MANAGEMENT REQUESTS, in one place: the management page ("management", "admin") and the six management tools' own requests (employee, PAX directory, holiday, circular, announcement, contact access log). Each reads the
- * sentence first (pure) and asks the database who is asking only for a sentence that IS its request. The search route tries them FIRST (answerAdminFast below), before anything slow: the name checks and the language-model
- * router would otherwise make a page that is only a list wait for them. The chain still has them too, for a request that got past the early try (a retry).
+ * THE MANAGEMENT REQUESTS, in one place: the management page ("management", "admin") and the six management tools' own requests (employee, PAX directory, holiday, circular, announcement, contact access log).
+ * Each reads the sentence first (pure) and asks the database who is asking only for a sentence that IS its request. The search route tries them FIRST (answerAdminFast below), before anything slow: the name checks
+ * and the language-model router would otherwise make a page that is only a list wait for them. The chain still has them too, for a request that got past the early try (a retry).
  */
 function adminResponders(): Pick<OmnibarDeps, "managementHub" | "employeeAdmin" | "paxAdmin" | "holidayAdmin" | "circularAdmin" | "announcementAdmin" | "accessLogAdmin"> {
   return {
@@ -604,7 +608,7 @@ function adminResponders(): Pick<OmnibarDeps, "managementHub" | "employeeAdmin" 
       return answerManagementHub(qq, ticket, { authorities: async (t) => authoritiesForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
     },
     employeeAdmin: async (qq, ticket) => {
-      // the employee manager (step 66a, src/lib/employees/admin/omnibar.ts): the sentence is read first (pure), the database is asked only for a sentence that IS such a request
+      // The employee manager (step 66a, src/lib/employees/admin/omnibar.ts): the sentence is read first (pure), and I ask the database only for a sentence that IS such a request.
       const { answerEmployeeAdmin } = await import("@/lib/employees/admin/omnibar");
       const { authorityForTicket } = await import("@/lib/employees/admin/access");
       const { nameOfTicket } = await import("@/lib/pax/admin/access");
@@ -612,7 +616,7 @@ function adminResponders(): Pick<OmnibarDeps, "managementHub" | "employeeAdmin" 
       return answerEmployeeAdmin(qq, ticket, { authority: async (t) => authorityForTicket(await getDb(), t), nameOf: async (t) => nameOfTicket(await getDb(), t) });
     },
     paxAdmin: async (qq, ticket) => {
-      // the editor of the PAX directory (step 64a, src/lib/pax/admin/omnibar.ts): the sentence is read first, the database is asked only for a sentence that IS such a request
+      // The editor of the PAX directory (step 64a, src/lib/pax/admin/omnibar.ts): the sentence is read first, and I ask the database only for a sentence that IS such a request.
       const { answerPaxAdmin } = await import("@/lib/pax/admin/omnibar");
       const { authorityForTicket, nameOfTicket } = await import("@/lib/pax/admin/access");
       const { getDb } = await import("@/lib/db");
@@ -645,7 +649,7 @@ function adminResponders(): Pick<OmnibarDeps, "managementHub" | "employeeAdmin" 
   };
 }
 
-/** The management page, or one of the tools' own requests, answered at once (null for any other sentence): the first of them that reads the sentence as its own; the same order as in the chain. */
+/** Answers the management page, or one of the tools' own requests, at once (null for any other sentence): the first of them that reads the sentence as its own wins, in the same order as in the chain. */
 export async function answerAdminFast(q: string, userKey: string | null): Promise<OmnibarPayload | null> {
   const r = adminResponders();
   for (const k of ["managementHub", "employeeAdmin", "paxAdmin", "holidayAdmin", "circularAdmin", "announcementAdmin", "accessLogAdmin"] as const) {
@@ -655,7 +659,7 @@ export async function answerAdminFast(q: string, userKey: string | null): Promis
   return null;
 }
 
-/** Entry point used by the search route: wires the real model, database and existing engines. */
+/** This is the entry point used by the search route: it wires the real model, database and existing engines. */
 export async function answerOmnibar(q: string, userKey: string | null, retry: RetryInfo | null = null, opts: { skipModel?: boolean; scope?: ScopeId } = {}): Promise<OmnibarPayload | null> {
   const { chatLlm } = await import("./llm");
   const { withDefaultClient } = await import("./db");
@@ -668,8 +672,8 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
     withClient: withDefaultClient,
     ...adminResponders(),
     dates: async (qq, ticket) => {
-      // the date of birth / date of joining of an employee: ONLY the HOD of C&IT (step 65b, src/lib/peopleEvents/datesLookup.ts). `ticket` is the LOGIN's (the route ignores the one in the URL); the sentence is read first,
-      // the people directory and the dates are asked only for a sentence that IS such a question, with the application's own connection (never the model's)
+      // The date of birth / date of joining of an employee: ONLY the HOD of C&IT (step 65b, src/lib/peopleEvents/datesLookup.ts). `ticket` is the LOGIN's (the route ignores the one in the URL); the sentence is read first,
+      // and I ask the people directory and the dates only for a sentence that IS such a question, with the application's own connection (never the model's).
       const { answerDates, readDates } = await import("@/lib/peopleEvents/datesLookup");
       const { rowsOf } = await import("@/lib/pax/admin/rows");
       const { getDb } = await import("@/lib/db");
@@ -704,7 +708,7 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
       });
     },
     pax: async (qq) => {
-      // the PAX directory (a department's number) or an executive's CUG number, decided by the subject (step 63b, src/lib/pax/route.ts: it reads with the application's OWN connection, never the model's)
+      // The PAX directory (a department's number) or an executive's CUG number, decided by the subject (step 63b, src/lib/pax/route.ts); it reads with the application's OWN connection, never the model's.
       const { answerPaxRoute } = await import("@/lib/pax/route");
       return answerPaxRoute(qq);
     },
@@ -727,7 +731,7 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
     },
     legacy: async (qq) => {
       const { answerEmployeeQuery } = await import("@/lib/employees/queryOrchestrator");
-      // a department the question names but nobody can find must not become "everybody" (step 44d)
+      // A department the question names but nobody can find must not become "everybody" (step 44d).
       return withoutBlindScope(qq, await answerEmployeeQuery(qq));
     },
   }, retry);

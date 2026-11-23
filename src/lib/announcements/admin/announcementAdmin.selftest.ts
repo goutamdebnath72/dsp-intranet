@@ -31,7 +31,7 @@ async function runTests() {
   // ----------------------------------------------------
   console.log("\n--- Intent Detection Tests ---");
 
-  // User requirement: Must open with keyword "management" and "admin"
+  // My requirement: it must open with the keyword "management" and "admin"
   ok("announcement management -> op: publish", detectAnnouncementAdminIntent("announcement management")?.op === "publish");
   ok("announcements management -> op: publish", detectAnnouncementAdminIntent("announcements management")?.op === "publish");
   ok("announcement admin -> op: publish", detectAnnouncementAdminIntent("announcement admin")?.op === "publish");

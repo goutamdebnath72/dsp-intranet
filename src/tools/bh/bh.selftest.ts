@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/bh/bh.selftest.ts
-// (The marks below are samples; none of them is a real person's vehicle.)
+// The marks below are samples; none of them is a real person's vehicle.
 import { BH_BANDS, BH_FUELS, BH_GROUPS, BH_LETTERS, BH_SAMPLES, bhTax, inGroups, letterSetNumber, looksLikeBh, parseBhShape, readBh, type BhTax } from "./bh";
 
 let pass = 0, fail = 0;
@@ -35,7 +35,7 @@ ok("the Ministry's groups are eligible: defence, Central, State/UT, Central PSU,
 ok("a private firm with fewer than four States, the self-employed and the retired are not in the list", ["private3", "self", "retired"].every((id) => BH_GROUPS.find((g) => g.id === id)?.eligible === false));
 ok("the private firm's proof is Form 60 signed and sealed; the others show the identity card; the refused have no proof", /Form 60/.test(BH_GROUPS.find((g) => g.id === "private4")!.proof) && BH_GROUPS.filter((g) => g.eligible && g.id !== "private4").every((g) => /identity card/.test(g.proof)) && BH_GROUPS.filter((g) => !g.eligible).every((g) => g.proof === ""));
 
-// the tax: the rule's own words are the bands and the formula 1.25 x 2 / 15, rounded up
+// The tax: the bands and the formula 1.25 x 2 / 15, rounded up, are the rule's own words.
 ok("the bands are 8%, 10% and 12%; diesel two points more, electric two points less", BH_BANDS.map((b) => b.base).join() === "8,10,12" && BH_FUELS.map((f) => f.adjust).join() === "0,2,-2");
 ok("Rs 8,00,000 petrol: 8% band, the tax for two years is Rs 10,667 (8,00,000 x 8% x 1.25 x 2 / 15 = 10,666.67, rounded up)", tax(800000)?.twoYear === 10667 && tax(800000)?.rate === 8 && tax(800000)?.band === 0);
 ok("Rs 12,00,000 petrol: 10% band, Rs 20,000", tax(1200000)?.twoYear === 20000 && tax(1200000)?.rate === 10 && tax(1200000)?.band === 1);

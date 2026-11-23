@@ -1,6 +1,6 @@
 // Run (from the project root; needs a scratch Postgres):
 //   NL2SQL_TEST_ADMIN_URL=postgres://postgres:pw@127.0.0.1:5432/postgres npx tsx --tsconfig tsconfig.json src/lib/nl2sql/designations.selftest.ts
-// Step 66c: sql/16_designations.sql on a copy of the OWNER'S OWN table: the 30 designations exactly as he pasted them (1 Nov 2026) and the number of people on each (6484 in all), with the live foreign key and an id sequence
+// Step 66c: I run sql/16_designations.sql on a copy of MY OWN table: the 30 designations exactly as I pasted them (1 Nov 2026) and the number of people on each (6484 in all), with the live foreign key and an id sequence
 // that is BEHIND the rows (they were loaded with fixed ids). The people are invented.
 
 import { readFileSync } from "node:fs";
@@ -13,7 +13,7 @@ let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
 const SQL = readFileSync(join(process.cwd(), "src/lib/nl2sql/sql/16_designations.sql"), "utf8");
 
-// [id, code, title, track, rank_order, people] exactly as in the owner's screenshots
+// [id, code, title, track, rank_order, people] exactly as in my screenshots
 const ROWS: Array<[number, number, string, string, number, number]> = [
   [1, 227, "Director In-charge", "managerial", 1, 1], [2, 223, "Executive Director", "managerial", 2, 6], [3, 222, "Chief General Manager", "managerial", 3, 30], [5, 221, "General Manager", "managerial", 4, 232],
   [7, 216, "Dy. General Manager", "managerial", 5, 118], [10, 212, "Asst.General Manager", "managerial", 7, 247], [12, 211, "Sr. Manager", "managerial", 8, 85], [13, 208, "Manager", "managerial", 9, 36],
@@ -31,10 +31,10 @@ async function build(adm: Pool, name: string): Promise<Pool> {
     CREATE TABLE public.employee_roster (id serial PRIMARY KEY, ticket_no text NOT NULL, name text NOT NULL, designation_grade_id int NOT NULL, cohort text NOT NULL, within_grade_position int NOT NULL, global_seniority_rank int NOT NULL,
       CONSTRAINT employee_roster_designation_grade_id_fkey FOREIGN KEY (designation_grade_id) REFERENCES public.designation_grade(id));
     CREATE TABLE public."user" (id text PRIMARY KEY, "ticketNo" text, designation text);`);
-  for (const [id, code, title, track, rank] of ROWS) await pool.query(`INSERT INTO public.designation_grade (id, code, title, track, rank_order) VALUES ($1,$2,$3,$4,$5)`, [id, code, title, track, rank]); // fixed ids: the sequence stays at 1
+  for (const [id, code, title, track, rank] of ROWS) await pool.query(`INSERT INTO public.designation_grade (id, code, title, track, rank_order) VALUES ($1,$2,$3,$4,$5)`, [id, code, title, track, rank]); // fixed ids, so the sequence stays at 1
   let n = 0;
   for (const [id, , , track, rank, people] of ROWS) {
-    // the two "Asst. Manager" rows: 54 / 1 direct recruits (ticket 49xxxx), the rest promotees, as the owner's second query showed
+    // the two "Asst. Manager" rows: 54 / 1 direct recruits (ticket 49xxxx), the rest promotees, as my second query showed
     const direct = id === 16 ? 54 : id === 18 ? 1 : 0;
     await pool.query(
       `INSERT INTO public.employee_roster (ticket_no, name, designation_grade_id, cohort, within_grade_position, global_seniority_rank)

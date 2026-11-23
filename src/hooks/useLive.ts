@@ -1,7 +1,7 @@
 // src/hooks/useLive.ts
 //
-// THE BROWSER'S SIDE OF A LIVE CARD: fetch one of our /api/live routes, check what came back (src/lib/live/envelope.ts), keep it for two minutes so that typing on does not ask again,
-// and offer a refresh. The request carries nothing the user typed: it is the fixed address of the route. A failure is a plain state, never an exception.
+// The browser's side of a live card: it fetches one of our /api/live routes, checks what came back (src/lib/live/envelope.ts), keeps it for two minutes so that typing on does not ask again,
+// and offers a refresh. The request carries nothing the user typed: it is the fixed address of the route. I make a failure a plain state, never an exception.
 // A card that must stay current (the news) asks for `refreshMs`: it then asks again by itself at that pace, QUIETLY (the card keeps what it shows, nothing is replaced by a loading state), only
 // while the page is visible, and a failed quiet refresh leaves what is shown and sets `lagging`. `refresh` is the same quiet refresh on demand.
 "use client";
@@ -19,18 +19,18 @@ export interface UseLive<T> {
   env: LiveEnvelope<T> | null;
   error: string;
   reload: () => void;
-  /** ask again without replacing what is shown (the card keeps its figures; `refreshing` is true meanwhile) */
+  /** Ask again without replacing what is shown: the card keeps its figures, and `refreshing` is true meanwhile. */
   refresh: () => void;
   refreshing: boolean;
-  /** the last quiet refresh failed: what is shown is the last good answer */
+  /** True when the last quiet refresh failed; what is shown is then the last good answer. */
   lagging: boolean;
 }
 
-/** fetch the route and check the envelope; the one place a live card asks the network */
+/** I fetch the route and check the envelope here: this is the one place a live card asks the network. */
 async function getEnvelope<T>(path: string): Promise<LiveEnvelope<T>> {
   const r = await fetch(path, { cache: "no-store" });
   const j: unknown = await r.json().catch(() => null);
-  // a page that is not JSON at all (the server restarting or recompiling, a gateway error) is not "the source did not answer"
+  // I do not treat a page that is not JSON at all (the server restarting or recompiling, a gateway error) as "the source did not answer"
   if (j === null) throw new Error("The server did not give a proper answer just now (it may be restarting). Try again in a moment.");
   if (!validEnvelope(j)) throw new Error((j as { error?: string } | null)?.error ?? "The source did not answer.");
   return j as LiveEnvelope<T>;
@@ -59,7 +59,7 @@ export function useLive<T>(path: string, enabled = true, opts: { refreshMs?: num
 
   const reload = useCallback(() => setTick((n) => n + 1), []);
 
-  // the quiet refresh: on a timer while the page is visible, on return to the page when the answer has gone stale, and on demand
+  // The quiet refresh runs on a timer while the page is visible, on return to the page when the answer has gone stale, and on demand.
   const [refreshing, setRefreshing] = useState(false);
   const [lagging, setLagging] = useState(false);
   const quiet = useCallback(() => {
@@ -72,7 +72,7 @@ export function useLive<T>(path: string, enabled = true, opts: { refreshMs?: num
   useEffect(() => {
     if (!enabled || !refreshMs) return;
     setLagging(false);
-    // a tab opened again with an answer that is already older than the pace: bring it up to date at once, quietly
+    // When a tab is opened again with an answer that is already older than the pace, I bring it up to date at once, quietly.
     const c0 = cache.get(path);
     if (c0 && Date.now() - c0.at >= refreshMs) void quiet();
     const timer = setInterval(() => { if (!document.hidden) void quiet(); }, refreshMs);

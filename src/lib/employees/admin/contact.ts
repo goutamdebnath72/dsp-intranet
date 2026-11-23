@@ -1,13 +1,13 @@
 // src/lib/employees/admin/contact.ts
 //
-// THE CONTACT RULES OF AN EMPLOYEE RECORD (step 66b; owner, 1 Nov 2026). PURE.
+// THE CONTACT RULES OF AN EMPLOYEE RECORD (step 66b; my rules, 1 Nov 2026). PURE.
 //   Executive      the NIC mail ends with @sail.in, the web-mail with @saildsp.co.in (both optional, the domains are enforced); the one general e-mail field is NOT used.
-//                  The mobile is the CUG number: ten digits, 94347 and then 9 (the usual) or 2 or 3 (the exceptions) and four digits. Every executive gets one, often later: it is OPTIONAL when he is added (step 69b); it was required.
+//                  The mobile is the CUG number: ten digits, 94347 and then 9 (the usual) or 2 or 3 (the exceptions) and four digits. Every executive gets one, often later: I made it OPTIONAL when he is added (step 69b); it was required.
 //   Non-executive  ONE e-mail field, any domain (gmail, hotmail ...), optional; (in rare cases a non-executive has the privilege of a SAIL address: he types it in this one field and it is kept as such).
 //                  The mobile is any ten-digit number that does not start with 0, optional.
 // WHERE THEY ARE KEPT (the app's own tables): the mobile and the general e-mail are in the employee's LOGIN account (user.contactNo, user.email: what the search cards mask and reveal); the NIC and the
 // web-mail are the roster's own columns (employee_roster.email_nic, webmail_saildsp).
-// The search cards show a mobile as its first six digits and an e-mail as xxxxxx@domain: the manager shows the same and never a whole number.
+// The search cards show a mobile as its first six digits and an e-mail as xxxxxx@domain: I make the manager show the same and never a whole number.
 
 export const NIC_DOMAIN = "@sail.in";
 export const WEBMAIL_DOMAIN = "@saildsp.co.in";
@@ -18,7 +18,7 @@ const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const isEmail = (v: string): boolean => EMAIL_OK.test(v);
 export const endsWithDomain = (email: string, domain: string): boolean => email.toLowerCase().endsWith(domain);
 
-/** What a person types for a number ("+91 94347 91234", "094347-91234") as the ten digits it is; anything else as the digits found. */
+/** I turn what a person types for a number ("+91 94347 91234", "094347-91234") into the ten digits it is; anything else becomes the digits found. */
 export function normalizeMobile(v: unknown): string {
   let d = String(v ?? "").replace(/\D/g, "");
   if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
@@ -26,7 +26,7 @@ export function normalizeMobile(v: unknown): string {
   return d;
 }
 
-/** The same masks as the search cards (rosterQuery.ts): the first six digits, then x; xxxxxx and the domain. */
+/** I use the same masks as the search cards (rosterQuery.ts): the first six digits, then x; xxxxxx and the domain. */
 export function maskMobile(m: string | null | undefined): string {
   if (!m) return "";
   const d = String(m).replace(/\D/g, "");
@@ -39,8 +39,8 @@ export function maskEmail(e: string | null | undefined): string {
   return at <= 0 ? "xxxxxx" : `xxxxxx${String(e).slice(at)}`;
 }
 
-/** The rule of a CUG number, in words (used in the hint and in the error). */
+/** The rule of a CUG number, in words; I use it in the hint and in the error. */
 export const CUG_RULE = "10 digits, 94347 and then 9 (or 2, 3).";
-/** An executive's CUG mobile is OPTIONAL (owner, 2 Nov 2026: it comes with some delay and is added later in Modify). */
+/** An executive's CUG mobile is OPTIONAL (my decision, 2 Nov 2026: it comes with some delay and is added later in Modify). */
 export const MOBILE_HINT_EXECUTIVE = `Optional: the CUG number, ${CUG_RULE} It can be added later.`;
 export const MOBILE_HINT_NONEXECUTIVE = "Optional: 10 digits.";

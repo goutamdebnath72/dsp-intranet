@@ -9,9 +9,9 @@ type AnimatedInputProps = {
     onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
     type?: 'text' | 'password' | 'email' | 'number';
-    disabled?: boolean; // Changed from isReadOnly
+    disabled?: boolean; // I changed this from isReadOnly
     autoFocus?: boolean;
-    /** When true, focusing the field selects its existing text, so typing REPLACES it instead of appending. */
+    /** Set this to true and focusing the field selects its existing text, so typing REPLACES it instead of appending. */
     selectOnFocus?: boolean;
 };
 
@@ -22,7 +22,7 @@ export const AnimatedInput = ({
     onChange,
     onKeyDown,
     type = "text",
-    disabled = false, // Changed from isReadOnly
+    disabled = false, // I changed this from isReadOnly
     autoFocus = false,
     selectOnFocus = false,
 }: AnimatedInputProps) => {
@@ -37,10 +37,10 @@ export const AnimatedInput = ({
                 value={value}
                 onChange={onChange}
                 onKeyDown={onKeyDown}
-                disabled={disabled} // Changed from readOnly={isReadOnly}
+                disabled={disabled} // I changed this from readOnly={isReadOnly}
                 autoFocus={autoFocus}
                 onFocus={selectOnFocus ? (e) => e.currentTarget.select() : undefined}
-                // Changed read-only:* styles to disabled:*
+                // I changed the read-only:* styles to disabled:*
                 className="w-full bg-transparent px-2 py-1 text-lg tracking-wide text-neutral-800 font-mono border-b-2 border-neutral-400 focus:outline-none focus:border-primary-600 focus:bg-primary-100/50 disabled:bg-neutral-100 disabled:border-neutral-200 disabled:cursor-not-allowed"
             />
         </div>

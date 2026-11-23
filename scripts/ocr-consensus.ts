@@ -1,8 +1,8 @@
 // scripts/ocr-consensus.ts
 //
-// CONSENSUS CORRECTION of the stored circular text. For every page, the stored text (read by the pipeline's OCR) is compared word by word with the readings of two
+// Consensus correction of the stored circular text. For every page, the stored text (read by the pipeline's OCR) is compared word by word with the readings of two
 // other independent readers of the SAME page image (Gemini 3.1 Pro and Gemini 3.8 Flash, already saved in reread-cache/gemini by scripts/gemini-read-archive.ts).
-// A number, date, amount, phone or clause number of the stored text is replaced ONLY when BOTH readers propose the same replacement for the same place; a word is never changed
+// My rule: a number, date, amount, phone or clause number of the stored text is replaced ONLY when BOTH readers propose the same replacement for the same place; a word is never changed
 // (it is reported). See src/lib/ingestion/consensusPatch.ts for every rule.
 //
 //   DRY RUN (default): writes nothing to the database and calls no Gemini; saves reread-reports/consensus-<time>.json and .md
@@ -10,7 +10,7 @@
 //   APPLY: for every circular that passes the gate, backs it up (reread-backups/), replaces its chunks (new vectors), reads them back, and re-checks them.
 //   npx tsx --env-file=.env.local scripts/ocr-consensus.ts --apply [--ids ...]
 //
-// THE GATE (a circular is applied only if all hold): no patch crosses a chunk boundary; every replacement number is present in BOTH readers' text;
+// The gate (a circular is applied only if all hold): no patch crosses a chunk boundary; every replacement number is present in BOTH readers' text;
 // after the patches the circular has no MORE unconfirmed numbers than before; no roster page (stored as rows) is touched.
 import { mkdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -23,6 +23,7 @@ import { memoized, throttled } from "../src/lib/ingestion/embedThrottle";
 import { checkReadings } from "../src/lib/ingestion/readingCheck";
 import { checkRowsFor, savePageChecks, type NewCheck } from "../src/lib/search/pageChecks";
 
+// These are names of saved readings only: this script makes no model call; it reads the cache files that earlier readings left under these names (src/lib/ai/noPro.selftest.ts lists it as the one file that may name a Pro model).
 const PRO = "gemini:gemini-3.1-pro-preview";
 const FLASH = "gemini:gemini-3.8-flash";
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined; };
@@ -35,7 +36,7 @@ function savedReading(cacheDir: string, url: string, reader: string): string | n
   try { const j = JSON.parse(readFileSync(f, "utf8")); return j?.url === url && typeof j.text === "string" ? j.text : null; } catch { return null; }
 }
 
-// The PDF's own text layer (exact for Latin text; junk for old Hindi fonts, which is why it only ever ARBITRATES a conflict, never overwrites on its own).
+// The PDF's own text layer: exact for Latin text, junk for old Hindi fonts. That is why I let it only ARBITRATE a conflict and never overwrite on its own.
 const normAll = (t: string) => t.normalize("NFC").toLowerCase().replace(/\s+/g, " ");
 let manifest: Array<{ file: string; folder: string; title: string }> | null = null;
 const layerCache = new Map<number, string | null>();
@@ -100,7 +101,7 @@ async function main() {
         const plan = proposePatches(page, [pro, flash]);
         const before = coverage(page, [pro, flash]);
         let patches: Patch[] = plan.patches;
-        // gate 1: every replacement number must be in BOTH readers' text
+        // Gate 1: every replacement number must be in BOTH readers' text.
         const proTokens = new Set(tokenize(pro).map((t) => t.norm)), flashTokens = new Set(tokenize(flash).map((t) => t.norm));
         patches = patches.filter((pt) => {
           const toks = tokenize(pt.to).filter((t) => t.content);
@@ -108,7 +109,7 @@ async function main() {
           if (!okBoth) why.push(`page ${p}: replacement "${pt.to}" is not in both readers`);
           return okBoth;
         });
-        // a conflict the readers did not settle between themselves goes to the exact arbiter: the PDF text layer. It must contain the one version and NOT the other.
+        // A conflict the readers did not settle between themselves goes to the exact arbiter, the PDF text layer. It must contain the one version and NOT the other.
         const layer = pdfLayer(row.id, row.headline);
         const layerBy = new Set<string>();
         const layerVerified: string[] = [];
@@ -131,7 +132,7 @@ async function main() {
         if (after.unconfirmed.length > before.unconfirmed.length) why.push(`page ${p}: unconfirmed numbers would increase (${before.unconfirmed.length} -> ${after.unconfirmed.length})`);
         mine.forEach((c, k) => { if (out.chunks[k] !== c.text) { changed++; c.text = out.chunks[k]; } });
         patchCount += patches.length - out.refused.length;
-        // the saved check of the page (what the answer card consults): numbers confirmed by a reader or by the PDF layer, numbers NO source confirms, numbers both readers have and the page lacks
+        // This is the saved check of the page (what the answer card consults): numbers confirmed by a reader or by the PDF layer, numbers NO source confirms, numbers both readers have and the page lacks.
         const finalText = out.chunks.join(" ");
         const cPro = checkReadings(finalText, pro), cFlash = checkReadings(finalText, flash);
         const verified = new Set(layerVerified);
@@ -196,12 +197,12 @@ async function main() {
       const extractedText = sorted.map((x) => x.text).join(" ").replace(/\s+/g, " ").trim();
       const plan: RereadPlan = { id: c.id, serialNumber: c.serial, headline: c.headline, status: "would-change", reason: null, pages: c.pages.length, oldChunks: sorted.length, newChunks: sorted, oldChars: 0, newChars: extractedText.length, onlyInOld: [], onlyInNew: [], pageTexts: [], extractedText };
       const res = await applyReread(client as any, { embed }, plan, "reread-backups");
-      // read back: exactly the planned text must now be in the database
+      // I read it back: exactly the planned text must now be in the database.
       const back = (await client.query(`SELECT chunk_index, page_number, text FROM public.circular_chunks WHERE circular_id = $1 ORDER BY chunk_index`, [c.id])).rows;
       const same = back.length === sorted.length && back.every((r: any, i: number) => r.chunk_index === sorted[i].index && r.page_number === sorted[i].page && r.text === sorted[i].text);
       console.log(`circular ${c.id}: applied ${c.patchCount} patch(es) in ${c.changedChunks} chunk(s); read back ${same ? "IDENTICAL to the plan" : "DIFFERENT from the plan (restore from " + res.backupFile + ")"}; backup ${res.backupFile}`);
     }
-    // the saved page checks (after the patches, so each fingerprint is that of the text really stored): the answer card refuses a number no source confirmed
+    // I save the page checks after the patches, so each fingerprint is that of the text really stored; the answer card refuses a number no source confirmed.
     if (!flag("no-save-checks")) {
       let saved = 0;
       for (const c of plans) {

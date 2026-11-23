@@ -1,7 +1,7 @@
 // src/tools/steel/ui.tsx
 //
-// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the steel card (prices, DSP products, companies, SAIL and the CPSEs, India and the world). What the search line needs to know is in topic.ts. It is listed once, in
-// src/tools/registry.ui.tsx. The card is loaded when it is asked for.
+// HOW THIS TOPIC LOOKS IN THE PANEL OF THE SEARCH BAR: the steel card (prices, DSP products, companies, SAIL and the CPSEs, India and the world). What the search line needs to know is in topic.ts. I list it only once, in
+// src/tools/registry.ui.tsx. The card is loaded only when it is asked for.
 "use client";
 
 import dynamic from "next/dynamic";
@@ -15,7 +15,7 @@ const SteelCard = dynamic(() => import("@/tools/steel/SteelCard").then((m) => m.
   loading: () => <div className="h-40 animate-pulse rounded-2xl bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100" aria-busy="true" aria-label="Loading the steel card" />,
 });
 
-/** "companies|" -> the tab (the part before the bar); anything else is the prices tab */
+/** Reads the tab from `lang`: "companies|" gives the tab named by the part before the bar, and anything else opens the prices tab */
 export function readLang(lang?: string): SteelTab {
   const t = (lang ?? "prices|").split("|")[0];
   return t === "dsp" || t === "companies" || t === "sail" || t === "india" ? t : "prices";

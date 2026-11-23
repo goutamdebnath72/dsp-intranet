@@ -1,6 +1,6 @@
 -- 03_optional_dedicated_login_role.sql  (RECOMMENDED for production use)
 --
--- Why: with only 01_*.sql the application runs the LLM's SQL by switching its
+-- Why I want it: with only 01_*.sql the application runs the LLM's SQL by switching its
 -- own connection to nlq_reader (SET ROLE). The guard (guard.ts) blocks the one
 -- known way out of that (calling set_config('role', ...)), but a dedicated
 -- LOGIN role removes the possibility entirely: nlq_app is a member of

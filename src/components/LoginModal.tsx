@@ -49,7 +49,7 @@ export default function LoginModal() {
 
   // --- MODIFIED: handleSubmit with Tab-Session marker ---
   const handleSubmit = async () => {
-    if (isLoading) return; // Enter pressed twice / button clicked while a sign-in is already running
+    if (isLoading) return; // ignore Enter pressed twice or the button clicked while a sign-in is already running
     setIsLoading(true);
     setError("");
 
@@ -60,13 +60,13 @@ export default function LoginModal() {
     });
 
     if (res?.error) {
-      // Clear the password: it is masked, so a person cannot see that the wrong one is still in the box and
+      // I clear the password: it is masked, so a person cannot see that the wrong one is still in the box and
       // would otherwise TYPE THE CORRECT ONE AFTER IT, failing again until the modal is closed and reopened.
       setPassword("");
       setError("Wrong ticket number or password.");
       setIsLoading(false);
     } else {
-      // ✅ SET THE TAB-SESSION MARKER
+      // Set the tab-session marker.
       markTabSessionActive();
 
       closeModal();

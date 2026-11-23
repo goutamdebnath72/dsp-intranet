@@ -1,9 +1,9 @@
 // src/tools/railway/RailwayCard.tsx
 //
-// THE TRAINS AT DURGAPUR RAILWAY STATION (DGR): the mail and express trains first, in two lists (towards Howrah, and away from it), then the local MEMU trains in both directions below them. Each train shows its time at
+// THE TRAINS AT DURGAPUR RAILWAY STATION (DGR): I show the mail and express trains first, in two lists (towards Howrah, and away from it), then the local MEMU trains in both directions below them. Each train shows its time at
 // Durgapur (the departure, large; the arrival under it), its name and number, where it starts and ends, and the days it runs (Daily, or the weekdays); a special train is marked. The next train of each list that runs today is
-// marked and the ones already gone today are dimmed. Two switches: only the trains that run today, and whether the special trains are shown.
-// It is the TIMETABLE (src/lib/live/railway.ts reads RailRadar's station timetable and checks it), not live running status: the card says so, says when it was fetched, names its source and links the official live enquiry.
+// marked and the ones already gone today are dimmed. There are two switches: only the trains that run today, and whether the special trains are shown.
+// It is the TIMETABLE (src/lib/live/railway.ts reads RailRadar's station timetable and checks it), not live running status, and the card says so, says when it was fetched, names its source and links the official live enquiry.
 // Nothing typed is sent anywhere: the request carries nothing, and the plant's API key never leaves the server.
 "use client";
 
@@ -22,10 +22,10 @@ import { PREMIUM } from "./premium";
 
 export const RAILWAY_REFRESH_MS = 60 * 60 * 1000;
 
-/** the time and the day of the week now at Durgapur */
+/** Here I get the time and the day of the week now at Durgapur. */
 export const momentNow = (): Moment => { const t = DateTime.now().setZone(STATION.zone); return { hm: t.toFormat("HH:mm"), day: DAYS[t.weekday - 1] }; };
 
-/** the clock of the card (its own small state, ticking every half minute, so that the lists are not redrawn by anything else) */
+/** The clock of the card. I keep it as the card's own small state, ticking every half minute, so that nothing else redraws the lists. */
 export function useClock(): Moment {
   const [t, setT] = useState(momentNow);
   useEffect(() => { const id = setInterval(() => setT((old) => { const n = momentNow(); return n.hm === old.hm && n.day === old.day ? old : n; }), 30_000); return () => clearInterval(id); }, []);
@@ -33,31 +33,31 @@ export function useClock(): Moment {
 }
 
 const TRIM = "supports-[text-box:trim-start_cap_alphabetic]:[text-box:trim-start_cap_alphabetic]";
-/** THE HEADROOM OF A TRIMMED TITLE. The trim puts the top of the box at the height of a capital, and a title that is cut with an ellipsis (overflow hidden) would shave whatever stands higher: in Poppins the tops of b, d, h, k, l (4% of the size above a capital), the dot of i and the tops of f and j (10%). So the box gets 0.12 em of room above it and the same amount of negative margin, which leaves the text exactly where it was and lets those tops show. Measured on the card: a render with the clipping on differs from one with it off in the tops of those letters; with the headroom they are the same. */
+/** THE HEADROOM OF A TRIMMED TITLE. The trim puts the top of the box at the height of a capital, and a title that is cut with an ellipsis (overflow hidden) would shave whatever stands higher: in Poppins the tops of b, d, h, k, l (4% of the size above a capital), the dot of i and the tops of f and j (10%). So I give the box 0.12 em of room above it and the same amount of negative margin, which leaves the text exactly where it was and lets those tops show. Measured on the card: a render with the clipping on differs from one with it off in the tops of those letters; with the headroom they are the same. */
 const HEADROOM = "pt-[0.12em] -mt-[0.12em]";
 
 export type Tone = "express" | "local";
-/** the local (MEMU) section has its own colour (violet) all through: panel, heading, rows and day chips, so that it is told from the express trains at a glance */
+/** I give the local (MEMU) section its own colour (violet) all through: panel, heading, rows and day chips, so that it is told from the express trains at a glance. */
 const TONE = {
   express: { row: "border-slate-100 bg-white", chip: "bg-sky-100 text-sky-800", head: "text-slate-900", count: "bg-slate-100 text-slate-600", sub: "text-slate-800", panel: "" },
   local: { row: "border-violet-100 bg-white", chip: "bg-violet-100 text-violet-800", head: "text-violet-900", count: "bg-violet-100 text-violet-700", sub: "text-violet-900", panel: "rounded-2xl border border-violet-200 bg-violet-50/70 p-3 sm:p-4" },
 } as const;
 
 
-/** a station of a train's journey: the name (bold), and a JUNCTION is picked out in amber (a tinted, ringed label) because it is where the passenger may change trains; the hover note says so */
+/** A station of a train's journey: the name (bold). I pick out a JUNCTION in amber (a tinted, ringed label) because it is where the passenger may change trains; the hover note says so. */
 function StationName({ label }: { label: { name: string; junction: boolean } }) {
   return label.junction
     ? <span className="rounded bg-amber-100 px-1 font-bold text-amber-900 ring-1 ring-inset ring-amber-300" title="Junction: several railway lines meet here" data-junction>{label.name}</span>
     : <span className="font-semibold">{label.name}</span>;
 }
 
-/** one train. The top of the time and the top of the first line are one row of pixels (the same trimming as the flights card: the room above a capital is trimmed from both, the time let down 0.05 em for Poppins' round digits). */
-/** `fares`: the fare button (on by default); `origin`: the station the fares start from, Durgapur unless the Asansol tab says ASN (a train that ends at that station has no fare onward); `extra`: a chip of the caller's own beside the days */
+/** This draws one train. I keep the top of the time and the top of the first line on one row of pixels (the same trimming as the flights card: the room above a capital is trimmed from both, the time let down 0.05 em for Poppins' round digits). */
+/** Props: `fares` is the fare button (on by default); `origin` is the station the fares start from, Durgapur unless the Asansol tab says ASN (a train that ends at that station has no fare onward); `extra` is a chip of the caller's own beside the days. */
 export function Row({ t, now, next, tone = "express", fares: withFares = true, origin = "DGR", extra }: { t: Train; now: Moment; next: boolean; tone?: Tone; fares?: boolean; origin?: FareFrom; extra?: React.ReactNode }) {
   const c = TONE[tone];
   const premium = PREMIUM[t.label];
   const [fares, setFares] = useState(false);
-  // a fare is looked up for an express or mail train (or a special) that goes on from Durgapur; for a local (MEMU) train, which is unreserved and has no fare in the reservation system, a HINT is worked out from the railway's fare table
+  // I look up a fare for an express or mail train (or a special) that goes on from Durgapur; for a local (MEMU) train, which is unreserved and has no fare in the reservation system, I work out a HINT from the railway's fare table.
   const hasFares = withFares && t.toCode !== origin;
   const isLocal = t.kind === "local";
   const runsToday = t.days.includes(now.day);
@@ -65,7 +65,7 @@ export function Row({ t, now, next, tone = "express", fares: withFares = true, o
   const chip = daysChip(t.days);
   const main = t.departure ?? t.arrival;
   const under = t.arrival && t.departure ? `arr ${t.arrival}` : t.departure ? "starts here" : "ends here";
-  // the two ends of the journey: the full name, the code beside it, and the city and state (the railway's codes alone are hard to read)
+  // I show the two ends of the journey as the full name, the code beside it, and the city and state, because the railway's codes alone are hard to read.
   const from = stationLabel(t.fromCode, t.from), to = stationLabel(t.toCode, t.to);
   return (
     <li data-premium={premium ? t.label : undefined} className={`flex flex-wrap items-baseline gap-3 rounded-xl border px-3 py-2.5 supports-[text-box:trim-start_cap_alphabetic]:items-start ${next ? "border-emerald-300 bg-emerald-50" : premium ? premium.row : c.row} ${gone ? "opacity-55" : ""}`} aria-current={next ? "true" : undefined}>
@@ -90,7 +90,7 @@ export function Row({ t, now, next, tone = "express", fares: withFares = true, o
         </span>
       </span>
       {next && <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-extrabold text-white">Next · {until(now.hm, clock(t))}</span>}
-      {/* the fares take the whole width of the row (below the time and the details), not the narrow column of the details */}
+      {/* I let the fares take the whole width of the row (below the time and the details), not the narrow column of the details. */}
       {hasFares && fares && <div className="min-w-0 basis-full"><FareBox number={t.number} local={isLocal} from={origin} /></div>}
     </li>
   );
@@ -99,7 +99,7 @@ export function Row({ t, now, next, tone = "express", fares: withFares = true, o
 export function Column({ title, list, now, empty, tone, sub, fares = true, origin = "DGR", extra }: { title: string; list: Train[]; now: Moment; empty: string; tone: Tone; sub?: string; fares?: boolean; origin?: FareFrom; extra?: (t: Train) => React.ReactNode }) {
   const next = nextTrain(list, now);
   return (
-    // min-w-0: a grid column may otherwise grow to the width of its longest unbroken line (a long train name) and push the cards past the edge of a phone
+    // I need min-w-0 here: a grid column may otherwise grow to the width of its longest unbroken line (a long train name) and push the cards past the edge of a phone.
     <section aria-label={title} className="min-w-0">
       <h5 className={`mb-1.5 flex items-center gap-2 text-sm font-extrabold ${TONE[tone].head}`}>{title}<span className={`rounded-full px-2 text-xs font-bold ${TONE[tone].count}`}>{list.length}</span></h5>
       {sub && <p className="mb-1.5 text-xs leading-snug text-slate-500">{sub}</p>}

@@ -1,7 +1,7 @@
 // src/lib/circulars/admin/omnibar.ts
 //
-// Omnibar responder for Circular Management.
-// Detects circular admin intent and returns the payload to render the CircularAdminPanel in the modal.
+// This is my omnibar responder for Circular Management.
+// It detects circular admin intent and returns the payload to render the CircularAdminPanel in the modal.
 
 import type { AnalyticsPayload } from "@/lib/employees/analytics";
 import type { HospitalAnswer } from "@/lib/hospital/types";

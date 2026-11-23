@@ -1,10 +1,10 @@
 // src/lib/qualifications/degrees.ts
 //
 // THE TABLE OF DEGREES: what each one is called and what LEVEL it is (step 58a).
-// Owner, 26 Oct 2026: "the system does not understand what post graduate means ... we need to teach it all the graduate degrees, that post graduate means a higher degree than graduate, and the
-// list of all the PG degrees". Until now the system knew a flat list of letters (MD, MS, DNB ...) and a pattern for "postgraduate": it listed MBBS doctors for "post graduate degree on medicine".
+// My words (26 Oct 2026): "the system does not understand what post graduate means ... we need to teach it all the graduate degrees, that post graduate means a higher degree than graduate, and the
+// list of all the PG degrees". Until then the system knew a flat list of letters (MD, MS, DNB ...) and a pattern for "postgraduate": it listed MBBS doctors for "post graduate degree on medicine".
 //
-// The LEVELS, lowest to highest (a question says "post graduate": every degree ABOVE graduate counts):
+// The LEVELS, lowest to highest (when a question says "post graduate", every degree ABOVE graduate counts):
 //   certificate    school and trade certificates (Class X, Class XII, ITI)
 //   diploma        a diploma BELOW graduate level (polytechnic engineering, D.Pharm, GNM ...)
 //   graduate       a bachelor's degree, or a professional degree of the same level (MBBS, BDS, B.Tech, BCA, B.Com, LLB ...)
@@ -14,7 +14,7 @@
 // Note: an MD is a POSTGRADUATE degree although it is called "Doctor of Medicine"; a doctorate is a PhD-type degree.
 //
 // HOW TO EDIT: one line per degree, d(abbreviation, full name, level, segment, [other ways it is written], "what to confirm", "a note"). The abbreviation, the full name and every other spelling are matched
-// without dots, spaces or capitals ("M.B.B.S." = "mbbs"). A line with a `confirm` text is one the author was NOT sure of: it is listed at the top of docs/QUALIFICATION_LEVELS.md for the owner to
+// without dots, spaces or capitals ("M.B.B.S." = "mbbs"). A line with a `confirm` text is one the author was NOT sure of: it is listed at the top of docs/QUALIFICATION_LEVELS.md for me to
 // confirm; a line with a `note` only explains. qualifications.selftest.ts checks the table (no spelling twice, every level and segment valid) and that docs/QUALIFICATION_LEVELS.md lists every line; regenerate it with
 // `npx tsx scripts/make-qualification-reference.ts > docs/QUALIFICATION_LEVELS.md`.
 // The list comes from general knowledge of Indian degrees: it has NOT been checked against an official source.
@@ -46,16 +46,16 @@ export type Segment =
 export const SEGMENTS: readonly Segment[] = ["School and trade", "Medical (allopathy)", "Dental", "AYUSH (Ayurveda, Unani, Homeopathy, Siddha, Naturopathy)", "Nursing and paramedical", "Pharmacy", "Veterinary and agriculture", "Engineering and technology", "Architecture and design", "Science", "Computer applications", "Arts, humanities and social sciences", "Commerce and management", "Law", "Education", "Professional bodies", "Research (any field)", "Any field"];
 
 export interface DegreeDef {
-  /** The abbreviation as it is usually written. */
+  /** The abbreviation the way it is usually written. */
   code: string;
   name: string;
   level: Level;
   segment: Segment;
-  /** Other ways it is written (without dots and spaces they are compared with what is printed). */
+  /** Other ways it is written; without dots and spaces they are compared with what is printed. */
   aliases: string[];
-  /** Set when the author was NOT sure of the level or the spelling: what the owner is asked to confirm. */
+  /** Set when the author was NOT sure of the level or the spelling: it holds what I am asked to confirm. */
   confirm?: string;
-  /** A plain explanation (not a doubt): why the degree has the level it has. */
+  /** A plain explanation (not a doubt) of why the degree has the level it has. */
   note?: string;
 }
 

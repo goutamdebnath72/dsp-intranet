@@ -13,7 +13,7 @@ export const revalidate = 0;
 /**
  * GET: Returns the "new circular" state for the current session.
  *
- * Rule (B1 — 24h window for both states):
+ * My rule (B1 — 24h window for both states):
  * - A circular is a *candidate* only if uploaded within the window.
  * - Logged-in: a candidate is "unread" until the user opens it. Reading
  *   every candidate clears the dot early.
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     // Candidate set: circulars uploaded within the window (the one shared definition of "new").
     const recentIds = await getRecentCircularIds(dataSource);
 
-    // No recent circulars at all -> nothing new for anyone.
+    // With no recent circulars at all there is nothing new for anyone.
     if (recentIds.length === 0) {
       return noStore({ hasNewCircular: false, unreadIds: [], newCount: 0 });
     }
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     let unreadIds: number[];
 
     if (activeUserId) {
-      // Logged-in: subtract the ones this user has already read.
+      // Logged-in: I subtract the ones this user has already read.
       const readStatusRepo = dataSource.getRepository(CircularReadStatus);
       const readRows = await readStatusRepo.find({
         where: { userId: activeUserId },
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       const readSet = new Set(readRows.map((r) => r.circularId));
       unreadIds = recentIds.filter((id) => !readSet.has(id));
     } else {
-      // Logged-out: every recent circular is "unread".
+      // Logged-out: every recent circular counts as "unread".
       unreadIds = recentIds;
     }
 
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("❌ Failed to compute circular new-status:", error);
-    // Fail safe: no dot rather than a false alarm.
+    // I fail safe: no dot rather than a false alarm.
     return noStore({ hasNewCircular: false, unreadIds: [], newCount: 0 });
   }
 }

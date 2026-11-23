@@ -11,7 +11,7 @@ export interface HolidayAdminOpen {
   op: HolidayAdminOp;
   /** hod = the HOD of C&IT (HOD_CIT_TICKET in constants.ts); delegate = an executive or confirmed non-executive authorised for this tool. */
   role: "hod" | "delegate";
-  /** The logged-in person's name from session. */
+  /** The logged-in person's name, taken from the session. */
   name?: string;
   ticket?: string;
   prefill?: { year?: number };
@@ -26,7 +26,7 @@ export interface HolidayYearView {
   rhCount: number;
   rhQuotaCount: number;
   policyChunkCount: number;
-  /** Version hash for lost-update protection (HMAC) */
+  /** Version hash for lost-update protection (HMAC). */
   version: string;
   lastChange: LastChange | null;
 }

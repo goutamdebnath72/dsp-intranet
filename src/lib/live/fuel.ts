@@ -1,27 +1,27 @@
 // src/lib/live/fuel.ts
 //
-// PETROL (E20), DIESEL AND LPG IN THE FOUR METROS: Delhi, Mumbai, Chennai, Kolkata. The prices are those the oil marketing companies publish, as compiled daily on GoodReturns' pages
-// (one page for petrol, one for diesel, one for LPG per city). Read from the flat text of the page (src/lib/live/text.ts), each table by its heading.
+// Petrol (E20), diesel and LPG in the four metros: Delhi, Mumbai, Chennai, Kolkata. The prices are those the oil marketing companies publish, as compiled daily on GoodReturns' pages
+// (one page for petrol, one for diesel, one for LPG per city). I read the flat text of the page (src/lib/live/text.ts), each table by its heading.
 //
-// SELF-CHECK, so that a changed page is a loud error and never a wrong number: every city must be found in every table, every price must be a plausible one (petrol and diesel 60 to 200 rupees a
+// My self-check makes a changed page a loud error and never a wrong number: every city must be found in every table, every price must be a plausible one (petrol and diesel 60 to 200 rupees a
 // litre, LPG within its range per cylinder size), and the 14.2 kg cylinder must cost more than the 5 kg one. A failure throws, and the card says the figures cannot be shown.
 import { amount } from "./text";
 
 export const CITIES = ["Delhi", "Mumbai", "Chennai", "Kolkata"] as const;
 export type City = (typeof CITIES)[number];
 
-/** the name the source uses for each city in its tables, and in the address of its LPG page */
+/** The name the source uses for each city in its tables, and in the address of its LPG page. */
 export const SOURCE_NAME: Record<City, string> = { Delhi: "New Delhi", Mumbai: "Mumbai", Chennai: "Chennai", Kolkata: "Kolkata" };
 export const LPG_SLUG: Record<City, string> = { Delhi: "new-delhi", Mumbai: "mumbai", Chennai: "chennai", Kolkata: "kolkata" };
 
 export interface Price {
   price: number;
-  /** today's change, as the source gives it (0 when unchanged) */
+  /** Today's change, as the source gives it (0 when unchanged). */
   change: number;
 }
 
 export interface Lpg {
-  /** domestic 14.2 kg: the market (unsubsidised) price every household pays */
+  /** Domestic 14.2 kg: the market (unsubsidised) price every household pays. */
   dom14: Price;
   dom5: Price;
   com19: Price;
@@ -37,7 +37,7 @@ export interface CityFuel {
 
 export class FuelPageError extends Error {}
 
-/** the rows "City| ₹102.12 | 0.00 |" under a heading such as "Petrol Price in Indian Metro Cities & State Capitals| City| Price| Price Change|" */
+/** Reads the rows "City| ₹102.12 | 0.00 |" under a heading such as "Petrol Price in Indian Metro Cities & State Capitals| City| Price| Price Change|". */
 export function parseMetroTable(text: string, kind: "Petrol" | "Diesel"): Record<City, Price> {
   const head = `${kind} Price in Indian Metro Cities`;
   const at = text.indexOf(head);
@@ -61,7 +61,7 @@ const LPG_ROWS: Array<[keyof Lpg, string, [number, number]]> = [
   ["com47", "Commercial \\(47\\.5 Kg\\)", [3000, 15000]],
 ];
 
-/** the "Today" table of a city's LPG page: "Domestic (14.2 Kg)| ₹942.00| 0.00 |" and the three other cylinders */
+/** Reads the "Today" table of a city's LPG page: "Domestic (14.2 Kg)| ₹942.00| 0.00 |" and the three other cylinders. */
 export function parseLpgCity(text: string, city: City): Lpg {
   const head = `LPG Price in ${SOURCE_NAME[city]} Today| Type| Price| Price Change|`;
   const at = text.indexOf(head);

@@ -1,5 +1,5 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/aicpi/AicpiCard.selftest.tsx
-// The AICPI, SAIL DA and inflation card and the words that open it: drawn from the Labour Bureau's pages as they were on 13 Nov 2026; it says plainly what its figures rest on and that SAIL's own circular is the authority.
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/tools/aicpi/AicpiCard.selftest.tsx
+// This tests the AICPI, SAIL DA and inflation card and the words that open it. It is drawn from the Labour Bureau's pages as they were on 13 Nov 2026, and it says plainly what its figures rest on and that SAIL's own circular is the authority.
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

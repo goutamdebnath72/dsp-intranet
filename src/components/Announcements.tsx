@@ -17,7 +17,7 @@ type Announcement = {
   content: string | null;
   date: string;
   isRead?: boolean;
-  /** the PDF of the announcement (name and size), or null */
+  /** The announcement's PDF (name and size), or null. */
   file?: { name: string; bytes: number } | null;
 };
 // ----------------------------------------------------
@@ -104,7 +104,7 @@ export default function Announcements() {
                     DateTime.fromISO(a.date as any).toMillis()
                 )
                 .map((item) => {
-                  const hasContent = !!item.content || !!item.file; // an announcement that is only a title and a PDF opens too
+                  const hasContent = !!item.content || !!item.file; // I let an announcement that is only a title and a PDF open too
                   const itemDate = DateTime.fromISO(item.date as any);
                   const isRecent =
                     DateTime.now().diff(itemDate, "hours").hours <= 24;

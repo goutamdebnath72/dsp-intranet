@@ -1,19 +1,19 @@
 // src/lib/announcements/admin/announcementLive.selftest.ts
 //
-// LIVE test of the Announcement Manager's real store code against the real schema, inside a transaction that is
-// ALWAYS rolled back (nothing is saved). Skipped unless ADMIN_LIVE_TEST_URL is set:
+// This is the live test of the Announcement Manager's real store code against the real schema, inside a transaction that is
+// always rolled back (nothing is saved). Skipped unless ADMIN_LIVE_TEST_URL is set:
 //   ADMIN_LIVE_TEST_URL="$DATABASE_URL" npx tsx src/lib/announcements/admin/announcementLive.selftest.ts
 // It exists because the fake-database test of this tool could not see two bugs that broke edit and delete on every
 // call (a wrong table name, and FOR UPDATE on the nullable side of a LEFT JOIN).
 
-export {}; // a module (not a global script): the live tests share local names
+export {}; // Keeps this a module, not a global script, because the live tests share local names.
 
 const url = process.env.ADMIN_LIVE_TEST_URL;
 if (!url) {
   console.log("announcementLive selftest: skipped (ADMIN_LIVE_TEST_URL not set)");
   process.exit(0);
 }
-process.env.SUPERADMIN_TICKETS = "498301"; // before the facility code is loaded (it reads this once)
+process.env.SUPERADMIN_TICKETS = "498301"; // This is set before the facility code is loaded, because it reads this once.
 
 let pass = 0;
 let fail = 0;
@@ -73,7 +73,7 @@ async function main() {
     const audit = await h.q(`SELECT action FROM public.facility_audit WHERE facility = 'announcement' AND target_id = $1 ORDER BY id`, [id]);
     ok("audit has add, modify, delete for the record", audit.map((r) => r.action).join(",") === "add,modify,delete", audit.map((r) => r.action).join(","));
   } finally {
-    await h.finish(); // ROLLBACK: nothing is kept
+    await h.finish(); // Rollback, so nothing is kept.
     await client.end();
   }
   console.log(`announcementLive selftest: ${pass} passed, ${fail} failed (rolled back, nothing saved)`);

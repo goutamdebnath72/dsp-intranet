@@ -1,5 +1,5 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/pf/PfForm.selftest.tsx
-// The PF form asks for what a DSP employee can read on the PF page, the payslip and the yearly statement, and nothing else.
+// How to run it (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/pf/PfForm.selftest.tsx
+// The PF form asks only for what a DSP employee can read on the PF page, the payslip and the yearly statement, and nothing else.
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PfForm, PfChart } from "./PfForm";
@@ -32,7 +32,7 @@ ok("no column is wider than 6 rem (a few years are not drawn as a few huge block
 ok("every label under a column is on ONE line (no wrap), and today's carries its month in a parenthesis: Today (04/2026)", (ch.match(/data-pf-year/g) || []).length === 6 && [...ch.matchAll(/class="([^"]*)" data-pf-year/g)].every((m) => /whitespace-nowrap/.test(m[1])) && !/data-pf-year[^>]*>[^<]*<span/.test(ch) && />Today \(04\/2026\)</.test(ch));
 ok("the tallest column is the last year, and a column's height is its share of the largest total", (() => { const hs = [...ch.matchAll(/rounded-t-md" style="height:([0-9.]+)%/g)].map((m) => Number(m[1])); return hs.length === 6 && Math.max(...hs) === hs[5] && Math.abs(hs[5] - 82) < 0.01 && hs[0] < hs[5]; })());
 
-// ---- a long career: 30 years to go (a young employee). Every column is drawn; the labels are thinned so they never overlap.
+// ---- a long career: 30 years to go (a young employee). Every column is drawn, and I thin the labels so they never overlap.
 const long = pfAtRetirement({ ...inp, retireYear: 2056 });
 if (isProblem(long)) throw new Error(long.error);
 const lc = renderToStaticMarkup(<PfChart now={long.now} nowLabel="04/2026" years={long.years} />);

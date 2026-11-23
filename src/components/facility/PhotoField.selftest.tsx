@@ -1,5 +1,5 @@
 // Run (from the project root):  npx tsx --tsconfig tsconfig.selftest.json src/components/facility/PhotoField.selftest.tsx
-// Step 70: the photo field (five states) and its place in the employee form.
+// Step 70: this checks the photo field (five states) and its place in the employee form.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -31,7 +31,7 @@ const ui = readFileSync("src/components/EmployeeAdminUi.tsx", "utf8");
 const panel = readFileSync("src/components/EmployeeAdminPanel.tsx", "utf8");
 ok("the form draws the field in the Identity card, after the Name, only when a photo slot is given; the ID card shows the picture instead of the initials", /\{p\.photo && <PhotoField id=\{id\("photo"\)\}/.test(ui) && /photoUrl=\{p\.photo \? photoUrlOf\(p\.photo\.state\) : null\}/.test(ui) && /data-emp-photo="true"/.test(ui));
 ok("the panel checks the photo in the browser before anything is sent, and sends it only AFTER the employee is saved (add and modify)", /preparePhoto\(file, photoDeps\)/.test(panel) && /const photoProblem = await syncPhoto\(res\.employee\.id, mode\)/.test(panel) && /method: "POST", body: f/.test(panel));
-ok("a photo chosen or removed counts as a change in Modify (the review lists it, the save button waits for it), and an 'unchanged' answer still sends it", /const photoChange: ChangeView \| null/.test(panel) && /\.\.\.\(photoChange \? \[photoChange\] : \[\]\)/.test(panel) && /no field changed: if a photo was chosen or removed, that is the change/.test(panel));
+ok("a photo chosen or removed counts as a change in Modify (the review lists it, the save button waits for it), and an 'unchanged' answer still sends it", /const photoChange: ChangeView \| null/.test(panel) && /\.\.\.\(photoChange \? \[photoChange\] : \[\]\)/.test(panel) && /No field changed: if a photo was chosen or removed, I count that as the change/.test(panel));
 ok("a failed photo never undoes the save: the person is told, in words, that the employee is saved but the photo is not", /But the photo was not saved: \$\{photoProblem\} Choose it again in Modify\./.test(panel));
 ok("the headings say who may use the tool, not only executives (non-executives can be in the list)", /Who may add and modify employees<\/p>/.test(panel) && /Authorise \(name or ticket number\)<\/label>/.test(panel) && /Who may change PAX numbers/.test(readFileSync("src/components/PaxAdminPanel.tsx", "utf8")) && /<p className="text-sm font-bold text-slate-800">Authorise<\/p>/.test(readFileSync("src/components/PaxAdminPanel.tsx", "utf8")));
 ok("the real browser parts are loaded only when a photo is chosen (the face finder is a dynamic import), and the model is served from our own folder", /await import\("@vladmandic\/face-api"\)/.test(readFileSync("src/lib/employees/photo/browserDeps.ts", "utf8")) && /loadFromUri\("\/models\/face"\)/.test(readFileSync("src/lib/employees/photo/browserDeps.ts", "utf8")) && readFileSync("public/models/face/tiny_face_detector_model.bin").length > 150000);

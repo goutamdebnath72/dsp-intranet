@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/components/employeeFormModel.selftest.ts
-// Step 66e: THE ORDER OF THE FORM: which section is open when, and why the button is off. Pure.
+// Step 66e: this tests the order of the form, meaning which section is open when and why the button is off. It is pure.
 
 import { EMPTY_FORM, reasonFor, unlockedSections, type FormValues } from "./employeeFormModel";
 import { validateEmployee } from "@/lib/employees/admin/validate";

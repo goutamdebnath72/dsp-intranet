@@ -8,7 +8,7 @@ import { X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Tooltip } from "./Tooltip";
 
-// This is the formatted type this component expects
+// This is the formatted type I expect this component to receive.
 type Holiday = {
   date: DateTime;
   title: string;
@@ -16,7 +16,7 @@ type Holiday = {
   type: string;
 };
 
-// --- FIX: Updated Color Map to use API types (CH, FH, RH) ---
+// I updated this color map to use the API types (CH, FH, RH).
 const holidayColorMap: { [key: string]: string } = {
   CH: "text-red-600", // Was "Closed"
   FH: "text-blue-600", // Was "Festival"
@@ -27,36 +27,30 @@ interface YearCalendarModalProps {
   isOpen: boolean;
   onClose: () => void;
   year: number;
-  holidays: Holiday[]; // This prop is already correctly formatted by the parent
+  holidays: Holiday[]; // The parent already hands me this prop correctly formatted
 }
 
 export function YearCalendarModal({
   isOpen,
   onClose,
   year,
-  holidays, // This data is already formatted by EventCalendar
+  holidays, // EventCalendar already formats this data for me
 }: YearCalendarModalProps) {
-  // Keep startOfYear as a Luxon object for logic
+  // I keep startOfYear as a Luxon object for the logic.
   const startOfYear = DateTime.local(year, 1, 1);
 
-  // The holidays prop comes from EventCalendar's allHolidays cache, which
-  // accumulates EVERY year visited in the browsing session (2026 on first
-  // load, plus whatever years someone navigates to afterward) -- it is NOT
-  // pre-filtered to just this modal's year. Filtering here, once, before
-  // anything below uses it, so the grid's dots and the "Holiday List"
-  // section both only ever see this one year's data. Without this, a real
-  // observed bug: the bottom list showed a chronologically-jumbled mix of
-  // 2024, 2025, and 2026 entries all at once under a "2024 Holiday List"
-  // header, because grouping/sorting had no year boundary at all.
+  // The holidays prop comes from EventCalendar's allHolidays cache, which accumulates EVERY year visited in the browsing session (2026 on first load, plus whatever years someone navigates to afterward); it is NOT
+  // pre-filtered to just this modal's year. I filter here, once, before anything below uses it, so the grid's dots and the "Holiday List" section both only ever see this one year's data.
+  // Without this there was a real observed bug: the bottom list showed a chronologically-jumbled mix of 2024, 2025, and 2026 entries all at once under a "2024 Holiday List" header, because grouping and sorting had no year boundary at all.
   const yearHolidays = useMemo(
     () => holidays.filter((h) => h.date.year === year),
     [holidays, year],
   );
 
-  // This logic is correct, as it uses the .dateObj prop for the picker
+  // This logic is correct: it uses the .dateObj prop for the picker.
   const modifiers = useMemo(
     () => ({
-      // --- FIX: Use API types (CH, FH, RH) ---
+      // Fix: I use the API types (CH, FH, RH) here.
       isClosed: yearHolidays
         .filter((h) => h.type === "CH") // Was "Closed"
         .map((h) => h.dateObj),
@@ -132,11 +126,11 @@ export function YearCalendarModal({
     }
   `;
 
-  // --- FIX: Handle multiple holidays for Tooltip ---
+  // Fix: I handle several holidays on one day for the Tooltip.
   function CustomDay(props: DayProps & { modifiers?: { outside?: boolean } }) {
     const dayAsLuxon = DateTime.fromJSDate(props.date);
 
-    // In the Modal, we specifically use 'yearHolidays'
+    // In the Modal I specifically use 'yearHolidays'.
     const matchingHolidays = yearHolidays.filter((h) =>
       h.date.hasSame(dayAsLuxon, "day"),
     );
@@ -157,27 +151,27 @@ export function YearCalendarModal({
     Day: CustomDay,
   };
 
-  // 1. Sort the holidays first
+  // Step 1: I sort the holidays first.
   const rawSortedHolidays = [...yearHolidays].sort(
     (a, b) => a.date.toMillis() - b.date.toMillis(),
   );
 
-  // 2. Group duplicates by exact date string
+  // Step 2: I group duplicates by exact date string.
   const groupedHolidays = Object.values(
     rawSortedHolidays.reduce(
       (acc, current) => {
-        const dateKey = current.date.toISODate(); // e.g., "2025-10-19"
+        const dateKey = current.date.toISODate(); // For example "2025-10-19"
         if (!dateKey) return acc;
 
         if (!acc[dateKey]) {
-          // First time seeing this date, create a new entry with arrays
+          // First time I see this date, I create a new entry with arrays.
           acc[dateKey] = {
             date: current.date,
             titles: [current.title],
             types: [current.type],
           };
         } else {
-          // Date exists, merge the new data if it's not a strict duplicate
+          // The date already exists, so I merge in the new data if it is not a strict duplicate.
           if (!acc[dateKey].titles.includes(current.title)) {
             acc[dateKey].titles.push(current.title);
           }
@@ -234,7 +228,7 @@ export function YearCalendarModal({
 
               <DayPicker
                 numberOfMonths={12}
-                // Convert Luxon object to JS Date at the boundary
+                // I convert the Luxon object to a JS Date at the boundary.
                 defaultMonth={startOfYear.toJSDate()}
                 fromYear={year}
                 toYear={year}
@@ -256,19 +250,19 @@ export function YearCalendarModal({
                 {groupedHolidays.length > 0 ? (
                   <div className="max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 pr-2">
                     <div className="text-sm sm:columns-2 md:columns-3 sm:gap-x-4">
-                      {/* CHANGE: Map over the new grouped array */}
+                      {/* Change: I map over the new grouped array. */}
                       {groupedHolidays.map((holiday) => (
                         <div
                           key={holiday.date.toISO()}
                           className="flex justify-between items-center py-1.5 border-b border-neutral-100 break-inside-avoid"
                         >
                           <div className="flex flex-col pr-2">
-                            {/* Join multiple titles with a slash */}
+                            {/* I join multiple titles with a slash. */}
                             <span className="text-neutral-800 font-medium leading-tight">
                               {holiday.titles.join(" / ")}
                             </span>
 
-                            {/* Render small colored pill badges for the types */}
+                            {/* I render small colored pill badges for the types. */}
                             <div className="flex gap-1 mt-0.5">
                               {holiday.types.map((type) => (
                                 <span
@@ -281,7 +275,7 @@ export function YearCalendarModal({
                             </div>
                           </div>
 
-                          {/* Keep the date a clean, neutral color */}
+                          {/* I keep the date a clean, neutral color. */}
                           <span className="flex-shrink-0 font-semibold text-neutral-600">
                             {holiday.date.toFormat("LLL dd")}
                           </span>

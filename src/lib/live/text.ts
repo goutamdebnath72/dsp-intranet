@@ -1,7 +1,7 @@
 // src/lib/live/text.ts
 //
-// THE TEXT OF A WEB PAGE, flat: scripts and styles removed, every tag a separator ("|"), entities decoded, runs of separators and spaces collapsed. The parsers of the live cards read this flat
-// text for the few labelled tables they need ("Petrol Price in Indian Metro Cities ... | New Delhi | ₹102.12 | 0.00 |"), which is far steadier than the page's markup.
+// The text of a web page, flat: scripts and styles removed, every tag a separator ("|"), entities decoded, runs of separators and spaces collapsed. The parsers of the live cards read this flat
+// text for the few labelled tables they need ("Petrol Price in Indian Metro Cities ... | New Delhi | ₹102.12 | 0.00 |"), which I find far steadier than the page's markup.
 
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'", "&nbsp;": " ", "&rupee;": "₹" };
 
@@ -19,7 +19,7 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
-/** "₹2,775.00" or "2,775" -> 2775; null when it is not a plain amount */
+/** Turns "₹2,775.00" or "2,775" into 2775; returns null when it is not a plain amount. */
 export function amount(s: string | undefined): number | null {
   const m = /^[^\d-]*(-?\d[\d,]*(?:\.\d+)?)/.exec((s ?? "").trim());
   if (!m) return null;

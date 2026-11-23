@@ -1,9 +1,7 @@
 -- 99_local_test_standins.sql
--- *** TEST ONLY -- DO NOT RUN ON YOUR REAL DATABASE. ***
--- Creates minimal copies of the tables and phonetic functions the experiment
--- depends on, so the whole pipeline can be tested on a scratch local Postgres.
--- The functions here are re-implemented from the JavaScript port in
--- src/lib/employees/namePredicate.ts; the REAL ones live in your database.
+-- Important: this file is for tests only. Do not run it on your real database.
+-- It creates minimal copies of the tables and phonetic functions the experiment depends on, so I can test the whole pipeline on a scratch local Postgres.
+-- I re-implemented the functions here from the JavaScript port in src/lib/employees/namePredicate.ts; the REAL ones live in your database.
 -- (The selftest checks these stand-ins against that JavaScript port.)
 
 CREATE TABLE public.designation_grade (
@@ -78,8 +76,8 @@ LANGUAGE sql IMMUTABLE AS $$
   END
 $$;
 
--- Tokens shorter than 2 characters (initials) are dropped; is_last applies
--- only to the last KEPT token (matches the live function's behaviour).
+-- I drop tokens shorter than 2 characters (initials); is_last applies
+-- only to the last KEPT token, which matches the live function's behaviour.
 CREATE OR REPLACE FUNCTION public.name_phonetic_codes(full_name text) RETURNS text[]
 LANGUAGE sql IMMUTABLE AS $$
   SELECT coalesce(array_agg(public.indic_fold(public.name_synonym_normalize(tok, ord = total)) ORDER BY ord), ARRAY[]::text[])
@@ -93,11 +91,11 @@ LANGUAGE sql IMMUTABLE AS $$
   ) q
 $$;
 
--- Match Supabase: the public schema is NOT open to arbitrary roles. (A stock local Postgres
+-- I match Supabase here: the public schema is NOT open to arbitrary roles. (A stock local Postgres
 -- lets everyone in, which hid a real permission bug during the first round of local tests.)
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 
--- the circulars table, reduced to what the health check-up schedule view reads (serial number and published date make "Circular 003 (2024)")
+-- I reduce the circulars table to what the health check-up schedule view reads: serial number and published date make "Circular 003 (2024)"
 CREATE TABLE IF NOT EXISTS public.circulars (
   id            serial PRIMARY KEY,
   headline      text,

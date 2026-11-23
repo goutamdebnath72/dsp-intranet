@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/qualifications/degreeAnswer.selftest.ts
-// Step 61a: questions about the DEGREES themselves are answered from the table of degrees (owner, 26 Oct 2026: "what are the post graduate degrees in engineering").
+// Step 61a: questions about the DEGREES themselves are answered from the table of degrees (my request, 26 Oct 2026: "what are the post graduate degrees in engineering").
 
 import { DEGREES, LEVEL_LABEL, LEVEL_RANK, SEGMENTS } from "./degrees";
 import { answerDegreeQuestion } from "./degreeAnswer";
@@ -13,7 +13,7 @@ const rowsOf = (q: string) => answerDegreeQuestion(q)?.card.table?.rows ?? [];
 const codes = (q: string) => rowsOf(q).map((r) => r[0].replace(/ \*$/, ""));
 const NOTE = "This is the table of degrees kept in the system (general knowledge, not an official list), so it may be incomplete.";
 
-// ---- a LIST: the owner's own question, computed again from the table
+// ---- a LIST: my own question, computed again from the table
 {
   const r = answerDegreeQuestion("what are the post graduate degrees in engineering")!;
   const expect = DEGREES.filter((d) => d.segment === "Engineering and technology" && d.level === "postgraduate").map((d) => d.code);
@@ -66,7 +66,7 @@ for (const q of ["list the doctors having post graduate degree on medicine", "ho
   "what is the holiday list", "what is the weather", "is it a holiday today", "list the employees of chrd", "what is mediclaim", "what is me", "how many executives are post graduate", "hospital opd timing", "", "   ", "x".repeat(400)])
   ok(`not taken: "${q.slice(0, 50)}"`, answerDegreeQuestion(q) === null);
 
-// ---- every answer: a clean headline first, only table codes in its rows, no person
+// ---- every answer: a clean headline first, only table codes in its rows, and no person
 for (const q of ["what are the post graduate degrees in engineering", "list the engineering degrees", "is md a postgraduate degree", "what is mtech", "super specialty degrees", "list the doctorate degrees", "post graduate degrees in underwater basketry"]) {
   const r = answerDegreeQuestion(q)!;
   ok(`"${q}": a headline, a title and a one-line sentence`, !!r.card.headline?.text && !!r.card.title && !!r.card.status?.text && r.summary.length > 5);

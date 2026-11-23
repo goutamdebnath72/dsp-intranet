@@ -1,31 +1,31 @@
 // src/lib/hospital/nonPermanentDoctors.ts
 //
-// The NON-PERMANENT (contractual or temporary) doctors of the hospital, kept apart from the permanent doctors (step 52a).
+// I keep the NON-PERMANENT (contractual or temporary) doctors of the hospital apart from the permanent doctors (step 52a).
 //
-// WHAT IS HERE: every doctor of the intranet's "Select Doctor" list whose number is not a plain 6-digit ticket: "D" + 6 digits (51 doctors) or "DTN" + digits (15 doctors), 66 in all
-// (read from the list the owner showed on 24 Oct 2026). The owner's rule: a permanent doctor has a ticket of at most 6 digits; a non-permanent doctor's number has letters first.
+// What is here: every doctor of the intranet's "Select Doctor" list whose number is not a plain 6-digit ticket: "D" + 6 digits (51 doctors) or "DTN" + digits (15 doctors), 66 in all
+// (read from the list I showed on 24 Oct 2026). My rule: a permanent doctor has a ticket of at most 6 digits; a non-permanent doctor's number has letters first.
 // Not here: Dr. Manish Kumar (listed as D490196: a stray D, he is permanent with ticket 490196) and Dr. Debdip Saha 490107 (permanent); the doctor of the same name with D499964 IS here.
 //
-// HOW IT GROWS: the SPECIALIZATION (and the department, the qualification) of most of these doctors is not known yet. When the owner collects it, edit the entry: set `specialization`
+// How it grows: the SPECIALIZATION (and the department, the qualification) of most of these doctors is not known yet. When I collect it, edit the entry: set `specialization`
 // (and `department`, `qualification`); nothing else needs to change. `staffId` links an entry to the person in data/hospital_staff.json when the hospital's staff list or the OPD schedule has him
 // or her (then the department and the qualification come from there). A doctor who turns out to be permanent: delete the entry and give him or her the ticket in hospital_staff.json.
-// Why a TypeScript file and not a database table: the list is short and edited by hand, the compiler checks every edit, no SQL migration is needed, and it can move into a table later
+// Why a TypeScript file and not a database table: I chose it because the list is short and edited by hand, the compiler checks every edit, no SQL migration is needed, and it can move into a table later
 // (when there is an admin screen) without changing the questions that use it.
 
 import type { Person } from "./opdData";
 
 export interface NonPermanentDoctor {
   id: string;
-  /** The name as the intranet doctor list prints it (without "Dr"). */
+  /** I store the name as the intranet doctor list prints it (without "Dr"). */
   name: string;
-  /** The number the intranet doctor list shows: "D" + 6 digits or "DTN" + digits. */
+  /** Number as the intranet doctor list shows it: "D" + 6 digits or "DTN" + digits. */
   listId: string;
   kind: "D" | "DTN";
   department: string | null;
   qualification: string | null;
-  /** null = not collected yet. */
+  /** null means not collected yet. */
   specialization: string | null;
-  /** The person in data/hospital_staff.json, when the hospital's own lists have this doctor. */
+  /** Points to the person in data/hospital_staff.json, set only when the hospital's own lists have this doctor. */
   staffId: string | null;
   note: string | null;
 }
@@ -100,10 +100,10 @@ export const NON_PERMANENT_DOCTORS: NonPermanentDoctor[] = [
 ];
 
 const byStaffId = new Map(NON_PERMANENT_DOCTORS.filter((d) => d.staffId).map((d) => [d.staffId as string, d]));
-/** The non-permanent record of a person of hospital_staff.json, if he or she is one. */
+/** Returns the non-permanent record of a person of hospital_staff.json, if he or she is one. */
 export const nonPermanentOf = (staffId: string): NonPermanentDoctor | undefined => byStaffId.get(staffId);
 
-/** The entries the hospital's own lists do not have, as people, so that a question about them finds them (their OPD days are not known). */
+/** I return the entries the hospital's own lists do not have as people, so that a question about them finds them (their OPD days are not known). */
 export function unlistedAsPeople(): Person[] {
   return NON_PERMANENT_DOCTORS.filter((d) => !d.staffId).map((d) => ({
     id: `np-${d.listId.toLowerCase()}`, name: d.name, title: "Dr", department: d.department ?? "", qualification: d.qualification, role: "doctor" as const,
@@ -111,7 +111,7 @@ export function unlistedAsPeople(): Person[] {
   }));
 }
 
-/** Problems in this file (empty when it is consistent). */
+/** Returns the problems found in this file (empty when it is consistent). */
 export function validateNonPermanent(known: Set<string>): string[] {
   const out: string[] = [];
   const ids = new Set<string>();

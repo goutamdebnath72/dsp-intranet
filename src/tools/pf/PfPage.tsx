@@ -1,6 +1,6 @@
 // src/tools/pf/PfPage.tsx
 //
-// THE PROVIDENT FUND PAGE: one page, two tabs: "PF maturity" (the probable PF on the retirement day, PfForm) and "PF loan EMI" (the refundable PF loan, PfLoanForm). Both tabs stay in memory while the page is open, so what was typed
+// THE PROVIDENT FUND PAGE: one page, two tabs: "PF maturity" (the probable PF on the retirement day, PfForm) and "PF loan EMI" (the refundable PF loan, PfLoanForm). I keep both tabs in memory while the page is open, so what was typed
 // in one is still there when the other has been looked at.
 "use client";
 
@@ -12,7 +12,7 @@ import type { YMD } from "./pfLoan";
 export type PfTab = "maturity" | "loan";
 const TABS: Array<{ id: PfTab; label: string }> = [{ id: "maturity", label: "PF maturity" }, { id: "loan", label: "PF loan EMI" }];
 
-/** a line typed in the search bar that is about the loan (emi, loan, instalment, repayment) opens the page on the loan tab; anything else on the maturity tab */
+/** A line typed in the search bar that is about the loan (emi, loan, instalment, repayment) opens the page on the loan tab; anything else opens the maturity tab. */
 export const startTabFor = (query: string | undefined): PfTab => (/\b(?:loans?|emis?|instal+ments?|repay\w*)\b/i.test(query ?? "") ? "loan" : "maturity");
 
 export function PfPage({ start = "maturity", today }: { start?: PfTab; today?: YMD }) {

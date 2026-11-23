@@ -1,6 +1,6 @@
 // src/lib/tools/intentClient.ts
 //
-// THE BROWSER'S ASK: POST the typed line to /api/tools/intent (src/app/api/tools/intent/route.ts) and get a checked utility id back, or null. Never throws: any failure (offline, not signed in, a slow answer,
+// The browser's ask: POST the typed line to /api/tools/intent (src/app/api/tools/intent/route.ts) and get a checked utility id back, or null. It never throws: any failure (offline, not signed in, a slow answer,
 // the AI switched off) is simply "no answer", and the search box searches as it always did. It sends nothing but the one line.
 import { AI_MIN_CONFIDENCE } from "./intentAi";
 

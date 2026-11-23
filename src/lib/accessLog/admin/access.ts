@@ -1,6 +1,6 @@
 // src/lib/accessLog/admin/access.ts
 //
-// Access helpers and session resolution for the Contact Access Log facility.
+// Here I keep the access helpers and the session resolution for the Contact Access Log facility.
 
 import type { DataSource } from "typeorm";
 import { getSessionTicket } from "@/lib/apiAuth";

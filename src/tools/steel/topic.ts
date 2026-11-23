@@ -2,8 +2,8 @@
 //
 // WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words of the steel card ("steel prices", "tmt price", "steel companies", "sail steel production"). The figures, their sources and their
 // checks are in mos.ts, companies.ts and steel.selftest.ts; how it looks is in SteelCard.tsx and ui.tsx. It is listed once, in src/tools/registry.ts.
-// A line is this card's when it has a key word and every word is a key word, an extra word or a filler ("steel price today" opens it; "steel plant" and "steel almirah" do not, because "plant" and "almirah" are not words of the
-// card). The names of the makers are extra words, never key words alone, so "tata steel share price" stays with the markets card and "sail" alone is not this card. `lang` says which tab to open.
+// I treat a line as this card's when it has a key word and every word is a key word, an extra word or a filler ("steel price today" opens it; "steel plant" and "steel almirah" do not, because "plant" and "almirah" are not words of the
+// card). I keep the names of the makers as extra words, never key words alone, so "tata steel share price" stays with the markets card and "sail" alone is not this card. `lang` says which tab to open.
 import { defineTopic } from "@/tools/types";
 
 export const steelTopic = defineTopic({

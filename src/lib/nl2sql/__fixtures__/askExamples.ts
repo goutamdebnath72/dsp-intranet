@@ -1,7 +1,7 @@
 // src/lib/nl2sql/__fixtures__/askExamples.ts
 //
 // The clarifying questions that step 49a used to ask for "garage" and "refractory" (until step 55a resolved those words instead). The checkbox question itself stays in the app (departmentAsk.ts,
-// ClarifyChoices.tsx) for any future word that really has to be asked about, and these examples keep it tested: three real department rows (so every combination of ticks can be tried against
+// ClarifyChoices.tsx) for any future word that really has to be asked about, and I keep these examples so it stays tested: three real department rows (so every combination of ticks can be tried against
 // namedRows) and one single-option question.
 
 import type { DepartmentAsk } from "../departmentAsk";

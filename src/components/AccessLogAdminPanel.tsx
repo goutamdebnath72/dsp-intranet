@@ -3,7 +3,7 @@
 // src/components/AccessLogAdminPanel.tsx
 //
 // CONTACT ACCESS LOG FACILITY PANEL (Modular Facility Kit).
-// Renders inside the Omnibar modal answer area when an authorised user asks to inspect contact access logs.
+// I render this inside the Omnibar modal answer area when an authorised user asks to inspect contact access logs.
 // Features:
 //   - Filterable & searchable audit log of all reveals and copies (mobile, e-mail, SAIL P.No., ticket number)
 //   - Live summary statistics cards (Total events, reveals, copies, mobile, e-mail, P.No, ticket, unique viewers)
@@ -154,7 +154,7 @@ export function AccessLogAdminPanel({ open }: { open: AccessLogAdminOpen }) {
         };
 
         if (searchQuery.trim()) {
-          // If query looks like ticket or name, search viewer
+          // When the query looks like a ticket or a name, I search by viewer.
           payload.viewer = searchQuery.trim();
         }
         if (actionFilter !== "all") {

@@ -83,8 +83,8 @@ export async function getYearView(db: HolidayDb, year: number): Promise<HolidayY
       else if (type === "RH") rhCount++;
     }
 
-    // EVERYTHING a seed or a clear would overwrite is in the version: date, name, type, categories, note, and the RH quota
-    // values (it covered only date/name/type and the number of quota rows, so an edit of a note or a quota went unnoticed).
+    // I put EVERYTHING a seed or a clear would overwrite into the version: date, name, type, categories, note, and the RH quota
+    // values (the first version covered only date/name/type and the number of quota rows, so an edit of a note or a quota went unnoticed).
     const fingerprint = rows
       .map((r) => `${r.d}:${r.name}:${r.holidayType}:${r.categories ?? ""}:${r.note ?? ""}`)
       .join("|");
@@ -135,7 +135,7 @@ export async function listAvailableYears(db: HolidayDb): Promise<number[]> {
 // -----------------------------------------------------------------------------
 
 function extractPureJsonText(raw: string): string {
-  // Strip only what is never meant to be there: the BOM, zero-width characters and control characters (tab, CR and LF are
+  // I strip only what is never meant to be there: the BOM, zero-width characters and control characters (tab, CR and LF are
   // kept). The first version removed EVERY non-ASCII character, silently changing Hindi/Bengali holiday names and
   // turning an en dash or curly quote in a policy note into a missing character.
   let clean = raw.replace(/^\uFEFF/, "").trim();
@@ -248,7 +248,7 @@ export async function seedYear(
     return { status: "invalid", reason: "The uploaded file contains no valid holiday entries." };
   }
 
-  // Infer year from first holiday if not explicitly stated in payload
+  // If the payload does not state the year, I infer it from the first holiday.
   const inferredYear = parsed.year ?? parsed.holidays[0].date.year;
   const targetYear = input.expectedYear ?? inferredYear;
 
@@ -262,7 +262,7 @@ export async function seedYear(
     };
   }
 
-  // Every entry must be for the year being seeded and have a valid type: a file without a "year" field, with 2025 dates,
+  // Every entry must be for the year being seeded and have a valid type. Without this check, a file without a "year" field, with 2025 dates,
   // uploaded while 2026 is selected, used to be stored as 2026; and a lower-case type ("ch") failed in the database as a 500.
   for (const h of parsed.holidays) {
     h.type = String(h.type).toUpperCase() as "CH" | "FH" | "RH";
@@ -279,7 +279,7 @@ export async function seedYear(
     }
   }
 
-  // The policy-note embeddings are made BEFORE the lock and the transaction: the network is never waited for while the
+  // I make the policy-note embeddings BEFORE the lock and the transaction: I never wait for the network while the
   // tool's global write lock is held, and if any embedding fails nothing at all has been touched (the first version
   // swallowed the failure and left the year's policy chunks deleted or half rewritten, with status "ok").
   const reclassifications: ReclassificationInput[] = parsed.holidays
@@ -312,7 +312,7 @@ export async function seedYear(
         return { status: "stale", current: guarded.current, last: guarded.last };
       }
 
-      // 1. Ensure master records exist for each holiday name
+      // Step 1: I make sure master records exist for each holiday name.
       const masterIds = new Map<string, number>();
       for (const h of parsed.holidays) {
         if (masterIds.has(h.title)) continue;
@@ -331,10 +331,10 @@ export async function seedYear(
         }
       }
 
-      // 2. Clear existing holiday instances for this year
+      // Step 2: I clear the existing holiday instances for this year.
       await q(`DELETE FROM public.holidayyear WHERE year = $1`, [targetYear]);
 
-      // 3. Insert fresh holidayyear rows
+      // Step 3: I insert fresh holidayyear rows.
       for (const h of parsed.holidays) {
         const masterId = masterIds.get(h.title)!;
         await q(
@@ -344,7 +344,7 @@ export async function seedYear(
         );
       }
 
-      // 4. RH quota: replaced only when the file states one (a file without rhQuota keeps the year's existing quota, as the
+      // Step 4, RH quota: I replace it only when the file states one (a file without rhQuota keeps the year's existing quota, as the
       //    original upload did; the rewrite had started wiping it).
       if (parsed.rhQuota.length > 0) {
         await q(`DELETE FROM public.holiday_rh_quota WHERE year = $1`, [targetYear]);
@@ -356,7 +356,7 @@ export async function seedYear(
         }
       }
 
-      // 5. Policy chunks for search: replaced inside this same transaction (embeddings were made above).
+      // Step 5, policy chunks for search: I replace them inside this same transaction (the embeddings were made above).
       const chunksWritten = await writePolicyChunkRows(q, targetYear, chunkRows);
 
       // 6. Record Audit
@@ -409,7 +409,7 @@ export async function clearYear(
     return await db.run(async (q) => {
       const role = await begin(q, "holiday", actor);
 
-      // not optional (see seedYear): no version, or a forged one, is stale
+      // Not optional here either (see seedYear): no version, or a forged one, counts as stale.
       const guarded = await guardRecord(q, "holiday", year, {
         sent: sentVersion,
         load: async () => {

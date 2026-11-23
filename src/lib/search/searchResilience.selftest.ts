@@ -12,11 +12,11 @@ const check = (label: string, ok: boolean, detail = "") => {
   }
 };
 const quiet = { delayMs: 1, log: () => undefined };
-const timeoutErr = () => new Error("timeout exceeded when trying to connect"); // the exact message from your terminal
+const timeoutErr = () => new Error("timeout exceeded when trying to connect"); // the exact message from my terminal
 const hit = (id: number) => ({ id });
 
 (async () => {
-  // 1. the case from your screen: the connection times out once, then the database answers
+  // 1. The case from my screen: the connection times out once, then the database answers
   {
     let tries = 0;
     let fallbackCalls = 0;
@@ -27,30 +27,30 @@ const hit = (id: number) => ({ id });
     );
     check("one connection timeout, then success: the FULL answer is returned (not the title fallback)", r.uniqueResults[0]?.id === 49 && r.isFallback === false && tries === 2 && fallbackCalls === 0, JSON.stringify([r, tries, fallbackCalls]));
   }
-  // 2. two timeouts, then success
+  // 2. Two timeouts, then success
   {
     let tries = 0;
     const r = await hybridWithFallback(async () => { if (++tries < 3) throw timeoutErr(); return { uniqueResults: [hit(1)], isFallback: false }; }, async () => [], quiet);
     check("two timeouts, then success on the third try", r.uniqueResults.length === 1 && tries === 3);
   }
-  // 3. no failure: untouched
+  // 3. No failure: the result passes through untouched
   {
     let fallbackCalls = 0;
     const r = await hybridWithFallback(async () => ({ uniqueResults: [hit(7)], isFallback: false }), async () => { fallbackCalls++; return [hit(9)]; }, quiet);
     check("no failure: the hybrid answer is returned and the fallback is never called", r.uniqueResults[0].id === 7 && fallbackCalls === 0 && !r.isFallback);
   }
-  // 4. a result that is legitimately empty is NOT an error
+  // 4. I do not treat a legitimately empty result as an error
   {
     const r = await hybridWithFallback(async () => ({ uniqueResults: [], isFallback: false }), async () => [hit(9)], quiet);
     check("a hybrid search that finds nothing is a normal empty answer, not a failure (no exception)", r.uniqueResults.length === 0 && !r.isFallback);
   }
-  // 5. every try times out, but the title search finds something: shown as a degraded answer
+  // 5. Every try times out, but the title search finds something: I show it as a degraded answer
   {
     let tries = 0;
     const r = await hybridWithFallback(async () => { tries++; throw timeoutErr(); }, async () => [hit(49)], quiet);
     check("all 3 tries time out but the title search finds a circular: it is shown, marked as a fallback", tries === 3 && r.isFallback && r.uniqueResults[0].id === 49);
   }
-  // 6. THE HONESTY FIX: failed + nothing found must NOT look like 'no results'
+  // 6. The honesty fix: a failure with nothing found must NOT look like 'no results'
   {
     let tries = 0;
     let err: unknown;
@@ -59,7 +59,7 @@ const hit = (id: number) => ({ id });
     check("its message is plain English for the reader and does not show the technical error", /database connection timed out/.test((err as Error).message) && !/pg-pool|ECONN|at Timeout/.test((err as Error).message));
     check("the original error is kept for the logs", ((err as { cause?: Error }).cause as Error)?.message === "timeout exceeded when trying to connect");
   }
-  // 7. a real (non-connection) error is not retried, and is reported as a search-service problem
+  // 7. A real (non-connection) error is not retried; I report it as a search-service problem
   {
     let tries = 0;
     let err: unknown;
@@ -68,7 +68,7 @@ const hit = (id: number) => ({ id });
     const r = await hybridWithFallback(async () => { throw new Error("bad SQL"); }, async () => [hit(3)], quiet);
     check("a real error with a useful title fallback: the fallback is shown, as before", r.isFallback && r.uniqueResults[0].id === 3);
   }
-  // 8. other transient messages are retried too
+  // 8. Other transient messages are retried too
   {
     for (const m of ["Connection terminated unexpectedly", "Cannot use a pool after calling end on the pool", "connection timeout"]) {
       let tries = 0;
@@ -76,13 +76,13 @@ const hit = (id: number) => ({ id });
       check(`'${m}' is retried and recovers`, tries === 2);
     }
   }
-  // 9. a failing fallback is not swallowed
+  // 9. I do not swallow a failing fallback
   {
     let err: unknown;
     await hybridWithFallback(async () => { throw timeoutErr(); }, async () => { throw new Error("title search failed too"); }, quiet).catch((e) => { err = e; });
     check("if the title fallback itself throws, that error comes out (never a silent empty answer)", (err as Error)?.message === "title search failed too");
   }
-  // 10. the failure is logged for the developer
+  // 10. The failure is logged for the developer
   {
     const logged: string[] = [];
     await hybridWithFallback(async () => { throw timeoutErr(); }, async () => [hit(1)], { delayMs: 1, log: (m) => logged.push(m) });

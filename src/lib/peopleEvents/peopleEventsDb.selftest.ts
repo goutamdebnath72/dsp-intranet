@@ -1,7 +1,7 @@
 // Run (from the project root; needs a scratch Postgres):
 //   NL2SQL_TEST_ADMIN_URL=postgres://postgres:pw@127.0.0.1:5432/postgres npx tsx --tsconfig tsconfig.json src/lib/peopleEvents/peopleEventsDb.selftest.ts
-// Step 65a: the migration sql/14 (the columns, the age rules, the placeholder dates) and the lists query, on a real database.
-// The tables are the project's own test stand-ins (99_local_test_standins.sql) and the REAL views of the AI search (01); the roster is 6500 INVENTED employees (800 executives, 5700 non-executives).
+// Step 65a: this tests the migration sql/14 (the columns, the age rules, the placeholder dates) and the lists query, on a real database.
+// I use the project's own test stand-ins (99_local_test_standins.sql) as the tables and the REAL views of the AI search (01); the roster is 6500 INVENTED employees (800 executives, 5700 non-executives).
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -22,7 +22,7 @@ const ok = (name: string, cond: boolean, extra = "") => {
 };
 const SQL_DIR = join(process.cwd(), "src/lib/nl2sql/sql");
 const DB = "people_events_selftest";
-const N = 6500; // about the real number of employees
+const N = 6500; // close to the real number of employees
 
 async function main() {
   const a = new Pool({ connectionString: adminUrl, max: 1 });
@@ -32,17 +32,17 @@ async function main() {
   const pool = new Pool({ connectionString: adminUrl!.replace(/\/[^/]*$/, `/${DB}`), max: 4 });
   const q = async (sql: string, params?: unknown[]) => (await pool.query(sql, params as never[])).rows;
 
-  // the project's own stand-in tables and the real views of the AI search
+  // I load the project's own stand-in tables and the real views of the AI search
   await pool.query(readFileSync(join(SQL_DIR, "99_local_test_standins.sql"), "utf8"));
   await pool.query(readFileSync(join(SQL_DIR, "01_nlq_schema_views_role.sql"), "utf8"));
   await pool.query(`INSERT INTO public.designation_grade (id, code, title, track, rank_order) VALUES
       (1,1,'Chief General Manager','exec',1),(2,2,'General Manager','exec',2),(3,3,'Dy. General Manager','exec',3),(4,4,'Asst. General Manager','exec',4),(5,5,'Sr. Manager','exec',5),
       (6,6,'Manager','exec',6),(7,7,'Dy. Manager','exec',7),(8,8,'Asst. Manager','exec',8),(9,9,'Management Trainee','exec',9),(10,10,'Medical Officer','medical',10),(20,20,'Operative','nonexec',20),(22,22,'SOT','nonexec',25)`);
   await pool.query(`INSERT INTO public.sail_department (id, code, name) VALUES (1,1,'C & IT'),(2,2,'Finance & A/C'),(3,3,'Maintenance'),(4,4,'Public Relations'),(5,5,'Logistics')`);
-  // the stand-in user table has no photo column; the real one has (the User entity: `image`)
+  // The stand-in user table has no photo column, so I add one; the real one has it (the User entity: `image`)
   await pool.query(`ALTER TABLE public."user" ADD COLUMN image varchar`);
   await pool.query(`INSERT INTO public."user" (id, name, "ticketNo") VALUES ('u-photo','P','500001')`);
-  // 800 executives (a promotee second digit 0 to 8; a direct recruit, second digit 9, is 1 in 7 and EVERY Management Trainee: the last 80 executives hold that designation), the rest non-executives; the most senior have the lowest rank
+  // I make 800 executives (a promotee second digit 0 to 8; a direct recruit, second digit 9, is 1 in 7 and EVERY Management Trainee: the last 80 executives hold that designation), the rest non-executives; the most senior have the lowest rank
   await pool.query(`INSERT INTO public.employee_roster (ticket_no, name, designation_grade_id, sail_department_id, cohort, within_grade_position, global_seniority_rank, user_id)
       SELECT CASE WHEN i <= 800 THEN '4' || (CASE WHEN i % 7 = 0 OR i > 720 THEN 9 ELSE i % 9 END)::text || lpad(i::text, 4, '0') ELSE (1 + i % 3)::text || lpad(i::text, 5, '0') END,
              'EMPLOYEE ' || i,
@@ -51,9 +51,9 @@ async function main() {
              CASE WHEN i <= 800 THEN 'executive' ELSE 'nonexecutive' END,
              i, i, CASE WHEN i = 801 THEN 'u-photo' ELSE NULL END
         FROM generate_series(1, ${N}) AS i`);
-  // about forty doctors among the executives (designation grade 10, track medical: not direct recruits of the 49 series)
+  // I make about forty of the executives doctors (designation grade 10, track medical: not direct recruits of the 49 series)
   await pool.query(`UPDATE public.employee_roster SET designation_grade_id = 10 WHERE id BETWEEN 301 AND 340 AND ticket_no !~ '^49'`);
-  // forty non-executives in training (SOT): they must be treated like the Management Trainees
+  // forty non-executives in training (SOT); my rule is that they are treated like the Management Trainees
   await pool.query(`UPDATE public.employee_roster SET designation_grade_id = 22 WHERE id BETWEEN 2000 AND 2039`);
 
   // ---- the migration ----
@@ -85,7 +85,7 @@ async function main() {
   ok("JOINING AGE, non-executives: never below 18 and never above 32 (the ceiling of an advertisement)", nonexecs.every((r) => joinAge(r) >= 18 - 1e-9 && joinAge(r) <= 32 + 0.01), `${Math.min(...nonexecs.map(joinAge)).toFixed(2)}..${Math.max(...nonexecs.map(joinAge)).toFixed(2)}`);
   ok("JOINING AGE, promoted executives (they joined as non-executives): between 18 and 32 as well", promotees.length > 500 && promotees.every((r) => joinAge(r) >= 18 - 1e-9 && joinAge(r) <= 32 + 0.01));
   ok("JOINING AGE, direct-recruit executives (49xxxx): between 23 and 32", mt.length > 150 && mt.every((r) => joinAge(r) >= 23 - 1e-9 && joinAge(r) <= 32 + 0.01), `${Math.min(...mt.map(joinAge)).toFixed(2)}..${Math.max(...mt.map(joinAge)).toFixed(2)}`);
-  // "few at 18, not all": among the employees old enough to have had the whole range open, the joining ages are spread evenly
+  // "few at 18, not all": I check that among the employees old enough to have had the whole range open, the joining ages are spread evenly
   const full = nonexecs.filter((r) => ageNow(r) >= 40);
   const bins = new Map<number, number>();
   for (const r of full) bins.set(Math.floor(joinAge(r)), (bins.get(Math.floor(joinAge(r))) ?? 0) + 1);
@@ -155,7 +155,7 @@ async function main() {
   const before3 = new Map(snapshot.filter((r) => [nonexec.id, mtRow.id, promotee.id].includes(r.id)).map((r) => [r.id, `${r.dob}|${r.doj}`]));
   const regenerated = await q(`SELECT id, date_of_birth::text AS dob, date_of_joining::text AS doj FROM public.employee_roster WHERE id IN ($1,$2,$3)`, [nonexec.id, mtRow.id, promotee.id]);
   ok("a placeholder is a function of the ticket: three rows emptied and refilled come back with dates that satisfy the rules (the same ticket gives the same numbers to the hash)", regenerated.every((r) => r.dob && r.doj) && regenerated.length === 3 && before3.size === 3);
-  // determinism: empty ALL placeholders, rerun, compare with the first run's values
+  // Determinism check: I empty ALL placeholders, rerun, and compare with the first run's values
   const firstRun2 = new Map(after.filter((r) => r.dates_source === "synthetic").map((r) => [r.id, `${r.dob}|${r.doj}`]));
   await pool.query(`UPDATE public.employee_roster SET date_of_birth = NULL, date_of_joining = NULL, dates_source = NULL WHERE dates_source = 'synthetic'`);
   await pool.query(migration);

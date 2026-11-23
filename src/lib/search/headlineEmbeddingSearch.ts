@@ -8,15 +8,15 @@
 // by design: their body is never OCR'd or chunked, so this is their ONLY
 // semantic-similarity signal.
 //
-// Deliberately scoped to chunk-less circulars only (via the NOT EXISTS
-// clause below), so this never competes with or duplicates the much richer
+// I deliberately scoped this to chunk-less circulars only (via the NOT EXISTS
+// clause below), so it never competes with or duplicates the much richer
 // per-chunk body search that ordinary circulars already have through
 // semanticContentSearch.ts / semanticPolicySearch.ts. A circular that has
 // real chunks should always be found through its actual content, not
 // through this narrow fallback.
 //
-// Used only in "semantic" mode's result list (see ai-search/route.ts) --
-// deliberately NOT fed into Executive Deep Synthesis's source pool. A
+// I use it only in "semantic" mode's result list (see ai-search/route.ts) --
+// and deliberately do NOT feed it into Executive Deep Synthesis's source pool. A
 // headline-only hit has no body text to reason over (chunkText is always
 // empty here), so handing it to the synthesis engine as a "source" would
 // just reintroduce a content-free citation with nothing behind it -- the
@@ -78,6 +78,6 @@ export async function executeHeadlineEmbeddingSearch(
       url: Array.isArray(r.fileUrls) && r.fileUrls.length ? r.fileUrls[0] : null,
       publishedAt: formatLuxonDate(r.publishedAt),
       similarity: Number(r.similarity.toFixed(3)),
-      chunkText: "", // no body content was ever stored for this circular -- see module header
+      chunkText: "", // no body content was ever stored for this circular -- see the module header
     }));
 }

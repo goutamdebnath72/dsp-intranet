@@ -1,5 +1,5 @@
 // Run (from the project root):  npx tsx --tsconfig tsconfig.selftest.json src/components/facility/NonExecutive.selftest.tsx
-// Step 69c: the two shared parts of "authorising a non-executive": the red question with a tick and a cross, and the amber chip / row look.
+// Step 69c: this checks the two shared parts of "authorising a non-executive": the red question with a tick and a cross, and the amber chip / row look.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

@@ -1,7 +1,7 @@
 // src/app/api/cron/error-digest/route.ts
 //
-// GET /api/cron/error-digest   run once a day by Vercel's scheduler (vercel.json "crons"): cleans the error log and sends the developer ONE notice of what is new (src/lib/errorLog/digest.ts).
-// Vercel sends "Authorization: Bearer <CRON_SECRET>" when the project has an environment variable CRON_SECRET; anything else is refused. WITHOUT that variable the route does nothing at all (it fails closed).
+// GET /api/cron/error-digest   run once a day by Vercel's scheduler (vercel.json "crons"): it cleans the error log and sends the developer ONE notice of what is new (src/lib/errorLog/digest.ts).
+// Vercel sends "Authorization: Bearer <CRON_SECRET>" when the project has an environment variable CRON_SECRET; I refuse anything else. WITHOUT that variable the route does nothing at all (it fails closed).
 
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";

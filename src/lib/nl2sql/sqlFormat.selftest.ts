@@ -1,5 +1,5 @@
 // src/lib/nl2sql/sqlFormat.selftest.ts
-// Run:  npx tsx src/lib/nl2sql/sqlFormat.selftest.ts      (pure text: no database, no network)
+// To run it:  npx tsx src/lib/nl2sql/sqlFormat.selftest.ts      (pure text: no database, no network)
 import { formatSqlForDisplay } from "./sqlFormat";
 
 let pass = 0;

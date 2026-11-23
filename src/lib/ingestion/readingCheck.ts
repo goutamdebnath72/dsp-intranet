@@ -1,11 +1,11 @@
 /**
  * The reading check: two independent readings of one page (the OCR pipeline's and a second reader's) compared on what matters most, the
- * numbers. Two readers that fail in different ways seldom make the same mistake, so a number both have is confirmed, and a number only one
- * has is a reason to look at the page. It also catches two failures a score never shows: letters from a script that does not belong in the
+ * numbers. Two readers that fail in different ways seldom make the same mistake, so I treat a number both have as confirmed, and a number only one
+ * has as a reason to look at the page. The check also catches two failures a score never shows: letters from a script that does not belong in the
  * text (a model wrote Cyrillic "М" and "И" inside a Latin name), and a second reading that stopped early (a model that began repeating
  * blank table rows and never reached the end of the page, or a reply cut off at the length limit).
  *
- * Pure functions, no database and no model: what is stored and shown is decided by the callers.
+ * Pure functions, no database and no model: the callers decide what is stored and shown.
  */
 import { STOPPED_MARKER } from "./pageReader";
 
@@ -14,7 +14,7 @@ export type CheckStatus =
   | "agreed"
   /** at least one number is in only one of the readings, or a letter from a wrong script was found */
   | "differences"
-  /** the second reading stopped early, so a number only the first reading has is NOT held against it: it is simply not covered */
+  /** the second reading stopped early, so I do NOT hold against the first a number only the first reading has: it is simply not covered */
   | "partial"
   /** the second reading is empty or far too short to compare */
   | "second_unusable";
@@ -33,10 +33,10 @@ export interface PageCheck {
   onlyFirst: string[];
   /** important numbers only the second reading has: the first may have missed them (or the second invented them) */
   onlySecond: string[];
-  /** small plain numbers (under 4 digits, no separator) that only one reading has: counted, but they do not raise the status (they are mostly page furniture and junk from garbled lines) */
+  /** small plain numbers (under 4 digits, no separator) that only one reading has: I count them, but they do not raise the status, since they are mostly page furniture and junk from garbled lines */
   minorOnlyFirst: string[];
   minorOnlySecond: string[];
-  /** numbers inside [handwritten: ...] in the readings (only a model can read them): they can CONFIRM a number of the other reading, but are never flagged on their own */
+  /** numbers inside [handwritten: ...] in the readings (only a model can read them): they can CONFIRM a number of the other reading, but I never flag them on their own */
   handwritten: string[];
   oddScripts: OddScript[];
   /** why the second reading cannot be fully used, if so */
@@ -46,21 +46,21 @@ export interface PageCheck {
 const DEVANAGARI_DIGITS = /[\u0966-\u096F]/g;
 const BENGALI_DIGITS = /[\u09E6-\u09EF]/g;
 
-/** Devanagari and Bengali digits written as the digits 0-9. */
+/** Writes the Devanagari and Bengali digits as the digits 0-9. */
 export function asciiDigits(s: string): string {
   return s
     .replace(DEVANAGARI_DIGITS, (c) => String(c.charCodeAt(0) - 0x0966))
     .replace(BENGALI_DIGITS, (c) => String(c.charCodeAt(0) - 0x09e6));
 }
 
-/** A dash between digits written as an en dash, an em dash, a minus sign or a spaced hyphen is the same separator as a plain hyphen: "(2026 - 2027)" and "(2026\u20132027)" are "(2026-2027)". */
+/** I treat a dash between digits, written as an en dash, an em dash, a minus sign or a spaced hyphen, as the same separator as a plain hyphen: "(2026 - 2027)" and "(2026\u20132027)" are "(2026-2027)". */
 export function dashesBetweenDigits(s: string): string {
   return s.replace(/(\d)\s*[\u2010-\u2015\u2212]\s*(?=\d)/g, "$1-").replace(/(\d)\s+-\s+(?=\d)/g, "$1-");
 }
 
 /**
- * The numbers of a text, each in one canonical form: no thousands commas, and the separators of dates, times and references all written as ".",
- * so 20-08-2026, 20.08.2026 and 20/08/2026 are one number. A lone digit (list numbers, "(i)") is not a number worth comparing.
+ * Gives the numbers of a text, each in one canonical form: no thousands commas, and the separators of dates, times and references all written as ".",
+ * so 20-08-2026, 20.08.2026 and 20/08/2026 are one number. I do not count a lone digit (list numbers, "(i)") as a number worth comparing.
  */
 export function numbersOf(text: string, withHandwritten = false): Set<string> {
   const out = new Set<string>();
@@ -73,7 +73,7 @@ export function numbersOf(text: string, withHandwritten = false): Set<string> {
 
 const HANDWRITTEN = /\[handwritten:[^\]]*\]/gi;
 
-/** The text without what is not part of the page: the pipeline's own "col11:" labels and the [handwritten: ...] spans. */
+/** Returns the text without what is not part of the page: the pipeline's own "col11:" labels and the [handwritten: ...] spans. */
 function withoutNoise(text: string, keepHandwritten = false): string {
   return (keepHandwritten ? text : text.replace(HANDWRITTEN, " ")).replace(/\bcol\d+:/gi, " ");
 }
@@ -85,12 +85,12 @@ export function handwrittenNumbers(text: string): string[] {
   return [...out];
 }
 
-/** An important number: four digits or more, or one with a separator (a date, an amount with decimals, a phone or reference number). */
+/** An important number is one with four digits or more, or one with a separator (a date, an amount with decimals, a phone or reference number). */
 export function isMajor(n: string): boolean {
   return n.replace(/\D/g, "").length >= 4 || n.includes(".");
 }
 
-/** The words around the first place where a number (in its canonical form) stands in a text, for a human to judge it. null if it is not there. */
+/** Gives the words around the first place where a number (in its canonical form) stands in a text, so a human can judge it. null if it is not there. */
 export function numberContext(text: string, canon: string, radius = 36): string | null {
   const t = dashesBetweenDigits(asciiDigits(text));
   for (const m of t.matchAll(/\d[\d,]*(?:[./:-]\d[\d,]*)*/g)) {
@@ -103,7 +103,7 @@ export function numberContext(text: string, canon: string, radius = 36): string 
 
 const UNEXPECTED = /[\p{Script=Cyrillic}\p{Script=Greek}\p{Script=Arabic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Hebrew}\p{Script=Thai}]+/gu;
 
-/** Letters from a script that does not belong in these circulars (Latin, Devanagari and Bengali do), with where they stand. */
+/** Finds letters from a script that does not belong in these circulars (Latin, Devanagari and Bengali do), with where they stand. */
 export function oddScriptsIn(text: string, reader: "first" | "second"): OddScript[] {
   const out: OddScript[] = [];
   for (const m of text.matchAll(UNEXPECTED)) {
@@ -114,7 +114,7 @@ export function oddScriptsIn(text: string, reader: "first" | "second"): OddScrip
   return out;
 }
 
-/** A second reading shorter than this share of the first cannot be compared in any useful way. */
+/** I cannot compare a second reading shorter than this share of the first in any useful way. */
 export const MIN_LENGTH_SHARE = 0.15;
 
 export function checkReadings(first: string, second: string): PageCheck {

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/security/sensitiveFields.selftest.ts
-// The ticket number and the SAIL P.No. leave the server masked (see sensitiveFields.ts): cards for everybody, tables as described there, nothing else touched, the original untouched.
+// I want the ticket number and the SAIL P.No. to leave the server masked (see sensitiveFields.ts): cards for everybody, tables as described there, nothing else touched, the original untouched.
 import { cardForClient, maskAnswer, maskTicket } from "./sensitiveFields";
 
 let pass = 0, fail = 0;

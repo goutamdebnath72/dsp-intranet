@@ -1,13 +1,13 @@
 // src/lib/search/documentText.ts
 //
-// All stored passages (chunks) of the candidate circulars, for lexical scoring.
+// Here I load all stored passages (chunks) of the candidate circulars, for lexical scoring.
 //
 // The search engines return ONE chunk per circular: the chunk closest in MEANING. That is often
 // not the passage that carries the distinctive words of the question. For "volleyball
 // championship at Alloy Steels Plant" the best chunk of the right circular was its header, so
 // the circular looked like a weak match. Here every passage of the circular is available, and
-// bestPassage() picks the one that covers the most (rarity-weighted) query words. Scoring the
-// WHOLE text instead would let long circulars match most words by chance; the best single
+// bestPassage() picks the one that covers the most (rarity-weighted) query words. I do not score the
+// WHOLE text, because long circulars would then match most words by chance; the best single
 // passage keeps the evidence local, as a real answer is.
 //
 // Passages are cached for 10 minutes (bounded). On any database error the caller falls back to
@@ -52,15 +52,15 @@ export async function loadDocumentChunks(ds: DataSource, ids: number[]): Promise
         for (const [k] of oldest) docCache.delete(k);
       }
     } catch {
-      /* fall back to the single chunk */
+      /* on a failure, fall back to the single chunk */
     }
   }
   return out;
 }
 
 /**
- * The passage (headline + one chunk) that covers the most query weight.
- * `passages` are lower-cased; ties keep the earliest passage. Without weights every word counts 1.
+ * Returns the passage (headline + one chunk) that covers the most query weight.
+ * `passages` are lower-cased; on a tie I keep the earliest passage. Without weights every word counts 1.
  */
 export function bestPassage(
   queryTokens: string[],

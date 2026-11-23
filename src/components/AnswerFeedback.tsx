@@ -2,7 +2,7 @@
 
 // src/components/AnswerFeedback.tsx
 //
-// The omnibar's universal "Was this what you were looking for?" with a thumbs-up / thumbs-down, shown under EVERY answer: a
+// The omnibar's universal "Was this what you were looking for?" with a thumbs-up / thumbs-down. I show it under EVERY answer: a
 // model-written answer, a verified answer, a holiday answer, an old-engine answer, circular results, or "no
 // results". It is the entry point of the learning loop:
 //   Yes -> recorded; for model answers the question + SQL becomes a worked example, and enough different
@@ -11,7 +11,7 @@
 //          from that reason (documents instead of an employee answer, an employee reading instead of
 //          documents, or a different reading by the model told what was rejected and why). After 3 attempts it
 //          stops and keeps the case for review.
-// Only an explicit click counts; nothing is inferred from behaviour.
+// Only an explicit click counts: I infer nothing from behaviour.
 //
 // Robustness (the page only shows this to SIGNED-IN people; the server enforces it too):
 //   * Undo      -- after a Yes or a "Just send feedback" the person can take the vote back.
@@ -71,7 +71,7 @@ async function post(body: Record<string, unknown>): Promise<PostResult | null> {
     }
     return { ...(j || {}), status: res.status };
   } catch {
-    return null; // best effort: a network hiccup is never shown to the person
+    return null; // I do this best effort: a network hiccup is never shown to the person
   }
 }
 
@@ -83,7 +83,7 @@ interface Props {
   /** 1 for the first answer, 2 for the second attempt ... */
   attempt: number;
   onRetry: (r: { reason: ReasonCode; note: string; logId: number | null }) => void;
-  /** A verified answer: no Yes/No, only a way to report it wrong. */
+  /** For a verified answer I show no Yes/No, only a way to report it wrong. */
   reportOnly?: boolean;
 }
 
@@ -96,7 +96,7 @@ export function AnswerFeedback({ query, source, nl2sqlLogId, userKey, attempt, o
   const canRetry = attempt < MAX_ATTEMPTS;
   const base = { query, source, nl2sqlLogId, userKey, attempt };
 
-  // a new answer starts unanswered
+  // I start a new answer as unanswered
   useEffect(() => {
     setPhase("ask");
     setReason(null);
@@ -105,7 +105,7 @@ export function AnswerFeedback({ query, source, nl2sqlLogId, userKey, attempt, o
     setErrorText("");
   }, [query, source, nl2sqlLogId, attempt]);
 
-  // Sends a vote. The server may refuse it (not signed in, or too many votes this hour): say so plainly.
+  // Sends a vote. The server may refuse it (not signed in, or too many votes this hour), and I say so plainly.
   const sendVote = (body: Record<string, unknown>) => {
     void post(body).then((r) => {
       if (r && (r.status === 401 || r.status === 429)) {
@@ -127,7 +127,7 @@ export function AnswerFeedback({ query, source, nl2sqlLogId, userKey, attempt, o
     if (retry && canRetry && !reportOnly) onRetry({ reason, note: note.trim(), logId: nl2sqlLogId });
     else setPhase("sent");
   };
-  // Takes back the person's own vote (the server removes it, and it stops counting).
+  // Takes back the person's own vote; the server removes it and it stops counting.
   const undo = () => {
     const id = voteId;
     setPhase("ask");

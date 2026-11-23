@@ -1,7 +1,7 @@
 // src/components/AccessLogAdminUi.tsx
 //
 // Presentational UI for Contact Access Log Facility (Modular Facility Kit).
-// Matches the visual language of the Employee Manager, PAX Directory Editor,
+// I match the visual language of the Employee Manager, PAX Directory Editor,
 // Holiday Manager, Circular Manager, and Announcement Manager.
 
 import React from "react";
@@ -193,7 +193,7 @@ export function StatsCard({
   );
 }
 
-/** how each logged field is drawn: the mobile number, the e-mail, the SAIL P.No., the ticket number, and (for a copy) the whole record */
+/** I draw each logged field with its own badge: the mobile number, the e-mail, the SAIL P.No., the ticket number, and (for a copy) the whole record. */
 const FIELD_BADGE: Record<string, { label: string; icon: React.ElementType; cls: string }> = {
   mobile: { label: "Mobile", icon: Phone, cls: "border border-emerald-200 bg-emerald-50 text-emerald-700" },
   email: { label: "Email", icon: Mail, cls: "border border-amber-200 bg-amber-50 text-amber-700" },

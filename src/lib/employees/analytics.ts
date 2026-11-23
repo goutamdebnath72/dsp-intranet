@@ -1,15 +1,11 @@
 // src/lib/employees/analytics.ts
 //
-// Deterministic employee analytics. Every number comes from the DB via
-// parameterized SQL -- never from AI.
+// Deterministic employee analytics. My rule: every number comes from the DB via parameterized SQL, never from AI.
 //
-// STAGE 8 OVERHAUL (28 Sep 2026): the people-layer below is entirely
-// rebuilt on `employee_roster`/`designation_grade`/`sail_department`
-// (rosterQuery.ts / designationGrades.ts / sailDepartments.ts). The old
-// queryPeople()/countByTerm()/etc that queried public."user" directly and
-// sorted by parsed ticket number are gone -- every list here is
-// `ORDER BY global_seniority_rank`, no exceptions. The holiday section below
-// (Stage 2, untouched) is unaffected by this and unchanged.
+// Stage 8 overhaul (28 Sep 2026): I rebuilt the people layer below entirely on `employee_roster`/`designation_grade`/`sail_department`
+// (rosterQuery.ts / designationGrades.ts / sailDepartments.ts). The old queryPeople()/countByTerm()/etc that queried public."user" directly and
+// sorted by parsed ticket number are gone. Every list here is `ORDER BY global_seniority_rank`, no exceptions.
+// The holiday section below (Stage 2) is untouched and unaffected by this.
 
 import { DateTime } from "luxon";
 import { compareTotalSentence, compareTypeSentence } from "./compareSentence";
@@ -26,8 +22,7 @@ import { coveredByDetails, unansweredNotice } from "@/lib/holidays/compound";
 import { buildHolidayDetails, labelWithCategories, notesSuffix, type HolidayDetail } from "@/lib/holidays/format";
 
 // ============================================================================
-// Headcount / list helpers -- thin wrappers over rosterQuery for the cases
-// answerAnalytics needs directly.
+// Headcount / list helpers. I keep these as thin wrappers over rosterQuery for the cases answerAnalytics needs directly.
 // ============================================================================
 
 export async function totalHeadcount(): Promise<number> {
@@ -76,7 +71,7 @@ export async function designationBreakdown(): Promise<BreakdownRow[]> {
   return buildBreakdown();
 }
 
-/** Designation-wise breakdown scoped to a set of sail_department ids. */
+/** I scope this designation-wise breakdown to a set of sail_department ids. */
 export async function deptBreakdown(deptIds: number[]): Promise<BreakdownRow[]> {
   if (!deptIds.length) return [];
   return buildBreakdown(deptIds);
@@ -90,54 +85,58 @@ export interface AnalyticsPayload {
   rows?: BreakdownRow[];
   people?: EmployeeResult[];
   listTruncated?: boolean;
-  /** Stage 2: holiday rows for a holiday list query (rendered like People). */
+  /** Stage 2: the holiday rows for a holiday list query; I render them the same way as People. */
   holidays?: HolidayRow[];
-  /** Structured year comparison; the screen draws a card from it (HolidayCompareCard). `answer` still carries the
-   *  same facts as plain text. Mirrors AnalyticsAnswer.holidayCompare in src/hooks/useOmniSearch.ts. */
+  /**
+   * Structured year comparison: the screen draws a card from it (HolidayCompareCard), and I keep `answer` carrying the
+   * same facts as plain text. Mirrors AnalyticsAnswer.holidayCompare in src/hooks/useOmniSearch.ts.
+   */
   holidayCompare?: HolidayCompareView;
-  /** Structured layout for "when is X" / "is this date a holiday" answers; the screen draws a card from it
-   *  instead of one long sentence. `answer` still carries the same facts as plain text. */
+  /**
+   * Structured layout for "when is X" / "is this date a holiday" answers. The screen draws a card from it
+   * instead of one long sentence, and `answer` still carries the same facts as plain text.
+   */
   holidayDetails?: HolidayDetail[];
-  /** One-line lead shown above the holiday card, e.g. "Yes — 23 October 2025 is a holiday." */
+  /** The one-line lead I show above the holiday card, e.g. "Yes — 23 October 2025 is a holiday." */
   lead?: string;
-  /** Set when the question had a second part that was not answered ("Not answered: ..."). */
+  /** Set when the question had a second part that I did not answer ("Not answered: ..."). */
   notice?: string;
-  /** A clarifying question about a department word with more than one meaning (step 49a): the screen draws checkboxes from it. One definition for the server and the screen. */
+  /** A clarifying question about a department word with more than one meaning (step 49a): the screen draws checkboxes from it. I keep one definition for the server and the screen. */
   ask?: import("@/lib/nl2sql/departmentAsk").DepartmentAsk;
-  /** A hospital OPD answer (step 51a), drawn as a card by HospitalAnswerCard. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  /** A hospital OPD answer (step 51a), drawn as a card by HospitalAnswerCard. I use the same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   hospital?: import("@/lib/hospital/types").HospitalAnswer;
-  /** The employee manager was asked for by someone who may use it (step 66a): drawn as a panel by EmployeeAdminPanel. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  /** Set when someone who may use the employee manager asked for it (step 66a): EmployeeAdminPanel draws it as a panel. Same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   employeeAdmin?: import("@/lib/employees/admin/types").EmployeeAdminOpen;
-  /** The PAX directory editor was asked for by someone who may use it (step 64a): drawn as a panel by PaxAdminPanel. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  /** Set when someone who may use the PAX directory editor asked for it (step 64a): PaxAdminPanel draws it as a panel. Same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   paxAdmin?: import("@/lib/pax/admin/types").PaxAdminOpen;
-  /** The Holiday Manager was asked for by someone who may use it: drawn as a panel by HolidayAdminPanel. */
+  /** Set when someone who may use the Holiday Manager asked for it: HolidayAdminPanel draws it as a panel. */
   holidayAdmin?: import("@/lib/holidays/admin/types").HolidayAdminOpen;
-  /** The Circular Manager was asked for by someone who may use it: drawn as a panel by CircularAdminPanel. */
+  /** Set when someone who may use the Circular Manager asked for it: CircularAdminPanel draws it as a panel. */
   circularAdmin?: import("@/lib/circulars/admin/types").CircularAdminOpen;
-  /** The Announcement Manager was asked for by someone who may use it: drawn as a panel by AnnouncementAdminPanel. */
+  /** Set when someone who may use the Announcement Manager asked for it: AnnouncementAdminPanel draws it as a panel. */
   announcementAdmin?: import("@/lib/announcements/admin/types").AnnouncementAdminOpen;
-  /** The Contact Access Log was asked for by someone who may use it: drawn as a panel by AccessLogAdminPanel. */
+  /** Set when someone who may use the Contact Access Log asked for it: AccessLogAdminPanel draws it as a panel. */
   accessLogAdmin?: import("@/lib/accessLog/admin/types").AccessLogAdminOpen;
-  /** The management page (the titles of the management tools this person may open): drawn by ManagementHubPanel. */
+  /** The management page, meaning the titles of the management tools this person may open; ManagementHubPanel draws it. */
   managementHub?: import("@/lib/facility/hub").ManagementHubOpen;
-  /** The management page was asked for by someone who may not have it: the card that asks him to sign in, or tells him he is not authorised (ManagementGatePanel). */
+  /** Set when someone who may not have the management page asked for it. I show the card that asks him to sign in, or tells him he is not authorised (ManagementGatePanel). */
   managementGate?: import("@/lib/facility/hub").ManagementGate;
-  /** The ONE clean answer, shown first, big and bold (step 61a): a Yes or No (holiday verdicts), the date asked for, the department asked for. The same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
+  /** I show the ONE clean answer first, big and bold (step 61a): a Yes or No (holiday verdicts), the date asked for, the department asked for. Same type in AnalyticsPayload (backend) and AnalyticsAnswer (frontend). */
   headline?: import("@/lib/ui/answerHeadline").AnswerHeadline;
   typeBreakdown?: { type: string; label: string; count: number }[];
   rawEntryCount?: number;
   rhQuotaByCategory?: { category: string; quota: number }[];
   categoryLabels?: Record<string, string>;
   /**
-   * Added 29 Sep 2026 for the hybrid LLM router's feedback loop (see
-   * queryOrchestrator.ts / patternCache.ts): present ONLY when this answer
+   * Added 29 Sep 2026 for the feedback loop of my hybrid LLM router (see
+   * queryOrchestrator.ts / patternCache.ts). It is present ONLY when this answer
    * came from a fresh LLM classification that generalized to a new,
    * not-yet-trusted pattern. The frontend should show a tick/cross on any
    * payload carrying this id, and call the pattern-feedback endpoint with
-   * it on an explicit click. Nothing is inferred from behaviour -- no click,
-   * no signal. Absent for every
-   * other answer (deterministic parser, or an already-confirmed cache hit)
-   * -- those never need feedback UI at all.
+   * it on an explicit click. I infer nothing from behaviour: no click,
+   * no signal. It is absent for every
+   * other answer (deterministic parser, or an already-confirmed cache hit),
+   * and those never need feedback UI at all.
    */
   pendingPatternId?: number;
   /**
@@ -145,16 +144,16 @@ export interface AnalyticsPayload {
    * query was understood (e.g. `Name has the word "kumar" and "kumar" is not
    * the first word ...`). Present only on answers that came from the LLM
    * tier or a learned-pattern hit, never on deterministic-parser answers.
-   * The verifier proves rows match the interpreted condition; this line lets
-   * the person check the condition itself matches what they meant.
+   * The verifier proves the rows match the interpreted condition; this line lets
+   * the person check that the condition itself matches what they meant.
    */
   interpretation?: string;
 }
 
 /**
- * Original public entry point: parse a raw query with the deterministic
- * regex/pattern parser, then execute it. Kept exactly as before for any
- * existing caller -- this is now also the FALLBACK path the new LLM
+ * The original public entry point: it parses a raw query with the deterministic
+ * regex/pattern parser, then executes it. I kept it exactly as before for any
+ * existing caller. It is now also the FALLBACK path that the new LLM
  * orchestrator (queryOrchestrator.ts) calls when LLM classification fails
  * or declines to handle a query.
  */
@@ -166,24 +165,24 @@ export async function answerAnalytics(q: string): Promise<AnalyticsPayload | nul
 
 /**
  * Execute an already-parsed intent and produce the final display payload.
- * Split out from answerAnalytics() on 29 Sep 2026 so the new LLM-based
+ * I split this out of answerAnalytics() on 29 Sep 2026 so that the new LLM-based
  * intent orchestrator (queryOrchestrator.ts) can supply its OWN grounded
- * intent directly, without going through the regex/pattern parser at all --
- * that parser (parseAnalytics, below) is now the FALLBACK path only, used
+ * intent directly, without going through the regex/pattern parser at all.
+ * That parser (parseAnalytics, below) is now the FALLBACK path only, used
  * when the LLM classification fails or is low-confidence. Every existing
  * intent kind and its formatting is unchanged.
  *
- * Return type stays NULLABLE (not a plain AnalyticsPayload): a weak,
- * unquoted peopleByName search that finds nothing signals null on purpose,
- * meaning "let the caller fall through to semantic/circular search" rather
- * than assert "no employees found" -- this must survive the split, not get
- * papered over into a forced non-null return.
+ * The return type stays NULLABLE (not a plain AnalyticsPayload) on purpose: a weak,
+ * unquoted peopleByName search that finds nothing returns null, which
+ * means "let the caller fall through to semantic/circular search" rather
+ * than assert "no employees found". Do not paper this over into a forced non-null return;
+ * it has to survive the split.
  */
 const HOLIDAY_TYPE_LABELS = HOLIDAY_TYPE_LABEL as unknown as Record<string, string>;
 
 export async function runAnalyticsIntent(intent: AnalyticsIntent): Promise<AnalyticsPayload | null> {
   const payload = await runAnalyticsIntentCore(intent);
-  // A holiday question can carry a second part the engine does not answer. Say so, unless the card
+  // A holiday question can carry a second part that the engine does not answer. I say so, unless the card
   // already shows what that part asked for (e.g. "which categories" when the chips list the categories).
   const unanswered = "unanswered" in intent ? intent.unanswered : undefined;
   if (!payload || !unanswered || coveredByDetails(unanswered, payload.holidayDetails)) return payload;
@@ -286,8 +285,8 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       const scope = intent.scopeName ? ` in ${intent.scopeName}` : "";
       const noun = res.count === 1 ? "person" : "people";
       // With a predicate tree, quoting one leaf value ("matching \"kumar\"")
-      // misdescribes a compound condition -- the interpretation line shown
-      // under the answer states the real condition.
+      // would misdescribe a compound condition, so I leave it to the interpretation line shown
+      // under the answer to state the real condition.
       const subject = intent.namePredicate ? "the stated condition" : `"${intent.fragment}"`;
       const answer =
         res.count === 0
@@ -325,11 +324,11 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
     }
 
     case "holidayCount": {
-      // Closed holidays apply to EVERY employee category -- holidayyear
+      // Closed holidays apply to EVERY employee category: holidayyear
       // never sets `categories` on a CH row (see queryHolidays' buildWhere
       // comment), so filtering a CH count by category would always
       // silently return 0. That reads as "Category X gets none," which is
-      // the opposite of the truth. Drop the inapplicable filter and say so.
+      // the opposite of the truth. So I drop the inapplicable filter and say so.
       if (intent.type === HolidayType.CH && intent.category) {
         const res = await queryHolidays({ op: "count", filters: { year: intent.year, type: intent.type } });
         if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
@@ -342,9 +341,9 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       }
 
       // Restricted Holiday entitlement per category is a QUOTA fact
-      // (holiday_rh_quota) -- RH rows themselves never carry a category
+      // (holiday_rh_quota). RH rows themselves never carry a category
       // either (same reason as CH above), so a plain row-count filtered by
-      // category would also always silently return 0. Answer from the
+      // category would also always silently return 0. I answer from the
       // real source instead.
       if (intent.type === HolidayType.RH && intent.category) {
         const quotaRes = await queryHolidays({
@@ -372,8 +371,8 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         filters: { year: intent.year, type: intent.type, category: intent.category },
       });
       if (res.yearAvailable === false) return holidayYearNotLoaded(intent.year);
-      // Count each real day once. A day that is both a Festival and a Restricted holiday has two rows but is ONE
-      // holiday; the Holiday List counts it the same way (key: date + name), so the two numbers cannot disagree.
+      // I count each real day once. A day that is both a Festival and a Restricted holiday has two rows but is ONE
+      // holiday, and the Holiday List counts it the same way (key: date + name), so the two numbers cannot disagree.
       const entries = res.holidays ?? [];
       const occasions = new Set(entries.map((r) => `${r.date}|${r.name}`)).size;
       const sharedDays = entries.length - occasions;
@@ -391,9 +390,9 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
 
     case "holidayList": {
       // Same reasoning as holidayCount above: CH applies to every category,
-      // so a category filter on a CH list is dropped and the answer says
+      // so I drop a category filter on a CH list and the answer says
       // so explicitly, instead of "No Closed holidays found ... for
-      // Category A" -- which reads as Category A getting none, when in
+      // Category A". That would read as Category A getting none, when in
       // fact they get every one of them, same as everyone else.
       if (intent.type === HolidayType.CH && intent.category) {
         const res = await queryHolidays({ op: "list", filters: { year: intent.year, type: intent.type, months: intent.months } });
@@ -407,9 +406,9 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       }
 
       // RH per-category entitlement is a QUOTA, not a distinct subset of
-      // the RH list -- every employee picks from the same master list, so
+      // the RH list: every employee picks from the same master list, so
       // "restricted holidays for Category D" has no different list than
-      // the full one. Show the full list plus the real quota fact together,
+      // the full one. I show the full list plus the real quota fact together,
       // rather than a category filter that would always silently be empty.
       if (intent.type === HolidayType.RH && intent.category) {
         const [listRes, quotaRes] = await Promise.all([
@@ -444,12 +443,12 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       const rows = res.holidays ?? [];
 
       // A holiday can carry two type rows for the same real day (the
-      // documented "same holiday, same year" dual FH/RH pattern -- see
-      // holidays/analytics.ts's schema-facts comment). The headline count
-      // should reflect distinct holiday occasions, not raw (date,type)
-      // rows, which double-counts those days -- 13 dual-type days in a
-      // year otherwise inflate "39 holidays" into a misleading "52".
-      // OmnibarModal.tsx's table groups by the same (date + name) key, so
+      // documented "same holiday, same year" dual FH/RH pattern; see
+      // holidays/analytics.ts's schema-facts comment). I make the headline count
+      // reflect distinct holiday occasions, not raw (date,type)
+      // rows, which double-count those days: 13 dual-type days in a
+      // year would otherwise inflate "39 holidays" into a misleading "52".
+      // The table in OmnibarModal.tsx groups by the same (date + name) key, so
       // this number matches what the person can actually count in the
       // table below it.
       const distinctCount = new Set(rows.map((r) => `${r.date}|${r.name}`)).size;
@@ -465,9 +464,9 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         ? `${distinctCount} ${distinctCount === 1 ? label : `${label}s`}${scope}${forCategory}.`
         : `No ${label}s found${scope}${forCategory}.`;
 
-      // Per-type tally, from these SAME filtered rows (so month/category
-      // filters stay consistent with the list itself) -- only meaningful
-      // when no single type was already asked for; a type-filtered list
+      // The per-type tally comes from these SAME filtered rows, so month/category
+      // filters stay consistent with the list itself. It only makes sense
+      // when no single type was already asked for: a type-filtered list
       // only ever has one type, so a breakdown of it would be pointless.
       const typeBreakdown =
         !intent.type && rows.length > 0
@@ -479,18 +478,18 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
           : undefined;
 
       // Per-category RH quota (holiday_rh_quota, a YEAR-level policy fact,
-      // not a per-row one) -- fetched alongside the list so the frontend can
+      // not a per-row one). I fetch it alongside the list so the frontend can
       // show real, complete category information without a second round
-      // trip. This matters specifically because RH categories work
+      // trip. This matters because RH categories work
       // differently from CH/FH: CH applies to every category (no per-row
       // data needed), FH is restricted to whichever categories its own row
-      // names, but RH is a SHARED POOL every category can pick from -- the
+      // names, but RH is a SHARED POOL every category can pick from. The
       // real per-category fact for RH isn't "which categories can use this
       // holiday" (all of them can) but "how many they're allowed to pick,
       // which differs by category." Showing all four categories ticked for
       // an RH row without this quota alongside it would itself be a new,
       // subtler version of the same "technically true but misleading"
-      // problem this whole feature has been fixing.
+      // problem I have been fixing throughout this feature.
       let rhQuotaByCategory: { category: string; quota: number }[] | undefined;
       if (!intent.type && rows.length > 0) {
         const quotaRes = await queryHolidays({ op: "rhQuota", filters: { year: intent.year } });
@@ -532,7 +531,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         filters: { year: intent.yearA, yearB: intent.yearB },
       });
       if (res.yearAvailable === false) {
-        // Say exactly WHICH year has no data, and which years do, instead of "A or B isn't loaded".
+        // I say exactly WHICH year has no data, and which years do, instead of "A or B isn't loaded".
         const years = await availableHolidayYears();
         const missing = [intent.yearA, intent.yearB].filter((y, i, all) => !years.includes(y) && all.indexOf(y) === i);
         const available = years.length ? ` Years available: ${formatYearList(years)}.` : "";
@@ -548,7 +547,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       const c = res.compare!;
       if (intent.type) {
         const row = c.byType.find((t) => t.type === intent.type)!;
-        // Tense follows each year (had / has / will have) and the difference is stated in words
+        // Tense follows each year (had / has / will have) and I state the difference in words
         // ("2 more in 2026"), so the order the person typed the years in cannot make it read wrongly.
         return {
           kind: "count",
@@ -560,7 +559,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         };
       }
       const parts = c.byType.map((t) => `${t.label} ${c.yearA}: ${t.a} vs ${c.yearB}: ${t.b}`);
-      // The totals count each real day once, the per-type numbers count every entry: say why the types add up to more.
+      // The totals count each real day once but the per-type numbers count every entry, so I say why the types add up to more.
       const typeSum = c.byType.reduce((s, t) => s + t.a + t.b, 0);
       const dualNote =
         typeSum > c.totalA + c.totalB
@@ -585,7 +584,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         return holidayYearNotLoaded(firstYear);
       }
       if ((res.holidays?.length ?? 0) === 0 && !yearGiven) {
-        // No hit in the default (current) year -- search any loaded year.
+        // No hit in the default (current) year, so I search any loaded year.
         res = await queryHolidays({ op: "list", filters: { name: intent.name, year: null } });
       }
       const rows = res.holidays ?? [];
@@ -607,7 +606,7 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
         };
       }
       // Several rows (e.g. the same day is a Festival holiday for some categories and a Restricted one for
-      // the rest): show each row with ITS categories, then the explanation once.
+      // the rest): I show each row with ITS categories, then the explanation once.
       const lines = rows.map((r) => {
         const d = DateTime.fromISO(r.date);
         return `${d.toFormat("d LLLL yyyy")} (${labelWithCategories(HOLIDAY_TYPE_LABEL[r.type], r.categories)})`;
@@ -671,10 +670,10 @@ async function runAnalyticsIntentCore(intent: AnalyticsIntent): Promise<Analytic
       return holidayBadQuery(intent.message);
 
     case "holidayNotificationRequest":
-      // Deliberately NOT a data answer, and deliberately NOT routed to circular/semantic search either --
+      // Deliberately NOT a data answer, and deliberately NOT routed to circular/semantic search either:
       // "holiday notification 2025" asks about the standing login reminder (HolidayNotificationToast, the card at
-      // the bottom-right of the screen), not for a one-off lookup. The reminder is built and working, so this
-      // explains how it behaves: what the card offers and where to unsubscribe. Keep the wording in step with
+      // the bottom-right of the screen), not for a one-off lookup. The reminder is built and working, so I explain
+      // how it behaves: what the card offers and where to unsubscribe. Keep the wording in step with
       // the labels in src/components/HolidayNotificationToast.tsx.
       return {
         kind: "pending",

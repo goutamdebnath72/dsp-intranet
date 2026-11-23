@@ -1,10 +1,10 @@
 // src/tools/aicpi/AicpiCard.tsx
 //
-// THE ALL-INDIA CONSUMER PRICE INDEX FOR INDUSTRIAL WORKERS AND THE DEARNESS ALLOWANCE OF SAIL EMPLOYEES WORKED OUT FROM IT. From the top: the latest index and how it moved; the graph of the year (from the same month a year back
+// The All-India Consumer Price Index for Industrial Workers and the Dearness Allowance of SAIL employees worked out from it. From the top: the latest index and how it moved; the graph of the year (from the same month a year back
 // to the latest month, the span of the other one-year charts); the DA of the quarter in force and of the next, three figures; the quarters of the year in a table with the work of each; the formula step by step; a calculator for a
-// basic pay. The DA is the CPSE "IDA pattern" of the 2017 pay scales, revised every three months (src/lib/live/aicpi.ts has the orders it comes from and the test against the announced rates). Everything is worked out here, in
+// basic pay. The DA is the CPSE "IDA pattern" of the 2017 pay scales, revised every three months (src/lib/live/aicpi.ts has the orders it comes from and the test against the announced rates). I work everything out here, in
 // the browser, from the record the server reads from the Labour Bureau; what is typed into the calculator is not sent anywhere.
-// IT SAYS WHAT IS AND IS NOT ESTABLISHED: the formula and the rates are those of the Department of Public Enterprises' orders; that SAIL pays exactly these is from the guidelines its executives are under and its 2021 wage
+// I make the card say what is and is not established: the formula and the rates are those of the Department of Public Enterprises' orders; that SAIL pays exactly these is from the guidelines its executives are under and its 2021 wage
 // agreement (reported), and SAIL's own circular is the authority.
 "use client";
 
@@ -30,7 +30,7 @@ export function indexPoints(pts: IndexPoint[]): TrendPoint[] {
   return pts.map((p) => ({ iso: `${p.month}-01`, label: monthText(p.month), full: monthText(p.month), value: p.value }));
 }
 
-/** the month after the latest published, and the day its index is due (the last day of the month after that: "the index of the previous month is released on the last day of the ongoing month") */
+/** Returns the month after the latest published, and the day its index is due: the last day of the month after that ("the index of the previous month is released on the last day of the ongoing month") */
 export function nextDue(latest: string): { month: string; day: string } {
   const next = DateTime.fromISO(`${latest}-01`, { zone: ZONE }).plus({ months: 1 });
   return { month: monthText(next.toFormat("yyyy-MM")), day: next.plus({ months: 1 }).endOf("month").toFormat("d LLLL yyyy") };

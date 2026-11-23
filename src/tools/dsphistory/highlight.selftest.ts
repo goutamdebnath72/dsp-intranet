@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/dsphistory/highlight.selftest.ts
-// Where the words of a quote are on a PDF page: pieces of a line, a raised "th", curly quotes, a sentence over two lines, a quote that is not there, two places, and the part of a piece the quote covers.
+// I test here where the words of a quote are on a PDF page: pieces of a line, a raised "th", curly quotes, a sentence over two lines, a quote that is not there, two places, and the part of a piece the quote covers.
 import { findQuote, multiply, pieceOf, plain, type Piece } from "./highlight";
 
 let pass = 0, fail = 0;

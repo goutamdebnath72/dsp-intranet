@@ -1,7 +1,7 @@
 // src/tools/bh/BhCard.tsx
 //
-// "HOW TO READ A BH MARK": the mark is typed (or arrives from the search line) and each part is explained: the year, BH, the number and the letters. Under the reading, the literature
-// (BhGuide.tsx). Computed in the browser from src/tools/bh/bh.ts; nothing typed is stored or sent.
+// "How to read a BH mark": the mark is typed (or arrives from the search line) and I explain each part: the year, BH, the number and the letters. Under the reading comes the literature
+// (BhGuide.tsx). It is computed in the browser from src/tools/bh/bh.ts; nothing typed is stored or sent.
 "use client";
 
 import React, { useState } from "react";
@@ -11,7 +11,7 @@ import { BH_SAMPLES, readBh, type BhPart } from "./bh";
 import { inputCls } from "@/components/tools/toolAtoms";
 import { BhGuide } from "./BhGuide";
 
-/** one colour for each part, on the plate and in the list */
+/** I give each part one colour, on the plate and in the list. */
 const PART_STYLE: Record<BhPart["id"], { bar: string; chip: string }> = {
   year: { bar: "bg-sky-500", chip: "bg-sky-100 text-sky-800" },
   series: { bar: "bg-emerald-500", chip: "bg-emerald-100 text-emerald-800" },
@@ -40,7 +40,7 @@ export function BhCard({ start }: { start: string }) {
           <motion.div key="read" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
             <div className="mt-4 flex justify-center rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 px-3 py-6 shadow-inner" aria-label="The number, part by part">
               <div className="rounded-xl border-[3px] border-slate-900 bg-white px-4 pb-2 pt-3 shadow-xl">
-                {/* each part is one column: its characters, its bar and its label, so the label is always centred under its own bar, whatever the width of the characters */}
+                {/* Each part is one column: its characters, its bar and its label, so the label is always centred under its own bar, whatever the width of the characters. */}
                 <div className="flex items-start justify-center gap-3 sm:gap-5">
                   {r.parts.map((p) => (
                     <div key={p.id} className="flex flex-col items-stretch">

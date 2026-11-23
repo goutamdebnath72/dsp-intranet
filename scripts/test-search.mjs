@@ -1,8 +1,8 @@
 // scripts/test-search.mjs
 //
-// Regression test for the Smart Semantic circular search.
-// Runs a fixed set of validated queries against the LIVE endpoint and checks
-// that each still behaves as it did when we verified it by hand.
+// This is the regression test for the Smart Semantic circular search.
+// It runs a fixed set of validated queries against the LIVE endpoint and checks
+// that each still behaves as it did when I verified it by hand.
 //
 // PREREQUISITE: the dev server must be running in another terminal:
 //     npm run dev
@@ -19,14 +19,14 @@
 // WHAT IT REPORTS (soft, informational only — never fails the run):
 //   - the rank at which the expected headline was found
 //
-// Rank is soft on purpose: near-identical circulars (and OCR ties) can reorder
+// I made rank soft on purpose: near-identical circulars (and OCR ties) can reorder
 // harmlessly, and a flaky test gets ignored. Presence is the real signal.
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 const MODE = "semantic";
 
-// --- The validated query set. Grouped as in our manual test plan. ---
-// mark known-OCR-failures with expectEmpty:true — if a future re-OCR FIXES one,
+// --- The validated query set. Grouped as in my manual test plan. ---
+// I mark known-OCR-failures with expectEmpty:true: if a future re-OCR FIXES one,
 // this test will (correctly) flag it so you update the expectation.
 const CASES = [
   // Group A — quoted whole-word (the shipped feature)
@@ -40,7 +40,7 @@ const CASES = [
 
   // Group C — Indic quoted (substring path)
   { group: "C", q: '"ওল্ড প্ল্যান্ট পার্সোনেল বিল্ডিং"', expectHeadline: "Merit Award Scheme" },
-  // Devanagari spelling of a Bengali-only address -> legitimately empty
+  // The Devanagari spelling of a Bengali-only address is legitimately empty.
   { group: "C", q: '"ओल्ड प्लान्ट पार्सोनेल बिल्डिंग"',  expectEmpty: true },
 
   // Group D — cross-lingual / conversational regression (unquoted)
@@ -50,7 +50,7 @@ const CASES = [
 
   // Group E — OCR-recovery checks.
   // Bare 20995.30 now resolves after the dual-pass PSM-3 OCR fix recovered the
-  // wage-table value. The QUOTED "Rs. 20995.30" stays empty on purpose: "Rs."
+  // wage-table value. I keep the QUOTED "Rs. 20995.30" empty on purpose: "Rs."
   // is a column header and "20995.30" a separate cell, so that exact contiguous
   // phrase does not exist in the document. The quoted Telugu list stays empty
   // (OCR still drops those specific Indic tokens in that table).
@@ -63,7 +63,7 @@ function url(q) {
   return `${BASE_URL}/api/ai-search?q=${encodeURIComponent(q)}&mode=${MODE}`;
 }
 
-// The endpoint returns either an array (semantic) or {results:[...]}. Normalize.
+// The endpoint returns either an array (semantic) or {results:[...]}; I normalize both.
 function extractResults(data) {
   if (Array.isArray(data)) return data;
   if (data && Array.isArray(data.results)) return data.results;

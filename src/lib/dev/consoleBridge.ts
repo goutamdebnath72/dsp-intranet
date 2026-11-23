@@ -1,18 +1,18 @@
 // src/lib/dev/consoleBridge.ts
 //
-// THE BROWSER'S CONSOLE, IN A FILE (the owner, 22 Nov 2026). While the app runs in DEVELOPMENT, everything the page writes to the browser's console (log, info, warn, error, debug), every uncaught error, every
+// THE BROWSER'S CONSOLE, IN A FILE (my request, 22 Nov 2026). While the app runs in DEVELOPMENT, everything the page writes to the browser's console (log, info, warn, error, debug), every uncaught error, every
 // unhandled promise rejection and every picture or script that fails to load is sent to the server, which appends it to `.browser-console.log` in the project folder: the same idea as `.dev-server.log` for the terminal,
-// so the whole picture (terminal AND browser) can be read from two files. The file is started afresh whenever the dev server starts (npm run dev:log empties it; the route empties it at its first write too).
-// NOTHING OF THIS EXISTS IN PRODUCTION: the layout does not add the script, and the route answers 404.
+// so I can read the whole picture (terminal AND browser) from two files. The file is started afresh whenever the dev server starts (npm run dev:log empties it; the route empties it at its first write too).
+// Nothing of this exists in production: the layout does not add the script, and the route answers 404.
 //
-// The script is plain text that the root layout puts in <head> (so it is running BEFORE React hydrates: a hydration error is written during hydration, a script that waits for a component would miss it).
-// It keeps its own copy of the page's `console` methods and calls them first, so the browser's console looks exactly as before. Only Next's "[Fast Refresh]" and "[HMR]" lines are left out of the file (reload chatter).
+// The script is plain text that the root layout puts in <head>, so it is running BEFORE React hydrates: a hydration error is written during hydration, and a script that waits for a component would miss it.
+// It keeps its own copy of the page's `console` methods and calls them first, so the browser's console looks exactly as before. I leave only Next's "[Fast Refresh]" and "[HMR]" lines (reload chatter) out of the file.
 
 import { DateTime } from "luxon";
 
 export const CONSOLE_BRIDGE_URL = "/api/dev/console";
 
-/** the script that goes into <head> (development only) */
+/** This is the script that goes into <head> (development only). */
 export const CONSOLE_BRIDGE_SCRIPT = `(function(){
   if (window.__dspConsoleBridge) return; window.__dspConsoleBridge = true;
   var URL_ = ${JSON.stringify(CONSOLE_BRIDGE_URL)}, MAX_MSG = 4000, BATCH_CHARS = 30000;
@@ -90,10 +90,10 @@ const LEVELS = new Set(["log", "info", "warn", "error", "debug"]);
 export const MAX_ENTRIES_PER_REQUEST = 200;
 export const MAX_MESSAGE_CHARS = 4000;
 export const MAX_BODY_CHARS = 250_000;
-/** the file is started afresh when it grows past this (about 5 MB) */
+/** I start the file afresh when it grows past this (about 5 MB). */
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
-/** the entries of a request body, checked and cut to size; anything that is not an entry is dropped */
+/** I take the entries of a request body, check them and cut them to size; anything that is not an entry is dropped. */
 export function cleanEntries(body: unknown): ConsoleEntry[] {
   const raw = body && typeof body === "object" ? (body as { entries?: unknown }).entries : null;
   if (!Array.isArray(raw)) return [];
@@ -107,7 +107,7 @@ export function cleanEntries(body: unknown): ConsoleEntry[] {
   return out;
 }
 
-/** one line per entry: the time, the level, the page, then the message (a message of several lines keeps its lines, indented, so the next entry is easy to find) */
+/** I write one line per entry: the time, the level, the page, then the message. A message of several lines keeps its lines, indented, so the next entry is easy to find. */
 export function formatEntries(entries: ConsoleEntry[]): string {
   return entries
     .map((e) => {

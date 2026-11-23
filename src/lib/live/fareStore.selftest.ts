@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/fareStore.selftest.ts
-// The saved fares: the table is made once, a train's fares are written and read back with the time they were received, a row that is not the shape written is not shown, and database trouble never breaks a card.
+// Checks the saved fares: the table is made once, a train's fares are written and read back with the time they were received, a row that is not the shape written is not shown, and database trouble never breaks a card.
 import { DateTime } from "luxon";
 import { FARE_TABLE_STATEMENTS, fareFromRow, typeormFareStore } from "./fareStore";
 import type { FareSet } from "./fare";
@@ -9,7 +9,7 @@ const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++;
 
 const SET: FareSet = { train: "12019", trainName: "Howrah - Ranchi Shatabdi Express", from: "DGR", to: "RNC", journeyDate: "2026-11-16", distanceKm: 268, classes: [{ code: "CC", name: "Chair car", total: 1005, parts: [{ label: "Basic fare", amount: 425 }] }, { code: "EC", name: "Executive chair car", total: 1505, parts: [{ label: "Basic fare", amount: 931 }] }] };
 
-/** a tiny stand-in for the database: it understands the five statements the store sends */
+/** I wrote a tiny stand-in for the database; it understands the five statements the store sends. */
 function fakeDb(opts: { tableExists?: boolean; failCreate?: boolean; failRead?: boolean } = {}) {
   const log: string[] = [];
   const rows = new Map<string, any>();
@@ -44,7 +44,7 @@ function fakeDb(opts: { tableExists?: boolean; failCreate?: boolean; failRead?: 
   ok("a table that exists is not made again", !db2.log.some((l) => /CREATE TABLE/.test(l)));
   ok("the table statements close it to the public roles (row-level security on, rights revoked from anon and authenticated)", FARE_TABLE_STATEMENTS.some((s) => /ROW LEVEL SECURITY/.test(s)) && FARE_TABLE_STATEMENTS.some((s) => /REVOKE ALL ON public\.train_fare FROM anon, authenticated/.test(s)));
 
-  // trouble never breaks a card
+  // database trouble must never break a card
   const warn = console.warn; console.warn = () => undefined;
   const bad = typeormFareStore(fakeDb({ failCreate: true }));
   ok("if the table cannot be made, get says 'nothing saved' and put does nothing, without an error", (await bad.get("12019")) === null && (await bad.put(SET, DateTime.now().toJSDate())) === undefined);
@@ -55,7 +55,7 @@ function fakeDb(opts: { tableExists?: boolean; failCreate?: boolean; failRead?: 
   const good = { train_number: "12019", train_name: "x", to_code: "RNC", journey_date: "2026-11-16", distance_km: "268", classes: JSON.stringify(SET.classes), fetched_at: "2026-11-14T05:40:00Z" };
   ok("a row is read (classes as text or as data; distance as text or number)", fareFromRow(good)?.set.distanceKm === 268 && fareFromRow({ ...good, classes: SET.classes })?.set.classes.length === 2);
   ok("a row with a broken time, a broken class, a wrong number or day, or no classes list is not shown", fareFromRow({ ...good, fetched_at: "garbage" }) === null && fareFromRow({ ...good, classes: [{ code: "CC" }] }) === null && fareFromRow({ ...good, train_number: "12" }) === null && fareFromRow({ ...good, journey_date: "16/11/2026" }) === null && fareFromRow({ ...good, classes: "null" }) === null && fareFromRow({ ...good, distance_km: "abc" }) === null);
-  // the Asansol tab's trains have their own table, so nothing of Durgapur's is touched
+  // I gave the Asansol tab's trains their own table, so nothing of Durgapur's is touched.
 ok("the Asansol store writes and reads its own table (train_fare_asn), makes it by itself, and its rows say they are from ASN; Durgapur's table is untouched", await (async () => {
   const log: string[] = [];
   const rows = new Map<string, any>();

@@ -34,7 +34,7 @@ function fakeDb(o: { tableExists?: boolean; failCreate?: boolean; failRead?: boo
 void (async () => {
 const warn = console.warn; console.warn = () => undefined;
 
-// the table is made once, then quotes go in and come back, newer replacing older
+// The table is made once, then quotes go in and come back, newer replacing older.
 {
   const db = fakeDb(); const st = typeormMarketStore(db);
   await st.put([quote("^BSESN", 100), quote("SAIL.NS", 120)], Date.parse("2026-11-13T10:30:00Z"));
@@ -43,19 +43,19 @@ const warn = console.warn; console.warn = () => undefined;
   ok("the table is created once; two symbols are kept and a newer quote replaces the older of its symbol", db.log.filter((l) => l.startsWith("CREATE TABLE")).length === 1 && all.size === 2 && all.get("^BSESN")?.quote.price === 105 && all.get("^BSESN")?.at === Date.parse("2026-11-13T11:00:00Z") && all.get("SAIL.NS")?.quote.price === 120);
   ok("the quotes of one write travel in ONE statement", db.log.filter((l) => l.startsWith("INSERT")).length === 2);
 }
-// an existing table is not made again; nothing to write does not touch the database
+// An existing table is not made again, and having nothing to write does not touch the database.
 {
   const db = fakeDb({ tableExists: true }); const st = typeormMarketStore(db);
   await st.put([], Date.now()); await st.all();
   ok("an existing table is left alone and an empty write asks nothing", !db.log.some((l) => l.startsWith("CREATE")) && !db.log.some((l) => l.startsWith("INSERT")));
 }
-// a row that is not the shape written is dropped
+// A row that is not the shape written is dropped.
 {
   const good = { symbol: "A", quote: JSON.stringify(quote("A")), fetched_at: "2026-11-13T10:30:00Z" };
   ok("a good row is read back (the quote as text or as an object)", savedFromRow(good)?.quote.price === 100 && savedFromRow({ ...good, quote: quote("A") })?.at === Date.parse("2026-11-13T10:30:00Z"));
   ok("rows of the wrong shape are dropped, never shown", [null, {}, { ...good, symbol: "B" }, { ...good, quote: "not json" }, { ...good, quote: JSON.stringify({ ...quote("A"), price: -1 }) }, { ...good, quote: JSON.stringify({ ...quote("A"), spark: ["x"] }) }, { ...good, fetched_at: "never" }, { ...good, quote: JSON.stringify({ ...quote("A"), high: "x" }) }].every((r) => savedFromRow(r) === null));
 }
-// trouble never breaks the card
+// I check that database trouble never breaks the card.
 {
   const a = typeormMarketStore(fakeDb({ failCreate: true }));
   await a.put([quote("A")], Date.now());

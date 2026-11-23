@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/EdsExamples.selftest.tsx </dev/null
-// The shelf of proven questions under Executive Deep Search: every proven question is on it once, each reaches EDS as typed, each is a link that runs when pressed, and the window shows it only to an executive who has asked nothing yet.
+// Checks the shelf of proven questions under Executive Deep Search: I want every proven question on it once, each reaching EDS as typed, each a link that runs when pressed, and the window showing it only to an executive who has asked nothing yet.
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -14,19 +14,19 @@ const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++;
 const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;"); // how React writes text into HTML
 const items = edsShelfQuestions();
 const ids = items.map((i) => i.id);
-ok("every question of the guide is on the shelf, exactly once, and the shelf adds A-C3 (plain words, verified on screen) and H01-H08 (the 'hidden' type, tried on 23 Nov 2026)", TEST_QUERIES.every((t) => ids.filter((i) => i === t.id).length === 1) && ids.length === TEST_QUERIES.length + 1 + 8 && ["A-C3", "H01", "H02", "H03", "H04", "H05", "H06", "H07", "H08"].every((i) => ids.includes(i)) && new Set(ids).size === ids.length, ids.join());
+ok("every question of the guide is on the shelf, exactly once, and the shelf adds A-C3 (plain words, verified on screen) H01-H08 (the 'hidden' type) and N01-N06 (six more, all tried on 23 Nov 2026)", TEST_QUERIES.every((t) => ids.filter((i) => i === t.id).length === 1) && ids.length === TEST_QUERIES.length + 1 + 8 + 6 && ["A-C3", "H01", "H02", "H03", "H04", "H05", "H06", "H07", "H08", "N01", "N02", "N03", "N04", "N05", "N06"].every((i) => ids.includes(i)) && new Set(ids).size === ids.length, ids.join());
 ok("the shelf holds the guide's questions word for word (one source)", TEST_QUERIES.every((t) => items.find((i) => i.id === t.id)?.q === t.q));
 const notDeep = items.filter((i) => !detectSynthesisIntent(i.q).synthesis);
 ok("every question reaches Executive Deep Search as typed (the real detector says synthesis)", notDeep.length === 0, notDeep.map((i) => i.id).join());
 ok("the shelf has the FOUR TYPES of the keywords, in the same order and under the same titles (hidden, action words, what changed, stage by stage)", edsShelf().map((g) => g.id).join() === KEYWORD_GROUPS.map((k) => k.id).join() && edsShelf().every((g, i) => g.title === KEYWORD_GROUPS[i].title && g.blurb.length > 10));
 const typeOf = (id: string) => edsShelf().find((g) => g.items.some((i) => i.id === id))?.id;
-ok("every question is filed under exactly one type; 32 questions in all", items.every((i) => edsShelf().filter((g) => g.items.some((x) => x.id === i.id)).length === 1) && items.length === 32);
+ok("every question is filed under exactly one type; 38 questions in all", items.every((i) => edsShelf().filter((g) => g.items.some((x) => x.id === i.id)).length === 1) && items.length === 38);
 ok("every type has questions (the 'hidden' type has eight), none shows a template, and the guide's wording is untouched", edsShelf().every((g) => g.items.length > 0 && !g.templates) && edsShelf()[0].items.length === 8);
 const HID = /\b(correlat\w+|hidden|overlooked|inconsisten\w+|contradict\w*|discrepanc\w+|implications?|insights?|anomal\w+|big picture)\b/i;
 const hiddenBad = edsShelf()[0].items.filter((i) => !HID.test(i.q) || detectSynthesisIntent(i.q).score < 5);
 ok("each 'hidden' question is built on a word of the 'enough on their own' list and reaches EDS on that word alone (5 points or more from discovery language)", hiddenBad.length === 0 && edsShelf()[0].items.every((i) => detectSynthesisIntent(i.q).reasons.some((r) => /discovery language/.test(r))), hiddenBad.map((i) => i.id).join());
 ok("each 'hidden' question says what it found when tried, in the shelf's own note", edsShelf()[0].items.every((i) => /^Found when tried:/.test(i.note ?? "")));
-const rest = items.filter((i) => !i.id.startsWith("H")); // the "hidden" questions are filed first: their word carries the question alone
+const rest = items.filter((i) => !i.id.startsWith("H")); // I file the "hidden" questions first: their word carries the question alone
 ok("a question that contains a keyword stands under that keyword's type (hidden words > stage-by-stage words > what-changed words > action words)", rest.filter((i) => /\bat each stage|for each level|for every category|grade-wise/i.test(i.q)).every((i) => typeOf(i.id) === "stages") && rest.filter((i) => /\b(differ\w*|change between|first announced|corrected to|corrigendum changed|it changes)\b/i.test(i.q)).every((i) => typeOf(i.id) === "versions") && rest.filter((i) => /\b(compare|compare[sd]?)\b/i.test(i.q) && !/\b(differ\w*|at each stage)\b/i.test(i.q) && !/(corrigendum|amendment)/i.test(i.q) && !/football/i.test(i.q) === true).every((i) => ["verbs", "versions"].includes(typeOf(i.id) ?? "")));
 ok("every question says what it teaches and which circulars it reads", items.every((i) => i.kind.length > 2 && i.needs.length > 10));
 ok("the honesty test (E23) says so in plain words and reads 'nothing', not the project's test note; no developer note (scored / panel / went to the normal search) reaches a reader", /do not state/.test(items.find((i) => i.id === "E23")?.note ?? "") && /^nothing/.test(items.find((i) => i.id === "E23")?.needs ?? "") && items.every((i) => !/scored|panel|went to the normal search/i.test(`${i.note ?? ""} ${i.needs}`)));

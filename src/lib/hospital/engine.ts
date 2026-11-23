@@ -1,15 +1,15 @@
 // src/lib/hospital/engine.ts
 //
-// The hospital route (step 51a): questions about the OPD answered from the hospital data, deterministically and without a model call.
-// It runs right after the holiday parser in the omnibar. When a question is not clearly about the hospital OPD it returns null and the other routes go on.
+// The hospital route (step 51a): I answer questions about the OPD from the hospital data, deterministically and without a model call.
+// It runs right after the holiday parser in the omnibar. When a question is not clearly about the hospital OPD I return null and let the other routes go on.
 //
-// Understood today (more is added with the data):
+// What it understands today (I add more together with the data):
 //   - is the OPD open today / tomorrow / on a weekday / on a date (and why not)        - which days a doctor sits in the OPD, and whether he sits on a date
 //   - who is in a department's OPD on a weekday / date                                  - a unit (OPD number, or "unit 2" of a department) with its days and head
 //   - a department's OPD at a glance                                                    - the head of a unit and the HOD of a department
 //   - OPD and token timings                                                             - the days the OPD is closed
-// The HOD and the unit heads: by the usual rule at the hospital the first-named doctor of a unit is its head, and one of the unit heads is the HOD (set in the data when known).
-// The hospital's lists are out of date, so a doctor who has retired or is not on the current doctor list is MARKED, never silently shown as sitting.
+// For the HOD and the unit heads I follow the usual rule at the hospital: the first-named doctor of a unit is its head, and one of the unit heads is the HOD (set in the data when known).
+// The hospital's lists are out of date, so I MARK a doctor who has retired or is not on the current doctor list and never show him silently as sitting.
 
 import { DateTime } from "luxon";
 import { opdClosure, type Closure, type HolidaysOn } from "./closure";
@@ -30,7 +30,7 @@ export interface EngineCtx {
 
 // ---------------------------------------------------------------- wording
 
-// When the answer is "no OPD" the person still needs somewhere to go: point to the Emergency Department (wording and hours from the data file).
+// When the answer is "no OPD" the person still needs somewhere to go, so I point to the Emergency Department (wording and hours from the data file).
 const EM = SCHEDULE.emergency;
 const URGENT = EM ? `For urgent medical attention, you can consult the ${EM.name}, which remains open ${EM.hours}.` : undefined;
 const UNIT_RULE = SCHEDULE.unitRule ?? "A patient is seen only by the unit of his or her first visit.";
@@ -39,7 +39,7 @@ const URGENT_SOFT = EM ? `If the OPD turns out to be closed, you can consult the
 export const nice = (s: string) =>
   s.replace(/\.(?=[A-Za-z])/g, ". ").trim().split(/\s+/).map((w) => (w.includes(".") || w.length <= 1 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())).join(" ");
 const flag = (p: Person) => (p.status === "retired" ? " (retired)" : p.status === "transferred" ? " (transferred)" : p.status === "not_on_list" ? " (not on the current doctor list)" : "");
-/** A department's name as the hospital writes it (MOPD, ENT, OHS & PMU, Gynae & Obs ...), not title-cased into "Mopd". */
+/** I write a department's name as the hospital writes it (MOPD, ENT, OHS & PMU, Gynae & Obs ...), not title-cased into "Mopd". */
 const deptLabel = (dep: string): string => SCHEDULE.departments.find((d) => d.staffDepartment.toUpperCase() === dep.toUpperCase())?.name ?? (["OHS & PMU", "ENT", "MOPD"].includes(dep.toUpperCase()) ? dep.toUpperCase() : nice(dep).replace(/\bAnd\b/g, "and"));
 const docName = (p: Person) => `Dr. ${nice(p.name)}`;
 const docLabel = (p: Person) => docName(p) + flag(p);
@@ -68,7 +68,7 @@ const STATE_TEXT: Record<string, string> = {
   NO_DOCTOR: "No current doctor listed",
 };
 const slotPeople = (s: Slot): Person[] => (s.doctors ?? []).map((id) => PERSON.get(id)).filter((p): p is Person => !!p);
-/** A doctor who has retired or been transferred is not shown in a table of who sits (he or she does not sit any more); one who is only not on the current doctor list is shown, marked. */
+/** I do not show a doctor who has retired or been transferred in a table of who sits, because he or she does not sit any more; one who is only not on the current doctor list is shown, marked. */
 const isGone = (p: Person) => p.status === "retired" || p.status === "transferred";
 const slotShown = (s: Slot): Person[] => slotPeople(s).filter((p) => !isGone(p));
 const NO_CURRENT = "No current doctor listed";
@@ -106,7 +106,7 @@ const closedNowText = (ts: Exclude<TimeState, { state: "open" }>, now: DateTime)
     : ts.state === "between" ? `The OPD is closed at this moment (it is ${t}): it reopens at ${ts.reopensAt}.`
     : `Today's OPD hours are over (it is ${t}).`;
 };
-/** Only a question about today ("today", "now", or no date at all) is judged by the time of day; "on monday" or "on 26 october" is not, even when that day is today. */
+/** I judge only a question about today ("today", "now", or no date at all) by the time of day; "on monday" or "on 26 october" is not judged that way, even when that day is today. */
 const timeApplies = (ref: DateRef | null, date: DateTime, today: DateTime) => date.hasSame(today, "day") && (!ref || ref.kind === "relative");
 
 // ---- when a patient's own unit is not sitting: the unit rule, the general OPD for general care, the Emergency Department for urgent care
@@ -124,14 +124,14 @@ function generalOpdText(day: Weekday | null): string | null {
 function noUnitSuggestion(day: Weekday | null, soft: boolean): string | undefined {
   const g = generalOpdText(day);
   if (!g) return URGENT;
-  // one point per line (the card shows them as bullets)
+  // One point per line: the card shows them as bullets.
   const points = [UNIT_RULE, `For general care: ${g} (general consultation, not specialist treatment).`];
   if (EM) points.push(`For urgent medical attention: the ${EM.name}, open ${EM.hours}.`);
   return `${soft ? "If your unit is not sitting that day:\n" : ""}${points.join("\n")}`;
 }
 
 const noOpdState = (s?: Slot) => !!s && !s.doctors?.length && (s.state === "OT_DAY" || s.state === "CLOSED" || s.state === "UNIT_OFF");
-/** True when none of these units holds an OPD on any of these days (OT day or closed), so the person should be pointed to the Emergency Department. */
+/** True when none of these units holds an OPD on any of these days (OT day or closed); in that case I point the person to the Emergency Department. */
 const allNoOpd = (units: Unit[], days: Weekday[]) => units.length > 0 && days.length > 0 && units.every((u) => days.every((d) => noOpdState(u.week[d])));
 const noCurrentDoctor = (s: Slot) => !!s.doctors?.length && !slotPeople(s).some((p) => isCurrent(p));
 
@@ -144,10 +144,10 @@ const SPELL: [RegExp, string][] = [
 const spell = (t: string) => SPELL.reduce((s, [re, to]) => s.replace(re, to), t);
 const INITIAL_PAIRS = new Set(["rr", "ss", "kb", "pp", "ak", "kr", "sk", "dy", "sa"]);
 const tokenize = (s: string): string[] => spell(plain(s)).split(/[^a-z0-9]+/).filter(Boolean).flatMap((t) => (INITIAL_PAIRS.has(t) ? t.split("") : [t]));
-/** One letter wrong, missing or extra in a name of six letters or more ("gosami" for "goswami"). */
+/** Allows one letter wrong, missing or extra in a name of six letters or more ("gosami" for "goswami"). */
 const oneOff = (a: string, b: string): boolean => a.length >= 6 && b.length >= 5 && Math.abs(a.length - b.length) <= 1 && Math.round((1 - sim(a, b)) * Math.max(a.length, b.length)) <= 1;
 const sim = (a: string, b: string) => {
-  // a small edit-distance similarity, enough for spelling variants of a name
+  // I use a small edit-distance similarity here; it is enough for spelling variants of a name.
   const m = a.length, n = b.length;
   if (!m || !n) return 0;
   const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)] as number[]);
@@ -177,7 +177,7 @@ const STOP = new Set(
 );
 
 export const DOCTOR_POOL: Person[] = [...STAFF.people.filter((p) => p.role === "doctor"), ...unlistedAsPeople()];
-/** Doctors whose name fits the name words of the question. More than one = the question is ambiguous. */
+/** Returns the doctors whose name fits the name words of the question. If more than one fits, I treat the question as ambiguous. */
 function findDoctors(words: string[], keep?: Set<string>): Person[] {
   const base = words.filter((w) => (keep?.has(w) ?? false) || (!STOP.has(w) && !/^\d+$/.test(w) && w.length > 1));
   const search = (q: string[]): Person[] => {
@@ -186,7 +186,7 @@ function findDoctors(words: string[], keep?: Set<string>): Person[] {
       return personTokens(p).some((set) => q.every((w) => set.some((t) => t === w || (w.length >= 5 && sim(w, t) >= 0.86) || oneOff(w, t) || (w.length === 1 && t.startsWith(w)))));
     });
     if (hits.length > 1) {
-      // a person whose WHOLE name is in the question beats people who only share a word with it
+      // I let a person whose WHOLE name is in the question beat people who only share a word with it.
       const full = hits.filter((p) => personTokens(p).some((set) => set.every((t) => q.includes(t) || q.some((w) => sim(w, t) >= 0.86))));
       if (full.length === 1) return full;
     }
@@ -194,12 +194,12 @@ function findDoctors(words: string[], keep?: Set<string>): Person[] {
   };
   const first = search(base);
   if (first.length) return first;
-  // "md" and "dm" are degrees (MD, DM) AND abbreviations that belong to names ("Md. Anwar"): tried as a name word first; when no doctor has it, the question named the degree ("is dr rajeev kumar a MD doctor")
+  // "md" and "dm" are degrees (MD, DM) AND abbreviations that belong to names ("Md. Anwar"): I try them as a name word first; when no doctor has it, the question named the degree ("is dr rajeev kumar a MD doctor")
   const withoutDegrees = base.filter((w) => w !== "md" && w !== "dm");
   return withoutDegrees.length < base.length ? search(withoutDegrees) : [];
 }
 
-/** Words that name a department or discipline the OPD schedule has no department for (the staff list does): used only to narrow a doctor's name. */
+/** These are words that name a department or discipline the OPD schedule has no department for (the staff list does); I use them only to narrow a doctor's name. */
 const HINT_WORDS: [string, string][] = [
   ["radiology", "RADIOLOGY"], ["radiologist", "RADIOLOGY"], ["pathology", "PATHOLOGY"], ["pathologist", "PATHOLOGY"], ["biochemistry", "BIOCHEMISTRY"], ["anaesthesia", "ANAESTHESIOLOGY"],
   ["anesthesia", "ANAESTHESIOLOGY"], ["anaesthesiology", "ANAESTHESIOLOGY"], ["anaesthetist", "ANAESTHESIOLOGY"], ["emergency", "EMERGENCY"], ["casualty", "EMERGENCY"], ["blood bank", "BLOOD BANK"],
@@ -211,10 +211,10 @@ const exactDoctor = (kind: string, value: string): Person | undefined => {
   return DOCTOR_POOL.find((p) => (k === "ticket" ? p.ticket === value : k.startsWith("list") ? (p.doctorListId ?? "").toLowerCase() === v : p.id === v));
 };
 const sitsInDept = (p: Person, d: Department) => d.units.some((u) => OPD_DAYS.some((day) => u.week[day]?.doctors?.includes(p.id)));
-/** A hint in the question (a department or discipline, a unit) narrows the doctors a name matches. If the hint fits none of them, the list is kept and the miss is reported. */
+/** A hint in the question (a department or discipline, a unit) narrows the doctors a name matches. If the hint fits none of them, I keep the list and report the miss. */
 function narrowDoctors(cands: Person[], depts: Department[], extra: string[], units: Unit[]): { list: Person[]; miss: string | null } {
   if (!cands.length || (!depts.length && !extra.length && !units.length)) return { list: cands, miss: null };
-  // a unit is stricter than a department: first the members of that unit
+  // A unit is stricter than a department, so I try the members of that unit first.
   if (units.length) {
     const members = cands.filter((p) => units.some((u) => u.members?.includes(p.id)));
     if (members.length) return { list: members, miss: null };
@@ -231,35 +231,35 @@ interface Entities {
   n: string;
   hasOpd: boolean;
   depts: Department[];
-  /** An OPD number is a ROOM; a unit is a group of doctors with exclusive days (departments of kind units). */
+  /** Keep these two apart: an OPD number is a ROOM, while a unit is a group of doctors with exclusive days (departments of kind units). */
   unitRefs: { label: string; unit?: Unit; dept?: Department; roomKey?: string; rooms?: { dept: Department; unit: Unit }[]; notRecorded?: boolean }[];
   weekdays: Weekday[];
   dateRef: DateRef | null;
   doctors: Person[];
-  /** A department or unit named in the question that none of the doctors with that name belongs to ("karmakar of surgery"): the department's name, else null. */
+  /** Set when the question names a department or unit that none of the doctors with that name belongs to ("karmakar of surgery"): then it holds the department's name, else null. */
   hintMiss: string | null;
-  /** Staff departments named by a word the OPD schedule has no department for (radiology, pathology, emergency ...). */
+  /** The staff departments named by a word the OPD schedule has no department for (radiology, pathology, emergency ...). */
   extraDepts: string[];
-  /** The words of the question that are neither a department, a date nor a question word: the name the person typed, if any. */
+  /** The words of the question that are neither a department, a date nor a question word: these are the name the person typed, if any. */
   leftover: string[];
 }
 
 const ALIASES = SCHEDULE.departments.flatMap((d) => d.aliases.map((a) => ({ alias: a, dept: d }))).sort((a, b) => b.alias.length - a.alias.length);
 const ALL_UNITS = SCHEDULE.departments.flatMap((d) => d.units.map((u) => ({ dept: d, unit: u })));
-/** Every OPD room key ("24", "14B", "KANISHKA") with the units that use it: in a department of kind rooms the unit IS the room; in kind units the rooms are in the slots of the units. */
+/** I keep every OPD room key ("24", "14B", "KANISHKA") here with the units that use it: in a department of kind rooms the unit IS the room; in kind units the rooms are in the slots of the units. */
 const ROOM_INDEX = new Map<string, { dept: Department; unit: Unit }[]>();
 for (const { dept, unit } of ALL_UNITS) {
   const keys = new Set<string>();
   if (unit.opdNo) keys.add(unit.opdNo.toUpperCase());
   for (const s of Object.values(unit.week)) for (const r of Object.values(s?.rooms ?? {})) { const m = /(\d+[A-D]?)\s*$/i.exec(r); if (m) keys.add(m[1].toUpperCase()); }
-  for (const s of Object.values(unit.week)) for (const m of (s?.note ?? "").matchAll(/OPD (\d+[A-D]?)/gi)) keys.add(m[1].toUpperCase()); // a room named only in a note (Medicine room 26 on Monday: any doctor available)
+  for (const s of Object.values(unit.week)) for (const m of (s?.note ?? "").matchAll(/OPD (\d+[A-D]?)/gi)) keys.add(m[1].toUpperCase()); // Room named only in a note (Medicine room 26 on Monday: any doctor available)
   for (const k of keys) ROOM_INDEX.set(k, [...(ROOM_INDEX.get(k) ?? []), { dept, unit }]);
 }
 const ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5 };
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function entitiesOf(rawQ: string, now: DateTime): Entities {
-  // an exact marker added by the question about a doctor: "(ticket 490138)", "(list no. D499964)", "(doctor <id>)": it names the doctor, and is not part of the question
+  // Exact marker added by the question about a doctor: "(ticket 490138)", "(list no. D499964)", "(doctor <id>)". It names the doctor, so I do not treat it as part of the question.
   const marker = MARKER_RE.exec(rawQ);
   const q = marker ? rawQ.replace(marker[0], " ") : rawQ;
   let n = plain(q);
@@ -281,7 +281,7 @@ function entitiesOf(rawQ: string, now: DateTime): Entities {
   const original = plain(q);
   const hasOpd = /\b(opd|opds|o p d|outpatient|out patient|outdoor)\b/.test(original.replace(/\./g, " "));
 
-  // an OPD number ("opd 25", "opd no 14b", "clinic no 37") or a named unit ("kanishka", "joydeb"); "unit 2" with a department
+  // An OPD number ("opd 25", "opd no 14b", "clinic no 37") or a named unit ("kanishka", "joydeb") counts as a unit reference here; so does "unit 2" with a department.
   const unitRefs: Entities["unitRefs"] = [];
   for (const m of original.matchAll(/\b(opd|clinic)\s*(?:no\.?|number|#)?\s*(\d{1,2})\s?([a-d])?\b/g)) {
     const key = `${m[2]}${(m[3] ?? "").toUpperCase()}`;
@@ -302,29 +302,29 @@ function entitiesOf(rawQ: string, now: DateTime): Entities {
 
   const dateRef = parseDateRef(q, now);
   const words = tokenize(n).filter((w) => !deptWords.has(w));
-  // initials before a surname ("dr a mukherjee", "doctor a k sahay"): single letters that are part of the name, not the article "a"
+  // Initials before a surname ("dr a mukherjee", "doctor a k sahay"): I read single letters here as part of the name, not as the article "a".
   const initials = new Set<string>();
   for (const m of original.matchAll(/\b(?:dr|doctor)\s+((?:[a-z]\s+)+)(?=[a-z]{3})/g)) m[1].split(/\s+/).filter(Boolean).forEach((x) => initials.add(x));
   const exact = marker ? exactDoctor(marker[1], marker[2]) : undefined;
   const found = exact ? [exact] : findDoctors(words, initials);
   const narrowed = exact ? { list: found, miss: null as string | null } : narrowDoctors(found, depts, extraDepts, unitRefs.flatMap((r) => (r.unit && r.dept && r.dept.kind === "units" ? [r.unit] : [])));
-  // "is the hospital open on monday?": here the hospital means the OPD (the Emergency Department is open all the time); only a question about being open or closed on a day, so that "executives of the main hospital" stays an employee question
+  // "is the hospital open on monday?": here I read the hospital as the OPD (the Emergency Department is open all the time). I do this only for a question about being open or closed on a day, so that "executives of the main hospital" stays an employee question.
   const hospitalMeansOpd = /\bhospital\b/.test(original) && /\b(open|opens|opened|closed?|closes|closing|running|functioning|working|holiday|available|off)\b/.test(original) && (dateRef !== null || weekdaysIn(q).length > 0);
   return { n: original, hasOpd: hasOpd || hospitalMeansOpd, depts, unitRefs, weekdays: weekdaysIn(q), dateRef, doctors: narrowed.list, hintMiss: narrowed.miss, extraDepts, leftover: words.filter((w) => (initials.has(w) || (!STOP.has(w) && !/^\d+$/.test(w) && w.length > 1))) };
 }
 
 // ---------------------------------------------------------------- answers
-/** The OPD hours and the card registration (token) hours by the clock, as short points (shown in red under an answer about the OPD). */
+/** I show the OPD hours and the card registration (token) hours by the clock as short points (in red under an answer about the OPD). */
 export const timingNotes = () => [`OPD hours: ${ranges(SCHEDULE.timings.opd)}`, `Card registration (token) hours: ${ranges(SCHEDULE.timings.token)}`, ...(SCHEDULE.timings.afternoonNote ? [SCHEDULE.timings.afternoonNote] : [])];
-/** The small green / red / amber badge beside the title of an answer about a date. */
+/** I put a small green / red / amber badge beside the title of an answer about a date. */
 const badgeOf = (tone: "open" | "closed" | "unknown" | "info" | undefined): HospitalAnswer["badge"] =>
   tone === "open" ? { tone: "open", text: "Open" } : tone === "closed" ? { tone: "closed", text: "Closed" } : tone === "unknown" ? { tone: "unknown", text: "Not known" } : undefined;
 const dateLabel = (d: DateTime) => d.toFormat("cccc, d LLLL yyyy");
 const dayOf = (d: DateTime): Weekday => (["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const)[d.weekday - 1];
-/** The FIRST answer is an eye-catching Yes (green) or No (red), then the long text: a verdict that is open starts with "Yes:", one that is closed with "No:". An unknown one stays amber and an information line stays grey. */
+/** I make the FIRST answer an eye-catching Yes (green) or No (red), then the long text: a verdict that is open starts with "Yes:", one that is closed with "No:". An unknown one stays amber and an information line stays grey. */
 const YES_NO = /^(yes|no)\b[:,.]/i;
 const withYesNo = (tone: string | undefined, text: string): string => (!text || YES_NO.test(text) ? text : tone === "open" ? `Yes: ${text}` : tone === "closed" ? `No: ${text}` : text);
-/** A Yes or a No verdict is also the big HEADLINE of the card (step 57b): the clean answer first, green Yes or red No. */
+/** I also make a Yes or a No verdict the big HEADLINE of the card (step 57b): the clean answer first, green Yes or red No. */
 const HEAD_YES_NO = /^(yes|no)\b[:,.]/i;
 const withHeadline = (r: HospitalResult): HospitalResult => {
   const st = r.card.status;
@@ -342,12 +342,12 @@ const done = (summary: string, card: HospitalAnswer): HospitalResult => {
 };
 
 const isUnits = (d: Department) => d.kind === "units";
-/** A Sunday is closed EVERY week, so the answer says so: "closed on every Sunday, 25 October 2026". */
+/** A Sunday is closed EVERY week, so I make the answer say so: "closed on every Sunday, 25 October 2026". */
 const onLabel = (label: string): string => (/^Sunday,/.test(label) ? `every ${label}` : label);
-/** A question that wants a verdict (is / are / will / does / can ...). */
+/** I treat a question that starts with is / are / will / does / can ... as one that wants a verdict. */
 const YES_NO_Q = /^(is|are|was|were|will|does|do|did|can|could|shall|whether)\b/;
 const NEW_PATIENT = /\(\s*new patient\s*\)/i;
-/** The nearest day, from today on, on which one of these weekdays falls and the OPD is not closed; today counts only while a session is still ahead. */
+/** I look for the nearest day, from today on, on which one of these weekdays falls and the OPD is not closed; today counts only while a session is still ahead. */
 async function nearestSitting(days: Weekday[], ctx: EngineCtx): Promise<string | null> {
   if (!days.length) return null;
   const today = ctx.now.startOf("day");
@@ -361,11 +361,11 @@ async function nearestSitting(days: Weekday[], ctx: EngineCtx): Promise<string |
   }
   return null;
 }
-/** The in-charge of a unit as shown in a table or a card: only a doctor who is still there; otherwise "not recorded yet" (the question "who is the in-charge" names the one who has gone). */
+/** I show the in-charge of a unit in a table or a card only when he is still there; otherwise "not recorded yet". (The question "who is the in-charge" does name the one who has gone.) */
 const inChargeText = (u: Unit): string => { const id = unitHead(u); const h = id ? PERSON.get(id) : undefined; return h && !isGone(h) ? docLabel(h) : "not recorded yet"; };
-/** The units of a department that hold an OPD on a day: in a department of kind units only the unit whose day it is; in kind rooms every OPD room (its cell may say OT day, closed ...). */
+/** Returns the units of a department that hold an OPD on a day: in a department of kind units I take only the unit whose day it is; in kind rooms every OPD room (its cell may say OT day, closed ...). */
 const unitsOn = (d: Department, day: Weekday): Unit[] => (isUnits(d) ? d.units.filter((u) => u.week[day]?.doctors?.length) : d.units);
-/** The rows of ONE unit (or room) on one day: [room, doctor]; the retired and transferred are left out, a room named only in a note is a row of its own. */
+/** The rows of ONE unit (or room) on one day: [room, doctor]; I leave out the retired and transferred, and a room named only in a note becomes a row of its own. */
 function unitDayItems(u: Unit, day: Weekday): [string, string][] {
   const s = u.week[day] ?? { state: "UNKNOWN" as const };
   const items: [string, string][] = [];
@@ -375,11 +375,11 @@ function unitDayItems(u: Unit, day: Weekday): [string, string][] {
     if (shown.length) for (const p of shown) items.push([s.rooms?.[p.id] ?? where, docLabel(p) + (s.note && !/^OPD /i.test(s.note) ? ` (${s.note})` : "")]);
     else items.push([where, NO_CURRENT]);
   } else items.push([where, STATE_TEXT[s.state ?? "UNKNOWN"]]);
-  const m = s.note ? /^(OPD \d+[A-D]?):\s*(.*)$/i.exec(s.note) : null; // a room named only in a note: "OPD 26: any doctor who is available"
+  const m = s.note ? /^(OPD \d+[A-D]?):\s*(.*)$/i.exec(s.note) : null; // Room named only in a note: "OPD 26: any doctor who is available"
   if (m) items.push([m[1], m[2].charAt(0).toUpperCase() + m[2].slice(1)]);
   return items;
 }
-/** The table of ONE day: the room and the doctor, one row per doctor; the department and the unit are written once for their group (only when they help). */
+/** The table of ONE day: the room and the doctor, one row per doctor; I write the department and the unit once for their group (only when they help). */
 function dayTable(depts: Department[], day: Weekday): { columns: string[]; rows: string[][] } {
   const showDept = depts.length > 1;
   const showUnit = depts.some(isUnits);
@@ -397,12 +397,12 @@ const staffingNotes = (depts: Department[], day: Weekday): string[] => {
   const out: string[] = [];
   for (const d of depts) for (const u of unitsOn(d, day)) {
     const s = u.week[day];
-    // all gone: the table already says "No current doctor listed"; only the unconfirmed ones (not on the current doctor list) need a word
+    // All gone: the table already says "No current doctor listed", so only the unconfirmed ones (not on the current doctor list) need a word.
     if (s && noCurrentDoctor(s) && slotShown(s).length) out.push(`${d.name} ${u.label}, ${WEEKDAY_NAME[day]}: not on the current doctor list (please confirm).`);
   }
   return out;
 };
-/** For a question about a date: the day, the closure of that day, and (only for "today") the time of day. */
+/** For a question about a date this gives the day, the closure of that day, and (only for "today") the time of day. */
 async function dateGate(e: Entities, ctx: EngineCtx): Promise<{ date: DateTime; day: Weekday; label: string; was: boolean; c: Closure; ts: TimeState | null } | null> {
   const focus = weekdayFocus(e);
   if (!focus || !focus.date || focus.date.kind === "invalid") return null;
@@ -437,14 +437,14 @@ async function closureAnswer(e: Entities, ctx: EngineCtx): Promise<HospitalResul
       if (ts.tokenClosed && ts.tokenEnd) lines.push(`Token issue for this session closed at ${ts.tokenEnd}.`);
     } else if (ts) {
       status = { tone: "closed", text: closedNowText(ts, ctx.now) };
-      suggestion = URGENT; // out of visiting time: the Emergency Department
+      suggestion = URGENT; // Out of visiting time: I point to the Emergency Department
     }
   }
   let table: HospitalAnswer["table"];
   if (c.state !== "closed" && e.depts.length && day !== "SUN") {
     table = dayTable(e.depts, day);
     notes.push(...staffingNotes(e.depts, day));
-    // the OPD is open but the department's own units are not sitting that day: the unit rule, general OPD, Emergency
+    // The OPD is open but the department's own units are not sitting that day: I give the unit rule, general OPD, Emergency.
     if (c.state === "open" && !(ts && ts.state !== "open") && allNoOpd(e.depts.flatMap((d) => d.units), [day])) suggestion = noUnitSuggestion(day, false);
   }
   if (c.state !== "closed") notes.push(...timingNotes());
@@ -476,7 +476,7 @@ function weekdayFocus(e: Entities): { day: Weekday; date: DateRef | null } | nul
 }
 
 async function deptDateAnswer(e: Entities, ctx: EngineCtx): Promise<HospitalResult> {
-  // two weekdays named ("monday and thursday"): no single date; one weekday or a date: that day, with its closure
+  // Two weekdays named ("monday and thursday"): there is no single date. One weekday or a date: I take that day, with its closure.
   const focus = e.weekdays.length > 1 ? null : weekdayFocus(e);
   const days: Weekday[] = focus ? [focus.day] : e.weekdays;
   const notes: string[] = [];
@@ -523,7 +523,7 @@ async function deptDateAnswer(e: Entities, ctx: EngineCtx): Promise<HospitalResu
   let suggestion: string | undefined;
   let tone: "open" | "closed" | "unknown" | undefined = dr ? "open" : undefined;
   if (ts && ts.state !== "open") { status = { tone: "closed", text: closedNowText(ts, ctx.now) }; suggestion = URGENT; tone = "closed"; } // out of visiting time
-  else if (allNoOpd(units, opdDays)) { suggestion = noUnitSuggestion(opdDays.length === 1 ? opdDays[0] : null, false); tone = dr ? "closed" : undefined; } // the units are not sitting
+  else if (allNoOpd(units, opdDays)) { suggestion = noUnitSuggestion(opdDays.length === 1 ? opdDays[0] : null, false); tone = dr ? "closed" : undefined; } // Here the units are not sitting
   else if (status?.tone === "unknown") { suggestion = URGENT_SOFT; tone = "unknown"; }
   if (tone !== "closed" || !allNoOpd(units, opdDays)) notes.push(...timingNotes());
   const first = (table?.rows[0] ?? []).filter(Boolean).join(" ");
@@ -559,7 +559,7 @@ function overviewAnswer(depts: Department[]): HospitalResult {
   return done(title, { title, lines, suggestion, table, notes: [...new Set([...notes, ...timingNotes()])] });
 }
 
-/** the number of edits (insert, delete, change, swap of two neighbours) between two words, or max + 1 when it is more than max */
+/** I count the edits (insert, delete, change, swap of two neighbours) between two words, or max + 1 when it is more than max. */
 function slips(a: string, b: string, max: number): number {
   if (Math.abs(a.length - b.length) > max) return max + 1;
   const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
@@ -574,8 +574,8 @@ function slips(a: string, b: string, max: number): number {
 }
 
 /**
- * The department a MISSPELT word means: only a word of five letters or more (a short one is too easily another word), at most one slip for five letters and two for six or more, against the words of the
- * departments' own names (ALIASES), and only when ONE department is that near (two equally near is an ask, not a guess: the list is shown instead).
+ * The department a MISSPELT word means: I take only a word of five letters or more (a short one is too easily another word), at most one slip for five letters and two for six or more, against the words of the
+ * departments' own names (ALIASES), and only when ONE department is that near. Two equally near is an ask, not a guess, so I show the list instead.
  */
 function nearestDepartment(words: string[]): { dept: Department; word: string } | null {
   const hits = new Map<Department, { word: string; d: number }>();
@@ -598,7 +598,7 @@ function nearestDepartment(words: string[]): { dept: Department; word: string } 
 
 function opdListAnswer(): HospitalResult {
   const rows = SCHEDULE.departments.map((d) => [d.name, d.units.map((u) => u.label).join(", ")]);
-  // each department's name is pressable: it asks for that department's OPD ("Gynae & Obs opd"), which the engine answers with its days, units and doctors
+  // I make each department's name pressable: it asks for that department's OPD ("Gynae & Obs opd"), and the engine answers with its days, units and doctors.
   const asks = SCHEDULE.departments.map((d) => `${d.name} opd`);
   const card: HospitalAnswer = { title: "OPD departments and OPD numbers", table: { columns: ["Department", "OPD / clinic"], rows, asks }, lines: ["Ask for one department, for example \"orthopaedics OPD\", for its days and doctors."], notes: timingNotes() };
   return done(card.title, card);
@@ -621,7 +621,7 @@ async function unitAnswer(refs: Entities["unitRefs"], e: Entities, ctx: EngineCt
   return isUnits(d) ? unitDetailAnswer(d, u, e, ctx) : roomUnitAnswer(d, u, e);
 }
 
-/** A unit of a department of kind units: its doctors, its exclusive days, its in-charge; and, when a day or date is asked, whether it sits then. */
+/** Answers for a unit of a department of kind units: its doctors, its exclusive days, its in-charge; and, when a day or date is asked, whether it sits then. */
 async function unitDetailAnswer(d: Department, u: Unit, e: Entities, ctx: EngineCtx): Promise<HospitalResult> {
   const days = u.days ?? [];
   const lines = [`${d.name} ${u.label} sits on ${joinAnd(days.map((x) => WEEKDAY_NAME[x]))}; on the other days of the week it has no OPD.`];
@@ -660,7 +660,7 @@ async function unitDetailAnswer(d: Department, u: Unit, e: Entities, ctx: Engine
   return done(status?.text ?? lines[0], { title, badge: g ? badgeOf(status?.tone) : undefined, status, highlight, lines, suggestion, table: { columns: ["Room", "Doctor"], rows }, extraTables, notes: [...new Set(notes)] });
 }
 
-/** A unit of a department of kind rooms: the unit IS the OPD room, with the doctor or the state of every day. */
+/** Answers for a unit of a department of kind rooms: here the unit IS the OPD room, with the doctor or the state of every day. */
 function roomUnitAnswer(d: Department, u: Unit, e: Entities): HospitalResult {
   const focusDays = e.weekdays.filter((x) => x !== "SUN");
   const days = focusDays.length ? focusDays : OPD_DAYS;
@@ -676,7 +676,7 @@ function roomUnitAnswer(d: Department, u: Unit, e: Entities): HospitalResult {
   });
 }
 
-/** An OPD number that is a ROOM used by the units of a department on different days (Medicine rooms 24, 25, 26): who sits in it each day, from which unit. */
+/** An OPD number that is a ROOM used by the units of a department on different days (Medicine rooms 24, 25, 26): I show who sits in it each day, from which unit. */
 function roomAnswer(label: string, key: string, hits: { dept: Department; unit: Unit }[], onlyDays: Weekday[]): HospitalResult {
   const rows: string[][] = [];
   const notes: string[] = [];
@@ -744,12 +744,12 @@ const npLine = (who: string, p: Person) => {
 };
 
 const daysText = (ds: Weekday[]) => (ds.length === OPD_DAYS.length ? "Monday to Saturday" : joinAnd(ds.map((x) => WEEKDAY_NAME[x])));
-/** "on Monday and Thursday", but "from Monday to Saturday" for all six days. */
+/** I write "on Monday and Thursday", but "from Monday to Saturday" for all six days. */
 const onDays = (ds: Weekday[]) => (ds.length === OPD_DAYS.length ? "from Monday to Saturday" : `on ${joinAnd(ds.map((x) => WEEKDAY_NAME[x]))}`);
-/** [room, doctor] rows with the room written once for its group. */
+/** Turns the items into [room, doctor] rows, and I write the room only once for its group. */
 const groupRooms = (items: [string, string][]): string[][] => items.map(([room, doc], i) => [i > 0 && items[i - 1][0] === room ? "" : room, doc]);
 
-/** The table of the doctor's unit: its current doctors with their rooms (a department of units), or the doctors of the room, with their days when these differ (a department of rooms). */
+/** I build the table of the doctor's unit: its current doctors with their rooms (a department of units), or the doctors of the room, with their days when these differ (a department of rooms). */
 function unitTable(dept: Department, unit: Unit, days: Weekday[]): HospitalTable & { caption: string } {
   const caption = `${dept.name} ${unit.label}: ${daysText(days)}`;
   const items: [string, string][] = [];
@@ -807,7 +807,7 @@ async function doctorAnswer(p: Person, e: Entities, ctx: EngineCtx): Promise<Hos
       status = { tone: g.c.state === "unknown" ? "unknown" : "open", text: `Yes: ${who} ${isWas} listed in ${joinAnd(here.map((x) => `${x.dept.name} ${x.unit.label}`))} on ${g.label}.` + (g.c.state === "unknown" ? ` The plant has a holiday that day (${joinAnd(g.c.unknown.map((h) => h.name))}); whether the OPD is closed is not in my list yet.` : "") };
       if (g.c.state === "unknown") suggestion = URGENT_SOFT;
     } else {
-      // he does not sit that day: what does HIS UNIT do? (a patient belongs to the unit, not to one doctor)
+      // He does not sit that day: what does HIS UNIT do? I ask this because a patient belongs to the unit, not to one doctor.
       const { dept, unit } = perUnit[0];
       const slot = unit.week[g.day];
       const unitName = `${dept.name} ${unit.label}`;
@@ -831,13 +831,13 @@ async function doctorAnswer(p: Person, e: Entities, ctx: EngineCtx): Promise<Hos
         suggestion = noUnitSuggestion(g.day, true);
       }
     }
-    // out of visiting time today: whatever the schedule says, the OPD is not in session now
+    // Out of visiting time today: whatever the schedule says, I say the OPD is not in session now.
     if (g.ts && g.ts.state !== "open" && g.c.state !== "closed" && (here.length || status?.tone === "open")) {
       status = { tone: "closed", text: `${closedNowText(g.ts, ctx.now)}${here.length ? ` ${who} is listed in ${joinAnd(here.map((x) => `${x.dept.name} ${x.unit.label}`))} today.` : ""}` };
       suggestion = URGENT;
     }
   }
-  // a No: the main point is WHEN he is available, so it gets a banner of its own (and is not repeated as a bullet)
+  // A No: the main point is WHEN he is available, so I give it a banner of its own (and do not repeat it as a bullet).
   let highlight: string | undefined;
   if (g && status?.tone === "closed" && !isGone(p) && !(g.ts && g.ts.state !== "open")) {
     const near = await nearestSitting(OPD_DAYS.filter((d) => perUnit.some((x) => x.days.includes(d))), ctx);
@@ -846,7 +846,7 @@ async function doctorAnswer(p: Person, e: Entities, ctx: EngineCtx): Promise<Hos
       lines.splice(lines.length - perUnit.length, perUnit.length);
     }
   }
-  // the tables: asked on a day he sits: the unit on that day (room, doctor); otherwise his unit and its days, and, when the answer is No, the unit that sits on the asked date
+  // The tables: asked on a day he sits, I show the unit on that day (room, doctor); otherwise his unit and its days, and, when the answer is No, the unit that sits on the asked date.
   if (g && here.length && g.c.state !== "closed") tables = here.map(({ dept, unit }) => ({ title: `${dept.name} ${unit.label}, ${g.label}`, table: { columns: ["Room", "Doctor"], rows: groupRooms(unitDayItems(unit, g.day)) } }));
   else {
     tables = perUnit.map(({ dept, unit, days }) => { const t = unitTable(dept, unit, days); return { title: t.caption, table: { columns: t.columns, rows: t.rows } }; });
@@ -860,7 +860,7 @@ async function doctorAnswer(p: Person, e: Entities, ctx: EngineCtx): Promise<Hos
   return done(summary, { title: `${who}: OPD days`, badge: g ? badgeOf(status?.tone) : undefined, status, highlight, lines, suggestion, extraTables: tables, notes });
 }
 
-/** Is this doctor permanent or contractual? From the staff data and the file of non-permanent doctors. */
+/** Is this doctor permanent or contractual? I answer from the staff data and the file of non-permanent doctors. */
 function employmentAnswer(p: Person): HospitalResult {
   const who = docName(p);
   const np = npOf(p);
@@ -877,7 +877,7 @@ function employmentAnswer(p: Person): HospitalResult {
 }
 
 const dept0 = (p: { department: string | null }) => (p.department ?? "").toUpperCase();
-/** The specialization column of the list of non-permanent doctors: the one recorded; MBBS alone = none (known, not "not recorded"); a postgraduate qualification without a subject = not stated; no qualification = not recorded yet. */
+/** The specialization column of the list of non-permanent doctors: I show the one recorded; MBBS alone = none (known, not "not recorded"); a postgraduate qualification without a subject = not stated; no qualification = not recorded yet. */
 const npSpecialisation = (x: { specialization?: string | null; qualification?: string | null }): string => {
   if (x.specialization) return x.specialization;
   const q = String(x.qualification ?? "").toUpperCase();
@@ -892,7 +892,7 @@ function nonPermanentListAnswer(e: Entities): HospitalResult {
   if (e.depts.length) list = list.filter((x) => e.depts.some((d) => dept0(x) === d.staffDepartment.toUpperCase()));
   list.sort((a, b) => (a.department ? 0 : 1) - (b.department ? 0 : 1) || dept0(a).localeCompare(dept0(b)) || a.name.localeCompare(b.name));
   const withDept = NON_PERMANENT_DOCTORS.filter((x) => x.department).length;
-  const withSpec = NON_PERMANENT_DOCTORS.filter((x) => npSpecialisation(x) !== "not recorded yet").length; // known: a specialization, or MBBS alone (none)
+  const withSpec = NON_PERMANENT_DOCTORS.filter((x) => npSpecialisation(x) !== "not recorded yet").length; // Known means a specialization, or MBBS alone (none)
   const where = e.depts.length ? ` in ${joinAnd(e.depts.map((d) => d.name))}` : "";
   const text = list.length
     ? `The intranet doctor list has ${list.length} non-permanent (contractual or temporary) doctor${list.length === 1 ? "" : "s"}${where}${e.depts.length ? ` (${NON_PERMANENT_DOCTORS.length} in all)` : ""}.`
@@ -911,9 +911,9 @@ function nonPermanentListAnswer(e: Entities): HospitalResult {
 
 // ---------------------------------------------------------------- the doctors of a department (step 54g)
 // "list of ent doctors", "how many doctors in surgery": the HR directory does not know a doctor's hospital department (all 52 are in MEDICAL ORGANISATION), so the SQL could only answer 0 rows,
-// or silently ignore the department. The hospital's own lists know it: the staff list (department of each doctor), the OPD schedule (who sits in the department's OPD) and the list of the
-// non-permanent doctors. A doctor of a department is one whose staff-list department it is, or who sits in its OPD, or a non-permanent doctor whose department or specialization it is.
-// A doctor who has retired or been transferred is not listed.
+// or silently ignore the department. So I use the hospital's own lists, which know it: the staff list (department of each doctor), the OPD schedule (who sits in the department's OPD) and the list of the
+// non-permanent doctors. For me a doctor of a department is one whose staff-list department it is, or who sits in its OPD, or a non-permanent doctor whose department or specialization it is.
+// I do not list a doctor who has retired or been transferred.
 interface DeptDoctor { p: Person; own: boolean }
 function doctorsOfDepartment(staffDept: string, d: Department | null): DeptDoctor[] {
   const key = staffDept.toUpperCase();
@@ -928,7 +928,7 @@ function doctorsOfDepartment(staffDept: string, d: Department | null): DeptDocto
   }
   return out;
 }
-/** Where and when a doctor sits in this department: one entry for each of its units (or rooms). */
+/** Returns where and when a doctor sits in this department: one entry for each of its units (or rooms). */
 function placesOf(p: Person, d: Department): { index: number; unit: Unit; days: Weekday[]; room: string | undefined }[] {
   const out: { index: number; unit: Unit; days: Weekday[]; room: string | undefined }[] = [];
   d.units.forEach((unit, index) => {
@@ -938,11 +938,13 @@ function placesOf(p: Person, d: Department): { index: number; unit: Unit; days: 
   return out;
 }
 
-/** confirmed permanent (on the intranet doctor list), non-permanent, or only in the staff list (not on the current doctor list: may have retired or moved) */
+/** Three kinds of doctor: confirmed permanent (on the intranet doctor list), non-permanent, or only in the staff list (not on the current doctor list: may have retired or moved) */
 type DoctorKind = "perm" | "np" | "unc";
 const doctorKind = (p: Person): DoctorKind => (p.employment === "contractual" ? "np" : p.status === "not_on_list" ? "unc" : "perm");
-/** The table of one department's doctors, organised the way its OPD is: unit by unit (a department of units), room by room (a department of rooms), the doctors who do not sit in the OPD last;
- *  inside a group the confirmed permanent doctors first, then the non-permanent, then those who are not on the current doctor list. */
+/**
+ * I organise the table of one department's doctors the way its OPD is: unit by unit (a department of units), room by room (a department of rooms), the doctors who do not sit in the OPD last;
+ *  inside a group I put the confirmed permanent doctors first, then the non-permanent, then those who are not on the current doctor list.
+ */
 function deptDoctorTable(g: { d: Department | null; rows: DeptDoctor[] }): HospitalTable {
   const ORDER: Record<DoctorKind, number> = { perm: 0, np: 1, unc: 2 };
   const who = ({ p, own }: DeptDoctor): string[] => {
@@ -1009,15 +1011,17 @@ function departmentDoctorsAnswer(e: Entities): HospitalResult {
   return done(text, card);
 }
 
-/** The ticket cell of the LONG doctor lists (qualification, level, specialisation): the number only: a ticket, or the list number of a non-permanent doctor ("DTN0766"). With the words "(non-permanent)" the cell was twice as
- *  wide and broke over two lines in the real font (Poppins); one footnote says what the letters mean (step 59b). The shorter department tables keep their wording. */
+/**
+ * In the ticket cell of the LONG doctor lists (qualification, level, specialisation) I show the number only: a ticket, or the list number of a non-permanent doctor ("DTN0766"). With the words "(non-permanent)" the cell was twice as
+ *  wide and broke over two lines in the real font (Poppins); one footnote says what the letters mean (step 59b). The shorter department tables keep their wording.
+ */
 const listTicket = (p: Person): string => p.ticket ?? p.doctorListId ?? "not recorded";
-// (no footnote under the long doctor lists about a number that starts with letters: the owner asked for it to go, 23 Nov 2026, until the permanent / non-permanent status of each doctor is confirmed)
+// (no footnote under the long doctor lists about a number that starts with letters: I asked for it to go on 23 Nov 2026, until the permanent / non-permanent status of each doctor is confirmed)
 
 // ---------------------------------------------------------------- doctors by qualification (step 56a)
 // "list of DNB doctors": the model once took the word DNB to mean EVERY doctor (52 people). A qualification is a fact the HR directory does not hold; the hospital's staff list prints it for
-// each doctor (MBBS, MD(MEDICINE), MS(ENT), DNB(MEDICINE), MCH & DRNB PLASTIC SURGERY ...), so the answer is read from there, as printed. A doctor whose qualification is not recorded is NAMED,
-// never silently counted as "no".
+// each doctor (MBBS, MD(MEDICINE), MS(ENT), DNB(MEDICINE), MCH & DRNB PLASTIC SURGERY ...), so I read the answer from there, as printed. A doctor whose qualification is not recorded is NAMED,
+// and I never count him silently as "no".
 interface Qual { key: string; label: string; ask: RegExp; has: RegExp }
 const QUALIFICATIONS: Qual[] = [
   { key: "DNB", label: "DNB", ask: /\bd\s?n\s?b\b/, has: /\bDNB\b/ },
@@ -1034,10 +1038,10 @@ const QUALIFICATIONS: Qual[] = [
   { key: "MRCOG", label: "MRCOG", ask: /\bmrcog\b/, has: /\bMRCOG\b/ },
   { key: "DORTHO", label: "D.Ortho", ask: /\bd\s?ortho\b/, has: /\bD\.?\s?ORTHO\b/ },
 ];
-/** The qualifications a question names (already lower-cased by plain()). */
+/** Returns the qualifications a question names; the text has already been lower-cased by plain(). */
 export const qualificationsAsked = (nm: string): Qual[] => QUALIFICATIONS.filter((x) => x.ask.test(nm));
 const qualOf = (p: Person) => String(p.qualification ?? "").toUpperCase();
-/** Does a doctor's PRINTED qualification contain the degree that was named? Whole word: "MD" does not match "MDS", "MS" not "MSc"; "DNB"/"DrNB" are separate degrees as printed. Used by the pure-AI hospital path so it agrees with this engine. */
+/** Does a doctor's PRINTED qualification contain the degree that was named? I match the whole word: "MD" does not match "MDS", "MS" not "MSc"; "DNB"/"DrNB" are separate degrees as printed. Used by the pure-AI hospital path so it agrees with this engine. */
 export const holdsQualification = (p: Person, named: string): boolean => {
   const key = String(named ?? "").toLowerCase().replace(/[^a-z]/g, "");
   if (!key) return false;
@@ -1054,26 +1058,26 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[], opts?: { perma
   else if (opts?.contractualOnly) pool = pool.filter((p) => p.employment === "contractual");
   const kindWord = opts?.permanentOnly ? "permanent " : opts?.contractualOnly ? "non-permanent " : "";
   const KindTitle = opts?.permanentOnly ? "Permanent doctors" : opts?.contractualOnly ? "Non-permanent doctors" : "Doctors";
-  const anyQual = quals.length === 0; // "the doctors with their degrees": no qualification named, every doctor whose qualification is recorded (step 56b)
+  const anyQual = quals.length === 0; // No qualification named ("the doctors with their degrees"): every doctor whose qualification is recorded (step 56b)
   const label = anyQual ? "any qualification" : quals.map((x) => x.label).join(" or ");
   const where = inDepts ? ` in ${joinAnd([...e.depts.map((d) => d.name), ...e.extraDepts.filter((x) => !e.depts.some((d) => d.staffDepartment.toUpperCase() === x)).map(deptLabel)])}` : "";
   const hits = pool.filter((p) => (anyQual ? !!qualOf(p).trim() : quals.some((x) => x.has.test(qualOf(p))))).sort((a, b) => a.name.localeCompare(b.name));
   const unknown = pool.filter((p) => !qualOf(p).trim());
   const names = hits.map(docName);
-  // the plain-text answer (the payload's `answer`): complete in one piece
+  // I make the plain-text answer (the payload's `answer`) complete in one piece
   const gap = unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length} ${kindWord}doctors${where}, so this list may be incomplete.` : "";
   const text = anyQual
     ? `${hits.length} of the ${pool.length} ${kindWord}doctors${where} have a qualification on record, shown as printed.${unknown.length ? ` It is not recorded for ${unknown.length}, who are not shown.` : ""}`
     : (hits.length
       ? `${hits.length} ${kindWord}doctor${hits.length === 1 ? " is" : "s are"} recorded with ${label}${where}${hits.length <= 4 ? `: ${joinAnd(names)}` : ""}.`
       : `No ${kindWord}doctor${where} is recorded with ${label}.`) + gap;
-  // the card (step 57b): the clean answer first, big; one short sentence; only the bullets that matter; the long list of names folded away
+  // On the card (step 57b) I put the clean answer first, big; then one short sentence; only the bullets that matter; the long list of names folded away
   const headline = anyQual ? `${hits.length} ${kindWord}doctors` : hits.length === 1 ? docName(hits[0]) : hits.length === 0 ? "None" : `${hits.length} ${kindWord}doctors`;
   const sentence = anyQual
     ? `With a qualification on record, as printed.${unknown.length ? ` Not recorded for ${unknown.length} of the ${pool.length}, who are not shown.` : ""}`
     : (hits.length === 1 ? `The only doctor recorded with ${label}${where}.` : hits.length === 0 ? `No doctor${where} is recorded with ${label}.` : `Recorded with ${label}${where}.`) + gap;
   const lines: string[] = [];
-  // DNB and DrNB are different degrees: say who holds the other one, never merge them silently
+  // DNB and DrNB are different degrees: I say who holds the other one and never merge them silently
   if (quals.some((x) => x.key === "DNB") && !quals.some((x) => x.key === "DRNB")) {
     const dr = pool.filter((p) => /\bDR\.?\s?NB\b/.test(qualOf(p)));
     if (dr.length) lines.push(`${joinAnd(dr.map((p) => `${docName(p)} (${p.qualification})`))} ${dr.length === 1 ? "holds" : "hold"} DrNB, the National Board's super-specialty degree: a different qualification, not counted as DNB.`);
@@ -1090,11 +1094,11 @@ function doctorsByQualificationAnswer(e: Entities, quals: Qual[], opts?: { perma
 }
 
 // ---------------------------------------------------------------- the specialisation of doctors (step 57a)
-// "the specialisation of doctors in dsp" (26 Oct 2026: the search answered with an unrelated circular at 87 per cent). A degree or qualification is any of MBBS, MD, MS ...; a SPECIALISATION comes only
+// "the specialisation of doctors in dsp" (26 Oct 2026: the search answered with an unrelated circular at 87 per cent). A degree or qualification is any of MBBS, MD, MS ...; in my rule a SPECIALISATION comes only
 // from a POSTGRADUATE qualification: MD, MS, DNB, DrNB, MCh, DM, MDS, or a postgraduate diploma (DGO, DPM, DIH, D.Ortho) or MRCOG. A doctor with MBBS alone has none; one whose qualification is not
-// recorded is not known; one whose postgraduate qualification names no subject (a bare "MS") has a specialisation that is not stated, and it is never guessed from the department.
+// recorded is not known; one whose postgraduate qualification names no subject (a bare "MS") has a specialisation that is not stated, and I never guess it from the department.
 const SPECIALISATION_WORD = /\b(specialisations?|specializations?|specialit(?:y|ies)|specialt(?:y|ies)|specialised|specialized)\b/;
-/** Higher than graduate (postgraduate, super-specialty, doctorate), by the table of degrees (qualifications/degrees.ts), not by a pattern of letters (step 58a). */
+/** I judge "higher than graduate" (postgraduate, super-specialty, doctorate) by the table of degrees (qualifications/degrees.ts), not by a pattern of letters (step 58a). */
 const isPostgraduate = (q: string | null | undefined): boolean => levelRank(highestLevel(q)) >= LEVEL_RANK.postgraduate;
 /** stated: a postgraduate qualification with its subject; no_subject: postgraduate but no subject printed; none: MBBS alone; unknown: no qualification recorded. */
 type SpecKind = "stated" | "no_subject" | "none" | "unknown";
@@ -1108,8 +1112,8 @@ export function specialisationOf(p: Person): { kind: SpecKind; spec: string | nu
 const SPEC_RULE = "A specialisation comes from a postgraduate qualification (MD, MS, DNB, DrNB, MCh, DM, MDS, or a postgraduate diploma such as DGO, DPM, DIH or D.Ortho); a doctor with MBBS alone has none. It is the subject of the qualification: the department is where the doctor works.";
 
 // ---------------------------------------------------------------- the LEVEL of a doctor's degree (step 58a)
-// "list the doctors having post graduate degree on medicine" (owner, 26 Oct 2026) listed every doctor of Medicine, MBBS holders included: the system did not know what "post graduate" means. The table of
-// degrees (qualifications/degrees.ts) gives every degree its level; "post graduate" is every degree ABOVE graduate (MD, MS, DNB, MDS, a postgraduate diploma, and also super-specialty and doctorate).
+// "list the doctors having post graduate degree on medicine" (my question, 26 Oct 2026) listed every doctor of Medicine, MBBS holders included: the system did not know what "post graduate" means. The table of
+// degrees (qualifications/degrees.ts) gives every degree its level; for me "post graduate" is every degree ABOVE graduate (MD, MS, DNB, MDS, a postgraduate diploma, and also super-specialty and doctorate).
 type LevelAsk = "postgraduate" | "graduate" | "superspecialty" | "doctorate";
 const LEVEL_ASKS: { key: LevelAsk; re: RegExp }[] = [
   { key: "superspecialty", re: /\bsuper[\s-]?special(?:i[sz]\w*|it(?:y|ies)|t(?:y|ies))\b/ },
@@ -1117,7 +1121,7 @@ const LEVEL_ASKS: { key: LevelAsk; re: RegExp }[] = [
   { key: "doctorate", re: /\b(ph\.?\s?d|doctorates?|doctoral)\b/ },
   { key: "graduate", re: /\b(under[\s-]?graduat\w*|ug|graduat\w*|bachelors?)\b/ },
 ];
-/** Which level a question asks for (the longest word first: "post graduate" is not "graduate"). */
+/** Which level a question asks for (I try the longest word first: "post graduate" is not "graduate"). */
 export const levelAsked = (nm: string): LevelAsk | null => LEVEL_ASKS.find((x) => x.re.test(nm))?.key ?? null;
 const meetsLevel = (p: Person, ask: LevelAsk): boolean => {
   const r = levelRank(highestLevel(p.qualification));
@@ -1131,7 +1135,7 @@ const LEVEL_TEXT: Record<LevelAsk, { title: string; label: string; short: string
 };
 const levelWords = (l: Level | null): string => (l === "graduate" ? "a graduate degree" : l === "postgraduate" ? "a postgraduate degree" : l === "superspecialty" ? "a super-specialty degree" : l === "doctorate" ? "a doctorate" : l === "diploma" ? "a diploma below graduate level" : l === "certificate" ? "a certificate" : "a qualification the system does not know");
 
-/** The doctors (of the plant, or of the departments named) who hold a degree of the level asked. */
+/** Returns the doctors (of the plant, or of the departments named) who hold a degree of the level asked. */
 function doctorsByLevelAnswer(e: Entities, ask: LevelAsk, opts?: { permanentOnly?: boolean; contractualOnly?: boolean }): HospitalResult {
   const inDepts = e.depts.length || e.extraDepts.length
     ? new Set([...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)), ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null))].map((r) => r.p.id))
@@ -1163,7 +1167,7 @@ function doctorsByLevelAnswer(e: Entities, ask: LevelAsk, opts?: { permanentOnly
   return done(text, card);
 }
 
-/** One doctor: "is dr rajeev kumar post graduate": Yes or No, with what he holds and its level. */
+/** One doctor, as in "is dr rajeev kumar post graduate": I answer Yes or No, with what he holds and its level. */
 function doctorLevelAnswer(p: Person, ask: LevelAsk): HospitalResult {
   const who = docName(p);
   const q = p.qualification ?? "";
@@ -1177,7 +1181,7 @@ function doctorLevelAnswer(p: Person, ask: LevelAsk): HospitalResult {
   return done(text, { title: `${who}: ${LEVEL_TEXT[ask].label}?`, status: { tone: yes ? "open" : "closed", text }, lines: p.department ? [`Department: ${deptLabel(p.department)}.`] : [] });
 }
 
-/** One doctor: "the specialisation of dr rajeev kumar". The headline is the qualification as printed ("DNB(MEDICINE)"): the specialisation and its subject in one clean statement; the sentence under it says it in words. */
+/** One doctor: "the specialisation of dr rajeev kumar". I make the headline the qualification as printed ("DNB(MEDICINE)"): the specialisation and its subject in one clean statement; the sentence under it says it in words. */
 function doctorSpecialisationAnswer(p: Person): HospitalResult {
   const who = docName(p);
   const x = specialisationOf(p);
@@ -1196,7 +1200,7 @@ function doctorSpecialisationAnswer(p: Person): HospitalResult {
   return done(text, { title: `${who}: specialisation`, headline, status: { tone: x.kind === "stated" || x.kind === "none" ? "info" : "unknown", text: sentence }, lines: p.department ? [`Department: ${deptLabel(p.department)}.`] : [], details: [{ summary: "How is a specialisation decided?", text: SPEC_RULE }] });
 }
 
-/** One doctor: "the qualification of dr rajeev kumar", "is dr rajeev kumar a DNB doctor": the qualification the staff list prints (the headline), or a big Yes / No for the one asked. */
+/** For one doctor ("the qualification of dr rajeev kumar", "is dr rajeev kumar a DNB doctor") I show the qualification the staff list prints (the headline), or a big Yes / No for the one asked. */
 function doctorQualificationAnswer(p: Person, quals: Qual[]): HospitalResult {
   const who = docName(p);
   const q = p.qualification ?? "";
@@ -1216,7 +1220,7 @@ function doctorQualificationAnswer(p: Person, quals: Qual[]): HospitalResult {
   return done(text, { title: `${who}: ${label}?`, status: { tone: has ? "open" : "closed", text }, lines });
 }
 
-/** The doctors of the plant (or of the departments named) and their specialisations: only the doctors who have one (or whose subject is not stated). */
+/** The doctors of the plant (or of the departments named) and their specialisations: I list only the doctors who have one (or whose subject is not stated). */
 function specialisationAnswer(e: Entities, opts?: { permanentOnly?: boolean; contractualOnly?: boolean }): HospitalResult {
   const inDepts = e.depts.length || e.extraDepts.length
     ? new Set([...e.depts.flatMap((d) => doctorsOfDepartment(d.staffDepartment, d)), ...e.extraDepts.flatMap((x) => doctorsOfDepartment(x, null))].map((r) => r.p.id))
@@ -1239,7 +1243,7 @@ function specialisationAnswer(e: Entities, opts?: { permanentOnly?: boolean; con
   const text = stated.length
     ? `${stated.length} of the ${pool.length} ${kindPrefix}doctors${where} have a specialisation on record, in ${groups.length} specialisation${groups.length === 1 ? "" : "s"}.${unknown.length ? ` The qualification is not recorded for ${unknown.length}, so their specialisation is not known.` : ""}`
     : `No ${kindPrefix}doctor${where} has a specialisation on record.${unknown.length ? ` The qualification is not recorded for ${unknown.length} of the ${pool.length}.` : ""}`;
-  // the card (step 57b): the number of specialisations first; one sentence; only the bullets that matter; the rule and the names folded away
+  // On this card (step 57b) I put the number of specialisations first, then one sentence and only the bullets that matter; the rule and the names are folded away
   const sentence = stated.length
     ? `${stated.length} of the ${pool.length} ${kindPrefix}doctors${where} have one on record.${unknown.length ? ` The qualification is not recorded for ${unknown.length}, so their specialisation is not known.` : ""}`
     : text;
@@ -1259,7 +1263,7 @@ const unitNameOf = (p: Person): string | null => {
 };
 const OPTION_LIMIT = 10;
 const reEsc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** The name matches more than one doctor (or none in the department the question names): ASK which, with radio buttons (the department question in mode "one"); the question is kept. */
+/** The name matches more than one doctor (or none in the department the question names): I ASK which, with radio buttons (the department question in mode "one"); the question is kept. */
 function askDoctor(e: Entities, q: string): HospitalResult {
   const surname = e.leftover[e.leftover.length - 1] ?? "";
   const lastToken = (p: Person) => tokenize(p.name).slice(-1)[0] ?? "";
@@ -1284,7 +1288,7 @@ function askDoctor(e: Entities, q: string): HospitalResult {
     (more > 0 ? ` (Showing ${options.length} of ${sorted.length}: add the first name or the department, for example "of surgery", to narrow it.)` : "");
   const ask: DepartmentAsk = {
     message, word: typed, question: q, options, mode: "one",
-    // the typed name (with "dr" and initials before it) is replaced by the chosen doctor and his exact marker; if the words are not found, the marker is added at the end
+    // The typed name (with "dr" and initials before it) is replaced by the chosen doctor and his exact marker; if the words are not found, I add the marker at the end
     pattern: e.leftover.length ? `\\b(?:(?:dr|doctor)\\.?\\s+)?(?:[a-z]\\.?\\s+)*${e.leftover.map(reEsc).join("\\s+")}\\b` : undefined,
     none: { label: "None of these", reply: "Please add the doctor's first name or the department and ask again." },
     alternative: { label: `Search all employees named ${title}`, query: typed || q.replace(/[?.!\s]+$/, "") },
@@ -1299,8 +1303,8 @@ const DAY_WORDS = /\b(days?|sit|sits|sitting|seat|attend|attends|available|avail
 
 // ---------------------------------------------------------------- "is opd open on monday?": not yet a clear Yes (step 54d)
 // An open OPD is not yet an answer for a person: it depends on the DEPARTMENT he wants to visit and, for a department of units, on the UNIT he already belongs to (a patient is seen only by the
-// unit of his first visit; a new patient belongs to the unit that sits on the day of the first visit). So a vague question about an open day gets a soft, amber first answer and a short
-// question-and-answer: which department? then, for Medicine, which unit (or "new patient")? Only then the clear Yes or No. A closed day, or today out of hours, is a clear No at once.
+// unit of his first visit; a new patient belongs to the unit that sits on the day of the first visit). So I give a vague question about an open day a soft, amber first answer and a short
+// question-and-answer: which department? then, for Medicine, which unit (or "new patient")? Only then do I give the clear Yes or No. A closed day, or today out of hours, is a clear No at once.
 async function openGate(e: Entities, ctx: EngineCtx) {
   const today = ctx.now.startOf("day");
   const ref = e.dateRef && e.dateRef.kind !== "invalid" ? e.dateRef : null;
@@ -1310,7 +1314,7 @@ async function openGate(e: Entities, ctx: EngineCtx) {
   return { today, ref, date, day: dayOf(date), label: dateLabel(date), c, ts, isOpen: !!ref && date >= today && c.state === "open" && !(ts && ts.state !== "open") };
 }
 type Gate = Awaited<ReturnType<typeof openGate>>;
-/** "Today is ...", "Tomorrow is ...", "The coming Monday is ... (today is Sunday)": which day the question is about. Nothing for an explicit date. */
+/** I use this line to say which day the question is about: "Today is ...", "Tomorrow is ...", "The coming Monday is ... (today is Sunday)". I add nothing for an explicit date. */
 const whenLine = (g: Gate): string | null => {
   if (!g.ref || g.ref.kind === "explicit") return null;
   if (g.date.hasSame(g.today, "day")) return `Today is ${g.label}.`;
@@ -1318,7 +1322,7 @@ const whenLine = (g: Gate): string | null => {
   return `The coming ${WEEKDAY_NAME[g.day]} is ${g.date.toFormat("d LLLL yyyy")} (today is ${WEEKDAY_NAME[dayOf(g.today)]}).`;
 };
 const unitDoctorsText = (u: Unit): string => (u.members ?? []).map((id) => PERSON.get(id)).filter((p): p is Person => !!p && !isGone(p)).map(docName).join(", ") || NO_CURRENT;
-/** Every unit of a department with its days, rooms and current doctors: what a new patient must know before he goes (he stays with the unit of his first visit). */
+/** I show every unit of a department with its days, rooms and current doctors, because this is what a new patient must know before he goes (he stays with the unit of his first visit). */
 function allUnitsTable(d: Department): HospitalTable {
   const rows: string[][] = [];
   for (const u of d.units) {
@@ -1334,12 +1338,12 @@ function allUnitsTable(d: Department): HospitalTable {
   }
   return { columns: ["Unit", "Days", "Room", "Doctor"], rows };
 }
-/** "It is in session now, until 1 PM" and the token counter, for a question about today. */
+/** For a question about today I add "It is in session now, until 1 PM" and the token counter. */
 const sessionLines = (g: Gate): string[] => (g.ts && g.ts.state === "open" ? [`It is in session now, until ${g.ts.closesAt}.`, ...(g.ts.tokenClosed && g.ts.tokenEnd ? [`Token issue for this session closed at ${g.ts.tokenEnd}.`] : [])] : []);
 const yearNotes = (g: Gate): string[] => (!g.c.yearLoaded ? [`Holiday data for ${g.date.year} is not loaded, so only Sundays and the fixed-date closures were checked.`] : []);
 const SOFT_YES = (what: string, label: string, because: string) => `${what} is open on ${label} in general (regular Monday to Saturday schedule), but this is not yet a clear Yes: it depends on ${because}.`;
 
-/** No department named: which department do you want to visit? */
+/** No department named, so I ask: which department do you want to visit? */
 function vagueOpenAnswer(q: string, g: Gate): HospitalResult {
   const when = whenLine(g);
   const message = `Which department do you want to visit on ${g.label}?`;
@@ -1347,7 +1351,7 @@ function vagueOpenAnswer(q: string, g: Gate): HospitalResult {
     id: d.id,
     label: d.name,
     detail: isUnits(d) ? `${d.units.map((u) => u.label).join(", ")}: you belong to one of these units` : d.units.map((u) => u.label).join(", "),
-    // how the department is named in the rewritten question: it must contain the word OPD ("MOPD" alone is not read as one: its alias "medical OPD" is)
+    // How I name the department in the rewritten question: it must contain the word OPD ("MOPD" alone is not read as one: its alias "medical OPD" is)
     phrase: /\bopd\b/i.test(d.name) ? d.name : (() => { const a = d.aliases.find((x) => /\bopd\b/i.test(x)); return a ? a.charAt(0).toUpperCase() + a.slice(1).replace(/\bopd\b/i, "OPD") : `${d.name} OPD`; })(),
   }));
   const ask: DepartmentAsk = {
@@ -1365,7 +1369,7 @@ function vagueOpenAnswer(q: string, g: Gate): HospitalResult {
   return { summary: message, card, ask };
 }
 
-/** A department of units is named: which unit do you already belong to? */
+/** A department of units is named, so I ask: which unit do you already belong to? */
 function askUnitAnswer(q: string, d: Department, g: Gate): HospitalResult {
   const when = whenLine(g);
   const sitting = unitsOn(d, g.day);
@@ -1399,10 +1403,10 @@ function askUnitAnswer(q: string, d: Department, g: Gate): HospitalResult {
   return { summary: `${message} (visit on ${g.label})`, card, ask };
 }
 
-/** A new patient: a clear Yes (he will be seen by, and belong to, the unit that sits that day) with everything he must know about ALL the units before he goes, or a clear No. */
+/** For a new patient I give a clear Yes (he will be seen by, and belong to, the unit that sits that day) with everything he must know about ALL the units before he goes, or a clear No. */
 async function newPatientAnswer(e: Entities, ctx: EngineCtx, d: Department): Promise<HospitalResult> {
   const g = await openGate(e, ctx);
-  if (!g.isOpen) return closureAnswer(e, ctx); // a closed day, or hours over: a clear No whoever you are
+  if (!g.isOpen) return closureAnswer(e, ctx); // Closed day, or hours over: a clear No whoever you are
   const sitting = unitsOn(d, g.day);
   const names = joinAnd(sitting.map((u) => u.label));
   if (!sitting.length) {
@@ -1426,7 +1430,7 @@ async function newPatientAnswer(e: Entities, ctx: EngineCtx, d: Department): Pro
   return done(`Yes: ${text}`, card);
 }
 
-/** The confirmed permanent doctors (all, or of the departments named), from the staff list and current doctor list. */
+/** Lists the confirmed permanent doctors (all, or of the departments named), taken from the staff list and current doctor list. */
 function permanentListAnswer(e: Entities): HospitalResult {
   const allPerm = DOCTOR_POOL.filter((p) => !isGone(p) && p.employment !== "contractual" && p.status !== "not_on_list");
   let list = allPerm.slice();
@@ -1470,8 +1474,8 @@ function permanentListAnswer(e: Entities): HospitalResult {
 }
 
 export async function answerHospital(q: string, ctx: EngineCtx): Promise<HospitalResult | null> {
-  // the exact marker of a doctor ("(ticket 490138)") is not part of the question: its word "ticket" must not make it look like a directory question
-  // "(new patient)" is added by the question "which unit do you belong to?": it is a state of the patient, not part of the words
+  // The exact marker of a doctor ("(ticket 490138)") is not part of the question: its word "ticket" must not make it look like a directory question
+  // "(new patient)" is added by the question "which unit do you belong to?": I treat it as a state of the patient, not part of the words
   const newPatient = NEW_PATIENT.test(q);
   const q1 = newPatient ? q.replace(NEW_PATIENT, " ") : q;
   const marker = MARKER_RE.exec(q1);
@@ -1484,20 +1488,20 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
     return done(text, { title: "Which date?", status: { tone: "unknown", text }, notes: [] });
   }
 
-  // token timings can be asked without the word OPD
+  // I allow token timings to be asked without the word OPD
   if (/\btoken\s*(timings?|times?|hours?)\b/.test(n) && !e.depts.length && !e.doctors.length) return timingsAnswer();
 
-  // words that are not part of a name, and the words of the question that may be one
+  // Words that are not part of a name, and the words of the question that may be one
   const NOT_A_NAME = new Set(["hospital", "plant", "health", "centre", "centres", "center", "general", "emergency", "clinic", "clinics", "department", "departments", "doctors", "units", "opds", "timing", "timings", "hours", "patients", "patient"]);
   const nameWords = e.leftover.filter((w) => w.length >= 3 && !NOT_A_NAME.has(w));
 
-  // permanent or contractual: one doctor's status, or the list of the non-permanent doctors (from the separate file)
+  // Permanent or contractual: here I answer for one doctor's status, or give the list of the non-permanent doctors (from the separate file)
   const nm = n.replace(/-/g, " ");
   const npWords = /\b(contractual|contract|non permanent|temporary|part time|visiting)\b/.test(nm);
   const permWords = /\b(permanent|regular)\b/.test(nm);
   if ((e.doctors.length > 1 || (e.doctors.length === 1 && e.hintMiss)) && (npWords || permWords)) return askDoctor(e, q);
   if (e.doctors.length === 1 && (npWords || permWords)) return employmentAnswer(e.doctors[0]);
-  // "is dr X contractual" when nobody is called X: say so (not the list of all the non-permanent doctors)
+  // "is dr X contractual" when nobody is called X: I say so (not the list of all the non-permanent doctors)
   if ((npWords || permWords) && !e.doctors.length && /\b(dr|doctor)\b/.test(nm) && nameWords.length && !e.depts.length) {
     const text = `I could not find a doctor named "${nameWords.join(" ")}" in the hospital lists I have. Check the spelling, or try the surname only.`;
     return done(text, { title: "Which doctor?", status: { tone: "unknown", text } });
@@ -1505,7 +1509,7 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
 
   // qualifications, levels, specialisations
   const quals = qualificationsAsked(nm);
-  const asksSpec = SPECIALISATION_WORD.test(nm.replace(/\bsuper[\s-]?special(?:i[sz]\w*|it(?:y|ies)|t(?:y|ies))\b/g, " ")); // "super speciality" is a LEVEL, not a specialisation
+  const asksSpec = SPECIALISATION_WORD.test(nm.replace(/\bsuper[\s-]?special(?:i[sz]\w*|it(?:y|ies)|t(?:y|ies))\b/g, " ")); // "super speciality" counts as a LEVEL here, not a specialisation
   const asksQual = /\b(degrees?|qualifications?|qualified)\b/.test(nm);
   const asksLevel = levelAsked(nm);
 
@@ -1518,7 +1522,7 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   const hasWhen = e.dateRef !== null || e.weekdays.length > 0;
   const closureWords = /\b(open|opens|opened|closed?|closes|closing|running|functioning|functional|working|holiday|holidays|off|closure|closures)\b/.test(n);
   const timingWords = /\b(timing|timings|time|times|hours|starts?|begins?|from what time|what time)\b/.test(n);
-  // "list of ent doctors", "how many doctors in surgery": the doctors of a department, from the hospital's own lists (not the HR directory, which does not know their department)
+  // "list of ent doctors", "how many doctors in surgery": I answer with the doctors of a department, from the hospital's own lists (not the HR directory, which does not know their department)
   const DOCTOR_NOUN = /\b(doctors?|physicians?|surgeons?|specialists?|consultants?|radiologists?|pathologists?|anaesthetists?|anesthetists?)\b/;
   const FILTER_WORDS = /\b(mail|e ?mail|nic|webmail|mobile|phone|cug|address|grade|designation|senior|seniority|junior|executives?|non executives?|retire|retired|promoted)\b/;
 
@@ -1531,10 +1535,10 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
     if (asksQual || quals.length) return doctorQualificationAnswer(e.doctors[0], quals);
   }
   if (asksSpec && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return specialisationAnswer(e, { permanentOnly: permWords, contractualOnly: npWords });
-  // "list the doctors having post graduate degree on medicine", "how many doctors are post graduate": by the LEVEL of the degree (step 58a)
+  // "list the doctors having post graduate degree on medicine", "how many doctors are post graduate": I answer by the LEVEL of the degree (step 58a)
   if (asksLevel && !quals.length && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return doctorsByLevelAnswer(e, asksLevel, { permanentOnly: permWords, contractualOnly: npWords });
 
-  // "list of DNB doctors", "how many MD doctors in medicine": by the qualification the staff list prints (step 56a)
+  // "list of DNB doctors", "how many MD doctors in medicine": I answer by the qualification the staff list prints (step 56a)
   // "list the doctors with their degrees / qualifications": no qualification named (step 56b: it used to fall through to four unrelated circulars at 77 to 87 per cent)
   const anyQualAsked = !quals.length && /\b(degrees?|qualifications?|qualified)\b/.test(nm);
   if ((quals.length || anyQualAsked) && !e.doctors.length && DOCTOR_NOUN.test(n) && noOtherAsk) return doctorsByQualificationAnswer(e, quals, { permanentOnly: permWords, contractualOnly: npWords });
@@ -1547,7 +1551,7 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
     return doctorAnswer(e.doctors[0], e, ctx);
   }
 
-  // "which days does dr kamla sit": a doctor's name was typed but nobody matches it: say so, do not show something else
+  // "which days does dr kamla sit": a doctor's name was typed but nobody matches it, so I say so and do not show something else
   if (!e.doctors.length && (/\b(dr|doctor)\b/.test(n) || /\b(days?|schedule|roster)\s+of\s+[a-z]/.test(n)) && (/\b(days?|sit|sits|sitting|when|schedule|roster|available|availability|present|opd)\b/.test(n) || hasWhen) && nameWords.length && !e.depts.length && !e.unitRefs.length) {
     const text = `I could not find a doctor named "${nameWords.join(" ")}" in the hospital lists I have. Check the spelling, or try the surname only.`;
     return done(text, { title: "Which doctor?", status: { tone: "unknown", text } });
@@ -1560,9 +1564,9 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
 
 
   if (e.depts.length && hasWhen && !(closureWords && !e.depts.length)) {
-    // "is orthopaedic OPD open on tuesday" and "who is in orthopaedic OPD on tuesday" both show the department's OPD that day
+    // For both "is orthopaedic OPD open on tuesday" and "who is in orthopaedic OPD on tuesday" I show the department's OPD that day
     if (closureWords && e.dateRef && e.dateRef.kind !== "invalid") {
-      // a department of units: a verdict depends on the unit; a new patient is told which unit he will belong to, a patient of a unit is asked which
+      // A department of units: a verdict depends on the unit; I tell a new patient which unit he will belong to, and I ask a patient of a unit which
       const only = e.depts.length === 1 ? e.depts[0] : null;
       if (only && isUnits(only)) {
         if (newPatient) return newPatientAnswer(e, ctx, only);
@@ -1574,14 +1578,14 @@ export async function answerHospital(q: string, ctx: EngineCtx): Promise<Hospita
   }
   if (!e.depts.length && closureWords && !hasWhen) return closureRulesAnswer();
   if (!e.depts.length && (closureWords || e.dateRef || e.weekdays.length)) {
-    // "is opd open on monday?": no department, so not yet a clear Yes (see openGate)
+    // "is opd open on monday?": no department, so I do not give a clear Yes yet (see openGate)
     if (closureWords && e.dateRef && YES_NO_Q.test(n.trim())) { const g = await openGate(e, ctx); if (g.isOpen) return vagueOpenAnswer(q, g); }
     return closureAnswer(e, ctx);
   }
   if (timingWords && !e.depts.length) return timingsAnswer();
   if (e.depts.length && timingWords) return timingsAnswer();
   if (e.depts.length) return overviewAnswer(e.depts);
-  // a department spelt with a slip ("gaynea opd"): read as the one department that is a letter or two away, and SAID, never silently
+  // A department spelt with a slip ("gaynea opd"): I read it as the one department that is a letter or two away, and SAY so, never silently
   const near = nearestDepartment(e.leftover);
   if (near && !e.doctors.length) {
     const r = overviewAnswer([near.dept]);

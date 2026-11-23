@@ -1,7 +1,7 @@
 // scripts/omnibar-acceptance.selftest.mjs
 //
-// Proves the harness's JUDGE before it judges the app, and checks that eval/router-acceptance.json is well formed.
-// Needs no server, no database, no model:   node scripts/omnibar-acceptance.selftest.mjs
+// This proves the harness's JUDGE before it judges the app, and checks that eval/router-acceptance.json is well formed.
+// It needs no server, no database, no model:   node scripts/omnibar-acceptance.selftest.mjs
 //
 // The fake answers below copy the SHAPES the real route returns (src/lib/employees/analytics.ts AnalyticsPayload,
 // src/lib/nl2sql/omnibar.ts OmnibarPayload, src/app/api/ai-search/route.ts).
@@ -276,10 +276,10 @@ const traced = [
   { id: "1", outcome: "PASS", route: "HOLIDAY", ms: 100, tokens: 0, modelCalls: 0, waitedMs: 0, steps: { "name-checks": 5, omnibar: 60 } },
   { id: "2", outcome: "PASS", route: "CIRCULAR", ms: 5200, tokens: 4872, modelCalls: 1, waitedMs: 0, steps: { "name-checks": 10, omnibar: 1900, "circular-search": 3100 } },
   { id: "3", outcome: "FAIL", failLabel: "route", route: "CIRCULAR", ms: 12600, tokens: 4905, modelCalls: 1, waitedMs: 10500, steps: { "name-checks": 14, omnibar: 11800, "circular-search": 700 } },
-  { id: "4", outcome: "PASS", route: "EMP-SQL", ms: 4000, answerSource: "nl2sql", attempts: 2 }, // an untraced one in the same run
+  { id: "4", outcome: "PASS", route: "EMP-SQL", ms: 4000, answerSource: "nl2sql", attempts: 2 }, // this one is an untraced answer in the same run
 ];
 const sm2 = summarize(traced);
-// 2 exact calls from the three traced answers + the 2 inferred attempts of the one untraced answer in the same run
+// I expect 2 exact calls from the three traced answers, plus the 2 inferred attempts of the one untraced answer in the same run.
 eq("summary: exact totals from the trace", [sm2.traced, sm2.tokensTotal, sm2.modelCallsLowerBound, sm2.waitedMsTotal], [3, 9777, 4, 10500]);
 const mu = modelUseByRoute(traced).find((r) => r.route === "CIRCULAR");
 eq("model use: circular", [mu.n, mu.withModel, mu.modelCalls, mu.tokens], [2, 2, 2, 9777]);
@@ -367,7 +367,7 @@ t("the set has no structural problems", setProblems === 0, `${setProblems} probl
 t("the set has the regression records", SET.records.filter((x) => x.regression).length >= 20);
 t("the set carries every source", ["A", "B", "K", "H", "F", "HC", "S", "CB", "G"].every((s) => SET.records.some((x) => x.source === s)));
 const q = new Map();
-// the same question under a different login state (the SEC probes) is a different test
+// The same question under a different login state (the SEC probes) is a different test, so I do not count it as a duplicate.
 for (const rec of SET.records) { const k = `${norm(rec.query)}|${JSON.stringify(rec.run ?? null)}`; if (q.has(k)) bad(`same question twice: ${q.get(k)} and ${rec.id}`); q.set(k, rec.id); }
 t("no question appears twice", setProblems === 0);
 

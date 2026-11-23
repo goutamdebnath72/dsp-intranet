@@ -59,7 +59,7 @@ const w = parseIbja(weekend);
 ok("on a day with no rates the last published day's closing (PM) rates are given, dated, with the page's own words", !!w && w.asOf === "2026-11-13" && w.session === "PM" && w.gold24Per10g === 135809 && w.gold22Per10g === 124401 && w.silverPerKg === 178000 && /Rates are not published on Central Govt\. Holidays & SAT\/SUN/.test(w.notPublished ?? ""), JSON.stringify(w && { a: w.asOf, g: w.gold24Per10g, n: w.notPublished }));
 ok("their change is against the closing rate of the day before (12 Nov: 137692), and the chart still ends on that last published day", !!w && w.change.gold24?.abs === 135809 - 137692 && w.change.gold24?.pct === Math.round(((135809 - 137692) / 137692) * 10000) / 100 && w.history[w.history.length - 1].date === "2026-11-13" && w.history.length >= 40);
 ok("an ordinary day carries no date or note", !!r && r.asOf === undefined && r.notPublished === undefined);
-// a working day's morning: IBJA has not put up the first rate yet and says "Rates will be uploaded soon" (the page of Monday 16 Nov 2026, 10:00 IST)
+// A working day's morning, before IBJA has put up the first rate: the page says "Rates will be uploaded soon" (the page of Monday 16 Nov 2026, 10:00 IST).
 const morning = readFileSync("src/lib/live/fixtures/ibja-morning.html", "utf8");
 const mo = parseIbja(morning);
 ok("on a working day's morning, before the first rate is up, the last published day's closing (PM) rates are shown, dated, with the page's own words", !!mo && mo.asOf === "2026-11-13" && mo.session === "PM" && mo.notPublished === "Rates will be uploaded soon" && mo.gold24Per10g === 135809 && mo.gold22Per10g === 124401 && mo.silverPerKg === 178000 && mo.history.length > 50);

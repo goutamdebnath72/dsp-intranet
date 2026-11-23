@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/AnnouncementsFeed.nesting.selftest.ts
-// The owner's edit and delete buttons on an announcement card must NOT sit inside the button that opens the card (a button in a button is invalid HTML; React 19 reports a hydration error, and a click
-// on the inner one is also a click on the outer one). Checked on the source of the card: the opening element closes BEFORE the owner's buttons start, the card itself is a plain div, and the
+// My edit and delete buttons on an announcement card must NOT sit inside the button that opens the card (a button in a button is invalid HTML; React 19 reports a hydration error, and a click
+// on the inner one is also a click on the outer one). I check this on the source of the card: the opening element closes BEFORE my buttons start, the card itself is a plain div, and the
 // "New" chip lets a click through to the opening button.
 import { readFileSync } from "node:fs";
 

@@ -4,7 +4,7 @@
 //
 // Lays out a "when is X" / "is this date a holiday" answer as a small card instead of one long sentence:
 // name, then the date once with a coloured chip per type (and the categories it applies to), then the
-// reason in its own box. The maintainer's remark about the source document is folded away.
+// reason in its own box. I fold away the maintainer's remark about the source document.
 
 import React from "react";
 import type { HolidayDetail, HolidayDetailEntry } from "@/lib/holidays/format";

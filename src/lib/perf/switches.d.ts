@@ -1,4 +1,4 @@
-// Types of src/lib/perf/switches.js (read that file: each switch is explained there).
+// These are the types of src/lib/perf/switches.js; read that file, as each switch is explained there.
 export type LoadWhen = "pointer" | "idle" | "now";
 export interface PerfSwitches {
   minifyBrowserCode: boolean;
@@ -27,6 +27,7 @@ export interface PerfSwitches {
   edsDrafts: "hedged" | "both";
   edsHedgeSeconds: number;
   edsVerifyDuringRepair: boolean;
+  allowProModels: boolean;
   edsDraftModel: string;
   edsVerifyModel: string;
 }

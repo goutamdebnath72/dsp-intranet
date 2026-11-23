@@ -3,7 +3,7 @@
 // Helpers for comparing and cleaning the readings of a page by two Gemini models (used by geminiOcr.ts). Pure: no I/O.
 import { numberContext } from "./readingCheck";
 
-/** The share of the checker's words that the primary's reading must also have, else the two readings are not of the same page. */
+/** The share of the checker's words that the primary's reading must also have. Below it, I take the two readings as not being of the same page. */
 export const MIN_SHARED_WORDS = 0.5;
 
 export interface Dispute {
@@ -15,7 +15,7 @@ export interface Dispute {
   context: string;
 }
 
-/** A reading as text for search: the bare marks of things that are not text are removed; legible text on a stamp, handwriting and [illegible] stay. */
+/** Turns a reading into text for search: I remove the bare marks of things that are not text, while legible text on a stamp, handwriting and [illegible] stay. */
 export function cleanSecondReading(text: string): string {
   return String(text ?? "")
     .replace(/\[(?:logo|stamp|blank form rows)\]/gi, " ")

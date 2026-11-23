@@ -1,6 +1,6 @@
 // src/components/tools/live/SportsCard.tsx
 //
-// SPORTS HEADLINES: those with India directly in them, the big world events (World Cups, the Olympics, the Asian and Commonwealth Games, Grand Slams ... with or without India), and all.
+// Sports headlines: those with India directly in them, the big world events (World Cups, the Olympics, the Asian and Commonwealth Games, Grand Slams ... with or without India), and all.
 // Headlines and links to the publisher's page (a new tab), not live scores: no free steady live-score feed exists, and this card says so. Nothing typed is sent anywhere.
 "use client";
 

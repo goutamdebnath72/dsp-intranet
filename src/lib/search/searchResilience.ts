@@ -1,14 +1,14 @@
 // src/lib/search/searchResilience.ts
 //
-// What the main search engine does when its hybrid (vector + keyword) pipeline fails.
+// This is what the main search engine does when its hybrid (vector + keyword) pipeline fails.
 //
-// THE BUG THIS REPLACES: a database connection that took longer than 5 s to open (typical on the first request after the dev server
+// The bug this replaces: a database connection that took longer than 5 s to open (typical on the first request after the dev server
 // swaps its pool) made the pipeline throw; the engine logged it, quietly switched to a title-only search, found nothing, and the
 // screen said "No results found" -- which is FALSE. The database had recovered a second later; a second try would have answered.
 //
-//   1. A transient database error (connection timeout, dropped connection ...) is RETRIED (3 tries, 400 ms apart). Real errors are not.
-//   2. If it still fails, the title-only search is used as a degraded answer -- if it finds something, that is shown.
-//   3. If it finds NOTHING, the search has FAILED, it must not pretend there are no results: SearchUnavailableError is thrown, the
+//   1. I RETRY a transient database error (connection timeout, dropped connection ...) (3 tries, 400 ms apart). Real errors are not retried.
+//   2. If it still fails, I use the title-only search as a degraded answer -- if it finds something, that is shown.
+//   3. If it finds NOTHING, the search has FAILED and must not pretend there are no results: I throw SearchUnavailableError, the
 //      route answers 503 and the screen shows its red "Failed to perform search. Please try again." banner.
 import { isTransientDbError, withDbRetry } from "../db/resilience";
 

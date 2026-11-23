@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/weather.selftest.ts
-// The Durgapur weather: Open-Meteo's real answer (fixtures/open-meteo-durgapur.json, 13 Nov 2026) is read and checked; wrong answers are refused.
+// I test the Durgapur weather: Open-Meteo's real answer (fixtures/open-meteo-durgapur.json, 13 Nov 2026) is read and checked; wrong answers are refused.
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
 import { compass, MAX_AGE_HOURS, parseWeather, PLACE, skyKind, skyText, WEATHER_URL, WeatherError } from "./weather";

@@ -1,8 +1,8 @@
 // src/lib/errorLog/digest.ts
 //
-// THE DAILY DIGEST (22 Nov 2026), run once a day by the host's scheduler (src/app/api/cron/error-digest/route.ts): it cleans the log (store.ts prune), and tells the developer in ONE notice what the log holds that
-// he has not been told yet: the errors first seen since the last digest by rank, the serious ones still open, the errors nobody could rank, how many old entries were dropped, and which part of the log is nearly full.
-// "Nearly full" is the warning the owner asked for before the log starts dropping its oldest entries (80% of the limit of a source). A quiet day sends nothing.
+// THE DAILY DIGEST (22 Nov 2026), run once a day by the host's scheduler (src/app/api/cron/error-digest/route.ts): it cleans the log (store.ts prune), and tells me in ONE notice what the log holds that
+// I have not been told yet: the errors first seen since the last digest by rank, the serious ones still open, the errors nobody could rank, how many old entries were dropped, and which part of the log is nearly full.
+// "Nearly full" is the warning I asked for before the log starts dropping its oldest entries (80% of the limit of a source). A quiet day sends nothing.
 
 import { DateTime } from "luxon";
 import { LIMIT_PER_SOURCE, digestFacts, ensureTables, getMeta, prune, setMeta, type Query } from "./store";

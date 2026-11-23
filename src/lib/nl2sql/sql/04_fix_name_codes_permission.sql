@@ -1,9 +1,9 @@
 -- 04_fix_name_codes_permission.sql
--- Fixes "permission denied for schema public" when a query uses name_codes / the
+-- This fixes "permission denied for schema public" when a query uses name_codes / the
 -- name-matching helpers. Run this whole file once on the live database. Safe to re-run.
 -- NOTE: SUPERSEDED. 05_fast_name_codes.sql and 06_spelling_families.sql replace this file. Do NOT run 04
 -- after 05 or 06: it would put back an older version of nlq.name_codes_of (without the spelling rule).
--- (01_nlq_schema_views_role.sql has been updated to include the same change for fresh installs.)
+-- (I updated 01_nlq_schema_views_role.sql to include the same change for fresh installs.)
 
 CREATE OR REPLACE FUNCTION nlq.name_codes_of(full_name text) RETURNS text[]
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
@@ -41,7 +41,7 @@ JOIN public.designation_grade dg ON dg.id = er.designation_grade_id
 LEFT JOIN public.sail_department sd ON sd.id = er.sail_department_id
 LEFT JOIN public."user" u ON u.id = er.user_id;
 
--- Proof: the restricted role must now be able to use the phonetic columns, and must STILL be
+-- Proof: the restricted role has to be able to use the phonetic columns now, and must STILL be
 -- locked out of schema public. The first block should succeed; the second must ERROR.
 DO $$
 BEGIN

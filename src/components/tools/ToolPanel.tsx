@@ -1,9 +1,9 @@
 // src/components/tools/ToolPanel.tsx
 //
-// THE TOOLS PANEL OF THE SEARCH BAR. It sits above the search results and shows:
+// This is the tools panel of the search bar. It sits above the search results and shows:
 //   - AS YOU TYPE, with no Enter: what a topic answers at once (a sum, a conversion, a date answer, a tyre size, a VIN, a BH number, a gold rate...);
 //   - after ENTER: a calculator or reader with a page of its own, or the list of them.
-// THIS FILE NAMES NO TOPIC. Every topic (src/tools/<topic>/) says in its ui.tsx how it looks, and the list is src/tools/registry.ui.tsx; what a typed line means is decided by src/lib/tools/detect.ts from the
+// I keep this file free of any topic name. Every topic (src/tools/<topic>/) says in its ui.tsx how it looks, and the list is src/tools/registry.ui.tsx; what a typed line means is decided by src/lib/tools/detect.ts from the
 // topics' own topic.ts. All of it runs in the browser. Nothing typed here is stored or sent; the only thing downloaded is the public exchange-rate table, and only when a topic asks for it.
 "use client";
 
@@ -19,7 +19,7 @@ import { UtilityServicesPage } from "./UtilityServicesPage";
 
 export type { RatesState };
 
-/** the calculators and readers with a page of their own, in the order of the list; and the live cards, by name */
+/** The calculators and readers with a page of their own, in the order of the list; and the live cards, by name. */
 const FORMS: Array<{ id: FormKind; ui: FormUi }> = TOPIC_UIS.flatMap((t) => (t.form ? [{ id: t.id as FormKind, ui: t.form }] : []));
 const FORM_BY_ID = Object.fromEntries(FORMS.map((f) => [f.id, f.ui])) as Record<FormKind, FormUi>;
 const LIVE_BY_ID = Object.fromEntries(TOPIC_UIS.flatMap((t) => (t.live ? [[t.id, t.live]] : []))) as Record<string, LiveUi>;
@@ -32,9 +32,9 @@ const TILE: Record<Tone, string> = {
 
 export function ToolPanel({ query, form, onForm }: { query: string; form: FormKind | "menu" | "services" | null; onForm: (f: FormKind | "menu" | "services" | null) => void }) {
   const hit = useMemo(() => detectTool(query), [query]);
-  // where a calculator page's Back arrow goes: the list of calculators, or the page of all the utility services when it was opened from there
+  // Where a calculator page's Back arrow goes: the list of calculators, or the page of all the utility services when it was opened from there.
   const [from, setFrom] = useState<"menu" | "services">("menu");
-  // a live card opened in place from the utility services page (the page's Back arrow closes it)
+  // A live card opened in place from the utility services page (the page's Back arrow closes it).
   const [liveOpen, setLiveOpen] = useState<string | null>(null);
   useEffect(() => { if (form === null) setFrom("menu"); }, [form]);
   useEffect(() => { if (form !== "services") setLiveOpen(null); }, [form]);
@@ -42,7 +42,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
   const { rates, state } = useRates(wantsRates);
   const ctx: UiCtx = { rates, ratesState: state, openForm: onForm, query };
 
-  // the form opened with Enter
+  // The form that Enter opened.
   if (form) {
     if (form === "services") {
       const open = liveOpen ? LIVE_BY_ID[liveOpen] : null;
@@ -102,7 +102,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
 
   if (!hit) return null;
 
-  // the page of all the utility services typed but not yet sent
+  // The page of all the utility services, typed but not yet sent.
   if (hit.kind === "services") {
     return (
       <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-3 flex items-center gap-3 rounded-2xl border border-dashed border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-sm text-emerald-900 shadow-sm" data-services-hint>
@@ -114,7 +114,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
     );
   }
 
-  // a form or the menu typed but not yet sent: a hint, so the reader knows Enter opens it
+  // A form or the menu typed but not yet sent: I show a hint so the reader knows Enter opens it.
   if (hit.kind === "form" || hit.kind === "menu") {
     return (
       <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-3 flex items-center gap-3 rounded-2xl border border-dashed border-sky-300 bg-gradient-to-r from-sky-50 to-indigo-50 px-4 py-3 text-sm text-sky-900 shadow-sm">
@@ -136,6 +136,6 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
     );
   }
 
-  // the card of the topic that answered
+  // I draw the card of the topic that answered.
   return <>{HIT_UIS.find((h) => h.kind === hit.kind)?.render(hit, ctx) ?? null}</>;
 }

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/pincode/pincode.selftest.ts
-// The data and the logic of the Durgapur areas card. The data is read from the Election Commission's draft roll 2026 and from India Post, so these checks are the ones that can be proved from the data itself:
+// These tests cover the data and the logic of the Durgapur areas card. The data is read from the Election Commission's draft roll 2026 and from India Post, so I only check what can be proved from the data itself:
 // the wards found on the pages are exactly those of the Delimitation Commission's order, every PIN a ward uses is a real post-office PIN, and nothing is half-filled.
 import { PANCHAYATS, POST_OFFICES, WARDS, DATA_DATE } from "./data";
 import { ALSO_SERVING, EMERGENCY, OTHER_UNITS, POLICE, POLICE_ORDER, POLICE_SOURCES } from "./police";

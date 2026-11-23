@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/hospital/hospitalRoute.selftest.ts
-// Step 51a: the hospital route inside runOmnibar: it comes first, needs no model, is skipped on a retry, and a question that is not about the OPD goes on to the other routes untouched.
+// Step 51a, the hospital route inside runOmnibar: I made it come first, it needs no model, it is skipped on a retry, and a question that is not about the OPD goes on to the other routes untouched.
 
 import { readFileSync, existsSync } from "node:fs";
 import { DateTime } from "luxon";

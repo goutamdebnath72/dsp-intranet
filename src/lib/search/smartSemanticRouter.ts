@@ -16,21 +16,21 @@ async function executeCircularRouter(
   if (!safeQ) return { uniqueResults: [], isFallback: false, isSyntheticBand: false };
 
   // 1. INTENT ANALYSIS
-  // Detects literal markers: Quotes, @ symbols, URLs, Alphanumeric codes (CN-9, Rs. 20995), specific formatting
+  // Here I detect literal markers: quotes, @ symbols, URLs, alphanumeric codes (CN-9, Rs. 20995), specific formatting.
   // Literal markers are things a human types when hunting an EXACT string:
   // quotes, an @handle, a domain (.co.in), an alphanumeric code (CN-9,
   // MERIT_AWD/131), or a decimal number (20995.30). Common English words
-  // like "format" or "Rs" are NOT literal markers — they wrongly shoved
+  // like "format" or "Rs" are NOT literal markers: they wrongly shoved
   // ordinary conversational queries down the literal path.
   const isLiteral =
     /[@"]|\.[a-z]{2,4}\b|[A-Za-z]+-\d+|[A-Za-z]+_[A-Za-z]+|\d+\.\d+|\d{6,}/i.test(
       safeQ,
     );
 
-  // Detects conversational markers: Wh- questions, condition clauses, or sentences longer than 6 words
-  // A pure exact-token query (single token containing a digit: a number or an
+  // Here I also detect conversational markers: Wh- questions, condition clauses, or sentences longer than 6 words.
+  // A pure exact-token query is a single token containing a digit (a number or an
   // alphanumeric code). For these, the content engine's literal search is the
-  // authority — if it finds nothing, we must NOT fall back to the policy
+  // authority: if it finds nothing, I must NOT fall back to the policy
   // engine's vector search, which would surface a semantically-nearest but
   // unrelated circular. No literal hit => genuinely empty.
   const isExactTokenQuery =
@@ -52,13 +52,13 @@ async function executeCircularRouter(
       return {
         uniqueResults: contentResults.uniqueResults,
         isFallback: contentResults.isFallback,
-        // True cosine (see semanticContentSearch.ts: similarity is capped
-        // raw rawSim, boosts are used only to select/order, never reported).
+        // True cosine (see semanticContentSearch.ts): similarity is capped at the
+        // raw rawSim, and I use boosts only to select and order, never to report.
         isSyntheticBand: false,
       };
     }
     // For an exact-token query (number / code), a content miss is a real miss.
-    // Do NOT fall through to the vector policy engine — that would return an
+    // Do NOT fall through to the vector policy engine: that would return an
     // unrelated nearest-neighbour circular.
     if (isExactTokenQuery) {
       return { uniqueResults: [], isFallback: false, isSyntheticBand: false };
@@ -72,7 +72,7 @@ async function executeCircularRouter(
     );
     const r = await executePolicySearch(dataSource, safeQ);
     // executePolicySearch's similarity is a synthetic rank-positional display
-    // band (SIM_HI..SIM_LO), not a true relevance magnitude -- see that
+    // band (SIM_HI..SIM_LO), not a true relevance magnitude. See that
     // file's own header comment and holidayPolicySearch.ts's docstring.
     return { ...r, isSyntheticBand: true };
   }
@@ -86,7 +86,7 @@ async function executeCircularRouter(
     executeContentSearch(dataSource, safeQ),
   ]);
 
-  // If the Content Engine found a confirmed 100% exact text match deep in the PDF chunk, it wins
+  // If the Content Engine found a confirmed 100% exact text match deep in the PDF chunk, I let it win.
   if (contentResults.hasExactMatch && contentResults.uniqueResults.length > 0) {
     console.log(
       "[Smart Semantic Router] Resolution: Hard exact text match found. Content Engine wins.",
@@ -98,7 +98,7 @@ async function executeCircularRouter(
     };
   }
 
-  // Otherwise, default to the mathematically perfect hierarchical sorting of the Policy Engine
+  // Otherwise I default to the mathematically perfect hierarchical sorting of the Policy Engine.
   console.log(
     "[Smart Semantic Router] Resolution: No exact text match. Policy Engine wins.",
   );
@@ -107,11 +107,11 @@ async function executeCircularRouter(
 
 
 /**
- * Public entry point. Runs the circular router, the announcement semantic
- * search, and the holiday policy search in parallel, then merges all three
+ * Public entry point. I run the circular router, the announcement semantic
+ * search and the holiday policy search in parallel, then merge all three
  * streams into one ranked list tagged by `type`. Announcements and holiday
- * policy chunks are BOTH additive -- neither ever displaces the circular
- * engine's carefully-tuned exact-match behaviour; they interleave by score.
+ * policy chunks are BOTH additive: neither ever displaces the circular
+ * engine's carefully-tuned exact-match behaviour, and they interleave by score.
  */
 export async function executeSmartSemanticRouter(
   dataSource: DataSource,
@@ -121,7 +121,7 @@ export async function executeSmartSemanticRouter(
   if (!safeQ) return { uniqueResults: [], isFallback: false };
 
   // Holiday-policy notes compete only for holiday-topic questions (or Indic
-  // queries, which keep their previous behaviour untouched). For any other
+  // queries, whose previous behaviour I keep untouched). For any other
   // question they were filler at 84-89% (see lib/search/topicGate.ts).
   const holidayEligible = /[\p{Script=Devanagari}\p{Script=Bengali}]/u.test(safeQ) || isHolidayTopic(safeQ);
   const [circular, announcements, holidayPolicyAll] = await Promise.all([
@@ -130,27 +130,27 @@ export async function executeSmartSemanticRouter(
     holidayEligible ? executeHolidayPolicySearch(dataSource, safeQ) : Promise.resolve([] as SearchResultRow[]),
   ]);
 
-  // No year in the question -> only the newest yearly copy of each holiday policy
+  // With no year in the question, only the newest yearly copy of each holiday policy
   // competes (the retrieval below now looks 12 deep so the newest is a candidate).
   const holidayPolicy = collapseYearlyPolicyCopies(safeQ, holidayPolicyAll as any[]) as SearchResultRow[];
 
-  // Neither additive source hit -> return the circular result untouched
-  // (preserves the exact circular-only behaviour, including empty
-  // exact-token misses).
+  // If neither additive source hit, I return the circular result untouched.
+  // That preserves the exact circular-only behaviour, including empty
+  // exact-token misses.
   if (announcements.length === 0 && holidayPolicy.length === 0) {
     return { uniqueResults: circular.uniqueResults, isFallback: circular.isFallback };
   }
 
-  // Merge and rank by the similarity each engine reported. holidayPolicy and
+  // I merge and rank by the similarity each engine reported. holidayPolicy and
   // announcements report TRUE cosine similarity (a real relevance
   // magnitude). Circular results are NOT always on that same scale: when
   // circular.isSyntheticBand is true, their similarity came from
-  // executePolicySearch's rank-positional display band (SIM_HI..SIM_LO --
+  // executePolicySearch's rank-positional display band (SIM_HI..SIM_LO,
   // see that file), which reflects only "ranked Nth within its own result
-  // set," not real relevance -- so the best of a weak batch of circulars can
+  // set," not real relevance. So the best of a weak batch of circulars can
   // otherwise display ~0.97 and wrongly bury a genuinely strong, true-cosine
-  // holiday-chunk match. Fix scoped to exactly this comparison: when
-  // isSyntheticBand, cap each circular's effective score at a conservative
+  // holiday-chunk match. My fix is scoped to exactly this comparison: when
+  // isSyntheticBand, I cap each circular's effective score at a conservative
   // ceiling before the cross-engine sort, so it can still win against a
   // genuinely weak true-cosine match (nothing better exists) but can no
   // longer automatically beat a strong one purely by being first-in-batch.
@@ -177,7 +177,7 @@ export async function executeSmartSemanticRouter(
   }
 
   // An announcement found by its WORDS (the typed phrase, or most of the question's content words) keeps its place beside the circulars however low the cosine of its passage is (a long passage that holds the
-  // answer among other things is only a little like the question in meaning): for the cut below it counts as at least 0.9. The screen then ranks by its own evidence, as for every result.
+  // answer among other things is only a little like the question in meaning). For the cut below I count it as at least 0.9. The screen then ranks by its own evidence, as for every result.
   const rankOf = (r: SearchResultRow) => Math.max(typeof r.similarity === "number" ? r.similarity : 0, r.lexicalHit ? 0.9 : 0);
   merged.sort((a, b) => rankOf(b) - rankOf(a));
 

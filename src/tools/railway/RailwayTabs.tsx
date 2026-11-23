@@ -1,8 +1,8 @@
 // src/tools/railway/RailwayTabs.tsx
 //
 // THE RAILWAY CARD, IN TWO TABS: Durgapur Railway Station (DGR), the trains that stop at Durgapur, and Asansol Railway Junction (ASN), the trains a person at Durgapur can only have from Asansol (those that pass
-// Durgapur without stopping and those that do not go over it). The Durgapur tab is the card as it was (RailwayCard.tsx); the Asansol tab asks for its trains only when it is first opened (AsansolPanel.tsx), and both
-// stay as they are while the other is shown (a tab that has been opened is hidden, not unmounted, so its switches and the fare boxes that were opened are kept). Arrow keys move between the tabs.
+// Durgapur without stopping and those that do not go over it). The Durgapur tab is the card as it was (RailwayCard.tsx); the Asansol tab asks for its trains only when it is first opened (AsansolPanel.tsx), and I keep both
+// as they are while the other is shown (a tab that has been opened is hidden, not unmounted, so its switches and the fare boxes that were opened are kept). Arrow keys move between the tabs.
 "use client";
 
 import React, { useState } from "react";

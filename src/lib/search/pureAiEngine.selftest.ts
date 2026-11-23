@@ -1,7 +1,7 @@
 // src/lib/search/pureAiEngine.selftest.ts
 // Run with: npx tsx src/lib/search/pureAiEngine.selftest.ts
 //
-// DETERMINISTIC: no .env is loaded and no model is called (the router test passes the model's raw text in). The
+// I keep this test DETERMINISTIC: no .env is loaded and no model is called (the router test passes the model's raw text in). The
 // first version of this file loaded .env.local, so its language cases hit the live model or a keyword fallback
 // depending on what was configured; it also pinned snapshot counts. Every defect found in the 7 Nov 2026 review is
 // a regression check below.
@@ -51,14 +51,14 @@ async function main() {
   ok("Karmakar: sits Monday and Thursday", k?.summary?.includes("Monday and Thursday") ?? false);
   ok("Karmakar: table row 0 starts with the doctor", (k?.card?.table?.rows?.[0]?.[0] ?? "").startsWith("Dr. "));
 
-  // a name made only of filler ("I") is NO doctor: it must never match somebody by substring
+  // I treat a name made only of filler ("I") as NO doctor: it must never match somebody by substring
   const filler = executePureHospital({ action: "doctor_schedule", doctorName: "I", rawQuery: "where can I see a doctor" });
   ok('filler name "I" is no doctor: nothing is answered (the original pipeline continues)', filler === null, filler?.summary);
   ok("nameTokens drops pronouns and filler", nameTokens("can I see dr karmakar please").join(",") === "karmakar");
   ok("findDoctors: a short fragment does not match inside a longer name", findDoctors("ohit").length === 0);
   ok("findDoctors: nothing for filler only", findDoctors("i").length === 0);
 
-  // two doctors share a word: ASK, never pick the first
+  // when two doctors share a word, I ASK and never pick the first
   const parts = new Map<string, number>();
   for (const p of DOCTOR_POOL.filter((x) => !gone(x))) for (const w of new Set(p.name.toLowerCase().split(/[^a-z]+/).filter((x) => x.length >= 4))) parts.set(w, (parts.get(w) ?? 0) + 1);
   const shared = [...parts.entries()].find(([, n]) => n >= 2)?.[0];
@@ -132,7 +132,7 @@ async function main() {
   const hi = await parseQueryWithLlm("hello", { llm: fails });
   ok("a bare greeting needs no model", hi?.tool === "conversational");
   ok('"help me find quarters retention rules" is NOT a greeting', (await parseQueryWithLlm("help me find quarters retention rules", { llm: fails })) === null);
-  // the model's word "conversational" is believed only for small talk (a notice's time limit was once answered with "How can I assist you?")
+  // I believe the model's word "conversational" only for small talk (a notice's time limit was once answered with "How can I assist you?")
   const chat = (q: string) => parseQueryWithLlm(q, { llm: llm('{"tool":"conversational","params":{"reply":"Hello, how can I help?"}}') });
   ok("a line about a notice that the model misreads as chatter is NOT small talk: it goes on to the search", (await chat("OTP valid for five minutes")) === null && (await chat("password at least 8 characters")) === null && (await chat("account lock 5 times in a row")) === null);
   ok("real small talk is still answered as small talk", (await chat("thanks a lot"))?.tool === "conversational" && (await chat("who made you"))?.tool === "conversational" && (await chat("how are you today"))?.tool === "conversational" && (await chat("good night"))?.tool === "conversational");

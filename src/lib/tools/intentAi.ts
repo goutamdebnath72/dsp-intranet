@@ -1,8 +1,8 @@
 // src/lib/tools/intentAi.ts
 //
-// ASKING THE AI WHICH UTILITY A LINE MEANS, for the line that intent.ts cannot settle (a whole sentence in which the plain words of no utility are found). WHAT LEAVES THE PLANT: the one typed line, with long digit
+// Here I ask the AI which utility a line means, for the line that intent.ts cannot settle (a whole sentence in which the plain words of no utility are found). What leaves the plant: the one typed line, with long digit
 // runs and e-mail addresses blanked, and the list of utilities (the app's own text). NOTHING ELSE: not a figure entered in a utility, not a search result, not a person; and never an ID query (maskForAi gives
-// null for it). What comes back is only a utility's id (or "none") and a confidence: the answer is checked against the real list of utilities, so a made-up id, or a sentence, is no answer. The AI never
+// null for it). What comes back is only a utility's id (or "none") and a confidence: I check the answer against the real list of utilities, so a made-up id, or a sentence, is no answer. The AI never
 // supplies a number or a fact: the utility itself, once opened, does that from its own source.
 import { catalogForAi, INTENTS, maskForAi } from "./intent";
 
@@ -21,7 +21,7 @@ export function buildPrompt(masked: string): string {
   ].join("\n");
 }
 
-/** the AI's reply checked: a real utility id and a confidence between 0 and 1; null for "none", for an id that is not in the list, or for anything that is not that JSON */
+/** The AI's reply, checked: a real utility id and a confidence between 0 and 1; null for "none", for an id that is not in the list, or for anything that is not that JSON. */
 export function parseAiAnswer(text: string): AiPick | null {
   const m = /\{[^{}]*\}/.exec(text || "");
   if (!m) return null;
@@ -36,7 +36,7 @@ export function parseAiAnswer(text: string): AiPick | null {
   }
 }
 
-/** asks `generate` (the AI) and returns its checked pick; null when the line may not be sent, the AI says none, or it fails: the caller then does what it always did */
+/** Asks `generate` (the AI) and returns its checked pick; null when the line may not be sent, the AI says none, or it fails, and the caller then does what it always did. */
 export async function askWhichUtility(line: string, generate: (prompt: string) => Promise<string>): Promise<AiPick | null> {
   const masked = maskForAi(line);
   if (!masked) return null;
@@ -47,5 +47,5 @@ export async function askWhichUtility(line: string, generate: (prompt: string) =
   }
 }
 
-/** a pick is acted on from this confidence up */
+/** I act on a pick from this confidence up. */
 export const AI_MIN_CONFIDENCE = 0.6;

@@ -1,4 +1,4 @@
-// src/tools/converter/colour.selftest.ts: RGB <-> HEX, the arithmetic and the typed line.
+// src/tools/converter/colour.selftest.ts: here I check RGB <-> HEX, the arithmetic and the typed line.
 import { DEFAULT_HEX, cssHsl, cssRgb, hslToRgb, inkOn, parseChannel, parseChannels, parseColour, parseHex, parseHslBoxes, parseHslPart, rgbToHsl, stepPart, toHex } from "./colour";
 
 let pass = 0, fail = 0;
@@ -31,7 +31,7 @@ ok("a channel is a whole number 0 to 255: 0, 7, 255, ' 12 '", [["0", 0], ["7", 7
 ok("not a channel: 256, -1, 1.5, 12a, empty, 1e2, 1000 (never rounded or clamped)", ["256", "-1", "1.5", "12a", "", "1e2", "1000", "0x10"].every((t) => parseChannel(t) === null));
 ok("three boxes make a colour only when all three are channels", parseChannels("255", "87", "51")?.g === 87 && parseChannels("255", "87", "") === null && parseChannels("256", "0", "0") === null);
 
-// RGB -> HSL (hue in degrees 0-359, saturation and lightness in per cent, whole numbers)
+// RGB -> HSL: hue in degrees 0-359, saturation and lightness in per cent, all whole numbers
 const hsl = (r: number, g: number, b: number): string => cssHsl(rgbToHsl({ r, g, b }));
 ok("#FF5733 (255,87,51) is hsl(11, 100%, 60%); the intranet's indigo (79,70,229) is hsl(243, 75%, 59%)", hsl(255, 87, 51) === "hsl(11, 100%, 60%)" && hsl(79, 70, 229) === "hsl(243, 75%, 59%)");
 ok("the pure colours: red 0, yellow 60, green 120, cyan 180, blue 240, magenta 300 degrees, all at 100% and 50%", hsl(255, 0, 0) === "hsl(0, 100%, 50%)" && hsl(255, 255, 0) === "hsl(60, 100%, 50%)" && hsl(0, 255, 0) === "hsl(120, 100%, 50%)" && hsl(0, 255, 255) === "hsl(180, 100%, 50%)" && hsl(0, 0, 255) === "hsl(240, 100%, 50%)" && hsl(255, 0, 255) === "hsl(300, 100%, 50%)");
@@ -70,7 +70,7 @@ ok("an HSL is a colour: 'hsl(0, 100%, 50%)', 'hsl 120 100 50', 'hsl(240deg 100% 
 ok("not a colour: a plain number or word, hex digits without a hint, a channel out of range, too long", ["ff5733", "bad", "add", "123456", "255 87 51", "255,87,51", "12 34 56", "rgb 256 0 0", "rgb(1,2)", "#12345", "#gggggg", "hex 12345", "hsl 361 0 0", "hsl(1,2)", "hsl 0 101 0", "rgb to rgb", "hex to hex", "hsl to hsl", "rgb to hex of the whole of the plant's office wall please now"].every((q) => parseColour(q) === null), ["ff5733", "bad", "add", "123456", "255 87 51", "255,87,51", "12 34 56", "rgb 256 0 0", "rgb(1,2)", "#12345", "#gggggg", "hex 12345"].filter((q) => parseColour(q) !== null).join(" | "));
 ok("the other conversions are not taken: '5 km in miles', '100 usd to inr', '98.6 f to c', '12*45+7', 'calculator'", ["5 km in miles", "100 usd to inr", "98.6 f to c", "12*45+7", "calculator", "bhp to ps"].every((q) => parseColour(q) === null));
 
-// the spinner arrows and the Up/Down keys
+// Here I test the spinner arrows and the Up/Down keys
 ok("stepping a channel: 87 up is 88, down is 86; Shift (10) gives 97", stepPart("87", 1, 0, 255, 0) === "88" && stepPart("87", -1, 0, 255, 0) === "86" && stepPart("87", 10, 0, 255, 0) === "97");
 ok("a channel stops at its ends: 255 up stays 255, 0 down stays 0, 250 up by 10 is 255", stepPart("255", 1, 0, 255, 0) === "255" && stepPart("0", -1, 0, 255, 0) === "0" && stepPart("250", 10, 0, 255, 0) === "255");
 ok("the hue goes to 360 and no further; saturation and lightness stop at 100", stepPart("359", 1, 0, 360, 0) === "360" && stepPart("360", 1, 0, 360, 0) === "360" && stepPart("100", 1, 0, 100, 0) === "100");

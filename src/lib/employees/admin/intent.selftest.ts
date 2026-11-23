@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/employees/admin/intent.selftest.ts
-// Step 66a: which sentences ask for a CHANGE of employee data, and which are only questions. PURE.
+// Step 66a: I test which sentences ask for a CHANGE of employee data, and which are only questions. PURE.
 
 import { detectEmployeeAdminIntent as d } from "./intent";
 

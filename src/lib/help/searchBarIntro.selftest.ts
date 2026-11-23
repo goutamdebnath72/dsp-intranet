@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/help/searchBarIntro.selftest.ts
-// The introduction to the search bar (first tab of the guide) follows the bar as it is drawn (23 Nov 2026): the first row, "Search in", button by button in the bar's own order, then the second row, "More tools".
-// The Utility Services have a tab of their own (utilityServices.selftest.ts). It says plainly what cannot be answered.
+// I want the introduction to the search bar (first tab of the guide) to follow the bar as it is drawn (23 Nov 2026): the first row, "Search in", button by button in the bar's own order, then the second row, "More tools".
+// The Utility Services have a tab of their own (utilityServices.selftest.ts). The introduction says plainly what cannot be answered.
 import { ADMIN_POINTER, AREAS, CHOICE_RULES, EDS_POINTER, INTRO_LEAD, LIMITS, ROW_TITLES, START, UTILITY_POINTER } from "./searchBarIntro";
 import { UTILITY_SERVICES } from "./utilityServices";
 import { ADMIN_CHOICE, DOMAINS, EDS_CHOICE, PEOPLE_FACETS } from "../../records/domains";

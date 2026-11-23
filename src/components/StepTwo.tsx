@@ -9,7 +9,7 @@ import { AnimatedInput } from './AnimatedInput';
 import { PASSWORD_MODULE_ENABLED } from "@/lib/security/passwordModule";
 
 export const StepTwo = ({ ticketNo, password, setPassword, onSubmit, error, isLoading, onBack }: any) => {
-  // After a failed attempt the password is cleared (see LoginModal); put the cursor back in the empty field
+  // After a failed attempt the password is cleared (see LoginModal); I put the cursor back in the empty field
   // so the next thing typed is the whole password, not an addition to the old one.
   useEffect(() => {
     if (error) document.getElementById('password')?.focus();

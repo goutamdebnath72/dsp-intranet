@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/namedRows.selftest.ts
-// Step 49b: a question that names departments by name AND code gets exactly those rows. The first case is the live answer of 25 Oct 2026 00:57 (the SQL the screen showed), run
+// Step 49b: a question that names departments by name AND code must get exactly those rows. The first case is the live answer of 25 Oct 2026 00:57 (the SQL the screen showed), run
 // against the 300 real department rows; the last block runs EVERY combination of ticks through the real "Which department do you mean?" ask (departmentAsk.ts).
 
 import real from "./__fixtures__/departments.real.json";
@@ -41,7 +41,7 @@ ok("...the mended SQL passes the safety check and selects exactly the two rows",
 ok("...and the mended SQL passes the check", !!fixed && checkNamedRows(LIVE_Q, fixed, all) === null);
 ok("repairDepartments / checkDepartments choose the named rows for this question", repairDepartments(LIVE_Q, LIVE_SQL, all) === fixed && checkDepartments(LIVE_Q, LIVE_SQL, all) === p);
 
-// ---- right answers pass, written any way
+// ---- right answers must pass, however they are written
 ok("department_id IN (46, 92) passes", checkNamedRows(LIVE_Q, people("e.department_id IN (46, 92)"), all) === null);
 ok("the order of the ids does not matter", checkNamedRows(LIVE_Q, people("e.department_id IN (92, 46)"), all) === null);
 ok("department_code IN (86000, 86600) passes", checkNamedRows(LIVE_Q, people("e.department_code IN (86000, 86600)"), all) === null);
@@ -78,7 +78,7 @@ ok("no marker: namedRows is empty", namedRows(OLDQ, all).length === 0 && namedRo
 const hm = "SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%heavy%')";
 ok("no marker: checkDepartments is exactly checkFamilies, repairDepartments exactly repairFamilies", checkDepartments(OLDQ, hm, all) === checkFamilies(OLDQ, hm, all) && repairDepartments(OLDQ, hm, all) === repairFamilies(OLDQ, hm, all));
 
-// ---- EVERY combination of ticks through the checkbox question (its example, __fixtures__/askExamples.ts): what the question names is EXACTLY what was ticked
+// ---- EVERY combination of ticks through the checkbox question (its example, __fixtures__/askExamples.ts): what the question names must be EXACTLY what was ticked
 const ask = refractoryAsk("refractory", true);
 const byId: Record<string, DepartmentRow> = { refractory: REF, office: OFF, coke: COKE };
 let combos = 0;

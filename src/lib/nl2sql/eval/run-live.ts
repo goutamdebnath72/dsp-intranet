@@ -3,7 +3,7 @@
 // THE REAL TEST: does the real language model turn questions it has never seen into correct SQL on
 // YOUR real data? For every golden question, in every wording, it asks the model, runs what the model
 // wrote through the same guard and read-only executor the app uses, and compares the rows with the
-// reference SQL's rows. Nothing is hard-coded: expected results come from your database.
+// reference SQL's rows. I hard-code nothing: expected results come from your database.
 //
 //   npx tsx --env-file=.env.local src/lib/nl2sql/eval/run-live.ts                 (everything)
 //   npx tsx --env-file=.env.local src/lib/nl2sql/eval/run-live.ts --quick         (first wording of each)
@@ -11,7 +11,7 @@
 //   npx tsx --env-file=.env.local src/lib/nl2sql/eval/run-live.ts --resume        (continue an earlier run)
 //   ... --resume --retry-failed      (also ask again the wordings that FAILED; keep the passes)
 //
-// Results are saved after EVERY question (nl2sql-eval-results.json + nl2sql-eval-report.md), so nothing
+// I save results after EVERY question (nl2sql-eval-results.json + nl2sql-eval-report.md), so nothing
 // is lost if the run stops. If the model provider's daily token allowance runs out, the run stops
 // cleanly and tells you the exact command to continue later with --resume (wordings that already got a
 // real answer are not asked again). Only the read-only nlq_reader role touches your data.
@@ -103,7 +103,7 @@ async function main() {
   const llm = groqLlm({ onUsage: (u) => { tokenCounter += u.total; cachedCounter += u.cached; } });
   const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
-  // --resume: keep wordings that already got a real answer; re-ask only missing ones and provider errors.
+  // --resume: I keep wordings that already got a real answer and re-ask only the missing ones and provider errors.
   let rows: Row[] = [];
   if (resume && existsSync(RESULTS)) {
     try {
@@ -141,7 +141,7 @@ async function main() {
     if (!res.ok && res.kind === "error" && isDailyLimit(res.message)) {
       stopped = "the model provider's DAILY token allowance is used up. Nothing is wrong with the model or the code.";
       console.log(`\nSTOP  ${stopped}`);
-      break; // this wording was not really asked; --resume will ask it again
+      break; // I did not really ask this wording; --resume asks it again
     }
 
     let pass = false;
@@ -163,7 +163,7 @@ async function main() {
       sql: res.ok ? res.sql : (res.sql ?? null), understoodAs: (res as any).understoodAs ?? null,
       outcome: res.ok ? "answered" : res.kind,
     });
-    writeReport(rows, model, null); // saved after every wording
+    writeReport(rows, model, null); // I save after every wording
     console.log(`${pass ? "PASS" : "FAIL"}  [${c.id}] ${v}\n        ${detail}  (${res.attempts} attempt${res.attempts === 1 ? "" : "s"}, ${Date.now() - t0} ms, ${tokens} tokens${cached ? `, ${cached} cached` : ""})`);
     await sleep(delayMs);
   }

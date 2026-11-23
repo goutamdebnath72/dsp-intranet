@@ -1,11 +1,12 @@
 // src/tools/railway/AsansolPanel.tsx
 //
-// THE SECOND TAB OF THE RAILWAY CARD: ASANSOL RAILWAY JUNCTION (ASN), the trains a person at Durgapur can only have by going to Asansol. Two lists side by side, as the Durgapur tab has its two directions:
+// THE SECOND TAB OF THE RAILWAY CARD: ASANSOL RAILWAY JUNCTION (ASN), the trains a person at Durgapur can only have by going to Asansol. I show two lists side by side, as the Durgapur tab has its two directions:
 //   * trains that pass Durgapur WITHOUT stopping and stop at Asansol (take them from Asansol);
 //   * trains that do not go over Durgapur at all and stop at Asansol.
 // A train that stops at Durgapur too is not here (it can be had at Durgapur). The local (MEMU) trains of Asansol are below, in violet, as on the Durgapur tab. Each train shows its time AT ASANSOL (the departure large,
-// the arrival under it), its name and number, where it starts and ends, and the days it is at Asansol, and the saved FARES FROM ASANSOL (₹ Fares: to the end of its run, and to every stop after Asansol), as at Durgapur. It is the timetable, not live running status; the data and its checks are in src/lib/live/railwayAsansol.ts.
-// The tab's data is asked for only when the tab is opened (src/tools/railway/RailwayTabs.tsx mounts this panel then). Nothing typed is sent anywhere.
+// the arrival under it), its name and number, where it starts and ends, and the days it is at Asansol, and the saved FARES FROM ASANSOL (₹ Fares: to the end of its run, and to every stop after Asansol), as at Durgapur.
+// It is the timetable, not live running status; the data and its checks are in src/lib/live/railwayAsansol.ts.
+// I ask for the tab's data only when the tab is opened (src/tools/railway/RailwayTabs.tsx mounts this panel then). Nothing typed is sent anywhere.
 "use client";
 
 import React, { useState } from "react";

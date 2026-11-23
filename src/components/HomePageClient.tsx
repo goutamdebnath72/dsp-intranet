@@ -14,8 +14,8 @@ import { CircularViewerLightbox } from "./CircularViewerLightbox";
 import { useVerifiedSession } from "./SessionGuard";
 import { useCircularStatus } from "@/hooks/useCircularStatus";
 
-// --- 2. ADDED NEW LINK TYPE ---
-// This type matches the data we cleaned in page.tsx (undefined -> null)
+// --- 2. Added new Link type ---
+// This type matches the data I cleaned in page.tsx (undefined -> null)
 type Link = {
   id: number;
   category: string;
@@ -27,19 +27,19 @@ type Link = {
 };
 // ----------------------------
 
-// --- 3. MODIFIED: Added sailSitesData ---
+// --- 3. Modified: added sailSitesData ---
 type HomePageClientProps = {
   quickLinksData: Link[];
   departmentData: Link[];
-  sailSitesData: Link[]; // <-- ADDED
-  recentCircularIds?: number[] | null; // the circulars uploaded in the last 24 hours (from the server)
-  visitorHasNoLoginCookie?: boolean; // certainly logged out: the badge is part of the first HTML
+  sailSitesData: Link[]; // <-- added
+  recentCircularIds?: number[] | null; // the circulars uploaded in the last 24 hours, passed in from the server
+  visitorHasNoLoginCookie?: boolean; // certainly logged out, so the badge is part of the first HTML
 };
 
 export default function HomePageClient({
   quickLinksData,
   departmentData,
-  sailSitesData, // <-- 4. ADDED
+  sailSitesData, // <-- 4. added
   recentCircularIds,
   visitorHasNoLoginCookie,
 }: HomePageClientProps) {
@@ -51,7 +51,7 @@ export default function HomePageClient({
   );
 
   useEffect(() => {
-    // one shared lock (src/lib/ui/scrollLock.ts); this used to blank <html>'s overflow on every change, which also unlocked any window opened over the page
+    // I use one shared lock (src/lib/ui/scrollLock.ts); the old code blanked <html>'s overflow on every change, which also unlocked any window opened over the page.
     if (viewingCircularId === null) return;
     const lock = lockPageScroll();
     return () => lock.release();
@@ -77,10 +77,10 @@ export default function HomePageClient({
             <main className="lg:col-span-3 space-y-8">
               <Announcements />
 
-              {/* --- 5. MODIFIED: Passed sailSitesData prop --- */}
+              {/* --- 5. Modified: passed the sailSitesData prop --- */}
               <DepartmentSites
                 departmentData={departmentData}
-                sailSitesData={sailSitesData} // <-- ADDED
+                sailSitesData={sailSitesData} // <-- added
               />
             </main>
             <aside className="lg:col-span-2">

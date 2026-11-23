@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/tools/intent.selftest.ts
-// Which utility a line means, whatever the words: arbitrary, capitalised, misspelt and long lines for every utility, ordinary searches that must NOT become a utility, and the AI step (with a stand-in AI): what
+// Here I check which utility a line means, whatever the words: arbitrary, capitalised, misspelt and long lines for every utility, ordinary searches that must NOT become a utility, and the AI step (with a stand-in AI): what
 // leaves, what comes back, and what is never sent.
 import { readFileSync } from "node:fs";
 import { detectTool } from "./detect";
@@ -9,7 +9,7 @@ import { catalogForAi, clearIntent, distance, informative, INTENTS, looksLikeSen
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 
-// a line is HANDLED when the box would open the right utility without the AI: an exact reader (detectTool) or a clear intent
+// I count a line as HANDLED when the box would open the right utility without the AI: an exact reader (detectTool) or a clear intent.
 const topicOfHit = (q: string): string | null => {
   const h = detectTool(q);
   if (!h) return null;
@@ -50,7 +50,7 @@ for (const [id, lines] of Object.entries(WANT)) {
   for (const l of lines) {
     total++;
     const h = handledBy(l);
-    // the tyre reader also holds the wheel (rim) marking guide (its own design: "wheel size" opens it), so a rim line may open it
+    // The tyre reader also holds the wheel (rim) marking guide (my design: "wheel size" opens it), so a rim line may open it.
     if (h === id || (id === "rim" && h === "tyre")) handled++;
     else if (h) wrong.push(`${l} -> ${h} (wanted ${id})`);
     else missed.push(`${id}: ${l}`);

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/departmentFamilies.selftest.ts
-// A large department (CO & CC, BF, SMS with CCP, W&A, Merchant Mill, Section Mill) means ALL of its section rows: the people sit in the sections, so
+// This tests that a large department (CO & CC, BF, SMS with CCP, W&A, Merchant Mill, Section Mill) means ALL of its section rows: the people sit in the sections, so
 // "executives in cocc" must not look for a department called exactly CO & CC.
 
 import { departmentFamilies, formatFamilies, selectRelevantDepartments, type DepartmentRow } from "./context";
@@ -33,7 +33,7 @@ ok("the model is told to use ALL the ids", /department_id IN \(1, 2, 3\)/.test(t
 ok("...and that one named section is the only exception", /names one section/.test(text));
 eq("nothing is added for a question without a family", formatFamilies([]), "");
 
-// the short form cocc now also brings its rows into the list of relevant departments (it used to bring none: the name has no word of 3 letters)
+// Now the short form cocc also brings its rows into the list of relevant departments; it used to bring none, because the name has no word of 3 letters.
 eq("cocc: the relevant departments are the CO & CC sections", selectRelevantDepartments("how many executives are there in cocc, list them.", all).map((d) => d.id).sort((a, b) => a - b), [1, 2, 3]);
 ok("a question naming no department still shows none", selectRelevantDepartments("how many executives have no NIC email", all).length === 0);
 

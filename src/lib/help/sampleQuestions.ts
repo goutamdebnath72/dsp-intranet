@@ -1,11 +1,11 @@
 // src/lib/help/sampleQuestions.ts
 //
-// THE SAMPLE QUESTIONS OF THE USER GUIDE: one data file, read by src/components/HelpManualModal.tsx. Nothing about a question is written in the component, so a new area of the
+// THE SAMPLE QUESTIONS OF THE USER GUIDE: one data file, read by src/components/HelpManualModal.tsx. I write nothing about a question in the component, so a new area of the
 // search (a new directory, a new tool) is one new entry here, not a change to the screen.
 //
-// Every question was taken from a question the project has already run or tested (the router and hospital tests, the employee-directory examples), with one rule: a question that names a
+// Every question was taken from a question the project has already run or tested (the router and hospital tests, the employee-directory examples), and my one rule is that a question that names a
 // PERSON is a template ("[name]"), never a real employee. src/lib/help/sampleQuestions.selftest.ts keeps the guide honest: no ordinary sample may be one the front gate sends to the deep search
-// (synthesisIntent.ts), except those marked `either`. The deep search (EDS) has its own tab of the guide (src/lib/help/edsGuide.ts); nothing about it is described on the sample questions page.
+// (synthesisIntent.ts), except those marked `either`. The deep search (EDS) has its own tab of the guide (src/lib/help/edsGuide.ts); I describe nothing about it on the sample questions page.
 //
 // THE ORDER IS THE ORDER OF THE BAR (23 Nov 2026): the sections follow the choices under the box (People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices; Everything is the default and has no section of
 // its own). Each section names its choice (`choice`) and says in one sentence which button to press and what that button does (`choose`). The sample selftest runs the PAX, Hospital OPD and Degrees questions through
@@ -22,11 +22,11 @@ export type SectionIcon = "graduation" | "calculator" | "lightbulb" | "users" | 
 
 export interface SampleQuestion {
   q: string;
-  /** one short line: what the answer will be, or why the question is a good one */
+  /** One short line: what the answer will be, or why the question is a good one. */
   note?: string;
-  /** the result appears as you type, with no Enter (a number, a site or department name); every other question needs Enter */
+  /** The result appears as you type, with no Enter (a number, a site or department name); every other question needs Enter. */
   instant?: boolean;
-  /** may be sent to the deep search for a signed-in executive and to the ordinary search for everyone else (the front gate decides): not tested as ordinary */
+  /** Marks a question that may be sent to the deep search for a signed-in executive and to the ordinary search for everyone else (the front gate decides), so I do not test it as ordinary. */
   either?: boolean;
 }
 
@@ -34,22 +34,22 @@ export interface SampleSection {
   id: string;
   title: string;
   icon: SectionIcon;
-  /** the choice under the box that this section belongs to, as the button is labelled (and, for People, the facet): shown beside the title */
+  /** The choice under the box that this section belongs to, as the button is labelled (and, for People, the facet). I show it beside the title. */
   choice?: string;
-  /** which button to press and what it does, in one or two sentences; shown first when the section is open */
+  /** Which button to press and what it does, in one or two sentences; I show it first when the section is open. */
   choose?: string;
-  /** what this part of the search covers, in one sentence */
+  /** What this part of the search covers, in one sentence. */
   covers: string;
-  /** how to run it, said plainly: which input appears as you type and which needs the Enter key */
+  /** How to run it, said plainly: which input appears as you type and which needs the Enter key. */
   howToRun: string;
-  /** how to ask well in this area (short, concrete) */
+  /** How to ask well in this area; I keep it short and concrete. */
   tips: string[];
   questions: SampleQuestion[];
-  /** a fill-in-the-blank shape of a good question */
+  /** A fill-in-the-blank shape of a good question. */
   patterns?: string[];
 }
 
-/** The window event that asks the search bar to open with a question typed in (the reader still presses Enter). */
+/** The window event that asks the search bar to open with a question typed in; the reader still presses Enter. */
 export const OMNIBAR_PREFILL_EVENT = "omnibar-prefill";
 /** The window event that opens the user guide (detail: { tab: "samples" | "utility" | "how" | "eds" }). */
 export const OPEN_GUIDE_EVENT = "open-user-guide";
@@ -63,7 +63,7 @@ export const WEAK_VS_GOOD: Array<{ weak: string; good: string; why: string }> = 
   { weak: "who is incharge", good: "who is in charge of blast furnace", why: "names the department" },
 ];
 
-/** The recipe in five lines, shown first. */
+/** The recipe in five lines; I show it first. */
 export const RECIPE: string[] = [
   "Choose where to look: press one of the choices under the box (People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices), or leave Everything and let the bar decide. A choice makes the search narrower and surer.",
   "Name the subject the way the record does: the scheme, the facility, the rule, the department.",
@@ -319,7 +319,7 @@ export const SAMPLE_SECTIONS: SampleSection[] = [
   },
 ];
 
-/** The sample questions of the Utility Services (shown on the Utility Services tab, not among the sample questions of the main features). The questions are written by the topics themselves. */
+/** The sample questions of the Utility Services. I show them on the Utility Services tab, not among the sample questions of the main features. The topics write the questions themselves. */
 export const TOOLS_SECTION: SampleSection = {
   id: "tools",
   title: "Calculators, converters and live cards",
@@ -334,18 +334,18 @@ export const TOOLS_SECTION: SampleSection = {
     "Dates are written day first: 15/08/1985 is 15 August. Say \"days between ... and ...\", \"90 days from today\", \"age ...\", \"retirement date born ...\".",
     "Money results are approximations: please double-check them. The forms start with usual rates; change them to the figures of your own case.",
   ],
-  // the questions are written by the topics themselves (src/tools/<topic>/topic.ts), in the order of the registry; the list of calculators is last
+  // The topics write the questions themselves (src/tools/<topic>/topic.ts), in the order of the registry; I put the list of calculators last.
   questions: [...(TOPICS as readonly TopicLogic[]).flatMap((t) => [...(t.samples ?? [])]), ...MENU_SAMPLES, ...SERVICES_SAMPLES],
 };
 
-/** Every question of the guide, with the section it belongs to (the guide's search box and the selftest read this). */
+/** Every question of the guide, with the section it belongs to (the guide's search box and the selftest both read this). */
 export function allSamples(): Array<{ sectionId: string; q: string; note?: string; either?: boolean }> {
   const out: Array<{ sectionId: string; q: string; note?: string; either?: boolean }> = [];
   for (const s of [...SAMPLE_SECTIONS, TOOLS_SECTION]) for (const x of s.questions) out.push({ sectionId: s.id, q: x.q, note: x.note, either: x.either });
   return out;
 }
 
-/** The sections (and, inside them, the questions) that hold every word of `text`; an empty text keeps everything. */
+/** Returns the sections (and, inside them, the questions) that hold every word of `text`; I make an empty text keep everything. */
 export function filterSections(text: string, sections: SampleSection[] = SAMPLE_SECTIONS): SampleSection[] {
   const words = (text || "").toLowerCase().split(/\s+/).filter((w) => w.length >= 2);
   if (words.length === 0) return sections;

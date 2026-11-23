@@ -1,4 +1,4 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/units.selftest.ts
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/units.selftest.ts
 import { optionsFor } from "./converterModel";
 import { parseConversion, convertWords, findUnit, UNITS, TEMPERATURES } from "./units";
 

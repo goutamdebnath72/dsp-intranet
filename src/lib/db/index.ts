@@ -1,5 +1,5 @@
 // src/lib/db/index.ts
-import "reflect-metadata"; // Required core decorator metadata initialization step for TypeORM
+import "reflect-metadata"; // TypeORM needs this core decorator metadata initialization step first
 import { DataSource, DataSourceOptions } from "typeorm";
 import { getOracleConfig } from "./config/oracle.config";
 import { TRANSIENT_DB_ERROR, retireDataSource, sleep } from "./resilience";
@@ -25,7 +25,7 @@ import { User } from "./models/user.model";
 import { VerificationToken } from "./models/verification-token.model";
 import { PERF } from "@/lib/perf/switches";
 
-// Consolidation array of all active structural database entities
+// One array that consolidates all the active database entities
 const entities = [
   Account,
   AnnouncementReadStatus,
@@ -46,7 +46,7 @@ const entities = [
   VerificationToken,
 ];
 
-// Explicit type definition hook for global node execution caching context
+// Explicit type declaration for the global cache of the Node execution context
 declare global {
   // eslint-disable-next-line no-var
   var cachedTypeORMDataSource: DataSource | null;
@@ -57,7 +57,7 @@ declare global {
   var cachedTypeORMInitPromise: Promise<DataSource> | null;
 }
 
-// Global caching container lifecycle validation to handle Next.js hot module replacements safely
+// I validate the lifecycle of the global cache here so that Next.js hot module replacements are handled safely
 if (!global.cachedTypeORMDataSource) {
   global.cachedTypeORMDataSource = null;
 }
@@ -65,9 +65,9 @@ if (!global.cachedTypeORMInitPromise) {
   global.cachedTypeORMInitPromise = null;
 }
 
-// Transient-error detection, retry and graceful pool retirement live in ./resilience (testable on its own).
+// Transient-error detection, retry and graceful pool retirement live in ./resilience, where they can be tested on their own.
 
-// Detects if the operational state is running under a production deployment compression phase
+// Detects whether the app is running under a production deployment compression phase
 const isBuildPhase =
   typeof process.env.NEXT_PHASE === "string" &&
   process.env.NEXT_PHASE.includes("build");
@@ -97,19 +97,19 @@ const DUMMY_DATA_SOURCE = {
 } as unknown as DataSource;
 
 /**
- * Centralized High-Performance Database Connection Manager Factory.
- * Manages pool recycling, handles Next.js dev HMR reloads safely, and dynamically switches drivers.
+ * My central, high-performance factory for the database connection.
+ * It manages pool recycling, handles Next.js dev HMR reloads safely, and switches drivers dynamically.
  */
 export async function getDb(): Promise<DataSource> {
-  // 1. Manage globally cached DataSource instance if already connected and initialized
+  // Step 1: I reuse the globally cached DataSource if it is already connected and initialized
   if (
     global.cachedTypeORMDataSource &&
     global.cachedTypeORMDataSource.isInitialized
   ) {
-    // 💡 HMR Safety: In local development, check if modules/classes have reloaded in memory.
-    // If a class reference has changed, we must safely close the old pool and instantiate a fresh one.
+    // Important, HMR safety: in local development I check whether modules/classes have reloaded in memory.
+    // If a class reference has changed, I must safely close the old pool and instantiate a fresh one.
     if (process.env.NODE_ENV === "development") {
-      // STRICT identity check on purpose: installDevEntityNameFallback (below) makes hasMetadata() answer "yes" for a reloaded
+      // I make this identity check STRICT on purpose: installDevEntityNameFallback (below) makes hasMetadata() answer "yes" for a reloaded
       // copy of a class, which would hide a real reload from this test.
       const isHmrReloaded = entities.some((entity) => {
         try {
@@ -125,12 +125,12 @@ export async function getDb(): Promise<DataSource> {
         );
         // Do NOT destroy the old pool now: requests that started a moment ago (the home page, announcements ...)
         // are still running queries on it, and closing it under them is what crashed the page right after login.
-        // Detach it, let it drain, close it later.
+        // I detach it, let it drain, and close it later.
         const old = global.cachedTypeORMDataSource;
         global.cachedTypeORMDataSource = null;
         global.cachedTypeORMInitPromise = null;
         retireDataSource(old);
-        // fall through to (re)initialization below
+        // I fall through to the (re)initialization below
       } else {
         return global.cachedTypeORMDataSource;
       }
@@ -139,7 +139,7 @@ export async function getDb(): Promise<DataSource> {
     }
   }
 
-  // 2. Safely step around live connection routines during a production compilation lifecycle
+  // Step 2: during a production compilation I safely step around the live connection routines
   if (isBuildPhase) {
     console.log(
       "🔌 BUILD PHASE detected — returning dummy TypeORM target engine.",
@@ -150,7 +150,7 @@ export async function getDb(): Promise<DataSource> {
   const dbType = process.env.DB_TYPE || "postgres";
   let dataSourceOptions: DataSourceOptions;
 
-  // 3. Construct exact, optimized structural configurations mapped by enterprise driver targets
+  // Step 3: I construct the exact, optimized configuration for the chosen enterprise driver
   if (dbType === "oracle") {
     if (!global.cachedTypeORMInitPromise) console.log(
       "🔌 Configuring TypeORM client ecosystem connection for Oracle Database Enterprise Matrix...",
@@ -166,7 +166,7 @@ export async function getDb(): Promise<DataSource> {
       database: oracleConfig.database,
       serviceName: oracleConfig.serviceName,
       logging: false,
-      synchronize: false, // Schema mutations are isolated safely away from active runtime execution paths
+      synchronize: false, // I keep schema mutations isolated away from the active runtime execution paths
       entities: entities,
       extra: {
         poolMax: 10,
@@ -175,29 +175,29 @@ export async function getDb(): Promise<DataSource> {
       },
     };
   } else {
-    // said once per start, not by every request that arrives while the connection is still being made (they all pass here)
+    // I say this once per start, not for every request that arrives while the connection is still being made (they all pass here)
     if (!global.cachedTypeORMInitPromise) console.log(
       "🔌 Configuring TypeORM client connectivity options for Supabase Postgres Cluster...",
     );
     dataSourceOptions = {
       type: "postgres",
-      url: process.env.DATABASE_URL, // Directly utilizes Supabase optimized pool connection strings
+      url: process.env.DATABASE_URL, // I use the Supabase optimized pool connection strings directly
       logging: false,
-      synchronize: false, // Multi-tenant environment schema safety protection switch locked on
-      // TypeORM would run `CREATE EXTENSION IF NOT EXISTS "vector"` at every cold start (the entities have vector columns): one more round trip to the database before the first answer. The extension is installed (the vector search runs on it), so it is not asked for again.
+      synchronize: false, // I keep the multi-tenant schema safety protection switch locked on
+      // TypeORM would run `CREATE EXTENSION IF NOT EXISTS "vector"` at every cold start (the entities have vector columns): one more round trip to the database before the first answer. The extension is already installed (the vector search runs on it), so I do not ask for it again.
       installExtensions: PERF.installPgExtensionsAtStart, // src/lib/perf/switches.js
       entities: entities,
       extra: {
-        max: 5, // Safety connection ceiling limits to protect Supabase transaction slots
-        idleTimeoutMillis: 10000, // Instantly evict inactive connections
-        connectionTimeoutMillis: 5000, // Ensure slow Handshakes have room to stabilize
-        keepAlive: true, // Keep TCP sockets warm so the pooler doesn't silently drop idle conns
-        allowExitOnIdle: false, // Never auto-end the pool from under a cached DataSource
+        max: 5, // A safety ceiling on connections protects the Supabase transaction slots
+        idleTimeoutMillis: 10000, // I evict inactive connections immediately
+        connectionTimeoutMillis: 5000, // I give slow handshakes room to stabilize
+        keepAlive: true, // I keep TCP sockets warm so the pooler does not silently drop idle connections
+        allowExitOnIdle: false, // I never auto-end the pool from under a cached DataSource
       },
     };
   }
 
-  // If an initialized source already survived the checks above, reuse it.
+  // If an initialized source already survived the checks above, I reuse it.
   if (
     global.cachedTypeORMDataSource &&
     global.cachedTypeORMDataSource.isInitialized
@@ -205,7 +205,7 @@ export async function getDb(): Promise<DataSource> {
     return global.cachedTypeORMDataSource;
   }
 
-  // Serialize initialization: the FIRST caller creates the init promise; every
+  // Initialization is serialized: the FIRST caller creates the init promise, and every
   // concurrent caller awaits that same promise instead of building its own
   // DataSource and racing (which is what triggered the pool-end crash).
   if (!global.cachedTypeORMInitPromise) {
@@ -219,7 +219,7 @@ export async function getDb(): Promise<DataSource> {
         const ds = new DataSource(dataSourceOptions);
         try {
           await ds.initialize();
-          // Dev only: a route file compiled on demand brings its own copy of the entity classes; accept it by name
+          // Dev only: a route file compiled on demand brings its own copy of the entity classes, so I accept it by name
           // instead of failing the first request (see hmrEntities.ts).
           if (process.env.NODE_ENV === "development") installDevEntityNameFallback(ds);
           console.log(
@@ -230,7 +230,7 @@ export async function getDb(): Promise<DataSource> {
         } catch (err) {
           lastErr = err;
           const msg = (err as Error)?.message ?? String(err);
-          // Only retry transient connection drops; a real config/auth error
+          // I only retry transient connection drops; a real config or auth error
           // fails fast.
           try {
             if (ds.isInitialized) await ds.destroy();
@@ -259,7 +259,7 @@ export async function getDb(): Promise<DataSource> {
       "❌ Fatal validation crash processing current TypeORM runtime DataSource matrix configuration initialization:",
       err,
     );
-    // Purge everything so the NEXT request retries a clean init instead of
+    // I purge everything so the NEXT request retries a clean init instead of
     // reusing a half-dead source or a rejected promise.
     global.cachedTypeORMDataSource = null;
     global.cachedTypeORMInitPromise = null;

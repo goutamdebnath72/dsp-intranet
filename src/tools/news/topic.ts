@@ -1,10 +1,10 @@
 // src/tools/news/topic.ts
 //
-// WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words of the headlines card, and the language a line asks for ("hindi news"). The data cards and their sources stay in src/lib/live and src/components/tools/live.
-// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. It is listed once, in src/tools/registry.ts.
+// WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words of the headlines card, and the language a line asks for ("hindi news"). I left the data cards and their sources in src/lib/live and src/components/tools/live.
+// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. I list it once, in src/tools/registry.ts.
 import { defineTopic } from "@/tools/types";
 
-/** the papers the card reads, by the names a line may call them, and the tab each opens ("dainik bhaskar" opens the Hindi tab). Only whole names: "bhaskar" alone is a person's name and opens nothing. */
+/** The papers the card reads, by the names a line may call them, and the tab each opens ("dainik bhaskar" opens the Hindi tab). I take only whole names: "bhaskar" alone is a person's name and opens nothing. */
 const PAPERS: Array<[string[], string]> = [
   [["dainik bhaskar", "dainik jagran", "amar ujala", "navbharat times", "nav bharat times", "live hindustan", "hindustan hindi"], "hi"],
   [["hindustan times", "times of india", "the hindu", "ndtv", "the telegraph", "telegraph india", "telegraph online", "indian express", "the indian express"], "en"],
@@ -22,7 +22,7 @@ export const newsTopic = defineTopic({
     keys: ["news", "newsfeed", "newsfeeds", "newspaper", "newspapers", "headline", "headlines", "stories", "samachar", "khabar", "khabrein", "समाचार", "খবর", ...PAPER_WORDS],
     phrases: PAPER_PHRASES,
     extra: ["hindi", "bengali", "bangla", "english", "top", "breaking", "stories", "story", "national", "india", "latest", "morning", "daily", "paper", "newspaper", "in", "hindi", "bangla", "business", "economy", "economic", "corporate", "finance", "financial", "feed", "feeds", "ticker", "update", "updates", "online", "edition", "what's", "whats", "hindustan", "my"],
-    // the card opens on business; a line can ask for a language instead ("hindi news"), or for business by name ("business news")
+    // The card opens on business; a line can ask for a language instead ("hindi news"), or for business by name ("business news").
     lang: (w) => {
       const paper = w.map((x) => PAPER_TAB.get(x)).find(Boolean);
       if (paper) return paper;

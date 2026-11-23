@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/search/weakMatch.selftest.ts
-// Step 61a: a document that shares nothing with the question does not wear a confident percentage (ledger item 57).
+// Step 61a: I check that a document that shares nothing with the question does not wear a confident percentage (ledger item 57).
 
 import { readFileSync } from "node:fs";
 import { contentStems, isWeakMatch, markWeakMatches, WEAK_NOTE } from "./weakMatch";
@@ -11,7 +11,7 @@ const ok = (name: string, cond: boolean, extra = "") => {
 };
 const r = (headline: string, sim: number | null, extra: Record<string, unknown> = {}) => ({ headline, similarity: sim, chunkText: "", ...extra });
 
-// ---- the owner's own case, 26 Oct 2026
+// ---- my own case, 26 Oct 2026
 const Q1 = "list the employees of the centre for human resource development";
 const health = r("Circular-Health check-up for non-executive employees during the month of December 2024", 0.87, { matchPercentage: 87, chunkText: "Name of the employee ticket no department date of check-up 02.12.2024 ..." });
 ok("the content words of the owner's question: centre, human, resource, development (not 'list', 'employees', 'the', 'of', 'for')", JSON.stringify(contentStems(Q1)) === JSON.stringify(["centr", "human", "resou", "devel"]), JSON.stringify(contentStems(Q1)));
@@ -42,7 +42,7 @@ ok("a question in Hindi or Bengali is compared by its own words (unicode letters
   ok("an empty list is safe", markWeakMatches("anything", []).length === 0);
 }
 
-// ---- the screen: one honest line above the results, only when ALL of them are weak, and the badge needs no change
+// ---- the screen: I show one honest line above the results, only when ALL of them are weak, and the badge needs no change
 const hook = readFileSync("src/hooks/useOmniSearch.ts", "utf8");
 const modal = readFileSync("src/components/OmnibarModal.tsx", "utf8");
 ok("the hook marks the weak results once (useMemo), from the question that was searched", hook.includes("markWeakMatches(submittedQuery, rawResults)") && hook.includes("useMemo"));

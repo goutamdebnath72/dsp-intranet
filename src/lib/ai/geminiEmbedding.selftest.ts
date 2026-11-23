@@ -32,7 +32,7 @@ const stub = (script: Array<Response | Error>) => {
   };
 };
 let uid = 0;
-const fresh = (s: string) => `${s} ${Date.now()} ${uid++}`; // the query cache is keyed on text: never reuse one across checks
+const fresh = (s: string) => `${s} ${Date.now()} ${uid++}`; // Do not reuse one text across checks: the query cache is keyed on text.
 
 (async () => {
   console.warn = () => {};
@@ -108,7 +108,7 @@ const fresh = (s: string) => `${s} ${Date.now()} ${uid++}`; // the query cache i
     const n = normalizeVector([3, 4]);
     check("normalizeVector gives unit length (3,4 -> 0.6,0.8), and a zero vector gives no NaN", Math.abs(n[0] - 0.6) < 1e-9 && Math.abs(n[1] - 0.8) < 1e-9 && normalizeVector([0, 0]).every((x) => x === 0));
 
-    // The reason this module exists: it must never import the database (entity decorators cannot run under tsx).
+    // This is why I made this module: it must never import the database, because entity decorators cannot run under tsx.
     const src = readFileSync(join(__dirname, "geminiEmbedding.ts"), "utf8");
     check("GUARD: geminiEmbedding.ts imports no database and no entities: its one import is the pure word-family file (src/lib/search/termFamilies.ts, which imports nothing)", (src.match(/^\s*import\s.*$/gm) ?? []).every((l) => /@\/lib\/search\/termFamilies/.test(l)) && !/getDb|@\/lib\/db/.test(src) && !/^\s*import\s/m.test(readFileSync(join(__dirname, "..", "search", "termFamilies.ts"), "utf8")));
     const svc = readFileSync(join(__dirname, "embedding.service.ts"), "utf8");

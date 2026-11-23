@@ -1,10 +1,10 @@
 // src/lib/ingestion/consensusPatch.ts
 //
-// CONSENSUS PATCHING of a stored page text. The stored text of a page (read by the pipeline's OCR) is compared, word by word, with the readings of
-// two OTHER independent readers of the same page image (Gemini Pro and Gemini Flash). A word of the stored text is replaced ONLY when BOTH other readers
+// Consensus patching of a stored page text. The stored text of a page (read by the pipeline's OCR) is compared, word by word, with the readings of
+// two OTHER independent readers of the same page image (Gemini Pro and Gemini Flash). I replace a word of the stored text ONLY when BOTH other readers
 // propose the same replacement for the same place, and only for a token that carries a digit (a number, date, amount, phone, id or clause number): a word the
 // readers spell differently is reported, never changed (a model may silently correct a typo that is really in the original, and the original must stay as printed).
-// Pure functions, no I/O: every rule is testable (consensusPatch.selftest.ts).
+// These are pure functions with no I/O, so every rule is testable (consensusPatch.selftest.ts).
 
 export interface Tok {
   raw: string;
@@ -54,7 +54,7 @@ export function lev(a: string, b: string): number {
 
 export interface Hunk { i1: number; i2: number; j1: number; j2: number }
 
-/** The non-equal regions between two token arrays (longest common subsequence). */
+/** Returns the non-equal regions between two token arrays (longest common subsequence). */
 export function diffHunks(A: string[], B: string[]): Hunk[] {
   let lo = 0;
   while (lo < A.length && lo < B.length && A[lo] === B[lo]) lo++;
@@ -81,7 +81,7 @@ export function diffHunks(A: string[], B: string[]): Hunk[] {
 
 export interface Patch {
   kind: "replace" | "insert";
-  /** char offsets in the page text (replace: [start,end) is replaced; insert: text goes at start) */
+  /** Character offsets in the page text: for a replace, [start,end) is replaced; for an insert, the text goes at start. */
   start: number;
   end: number;
   from: string;
@@ -90,14 +90,14 @@ export interface Patch {
 
 const CLAUSE = /^\d{1,2}\.\d{1,2}$/;
 
-/** The local-hunk rule: small, digit-bearing, and the same in every reader. */
+/** My local-hunk rule: small, digit-bearing, and the same in every reader. */
 function candidates(S: Tok[], sIdx: number[], reader: string): Map<string, { h: Hunk; rep: Tok[] }> {
   const R = tokenize(reader).filter((t) => t.content);
   const hunks = diffHunks(sIdx.map((k) => S[k].norm), R.map((t) => t.norm));
   const out = new Map<string, { h: Hunk; rep: Tok[] }>();
   for (const h of hunks) {
     const rep = R.slice(h.j1, h.j2);
-    if (h.i2 - h.i1 > 3 || rep.length > 3 || !rep.length) continue; // only small replace/insert hunks (a deletion is never patched)
+    if (h.i2 - h.i1 > 3 || rep.length > 3 || !rep.length) continue; // I patch only small replace/insert hunks (a deletion is never patched)
     out.set(`${h.i1}:${h.i2}|${rep.map((t) => t.norm).join(" ")}`, { h, rep });
   }
   return out;
@@ -105,7 +105,7 @@ function candidates(S: Tok[], sIdx: number[], reader: string): Map<string, { h: 
 
 export interface PatchPlan {
   patches: Patch[];
-  /** hunks the readers did not settle between them, or that are words: reported, never applied */
+  /** Hunks the readers did not settle between them, or that are words: I report them and never apply them. */
   unsettled: Array<{ stored: string; readers: string[]; start?: number; end?: number; candidates?: string[] }>;
 }
 
@@ -124,7 +124,7 @@ export function proposePatches(stored: string, readers: string[]): PatchPlan {
     const storedText = sTok.map((t) => t.core).join(" ");
     const repText = rep.map((t) => t.core).join(" ");
     const digitBearing = hasDigit(storedText) || hasDigit(repText);
-    // the DIGITS are what matters: a difference of spacing, dash type, a superscript ordinal ("22nd" / "22ⁿᵈ") or punctuation is cosmetic, not an error
+    // I care about the DIGITS: a difference of spacing, dash type, a superscript ordinal ("22nd" / "22ⁿᵈ") or punctuation is cosmetic, not an error.
     if (digitsOf(storedText) === digitsOf(repText)) continue;
     if (agree < readers.length || readers.length < 2 || !digitBearing) {
       if (storedText !== repText && digitBearing) {
@@ -139,12 +139,12 @@ export function proposePatches(stored: string, readers: string[]): PatchPlan {
       continue;
     }
     if (h.i1 === h.i2) {
-      // an insertion: only a clause-style number (e.g. "5.0"), at an anchor both readers agree on
+      // an insertion: I allow only a clause-style number (e.g. "5.0"), at an anchor both readers agree on
       if (!rep.every((t) => CLAUSE.test(t.core)) || h.i1 >= sIdx.length) continue;
       const anchor = S[sIdx[h.i1]];
       patches.push({ kind: "insert", start: anchor.start, end: anchor.start, from: "", to: rep.map((t) => t.core).join(" ") + " " });
     } else {
-      if (!hasDigit(repText)) continue; // never turn a number into a word
+      if (!hasDigit(repText)) continue; // I never turn a number into a word
       const limit = Math.max(3, Math.ceil(0.6 * Math.max(storedText.length, repText.length)));
       if (lev(storedText, repText) > limit) { unsettled.push({ stored: storedText, readers: [repText, repText] }); continue; }
       const first0 = sTok[0], last0 = sTok[sTok.length - 1], lastR = rep[rep.length - 1];
@@ -156,7 +156,7 @@ export function proposePatches(stored: string, readers: string[]): PatchPlan {
     }
   }
   const unique = patches.filter((p) => { const k = `${p.kind}:${p.start}:${p.end}:${p.to}`; if (seen.has(k)) return false; seen.add(k); return true; });
-  // overlapping patches are not applied (neither is trusted)
+  // I do not apply overlapping patches (neither is trusted)
   unique.sort((a, b) => a.start - b.start || a.end - b.end);
   const clean: Patch[] = [];
   for (const p of unique) {
@@ -167,7 +167,7 @@ export function proposePatches(stored: string, readers: string[]): PatchPlan {
   return { patches: clean, unsettled };
 }
 
-/** Applies patches (offsets in the page text) to the page text. */
+/** Here I apply the patches (offsets in the page text) to the page text. */
 export function applyToText(text: string, patches: Patch[]): string {
   let out = text;
   for (const p of [...patches].sort((a, b) => b.start - a.start)) out = out.slice(0, p.start) + p.to + out.slice(p.end);
@@ -175,7 +175,7 @@ export function applyToText(text: string, patches: Patch[]): string {
 }
 
 /**
- * The page text is its chunks joined with one space. Applies page-level patches to the chunks; a patch that crosses a chunk boundary is refused
+ * The page text is its chunks joined with one space. I apply page-level patches to the chunks; a patch that crosses a chunk boundary is refused
  * (returned in `refused`). Returns the new chunk texts in the same order.
  */
 export function applyToChunks(chunks: string[], patches: Patch[]): { chunks: string[]; refused: Patch[] } {
@@ -197,9 +197,9 @@ export function applyToChunks(chunks: string[], patches: Patch[]): { chunks: str
 export interface Coverage {
   digitTokens: number;
   confirmed: number;
-  /** digit tokens of the stored text that NEITHER reader has */
+  /** These are the digit tokens of the stored text that NEITHER reader has */
   unconfirmed: string[];
-  /** digit tokens that BOTH readers have and the stored text lacks */
+  /** These are the digit tokens that BOTH readers have and the stored text lacks */
   missing: string[];
   words: number;
   wordsConfirmed: number;

@@ -4,8 +4,8 @@
 // GET /api/announcements/<id>/file?download=1   the same, saved as a file
 // GET /api/announcements/<id>/file?info=1       {name, bytes} as JSON (what the viewer asks when it was opened without that information)
 //
-// Open to whoever may read the announcements (they are public on the home page). The address of the file in Vercel Blob never leaves the server: this route fetches it and passes the bytes on.
-// An announcement with no PDF, or a database that has no table for PDFs yet, answers 404.
+// I keep this open to whoever may read the announcements (they are public on the home page). The address of the file in Vercel Blob never leaves the server: this route fetches it and passes the bytes on.
+// An announcement with no PDF, or a database that has no table for PDFs yet, gets a 404.
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";

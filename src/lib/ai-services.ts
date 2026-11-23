@@ -2,8 +2,8 @@
 //
 // ============================================================
 // AI MODELS USED IN THIS APP — quick reference
-// (kept here since this is the shared AI-services module; update this
-// block if any of the below ever changes, so it never goes stale)
+// (I keep this here because this is the shared AI-services module; if any of the below ever changes, update this
+// block so it never goes stale)
 // ============================================================
 //
 // (Updated 7 Nov 2026: Groq is no longer the default anywhere. The one place that talks to Gemini for text is
@@ -32,7 +32,7 @@
 
 import { chatModels, geminiGenerate, preferGroq } from "@/lib/ai/geminiChat";
 
-/** Kept so an old import still works: the one real implementation is in src/lib/ai/geminiEmbedding.ts (gemini-embedding-001, 768 dimensions). */
+/** I keep this so an old import still works: the one real implementation is in src/lib/ai/geminiEmbedding.ts (gemini-embedding-001, 768 dimensions). */
 export { generateEmbedding } from "@/lib/ai/geminiEmbedding";
 
 export async function generateChatResponse(
@@ -40,8 +40,8 @@ export async function generateChatResponse(
   options?: { maxTokens?: number; jsonMode?: boolean },
 ): Promise<string> {
   if (process.env.AI_ENVIRONMENT === "cloud" && !preferGroq()) {
-    // Gemini is the default provider (Groq's free tier proved unusable and its paid tier is
-    // closed): same JSON-mode contract, hardened adapter (timeout, thinking budget, finishReason).
+    // I made Gemini the default provider because Groq's free tier proved unusable and its paid tier is
+    // closed. It keeps the same JSON-mode contract, through the hardened adapter (timeout, thinking budget, finishReason).
     const r = await geminiGenerate(prompt, {
       json: !!options?.jsonMode,
       models: chatModels(),
@@ -51,12 +51,11 @@ export async function generateChatResponse(
     });
     return r.text;
   } else if (process.env.AI_ENVIRONMENT === "cloud") {
-    // Route to Groq Cloud API. Model + call shape (temperature, JSON mode)
-    // match src/lib/search/executiveSynthesis.ts's already-proven-working
-    // Groq call exactly -- that file was the source of truth here, not a
+    // Here I route to the Groq Cloud API. The model and call shape (temperature, JSON mode)
+    // match the already-proven-working Groq call in src/lib/search/executiveSynthesis.ts exactly -- that file was the source of truth here, not a
     // guess: this function used to hardcode "llama-3.1-8b-instant", which
     // Groq has since retired entirely (404 model_not_found), silently
-    // breaking every feature depending on this function. GROQ_MODEL stays
+    // breaking every feature depending on this function. I keep GROQ_MODEL
     // overridable via env var in case this default is ever retired too --
     // check https://console.groq.com/docs/models if this starts 404ing
     // again.
@@ -86,7 +85,7 @@ export async function generateChatResponse(
     const data = await res.json();
     return data.choices[0].message.content;
   } else {
-    // Route to local Ollama instance
+    // Here I route to the local Ollama instance.
     const res = await fetch("http://localhost:11434/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

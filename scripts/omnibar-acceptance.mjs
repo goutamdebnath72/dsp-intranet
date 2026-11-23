@@ -1,7 +1,7 @@
 // scripts/omnibar-acceptance.mjs
 //
-// Runs every question in eval/router-acceptance.json through the REAL front door, GET /api/ai-search, exactly as the
-// omnibar's Enter key does (HANDOFF_dsp-intranet_front-path.md: "test only through the front door"), and records for
+// I run every question in eval/router-acceptance.json through the REAL front door, GET /api/ai-search, exactly as the
+// omnibar's Enter key does (HANDOFF_dsp-intranet_front-path.md: "test only through the front door"), and I record for
 // each one: the route that answered, the latency, and pass/fail against the expected facts. It changes no app code,
 // writes nothing to the database, and never calls the feedback endpoints.
 //
@@ -9,7 +9,7 @@
 // BEFORE YOU RUN IT: local dev and Vercel use the SAME online resources (Supabase, Groq, Gemini).
 //   * Every question that is not a holiday question makes at least one Groq call, and each call carries the whole
 //     schema prompt (several thousand tokens). The free tier allows 200,000 tokens a day, so a full run does NOT fit
-//     in one day. Therefore:
+//     in one day. Therefore I added these controls:
 //       --no-model          run only the questions the deterministic holiday parser should answer (no tokens)
 //       --max-model-calls N stop cleanly after N model calls (the server reports the exact number)
 //       --max-tokens N      stop cleanly once the questions so far have used N tokens: the right control for the
@@ -20,7 +20,7 @@
 //                           8,000 tokens a minute, so calls closer together than ~40 s just sit in the app's 429 wait.
 //                           Use 0 to let the app wait by itself.
 //     The server console prints the real token count of every call ("Every call prints one line with the tokens").
-//   * Executive Deep Synthesis questions send up to ten circulars to the model (the most expensive): they run only
+//   * Executive Deep Synthesis questions send up to ten circulars to the model (the most expensive), so I run them only
 //     with --eds AND --cookie. Since step 25a the server takes WHO is calling from the login session, never from the
 //     browser's ticket parameter, so the harness needs a real executive session: log in to the app in your browser, open
 //     the developer tools > Application > Cookies, and pass the value like this:
@@ -39,7 +39,7 @@
 //                --raw (save every sanitised answer, not only failures)  --exec-ticket 4xxxxx  --out DIR
 //
 // OUTPUT: eval/results/acceptance-<tag>-<timestamp>.json (all data) and .md (the report to read or send back).
-// Personal data: people's P.No. and masked contacts are removed from everything written to disk (see the report).
+// Personal data: I remove people's P.No. and masked contacts from everything written to disk (see the report).
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -58,13 +58,13 @@ const val = (n, d) => {
 };
 const list = (n) => (val(n, "") || "").split(",").map((s) => s.trim()).filter(Boolean);
 
-// The command line as it may be WRITTEN or ECHOED: the session cookie's value is a login secret and never leaves this process.
+// This is the command line as it may be WRITTEN or ECHOED. The session cookie's value is a login secret, so I never let it leave this process.
 const safeArgv = argv.map((a, i) => (argv[i - 1] === "--cookie" ? "[hidden]" : a));
 const BASE = val("base", "http://localhost:3000").replace(/\/+$/, "");
 const TAG = val("tag", "run").replace(/[^A-Za-z0-9_.-]/g, "-");
 const PAUSE = Math.max(0, parseInt(val("pause", "1500"), 10) || 0);
 const MODEL_PAUSE = Math.max(0, parseInt(val("model-pause", "40000"), 10) || 0);
-const EXEC = val("exec-ticket", "498301"); // only used to send a SPOOFED ticket in the SEC- probes (the server must ignore it)
+const EXEC = val("exec-ticket", "498301"); // I use it only to send a SPOOFED ticket in the SEC- probes (the server must ignore it)
 const COOKIE = val("cookie", "");
 const OUT = val("out", "eval/results");
 const SET_FILE = val("set", "eval/router-acceptance.json");
@@ -107,7 +107,7 @@ const modelFree = (r) => {
   return e.length > 0 && e.every((x) => x === "HOLIDAY" || x === "BAD-QUERY");
 };
 const authOf = (r) => r.run?.auth ?? (r.run?.mode === "intellectual" ? "exec" : "none");
-const isEds = (r) => r.run?.mode === "intellectual" && authOf(r) !== "none"; // an expensive synthesis is expected
+const isEds = (r) => r.run?.mode === "intellectual" && authOf(r) !== "none"; // here I expect an expensive synthesis
 const needsCookie = (r) => r.run?.mode === "intellectual" && authOf(r) === "exec";
 
 const selected = [];
@@ -157,7 +157,7 @@ if (has("dry-run")) {
 }
 if (!todo.length) console.log("  nothing to run.");
 
-// This spends real Groq tokens: leave a few seconds to change your mind (Ctrl-C), unless told not to.
+// This spends real Groq tokens, so I leave a few seconds to change your mind (Ctrl-C), unless told not to.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 if (todo.length && !has("yes")) {
   console.log("  starting in 5 seconds: press Ctrl-C to cancel (--yes skips this wait)");
@@ -171,14 +171,14 @@ process.on("SIGINT", () => { if (stopping) process.exit(130); stopping = true; c
 async function ask(rec) {
   const run = rec.run || {};
   const mode = run.mode || "semantic";
-  const ticket = run.ticket === "$EXEC" ? EXEC : run.ticket || ""; // only the SEC- probes send one, to prove it is ignored
+  const ticket = run.ticket === "$EXEC" ? EXEC : run.ticket || ""; // only the SEC- probes send one, to prove the server ignores it
   const url = `${BASE}/api/ai-search?q=${encodeURIComponent(rec.query)}&mode=${mode}${ticket ? `&ticket=${encodeURIComponent(ticket)}` : ""}`;
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   const t0 = performance.now();
   try {
     const headers = { "x-acceptance-run": TAG };
-    if (needsCookie(rec) && COOKIE) headers.cookie = COOKIE; // the login session, only for the synthesis questions
+    if (needsCookie(rec) && COOKIE) headers.cookie = COOKIE; // I send the login session only with the synthesis questions
     const r = await fetch(url, { signal: ctl.signal, headers });
     const text = await r.text();
     const ms = Math.round(performance.now() - t0);
@@ -201,7 +201,7 @@ let tokensUsed = 0;
 let transportErrors = 0;
 
 if (todo.length) {
-  // wake the function and the database connection without spending a model call (a 1-letter question returns at once)
+  // I wake the function and the database connection this way without spending a model call (a 1-letter question returns at once).
   await ask({ query: "x", run: { mode: "semantic" } }).catch(() => null);
 
   for (const rec of todo) {
@@ -213,7 +213,7 @@ if (todo.length) {
     const res = judge(rec, resp);
     results.push(res);
 
-    // the server's own trace when it sends one; otherwise the old inference from the answer
+    // I take the server's own trace when it sends one; otherwise I fall back to the old inference from the answer.
     const traced = typeof res.modelCalls === "number";
     const usedModel = traced
       ? res.modelCalls > 0

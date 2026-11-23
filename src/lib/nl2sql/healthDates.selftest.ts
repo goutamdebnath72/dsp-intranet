@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/nl2sql/healthDates.selftest.ts
-// Step 61a: an empty health check-up answer for a DATE says what kind of day it was and which dates the month's list has.
+// Step 61a: when a health check-up answer for a DATE is empty, I want it to say what kind of day it was and which dates the month's list has.
 
 import { readFileSync } from "node:fs";
 import { dateAsked, emptyDateNote } from "./healthDates";

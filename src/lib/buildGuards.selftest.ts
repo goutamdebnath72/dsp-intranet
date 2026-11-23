@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/buildGuards.selftest.ts
 // WHAT THE TYPE CHECK AND THE TESTS DO NOT SEE BUT THE BUILD DOES. Next's compiler (SWC) reads "x as string <= y" as the start of a generic type ("string<...>") and stops the build with "Expression expected",
-// while tsc and the test runner accept it. This happened once on 13 Nov 2026 (a build error on the owner's running server), so the pattern is looked for in every source file: a cast followed by < or > must be in brackets,
+// while tsc and the test runner accept it. This happened once on 13 Nov 2026 (a build error on my running server), so I look for the pattern in every source file: a cast followed by < or > must be in brackets,
 // "(x as string) <= y".
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -9,7 +9,7 @@ let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => { const p = join(dir, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
 const files = walk("src").filter((p) => /\.(ts|tsx)$/.test(p) && !p.endsWith("buildGuards.selftest.ts"));
-// a cast to a PRIMITIVE type (string, number, boolean, bigint, any, unknown) followed by < or >: those types take no type arguments, so the only way to read it is as a comparison, which SWC does not do
+// A cast to a PRIMITIVE type (string, number, boolean, bigint, any, unknown) followed by < or >. Those types take no type arguments, so the only way to read it is as a comparison, which SWC does not do.
 const BAD = /\bas\s+(string|number|boolean|bigint|any|unknown)\s*(<|>)/;
 const offenders: string[] = [];
 for (const p of files) {

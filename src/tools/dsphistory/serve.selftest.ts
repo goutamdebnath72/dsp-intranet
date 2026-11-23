@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/dsphistory/serve.selftest.ts
-// The route that serves a JO Manual: signed-in readers only; unknown or not-yet-uploaded document is 404; ?info=1 is JSON; a Range request is passed on and answered 206; the Blob address never leaves the server.
+// This checks the route that serves a JO Manual: signed-in readers only; an unknown or not-yet-uploaded document is 404; ?info=1 is JSON; a Range request is passed on and answered 206; the Blob address never leaves the server.
 import { DOCS, docPageHref, docRoute, isPublic } from "./docs";
 import { serveDoc, type ServeDeps } from "./serve";
 import { SRC, EVENTS, KEY_DATES, FACTS, MAKERS, FIRST_ITEMS, SAIL_STORY, UNITS, OTHER_BODIES, HEADS, PHOTOS, type Source } from "./history";
@@ -42,7 +42,7 @@ async function run() {
   ok("a Range the route does not understand (several ranges) is not passed on", seen[seen.length - 1].range === undefined);
   const dead: ServeDeps = { ...deps(true), get: async () => new Response("no", { status: 500 }) };
   ok("when Blob cannot be read: 502 and a message to try again", (await serveDoc(req(docRoute("jo-089")), "jo-089", dead)).status === 502);
-  // a published PDF is public: served to a reader who is not signed in, from its own copy in Blob, ranges passed on; the route is not a general proxy
+  // A published PDF is public, and I test that: it is served to a reader who is not signed in, from its own copy in Blob, with ranges passed on. The route is not a general proxy.
   const pubSeen: string[] = [];
   const pdeps: ServeDeps = { ticket: async () => null, find: async (n) => (n === DOCS["steel-cities"].blobName ? { url: "https://x.public.blob.vercel-storage.com/history-docs/steel-cities-Ab.pdf", size: PDF.length } : null), get: async (url, init) => { pubSeen.push(url + (init.headers.Range ? " " + init.headers.Range : "")); const r = init.headers.Range; return r ? new Response(PDF.subarray(0, 10), { status: 206, headers: { "content-length": "10", "content-range": `bytes 0-9/${PDF.length}` } }) : new Response(PDF, { status: 200, headers: { "content-length": String(PDF.length) } }); } };
   const pub = await serveDoc(req(docRoute("steel-cities"), { range: "bytes=0-9" }), "steel-cities", pdeps);
@@ -56,7 +56,7 @@ async function run() {
   ok("the address in Vercel Blob is in no header and no body the reader gets", !/blob\.vercel-storage|abc123/.test(texts));
 }
 
-// the cards' sources: every source that names a document has its entry, and every cited page is inside the document
+// The cards' sources: every source that names a document must have its entry, and every cited page must be inside the document.
 const sources: Source[] = [];
 const walk = (v: unknown): void => { if (!v || typeof v !== "object") return; if (Array.isArray(v)) { v.forEach(walk); return; } const o = v as Record<string, unknown>; if (typeof o.name === "string" && typeof o.doc === "string") sources.push(o as unknown as Source); else Object.values(o).forEach(walk); };
 walk([EVENTS, KEY_DATES, FACTS, MAKERS, FIRST_ITEMS, SAIL_STORY, UNITS, OTHER_BODIES, HEADS, Object.values(PHOTOS)]);

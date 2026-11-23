@@ -1,8 +1,8 @@
 // src/lib/announcements/searchIndex/reader.ts
 //
-// THE REAL PDF READER of the search index, the circular upload's own way (src/app/api/circulars/route.ts) with one difference that suits announcements: most are TRUE PDFs, so a page is taken from the PDF's OWN TEXT
+// THE REAL PDF READER of the search index. I follow the circular upload's own way (src/app/api/circulars/route.ts) with one difference that suits announcements: most are TRUE PDFs, so I take a page from the PDF's OWN TEXT
 // when that text is good (exact and free), and only a page without a usable text layer (a scan, an infographic, a broken font) is read by Gemini, as every page of a circular is (a primary model, and a checker where
-// the primary fails). Every page is drawn as a picture (pdf-to-img, the circulars' own scale) and the picture is handed back to be kept in storage.
+// the primary fails). Every page is drawn as a picture (pdf-to-img, the circulars' own scale) and I hand the picture back to be kept in storage.
 //
 // Without GEMINI_API_KEY the pages with a usable text layer are still read; the others are named as unread.
 
@@ -11,19 +11,19 @@ import { createGeminiOcr, geminiOcrReaders } from "@/lib/ingestion/geminiOcr";
 import { MAX_PAGES, type PageRead, type PdfReading } from "./indexer";
 
 const PDF_RENDER_SCALE = 300 / 72;
-/** a text layer shorter than this (in characters) is not trusted to be the whole page */
+/** I do not trust a text layer shorter than this (in characters) to be the whole page. */
 export const MIN_LAYER_CHARS = 120;
 
-/** Is the PDF's own text of a page good enough to be the page? Long enough, and made of letters and digits (a broken font encoding gives long runs of symbols). */
+/** Is the PDF's own text of a page good enough to be the page? I ask for long enough, and made of letters and digits (a broken font encoding gives long runs of symbols). */
 export function textLayerIsGood(text: string): boolean {
-  // glyphs the PDF could not map to characters come out as "(cid:123)": they are not text
+  // Glyphs the PDF could not map to characters come out as "(cid:123)"; I do not count them as text.
   const t = (text || "").replace(/\(cid:\d+\)/g, "").replace(/\s+/g, "");
   if (t.length < MIN_LAYER_CHARS) return false;
   const letters = (t.match(/[\p{L}\p{N}]/gu) ?? []).length;
   return letters / t.length >= 0.6;
 }
 
-/** The PDF's own text, page by page (index 0 = page 1). Never throws: a PDF whose text cannot be taken has no text layer. */
+/** The PDF's own text, page by page (index 0 = page 1). It never throws: I treat a PDF whose text cannot be taken as having no text layer. */
 export async function textLayerOf(bytes: Buffer): Promise<string[]> {
   const pages: string[] = [];
   try {
@@ -69,7 +69,7 @@ export async function readPdf(bytes: Buffer, deadlineAt: number): Promise<PdfRea
       if (textLayerIsGood(own)) {
         pages[page - 1] = { text: own, via: "text" };
       } else if (ocr && png) {
-        ocr.start(page, png); // both readers begin on the page while the next one is drawn
+        ocr.start(page, png); // I let both readers begin on the page while the next one is drawn
         needOcr.push(page);
         pages[page - 1] = { text: own, via: own ? "text" : "none", reason: "no usable text layer" };
       } else {

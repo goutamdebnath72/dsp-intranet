@@ -2,7 +2,7 @@
 //
 // WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words of the Durgapur Railway Station card ("durgapur railway station trains"). The data, its source and its checks are in
 // src/lib/live/railway.ts; how it looks is in RailwayCard.tsx and ui.tsx. It is listed once, in src/tools/registry.ts.
-// A line is this card's when it has a key word and every word is a key word, an extra word or a filler: "trains" alone opens it, "train ticket booking" does not (it has words that are not the card's).
+// My rule: a line is this card's when it has a key word and every word is a key word, an extra word or a filler. "trains" alone opens it, "train ticket booking" does not (it has words that are not the card's).
 import { defineTopic } from "@/tools/types";
 
 export const railwayTopic = defineTopic({
@@ -11,7 +11,7 @@ export const railwayTopic = defineTopic({
   live: {
     keys: ["train", "trains", "railway", "railways", "dgr", "asn", "memu", "irctc"],
     extra: ["fare", "fares", "price", "prices", "cost", "durgapur", "station", "stn", "timetable", "timetables", "time", "times", "timing", "timings", "schedule", "schedules", "express", "mail", "local", "passenger", "arrival", "arrivals", "departure", "departures", "up", "down", "today", "list", "all", "info", "information", "and", "to", "from", "at", "of", "rail", "indian", "eastern", "stopping", "stops", "running", "days", "daily", "weekly", "durgapur's", "available", "details"],
-    // the card opens on the Durgapur tab; "asn" (Asansol Junction's code, as "dgr" is Durgapur's) opens it on the Asansol tab ("asn trains", "ASN"), unless the line also says dgr
+    // The card opens on the Durgapur tab; I let "asn" (Asansol Junction's code, as "dgr" is Durgapur's) open it on the Asansol tab ("asn trains", "ASN"), unless the line also says dgr.
     lang: (w) => (w.includes("asn") && !w.includes("dgr") ? "asn" : undefined),
   },
   samples: [

@@ -1,6 +1,6 @@
 // scripts/index-announcements.ts
 //
-// PREPARES THE ANNOUNCEMENTS THAT ALREADY EXIST for the search bar (their text and their PDFs), the way a new publish does (src/lib/announcements/searchIndex/). For announcements published before the search index
+// This prepares the announcements that already exist for the search bar (their text and their PDFs), the way a new publish does (src/lib/announcements/searchIndex/). It is for announcements published before the search index
 // existed, or whose preparation failed (the manager's "Index again" does one at a time).
 //
 //   npx tsx --env-file=.env.local --tsconfig tsconfig.json scripts/index-announcements.ts            lists what WOULD be done, writes nothing
@@ -8,7 +8,7 @@
 //   ... --only 12,15     only these announcement ids
 //   ... --failed         only those whose text or PDF is not "ready" yet
 //
-// It writes only the index tables (derived data: passages, page pictures, state) and the announcements' own vectors. It never changes an announcement's title, text, PDF or date. Gemini reads only the pages of a PDF
+// I made it write only the index tables (derived data: passages, page pictures, state) and the announcements' own vectors. It never changes an announcement's title, text, PDF or date. Gemini reads only the pages of a PDF
 // that have no usable text of their own, and makes the vectors.
 
 import { getDb } from "../src/lib/db";

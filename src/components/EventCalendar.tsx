@@ -15,7 +15,7 @@ import { YearCalendarModal } from "./YearCalendarModal";
 import { Tooltip } from "./Tooltip";
 import type { FetchedHoliday } from "./PeopleAndEvents";
 
-// Define a local fixed type with displayMonth restored
+// I define a local fixed type with displayMonth restored
 interface FixedCaptionLabelProps extends BaseCaptionLabelProps {
   displayMonth: Date;
 }
@@ -25,31 +25,31 @@ interface EventCalendarProps {
   isLoading: boolean;
 }
 
-// This hook correctly parses API strings into the types we need
+// I use this hook to parse the API strings into the types I need
 function useFormattedHolidays(holidays: FetchedHoliday[]) {
   return useMemo(() => {
-    // Cast 'h' to 'any' to handle the 'name' prop from the API
+    // I cast 'h' to 'any' to handle the 'name' prop from the API
     return holidays.map((h: any) => {
-      // --- FOOLPROOF TIMEZONE FIX ---
-      // Let Luxon parse the full ISO timestamp from the API.
-      // It will automatically translate UTC back into your local timezone,
+      // --- Timezone fix ---
+      // I let Luxon parse the full ISO timestamp from the API.
+      // It translates UTC back into your local timezone automatically,
       // correctly shifting December 31, 18:30 UTC back to January 1, 00:00.
       const dt = DateTime.fromISO(h.date).startOf("day");
 
       return {
         id: h.id,
-        // --- FIX: Map API data to component props ---
-        title: h.name, // Map API's 'name' to 'title'
-        type: h.type, // Pass through the type (CH, FH, RH)
+        // --- Fix: I map the API data to the component props ---
+        title: h.name, // I map the API's 'name' to 'title'
+        type: h.type, // I pass the type (CH, FH, RH) through
         // --- END FIX ---
         date: dt, // The local DateTime object
-        dateObj: dt.toJSDate(), // The JS Date object (for react-day-picker)
+        dateObj: dt.toJSDate(), // The JS Date object that react-day-picker needs
       };
     });
   }, [holidays]);
 }
 
-// --- FIX: Updated Color Map to use API types (CH, FH, RH) ---
+// --- Fix: I changed the Color Map to use the API types (CH, FH, RH) ---
 const holidayColorMap: { [key: string]: { dot: string; text: string } } = {
   CH: { dot: "holiday-dot-closed", text: "text-red-600" }, // Was "Closed"
   FH: { dot: "holiday-dot-festival", text: "text-blue-600" }, // Was "Festival"
@@ -77,7 +77,7 @@ export function EventCalendar({
   holidays: initialHolidays,
   isLoading: initialLoading,
 }: EventCalendarProps) {
-  // 1. Keep track of the currently viewed month
+  // Step 1: I keep track of the currently viewed month
   const [currentMonth, setCurrentMonth] = useState<DateTime>(DateTime.local());
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
   const [isMonthOpen, setIsMonthOpen] = useState(false);
@@ -86,13 +86,13 @@ export function EventCalendar({
   const yearListRef = useRef<HTMLDivElement>(null);
   const selectedYearButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Compute year options: next 4 years down to 1950
+  // I compute the year options: the next 4 years down to 1950
   const maxYear = Math.max(CURRENT_CALENDAR_YEAR, currentMonth.year) + 4;
   const yearOptions = useMemo(() => {
     return Array.from({ length: maxYear - 1950 + 1 }, (_, i) => maxYear - i);
   }, [maxYear]);
 
-  // Close dropdowns on outside click or Escape key
+  // I close the dropdowns on an outside click or the Escape key
   useEffect(() => {
     if (!isMonthOpen && !isYearOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -115,7 +115,7 @@ export function EventCalendar({
     };
   }, [isMonthOpen, isYearOpen]);
 
-  // Center selected year in year list scroll container without moving page scroll
+  // I centre the selected year in the year list's scroll container without moving the page scroll
   useEffect(() => {
     if (isYearOpen && yearListRef.current && selectedYearButtonRef.current) {
       const container = yearListRef.current;
@@ -126,16 +126,16 @@ export function EventCalendar({
     }
   }, [isYearOpen]);
 
-  // 2. Create a local cache to hold all fetched holidays across multiple years
+  // Step 2: I create a local cache to hold all fetched holidays across multiple years
   const [allHolidays, setAllHolidays] =
     useState<FetchedHoliday[]>(initialHolidays);
 
-  // 3. Keep track of which years we have already fetched to prevent duplicate API calls
+  // Step 3: I keep track of which years are already fetched, to prevent duplicate API calls
   const [fetchedYears, setFetchedYears] = useState<number[]>([
     DateTime.local().year,
   ]);
 
-  // 4. Dynamic Data Fetcher: Watch the current year and fetch if missing
+  // Step 4: dynamic data fetcher. I watch the current year and fetch if it is missing
   React.useEffect(() => {
     const targetYear = currentMonth.year;
 
@@ -148,14 +148,14 @@ export function EventCalendar({
           if (response.ok) {
             const responseData = await response.json();
 
-            // Safely extract the array, handling whether the API wrapped it in an object or not
+            // I extract the array safely, whether or not the API wrapped it in an object
             const newHolidays = Array.isArray(responseData)
               ? responseData
               : responseData.holidays || responseData.data || [];
 
-            // Append the new year's data to our existing cache
+            // I append the new year's data to the existing cache
             setAllHolidays((prev) => [...prev, ...newHolidays]);
-            // Mark this year as fetched
+            // I mark this year as fetched
             setFetchedYears((prev) => [...prev, targetYear]);
           }
         } catch (error) {
@@ -167,7 +167,7 @@ export function EventCalendar({
     }
   }, [currentMonth.year, fetchedYears]);
 
-  // 5. Pass the dynamic cache (allHolidays) into your formatter instead of the static props
+  // Step 5: I pass the dynamic cache (allHolidays) into the formatter instead of the static props
   const formattedHolidays = useFormattedHolidays(allHolidays);
 
   const selectedMonthHolidays = useMemo(() => {
@@ -176,10 +176,10 @@ export function EventCalendar({
       .sort((a, b) => a.date.day - b.date.day);
   }, [currentMonth, formattedHolidays]);
 
-  // ... (Keep the rest of your component exactly the same from modifiers onwards)
+  // The rest of the component stays exactly the same from modifiers onwards
 
   const modifiers = {
-    // --- FIX: Use API types (CH, FH, RH) ---
+    // --- Fix: I use the API types (CH, FH, RH) ---
     isClosed: formattedHolidays
       .filter((h) => h.type === "CH") // Was "Closed"
       .map((h) => h.dateObj),
@@ -204,7 +204,7 @@ export function EventCalendar({
   const CustomCaptionLabel: React.FC<FixedCaptionLabelProps> = ({
     displayMonth,
   }) => {
-    // Convert picker's JS Date back to Luxon for formatting
+    // I convert the picker's JS Date back to Luxon for formatting
     const displayLuxon = DateTime.fromJSDate(displayMonth);
     const monthName = displayLuxon.toFormat("MMMM");
     const yearNumber = displayLuxon.year;
@@ -214,7 +214,7 @@ export function EventCalendar({
         ref={headerRef}
         className="flex items-center justify-center gap-1 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none z-20"
       >
-        {/* Month Selector: looks completely flat like original text; only cursor turns to pointer (hand) on hover */}
+        {/* Month selector: I keep it completely flat, like the original text; only the cursor turns to a pointer (hand) on hover */}
         <div className="relative inline-flex items-center">
           <button
             type="button"
@@ -267,7 +267,7 @@ export function EventCalendar({
           )}
         </div>
 
-        {/* Year Selector: looks completely flat like original text; only cursor turns to pointer (hand) on hover */}
+        {/* Year selector: I keep it completely flat, like the original text; only the cursor turns to a pointer (hand) on hover */}
         <div className="relative inline-flex items-center">
           <button
             type="button"
@@ -392,11 +392,11 @@ export function EventCalendar({
     }
   `;
 
-// --- FIX: Handle multiple holidays for Tooltip ---
+// --- Fix: I handle multiple holidays for the tooltip ---
   function CustomDay(props: DayProps & { modifiers?: { outside?: boolean } }) {
     const dayAsLuxon = DateTime.fromJSDate(props.date);
     
-    // In EventCalendar, we specifically use 'formattedHolidays'
+    // In EventCalendar I specifically use 'formattedHolidays'
     const matchingHolidays = formattedHolidays.filter((h) =>
       h.date.hasSame(dayAsLuxon, "day")
     );
@@ -429,9 +429,9 @@ export function EventCalendar({
           showOutsideDays
           fixedWeeks
           mode="single"
-          // Convert Luxon state to JS Date at the boundary
+          // I convert the Luxon state to a JS Date at the boundary
           month={currentMonth.toJSDate()}
-          // Convert picker's JS Date back to Luxon state at the boundary
+          // I convert the picker's JS Date back to Luxon state at the boundary
           onMonthChange={(month) => {
             setIsMonthOpen(false);
             setIsYearOpen(false);
@@ -478,12 +478,12 @@ export function EventCalendar({
         </div>
       </div>
 
-      {/* Render the Year Calendar Modal */}
+      {/* I render the Year Calendar Modal here */}
       <YearCalendarModal
         isOpen={isYearModalOpen}
         onClose={() => setIsYearModalOpen(false)}
         year={currentMonth.year} // Pass the primitive number
-        holidays={formattedHolidays} // Pass the fully formatted data
+        holidays={formattedHolidays} // I pass the fully formatted data
       />
     </>
   );

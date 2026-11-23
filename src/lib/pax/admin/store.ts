@@ -1,11 +1,11 @@
 // src/lib/pax/admin/store.ts
 //
-// THE PAX ADMIN OPERATIONS (step 64a; owner, 31 Oct 2026): add, modify, delete a line; authorise and revoke an executive; read the history. Every operation
-//   - runs in ONE transaction, under one lock (two people cannot add the same number at the same moment),
+// THE PAX ADMIN OPERATIONS (step 64a; my request, 31 Oct 2026): add, modify, delete a line; authorise and revoke an executive; read the history. Every operation
+//   - runs in ONE transaction, under one lock, so two people cannot add the same number at the same moment,
 //   - checks the person's authority INSIDE the transaction (the HOD of C&IT by SUPERADMIN_TICKETS, or an executive the HOD has authorised and not revoked),
-//   - writes its audit line in the same transaction: a change cannot be saved without the record of who made it (ticket and name from the login), and the line before and after.
-// The database is reached through a tiny interface (PaxDb), so the same code runs against the application's connection and against a scratch database in the tests.
-// SECURITY: like pax_directory, the tables here are closed to the public API roles; only the application's own connection (never the language model's read-only client) touches them.
+//   - writes its audit line in the same transaction, so a change cannot be saved without the record of who made it (ticket and name from the login) and the line before and after.
+// I reach the database through a tiny interface (PaxDb), so the same code runs against the application's connection and against a scratch database in the tests.
+// SECURITY: like pax_directory, the tables here are closed to the public API roles. Only the application's own connection touches them, never the language model's read-only client.
 
 import { toIsoInstant } from "../../dates";
 import { versionOf } from "@/lib/concurrency/version";
@@ -22,7 +22,7 @@ import { acknowledgementCovers, findConflicts, savedLines } from "./conflicts";
 import type { Acknowledge, PaxAuditView, PaxConflict, PaxDelegateView, PaxEntryView, PaxLastChange } from "./types";
 import { composeLabel, validateEntry, type EntryInput, type FieldErrors } from "./validate";
 
-/** Runs the function inside one transaction (committed when it returns, rolled back when it throws). */
+/** Runs the function inside one transaction: it is committed when the function returns and rolled back when it throws. */
 export interface PaxDb {
   run<T>(fn: (q: QueryFn) => Promise<T>): Promise<T>;
 }
@@ -32,10 +32,10 @@ export type Authority = "hod" | "delegate";
 
 const EXECUTIVE = /^4\d{5}$/;
 
-/** Who the person is for this purpose: the HOD of C&IT (by ticket, from the environment), an authorised and not revoked executive, or nobody. The kit's (src/lib/facility/authority.ts), the same for every tool. */
+/** Tells who the person is for this purpose: the HOD of C&IT (by ticket, from the environment), an authorised and not revoked executive, or nobody. I use the kit's version (src/lib/facility/authority.ts), the same for every tool. */
 export const authorityOf = (q: QueryFn, ticket: string | null | undefined): Promise<Authority | null> => sharedAuthorityOf(q, "pax", ticket);
 
-/** Takes the tool's global write lock, then confirms the authority; the returned role is the one written in the history. Throws the kit's Forbidden error when there is none. */
+/** I take the tool's global write lock first, then confirm the authority; the returned role is the one written in the history. It throws the kit's Forbidden error when there is none. */
 const begin = (q: QueryFn, actor: Actor, needHod = false): Promise<Authority> => sharedBegin(q, "pax", actor, needHod);
 
 const snapshot = (l: { department: string; location: string; number: string; label?: string }) => ({ department: l.department, location: l.location, number: l.number, ...(l.label ? { label: l.label } : {}) });
@@ -47,7 +47,7 @@ async function audit(
   await writeAudit(q, "pax", actor, role, action, { targetId: paxId, targetTicket, before, after, note });
 }
 
-/** Which answers would let the person go on (none when the number itself clashes). */
+/** Lists which answers would let the person go on (none when the number itself clashes). */
 export function acknowledgeable(conflicts: PaxConflict[]): Acknowledge[] {
   if (conflicts.some((c) => c.kind === "same-number")) return [];
   const out: Acknowledge[] = [];
@@ -61,21 +61,21 @@ export type EntryResult =
   | { status: "invalid"; errors: FieldErrors }
   | { status: "conflict"; conflicts: PaxConflict[]; acknowledgeable: Acknowledge[] }
   | { status: "unchanged" }
-  /** The line is not what the person saw: somebody changed it first. Nothing was written. `current` is the line as it is now, `last` the change recorded last. */
+  /** The line is not what the person saw, because somebody changed it first. I write nothing in that case. `current` is the line as it is now, `last` the change recorded last. */
   | { status: "stale"; current: PaxEntryView; last: PaxLastChange | null }
   | { status: "missing" }
   | { status: "forbidden" };
 
 /**
- * THE VERSION of a line, worked out from the RAW row (its label, department, location and number), signed with the server's secret (src/lib/concurrency/version.ts). The same line, whatever the way it is read
- * (the list, a clash's "edit this line", the answer to a save), has the same version.
+ * THE VERSION of a line, worked out from the RAW row (its label, department, location and number) and signed with the server's secret (src/lib/concurrency/version.ts). I want the same line to carry the same version
+ * whatever way it is read (the list, a clash's "edit this line", the answer to a save).
  */
 export const versionOfRow = (r: { id?: number; label: string; deptName: string; location: string; number: string }): string => versionOf("pax", [r.id, r.label, r.deptName, r.location, r.number]);
 const viewOfRow = (lines: PaxEntryView[], rows: PaxRow[]): PaxEntryView[] => lines.map((l) => { const row = rows.find((r) => r.id === l.id); return row ? { ...l, version: versionOfRow(row) } : l; });
 const withVersions = (conflicts: PaxConflict[], rows: PaxRow[]): PaxConflict[] => conflicts.map((c) => ({ ...c, existing: viewOfRow(c.existing, rows) }));
 
-/** LOCK the line's row BEFORE it is read for a change or a delete: any writer that does not know the global lock (a SQL script) must wait until this transaction ends, and the version check then sees what it did. */
-/** Locks one PAX line and reads all the lines (the clash checks need them): the guard's `load`, null when the line is not there. */
+/** I LOCK the line's row BEFORE it is read for a change or a delete. Any writer that does not know the global lock (a SQL script) must then wait until this transaction ends, and the version check sees what that writer did. */
+/** Locks one PAX line and reads all the lines, because the clash checks need them. This is the guard's `load`; it gives null when the line is not there. */
 function loadLine(q: QueryFn, id: number) {
   return async () => {
     await lockEntry(q, id);
@@ -89,15 +89,15 @@ async function lockEntry(q: QueryFn, id: number): Promise<void> {
   await q(`SELECT 1 FROM public.pax_directory WHERE id = $1 FOR UPDATE`, [id]);
 }
 
-/** What the editor last recorded for this line (an add or a change): who and when. Only the facts, never a value. */
+/** What the editor last recorded for this line (an add or a change): who and when. I keep only the facts here, never a value. */
 const lastChangeOf = (q: QueryFn, id: number): Promise<PaxLastChange | null> => sharedLastChange(q, "pax", id);
 
 const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === "23505";
 
 /**
- * THE DEPARTMENTS TO CHOOSE FROM (owner, 23 Nov 2026): the department of a PAX line is CHOSEN from the plant's departments (public.sail_department, the register the employee directory uses: about three hundred names), never typed.
- * The list is every distinct department name as the rest of the app shows it (formatDepartmentDisplay), A to Z. The server holds the rule (a typed or altered name is refused) because the form is only a convenience; a name that
- * differs from a listed one only in capitals or spaces takes the listed spelling. A line that was saved before this rule keeps its own department when only its number is changed (the department is left as it is).
+ * THE DEPARTMENTS TO CHOOSE FROM (my rule, 23 Nov 2026): the department of a PAX line is CHOSEN from the plant's departments (public.sail_department, the register the employee directory uses: about three hundred names), never typed.
+ * The list is every distinct department name as the rest of the app shows it (formatDepartmentDisplay), A to Z. The server holds the rule, so a typed or altered name is refused; the form is only a convenience. A name that
+ * differs from a listed one only in capitals or spaces takes the listed spelling. A line saved before this rule keeps its own department when only its number is changed, so the department is left as it is.
  */
 export const DEPARTMENT_CHOICE = "Choose the department from the list.";
 export function departmentsOf(names: Array<string | null | undefined>): string[] {
@@ -108,7 +108,7 @@ export function departmentsOf(names: Array<string | null | undefined>): string[]
   }
   return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" }));
 }
-/** the listed spelling of a department, or null when it is not one of them */
+/** Gives the listed spelling of a department, or null when it is not one of them. */
 export function pickDepartment(list: string[], typed: string): string | null {
   const t = String(typed ?? "").normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
   return t ? list.find((d) => d.toLowerCase() === t) ?? null : null;
@@ -121,7 +121,7 @@ export async function listDepartments(db: PaxDb): Promise<string[]> {
   return db.run((q) => loadDepartmentNames(q));
 }
 
-/** Every saved line in the table's own words (department, location, number), in the order of the table. */
+/** Returns every saved line in the table's own words (department, location, number), in the order of the table. */
 export async function listEntries(db: PaxDb, search = ""): Promise<PaxEntryView[]> {
   const rows = await db.run((q) => loadPaxRows(q));
   const lines = viewOfRow(savedLines(rows).map(({ id, department, location, number }) => ({ id, department, location, number })), rows);
@@ -144,7 +144,7 @@ export async function addEntry(db: PaxDb, actor: Actor, raw: Partial<Record<keyo
       if (!acknowledgementCovers(conflicts, acks)) return { status: "conflict", conflicts: withVersions(conflicts, rows), acknowledgeable: acknowledgeable(conflicts) };
       const label = composeLabel(v.value.department, v.value.location);
       const ins = await q(
-        // an empty location and no note are stored as a true empty (NULL): the live table REFUSES an empty text there (pax_directory_location_check, seen in the owner's log of 31 Oct 2026)
+        // I store an empty location and no note as a true empty (NULL), because the live table REFUSES an empty text there (pax_directory_location_check, seen in my log of 31 Oct 2026).
         `INSERT INTO public.pax_directory (dept_name, location, "number", label, note, source) VALUES ($1, NULLIF($2, ''), $3, $4, NULL, $5) RETURNING id`,
         [v.value.department, v.value.location, v.value.number, label, PORTAL_SOURCE],
       );
@@ -154,7 +154,7 @@ export async function addEntry(db: PaxDb, actor: Actor, raw: Partial<Record<keyo
     });
   } catch (e) {
     if (e instanceof Forbidden) return { status: "forbidden" };
-    if (isUniqueViolation(e)) return { status: "conflict", conflicts: [], acknowledgeable: [] }; // the table's own rule (label and number) caught a duplicate the check could not see
+    if (isUniqueViolation(e)) return { status: "conflict", conflicts: [], acknowledgeable: [] }; // the table's own rule (label and number) caught a duplicate that my check could not see
     throw e;
   }
 }
@@ -165,11 +165,11 @@ export async function modifyEntry(db: PaxDb, actor: Actor, id: number, raw: Part
   try {
     return await db.run(async (q): Promise<EntryResult> => {
       const role = await begin(q, actor);
-      // THE GUARD AGAINST A LOST UPDATE (the kit's, src/lib/facility/guard.ts): the save is for the line AS THE PERSON SAW IT. If it is not that any more, nothing is written, and he is told what it is now and who changed it.
+      // THE GUARD AGAINST A LOST UPDATE (the kit's, src/lib/facility/guard.ts): the save is for the line AS THE PERSON SAW IT. If it is not that any more, I write nothing and tell him what it is now and who changed it.
       const g = await guardRecord(q, "pax", id, { sent: version, load: loadLine(q, id), version: (r) => versionOfRow(r.old), current: (r) => ({ id, department: r.mine.department, location: r.mine.location, number: r.mine.number, version: versionOfRow(r.old) }) });
       if (g.status !== "fresh") return g;
       const { rows, mine, old } = g.row;
-      // the line's own department may stay as it is (a line saved before the rule); any other department must be one of the list
+      // The line's own department may stay as it is (a line saved before the rule); any other department must be one of the list.
       const dept = v.value.department === mine.department ? mine.department : pickDepartment(await loadDepartmentNames(q), v.value.department);
       if (!dept) return { status: "invalid", errors: { department: DEPARTMENT_CHOICE } };
       v.value.department = dept;
@@ -191,12 +191,12 @@ export async function modifyEntry(db: PaxDb, actor: Actor, id: number, raw: Part
   }
 }
 
-/** Deletes a line as the person SAW it (`version`) and only when he typed its number (`confirmNumber`: the card never prints it, and pasting is switched off, so he has to know it). */
+/** Deletes a line as the person SAW it (`version`), and only when he typed its number (`confirmNumber`). The card never prints it and pasting is switched off, so he has to know it. */
 export async function deleteEntry(db: PaxDb, actor: Actor, id: number, opts: { confirmNumber: string; version?: string }): Promise<EntryResult> {
   try {
     return await db.run(async (q): Promise<EntryResult> => {
       const role = await begin(q, actor);
-      // a line is deleted AS THE PERSON SAW IT (the kit's guard): if it has been changed since, nothing is deleted and he looks again
+      // A line is deleted AS THE PERSON SAW IT (the kit's guard). If it has been changed since, I delete nothing and he looks again.
       const g = await guardRecord(q, "pax", id, { sent: opts.version, load: loadLine(q, id), version: (r) => versionOfRow(r.old), current: (r) => ({ id, department: r.mine.department, location: r.mine.location, number: r.mine.number, version: versionOfRow(r.old) }) });
       if (g.status !== "fresh") return g;
       const { mine, old } = g.row;
@@ -215,7 +215,7 @@ export async function deleteEntry(db: PaxDb, actor: Actor, id: number, opts: { c
 
 export type { DelegateResult };
 
-/** The authorised executives, the authorising and the withdrawing are the kit's (src/lib/facility/authority.ts): the same code, the same rules and words, for every tool. */
+/** The list of authorised executives, the authorising and the withdrawing all come from the kit (src/lib/facility/authority.ts). I want the same code, rules and words for every tool. */
 export const listDelegates = (db: PaxDb): Promise<PaxDelegateView[]> => sharedList(db, "pax");
 export const grantDelegate = (db: PaxDb, actor: Actor, target: { ticket: string; name: string; confirmNonExecutive?: boolean }): Promise<DelegateResult> => sharedGrant(db, "pax", actor, target);
 export const revokeDelegate = (db: PaxDb, actor: Actor, ticketNo: string): Promise<DelegateResult> => sharedRevoke(db, "pax", actor, ticketNo);

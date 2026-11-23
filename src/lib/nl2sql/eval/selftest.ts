@@ -1,7 +1,7 @@
 // src/lib/nl2sql/eval/selftest.ts
 //
-// Everything about the natural-language-to-SQL experiment that can be proven
-// WITHOUT a live language model. Runs against a scratch local PostgreSQL
+// This file holds everything about the natural-language-to-SQL experiment that I can prove
+// WITHOUT a live language model. It runs against a scratch local PostgreSQL
 // (never your real database):
 //
 //   NL2SQL_TEST_ADMIN_URL=postgres://postgres:pw@127.0.0.1:5432/postgres \
@@ -11,8 +11,8 @@
 // phonetic building blocks against the app's existing JavaScript engine, the
 // prompt, the repair loop, logging and tick/cross, and -- with a stand-in
 // "model" that replies with the reference SQL -- that every golden question
-// runs through the full pipeline and matches. What it CANNOT prove: how well
-// the REAL model writes SQL from new wordings. That is run-live.ts.
+// runs through the full pipeline and matches. What it CANNOT prove is how well the
+// REAL model writes SQL from new wordings; for that I use run-live.ts.
 
 import { Client } from "pg";
 import { readFileSync } from "fs";
@@ -155,7 +155,7 @@ async function main() {
     const same = jsSet.size === sqlSet.size && [...jsSet].every((x) => sqlSet.has(x));
     check(`SQL blocks equal the existing engine: ${label} (${jsSet.size} rows)`, same, `js ${jsSet.size} vs sql ${sqlSet.size}`);
   }
-  // The specific separations from the real conversation:
+  // These are the specific separations that came up in the real conversation:
   const sim = (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE nlq.last_word_like(name_words,name_codes,'debnath')`)).rows[0].n;
   const exD = (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE name_words[cardinality(name_words)]='DEBNATH'`)).rows[0].n;
   const exN = (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE name_words[cardinality(name_words)]='NATH'`)).rows[0].n;
@@ -200,7 +200,7 @@ async function main() {
   const helpers = await asReader(`SELECT nlq.code('kumar', true), nlq.norm('C & IT'), nlq.word_like(name_words, name_codes, 'kumar') FROM nlq.employees LIMIT 1`);
   check("reader CAN call the helper functions", helpers.ok, helpers.error);
 
-  // Documented residual risk: the one known way out of SET ROLE.
+  // Residual risk, documented: this is the one known way out of SET ROLE.
   const escape = await asReader(`SELECT set_config('role', 'postgres', true), (SELECT count(*) FROM public."user")`);
   check("role-escape + read of the user table in ONE statement fails", !escape.ok, "escape succeeded");
   console.log("  (note: set_config('role', ...) is refused by the guard; a dedicated login role, sql/03_*.sql, removes the risk entirely)");
@@ -270,7 +270,7 @@ async function main() {
     const drift = (await pg.query(`SELECT count(*)::int n FROM nlq.employee_name_codes nc JOIN public.employee_roster er ON er.id = nc.id AND er.name = nc.name WHERE nc.codes IS DISTINCT FROM coalesce(nlq.name_codes_of(er.name), ARRAY[]::text[])`)).rows[0].n;
     check("stored codes equal live codes after the refresh", drift === 0, String(drift));
 
-    // -- the Bhattacharya family: Bhattacharyya / Bhattacharjee / Bhattacharji / Bhattacharjya and the typo Bhattacharyay
+    // -- The Bhattacharya family: Bhattacharyya / Bhattacharjee / Bhattacharji / Bhattacharjya and the typo Bhattacharyay
     await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
       ('990005','ZZ FIVE BHATTACHARJEE',20,1,'nonexecutive',99005,990005), ('990006','ZZ SIX BHATTACHARJYA',20,1,'nonexecutive',99006,990006),
       ('990007','ZZ SEVEN BHATTACHARYAY',20,1,'nonexecutive',99007,990007), ('990008','ZZ EIGHT BHATTACHARYYA',20,1,'nonexecutive',99008,990008),
@@ -324,7 +324,7 @@ async function main() {
   }
   check("prompt does not expose private columns", !/password|contactNo|email_nic\b.*@/.test(prompt.replace(/has_email_nic/g, "")));
   console.log(`  prompt size: ${prompt.length} characters (about ${Math.round(prompt.length / 4)} tokens)`);
-  // Token budget: the model provider limits tokens per request/minute, so the prompt must stay small
+  // Token budget: the model provider limits tokens per request/minute, so I keep the prompt small
   // even with the real ~300 departments. (Calibration from a real failure: 24,913 chars was counted as 8,284 tokens.)
   const padded = [...ctx.departments, ...Array.from({ length: 285 }, (_, i) => ({ id: 100 + i, code: 30000 + i, name: `SECTION ${i} MECHANICAL MAINTENANCE STAFF`, cohort_scope: "shared" }))];
   for (const qq of ["how many non executives are in plant garage", "how many executives have no NIC email", "GMs in C&IT whose name ends with nath"]) {
@@ -426,8 +426,8 @@ async function main() {
   check("the correlated 'garage, no email' SQL now names the departments where those people actually work", corr !== null && corr.departments.map((d) => d.code).sort().join(",") === "85000,85110", JSON.stringify(corr));
   check("no department filter -> null", (await computeDepartmentScope(db, `SELECT count(*) FROM nlq.employees`)) === null);
 
-  // -- only departments that really hold people in the answer. Fixture = the C&IT situation: executives sit under ONE department
-  //    code, the granular sections hold only non-executives. (Removed again afterwards.)
+  // -- Only departments that really hold people in the answer count. The fixture is the C&IT situation: executives sit under ONE department
+  //    code, while the granular sections hold only non-executives. (Removed again afterwards.)
   await pg.query(`INSERT INTO public.sail_department (id, code, name, cohort_scope) VALUES
     (29001, 970001, 'ZQ TESTDEPT', 'shared'), (29002, 970002, 'ZQ TESTDEPT (TECH)', 'shared'), (29003, 970003, 'ZQ TESTDEPT STAFF', 'shared')`);
   await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
@@ -455,7 +455,7 @@ async function main() {
     check("an answer with nobody in it names no department (total 0, so no line is shown)", nobody !== null && nobody.total === 0, JSON.stringify(nobody));
     check("a CTE answer claims no scope (cannot be computed exactly)", (await computeDepartmentScope(db, `WITH d AS (${FX}) SELECT count(*) FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM d)`)) === null);
     check("a HAVING answer claims no scope", (await computeDepartmentScope(db, `SELECT designation FROM nlq.employees WHERE department_id IN (${FX}) GROUP BY designation HAVING count(*) > 1`)) === null);
-    // the REAL SQL the model wrote for "list of employees in the C&IT department with department codes": a JOIN just to read the code
+    // The REAL SQL the model wrote for "list of employees in the C&IT department with department codes": a JOIN just to read the code.
     const joinSql = (cohort: string) => `SELECT e.ticket_no, e.name, e.designation, d.code AS department_code FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE ${cohort}e.department_id IN (${FX}) ORDER BY e.global_seniority_rank`;
     const joinBoth = await computeDepartmentScope(db, joinSql(""));
     check("a JOIN answer (the model's real 'with department codes' SQL) still reports the departments that hold its people", JSON.stringify(codesOf(joinBoth)) === "[970001,970002,970003]", JSON.stringify(joinBoth));
@@ -465,7 +465,7 @@ async function main() {
     check("a JOIN without any alias on the person table is handled too", JSON.stringify(codesOf(joinNoAlias)) === "[970002,970003]", JSON.stringify(joinNoAlias));
     check("a self-join of the person table claims no scope (cannot tell which row is 'the person')", (await computeDepartmentScope(db, `SELECT a.ticket_no FROM nlq.employees a JOIN nlq.employees b ON a.department_id = b.department_id WHERE a.department_id IN (${FX})`)) === null);
     check("a sub-select in FROM claims no scope", (await computeDepartmentScope(db, `SELECT count(*) FROM (SELECT * FROM nlq.employees WHERE department_id IN (${FX})) x WHERE department_id IN (${FX})`)) === null);
-    // -- the department line follows WHERE THE PEOPLE WORK, however the model worded the department filter
+    // -- I make the department line follow WHERE THE PEOPLE WORK, however the model worded the department filter
     const noSub = (cohort: string) => `SELECT e.ticket_no, e.name, e.designation, d.code AS department_code FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE ${cohort}d.code IN (970001, 970002, 970003) ORDER BY e.global_seniority_rank`;
     check("JOIN + 'd.code IN (...)' with NO sub-query (the model's second real wording): all departments that hold people", JSON.stringify(codesOf(await computeDepartmentScope(db, noSub("")))) === "[970001,970002,970003]");
     check("...executives only: just the department that has executives", JSON.stringify(codesOf(await computeDepartmentScope(db, noSub("e.cohort = 'executive' AND ")))) === "[970001]");
@@ -507,7 +507,7 @@ async function main() {
 
   // ==========================================================================
   section("G5. A department is shown with BOTH its code and its name (checked from the SQL, not by the model)");
-  // The SQL the real model wrote for the 10 database questions of the 8-9 Oct 2026 test sheet (see the test ledger).
+  // Here is the SQL the real model wrote for the 10 database questions of the 8-9 Oct 2026 test sheet (see the test ledger).
   const modelWrote: [string, string, boolean][] = [
     ["D1 code only", "SELECT d.code AS department_code, e.cohort, COUNT(*) AS count FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE d.code IN (98500,98530,98540) GROUP BY d.code, e.cohort ORDER BY d.code, e.cohort", true],
     ["D2 name only", "SELECT ticket_no, name, designation, department FROM (SELECT e.ticket_no, e.name, e.designation, d.name AS department, e.global_seniority_rank AS sr, row_number() OVER (PARTITION BY e.department_id ORDER BY e.global_seniority_rank) AS rn FROM nlq.employees e JOIN nlq.departments d ON e.department_id = d.id WHERE e.cohort = 'executive') sub WHERE rn <= 5 ORDER BY department, sr", true],
@@ -532,7 +532,7 @@ async function main() {
   check("unparsable SQL cannot be judged -> accepted", checkDepartmentColumns("SELEKT department FROM") === null);
   check("a count with no department column -> accepted", checkDepartmentColumns("SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'") === null);
 
-  // -- Departments are compared by department ROW, not by number (six numbers belong to two different departments)
+  // -- I compare departments by department ROW, not by number (six numbers belong to two different departments)
   const ident: [string, string, boolean][] = [
     ["D4 (10 Oct): NOT EXISTS matching ne.department_code = e.department_code -> flagged", "SELECT department_code, department, exec_count FROM (SELECT e.department_code, e.department, count(*) AS exec_count, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees e WHERE e.cohort = 'executive' AND NOT EXISTS (SELECT 1 FROM nlq.employees ne WHERE ne.department_code = e.department_code AND ne.cohort = 'nonexecutive') GROUP BY e.department_code, e.department) sub WHERE r <= 10", true],
     ["the same question matched by department_id -> fine", "SELECT department_code, department, exec_count FROM (SELECT e.department_code, e.department, count(*) AS exec_count, rank() OVER (ORDER BY count(*) DESC) AS r FROM nlq.employees e WHERE e.cohort = 'executive' AND NOT EXISTS (SELECT 1 FROM nlq.employees ne WHERE ne.department_id = e.department_id AND ne.cohort = 'nonexecutive') GROUP BY e.department_id, e.department_code, e.department) sub WHERE r <= 10", false],
@@ -550,7 +550,7 @@ async function main() {
   check("the identity message names department_id and the six numbers", /department_id/.test(String(checkDepartmentIdentity(ident[0][1]))) && /21000/.test(String(checkDepartmentIdentity(ident[0][1]))));
 
   // PROOF on the database: when two departments share a number, matching by number and matching by department row GIVE DIFFERENT ANSWERS
-  // (the BLAST FURNACE (OPERATION) / BLAST FURNACE (STOCK HOUSE & HL) situation). Rolled back afterwards.
+  // (the BLAST FURNACE (OPERATION) / BLAST FURNACE (STOCK HOUSE & HL) situation). I roll it back afterwards.
   await pg.query("BEGIN");
   try {
     await pg.query(`INSERT INTO public.sail_department (id, code, name, cohort_scope) VALUES (29101, 970100, 'ZQ SHARED (EXEC DEPT)', 'executive'), (29102, 970100, 'ZQ SHARED (NONEXEC DEPT)', 'nonexecutive')`);
@@ -588,7 +588,7 @@ async function main() {
 
   // ==========================================================================
   section("G7. Rankings keep ties, groups come in an order, people come in seniority order (read from the SQL)");
-  // The SQL the real model wrote on the 8-9 Oct 2026 test sheet, and the right way to write each.
+  // The SQL the real model wrote on the 8-9 Oct 2026 test sheet, next to the right way to write each.
   const rk: [string, string, boolean][] = [
     ["D5 'which section has the most': ORDER BY count DESC LIMIT 1 over groups -> flagged", "SELECT e.department_code, e.department, COUNT(*) AS count FROM nlq.employees e WHERE e.cohort='nonexecutive' GROUP BY e.department_code, e.department ORDER BY count DESC LIMIT 1", true],
     ["E1 'which designation has the most': LIMIT 1 over groups -> flagged", "SELECT e.designation AS designation, count(*) AS count FROM nlq.employees e WHERE e.cohort='executive' GROUP BY e.designation ORDER BY count DESC LIMIT 1", true],
@@ -645,7 +645,7 @@ async function main() {
     check(label, expectProblem ? problem !== null : problem === null, String(problem));
   }
 
-  // -- a lookup of specific people must say WHO (ticket_no AND name), counts and breakdowns need not
+  // -- My rule: a lookup of specific people must say WHO (ticket_no AND name); counts and breakdowns need not
   const ID_TICKET_OK = "SELECT e.ticket_no, e.name, e.department_code, e.department FROM nlq.employees e WHERE e.ticket_no = '228757'";
   const idRules: [string, string, boolean][] = [
     ["12 Oct screenshot: department of ticket 228757 with NO ticket and NO name -> flagged", "SELECT e.department_code, e.department FROM nlq.employees e WHERE e.ticket_no = '228757'", true],
@@ -675,7 +675,7 @@ async function main() {
   check("the message says what is missing and what to write (both missing: 'ticket_no and name are missing')", /ticket_no and name are missing/.test(String(checkPersonIdentity("SELECT department FROM nlq.employees WHERE ticket_no = '1'"))) && /e\.ticket_no, e\.name/.test(String(checkPersonIdentity("SELECT department FROM nlq.employees WHERE ticket_no = '1'"))));
   check("...and names only the missing one when one is shown ('name is missing')", /name is missing/.test(String(checkPersonIdentity("SELECT ticket_no, department FROM nlq.employees WHERE ticket_no = '1'"))) && /: name is missing from the SELECT list/.test(String(checkPersonIdentity("SELECT ticket_no, department FROM nlq.employees WHERE ticket_no = '1'"))));
 
-  // -- the sentence that STATES a comparison's answer, in plain words (grade level = rank / 10,000, position = rank % 10,000)
+  // -- The sentence that STATES a comparison's answer, in plain words (grade level = rank / 10,000, position = rank % 10,000)
   const gm1 = { name: "MOHD ANWAR ULLAH", ticket_no: "T1", global_seniority_rank: 40121 };
   const gm2 = { name: "RANA SAHA", ticket_no: "T2", global_seniority_rank: 40186 };
   const peopleGM = [{ ticketNo: "T1", designation: "General Manager", isExecutive: true }, { ticketNo: "T2", designation: "General Manager", isExecutive: true }];
@@ -705,7 +705,7 @@ async function main() {
   check("equal ranks, a missing rank or a missing name -> no sentence", comparisonVerdict("who is more senior, A or B", [{ name: "A", ticket_no: "T1", global_seniority_rank: 1 }, { name: "B", ticket_no: "T2", global_seniority_rank: 1 }], peopleGM) === null && comparisonVerdict("who is more senior, A or B", [{ name: "A", ticket_no: "T1" }, gm2], peopleGM) === null && comparisonVerdict("who is more senior, A or B", [{ ticket_no: "T1", global_seniority_rank: 1 }, gm2], peopleGM) === null);
   check("a question that is not a comparison -> no sentence", comparisonVerdict("who is the most senior roy or ray", [gm1, gm2], peopleGM) === null && comparisonVerdict("list the two most senior people", [gm1, gm2], peopleGM) === null);
 
-  // -- the internal rank never reaches a screen, a card, a table or a CSV
+  // -- The internal rank never reaches a screen, a card, a table or a CSV
   {
     const cols = ["ticket_no", "name", "global_seniority_rank"];
     const rowsC = [{ ticket_no: "T1", name: "EXEC", global_seniority_rank: 40121 }, { ticket_no: "T2", name: "STAFF", global_seniority_rank: 160100 }];
@@ -742,7 +742,7 @@ async function main() {
     check("Copy and CSV say what they cover only when the list is not fully loaded (exportNote)", exportNote(100, 259, true).suffix === " (100 of 259)" && /Show more/.test(exportNote(100, 259, true).title) && exportNote(2, 2, false).suffix === "" && exportNote(259, 259, true).suffix === "");
   }
 
-  // -- the cohort column in the model's own column order
+  // -- The cohort column comes in the model's own column order
   {
     const colsH = ["ticket_no", "name", "designation", "cohort", "department_code", "department"];
     const keys = (h: any) => (h.columns as any[]).map((e) => (typeof e === "string" ? e : e.key)).join(",");
@@ -752,7 +752,7 @@ async function main() {
     check("nothing is added to a hint when the table has no cohort column", keys(withCohortInHint({ columns: ["name", "designation"] }, ["name", "designation"])) === "name,designation");
   }
 
-  // PROOF on the database: the LIMIT 1 answer hides the other person and both ranks; the right form shows them. Rolled back.
+  // PROOF on the database: the LIMIT 1 answer hides the other person and both ranks, while the right form shows them. Rolled back.
   await pg.query("BEGIN");
   try {
     await pg.query(`INSERT INTO public.employee_roster (ticket_no,name,designation_grade_id,sail_department_id,cohort,within_grade_position,global_seniority_rank) VALUES
@@ -768,12 +768,12 @@ async function main() {
     await pg.query("ROLLBACK");
   }
 
-  // The worked examples must actually be CHOSEN for these questions, or they teach nothing.
+  // I want the worked examples to actually be CHOSEN for these questions, or they teach nothing.
   const pickedFor = (qText: string) => pickExamples(qText, []).map((x) => x.question);
   check("the comparison example is chosen for four different phrasings (more senior, junior, between, which of)", ["who is more senior, Mohd Anwar Ullah or Rana Saha", "who is junior, Mohd Anwar Ullah or Rana Saha", "who is senior between Rahul Roy and Tapan Das", "which of Amit Sen or Rana Saha is more junior"].every((qq) => pickedFor(qq).some((x) => x.startsWith("who is more senior or junior"))), JSON.stringify(pickedFor("who is junior, Mohd Anwar Ullah or Rana Saha")));
   check("the side-by-side example is chosen for the CO & CC question", pickedFor("how many executives and non-executives work in each section of CO & CC").slice(0, 2).some((x) => /each blast furnace section/.test(x)), JSON.stringify(pickedFor("how many executives and non-executives work in each section of CO & CC")));
   check("EVERY seed example passes all the soft checks (department code+name, department identity, ranking/order, comparison, person identity)", SEED_EXAMPLES.filter((e) => e.sql).every((e) => checkDepartmentColumns(e.sql!) === null && checkDepartmentIdentity(e.sql!) === null && checkRankingAndOrder(e.sql!) === null && checkComparison(e.question, e.sql!) === null && checkPersonIdentity(e.sql!) === null && checkHealthColumns(e.sql!) === null), JSON.stringify(SEED_EXAMPLES.filter((e) => e.sql && (checkDepartmentColumns(e.sql) !== null || checkDepartmentIdentity(e.sql) !== null || checkRankingAndOrder(e.sql) !== null)).map((e) => e.question)));
-  // PROOF on the database: ranking BEFORE the population filter returns fewer rows than asked for. Rolled back afterwards.
+  // PROOF on the database: ranking BEFORE the population filter returns fewer rows than were asked for. Rolled back afterwards.
   //   6 executive-only/mixed departments: A (6 executives + 1 non-executive), B (5 + 1), C 4, D 3, E 2, F 1 (executives only).
   //   "top 3 departments with executives but no non-executives" must be C, D, E.
   await pg.query("BEGIN");
@@ -929,7 +929,7 @@ async function main() {
   const filterFirst = `SELECT department_code, exec_count FROM (SELECT department_code, count(*) FILTER (WHERE cohort='executive') AS exec_count, rank() OVER (ORDER BY count(*) FILTER (WHERE cohort='executive') DESC) AS r FROM nlq.employees GROUP BY department_code HAVING count(*) FILTER (WHERE cohort='nonexecutive') = 0) sub WHERE r <= 10 ORDER BY exec_count DESC, department_code`;
   r = await answerQuestion("top departments with executives only repair", "T1", { llm: script([json({ sql: rankFirst, understood_as: "x" }), json({ sql: filterFirst, understood_as: "x" })]), withClient });
   check("ranking before the population filter is sent back once; attempt 2 filters first (HAVING)", r.ok && r.attempts === 2 && /HAVING/i.test(r.sql));
-  // -- 12 Oct: "which department is ticket N in" came back as a department with no person. Sent back once; ticket_no and name come first.
+  // -- 12 Oct: "which department is ticket N in" came back as a department with no person. I send it back once; ticket_no and name come first.
   const tkRow = await withClient(async (c) => (await c.query("SELECT ticket_no FROM nlq.employees ORDER BY ticket_no LIMIT 1")).rows[0] as { ticket_no: string });
   const idBlind = `SELECT e.department_code, e.department FROM nlq.employees e WHERE e.ticket_no = '${tkRow.ticket_no}'`;
   const idRight = `SELECT e.ticket_no, e.name, e.department_code, e.department FROM nlq.employees e WHERE e.ticket_no = '${tkRow.ticket_no}'`;
@@ -975,13 +975,13 @@ async function main() {
   r = await answerQuestion("x".repeat(600), "T1", { llm: script([]), withClient });
   check("over-long question is refused", !r.ok && r.kind === "error");
 
-  // the department scope through the whole pipeline
+  // Here the department scope goes through the whole pipeline.
   const scoped = await answerQuestion("how many in garage", "T1", { llm: script([json({ sql: posQ, understood_as: "garage count", confidence: "high" })]), withClient });
   check("the pipeline result carries the scope", scoped.ok && scoped.scope !== null && scoped.scope.total === 3, scoped.ok ? JSON.stringify(scoped.scope) : scoped.message);
   const plain = await answerQuestion("how many executives", "T1", { llm: script([json({ sql: `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'`, understood_as: "execs", confidence: "high" })]), withClient });
   check("an answer without a department filter has no scope", plain.ok && plain.scope === null);
 
-  // the quoted-name rule through the whole pipeline
+  // Here the quoted-name rule goes through the whole pipeline.
   r = await answerQuestion('find the names which end with "debnath"', "T1", {
     llm: script([json({ sql: helperSql, understood_as: "similar spelling", confidence: "high" }), json({ sql: exactSql, understood_as: "Exactly DEBNATH.", confidence: "high" })]),
     withClient,
@@ -991,7 +991,7 @@ async function main() {
   check("the prompt names the quoted term and demands exact matching", qPrompt.includes('puts "debnath" in double quotes') && qPrompt.includes("EXACTLY"));
   check("an unquoted question gets no such line", !buildPrompt({ question: "find the names which end with debnath", context: ctx, examples: [] }).includes("in double quotes. Match"));
 
-  // the three real failures, through the whole pipeline: wrong first try, corrected on the second
+  // The three real failures go through the whole pipeline: wrong on the first try, corrected on the second.
   const cases3: [string, string, string][] = [
     ["count of officers in the C&IT department", bad1, `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM nlq.departments WHERE code IN (98500,98530,98540))`],
     ["top 10 senior staff", bad2, `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'nonexecutive' ORDER BY global_seniority_rank LIMIT 10`],
@@ -1052,7 +1052,7 @@ async function main() {
   check(`all ${variants} golden wordings pass through the pipeline`, variantPass === variants, `${variantPass}/${variants}`);
   console.log(`  ${GOLDEN.length} questions, ${variants} wordings`);
 
-  // expected-size sanity on the cases that mattered in the real conversation
+  // Expected-size sanity check on the cases that mattered in the real conversation.
   const sizeOf = async (sql: string) => Number((await pg.query(`SELECT count(*)::int n FROM (${sql}) q`)).rows[0].n);
   const gm = GOLDEN.find((g) => g.id === "gm_cit_nath")!;
   const gmRows = (await runReadOnly(db, gm.reference!)).rows;
@@ -1072,7 +1072,7 @@ async function main() {
   const model = (sql: string, understood = "the reading") => script([json({ sql, understood_as: understood, confidence: "high" })]);
   const PEOPLE5 = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 5`;
 
-  // ---- step 55b: a name word that no real name is spelled like is replaced by the nearest real spelling when nobody is found ("rupak gosyami", 26 Oct 2026)
+  // ---- step 55b: when nobody is found, a name word that no real name is spelled like is replaced by the nearest real spelling ("rupak gosyami", 26 Oct 2026)
   {
     clearVocabularyCache();
     const WHO = (first: string, last: string) => `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE nlq.first_word_like(name_words, name_codes, '${first}') AND nlq.last_word_like(name_words, name_codes, '${last}') ORDER BY global_seniority_rank`;
@@ -1096,7 +1096,7 @@ async function main() {
     check("55b: a question with no name word is untouched", !!other && other.count > 0 && !other.nl2sql?.spellingNote);
   }
 
-  // ---- step 55a: a department word is RESOLVED before the model is called ("refractory" = its three rows, "garage" = the Plant Garage, the township garage is closed)
+  // ---- step 55a: I RESOLVE a department word before the model is called ("refractory" = its three rows, "garage" = the Plant Garage, the township garage is closed)
   {
     const seen: string[] = [];
     const spy = (sql: string): LlmFn => async (p) => { seen.push(p); return json({ sql, understood_as: "the reading", confidence: "high" }); };
@@ -1112,7 +1112,7 @@ async function main() {
     const gar: any = await runOmnibar("how many executives are there in garage", "T-DW", mkDeps(spy(`SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id IN (SELECT id FROM nlq.departments WHERE code IN (85000, 85070, 85110, 85200, 85330, 85430))`)));
     check("55d: 'garage' is searched as the six rows of the Plant Garage, by name and code: the model is given them, not the bare word", seen.length >= 1 && seen[0].includes("how many executives are there in PLANT GARAGE (code 85000), PLANT GARAGE (TECH) (code 85070), PLANT GARAGE (M.H.E.O.D.) (code 85110), PLANT GARAGE (M.H.E.M.D.) (code 85200), PLANT GARAGE (OFFICE - MAINT) (code 85330) and PLANT GARAGE (OFFICE - OPRN) (code 85430)") && !seen[0].includes("there in garage"), seen[0]?.slice(-300));
     check("55a: ...no question is asked (no clarify, no checkboxes) and the answer carries the note", !!gar && gar.kind !== "clarify" && !gar.ask && /Plant Garage \(all its six sections\)/.test(gar?.nl2sql?.departmentNote ?? "") && /closed department/.test(gar?.nl2sql?.departmentNote ?? ""), JSON.stringify(gar && { kind: gar.kind, note: gar.nl2sql?.departmentNote }));
-    // the live failure of 26 Oct 2026: the model first selected ONLY the row called PLANT GARAGE (9 executives, "Departments covered (1)"). The exact-rows check sends it back; the second SQL covers all six rows.
+    // The live failure of 26 Oct 2026: the model first selected ONLY the row called PLANT GARAGE (9 executives, "Departments covered (1)"). The exact-rows check sends it back, and the second SQL covers all six rows.
     {
       let turn = 0;
       const ONE = `SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive' AND department_id = (SELECT id FROM nlq.departments WHERE code = 85000)`;
@@ -1134,7 +1134,7 @@ async function main() {
     check("55a: a question that already names its department is searched as typed, with no note", seen.length >= 1 && seen[0].includes("how many executives are there in coke oven refractory") && !named?.nl2sql?.departmentNote);
   }
 
-  // ---- step 56b: "who are the PhD holders" is answered from the list kept by hand (DR_TICKETS), by ticket from the directory, no model call: not from a circular's table of nodal officers
+  // ---- step 56b: "who are the PhD holders" is answered from the list I keep by hand (DR_TICKETS), by ticket from the directory, with no model call: not from a circular's table of nodal officers
   {
     const seenP: string[] = [];
     const llmP: LlmFn = async (p) => { seenP.push(p); return json({ sql: "SELECT count(*) AS count FROM nlq.employees WHERE cohort = 'executive'", understood_as: "the reading", confidence: "high" }); };
@@ -1172,7 +1172,7 @@ async function main() {
   const logged = (await pg.query(`SELECT user_key, ok FROM public.nl2sql_log WHERE id = $1`, [o.nl2sql.logId])).rows[0];
   check("the omnibar answer is logged for that person", logged && logged.user_key === "T-OMNI" && logged.ok === true);
 
-  // contact details stay masked; passwords never appear
+  // Contact details stay masked; passwords never appear.
   const many: any = await runOmnibar("sixty executives", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 60`)));
   const withMobile = many.people.find((p: any) => p.hasMobile);
   check("some people have a phone on file (test data)", !!withMobile);
@@ -1183,7 +1183,7 @@ async function main() {
   const blob = JSON.stringify(many);
   check("no password hash and no full contact value is in the payload", !blob.includes("HASHED-SECRET") && !blob.includes(raw.c) && !(raw.e && blob.includes(raw.e)));
 
-  // long lists: first 100 shown, true total reported
+  // Long lists: the first 100 are shown and the true total is reported.
   const longList: any = await runOmnibar("all non executives", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'nonexecutive' ORDER BY global_seniority_rank`)));
   const nonExecTotal = (await pg.query(`SELECT count(*)::int n FROM nlq.employees WHERE cohort = 'nonexecutive'`)).rows[0].n;
   check("a long list shows 100 people but reports the true total", longList.people.length === 100 && longList.listTruncated === true && longList.count === nonExecTotal, `${longList.people.length}/${longList.count} vs ${nonExecTotal}`);
@@ -1201,7 +1201,7 @@ async function main() {
   // departments covered
   o = await runOmnibar("plant garage people", "T-OMNI", mkDeps(model(`SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE department_id IN (SELECT id FROM nlq.departments WHERE nlq.norm(name) LIKE '%garage%') ORDER BY global_seniority_rank`)));
   check("departments covered travel with the answer", o.nl2sql.scope && o.nl2sql.scope.total === 3 && o.nl2sql.scope.departments.every((d: string) => /GARAGE/.test(d)), JSON.stringify(o.nl2sql.scope));
-  // a comparison STATES its answer, computed from the ranks of two real people
+  // A comparison STATES its answer, computed from the ranks of two real people.
   const twoTop = (await pg.query(`SELECT ticket_no, name, global_seniority_rank FROM nlq.employees ORDER BY global_seniority_rank LIMIT 2`)).rows;
   const cmpSql2 = `SELECT ticket_no, name, designation, department_code, department, global_seniority_rank FROM nlq.employees WHERE ticket_no IN ('${twoTop[0].ticket_no}', '${twoTop[1].ticket_no}') ORDER BY global_seniority_rank`;
   o = await runOmnibar(`who is more senior, ${twoTop[1].name} or ${twoTop[0].name}`, "T-OMNI", mkDeps(model(cmpSql2)));
@@ -1277,7 +1277,7 @@ async function main() {
   check("peopleFor ignores blanks and unknown tickets and removes duplicates", pf.length === 5 && new Set(pf.map((p) => p.ticketNo)).size === 5);
   check("peopleFor returns nothing for an empty list", (await peopleFor(db, [])).length === 0);
 
-  // the tick/cross wiring: rating the omnibar answer works for its owner only
+  // The tick/cross wiring: only the owner of an omnibar answer can rate it.
   const rated: any = await runOmnibar("rate me", "T-RATER", mkDeps(model(PEOPLE5)));
   check("the owner can rate an omnibar answer", await recordVerdict(db, rated.nl2sql.logId, "confirm", rated.nl2sql.userKey));
   check("someone else cannot", !(await recordVerdict(db, rated.nl2sql.logId, "reject", "T-OTHER")));
@@ -1285,7 +1285,7 @@ async function main() {
   // ==========================================================================
   section("L. The learning loop: Yes / No on every answer, a different second attempt, verified answers");
 
-  // -- the live database is upgraded by file 07: simulate the OLD table and run it as ONE query, twice
+  // -- File 07 upgrades the live database: here I simulate the OLD table and run it as ONE query, twice
   await pg.query(`ALTER TABLE public.nl2sql_log DROP COLUMN source, DROP COLUMN retry_of, DROP COLUMN reject_reason, DROP COLUMN reject_note`);
   await pg.query(`DROP TABLE public.omnibar_feedback`);
   const file07 = readFileSync(join(SQL_DIR, "07_feedback_learning.sql"), "utf8");
@@ -1309,7 +1309,7 @@ async function main() {
   check("a long note is capped at 300 characters", (parseFeedback({ query: "q", source: "circular", verdict: "no", note: "x".repeat(900) }, null)?.note || "").length === 300);
   check("every reason code has a hint", REASON_CODES.every((c) => retryHint(c, null).length > 20));
 
-  // -- Yes / No on a model answer, on someone else's answer, and on a non-model answer
+  // -- Here I test Yes / No on a model answer, on someone else's answer, and on a non-model answer
   const SQL_A = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 4`;
   const SQL_B = `SELECT ticket_no, name, designation, department_code, department FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`;
   const ask = async (qq: string, user: string | null, sql: string, over: Partial<OmnibarDeps> = {}) => {
@@ -1337,7 +1337,7 @@ async function main() {
   const fHol = await recordFeedback(db, { userKey: "L-A", query: "holidays 2026", source: "holiday", verdict: "yes", attempt: 1 });
   check("a Yes on a holiday answer is stored", fHol.id !== null);
 
-  // -- No teaches: one No is final, the SQL is blocked for everyone
+  // -- No teaches: one No is final and the SQL is blocked for everyone
   const GQ = "global reject question";
   for (const u of ["G-1"]) {
     const g = await ask(GQ, u, SQL_A);
@@ -1354,7 +1354,7 @@ async function main() {
   }
   check("an SQL that someone confirmed is NOT blocked globally", !(await loadRejectedSql(db, "C-4", CQ)).some((x) => x.includes("LIMIT 4")));
 
-  // -- No teaches: rejected readings of SIMILAR questions are shown to the model
+  // -- No teaches: I show the model the rejected readings of SIMILAR questions
   const negs = await loadNegativeExamples(db);
   check("rejected pairs are loaded with their reasons", negs.some((n) => n.question === GQ && n.reason && /wrong result/.test(n.reason)));
   check("the most similar rejected readings are picked, unrelated ones are not", pickNegatives("global reject question variant", negs).some((n) => n.question === GQ) && pickNegatives("zzz totally unrelated words", negs).length === 0);
@@ -1398,7 +1398,7 @@ async function main() {
   const after: any = await runOmnibar(VQ, "V-4", mkDeps(callCounter(model(SQL_B))));
   check("after the revocation the model is asked again", modelCalls === 1 && after.source === "nl2sql");
 
-  // -- ROBUST VOTING: one voice per person, the latest vote wins, Undo, dispute, vote limit, late sign-in
+  // -- ROBUST VOTING rules: one voice per person, the latest vote wins, Undo, dispute, vote limit, late sign-in
   const RV = "robust voting question";
   const yesFor = async (q: string, u: string | null) => { const g = await ask(q, u, SQL_A); const f = await recordFeedback(db, { userKey: u, query: q, source: "nl2sql", verdict: "yes", nl2sqlLogId: g.nl2sql.logId, attempt: 1 }); return { g, f }; };
   const noFor = async (q: string, u: string | null) => { const g = await ask(q, u, SQL_A); const f = await recordFeedback(db, { userKey: u, query: q, source: "nl2sql", verdict: "no", reasonCode: "wrong_result", nl2sqlLogId: g.nl2sql.logId, attempt: 1 }); return { g, f }; };
@@ -1416,7 +1416,7 @@ async function main() {
   check("after the Undo the dispute is gone: verified again by 2 people", (await findVerifiedSql(db, RV, 2))?.confirms === 2);
   check("the undone vote row is gone from the feedback table", (await pg.query(`SELECT count(*)::int n FROM public.omnibar_feedback WHERE id = $1`, [rv3.f.id])).rows[0].n === 0);
   check("another person CANNOT undo someone else's vote", (await undoFeedback(db, "RV-9", rv2.f.id, rv2.g.nl2sql.logId)).undone === false && (await findVerifiedSql(db, RV, 2))?.confirms === 2);
-  const rv2r = await noFor(RV, "RV-2"); // RV-2 is served the verified answer and reports it wrong ("Report wrong")
+  const rv2r = await noFor(RV, "RV-2"); // RV-2 gets the verified answer and reports it wrong ("Report wrong")
   check("a person's LATEST vote wins: RV-2 said Yes, later No -> counted as a No (disputed)", (await findVerifiedSql(db, RV, 1)) === null);
   check("a person who marked a reading wrong is not offered that reading again by the model", (await loadRejectedSql(db, "RV-2", RV)).some((x) => x.includes("LIMIT 4")));
   await recordVerdict(db, rv2r.g.nl2sql.logId, "confirm", "RV-2"); // RV-2 changes their mind on the same answer
@@ -1436,7 +1436,7 @@ async function main() {
   check("the hourly vote counter counts a person's votes", (await countRecentVotes(db, "LIM-1")) === 3 && (await countRecentVotes(db, "LIM-NONE")) === 0);
   check("the limit is 30 votes per person per hour", VOTES_PER_HOUR === 30);
 
-  // -- columns the person asked for: codes go on the person's card, other extra columns get a table (never silently dropped)
+  // -- Columns the person asked for: codes go on the person's card, and other extra columns get a table (I never drop them silently)
   const STD = `ticket_no, name, designation, department_code, department`;
   const TAIL = `FROM nlq.employees WHERE cohort = 'executive' ORDER BY global_seniority_rank LIMIT 3`;
   const plainList: any = await ask("list executives plain columns test", "COL-1", `SELECT ${STD} ${TAIL}`);
@@ -1455,7 +1455,7 @@ async function main() {
   check("every column the cards do not show becomes a labelled chip on each person's card (Rank, Has email)", chipList.people.length === 3 && chipList.people.every((p: any) => Array.isArray(p.extraFields) && p.extraFields.map((f: any) => f.label).join() === "Rank,Has email"), JSON.stringify(chipList.people[0].extraFields));
   check("...the chip values are the real values, formatted (Rank is a number; Has email is Yes or No)", chipList.people.every((p: any, i: number) => p.extraFields[0].value === String(chipList.nl2sql.table.rows.find((r: any) => String(r.ticket_no) === p.ticketNo).rank_order) && /^(Yes|No)$/.test(p.extraFields[1].value)));
   check("a plain list has no chips, and the codes are NOT repeated as chips", plainList.people.every((p: any) => p.extraFields === undefined) && codeList.people.every((p: any) => p.extraFields === undefined));
-  // -- "Show more": stable order, consistent pages, nothing repeated, nothing skipped
+  // -- "Show more" must give a stable order and consistent pages, with nothing repeated and nothing skipped
   const so = (q: string) => stableOrderSql(q);
   check("stableOrderSql: with an ORDER BY the tie-breaker is APPENDED to it and the model's SQL is kept verbatim", so("SELECT ticket_no, name FROM nlq.employees ORDER BY designation DESC") === "SELECT ticket_no, name FROM nlq.employees ORDER BY designation DESC, 1, 2");
   check("...without an ORDER BY one is added", so("SELECT ticket_no, name, designation FROM nlq.employees") === "SELECT ticket_no, name, designation FROM nlq.employees ORDER BY 1, 2, 3");
@@ -1503,7 +1503,7 @@ async function main() {
   const coded = withDisplayCodes(ppl, ["ticket_no", "department_code"], [{ ticket_no: "1", department_code: 98500 }, { ticket_no: "9", department_code: 1 }]);
   check("withDisplayCodes matches by ticket, leaves unmatched people alone, and does not mutate the input", coded[0].departmentCode === "98500" && coded[1].departmentCode === undefined && (ppl[0] as any).departmentCode === undefined);
 
-  // -- the model's presentation hint: it PROPOSES, display.ts VERIFIES against the real result; nothing can break or hide an answer
+  // -- The model's presentation hint only PROPOSES; display.ts VERIFIES it against the real result, so nothing can break or hide an answer
   const withPlan = async (q: string, plan: object) => (await runOmnibar(q, "DSP-1", mkDeps(script([json(plan)])))) as any;
   const LIST5 = `SELECT ticket_no, name, designation, department, department_code ${TAIL}`;
   const hinted = await withPlan("list executives hinted view test", { sql: LIST5, understood_as: "Three senior executives.", confidence: "high", display: { view: "table", title: "Senior executives, with codes", columns: [{ key: "department_code", label: "Code" }, { key: "name", label: "Officer" }] } });
@@ -1532,7 +1532,7 @@ async function main() {
   check("parsePlan: an oversized hint is dropped, a normal one is kept", pp({ title: "t".repeat(5000) })?.display === undefined && (pp({ view: "table" })?.display as any)?.view === "table");
   check("the model's instructions describe the optional display hint, and still fit the budget", buildPrompt({ question: "list executives", context: ctx, examples: [] }).includes("display (optional") && buildPrompt({ question: "list executives", context: { ...ctx, departments: padded }, examples: [] }).length < 19600);
 
-  // -- a No chooses a DIFFERENT way to answer
+  // -- A No makes me choose a DIFFERENT way to answer
   const RQ = "retry question";
   const r1 = await ask(RQ, "R-1", SQL_A);
   await recordFeedback(db, { userKey: "R-1", query: RQ, source: "nl2sql", verdict: "no", reasonCode: "wrong_name", note: "I meant exact", nl2sqlLogId: r1.nl2sql.logId, attempt: 1 });
@@ -1638,7 +1638,7 @@ async function main() {
   const byName: any = await runReadOnly(db, `SELECT ticket_no, name, checkup_date FROM nlq.health_checkups WHERE nlq.word_like(name_words, name_codes, '${nx[2].name.split(" ")[0].toLowerCase()}') AND nlq.last_word_like(name_words, name_codes, '${nx[2].name.split(" ").slice(-1)[0].toLowerCase()}')`);
   check("a confirmed person is found by name too (HR's name words)", byName.rows.some((x: any) => x.ticket_no === nx[2].ticket_no && x.checkup_date === "2025-01-14"));
 
-  // -- security: the question-answering role sees the view, never the table
+  // -- Security: the question-answering role sees the view, never the table
   const gOk = guardSql(`SELECT ${HQ_COLS} FROM nlq.health_checkups WHERE ticket_no = '1'`);
   check("the guard accepts the schedule view", gOk.ok === true, JSON.stringify(gOk));
   const gBad = guardSql("SELECT * FROM public.health_checkup_schedule");
@@ -1668,7 +1668,7 @@ async function main() {
   check("a schedule list in date order needs no seniority order (the view has none)", checkRankingAndOrder("SELECT ticket_no, name, checkup_date FROM nlq.health_checkups WHERE checkup_date = '2025-01-15' ORDER BY name") === null);
   check("...while a list of employees still must be in seniority order", checkRankingAndOrder("SELECT ticket_no, name FROM nlq.employees WHERE cohort = 'executive'") !== null);
 
-  // -- the whole question, through the pipeline with a scripted model
+  // -- The whole question, through the pipeline with a scripted model
   const HQ = `which department is ticket ${nx[0].ticket_no} in for the January 2025 health check-up`;
   const hNoDate = `SELECT ticket_no, name, department_code, department FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 1`;
   const hRight = `SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 1 ORDER BY checkup_date`;
@@ -1680,22 +1680,22 @@ async function main() {
   hr1 = await answerQuestion(HQ + " right first time", "T1", { llm: script([json({ sql: hRight, understood_as: "x" })]), withClient });
   check("an answer with the date is accepted at once", hr1.ok && hr1.attempts === 1);
 
-  // -- what the omnibar shows: a TABLE with the date, not person cards
+  // -- What the omnibar shows: a TABLE with the date, not person cards
   const oh: any = await runOmnibar(HQ, "T-HEALTH", mkDeps(model(hRight, "The check-up schedule row of one ticket.")));
   const ohCols: string[] = oh?.nl2sql?.table?.columns ?? [];
   check("the schedule is shown as a table (not person cards)", oh && oh.kind === "total" && !oh.people && ohCols.length > 0, JSON.stringify(oh && { kind: oh.kind, people: !!oh.people }));
   check("...with the ticket, name, department, DATE and circular, and no cohort column", ["ticket_no", "name", "department_code", "department", "checkup_date", "circular"].every((c) => ohCols.includes(c)) && !ohCols.includes("cohort"), ohCols.join(","));
 
-  // -- no row: the answer says which schedules exist (the month may be wrong, or the person is not on that list)
+  // -- No row: the answer says which schedules exist (the month may be wrong, or the person is not on that list)
   const hNone = `SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 2 ORDER BY checkup_date`;
   const ohn: any = await runOmnibar(`which department is ticket ${nx[0].ticket_no} in for the February 2025 health check-up`, "T-HEALTH", mkDeps(model(hNone, "The schedule row of one ticket.")));
   check("a question with no match about a list that does not exist (February 2025) says so and names the lists that do exist, in plain words (no 'row', no 'No row matches')", !!ohn && /There is no health check-up list for February 2025 in the system\. The lists in the system are: December 2024, January 2025\./.test(String(ohn.answer)) && !/\brows?\b/i.test(String(ohn.answer)), String(ohn && ohn.answer));
   check("...and a question with a row keeps its normal headline", !!oh && /1 row/.test(String(oh.answer)), String(oh && oh.answer));
-  // a ticket that matches nothing is not a dead end: who the ticket belongs to, and every schedule it IS on (12 Oct: ticket 228757 asked for January 2025)
+  // A ticket that matches nothing is not a dead end: I show who the ticket belongs to and every schedule it IS on (12 Oct: ticket 228757 asked for January 2025).
   const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   check("an empty answer about a ticket says what was asked first, then who the ticket belongs to (HR) and every list it IS on", !!ohn && new RegExp(`^Ticket ${nx[0].ticket_no} is not on the February 2025 health check-up list\\. It belongs to ${escRe(nx[0].name)}`).test(String(ohn.answer)) && /This ticket is on the December 2024 list, on 05 Dec 2024 \(Circular 009 \(2024\)\); the January 2025 list, on /.test(String(ohn.answer)), String(ohn && ohn.answer));
   check("...the empty answer is marked as a sentence (so the screen leaves out its big 0), and a normal answer is not", ohn?.nl2sql?.plainAnswer === true && oh?.nl2sql?.plainAnswer === undefined);
-  // a schedule whose circular was uploaded but not read: the empty answer says so (from the upload's decision log)
+  // For a schedule whose circular was uploaded but not read, the empty answer says so (taken from the upload's decision log).
   await pg.query(`INSERT INTO public.circulars (id, headline, "serialNumber", "publishedAt") VALUES (903, 'CIRCULAR-HEALTH CHECK UP FEB-2025', 7, '2025-01-30')`);
   await pg.query(`INSERT INTO public.circular_ingest_log (circular_id, kind, status, detail) VALUES (903, 'health-schedule', 'timeout', '{}')`);
   const ohp: any = await runOmnibar(`which department is ticket ${nx[0].ticket_no} in for the February 2025 health check-up`, "T-HEALTH", mkDeps(model(hNone, "The schedule row of one ticket.")));
@@ -1707,7 +1707,7 @@ async function main() {
   await pg.query(`DELETE FROM public.health_checkup_schedule WHERE circular_id = 903`);
   await pg.query(`DELETE FROM public.circulars WHERE id = 903`);
 
-  // -- the "Source" line: which circular(s) the answer was read from, and the page of the people listed (looked up by the system, not asked of the model)
+  // -- The "Source" line: which circular(s) the answer was read from, and the page of the people listed (looked up by the system, not asked of the model)
   const srcCols: any = await runReadOnly(db, `SELECT circular_id, circular_title, page_number FROM nlq.health_checkups WHERE ticket_no = '${nx[0].ticket_no}' AND schedule_year = 2025 AND schedule_month_no = 1`);
   check("the view carries the circular's id, title and the page of the row (appended columns)", srcCols.total === 1 && Number(srcCols.rows[0].circular_id) === 901 && srcCols.rows[0].circular_title === "HEALTH CHECK UP SCHEDULE JAN 2025" && Number(srcCols.rows[0].page_number) === 3, JSON.stringify(srcCols.rows));
   check("the model is NOT told about them (nor about the redundant 'schedule' column): they are not in its prompt", !pHealth_probe().includes("circular_id") && !pHealth_probe().includes("page_number") && !pHealth_probe().includes("circular_title") && !pHealth_probe().includes("schedule ('January"));
@@ -1729,7 +1729,7 @@ async function main() {
   const ofail: any = await runOmnibar(HQ, "T-HEALTH", dFail);
   check("if the source lookup fails the ANSWER is unaffected (same table, no source line, no error)", !!ofail && ofail.kind === "total" && (ofail.nl2sql?.table?.rows?.length ?? 0) === 1 && ofail.nl2sql?.sources === undefined, JSON.stringify(ofail && { kind: ofail.kind, rows: ofail.nl2sql?.table?.rows?.length, src: ofail.nl2sql?.sources }));
 
-  // -- who is not confirmed against HR: said under the Source line ONLY when it applies (instead of a Yes/No column on every row)
+  // -- Who is not confirmed against HR: I say it under the Source line ONLY when it applies (instead of a Yes/No column on every row)
   const hDay14 = `SELECT ticket_no, name, department_code, department, checkup_date, circular FROM nlq.health_checkups WHERE checkup_date = '2025-01-14' ORDER BY name`;
   const o14: any = await runOmnibar("who has the health check-up on 14 January 2025", "T-HEALTH", mkDeps(model(hDay14, "Everyone called on that day.")));
   const note14 = String(o14?.nl2sql?.sourceNote ?? "");
@@ -1741,11 +1741,11 @@ async function main() {
   check("one person HR does not know: 'This person is not in the HR directory; the ticket shown is as printed in the circular.' (the printed ticket is still shown)", og?.nl2sql?.sourceNote === "This person is not in the HR directory; the ticket shown is as printed in the circular." && String(og?.nl2sql?.table?.rows?.[0]?.ticket_no) === "888888", String(og?.nl2sql?.sourceNote));
   check("the model is no longer asked for the Verified column: not in the standard select list, not in any worked example", !/ALWAYS SELECTs[^\n]*verified/.test(pHealth_probe()) && pickExamples(HQ, []).every((e) => !/\bverified\b/.test(String(e.sql))) && /do not select it unless asked/.test(pHealth_probe()));
 
-  // -- the big number and "N rows." at the top: hidden ONLY for a one-row table (a lookup of one person or ticket)
+  // -- The big number and "N rows." at the top are hidden ONLY for a one-row table (a lookup of one person or ticket)
   check("a one-row table answer hides the big number; a count answer ('how many'), a list of 2 or more, and everything else keep it", isSingleRowTable("total", 1, true) === true && isSingleRowTable("total", 15, true) === false && isSingleRowTable("count", 1, true) === false && isSingleRowTable("total", 1, false) === false && isSingleRowTable("total", 2, true) === false && isSingleRowTable("clarify", 1, true) === false && isSingleRowTable(undefined, undefined, true) === false);
   check("...and the real one-ticket answer is exactly that case (kind total, 1 row, with a table)", oh?.kind === "total" && oh?.count === 1 && !!oh?.nl2sql?.table);
 
-  // -- the prompt: the schedule is described only when the question is about a check-up, and it still fits the size limit
+  // -- The prompt describes the schedule only when the question is about a check-up, and it still fits the size limit
   check("a check-up question is recognised; ordinary questions are not", isHealthQuestion(HQ) && isHealthQuestion("health checkup date of ticket 1") && isHealthQuestion("medical examination schedule") && !isHealthQuestion("list executives in C&IT") && !isHealthQuestion("who is the most senior roy"));
   const pHealth = buildPrompt({ question: HQ, context: ctx, examples: [] });
   const pPlain = buildPrompt({ question: "list executives in c&it", context: ctx, examples: [] });
@@ -1760,7 +1760,7 @@ async function main() {
   // ==========================================================================
   // Step 28b: "N most senior IN EACH department" and "grade X or above". Two gaps found on the real data (13 Oct): the model answered
   // "5 people" (5 in all) for the five most senior executives of EACH plant garage section, and "0 rows" for the departments with more than 20
-  // non-executives of grade S-9 or above, where 45 or more qualify. Fixture removed again afterwards.
+  // non-executives of grade S-9 or above, where 45 or more qualify. The fixture is removed again afterwards.
   await pg.query(`INSERT INTO public.sail_department (id, code, name, cohort_scope) VALUES (29101, 970101, 'ZQ GROUPA', 'shared'), (29102, 970102, 'ZQ GROUPB', 'shared')`);
   try {
     const EXG = `(SELECT id FROM public.designation_grade WHERE track <> 'nonexec' ORDER BY id LIMIT 1)`;
@@ -1792,7 +1792,7 @@ async function main() {
   }
 
   // ==========================================================================
-  // Leave the scratch database as it was found: the stand-in circulars table and the schedule objects would make the other self-tests
+  // I leave the scratch database as it was found: the stand-in circulars table and the schedule objects would make the other self-tests
   // (circularLabels, reread) refuse to run, which they do whenever a "circulars" table exists (their guard against a real database).
   await pg.query(`DROP VIEW IF EXISTS nlq.health_checkups`);
   await pg.query(`DROP TABLE IF EXISTS public.circular_ingest_log`);

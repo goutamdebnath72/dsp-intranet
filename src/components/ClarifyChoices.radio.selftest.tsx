@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/ClarifyChoices.radio.selftest.tsx
-// Step 54a: the clarifying question in RADIO mode (exactly one choice: a doctor), with a second line under each option, an "alternative search" button, and the question rewrite by pattern;
-// and the checkbox mode (departments) exactly as before.
+// Step 54a covers the clarifying question in RADIO mode (exactly one choice: a doctor), with a second line under each option, an "alternative search" button, and the question rewrite by pattern;
+// the checkbox mode (departments) must stay exactly as before.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -53,7 +53,7 @@ const unitQ = queryFor({ ...doctors, question: "is Medicine OPD open on monday?"
 ok("the unit question rewrites 'Medicine OPD' into 'Medicine Unit II' (the department is not said twice)", unitQ === "is Medicine Unit II open on monday?", unitQ);
 ok("...and a new patient keeps the department: 'Medicine OPD (new patient)'", queryFor({ ...doctors, question: "is Medicine OPD open on monday?", pattern: "\\b(?:medicine\\s+)?opd\\b", options: [{ id: "n", label: "new", phrase: "Medicine OPD (new patient)" }] }, ["n"]) === "is Medicine OPD (new patient) open on monday?");
 
-// the checkbox mode (departments) is exactly as before
+// I keep the checkbox mode (departments) exactly as before
 const dept: DepartmentAsk = {
   message: "Which department?", word: "refractory", question: "refractory people",
   options: [{ id: "1", label: "REFRACTORY (code 86000)", phrase: "REFRACTORY (code 86000)" }, { id: "2", label: "COKE OVEN REFRACTORY (code 86600)", phrase: "COKE OVEN REFRACTORY (code 86600)" }],

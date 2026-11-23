@@ -5,13 +5,13 @@ import { OTHER_PLANT } from "@/lib/search/formerNames";
 export interface SiteResult {
   title: string;
   subtitle?: string;
-  href: string; // "#" or empty means "no link yet"
+  href: string; // I treat "#" or an empty value as "no link yet"
   category: string;
   hasLink: boolean;
   score: number;
 }
 
-// Collapse to a tight token: lowercase, keep only letters/digits + Indic.
+// I collapse a title to a tight token: lowercase, keeping only letters and digits plus Indic characters.
 // "C & IT" -> "cit", "e-Str2" -> "estr2", "राजभाषा" stays.
 function normalize(s: string): string {
   return (s || "")
@@ -19,7 +19,7 @@ function normalize(s: string): string {
     .replace(/[^a-z0-9\u0900-\u097F\u0980-\u09FF]+/g, "");
 }
 
-// Split a title into normalized words for word-start / word-boundary checks.
+// I split a title into normalized words for the word-start and word-boundary checks.
 function words(title: string): string[] {
   return (title || "")
     .toLowerCase()
@@ -28,10 +28,10 @@ function words(title: string): string[] {
     .filter(Boolean);
 }
 
-// Connector words ignored when forming an acronym.
+// Connector words that I ignore when forming an acronym.
 const CONNECTORS = new Set(["and", "of", "the", "for", "to"]);
 
-// Acronym = first letter of each significant word. "Wheel & Axle" -> "wa".
+// An acronym is the first letter of each significant word: "Wheel & Axle" -> "wa".
 function acronym(title: string): string {
   return words(title)
     .map((w) => normalize(w))
@@ -41,7 +41,7 @@ function acronym(title: string): string {
 }
 
 /**
- * A link may carry `aliases` (a renamed department keeps its old names: "CHRD", "Training Department"). Each alias is searched like a title of its own, but the result is ALWAYS the link's official title,
+ * A link may carry `aliases` (a renamed department keeps its old names: "CHRD", "Training Department"). I search each alias like a title of its own, but the result is ALWAYS the link's official title,
  * an alias hit ranks a notch below the same hit on the title, and a link is ONE result however many of its names match (step 60a).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,7 +51,7 @@ function withAliases(list: any[]): any[] {
 }
 
 /**
- * Search the static site directory (links.js) by name.
+ * I search the static site directory (links.js) by name.
  *
  * Tiered scoring (higher = better):
  *   100 exact name match (normalized)
@@ -61,16 +61,15 @@ function withAliases(list: any[]): any[] {
  *       hits like "erp" inside "Sinter Plant")
  *    20 the query contains the whole name (user typed extra words)
  *
- * Returns ALL matches, linked or not — the caller shows a "link not yet
+ * Returns ALL matches, linked or not. I leave it to the caller to show a "link not yet
  * available" note for URL-less entries.
  */
 export function searchSites(query: string, limit = 6): SiteResult[] {
   const q = normalize(query);
   if (q.length < 2) return [];
-  const otherPlant = OTHER_PLANT.test(query.toLowerCase()); // step 60d: another plant's CHRD ("bhilai chrd") is not the Durgapur CL&D link
+  const otherPlant = OTHER_PLANT.test(query.toLowerCase()); // Step 60d: I do not treat another plant's CHRD ("bhilai chrd") as the Durgapur CL&D link
 
-  // Contiguous whole-word concatenations of the query. A short site acronym is
-  // only matched if the query SPELLS IT OUT with whole words (e.g. "c" + "it" ->
+  // Contiguous whole-word concatenations of the query. I match a short site acronym only if the query SPELLS IT OUT with whole words (e.g. "c" + "it" ->
   // "cit" for C&IT), never as a fragment inside a longer word ("lis" in "list").
   const qWords = words(query).map(normalize).filter(Boolean);
   const qRuns = new Set<string>();
@@ -83,9 +82,9 @@ export function searchSites(query: string, limit = 6): SiteResult[] {
   }
 
   const out: SiteResult[] = [];
-  const bySource = new Map<object, SiteResult>(); // one result per link, whichever of its names matched
+  const bySource = new Map<object, SiteResult>(); // I return one result per link, whichever of its names matched
 
-  // A query with "&" signals ACRONYM intent (w&a -> Wheel & Axle): match only the
+  // A query with "&" signals ACRONYM intent (w&a -> Wheel & Axle), so I match only the
   // full name (c&it -> "cit") or the acronym, never loose word-prefixes.
   const acronymMode = /&/.test(query);
 
@@ -93,35 +92,35 @@ export function searchSites(query: string, limit = 6): SiteResult[] {
     const title = link.title || "";
     const nTitle = normalize(title);
     if (!nTitle) continue;
-    if (otherPlant && link.officialTitle) continue; // the ALIASES of a link (its former names) are not shown for another plant's question
+    if (otherPlant && link.officialTitle) continue; // I do not show the ALIASES of a link (its former names) for another plant's question
 
     const ws = words(title).map(normalize).filter(Boolean);
 
     const acr = acronym(title);
 
-    // Banding: full-name exact (100) > acronym matches (92 exact / 85 prefix,
+    // My banding: full-name exact (100) > acronym matches (92 exact / 85 prefix,
     // i.e. consecutive word-initials like Wheel+Axle) > single-title prefix (80)
     // > single-word start (60) > word contains (40) > spelled-out run (20).
     // So EVERY consecutive-initials match ranks above any single-word prefix.
     let score = 0;
     if (acronymMode) {
-      if (nTitle === q) score = 100; // "c&it" -> full name "cit"
-      else if (acr === q) score = 92; // "w&a" -> initials "wa"
+      if (nTitle === q) score = 100; // "c&it" matches the full name "cit"
+      else if (acr === q) score = 92; // "w&a" matches the initials "wa"
       else if (acr.startsWith(q) && q.length >= 2) score = 85;
     } else {
       if (nTitle === q) score = 100;
       else if (acr === q) score = 92;
       else if (acr.startsWith(q) && q.length >= 2) score = 85;
       else if (nTitle.startsWith(q)) score = 80;
-      // an ALIAS matches as a whole (exact, as a prefix, or spelled out in the question), never by one of its common words ("training", "department" would match every question about a department)
+      // An ALIAS must match as a whole (exact, as a prefix, or spelled out in the question), never by one of its common words: "training" or "department" would match every question about a department.
       else if (!link.officialTitle && ws.some((w) => w.startsWith(q))) score = 60;
       else if (!link.officialTitle && ws.some((w) => w.includes(q))) score = 40;
       else if (qRuns.has(nTitle) && nTitle.length >= 2) score = 20;
     }
 
-    // Also match the subtitle (e.g. BAMS has subtitle "(Attendance)"), scored a
+    // I also match the subtitle (e.g. BAMS has subtitle "(Attendance)"), scored a
     // notch below the equivalent title match so title hits always rank higher.
-    if (score === 0 && link.subtitle && !link.aliases && !link.officialTitle) { // a link with aliases is found by them, not by the words of its history line
+    if (score === 0 && link.subtitle && !link.aliases && !link.officialTitle) { // A link with aliases is found by them, not by the words of its history line
       const sws = words(link.subtitle).map(normalize).filter(Boolean);
       const nSub = normalize(link.subtitle);
       if (nSub === q) {

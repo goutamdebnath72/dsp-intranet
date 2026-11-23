@@ -31,7 +31,7 @@ async function runTests() {
   // ----------------------------------------------------
   console.log("\n--- Intent Detection Tests ---");
 
-  // User requirement: Must open with keyword "management"
+  // My requirement: it must open with the keyword "management"
   ok("circular management -> op: upload", detectCircularAdminIntent("circular management")?.op === "upload");
   ok("circulars management -> op: upload", detectCircularAdminIntent("circulars management")?.op === "upload");
 
@@ -55,7 +55,7 @@ async function runTests() {
   const prefillTest = detectCircularAdminIntent('post circular "Festival Advance Scheme 2026"');
   ok("post circular with quoted title extracts prefill headline", prefillTest?.prefill?.headline === "Festival Advance Scheme 2026");
 
-  // Negative tests: questions about circular content must NOT open admin panel
+  // Negative tests: I do not want questions about circular content to open the admin panel
   ok("where is the mediclaim circular -> null", detectCircularAdminIntent("where is the mediclaim circular") === null);
   ok("what is the circular for ltc -> null", detectCircularAdminIntent("what is the circular for ltc") === null);
   ok("how to apply under circular 12 -> null", detectCircularAdminIntent("how to apply under circular 12") === null);

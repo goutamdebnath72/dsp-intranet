@@ -26,11 +26,11 @@ const HeroBanner: React.FC = () => {
                 style={{ backgroundImage: 'url("/grid.svg")' }}
             />
 
-            {/* 👇 THIS IS THE FIX: Restored your original bluish gradient overlay 👇 */}
+            {/* The fix: I restored my original bluish gradient overlay. */}
             <div className="absolute inset-0 bg-gradient-to-r from-blue-900/70 to-cyan-700/40" />
 
             <div className="relative h-full flex flex-col justify-center items-start p-8 sm:p-12">
-                {/* We are keeping the new, more elegant heading font */}
+                {/* I keep the new, more elegant heading font. */}
                 <h1 className="text-2xl sm:text-3xl font-bold font-heading text-white tracking-tight">
                     Welcome to the DSP Intranet
                 </h1>

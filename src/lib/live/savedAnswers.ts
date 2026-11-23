@@ -1,6 +1,6 @@
 // src/lib/live/savedAnswers.ts
 //
-// THE SAVED LAST GOOD ANSWER, for the routes that opt in (liveRoute's `persist`): the database's snapshot table, or none when the database cannot be had (a card must never fail because of its saved copy).
+// The saved last good answer, for the routes that opt in (liveRoute's `persist`): it lives in the database's snapshot table, or there is none when the database cannot be had. I never let a card fail because of its saved copy.
 import { getDb } from "@/lib/db";
 import { NO_SNAPSHOT_STORE, snapshotStoreFor, type SnapshotStore } from "./snapshotStore";
 

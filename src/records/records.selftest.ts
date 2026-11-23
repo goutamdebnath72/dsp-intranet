@@ -1,5 +1,5 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/records/records.selftest.ts </dev/null
-// The umbrella's checks: the fixed selections, what each lets run, the planner and its register of clashes, and that every example line and every cue-completed line is really understood by the engine it is for.
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/records/records.selftest.ts </dev/null
+// These are the umbrella's checks: the fixed selections, what each lets run, the planner and its register of clashes, and that every example line and every cue-completed line is really understood by the engine it is for.
 
 import { readFileSync, existsSync } from "node:fs";
 import { DateTime } from "luxon";

@@ -1,6 +1,6 @@
 // src/lib/pax/matcher.ts
 //
-// THE PAX DIRECTORY SEARCH: reading the question and matching it against the rows (step 63a). PURE: no database, no model, no clock, so every rule here is tested offline.
+// THE PAX DIRECTORY SEARCH: reading the question and matching it against the rows (step 63a). I keep it PURE: no database, no model, no clock, so every rule here is tested offline.
 // PAX = the land-line phone that works only inside DSP work areas (5 digits). The numbers are kept by the Telecom department in the table `public.pax_directory` (sql/12).
 //
 // What a person can ask (all answered from the table, never from a model):
@@ -10,44 +10,44 @@
 //   - a FAULT:              "pax not working", "pax complaint" (the Telecom complaint numbers)
 //   - an AREA:              "in plant" / "township" / "outside plant" narrows any of the above
 //
-// ALIASES (owner, 31 Oct 2026): "pax number", "phone number" and "contact number" are ONE keyword. The SUBJECT decides what the number is: a department, a place or any other non-human entity
+// ALIASES (my rule, 31 Oct 2026): "pax number", "phone number" and "contact number" are ONE keyword. The SUBJECT decides what the number is: a department, a place or any other non-human entity
 // gives its PAX number (this file and answer.ts); a person who is an executive (ticket 4xxxxx) gives his or her CUG mobile number (people.ts, route.ts). The plan only reads the words; the route decides.
 //
-// WHEN THE ROUTE TAKES A QUESTION (a wrong confident answer is worse than no answer, so it is careful):
+// WHEN THE ROUTE TAKES A QUESTION (a wrong confident answer is worse than no answer, so I am careful):
 //   STRONG cue = the word "pax": always ours (a found answer, or an honest "not found").
 //   WEAK cue   = phone, telephone, contact, extension, extn, intercom, landline: ours ONLY when the subject is found (a directory entry, or an executive); never when the question is about a doctor,
 //                the hospital OPD, a mobile number, a fault or a circular, and never when nothing is found (the other routes then answer as before).
 //   NO cue     = ONE bare 5-digit number (with only words like "who has") is ours ONLY when that number is in the directory; otherwise the question goes on untouched.
-//   A number of six or more digits (a ticket, a mobile) or a word about circulars (notice, policy, tariff ...) is never ours.
+//   I never take a number of six or more digits (a ticket, a mobile) or a word about circulars (notice, policy, tariff ...).
 
 export type PaxArea = "plant" | "outside" | "unclassified";
 
 export interface PaxRow {
-  /** The name exactly as printed in Telecom's list ("Civil (A - Zone)"). */
+  /** Keeps the name exactly as printed in Telecom's list ("Civil (A - Zone)"). */
   label: string;
-  /** The department part and the location part of the label (the location is empty when the list does not say). Used for matching only. */
+  /** I split the label into the department part and the location part (the location is empty when the list does not say). I use these for matching only. */
   deptName: string;
   location: string;
   number: string;
   note: string;
   area: PaxArea;
-  /** The row's id in the table (known when it was read from the database; the panel needs it to modify or delete). */
+  /** The row's id in the table: it is known when the row was read from the database, and the panel needs it to modify or delete the row. */
   id?: number;
-  /** True for a line made or changed in the panel: its department and location are exactly what the HOD typed (deptName, location), never guessed from the printed name. */
+  /** True for a line made or changed in the panel: its department and location are exactly what the HOD typed (deptName, location), and I never guess them from the printed name. */
   curated?: boolean;
 }
 
 export type PaxPlan =
   | { kind: "number"; claim: "always" | "ifFound"; numbers: string[]; area: PaxArea | null; count: boolean }
-  /** `optional`: words that narrow the match when they can (a trailing "in" = the IN of "Main Gate (IN)") and are dropped when no name has them. */
+  /** `optional`: words that narrow the match when they can (a trailing "in" = the IN of "Main Gate (IN)"); I drop them when no name has them. */
   | { kind: "name"; claim: "always" | "ifFound"; tokens: string[]; optional: string[]; area: PaxArea | null; count: boolean; fault: boolean }
-  /** "contact number of 498301": the subject is a person, given by ticket (answered only for an executive, people.ts). */
+  /** "contact number of 498301": the subject is a person, given by ticket. I answer it only for an executive (people.ts). */
   | { kind: "person"; claim: "ifFound"; ticket: string }
   | { kind: "list"; claim: "always"; area: PaxArea | null; count: boolean };
 
 // ---- text ----------------------------------------------------------------------------------------
 
-/** Lower case, accents removed, "&" read as "and", every other mark a space: "C & IT (Console)" -> "c and it console". */
+/** I lower-case the text, remove accents, read "&" as "and" and turn every other mark into a space: "C & IT (Console)" -> "c and it console". */
 export function normalizePax(s: string): string {
   return String(s ?? "")
     .toLowerCase()
@@ -58,7 +58,7 @@ export function normalizePax(s: string): string {
     .trim();
 }
 
-/** Filler words of a question: never part of a name. ("a" is here too: it is also the zone in "Civil (A - Zone)", so it can never be required.) */
+/** Filler words of a question, never part of a name. "a" is in this list too: it is also the zone in "Civil (A - Zone)", so I can never require it. */
 const QUERY_STOP = new Set([
   "a", "an", "the", "of", "for", "to", "at", "in", "on", "is", "are", "was", "were", "be", "s", "and", "or", "with", "from", "by", "under",
   "what", "whats", "which", "who", "whom", "whose", "where", "how", "many", "much", "when", "does", "do", "did", "has", "have", "having", "had", "can", "could", "will", "would", "should",
@@ -70,8 +70,8 @@ const QUERY_STOP = new Set([
   "pax", "p", "x", "extension", "extn", "ext", "intercom", "landline", "land", "line", "telephone", "phone", "tel",
 ]);
 
-/** Filler of the ROWS: only the joining words. */
-const ROW_STOP = new Set(["and", "of", "the", "at", "for", "s"]); // "in" stays: it is the IN of "Main Gate (IN)"
+/** Filler of the ROWS: I drop only the joining words. */
+const ROW_STOP = new Set(["and", "of", "the", "at", "for", "s"]); // I keep "in": it is the IN of "Main Gate (IN)"
 
 export const rowTokens = (r: Pick<PaxRow, "label" | "deptName" | "location">): Set<string> => {
   const out = new Set<string>();
@@ -79,7 +79,7 @@ export const rowTokens = (r: Pick<PaxRow, "label" | "deptName" | "location">): S
   for (const p of parts) {
     const toks = p.split(" ").filter((t) => t && !ROW_STOP.has(t));
     toks.forEach((t) => out.add(t));
-    // "C & IT" is also typed "cit", "L & D" as "ld": the joined neighbours of a one- or two-letter piece are tokens too
+    // "C & IT" is also typed "cit" and "L & D" as "ld", so I add the joined neighbours of a one- or two-letter piece as tokens too
     for (let i = 0; i + 1 < toks.length; i++) if (toks[i].length <= 2 || toks[i + 1].length <= 2) out.add(toks[i] + toks[i + 1]);
   }
   return out;
@@ -87,7 +87,7 @@ export const rowTokens = (r: Pick<PaxRow, "label" | "deptName" | "location">): S
 
 // ---- fuzzy ---------------------------------------------------------------------------------------
 
-/** Edit distance with swapped neighbours counted as one edit (optimal string alignment); stops early above `max`. */
+/** Edit distance with swapped neighbours counted as one edit (optimal string alignment); I stop early above `max`. */
 export function editDistance(a: string, b: string, max = 2): number {
   if (a === b) return 0;
   if (Math.abs(a.length - b.length) > max) return max + 1;
@@ -107,15 +107,15 @@ export function editDistance(a: string, b: string, max = 2): number {
   return d[a.length][b.length];
 }
 
-/** How many spelling slips a word of this length may have: none for short words, and a 4-letter word must keep its first letter (gate is never date). */
+/** How many spelling slips a word of this length may have: I allow none in short words, and a 4-letter word must keep its first letter (gate is never date). */
 const allowedEdits = (len: number): number => (len <= 3 ? 0 : len <= 7 ? 1 : 2);
 
 export type TokenHit = { kind: "exact" | "prefix" | "fuzzy"; hit: string };
 
-/** Does one word of the question match one of the row's words? exact; prefix ("hosp" for "hospital", "services" for "service"); or a spelling slip. */
+/** Does one word of the question match one of the row's words? I accept an exact match, a prefix ("hosp" for "hospital", "services" for "service"), or a spelling slip. */
 export function matchToken(q: string, tokens: Set<string>): TokenHit | null {
   if (tokens.has(q)) return { kind: "exact", hit: q };
-  // a short number and the same number with one letter after it are the same gate (owner, 31 Oct 2026): "gate no 2" = "Gate No. 2A", and "2a" = "2"
+  // A short number and the same number with one letter after it are the same gate (my rule, 31 Oct 2026): "gate no 2" = "Gate No. 2A", and "2a" = "2"
   const num = /^(\d{1,2})[a-z]?$/.exec(q);
   if (num) {
     for (const t of tokens) {
@@ -147,24 +147,24 @@ export function matchToken(q: string, tokens: Set<string>): TokenHit | null {
 
 const STRONG_CUE = /\b(?:pax|p a x)\b/;
 const WEAK_CUE = /\b(?:extension|extn|ext|intercom|landline|land line|telephone|phone|contact|contacts|tel)\b/;
-/** A question about a document, not the directory ("pax billing notice", "tariff for ..."). */
+/** I treat a question about a document, not the directory, as not mine ("pax billing notice", "tariff for ..."). */
 const DOCUMENT_WORDS = /\b(?:circular|circulars|notice|notices|policy|policies|memo|rule|rules|tariff|bill|bills|billing|rate|rates|charges|allowance|amendment|guideline|guidelines|office order)\b/;
-/** A question about a person, a doctor or the hospital OPD: the other routes own it unless the word "pax" itself is there. */
+/** For a question about a person, a doctor or the hospital OPD I leave the answer to the other routes, unless the word "pax" itself is there. */
 const PEOPLE_WORDS = /\b(?:mobile|cell|email|e mail|mail|ticket|pno|opd|hospital|employee|employees|staff|officer|officers|executive|executives)\b/;
 const OUT_AREA = /\b(?:township|outside (?:the )?plant|out side plant|out of (?:the )?plant|outside area|outer plant)\b/;
 const IN_AREA = /\b(?:(?:in|inside|within) (?:the )?plant|plant area|in plant|plant side)\b/;
-/** A fault: the question is about the complaint desk ("PAX Complain" in the list). */
+/** I read a fault as a question about the complaint desk ("PAX Complain" in the list). */
 const FAULT = /\b(?:complain|complaint|complaints|complained|fault|faults|faulty|not working|out of order|no tone|no dial tone|dead|repair|repairs|problem|problems|defective|trouble|disturbance|breakdown|not ringing|not responding)\b/;
 const DEPARTMENT_WORDS = /\b(?:departments?|depts?)\b/;
 const LIST_WORDS = /\b(?:list|all|every|complete|entire|full|directory|everything|whole)\b/;
 const COUNT_WORDS = /\b(?:how many|count|total)\b/;
 
-/** Words that only introduce a ticket number. */
+/** These words only introduce a ticket number. */
 const TICKET_WORDS = new Set(["ticket", "tkt", "emp", "employee", "id", "sailpno"]);
 
 const digitRuns = (s: string): string[] => s.match(/\d+/g) ?? [];
 
-/** The text with its digit groups closed up when they make a 5-digit number ("42 046", "42-046" read as 42046); only used when "pax" itself is in the question. */
+/** I close up the digit groups of the text when they make a 5-digit number ("42 046", "42-046" read as 42046); I do this only when "pax" itself is in the question. */
 function closeUpNumbers(norm: string): string {
   return norm.replace(/\b(\d{2,3}) (\d{2,3})\b/g, (m, a, b) => (a.length + b.length === 5 ? a + b : m));
 }
@@ -178,10 +178,10 @@ export function planPaxQuery(typed: string): PaxPlan | null {
   const weak = !strong && WEAK_CUE.test(norm);
   const wordCount = norm.split(" ").length;
 
-  // a ticket, a mobile number or any long number is somebody else's question
+  // A ticket, a mobile number or any long number is somebody else's question, so I leave it alone
   const runs = digitRuns(norm);
   if (runs.some((r) => r.length >= 6)) {
-    // "contact number of 498301" / "phone of ticket 498301": the subject is a person, by ticket (one six-digit ticket and nothing else but ticket words)
+    // "contact number of 498301" / "phone of ticket 498301": the subject is a person, by ticket. I take it for one six-digit ticket and nothing else but ticket words.
     const six = runs.filter((r) => r.length === 6);
     const others = norm.split(" ").filter((t) => t && !QUERY_STOP.has(t) && !/^\d+$/.test(t) && !TICKET_WORDS.has(t));
     if ((strong || weak) && six.length === 1 && runs.length === 1 && others.length === 0 && !DOCUMENT_WORDS.test(norm)) return { kind: "person", claim: "ifFound", ticket: six[0] };
@@ -190,7 +190,7 @@ export function planPaxQuery(typed: string): PaxPlan | null {
   if (DOCUMENT_WORDS.test(norm)) return null;
   if (!strong && wordCount > 8) return null;
 
-  // the area narrows the question
+  // I let the area narrow the question
   let area: PaxArea | null = null;
   let rest = norm;
   const out = OUT_AREA.test(rest);
@@ -204,20 +204,20 @@ export function planPaxQuery(typed: string): PaxPlan | null {
   const count = COUNT_WORDS.test(norm);
   const numbers = runs.filter((r) => r.length >= 3 && r.length <= 5);
 
-  // a fault question: its fault words are not part of a name ("pax not working in civil" = civil), they only say "the complaint desk"
+  // In a fault question the fault words are not part of a name ("pax not working in civil" = civil); they only say "the complaint desk"
   const forName = faultAsked ? rest.replace(new RegExp(FAULT.source, "g"), " ") : rest;
-  // a group of 3 to 5 digits is a number (handled apart); one or two digits are part of a name ("Gate 5")
+  // A group of 3 to 5 digits is a number (handled apart); one or two digits are part of a name ("Gate 5")
   const content = forName.split(" ").filter((t) => t && !QUERY_STOP.has(t) && !/^\d{3,}$/.test(t));
-  // the bare word "plant" with nothing else asks for the area, not for a name ("pax plant")
+  // I read the bare word "plant" with nothing else as a request for the area, not for a name ("pax plant")
   let tokens = content;
-  // a single letter beside "zone" is the zone ("civil a zone" = Civil (A - Zone)): it is kept, whereas a lone "a" is only filler ("give me a pax number")
+  // I keep a single letter beside "zone" as the zone ("civil a zone" = Civil (A - Zone)), whereas a lone "a" is only filler ("give me a pax number")
   for (const m of rest.matchAll(/\b([a-z]) zone\b|\bzone ([a-z])\b/g)) {
     const letter = m[1] ?? m[2];
     if (!tokens.includes(letter)) tokens = [...tokens, letter];
   }
   if (tokens.length === 1 && tokens[0] === "plant" && area === null) { area = "plant"; tokens = []; }
 
-  // a trailing "in" after a name is the IN of "Main Gate (IN)", not filler: it narrows the match when some name has it
+  // A trailing "in" after a name is the IN of "Main Gate (IN)", not filler: I use it to narrow the match when some name has it
   const optional = tokens.length > 0 && /(^| )in$/.test(rest.trim()) ? ["in"] : [];
 
   if (strong) {
@@ -233,13 +233,13 @@ export function planPaxQuery(typed: string): PaxPlan | null {
       return { kind: "number", claim: "always", numbers: numbers.filter((n) => n.length === 5), area, count: false };
     }
     if (numbers.length > 0) return null;
-    if (faultAsked) return null; // "my phone is not working" is not a PAX question without the word pax
-    // "phone number of departments", "contact number of all departments": the subject is a non-human one (the departments), the same list as "pax number of departments" (owner, 31 Oct 2026)
-    if (tokens.length === 0) return DEPARTMENT_WORDS.test(norm) ? { kind: "list", claim: "always", area, count } : null; // "phone" or "extension" alone: not a PAX question without the word "pax"
+    if (faultAsked) return null; // I do not take "my phone is not working" as a PAX question without the word pax
+    // "phone number of departments", "contact number of all departments": the subject is a non-human one (the departments), so I give the same list as "pax number of departments" (my rule, 31 Oct 2026)
+    if (tokens.length === 0) return DEPARTMENT_WORDS.test(norm) ? { kind: "list", claim: "always", area, count } : null; // I do not treat "phone" or "extension" alone as a PAX question without the word "pax"
     return { kind: "name", claim: "ifFound", tokens, optional, area, count: false, fault: false };
   }
 
-  // no cue: one bare 5-digit number and nothing but filler words ("who has 42046", "42046")
+  // No cue: I take one bare 5-digit number with nothing but filler words ("who has 42046", "42046")
   if (numbers.length === 1 && numbers[0].length === 5 && tokens.length === 0 && !PEOPLE_WORDS.test(norm) && wordCount <= 6) {
     return { kind: "number", claim: "ifFound", numbers, area: null, count: false };
   }
@@ -250,13 +250,13 @@ export function planPaxQuery(typed: string): PaxPlan | null {
 
 export interface PaxMatch {
   rows: PaxRow[];
-  /** Words of the question read through a spelling slip: [asked, read as]. Said to the person, never silent. */
+  /** Words of the question read through a spelling slip: [asked, read as]. I always say these to the person, never silently. */
   corrections: Array<[string, string]>;
-  /** When nothing matched: the names that share some of the words. */
+  /** Filled when nothing matched: the names that share some of the words. */
   closest: string[];
-  /** When nothing matched: the rows of the entries that share the MOST words (every one of them, up to 40: "all the SH"), shown WITH their numbers as related entries, never as the exact answer. */
+  /** When nothing matched: the rows of the entries that share the MOST words (every one of them, up to 40: "all the SH"). I show them WITH their numbers as related entries, never as the exact answer. */
   closestRows: PaxRow[];
-  /** the words of the question that those entries share */
+  /** The words of the question that those entries share. */
   closestShared: string[];
 }
 
@@ -265,7 +265,7 @@ const AREA_ORDER: Record<PaxArea, number> = { plant: 0, outside: 1, unclassified
 export const sortPaxRows = (rows: PaxRow[], areaFirst = false): PaxRow[] =>
   [...rows].sort((a, b) => (areaFirst ? AREA_ORDER[a.area] - AREA_ORDER[b.area] : 0) || byLabel(a, b));
 
-/** Every row is counted once: the same name and number twice is one row. */
+/** I count every row once: the same name and number twice is one row. */
 export function uniqueRows(rows: PaxRow[]): PaxRow[] {
   const seen = new Set<string>();
   return rows.filter((r) => {
@@ -282,7 +282,7 @@ export function matchByNumber(rows: PaxRow[], numbers: string[]): PaxRow[] {
   return uniqueRows(out);
 }
 
-/** Match by name; the optional words narrow the result when some name holds them all, and are dropped otherwise. */
+/** Match by name; I use the optional words to narrow the result when some name holds them all, and drop them otherwise. */
 export function matchByName(rows: PaxRow[], tokens: string[], exactOnly: boolean, optional: string[] = []): PaxMatch {
   if (optional.length > 0) {
     const narrowed = matchByNameCore(rows, [...tokens, ...optional], exactOnly);
@@ -318,17 +318,17 @@ function matchByNameCore(rows: PaxRow[], tokens: string[], exactOnly: boolean): 
   let closestRows: PaxRow[] = [];
   let closestShared: string[] = [];
   if (rowsOut.length === 0) {
-    // names that share at least one word (or nearly): shown as "closest", never as the answer
+    // Names that share at least one word (or nearly): I show them as "closest", never as the answer
     const near = scored
       .map((s) => {
         const set = rowTokens(s.row);
-        const loose = tokens.filter((t) => matchToken(t, set)).length; // the same strictness as a real match: "water" is not near "gate"
+        const loose = tokens.filter((t) => matchToken(t, set)).length; // I keep the same strictness as a real match: "water" is not near "gate"
         return { label: s.row.label, loose };
       })
       .filter((s) => s.loose > 0)
       .sort((a, b) => b.loose - a.loose || a.label.localeCompare(b.label));
     closest = Array.from(new Set(near.map((n) => n.label))).slice(0, 4);
-    // the related entries: every entry that shares the most words (the sub-departments of "central store" are all the "Store House - SH # nn" lines)
+    // Related entries: I take every entry that shares the most words (the sub-departments of "central store" are all the "Store House - SH # nn" lines)
     if (near.length > 0) {
       const best = near[0].loose;
       const labels = new Set(near.filter((n) => n.loose === best).map((n) => n.label));

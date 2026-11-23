@@ -1,7 +1,7 @@
 // src/lib/facility/authorise.ts
 //
-// WHAT BOTH TOOLS DO WITH A REQUEST TO AUTHORISE SOMEBODY, once: look the person up by ticket (any employee, executive or not) and hand the kit his name and the HOD's confirmation for a non-executive.
-// (Both handlers had the same code, written twice.)
+// What both tools do with a request to authorise somebody, written once: I look the person up by ticket (any employee, executive or not) and hand the kit his name and the HOD's confirmation for a non-executive.
+// Both handlers had the same code, written twice.
 
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 

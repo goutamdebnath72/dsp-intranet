@@ -7,27 +7,27 @@ import { X } from "lucide-react";
 import { links } from "@/lib/links";
 
 // --- Import all possible icons needed for the DRAWER ---
-// (Includes Siren for RACE, excludes Handshake/Users2 if not used by other drawer items)
+// (Siren is included for RACE; Handshake/Users2 are left out if no other drawer item uses them)
 import {
   BookUser, Fingerprint, Mail, ShieldAlert, Users, Search, Siren, // Keep Siren
   Truck, PackageSearch, Globe, UserCheck, BarChart3, Banknote, Network,
   Wallet, FileText, ShieldCheck, Smartphone, UserCog, FilePlus2, File,
   ClipboardCheck, Database, Library, Warehouse, Boxes, Mails, ScrollText,
-  MonitorSmartphone, AppWindow, Users2, // Keep Users2 imported just in case
-  // Handshake likely removed if SRM is the only item using it and SRM is not in drawer
+  MonitorSmartphone, AppWindow, Users2, // I keep Users2 imported just in case
+  // Handshake can likely go: it is removed if SRM is the only item using it and SRM is not in the drawer
 } from "lucide-react";
 
-// --- Map string names from links.js to icon components needed for the DRAWER ---
+// --- Here I map the string names from links.js to the icon components the DRAWER needs ---
 const iconMap: { [key: string]: React.ElementType } = {
   BookUser, Fingerprint, Mail, ShieldAlert, Users, Search, Siren, // Keep Siren
   Truck, PackageSearch, Globe, UserCheck, BarChart3, Banknote, Network,
   Wallet, FileText, ShieldCheck, Smartphone, UserCog, FilePlus2, File,
   ClipboardCheck, Database, Library, Warehouse, Boxes, Mails, ScrollText,
-  MonitorSmartphone, AppWindow, Users2 // Keep Users2 mapped
-  // Handshake likely removed
+  MonitorSmartphone, AppWindow, Users2 // I keep Users2 mapped
+  // Handshake is likely removed here too
 };
 
-// --- MODIFIED: List of links to EXCLUDE (they are on the main bar) ---
+// --- Changed: the links I EXCLUDE from the drawer, because they are on the main bar ---
 const priorityLinkTitles = [
   "BAMS",
   "Circular",
@@ -40,10 +40,10 @@ const priorityLinkTitles = [
   "More Apps", // Exclude the button itself
 ];
 
-// Filter links to get only "quicklink" category
+// Here I keep only the links of the "quicklink" category
 const allQuickLinks = links.filter((link) => link.category === "quicklink");
 
-// Filter again to get *only* the links for the drawer (excluding those on the bar)
+// I filter again to keep *only* the links for the drawer (excluding those on the bar)
 const drawerLinks = allQuickLinks.filter(
   (link) => !priorityLinkTitles.includes(link.title)
 );
@@ -100,11 +100,11 @@ export function AppDrawer({ isOpen, onClose }: AppDrawerProps) {
             {/* 2b. Drawer Content (Scrollable List) */}
             <nav className="flex-1 overflow-y-auto p-4 space-y-2">
               {drawerLinks.map((link) => {
-                // Ensure link.icon is treated as a key of iconMap
+                // I treat link.icon as a key of iconMap here
                 const IconComponent = iconMap[link.icon as keyof typeof iconMap];
                 return (
                   <a
-                    key={link.title} // Title is unique within the drawer list
+                    key={link.title} // I rely on the title being unique within the drawer list
                     href={link.href}
                     target={link.href.startsWith("http") ? "_blank" : "_self"}
                     rel="noopener noreferrer"
@@ -113,9 +113,9 @@ export function AppDrawer({ isOpen, onClose }: AppDrawerProps) {
                     {IconComponent ? (
                       <IconComponent className="h-5 w-5 text-neutral-500 group-hover:text-primary-600" />
                     ) : (
-                      <div className="w-5 h-5 italic text-xs text-neutral-400">?</div> // Placeholder if icon is missing
+                      <div className="w-5 h-5 italic text-xs text-neutral-400">?</div> // Placeholder shown if the icon is missing
                     )}
-                    {/* Display title and subtitle if present */}
+                    {/* I display the title and subtitle if present */}
                     <span>
                       {link.title}
                       {link.subtitle && <span className="text-xs text-neutral-500 ml-1">{link.subtitle}</span>}

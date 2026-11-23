@@ -1,8 +1,8 @@
 // src/components/OmniAdminAsk.tsx
 //
-// "ARE YOU AUTHORISED?": shown when a signed-out visitor presses the Admin button (More tools). The management pages are for the HOD of C&IT and the people he has authorised. Yes: the sign-in window opens at once (Yes IS the
+// "ARE YOU AUTHORISED?": shown when a signed-out visitor presses the Admin button (More tools). The management pages are for the HOD of C&IT and the people he has authorised. Yes: the sign-in window opens at once (I made Yes BE the
 // click on Sign in; the caller opens the window), and when the person has signed in the bar asks the server who they are and shows the management page they may open, or says in red that they are not authorised
-// (the same card as for the typed word "management": src/components/ManagementHubPanel.tsx). No: back to Everything. Nothing is asked of the server until the visitor has said Yes and signed in.
+// (the same card as for the typed word "management": src/components/ManagementHubPanel.tsx). No: back to Everything. I ask nothing of the server until the visitor has said Yes and signed in.
 "use client";
 
 import React from "react";

@@ -1,11 +1,11 @@
 // src/lib/pax/answer.ts
 //
 // THE PAX ANSWER (step 63a): from the question and the rows of the directory to the card the omnibar draws.
-// The owner's standing rule (26 Oct 2026): the ONE clean answer stands first as a single big bold statement (the number, the name, a count; amber "Not found" when it is not there),
-// the table after it, no explanation and no red note (owner, 31 Oct 2026). The card is the same one the hospital answers use (HospitalAnswerCard: headline, one sentence, table, bullets, red notes, folded details),
+// My standing rule (26 Oct 2026): the ONE clean answer stands first as a single big bold statement (the number, the name, a count; amber "Not found" when it is not there),
+// then the table, with no explanation and no red note (my rule, 31 Oct 2026). The card is the same one the hospital answers use (HospitalAnswerCard: headline, one sentence, table, bullets, red notes, folded details),
 // so the screen needs no new component. Plain text only (React escapes it).
 //
-// Nothing here is invented: a number is shown only when it is a row of the table; a word read through a spelling slip is SAID ("read 'servise' as 'service'");
+// Nothing here is invented. A number is shown only when it is a row of the table; a word read through a spelling slip is SAID ("read 'servise' as 'service'");
 // a name that merely shares some words is shown as "closest", never as the answer.
 
 import type { HospitalAnswer, HospitalTable } from "@/lib/hospital/types";
@@ -16,14 +16,14 @@ export interface PaxAnswer {
   /** The plain sentence (the payload's `answer`: copy, export, screen readers). */
   summary: string;
   card: HospitalAnswer;
-  /** The "Understood as" line: how the question was read, with any spelling correction. */
+  /** The "Understood as" line: it says how I read the question, with any spelling correction. */
   interpretation: string;
 }
 
 const AREA_ONLY: Record<PaxArea, string> = { plant: "in the plant", outside: "outside the plant", unclassified: "not classified" };
 
 
-/** TEMPORARY (owner, 31 Oct 2026): a name with no location is shown with this word in the Location column until Telecom's list says better. Only the screen is affected; nothing is stored. */
+/** TEMPORARY (my decision, 31 Oct 2026): a name with no location is shown with this word in the Location column until Telecom's list says better. Only the screen is affected; nothing is stored. */
 export const EMPTY_LOCATION = "Office";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -35,8 +35,8 @@ const quote = (s: string) => `“${s}”`;
 const noteFromCorrections = (c: Array<[string, string]>) => (c.length ? ` Read ${c.map(([a, b]) => `${quote(a)} as ${quote(b)}`).join(", ")}.` : "");
 
 /**
- * The pieces of a card, made for one directory. `directory` = EVERY row of the list: which names share a department is read from the whole list (display.ts), not from the few rows shown.
- * The table is Department | Location | PAX, the departments A to Z, with no column for plant or outside plant (owner, 31 Oct 2026).
+ * The pieces of a card, made for one directory. `directory` = EVERY row of the list, because which names share a department is read from the whole list (display.ts), not from the few rows shown.
+ * The table is Department | Location | PAX, the departments A to Z, with no column for plant or outside plant (my rule, 31 Oct 2026).
  * A department (one place) with more than one number is ONE row: "40926 / 42043", the numbers in order.
  */
 function cards(directory: PaxRow[]) {
@@ -70,7 +70,7 @@ function cards(directory: PaxRow[]) {
       rows: lines.map((l) => (withNote ? [l.department, l.location || EMPTY_LOCATION, l.numbers.join(" / "), l.note] : [l.department, l.location || EMPTY_LOCATION, l.numbers.join(" / ")])),
     };
   };
-  /** Up to three numbers are the headline itself, "first / second" (in the order of the table); more are a count. */
+  /** Up to three numbers are the headline itself, "first / second" (in the order of the table); with more I show a count. */
   const numbersHeadline = (rows: PaxRow[]): string => {
     const nums = distinct(arranged(rows).flatMap((l) => l.numbers));
     return nums.length <= 3 ? nums.join(" / ") : `${nums.length} PAX numbers`;
@@ -104,7 +104,7 @@ function cards(directory: PaxRow[]) {
 
 const areaPhrase = (a: PaxArea | null) => (a ? `, ${AREA_ONLY[a]} only` : "");
 
-/** The pure core: a plan, the rows of the directory, the words of the question. */
+/** The pure core: it takes a plan, the rows of the directory and the words of the question. */
 export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   if (plan.kind === "person") return null; // a person is not in the directory (people.ts)
   const rows = uniqueRows(all);
@@ -157,8 +157,8 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   }
 
   // ---- a NAME: its number ----
-  // a FAULT goes to the complaint desk. The rows named "PAX Complain" come first (the "MRS Control (Electrical Complain)" line is the electrical desk, not the PAX one);
-  // any other complaint row is the fallback; and words that match nothing ("not working in civil") never hide the desk: they are said as not used.
+  // A FAULT goes to the complaint desk. The rows named "PAX Complain" come first (the "MRS Control (Electrical Complain)" line is the electrical desk, not the PAX one);
+  // any other complaint row is the fallback. Words that match nothing ("not working in civil") never hide the desk: I say they are not used.
   let tokens = plan.tokens;
   let m = matchByName(rows, tokens, false, plan.optional);
   let ignored: string[] = [];
@@ -174,7 +174,7 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   const interp = `${baseInterp}${areaPhrase(plan.area)}.${noteFromCorrections(m.corrections)}`.replace(/\.\./g, ".");
   const title = plan.fault ? "PAX complaint numbers" : `PAX number for ${quote(asked)}`;
   if (m.rows.length === 0) {
-    // no entry is named so, but related entries share its words ("central store" and the "Store House - SH # nn" lines): their numbers are shown, said plainly to be related and not exact
+    // No entry is named so, but related entries share its words ("central store" and the "Store House - SH # nn" lines). I show their numbers and say plainly that they are related and not exact.
     if (!plan.fault && m.closestRows.length > 0) {
       const n = arranged(m.closestRows).length;
       const shared = m.closestShared.map(quote).join(" and ");
@@ -195,7 +195,7 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
   if (plan.count) {
     return found(String(nums.length), `PAX numbers for ${quote(asked)}${areaPhrase(plan.area)}`, `${plural(nums.length, "PAX number", "PAX numbers")} for ${quote(asked)}.`, interp, narrowed);
   }
-  // one department (one place) with several numbers is ONE line: "Fire Service — PAX 42046 / 42050."
+  // One department (one place) with several numbers is ONE line: "Fire Service — PAX 42046 / 42050."
   const oneLine = arranged(narrowed).length === 1 ? arranged(narrowed)[0] : null;
   const sentence =
     oneLine
@@ -205,7 +205,7 @@ export function buildPaxAnswer(plan: PaxPlan, all: PaxRow[]): PaxAnswer | null {
 }
 
 /**
- * The entry point of the omnibar's PAX route. The question is read FIRST (pure, no database): only a question the route may take reads the table.
+ * The entry point of the omnibar's PAX route. I read the question FIRST (pure, no database), so only a question the route may take reads the table.
  * `load` reads the rows with the application's own connection (never the model's read-only role). Returns null when the question is not a PAX question.
  */
 export async function answerPax(typed: string, load: () => Promise<PaxRow[]>): Promise<PaxAnswer | null> {
@@ -220,7 +220,7 @@ export async function answerPax(typed: string, load: () => Promise<PaxRow[]>): P
   }
   const answer = buildPaxAnswer(plan, rows);
   if (!answer) return null;
-  // a weak or bare-number question is ours only when it found something
+  // A weak or bare-number question is mine to answer only when it found something.
   if (plan.claim === "ifFound" && answer.card.headline?.tone !== "info") return null;
   return answer;
 }

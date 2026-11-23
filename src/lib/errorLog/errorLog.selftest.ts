@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/errorLog/errorLog.selftest.ts
-// The production error log: masking, grouping, ranking, announcing, the hooks, the routes and their limits.
+// This test covers the production error log: masking, grouping, ranking, announcing, the hooks, the routes and their limits.
 import { readFileSync } from "fs";
 import vm from "vm";
 import { parse } from "pgsql-ast-parser";
@@ -52,14 +52,14 @@ const prompt = triagePrompt({ source: "browser", message: "Failed for 498301 gou
 ok("what goes to the model has no ticket, e-mail or name, and the stack as code locations only", !/498301|goutam\.d@|GOUTAM|\/var\/task|:\d+:\d+/.test(prompt) && /app\/api\/x\/route\.js/.test(prompt) && /page \/search/.test(prompt));
 ok("a model that fails or answers badly gives no verdict, never an exception", (await aiVerdict({ source: "server", message: "x" }, async () => { throw new Error("down"); })) === null && (await aiVerdict({ source: "server", message: "x" }, async () => "???")) === null && (await aiVerdict({ source: "server", message: "x" }, async () => '{"severity":"minor","note":"ok"}'))?.by === "ai");
 
-// ---- the SQL parses (no PostgreSQL here to run it)
+// ---- the SQL parses (there is no PostgreSQL here to run it)
 const calls: string[] = [];
 const spy: Query = async (sql) => { calls.push(sql); return []; };
 await record(spy, { fingerprint: "f", source: "server", message: "m", stack: "", page: "/", agent: "" });
 await setTriage(spy, 1, { severity: "serious", note: "n", by: "ai" });
 await claimAlert(spy, 1); await setStatus(spy, 1, "seen"); await list(spy, {}); await get(spy, 1); await prune(spy); await digestFacts(spy, "2026-01-01T00:00:00Z");
 const bad: string[] = [];
-for (const sql of [...TABLE_STATEMENTS, ...calls].filter((x) => !/^\s*(ALTER TABLE|REVOKE)/.test(x))) { // ALTER ... ROW LEVEL SECURITY and REVOKE are the same lines the password store already runs in production
+for (const sql of [...TABLE_STATEMENTS, ...calls].filter((x) => !/^\s*(ALTER TABLE|REVOKE)/.test(x))) { // ALTER ... ROW LEVEL SECURITY and REVOKE are the same lines my password store already runs in production
   try { parse(sql.replace(/\$\d+/g, "$1")); } catch (e) { bad.push(sql.slice(0, 60) + " :: " + (e as Error).message.slice(0, 80)); }
 }
 ok("every statement of the store is valid SQL for the parser", bad.length === 0, JSON.stringify(bad));
@@ -68,7 +68,7 @@ const sqlFile = readFileSync("src/lib/nl2sql/sql/31_app_error_log.sql", "utf8");
 ok("the SQL file creates what the program creates", /CREATE TABLE IF NOT EXISTS public\.app_error_log/.test(sqlFile) && /CREATE TABLE IF NOT EXISTS public\.app_error_meta/.test(sqlFile) && /REVOKE ALL ON public\.app_error_log/.test(sqlFile));
 ok("an UPDATE ... RETURNING as TypeORM gives it ([rows, count]) is read as rows", rowsOf([[{ id: 1 }], 1]).length === 1 && rowsOf([{ id: 1 }, { id: 2 }]).length === 2 && rowsOf(undefined).length === 0 && (await fromDataSource({ query: async () => [[{ a: 1 }], 1] })("x"))[0].a === 1);
 
-// ---- the flow, against a stand-in table (the statements' effect, not their SQL)
+// ---- the flow, run against a stand-in table (it checks the statements' effect, not their SQL)
 type R = { id: number; fingerprint: string; severity: string; status: string; occurrences: number; alerted_at: string | null; note: string | null; message: string; source: string; page: string | null; first_seen: string; last_seen: string; stack: string | null; triaged_by: string | null };
 function fake() {
   const rows = new Map<string, R>(); let id = 0; const sent: string[] = [];
@@ -164,7 +164,7 @@ ok("console.error's arguments become one message and a stack", /^failed: boom \{
   ok("outside production the console is not touched", console.error === before);
 }
 
-// ---- the browser's half, run in a stand-in browser
+// ---- the browser's half, which I run in a stand-in browser
 {
   const posts: { url: string; body: any }[] = []; const ls: Record<string, ((e: any) => void)[]> = {};
   const win: any = { addEventListener: (n: string, f: (e: any) => void) => { (ls[n] ||= []).push(f); }, fetch: (url: string, init: any) => { posts.push({ url, body: JSON.parse(init.body) }); return Promise.resolve({}); } };

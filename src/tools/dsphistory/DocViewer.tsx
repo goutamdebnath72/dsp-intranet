@@ -1,10 +1,10 @@
 // src/tools/dsphistory/DocViewer.tsx
 //
-// A PLANT DOCUMENT (a JO Manual) FULL SCREEN OVER THE CARD, AT THE CITED PAGE: the same layer as the announcement PDF (ViewerShell; closes with the cross and Escape; the page behind keeps its scroll position), with
+// A plant document (a JO Manual) full screen over the card, at the cited page: I use the same layer as the announcement PDF (ViewerShell; closes with the cross and Escape; the page behind keeps its scroll position), with
 //   * a strip above the PDF that names the manual, says "page 34 of 102" and has two buttons: "Title page" (the first page, as proof that it is the right manual) and "Cited page" (back to the page the card cited);
 //   * the PDF itself below, opened at the page (the browser's own viewer takes #page=; the page numbers the card cites are the PDF's own, checked by script).
-// An internal document (a JO Manual): the viewer first asks our route (?info=1): signed in -> the PDF; not signed in (401) -> "Sign in to read this document" with a Sign in button (it opens the intranet's sign-in
-// window, and the document opens by itself once the reader is signed in); not uploaded yet (404) -> says so. Nothing is recorded about who opened what.
+// For an internal document (a JO Manual) the viewer first asks our route (?info=1): signed in -> the PDF; not signed in (401) -> "Sign in to read this document" with a Sign in button (it opens the intranet's sign-in
+// window, and the document opens by itself once the reader is signed in); not uploaded yet (404) -> says so. I record nothing about who opened what.
 //
 // `DocViewerContext` lets any source line of the card open it (SourceLine in DspHistoryCard.tsx); without the provider (a test, a page outside the card) a page link is an ordinary link to the route.
 "use client";
@@ -21,24 +21,24 @@ import { lockPageScroll } from "@/lib/ui/scrollLock";
 import { DOCS, docRoute, wholeDocHref } from "./docs";
 import { PdfPageView } from "./PdfPageView";
 
-/** a document opened at a page, with the words the card quotes from it (they are marked on that page) */
+/** I carry a document opened at a page together with the words the card quotes from it; they are marked on that page. */
 export interface OpenDoc { doc: string; page: number; quotes?: readonly string[] }
 
-/** opens a document at a page; null outside the card */
+/** I use this to open a document at a page; it is null outside the card. */
 export const DocViewerContext = createContext<((d: OpenDoc) => void) | null>(null);
 
 export type DocState = "checking" | "ready" | "signin" | "missing" | "error";
 
-/** what the route's answer to ?info=1 means */
+/** I read the route's answer to ?info=1 this way. */
 export const stateOfStatus = (status: number): DocState => (status === 200 ? "ready" : status === 401 ? "signin" : status === 404 ? "missing" : "error");
 
-/** the browser's PDF viewer, opened on a page: thumbnail panel closed, a fixed 150% zoom (as the announcement viewer does) */
+/** I open the browser's PDF viewer on a page with the thumbnail panel closed and a fixed 150% zoom (as the announcement viewer does). */
 export const viewSrc = (doc: string, page: number): string => `${docRoute(doc)}#page=${Math.max(1, Math.trunc(page))}&navpanes=0&zoom=150`;
 
-/** the layer itself, without the portal and the effects (so it can be drawn and tested on the server) */
+/** This is the layer itself, without the portal and the effects, so I can draw and test it on the server. */
 export function DocViewerView({ open: o, state, page, total, onPage, onClose, onSignIn, onLoaded }: { open: OpenDoc; state: DocState; page: number; total?: number | null; onPage: (p: number) => void; onClose: () => void; onSignIn?: () => void; onLoaded?: (pages: number) => void }) {
   const d = DOCS[o.doc];
-  /** the number of pages: the document's own count once it is open, else the one on file (a published PDF has none until it is read) */
+  /** The number of pages: I use the document's own count once it is open, else the one on file (a published PDF has none until it is read). */
   const last = total ?? d?.pages ?? null;
   const btn = "rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/20";
   return (
@@ -87,12 +87,12 @@ export function DocViewerView({ open: o, state, page, total, onPage, onClose, on
   );
 }
 
-/** the sign-in window's opener and whether it is open, when the card is inside the app (they are not in a test) */
+/** When the card is inside the app I take the sign-in window's opener, and whether it is open, from there; they are not available in a test. */
 function useSignIn(): { openModal?: () => void; isModalOpen: boolean } {
   try { const m = useModal(); return { openModal: m.openModal, isModalOpen: m.isModalOpen }; } catch { return { isModalOpen: false }; }
 }
 
-/** the viewer's layer is drawn only while a document is open AND the reader is not away signing in: the sign-in window must be the topmost thing on the screen, and the layer (z-[400]) would cover it */
+/** I draw the viewer's layer only while a document is open AND the reader is not away signing in: the sign-in window must be the topmost thing on the screen, and the layer (z-[400]) would cover it. */
 export const layerShown = (open: OpenDoc | null, away: boolean): boolean => !!open && !away;
 
 export function DocViewer({ open, onClose }: { open: OpenDoc | null; onClose: () => void }) {
@@ -102,13 +102,13 @@ export function DocViewer({ open, onClose }: { open: OpenDoc | null; onClose: ()
   const [total, setTotal] = useState<number | null>(null);
   const { status: auth } = useVerifiedSession();
   const { openModal, isModalOpen } = useSignIn();
-  // "Sign in" was pressed: the layer steps aside so that the sign-in window shows on top; it comes back when that window closes (and opens the document by itself if the reader signed in)
+  // Set when "Sign in" is pressed: I let the layer step aside so that the sign-in window shows on top; it comes back when that window closes (and opens the document by itself if the reader signed in).
   const [away, setAway] = useState(false);
   const signIn = openModal ? () => { setAway(true); openModal(); } : undefined;
   useEffect(() => { if (away && !isModalOpen) setAway(false); }, [away, isModalOpen]);
   useEffect(() => setMounted(true), []);
 
-  // each time a document is opened (or the reader signs in while the sign-in notice is up) the route is asked
+  // Each time a document is opened (or the reader signs in while the sign-in notice is up) I ask the route.
   useEffect(() => {
     if (!open) return;
     setPage(open.page);
@@ -137,7 +137,7 @@ export function DocViewer({ open, onClose }: { open: OpenDoc | null; onClose: ()
   );
 }
 
-/** a hook for the card: where it keeps the open document, and the provider value to hand down */
+/** I keep the open document in this hook for the card, and it gives the provider value to hand down. */
 export function useDocViewer(): { open: OpenDoc | null; show: (d: OpenDoc) => void; close: () => void } {
   const [open, setOpen] = useState<OpenDoc | null>(null);
   return { open, show: setOpen, close: () => setOpen(null) };

@@ -1,5 +1,5 @@
 // src/lib/ui/inkShift.ts
-// The centring maths of the red badge (NewCircularBadge), kept apart so it can be tested without a browser.
+// The centring maths of the red badge (NewCircularBadge); I kept it apart so it can be tested without a browser.
 
 /**
  * How far to move a laid-out text so that its INK is optically centred on (targetX, targetY).
@@ -10,12 +10,12 @@
  *              CENTRE OF WEIGHT (positive = right of the origin)
  *   dpr        device pixels per CSS pixel
  *
- * Horizontally the centre of WEIGHT is used when given, not the middle of the outer edges: a "1" is a heavy stem with a light flag on its left, and the eye
- * takes the stem's side as its centre, so centring its edges leaves it looking too far right. Vertically the middle of the digit's height is used (every
+ * Horizontally I use the centre of WEIGHT when it is given, not the middle of the outer edges: a "1" is a heavy stem with a light flag on its left, and the eye
+ * takes the stem's side as its centre, so centring its edges leaves it looking too far right. Vertically I use the middle of the digit's height (every
  * digit is equally tall, so its top and bottom margins should match).
  *
  * Snapping: on a 2x or finer screen every move is snapped to a whole device pixel (crisp, and at most half a device pixel off). On a 1x screen a whole-pixel
- * move is too coarse for the horizontal centre (a "1" may need 0.4px), so it is snapped to a quarter pixel instead, which is what text positioning can use;
+ * move is too coarse for the horizontal centre (a "1" may need 0.4px), so I snap it to a quarter pixel instead, which is what text positioning can use;
  * vertically it stays a whole pixel so the digit's top and bottom edges stay sharp.
  */
 export function inkShift(args: {

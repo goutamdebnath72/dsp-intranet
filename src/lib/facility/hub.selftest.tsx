@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/facility/hub.selftest.tsx
-// The management page: who gets it (signed in, and holding at least one management tool), what is listed (only what the person holds), what a title opens (its own tool, checked again by the tool), and the line that asks for it.
+// This tests the management page: who gets it (signed in, and holding at least one management tool), what is listed (only what the person holds), what a title opens (its own tool, checked again by the tool), and the line that asks for it.
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -68,7 +68,7 @@ async function main() {
   ok("the name is optional (a person with no name found still gets the page)", !!hub((await run("management", HOD_CIT_TICKET, all("hod"), null)).r) && hub((await run("management", HOD_CIT_TICKET, all("hod"), null)).r)?.name === undefined);
   ok("toolsOf keeps the usual order whatever order the rights were given in", toolsOf({ ...none(), access_log: "delegate", employee: "delegate" }).map((t) => t.key).join() === "employee,access_log");
 
-  // the database question: the same rule as every tool
+  // the database question: I use the same rule as every tool
   const calls: Array<[string, unknown[]]> = [];
   const fake = (rows: Array<Record<string, unknown>>) => async (sql: string, params?: unknown[]) => { calls.push([sql, params ?? []]); return rows; };
   const h1 = await authoritiesOfAll(fake([]), HOD_CIT_TICKET);
@@ -96,7 +96,7 @@ async function main() {
   ok("who is asking is the login's ticket: the responder is given the route's ticket and the page never reads one from the line", /managementHub: async \(qq, ticket\) =>/.test(omni) && !/ticket\s*=\s*\/\\b/.test(readFileSync("src/lib/facility/hub.ts", "utf8")));
 
   ok("typing any of the page's words shows 'Press Enter to open the management page' under the box, like the other keywords: the hint uses the SAME reader as the server (so every word that opens the page also shows it), and it goes once the line has been sent", /data-management-hint/.test(modal) && /detectManagementHubIntent\(q\) && \(submittedQuery \|\| ""\)\.trim\(\)\.toLowerCase\(\) !== q/.test(modal) && /\{hubTyped && \(/.test(modal) && /Press <kbd[^>]*>Enter<\/kbd> to open the management page\./.test(modal) && modal.indexOf("{hubTyped && (") < modal.indexOf("<ToolPanel query"));
-  // the Back button of the management tools' pages
+  // Here I check the Back button of the management tools' pages
   const backHtml = renderToStaticMarkup(<ManagementBack onBack={() => undefined} />).replace(/<!-- -->/g, "");
   const shellHtml = renderToStaticMarkup(<ToolShell title="T" icon={<i />} onBack={() => undefined}><i /></ToolShell>).replace(/<!-- -->/g, "");
   const btn = (h: string): string => /<button[^>]*aria-label="Back to[^>]*>[\s\S]*?<\/button>/.exec(h)?.[0] ?? "";
@@ -104,7 +104,7 @@ async function main() {
   ok("a management tool's page has a Back button, the SAME button as the calculators' pages (same arrow, same word, same classes: one component, BackButton), saying where it goes: the management page", /aria-label="Back to the management page"/.test(backHtml) && />Back<\/button>/.test(backHtml.replace(/<svg[\s\S]*?<\/svg>/g, "")) && cls(backHtml) !== "" && cls(backHtml) === cls(shellHtml) && /aria-label="Back to the calculators list"/.test(shellHtml));
   ok("BackButton says its destination to the screen reader and in the tooltip", /aria-label="Somewhere" title="Somewhere"/.test(renderToStaticMarkup(<BackButton label="Somewhere" onClick={() => undefined} />)));
   ok("the Back button is shown above every one of the six tools' pages and not on the management page, and it goes back by searching for 'management' (which the server answers with the page, after checking the login again)", /\(analytics\.paxAdmin \|\| analytics\.employeeAdmin \|\| analytics\.holidayAdmin \|\| analytics\.circularAdmin \|\| analytics\.announcementAdmin \|\| analytics\.accessLogAdmin\) && \(\s*<ManagementBack onBack=\{\(\) => triggerSearch\("semantic", \{ query: "management" \}\)\} \/>/.test(modal) && !/analytics\.managementHub[^\n]*\n[^\n]*ManagementBack/.test(modal) && detectManagementHubIntent("management") && modal.indexOf("<ManagementBack") < modal.indexOf("{analytics.managementGate ? ("));
-  // the cross of the management page
+  // Here I check the cross of the management page
   const shellClose = renderToStaticMarkup(<ToolShell title="T" icon={<i />} onClose={() => undefined}><i /></ToolShell>).replace(/<!-- -->/g, "");
   const closeBtn = (h: string): string => /<button[^>]*aria-label="Close[^>]*>[\s\S]*?<\/button>/.exec(h)?.[0] ?? "";
   const closeCls = (h: string): string => /class="([^"]*)"/.exec(closeBtn(h))?.[1] ?? "";
@@ -114,19 +114,19 @@ async function main() {
   const guideEntry = QUICK_REFERENCE.flatMap((g) => g.entries).find((e) => /^Management pages/.test(e.feature));
   ok("the guide's What-to-type list has an entry for the management page, and every word it gives is one the page really answers to (the guide cannot promise a word that does nothing)", !!guideEntry && entryStrings(guideEntry).length >= 4 && entryStrings(guideEntry).every(detectManagementHubIntent), JSON.stringify(guideEntry ? entryStrings(guideEntry).filter((q) => !detectManagementHubIntent(q)) : "no entry"));
   ok("all the cards are the same size: the grid's rows share the height of the tallest card (auto-rows-fr), each cell holds its card at full height (li flex, button h-full w-full), and the card's own sizes are in rem and relative units only (no fixed pixel width or height)", /data-hub-grid[^>]*class="[^"]*auto-rows-fr/.test(hodHtml) && /<li class="flex"/.test(hodHtml) && (hodHtml.match(/<button[^>]*class="[^"]*\bh-full w-full\b/g) ?? []).length === 6 && !/style="[^"]*(?:width|height):\s*\d+px/.test(hodHtml) && !/\b(?:w|h)-\[\d+px\]/.test(hodHtml));
-  // the frame: the gradient and the blurred lights behind the cross
+  // The frame: the gradient and the blurred lights behind the cross
   const frameOf = (h: string): { sec: string; lights: string[] } => ({ sec: /<section[^>]*class="([^"]*)"/.exec(h)?.[1] ?? "", lights: [...h.matchAll(/<span aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10[^"]*"><span class="([^"]*)"><\/span><span class="([^"]*)"><\/span>/g)].flatMap((m) => [m[1], m[2]]) });
   const calcFrame = frameOf(renderToStaticMarkup(<ToolShell title="Calculators" tone="sky" icon={<i />} onClose={() => undefined}><i /></ToolShell>).replace(/<!-- -->/g, ""));
   const mgmtFrame = frameOf(html);
   ok("THE MANAGEMENT PAGE HAS THE CALCULATORS' FRAME: the same soft gradient and rounded corners, and the same two blurred lights (the bluish glow behind the top-right cross: a sky light at the top right), not a plain white card", mgmtFrame.sec !== "" && mgmtFrame.sec === calcFrame.sec && mgmtFrame.lights.length === 2 && mgmtFrame.lights.join("|") === calcFrame.lights.join("|") && /-right-24 -top-28/.test(html) && /from-sky-300\/40/.test(html) && /bg-gradient-to-br from-white via-slate-50 to-sky-50\/80/.test(html) && !/bg-white\/70 p-4 shadow-sm/.test(html));
   ok("the header is the calculators' too: the gradient icon tile with its white ring, the title, the line under it, the role chip, then the cross; and no privacy/approximation notice (the page has nothing to type into)", /ring-4 ring-white\/70/.test(html) && /<h3[^>]*>Management<\/h3>/.test(html) && html.indexOf("Management</h3>") < html.indexOf("Authorised delegate") && !/Nothing you type here is saved anywhere/.test(html) && !/approximations: please double-check/.test(html));
 
-  // THE TWO KINDS OF VISITOR, signed out and signed in
-  // signed out: everybody is asked to sign in, the HOD, a delegate and anybody else alike (the server cannot tell them apart and does not try)
+  // The two kinds of visitor, signed out and signed in
+  // Signed out: everybody is asked to sign in, the HOD, a delegate and anybody else alike; the server cannot tell them apart and I do not make it try.
   const out1 = await run("management", null, all("hod")), out2 = await run("admin", null, none()), out3 = await run("management page", "", dl);
   ok("SIGNED OUT: the HOD, a delegate and anybody else are all asked to sign in, by the same card, the database is not asked, and nobody is told who may or may not have the page", [out1, out2, out3].every((x) => gateOf(x.r)?.state === "login" && x.asked === 0) && JSON.stringify(out1.r) === JSON.stringify(out2.r) && JSON.stringify(out2.r) === JSON.stringify(out3.r));
   ok("SIGNED OUT card: the same payload for every signed-out line (login, no name, no tool, no role)", JSON.stringify(gateOf(out1.r)) === '{"state":"login"}' && JSON.stringify(gateOf(out2.r)) === '{"state":"login"}' && JSON.stringify(gateOf(out3.r)) === '{"state":"login"}');
-  // after signing in the same question is asked again (the search key follows the login), now with a ticket: the page, or the refusal
+  // After signing in the same question is asked again (the search key follows the login), now with a ticket: the page, or the refusal
   const after1 = await run("management", HOD_CIT_TICKET, all("hod")), after2 = await run("management", "498301", none()), after3 = await run("management", "412345", dl);
   ok("AFTER SIGNING IN the same line gives the page to the HOD and to a delegate, and the refusal to anybody else", !!hub(after1.r) && !!hub(after3.r) && gateOf(after2.r)?.state === "denied" && !hub(after2.r));
   ok("SIGNED IN and not authorised: the refusal; and it is the same refusal whether the person was signed in all along or has just signed in (the same payload for the same person)", JSON.stringify(after2.r) === JSON.stringify((await run("management", "498301", none())).r));
@@ -140,11 +140,11 @@ async function main() {
   ok("neither card names a management tool, a role or who holds what", [loginHtml, deniedHtml].every((x) => !/Employee manager|PAX directory editor|Holiday manager|Circular manager|Announcement manager|Contact access log/.test(x)));
   ok("the Sign in button opens the app's login window (the same openModal the other sign-in prompts use), and the card is drawn before the page, so a refusal never shows the page", /<ManagementGatePanel gate=\{analytics\.managementGate\} onSignIn=\{openModal\} onClose=\{closeManagement\} \/>/.test(modal) && modal.indexOf("analytics.managementGate ?") < modal.indexOf("analytics.managementHub ? ("));
   ok("signing in asks the question again by itself: the search's key includes the login's ticket, so a new login fetches the answer anew", /\$\{ticketNo \? `&ticket=\$\{ticketNo\}` : ""\}/.test(readFileSync("src/hooks/useOmniSearch.ts", "utf8")));
-  // SPEED: pressing Enter on the page's words sends the search at once
+  // Speed: pressing Enter on the page's words must send the search at once
   const iHubEnter = modal.indexOf("if (detectManagementHubIntent(qTrim)) {"), iClear = modal.indexOf("const understood = clearIntent(qTrim);"), iAsk = modal.indexOf("void askIntent(qTrim");
   const hubBranch = modal.slice(iHubEnter, modal.indexOf("return;", iHubEnter) + 8);
   ok("PRESSING ENTER on the page's words sends the search at once: that branch comes BEFORE the 'which utility do you mean' question to the AI (a call to the model with 'Understanding your request' on the screen) and the people name search, and uses neither", iHubEnter > 0 && iHubEnter < iClear && iHubEnter < iAsk && /triggerSearch\("semantic"\)/.test(hubBranch) && !/askIntent|runEmployeeNameSearch|setUnderstanding/.test(hubBranch), hubBranch);
-  // FORWARD SPEED: the page behind a title is fetched ahead, when the title is pointed at, touched or focused
+  // Forward speed: I fetch the page behind a title ahead of time, when the title is pointed at, touched or focused
   const hook = readFileSync("src/hooks/useOmniSearch.ts", "utf8");
   const panelSrc = readFileSync("src/components/ManagementHubPanel.tsx", "utf8");
   ok("FETCH AHEAD uses the SAME address as the real search (one function, searchKey, builds both), so the answer fetched ahead is found at once when the title is pressed", /export function searchKey\(/.test(hook) && /shouldFetch \? searchKey\(submittedQuery, mode, ticketNo, retry, selection\) : null/.test(hook) && /preload\(searchKey\(t, selectedMode, ticketNo, null, sel\), fetcher\)/.test(hook) && (hook.match(/\/api\/ai-search\?q=/g) ?? []).length === 1);

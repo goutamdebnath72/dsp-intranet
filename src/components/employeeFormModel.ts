@@ -1,7 +1,7 @@
 // src/components/employeeFormModel.ts
 //
-// THE RULES BEHIND THE EMPLOYEE FORM (step 66e): what the form holds, how a typed department code and a chosen designation become ids, what changes between the saved record and the form, and WHICH SECTION IS OPEN.
-// PURE: no React, no drawing. The look of the form is in EmployeeAdminUi.tsx; the requests and the state are in EmployeeAdminPanel.tsx.
+// This holds the rules behind the employee form (step 66e): what the form holds, how a typed department code and a chosen designation become ids, what changes between the saved record and the form, and WHICH SECTION IS OPEN.
+// It is PURE: no React, no drawing. I keep the look of the form in EmployeeAdminUi.tsx; the requests and the state are in EmployeeAdminPanel.tsx.
 
 import { normalizeMobile } from "@/lib/employees/admin/contact";
 import { cohortOfTicket, departmentFitsCohort, isTicket } from "@/lib/employees/admin/validate";
@@ -12,13 +12,13 @@ export interface FormValues {
   emailNic: string; webmail: string; email: string; mobile: string; doctor: boolean; dateOfBirth: string; dateOfJoining: string;
 }
 export const EMPTY_FORM: FormValues = { ticketNo: "", sailPno: "", name: "", gradeId: "", departmentCode: "", address: "", emailNic: "", webmail: "", email: "", mobile: "", doctor: false, dateOfBirth: "", dateOfJoining: "" };
-/** A person loaded into the Change form: the mobile and the e-mails start EMPTY (they are shown masked as a hint: typing replaces, empty keeps). */
+/** I load a person into the Change form with the mobile and the e-mails EMPTY: they are shown masked as a hint (typing replaces, empty keeps). */
 export const formFromRecord = (r: EmployeeRecord, lookups: Lookups): FormValues => ({
   ticketNo: r.ticketNo, sailPno: r.sailPno, name: r.name, gradeId: String(r.gradeId), departmentCode: String(lookups.departments.find((d) => d.id === r.departmentId)?.code ?? ""),
   address: r.address, emailNic: "", webmail: "", email: "", mobile: "", doctor: r.doctor === true, dateOfBirth: r.dateOfBirth, dateOfJoining: r.dateOfJoining,
 });
 
-/** The department a typed CODE stands for: among those that fit the cohort (the same code can exist for executives and for non-executives). */
+/** Returns the department a typed CODE stands for, among those that fit the cohort (the same code can exist for executives and for non-executives). */
 export function resolveDepartment(code: string, lookups: Lookups, ticketNo: string): DepartmentRef | null {
   const t = code.trim();
   if (!/^\d+$/.test(t)) return null;
@@ -28,7 +28,7 @@ export function resolveDepartment(code: string, lookups: Lookups, ticketNo: stri
 }
 export const gradeLabel = (g: Pick<GradeRef, "code" | "title">): string => `${g.code} · ${g.title}`;
 
-/** What validateEmployee is given for the values on the screen (the position is never typed: the server places him last in his grade). */
+/** What validateEmployee is given for the values on the screen. The position is never typed: I let the server place him last in his grade. */
 export function rawOf(v: FormValues, lookups: Lookups, original: EmployeeRecord | null): Record<string, unknown> {
   const dept = resolveDepartment(v.departmentCode, lookups, v.ticketNo);
   return {
@@ -49,7 +49,7 @@ export const initialsOf = (name: string): string => {
   return w.length === 0 ? "?" : (w[0][0] + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase();
 };
 
-/** The changes between the saved record and the form, field by field, for the review step. Dates only when the person may see them; a typed mobile or e-mail is shown masked (it REPLACES the one there). */
+/** Returns the changes between the saved record and the form, field by field, for the review step. Dates only when the person may see them; a typed mobile or e-mail is shown masked (it REPLACES the one there). */
 export function changesOf(original: EmployeeRecord, v: FormValues, lookups: Lookups, datesVisible: boolean): Array<{ label: string; from: string; to: string }> {
   const dash = (x: string) => (x === "" ? "—" : x);
   const grade = lookups.grades.find((g) => String(g.id) === v.gradeId);
@@ -65,7 +65,7 @@ export function changesOf(original: EmployeeRecord, v: FormValues, lookups: Look
   ];
   if (datesVisible) rows.push(["Date of birth", original.dateOfBirth, v.dateOfBirth.trim()], ["Date of joining", original.dateOfJoining, v.dateOfJoining.trim()]);
   const out = rows.filter(([, a, b]) => a !== b).map(([label, a, b]) => ({ label, from: dash(a), to: dash(b) }));
-  // the NEW value is shown as typed (the person checks what he typed); the stored one ("from") stays masked: no stored contact is shown without the logged reveal
+  // I show the NEW value as typed (the person checks what he typed); the stored one ("from") stays masked: I show no stored contact without the logged reveal
   const typed = (label: string, now: string, value: string) => { if (value.trim() !== "") out.push({ label, from: dash(now), to: `${value.trim()} (replaces it)` }); };
   typed("Mobile", original.mobileMasked, normalizeMobile(v.mobile));
   if (original.cohort === "executive") { typed("NIC mail", original.emailNic, v.emailNic.toLowerCase()); typed("Web-mail", original.webmail, v.webmail.toLowerCase()); }
@@ -77,11 +77,11 @@ export function changesOf(original: EmployeeRecord, v: FormValues, lookups: Look
 export interface Unlocked { posting: boolean; dates: boolean; contact: boolean }
 
 /**
- * THE ORDER OF THE FORM (owner, 1 Nov 2026: "from top to bottom the sections get activated when the upper section is filled completely with all the constraints"). PURE.
+ * The order of the form (my words, 1 Nov 2026: "from top to bottom the sections get activated when the upper section is filled completely with all the constraints"). PURE.
  *   Identity   always open.   Posting opens when the Identity is complete (a ticket of 6 digits not starting with 0, the SAIL P.No. for a new employee, the name) and has no error.
  *   Dates      open when Posting is complete: a designation code, a department code that fits the ticket.
  *   Contact    opens when the dates are complete: both dates, valid (for anybody but the HOD there are no dates to fill, so Contact opens with Posting).
- * `errors` are ALL the errors of the record as it stands (not only those already shown).
+ * `errors` holds ALL the errors of the record as it stands, not only those already shown.
  */
 export function unlockedSections(v: FormValues, lookups: Lookups, errors: FieldErrors, o: { mode: "add" | "modify"; datesVisible: boolean; loaded: boolean }): Unlocked {
   const identity = o.loaded && v.ticketNo.trim() !== "" && v.name.trim() !== "" && (o.mode === "modify" || v.sailPno.trim() !== "") && !errors.ticketNo && !errors.sailPno && !errors.name;
@@ -92,7 +92,7 @@ export function unlockedSections(v: FormValues, lookups: Lookups, errors: FieldE
 
 
 /**
- * WHY THE BUTTON IS OFF: the first thing missing, in the ORDER OF THE FORM (an empty date is not an error, so "fill in the dates" is said before any contact error). PURE. Undefined = nothing is missing.
+ * Why the button is off: the first thing missing, in the ORDER OF THE FORM. An empty date is not an error, so I say "fill in the dates" before any contact error. PURE. Undefined = nothing is missing.
  */
 export function reasonFor(errors: FieldErrors, unlocked: Unlocked, o: { loaded: boolean; valid: boolean; mode: "add" | "modify"; changes: number }): string | undefined {
   if (!o.loaded) return "Loading…";
@@ -105,7 +105,7 @@ export function reasonFor(errors: FieldErrors, unlocked: Unlocked, o: { loaded: 
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
-// TWO PEOPLE AT ONCE (step 67b): when a save is refused because somebody else changed the record first, what the person is shown and what he can choose
+// Two people at once (step 67b): when a save is refused because somebody else changed the record first, I decide here what the person is shown and what he can choose
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 export const FIELD_LABELS: Record<keyof FormValues, string> = {
@@ -113,7 +113,7 @@ export const FIELD_LABELS: Record<keyof FormValues, string> = {
   email: "E-mail", mobile: "Mobile", doctor: "Doctor", dateOfBirth: "Date of birth", dateOfJoining: "Date of joining",
 };
 
-/** What the OTHER person changed: the record the person opened against the record as it is now, field by field (as this person may see them: no dates for an executive, contact only as masked). */
+/** Here I compare the record the person opened against the record as it is now, field by field, to show what the OTHER person changed; the person sees only what he may see (no dates for an executive, contact only as masked). */
 export function theirChanges(original: EmployeeRecord, current: EmployeeRecord, datesVisible: boolean): Array<{ label: string; from: string; to: string }> {
   const yn = (d: boolean | null) => (d === true ? "Yes" : "No");
   const rows: Array<[string, string, string]> = [
@@ -128,8 +128,8 @@ export function theirChanges(original: EmployeeRecord, current: EmployeeRecord, 
 }
 
 /**
- * THE THREE-WAY MERGE. `base` is the form as it was when the person opened the record, `mine` what is in the form now, `theirs` the form of the record as it is now.
- * A field the person CHANGED (mine is not base) keeps his value; every other field takes THEIR value. So his work is never lost and, above all, he can never put back what the other person changed by
+ * The three-way merge. `base` is the form as it was when the person opened the record, `mine` what is in the form now, `theirs` the form of the record as it is now.
+ * A field the person CHANGED (mine is not base) keeps his value; every other field takes THEIR value. I want his work never lost and, above all, I do not let him put back what the other person changed by
  * saving a form that is out of date. `overlaps` are the fields BOTH changed to different values: his value is kept, and he is told to look at them. The ticket is never his to change.
  */
 export function rebaseForm(base: FormValues, mine: FormValues, theirs: FormValues): { values: FormValues; kept: Array<keyof FormValues>; overlaps: Array<keyof FormValues> } {

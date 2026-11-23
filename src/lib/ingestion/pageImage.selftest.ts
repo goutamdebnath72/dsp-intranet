@@ -1,4 +1,4 @@
-/** Self-test of the page image shrink. Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/pageImage.selftest.ts */
+/** Self-test of the page image shrink. Run it with: npx tsx --tsconfig tsconfig.json src/lib/ingestion/pageImage.selftest.ts */
 import { randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { SHRINK_EDGE, SHRINK_QUALITY, shrinkForReading } from "./pageImage";

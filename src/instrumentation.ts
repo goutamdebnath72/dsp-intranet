@@ -1,7 +1,7 @@
 // src/instrumentation.ts
 //
-// Next runs register() once when a server copy starts and calls onRequestError for every error a route, page or server action throws. Both only feed the ERROR LOG (src/lib/errorLog/), which exists in production only.
-// The Node-only code is imported INSIDE a positive `NEXT_RUNTIME === "nodejs"` block (Next's own pattern): the bundler removes the block from the edge copy of this file, where node:crypto does not exist.
+// Next runs register() once when a server copy starts and calls onRequestError for every error a route, page or server action throws. I use both only to feed the ERROR LOG (src/lib/errorLog/), which exists in production only.
+// I import the Node-only code INSIDE a positive `NEXT_RUNTIME === "nodejs"` block (Next's own pattern): the bundler removes the block from the edge copy of this file, where node:crypto does not exist.
 
 import type { Instrumentation } from "next";
 

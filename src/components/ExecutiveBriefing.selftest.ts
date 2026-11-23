@@ -41,7 +41,7 @@ function eq(name: string, got: unknown, want: unknown) {
   eq("compact days", compactChartValue(12, "days"), "12d");
   eq("compact months", compactChartValue(6, "months"), "6m");
 
-  // Multi-word / long units (>5 chars) must NOT be printed on bar/axis labels
+  // I do not print multi-word or long units (>5 chars) on bar or axis labels
   const longUnit = "Multiples of Base Rate (HRR or Monthly Rent)";
   eq("compact long unit returns pure number with multiplier symbol", compactChartValue(4, longUnit), "4×");
   eq("compact long unit 1.2", compactChartValue(1.2, longUnit), "1.2×");
@@ -59,7 +59,7 @@ function eq(name: string, got: unknown, want: unknown) {
 }
 
 
-// 3-id. an identifier is not an amount: digits unbroken, never grouped, never turned into a number
+// 3-id. An identifier is not an amount: I keep its digits unbroken, never grouped, never turned into a number
 {
   const txt = (c: string, col: number, name: string) => ReactDOMServer.renderToStaticMarkup(renderEnterpriseTableCell(c, col, name)).replace(/<[^>]+>/g, "");
   ok("an account number alone in a cell is shown unbroken", txt("34420400623", 1, "Account Number") === "34420400623", txt("34420400623", 1, "Account Number"));
@@ -142,7 +142,7 @@ function eq(name: string, got: unknown, want: unknown) {
   ok("abbr does not falsely include OPD", !map.has("OPD"));
 }
 
-// 5. the abbreviation strip must never print a wrong expansion (it printed "RFID : RFID Card Biometric")
+// 5. I never let the abbreviation strip print a wrong expansion (it printed "RFID : RFID Card Biometric")
 {
   const rfid: any = {
     overview: "A phased RFID biometric rollout for contract workers began on 6 December 2024.",
@@ -165,7 +165,7 @@ function eq(name: string, got: unknown, want: unknown) {
   ok("an abbreviation is matched only in capitals: the words 'ed' and 'ta' are not ED and TA", new Map(extractRelevantAbbreviations({ overview: "the ed and ta words", keyFindings: [], charts: [] } as any)).size === 0);
 }
 
-// 6. the abbreviations the owner asked for, and the chip that is for approvers only
+// 6. the abbreviations I asked for, and the chip that is for approvers only
 {
   const all = new Map(extractRelevantAbbreviations({ overview: "GPAIS and BAMS were reviewed; the SAP ERP and the IMS were updated.", keyFindings: [], charts: [] } as any));
   eq("GPAIS", all.get("GPAIS"), "Group Personal Accident Insurance Scheme");
@@ -179,7 +179,7 @@ function eq(name: string, got: unknown, want: unknown) {
   ok("a note in brackets is drawn as a note, with no approver chip", note.includes("Mandatory") && !note.includes("bg-amber-50"));
 }
 
-// 6b. a bracket that holds money is the penalty itself; a bracket glued to a word is a clause reference (found in the Zero Tolerance answer)
+// 6b. I treat a bracket that holds money as the penalty itself, and a bracket glued to a word as a clause reference (found in the Zero Tolerance answer)
 {
   ok("money in a bracket is an amount, not an approver, although it says 'officer'", bracketIsAmount("officer Rs - 250/- and employees/CW-Rs- 100/-") && bracketIsAmount("Officers: Rs.500/- and Employees / CW - Rs.200/-") && bracketIsAmount("₹ 500"));
   ok("an approver or a note is not an amount", !bracketIsAmount("Head of P&A") && !bracketIsAmount("Mandatory") && !bracketIsAmount("Phase-1 Enrolment"));

@@ -1,5 +1,5 @@
 // src/components/AnswerHeadline.tsx
-// The clean answer, first, big and bold (step 61a): the same look as the hospital card's headline (text-2xl, extra bold; green Yes, red No, dark value, amber not known). Plain text only (React escapes it).
+// I show the clean answer first, big and bold (step 61a): the same look as the hospital card's headline (text-2xl, extra bold; green Yes, red No, dark value, amber not known). Plain text only (React escapes it).
 
 import React from "react";
 import { HEADLINE_CLASS, type AnswerHeadline as Headline } from "@/lib/ui/answerHeadline";

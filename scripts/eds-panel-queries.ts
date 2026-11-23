@@ -1,5 +1,5 @@
 // scripts/eds-panel-queries.ts: a panel of NEW Executive Deep Synthesis questions, written from what the 53 archived circulars really contain.
-// Each question has a "shape" (what kind of answer it needs) so that a weakness can be traced to a KIND of question, not to one circular.
+// I gave each question a "shape" (what kind of answer it needs) so that a weakness can be traced to a KIND of question, not to one circular.
 export interface PanelQuery { id: string; shape: string; q: string; }
 
 export const PANEL: PanelQuery[] = [

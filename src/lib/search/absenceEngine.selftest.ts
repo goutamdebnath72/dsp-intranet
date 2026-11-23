@@ -1,5 +1,5 @@
 // src/lib/search/absenceEngine.selftest.ts  (run: npx tsx --tsconfig tsconfig.selftest.json src/lib/search/absenceEngine.selftest.ts)
-// The whole briefing path, with a stub model that makes the real G01 mistake: "Not stated in circular" for an item that the circular lists.
+// This runs the whole briefing path with a stub model that makes the real G01 mistake: "Not stated in circular" for an item that the circular lists.
 import { executeExecutiveSynthesis, clearExecutiveSynthesisCache } from "./executiveSynthesis";
 
 let pass = 0, fail = 0;

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/railway/routeVia.selftest.tsx
-// THE TWO POORVA EXPRESSES: 12303 goes by Patna, 12381 by Gaya; each line says so. The table is checked against the stops RailRadar gave for each train (routeVia.evidence.json), so a train cannot be listed from memory.
+// THE TWO POORVA EXPRESSES: 12303 goes by Patna, 12381 by Gaya; each line says so. I check the table against the stops RailRadar gave for each train (routeVia.evidence.json), so a train cannot be listed from memory.
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
@@ -15,7 +15,7 @@ const text = (h: string) => h.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").r
 const ev = JSON.parse(readFileSync("src/tools/railway/routeVia.evidence.json", "utf8")) as Record<string, string>;
 const codes = (n: string) => new Set(ev[n].split(" ").map((x) => x.split("@")[0]));
 
-// the evidence says what the table says
+// The evidence has to say what the table says.
 const NAMES: Record<string, string> = { PNBE: "Patna", GAYA: "Gaya", SV: "Siwan", BUI: "Ballia", BTH: "Bettiah" };
 ok("every train in the table has its stop list in the evidence", Object.keys(ROUTE_VIA).every((n) => !!ev[n] && codes(n).size >= 10));
 ok("each train's via station is one it calls at, and NONE of its rivals calls there (so the name tells the trains apart)", Object.entries(ROUTE_VIA).every(([n, v]) => codes(n).has(v.code) && v.rivals.length > 0 && v.rivals.every((r) => !!ev[r] && !codes(r).has(v.code))));

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/search/kpiFromTable.selftest.ts
-// The big number cards built from a short table with one amount per row (kpiFromTable.ts). The first case is the table of the owner's query on 11 Nov 2026.
+// These test the big number cards built from a short table with one amount per row (kpiFromTable.ts). The first case is the table of my query on 11 Nov 2026.
 import { kpiFromTable, withKpiCards } from "./kpiFromTable";
 import type { SynthesisResult, SynthesisTable } from "./executiveSynthesis";
 

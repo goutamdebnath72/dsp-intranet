@@ -1,10 +1,10 @@
 // src/lib/nl2sql/prompt.ts
 //
-// Builds the prompt that turns a question into ONE read-only SELECT. Three
+// I build the prompt that turns a question into ONE read-only SELECT. Three
 // parts matter most: (1) an exact description of what the views hold and what
 // the domain words mean, (2) the PHONETIC LAYER taught as vocabulary and
 // recipes, (3) worked examples. Everything here is teaching text, not logic:
-// improving the system means editing this text or adding examples.
+// to improve the system, edit this text or add examples.
 
 import type { Example } from "./examples";
 import { extractQuotedTerms } from "./quoted";
@@ -89,7 +89,7 @@ Two modes:
 TEXT matching, not whole words (always literal): the name STARTS WITH text: upper(btrim(name)) LIKE 'SANJ%'; ENDS WITH text: upper(btrim(name)) LIKE '%NATH'; CONTAINS text: upper(name) LIKE '%NATH%'. "not at the end, as a whole word or as part of a word" = NOT (upper(btrim(name)) LIKE '%NATH'). A word that starts/ends with text: EXISTS (SELECT 1 FROM unnest(name_words) AS w WHERE w LIKE 'KUMAR%').
 Number of words in a name: cardinality(name_words).`;
 
-// Described to the model ONLY when the question is about a health check-up (the rest of the time the prompt is exactly what it was).
+// I describe this to the model ONLY when the question is about a health check-up; the rest of the time the prompt is exactly what it was.
 const HEALTH_DOC = `nlq.health_checkups -- the monthly HEALTH CHECK-UP schedules of NON-EXECUTIVES printed in circulars: one row per employee per schedule
   ticket_no (as printed), name, department_code and department (AS PRINTED in that schedule), checkup_date (text 'YYYY-MM-DD'),
   schedule_year, schedule_month_no (the month the schedule is for), circular ('Circular 003 (2024)'), verified (false = HR does not know the person; the system reports that, do not select it unless asked),
@@ -116,17 +116,17 @@ export interface PromptInput {
   question: string;
   context: DynamicContext;
   examples: Example[];
-  /** SQL this person already marked wrong for this exact question. */
+  /** SQL this person has already marked wrong for this exact question. */
   rejectedSql?: string[];
-  /** Set on a repair attempt: what went wrong with the previous SQL. */
+  /** I set this on a repair attempt: what went wrong with the previous SQL. */
   repair?: { previousSql: string; problem: string };
-  /** Readings people marked WRONG for similar questions (learned from "No" answers). */
+  /** Readings people marked WRONG for similar questions, learned from "No" answers. */
   negatives?: NegativeExample[];
-  /** Set on a second attempt after a "No": the person's reason, as an instruction. */
+  /** I set this on a second attempt after a "No": the person's reason, as an instruction. */
   hint?: string;
 }
 
-/** Added to the prompt ONLY when the question is about promotees or direct recruits (it costs the other questions nothing: the prompt has a size limit). */
+/** I add this to the prompt ONLY when the question is about promotees or direct recruits; it costs the other questions nothing, because the prompt has a size limit. */
 const ORIGIN_DOC = `PROMOTEES, DIRECT RECRUITS AND JOs -- "promotee" and "direct recruit" are CLASSES read from nlq.employees.ticket_no; they hold for a whole service life, whatever the designation is today. An executive ticket is 4 + a second digit + four more digits.
   Second digit 9 = joined directly as an executive: a Management Trainee (MT) for the whole training, then Asst. Manager (a DIRECT RECRUIT; "MT", "MTs", "management trainee(s)", "direct"). Any other second digit = PROMOTED from the non-executives (a PROMOTEE; "promotee", "promoted officer(s)", "promoty").
   promotees: cohort = 'executive' AND substr(ticket_no, 2, 1) <> '9'      direct recruits: cohort = 'executive' AND substr(ticket_no, 2, 1) = '9'
@@ -144,7 +144,7 @@ export function buildPrompt(input: PromptInput): string {
   const parts: string[] = [rules];
   if (isOriginQuestion(input.question)) parts.push(ORIGIN_DOC);
   if (isDoctorQuestion(input.question)) parts.push(DOCTOR_DOC);
-  if (isQualificationQuestion(input.question)) parts.push(QUALIFICATION_DOC); // "DNB doctors" is not "doctors": only for a question that names a qualification (step 56a)
+  if (isQualificationQuestion(input.question)) parts.push(QUALIFICATION_DOC); // "DNB doctors" is not "doctors": I use this only for a question that names a qualification (step 56a)
   parts.push("DESIGNATIONS (live):\n" + formatDesignations(input.context.designations));
   const shown = selectRelevantDepartments(input.question, input.context.departments);
   parts.push("DEPARTMENTS (live):\n" + formatFamilies(departmentFamilies(input.question, input.context.departments)) + formatDepartments(shown, input.context.departments.length));

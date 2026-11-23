@@ -2,16 +2,16 @@
 //
 // Canonical department map: logical department -> member department codes
 // (join user.departmentId -> departments.id, filter departments.code).
-// Auto-grouped from the 300-row department list by base name, then curated:
+// I auto-grouped it from the 300-row department list by base name, then curated it:
 //   C&IT = {98500, 98540, 10153};  ELECTRICAL TECHNICAL LAB (ETL) = {10174,10181,10396}.
-// Aliases are the short forms people type. To add/merge later, edit this file.
+// Aliases are the short forms people type. To add or merge later, edit this file.
 
 import { normTerm } from "./designations";
 
 export interface DeptGroup {
   name: string;      // canonical logical department
   codes: number[];   // member department codes
-  aliases: string[]; // extra user-typable terms (normalized at match time)
+  aliases: string[]; // extra terms people may type (normalized at match time)
 }
 
 export const DEPARTMENTS: DeptGroup[] = [
@@ -172,7 +172,7 @@ export const DEPARTMENTS: DeptGroup[] = [
   { name: "WMD", codes: [10389, 10390, 10391, 10392, 10393, 10394, 10395], aliases: [] },
 ];
 
-/** Resolve a department term (name / alias) to its group, or null. */
+/** I resolve a department term (name / alias) to its group, or null. */
 export function resolveDepartment(term: string): DeptGroup | null {
   const n = normTerm(term);
   if (!n) return null;
@@ -191,8 +191,8 @@ export function resolveDepartment(term: string): DeptGroup | null {
 
 /**
  * Find a department mentioned ANYWHERE in a free query (order-independent),
- * matching a name or alias as whole words. Longest match wins. Returns the
- * group and the matched (normalized) phrase, or null. Used for the
+ * matching a name or alias as whole words. The longest match wins. Returns the
+ * group and the matched (normalized) phrase, or null. I use it for the
  * "name fragment + department" people search (e.g. "soumit c&it" / "c&it roy").
  */
 export function findDepartmentInText(

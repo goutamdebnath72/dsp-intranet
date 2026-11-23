@@ -1,22 +1,22 @@
 // src/lib/search/documentSummary.ts
 //
-// THE SUMMARY THAT EVERY CIRCULAR OR ANNOUNCEMENT SEARCH REPLY CARRIES. A precise answer (circularAnswer.ts: a figure with the document's own words) appears only when the text proves one. A reply that has
-// found a circular or an announcement but cannot prove an answer used to show a bare title: the reader could not tell whether it was the answer. Now such a reply always carries a SUMMARY of the best match, and
-// says plainly when that match does not answer the question.
+// This is the summary that every circular or announcement search reply carries. A precise answer (circularAnswer.ts: a figure with the document's own words) appears only when the text proves one. A reply that has
+// found a circular or an announcement but cannot prove an answer used to show a bare title, so the reader could not tell whether it was the answer. Now I make such a reply always carry a SUMMARY of the best match, and
+// it says plainly when that match does not answer the question.
 //
 //   1. The model writes two to four short sentences from the passages (and says whether they answer the question: `addresses`).
-//   2. The summary is verified by plain code: every number in it must stand in the text of a passage (a figure that is not in the document is refused, as everywhere in this app); no markup; a sensible length.
-//   3. If the model is unavailable, or its summary is refused, the summary is the OPENING of the best document in its own words (the first sentences), labelled as that. So a summary is ALWAYS there.
-// Nothing here ever throws.
+//   2. Plain code verifies the summary: every number in it must stand in the text of a passage (a figure that is not in the document is refused, as everywhere in this app); no markup; a sensible length.
+//   3. If the model is unavailable, or its summary is refused, I use the OPENING of the best document in its own words (the first sentences), labelled as that. So a summary is ALWAYS there.
+// I never let anything here throw.
 
 import { numbersIn, type Passage, type CircularAnswer } from "./circularAnswer";
 
 export interface DocSummary {
-  /** the summary text, or the document's own opening */
+  /** Holds the summary text, or the document's own opening. */
   text: string;
-  /** whether the passages answer the question; null when it is not known (the opening of a document) */
+  /** Says whether the passages answer the question; I keep null when that is not known (the opening of a document). */
   addresses: boolean | null;
-  /** "model" = written and verified; "opening" = the document's own first words (the model was unavailable or its summary was refused) */
+  /** "model" means the summary was written and verified; "opening" means I used the document's own first words (the model was unavailable or its summary was refused). */
   via: "model" | "opening";
   sources: CircularAnswer["sources"];
 }
@@ -58,7 +58,7 @@ export function parseSummary(raw: string): { text: string; addresses: boolean } 
   }
 }
 
-/** The summary may hold no number that is not in the passages (or in the documents' titles and dates), no markup, and must be of a sensible size. */
+/** I allow the summary no number that is not in the passages (or in the documents' titles and dates) and no markup, and it must be of a sensible size. */
 export function summaryIsFaithful(text: string, passages: Passage[]): boolean {
   const words = text.split(/\s+/).filter(Boolean).length;
   if (words < 4 || words > MAX_WORDS + 40) return false;
@@ -72,7 +72,7 @@ export function summaryIsFaithful(text: string, passages: Passage[]): boolean {
   return numbersIn(text, false).every((n) => allowed.has(n));
 }
 
-/** The first sentences of the best document, in its own words, cleaned of table markers; cut at a word. Empty only if the document has no text. */
+/** I take the first sentences of the best document, in its own words, clean the table markers out and cut at a word. The result is empty only if the document has no text. */
 export function openingSummary(passages: Passage[]): string {
   const first = passages.find((p) => p.text && p.text.trim());
   if (!first) return "";
@@ -87,7 +87,7 @@ export function openingSummary(passages: Passage[]): string {
 
 const sourcesOf = (passages: Passage[]): DocSummary["sources"] => passages.map((p) => ({ n: p.n, type: p.type, id: p.id, headline: p.title, publishedAt: p.date, page: p.page }));
 
-/** Always returns a summary when any passage has text; null only when there is no text at all (the caller then shows the results as before). */
+/** This always returns a summary when any passage has text; it returns null only when there is no text at all, and then the caller shows the results as before. */
 export async function summariseFromPassages(question: string, passages: Passage[], llm: (prompt: string) => Promise<string>): Promise<DocSummary | null> {
   const withText = passages.filter((p) => p.text && p.text.trim());
   if (withText.length === 0) return null;

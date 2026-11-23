@@ -2,7 +2,7 @@
 //
 // TypeORM hands back the rows of a SELECT or an INSERT ... RETURNING as they are, but for an UPDATE or a DELETE it returns [rows, affectedCount]
 // (checked in the installed version 1.1.1: PostgresQueryRunner, `case "DELETE": case "UPDATE": result.raw = [raw.rows, raw.rowCount]`).
-// The admin store reads rows; this puts every result in that one shape. PURE.
+// The admin store reads rows; here I put every result in that one shape. PURE.
 
 type Row = Record<string, unknown>;
 

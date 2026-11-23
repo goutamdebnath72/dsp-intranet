@@ -1,8 +1,8 @@
 // src/components/AnnouncementFile.tsx
 //
-// THE PDF OF AN ANNOUNCEMENT, as the reader sees it inside the announcement's window: a card with the file's name and size, a full-screen button (an icon: the PDF then opens over the page in the same kind of viewer as a circular, with a cross) and a Download button, and the PDF itself
-// shown right there (a frame). An announcement that is ONLY a title and a PDF shows the PDF at once; one that also has body text offers "View here". The PDF is always fetched from our own route
-// (src/app/api/announcements/[id]/file/route.ts); the address of the file in storage is never known to the browser.
+// This is the PDF of an announcement as the reader sees it inside the announcement's window: a card with the file's name and size, a full-screen button (an icon: the PDF then opens over the page in the same kind of viewer as a circular, with a cross) and a Download button, and the PDF itself
+// shown right there (a frame). An announcement that is ONLY a title and a PDF shows the PDF at once; one that also has body text offers "View here". I always fetch the PDF from our own route
+// (src/app/api/announcements/[id]/file/route.ts); the browser never knows the address of the file in storage.
 "use client";
 
 import { PdfBarMask } from "@/components/PdfBarMask";
@@ -10,7 +10,7 @@ import React, { useState } from "react";
 import { Download, Eye, EyeOff, FileText, Maximize2 } from "lucide-react";
 import { fileRoute, formatBytes, type AnnouncementFileInfo } from "@/lib/announcements/attachment";
 
-export function AnnouncementFile({ id, file, startOpen, onOpenFull, page }: { id: number; file: AnnouncementFileInfo; /** the page of the PDF the search found its words on (the preview opens there) */ page?: number | null; /** show the PDF at once (an announcement with no body text) */ startOpen: boolean; /** opens the PDF full screen over the page (the announcement's window owns the viewer, so that the card's button, the linked words and the title all open the same one) */ onOpenFull: () => void }) {
+export function AnnouncementFile({ id, file, startOpen, onOpenFull, page }: { id: number; file: AnnouncementFileInfo; /** the page of the PDF where the search found its words; I open the preview there */ page?: number | null; /** I show the PDF at once when the announcement has no body text */ startOpen: boolean; /** opens the PDF full screen over the page. I let the announcement's window own the viewer, so that the card's button, the linked words and the title all open the same one. */ onOpenFull: () => void }) {
   const [open, setOpen] = useState(startOpen || !!page);
   const at = page && page > 0 ? Math.trunc(page) : null;
   const src = fileRoute(id);
@@ -37,7 +37,7 @@ export function AnnouncementFile({ id, file, startOpen, onOpenFull, page }: { id
         </span>
       </div>
       {open && (
-        // the frame sits in a clipped, rounded box; the viewer's own scrollbars are hidden until the pointer is over it (PdfBarMask)
+        // I put the frame in a clipped, rounded box and hide the viewer's own scrollbars until the pointer is over it (PdfBarMask).
         <div className="group relative h-[68vh] overflow-hidden rounded-md border border-slate-200 bg-slate-100">
           <iframe title={file.name} src={`${src}#${at ? `page=${at}&` : ""}view=FitH`} data-pdf-frame className="h-full w-full border-0" />
           <PdfBarMask />

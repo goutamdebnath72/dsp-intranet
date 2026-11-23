@@ -1,6 +1,6 @@
-// scripts/harvest-fares.ts: COLLECT AND SAVE THE FARES of every express and mail train that stops at Durgapur (or, with --station ASN, of every train of the Asansol tab: the trains that stop at Asansol and not at Durgapur, fares FROM ASANSOL), while the plant's paid RailRadar month lasts (to 14 Dec 2026).
+// scripts/harvest-fares.ts: collects and saves the fares of every express and mail train that stops at Durgapur (or, with --station ASN, of every train of the Asansol tab: the trains that stop at Asansol and not at Durgapur, fares FROM ASANSOL), while the plant's paid RailRadar month lasts (to 14 Dec 2026).
 // The fares are saved in the database (table public.train_fare, with the time received) and the card on the intranet shows them with "Fares last received ...". Run it now, and again about once a week until the month ends;
-// after FARES_LIVE_UNTIL (src/lib/live/fareService.ts) it refuses to run, because on the free plan every request is taken from the 100 a month the timetable needs.
+// after FARES_LIVE_UNTIL (src/lib/live/fareService.ts) it refuses to run, because on the free plan every request would be taken from the 100 a month the timetable needs.
 //   npx tsx --env-file=.env.local scripts/harvest-fares.ts                      all trains whose saved fares are older than 48 hours (or missing)
 //   npx tsx --env-file=.env.local scripts/harvest-fares.ts --max-age-hours 120   a lazier pass (skips trains saved in the last 5 days)
 //   npx tsx --env-file=.env.local scripts/harvest-fares.ts --only 12019,12313    just these trains
@@ -8,8 +8,8 @@
 //   npx tsx --env-file=.env.local scripts/harvest-fares.ts --station ASN         the same for the Asansol tab's trains (table public.train_fare_asn; the timetable is two requests: Asansol's board and Durgapur's with the pass-throughs)
 //   npx tsx --env-file=.env.local scripts/harvest-fares.ts list                  what is saved (how many trains, the oldest and newest time received); add --station ASN for Asansol's
 // The LOCAL (MEMU) trains get a HINT instead (src/lib/live/ordinaryFare.ts: the railway's published fare table applied to the distance from Durgapur to the end station): ONE request each, for the train's schedule.
-// COST: 8 requests per express train (one per class), 1 per local train, and one for the timetable: a full pass over about 250 trains is about 2,000 requests of the 30,000 a month, paced at 27 a minute (the key's limit is 30), so about 75 minutes.
-// It can be stopped at any time and run again: the trains already saved are skipped. It stops at once if RailRadar says the limit is reached or the key is refused.
+// Cost: 8 requests per express train (one per class), 1 per local train, and one for the timetable. A full pass over about 250 trains is about 2,000 requests of the 30,000 a month, paced at 27 a minute (the key's limit is 30), so about 75 minutes.
+// You can stop it at any time and run it again: the trains already saved are skipped. It stops at once if RailRadar says the limit is reached or the key is refused.
 import { Pool } from "pg";
 import { DateTime } from "luxon";
 import { askFares, askLocalFare, journeyDateFor } from "../src/lib/live/fare";
@@ -28,11 +28,11 @@ async function main() {
   const station = (arg("--station") ?? "DGR").toUpperCase();
   if (station !== "DGR" && station !== "ASN") throw new Error("--station is DGR (the default) or ASN.");
   const from: FareStation = station;
-  // a pool, not one connection: a dropped connection (the network blinking in a run of many hours) is replaced by a new one instead of ending the run
+  // I use a pool, not one connection: a dropped connection (the network blinking in a run of many hours) is replaced by a new one instead of ending the run
   const db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 2 });
   db.on("error", (e) => console.warn("database connection lost, a new one is made on the next call:", e.message));
   try {
-    for (const sql of fareTableStatements(from)) await db.query(sql); // the table (safe to repeat), closed to the public roles
+    for (const sql of fareTableStatements(from)) await db.query(sql); // creates the table (safe to repeat), closed to the public roles
     if (process.argv[2] === "list") {
       const r = (await db.query(`SELECT count(*)::int AS n, min(fetched_at) AS oldest, max(fetched_at) AS newest, count(*) FILTER (WHERE jsonb_array_length(classes) = 0)::int AS none FROM public.${FARE_TABLES[from]}`)).rows[0];
       const f = (d: Date | null) => (d ? DateTime.fromJSDate(d).setZone(STATION.zone).toFormat("d LLL yyyy, h:mm a") + " IST" : "-");
@@ -48,7 +48,7 @@ async function main() {
     const limit = Number(arg("--limit") ?? Infinity);
     const store = typeormFareStore(db, from);
 
-    // the trains to ask for: express, mail and special trains, then the local ones, each with its days AT THE STARTING STATION; a train that ends at that station has no fare onward
+    // The trains I ask for: express, mail and special trains, then the local ones, each with its days AT THE STARTING STATION; a train that ends at that station has no fare onward
     let expressList: Train[], localList: Train[];
     if (from === "DGR") {
       console.log("Reading the timetable of Durgapur (1 request)...");
@@ -104,7 +104,7 @@ async function main() {
         if (status === 429 || status === 401 || status === 403) { console.log("Stopping: RailRadar refused (limit reached or key not accepted)."); break; }
       }
     }
-    // the local trains: one request each (the schedule), a hint from the fare table
+    // The local trains need one request each (the schedule); the fare is a hint from the fare table
     let localDone = 0;
     for (const t of locals) {
       if (localDone >= limit) break;

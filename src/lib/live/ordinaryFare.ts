@@ -1,13 +1,13 @@
 // src/lib/live/ordinaryFare.ts
 //
-// THE RAILWAY'S OWN FARE TABLE FOR UNRESERVED SECOND-CLASS TRAVEL on ordinary (passenger) services, used to give a HINT of the fare on a local (MEMU) train, for which the reservation system holds no fare.
+// The railway's own fare table for unreserved second-class travel on ordinary (passenger) services. I use it to give a HINT of the fare on a local (MEMU) train, for which the reservation system holds no fare.
 // SOURCE: Railway Board, Commercial Circular No. 24 of 2025 (No. TC II/2910/2025/Fare, 25 Dec 2025, "Rationalization of basic fare for passenger train services w.e.f. 26.12.2025"), its annexed Passenger Fare Table
-// "Basic fare of ORDINARY SERVICES w.e.f. 26.12.2025": the columns NON-SUBURBAN, SECOND CLASS, "Basic Fare" and "Minimum Chargeable fare", for each slab of distance. The circular was read as a scanned copy
-// (https://www.staffnews.in/wp-content/uploads/2026/01/CC_24_2025-Revised-Rail-Fare-26-12-2025.pdf, 14 Nov 2026), page 5 and 6 of the annex, and typed in below. Eastern Railway's Durgapur sections are not the Kolkata
-// SUBURBAN system, so the non-suburban column is used. The circular says: no change for suburban fares and season tickets; rounding "as per existing principles"; GST "as applicable" (none is added to an ordinary ticket here).
-// THE TICKET PRICE is the "minimum chargeable fare" column: in every row it is the basic fare rounded UP to a multiple of Rs 5, and not less than Rs 10 (the lowest ticket), which is how ordinary tickets are priced (Rs 10, 15, 20...).
+// "Basic fare of ORDINARY SERVICES w.e.f. 26.12.2025": the columns NON-SUBURBAN, SECOND CLASS, "Basic Fare" and "Minimum Chargeable fare", for each slab of distance. I read the circular as a scanned copy
+// (https://www.staffnews.in/wp-content/uploads/2026/01/CC_24_2025-Revised-Rail-Fare-26-12-2025.pdf, 14 Nov 2026), page 5 and 6 of the annex, and typed it in below. Eastern Railway's Durgapur sections are not the Kolkata
+// SUBURBAN system, so I use the non-suburban column. The circular says: no change for suburban fares and season tickets; rounding "as per existing principles"; GST "as applicable" (none is added to an ordinary ticket here).
+// The ticket price is the "minimum chargeable fare" column: in every row it is the basic fare rounded UP to a multiple of Rs 5, and not less than Rs 10 (the lowest ticket), which is how ordinary tickets are priced (Rs 10, 15, 20...).
 // The test checks that rule on all 80 rows, so a misreading of the scan in either column shows. The table is valid from 26 Dec 2025 until the railway revises it again (ORDINARY_TABLE_EFFECTIVE): a later revision is not known here.
-// The table stops at 500 km (a local train does not run farther); beyond it there is no hint. Written as [last km of the slab, basic fare, minimum chargeable fare]; slabs are 5 km wide to 300 km, then 10 km.
+// The table stops at 500 km (a local train does not run farther); beyond it I give no hint. Rows are written as [last km of the slab, basic fare, minimum chargeable fare]; slabs are 5 km wide to 300 km, then 10 km.
 export const ORDINARY_TABLE_EFFECTIVE = "2025-12-26";
 export const ORDINARY_TABLE_MAX_KM = 500;
 export const ORDINARY_SOURCE = { name: "Railway Board Commercial Circular No. 24 of 2025 (fare table of 26 Dec 2025)", url: "https://www.staffnews.in/2026/01/rationalization-of-basic-fare-for-passenger-train-services.html" };
@@ -32,27 +32,27 @@ const ROWS: Array<[number, number, number]> = [
 export interface Slab { from: number; to: number; basic: number; fare: number }
 export const SLABS: Slab[] = ROWS.map(([to, basic, fare], i) => ({ from: i === 0 ? 1 : ROWS[i - 1][0] + 1, to, basic, fare }));
 
-/** the slab of a whole number of kilometres (1 to 500), or null outside the table */
+/** Returns the slab of a whole number of kilometres (1 to 500), or null outside the table. */
 export function slabOf(km: number): Slab | null {
   if (!Number.isInteger(km) || km < 1 || km > ORDINARY_TABLE_MAX_KM) return null;
   return SLABS.find((s) => km <= s.to) ?? null;
 }
 
 export interface FareHint {
-  /** the distance used, in whole km (the source's distance, rounded) */
+  /** The distance used, in whole km (the source's distance, rounded). */
   km: number;
-  /** the lowest and highest fare over the uncertainty of the distance; equal when no fare step lies within it */
+  /** The lowest and highest fare over the uncertainty of the distance; they are equal when no fare step lies within it. */
   low: number;
   high: number;
-  /** the table slabs the range touches (one, or two or more when the range crosses a step) */
+  /** The table slabs the range touches (one, or two or more when the range crosses a step). */
   slabs: Slab[];
-  /** the km either way the distance may be out by */
+  /** The km either way the distance may be out by. */
   tolerance: number;
 }
 
 /**
- * THE HINT for a distance in km as RailRadar gives it. RailRadar's cumulative distances differ from the railway's own tariff distances by a little (0.4 to 6.5 km on the four trains checked on 14 Nov 2026), so the
- * fare is worked out for the distance and for the distance less and more than a TOLERANCE (2 km, or 1% of the distance if more): if the fares differ, both are given (a range), never a single figure that may be a step out.
+ * The HINT for a distance in km as RailRadar gives it. RailRadar's cumulative distances differ from the railway's own tariff distances by a little (0.4 to 6.5 km on the four trains checked on 14 Nov 2026), so I work out the
+ * fare for the distance and for the distance less and more than a TOLERANCE (2 km, or 1% of the distance if more). If the fares differ, I give both (a range), never a single figure that may be a step out.
  * Null when the distance is not a usable number or the range passes the end of the table (500 km).
  */
 export function fareHint(distanceKm: number): FareHint | null {

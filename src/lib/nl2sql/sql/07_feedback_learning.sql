@@ -1,5 +1,5 @@
 -- 07_feedback_learning.sql
--- The learning loop: a Yes/No on EVERY omnibar answer (model, cache, holiday, old engine, circular results),
+-- This is the learning loop: I record a Yes/No on EVERY omnibar answer (model, cache, holiday, old engine, circular results),
 -- with the reason for a No, plus the columns that let a "No" trigger a different second attempt and let
 -- confirmed / rejected answers teach the model. Additive and idempotent: run this whole file once on the live
 -- database (a fresh install already gets the same objects from 02).
@@ -33,7 +33,7 @@ CREATE INDEX IF NOT EXISTS omnibar_feedback_query_idx   ON public.omnibar_feedba
 CREATE INDEX IF NOT EXISTS omnibar_feedback_verdict_idx ON public.omnibar_feedback (verdict, source);
 CREATE INDEX IF NOT EXISTS omnibar_feedback_created_idx ON public.omnibar_feedback (created_at);
 
--- Proof: both objects exist with the new columns (expect 4 rows for nl2sql_log, 10 for omnibar_feedback).
+-- Proof that both objects exist with the new columns: expect 4 rows for nl2sql_log, 10 for omnibar_feedback.
 SELECT table_name, count(*) AS columns_present
 FROM information_schema.columns
 WHERE table_schema = 'public'

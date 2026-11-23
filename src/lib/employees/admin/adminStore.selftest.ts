@@ -1,7 +1,7 @@
 // Run (from the project root; needs a scratch Postgres):
 //   NL2SQL_TEST_ADMIN_URL=postgres://postgres:pw@127.0.0.1:5432/postgres npx tsx --tsconfig tsconfig.json src/lib/employees/admin/adminStore.selftest.ts
-// Step 66a: the employee manager against a real database: who may do what, every rule of a record, the dates that only the HOD sees, who may delete, two people at the same moment, a history that cannot be altered, and a roster
-// whose optional columns differ. The roster is the project's stand-in made to follow the LIVE rules the handoff describes (UNIQUE (ticket_no, cohort), user_id -> user ON DELETE SET NULL, a NOT NULL snapshot date, the doctor flag).
+// Step 66a: I test the employee manager against a real database: who may do what, every rule of a record, the dates that only the HOD sees, who may delete, two people at the same moment, a history that cannot be altered, and a roster
+// whose optional columns differ. The roster is the project's stand-in, made to follow the LIVE rules the handoff describes (UNIQUE (ticket_no, cohort), user_id -> user ON DELETE SET NULL, a NOT NULL snapshot date, the doctor flag).
 // The migrations are the REAL files (sql/14, sql/15). The people are INVENTED.
 
 import { readFileSync } from "node:fs";
@@ -14,7 +14,7 @@ if (!adminUrl) {
   console.log("employee admin store selftest: skipped (NL2SQL_TEST_ADMIN_URL is not set)");
   process.exit(0);
 }
-process.env.SUPERADMIN_TICKETS = "400001"; // the HOD is known by ticket from the environment, read when superAdmin.ts is first loaded
+process.env.SUPERADMIN_TICKETS = "400001"; // The HOD is known by ticket from the environment, read when superAdmin.ts is first loaded
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = "") => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
 const SQL_DIR = join(process.cwd(), "src/lib/nl2sql/sql");
@@ -32,7 +32,7 @@ async function main() {
   for (const role of ["anon", "authenticated"]) await pool.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN CREATE ROLE ${role} NOLOGIN; END IF; END $$`);
   await pool.query(readFileSync(join(SQL_DIR, "99_local_test_standins.sql"), "utf8"));
   await pool.query(readFileSync(join(SQL_DIR, "01_nlq_schema_views_role.sql"), "utf8"));
-  // the LIVE rules of the roster (handoff section 6.3): unique (ticket, cohort), the login link that becomes empty when the login goes, a snapshot date that must be given, the doctor flag
+  // These are the LIVE rules of the roster (handoff section 6.3): unique (ticket, cohort), the login link that becomes empty when the login goes, a snapshot date that must be given, the doctor flag
   await pool.query(`ALTER TABLE public.employee_roster ADD CONSTRAINT employee_roster_ticket_cohort_key UNIQUE (ticket_no, cohort);
     ALTER TABLE public.employee_roster ADD CONSTRAINT employee_roster_user_fk FOREIGN KEY (user_id) REFERENCES public."user"(id) ON DELETE SET NULL;
     ALTER TABLE public.employee_roster ADD COLUMN doctor_override boolean;
@@ -50,10 +50,10 @@ async function main() {
   await seed("498880", "MEENA GUPTA", 9, 2, "executive", 2, 120002, null, null);
   await seed("342461", "GOUTAM DEBNATH", 20, 3, "nonexecutive", 1, 140001, null, "u-goutam");
   await seed("342462", "SUMIT BASU", 21, 4, "nonexecutive", 1, 150001, null, null);
-  await pool.query(readFileSync(join(SQL_DIR, "14_people_events.sql"), "utf8")); // sample dates for the seven, as in the live database
+  await pool.query(readFileSync(join(SQL_DIR, "14_people_events.sql"), "utf8")); // Sample dates for the seven, as in the live database
   const m15 = readFileSync(join(SQL_DIR, "15_employee_admin.sql"), "utf8");
   await pool.query(m15);
-  // step 68b: the authorisations and the history live in the SHARED tables (sql/17); its closing check reads the PAX editor's two old tables too, so sql/13 runs here as it did live
+  // Step 68b: the authorisations and the history live in the SHARED tables (sql/17). The closing check reads the PAX editor's two old tables too, so I run sql/13 here as it ran live
   await pool.query(`CREATE TABLE IF NOT EXISTS public.pax_directory (id serial PRIMARY KEY, dept_name text, location text, "number" text, label text, note text, source text, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now())`);
   await pool.query(readFileSync(join(SQL_DIR, "13_pax_admin.sql"), "utf8"));
   const m17 = readFileSync(join(SQL_DIR, "17_facility_kit.sql"), "utf8");
@@ -79,7 +79,7 @@ async function main() {
     },
   };
   const full = (f: Record<string, unknown>) => ({ sailPno: `PN${f.ticketNo}`, mobile: /^4/.test(String(f.ticketNo)) ? "9434791234" : "", ...f });
-  // a person LOADS the record and then saves what he typed WITH THE VERSION HE SAW (src/lib/concurrency/version.ts); the HOD sees the dates, the others do not
+  // Here a person LOADS the record and then saves what he typed WITH THE VERSION HE SAW (src/lib/concurrency/version.ts); I let the HOD see the dates and the others not
   const seen = async (actor: { ticket: string }, id: number) => (await store.getEmployee(db, id, actor.ticket === "400001"))?.version;
   const modX = async (actor: { ticket: string; name: string }, id: number, fields: Record<string, unknown>, acks: Array<"same-name"> = []) => store.modifyEmployee(db, actor, id, fields, acks, await seen(actor, id));
   const delX = async (actor: { ticket: string; name: string }, id: number, opts: { confirmTicket: string; removeLogin: boolean }) => store.deleteEmployee(db, actor, id, { ...opts, version: (await store.getEmployee(db, id, true))?.version });
@@ -247,7 +247,7 @@ async function main() {
   ok("the record shows the mobile and e-mail ONLY as the search cards do (first six digits; xxxxxx and the domain), never whole", raviRec.mobileMasked === "943479xxxx" && raviRec.emailMasked === "xxxxxx@sail.in" && raviRec.hasLogin === true && !JSON.stringify(raviRec).includes("9434791234") && !JSON.stringify(raviRec).includes("ravi@sail.in"));
   const auAll = JSON.stringify(await rows(`SELECT before, after, note FROM public.facility_audit WHERE facility='employee'`));
   ok("...and the history keeps no whole mobile number or e-mail either", !auAll.includes("9434791234") && !auAll.includes("9434791235") && !auAll.includes("ravi@sail.in"));
-  { // step 69b: an executive's CUG mobile is OPTIONAL when he is added (it arrives later) and in every change
+  { // Step 69b: I made an executive's CUG mobile OPTIONAL when he is added (it arrives later) and in every change
     const Fm = (r: import("./types").EmployeeRecord, over: Record<string, unknown> = {}) => ({ name: r.name, gradeId: r.gradeId, departmentId: r.departmentId, sailPno: r.sailPno, address: r.address, dateOfBirth: r.dateOfBirth, dateOfJoining: r.dateOfJoining, ...over });
     const nm = await addX(HOD, { ticketNo: "412500", name: "No Mobile", gradeId: 9, departmentId: 1, mobile: "" });
     ok("an executive WITHOUT a mobile is added (it is optional; it arrives later); a non-executive without one is fine as well", nm.status === "ok" && (await addX(HOD, { ticketNo: "342500", name: "Plain Person", gradeId: 21, departmentId: 4 })).status === "ok", JSON.stringify(nm));
@@ -327,7 +327,7 @@ async function main() {
   const five = await Promise.all(fivePeople.map((p) => store.modifyEmployee(db, HOD, p.id, F(p, { address: `parallel ${p.ticketNo}` }), [], p.version)));
   ok("five DIFFERENT people changed at the same moment: all five are saved (the guard makes only the same record wait), and none is lost", five.every((r) => r.status === "ok") && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE address LIKE 'parallel 41262%'`)) === 5);
 
-  // a writer that does not know our lock (a SQL script)
+  // Here I use a writer that does not know our lock (a SQL script)
   const P5 = await person("412606", "Conc Person Six");
   const script = await pool.connect();
   await script.query("BEGIN"); await script.query(`UPDATE public.employee_roster SET address = 'sql script' WHERE id = $1`, [P5.id]);
@@ -356,14 +356,14 @@ async function main() {
   ok("what a refused DELEGATE is shown has no date at all (the record as HE may see it), only who and when", await (async () => { const p = await person("412610", "Conc Person Ten", {}); await store.modifyEmployee(db, HOD, p.id, F(p, { address: "x1", dateOfBirth: "1979-07-07" }), [], p.version); const r = await store.modifyEmployee(db, ANIL_D, p.id, { name: p.name, gradeId: p.gradeId, departmentId: p.departmentId, sailPno: p.sailPno, address: "y" }, [], (await store.getEmployee(db, p.id, false))!.version.replace(/.$/, "A")); return r.status === "stale" && r.current.dateOfBirth === "" && r.current.datesVisible === false && !JSON.stringify(r).includes("1979-07-07"); })());
   ok("the version is NOT in the history: only the person's own values are (nothing to replay)", !JSON.stringify(await rows(`SELECT before, after FROM public.facility_audit WHERE facility='employee'`)).includes(P1.version));
 
-  // two people adding the same person at the same moment
+  // Case: two people adding the same person at the same moment
   const twins = await Promise.all([
     addX(HOD, { ticketNo: "412630", name: "Twin Person", gradeId: 9, departmentId: 1 }),
     addX(ANIL_D, { ticketNo: "412631", name: "Twin Person", gradeId: 9, departmentId: 1 }),
   ]);
   ok("two people add the SAME name in the SAME department at the same moment: one is saved and the other is asked 'is this a different person?' (the check and the write cannot be separated)", twins.filter((r) => r.status === "ok").length === 1 && twins.filter((r) => r.status === "conflict").length === 1 && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE name = 'TWIN PERSON'`)) === 1, JSON.stringify(twins.map((r) => r.status)));
 
-  // ---- A ROSTER WHOSE id HAS NO AUTOMATIC NUMBERING, as the live one (owner's log, 1 Nov 2026: "null value in column id ... violates not-null constraint") ----
+  // ---- a roster whose id has no automatic numbering, as the live one (my log, 1 Nov 2026: "null value in column id ... violates not-null constraint") ----
   const idDefault = (await rows(`SELECT column_default AS d FROM information_schema.columns WHERE table_schema='public' AND table_name='employee_roster' AND column_name='id'`))[0].d as string | null;
   await rows(`ALTER TABLE public.employee_roster ALTER COLUMN id DROP DEFAULT`);
   const maxId = async () => Number((await rows(`SELECT max(id) AS m FROM public.employee_roster`))[0].m);
@@ -385,12 +385,12 @@ async function main() {
   ok("a SQL script inserting a row at the same moment (its row not yet committed): the add WAITS for it and then takes the NEXT id after it: no collision, nothing lost", waited && afterScriptAdd.status === "ok" && afterScriptAdd.employee.id === nextForScript + 1 && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no = '342799'`)) === 1, `${waited} ${JSON.stringify(afterScriptAdd)}`);
   ok("...and the new person's login is linked as usual", noDef.status === "ok" && (await rows(`SELECT user_id FROM public.employee_roster WHERE id = $1`, [noDef.employee.id]))[0].user_id !== null);
   if (idDefault) await rows(`ALTER TABLE public.employee_roster ALTER COLUMN id SET DEFAULT ${idDefault}`);
-  if (idDefault) await rows(`SELECT setval(pg_get_serial_sequence('public.employee_roster', 'id'), (SELECT max(id) FROM public.employee_roster))`); // the counter moves past the ids made by hand, as a real restore would
+  if (idDefault) await rows(`SELECT setval(pg_get_serial_sequence('public.employee_roster', 'id'), (SELECT max(id) FROM public.employee_roster))`); // The counter moves past the ids made by hand, as a real restore would
   const withDef = await addX(HOD, { ticketNo: "342705", name: "With Default Five", gradeId: 21, departmentId: 4 });
   ok("a roster whose id DOES number itself is left alone: the add takes the id the table gives (no table lock, no hand-made id)", idDefault !== null && withDef.status === "ok");
 
   // ---- REMEMBERING THE TABLE LAYOUT AND THE CODE LISTS (step 67d) ----
-  // a database wrapper that COUNTS what it sends: the layout reads (information_schema) and the reads of the designations and departments
+  // Here I use a database wrapper that COUNTS what it sends: the layout reads (information_schema) and the reads of the designations and departments
   const counting = (key?: object) => {
     const n = { all: 0, layout: 0, lists: 0 };
     const d: import("./store").EmpDb = { ...(key ? { cacheKey: key } : {}), run: (fn) => db.run((q) => fn(async (sql, params) => { n.all++; if (/information_schema\.columns/.test(sql)) n.layout++; if (/FROM public\.(designation_grade|sail_department)\b/.test(sql)) n.lists++; return q(sql, params); })) };
@@ -431,7 +431,7 @@ async function main() {
   await saveAs(c1.d, M1, { address: "after clear" }, (await store.getEmployee(db, M1.id, true))!.version);
   ok("the memory can be cleared by hand (clear): the next save reads again", c1.n.layout === bForget.layout + 1 && c1.n.lists === bForget.lists + 2);
 
-  // opening a panel always reads fresh
+  // I check that opening a panel always reads fresh
   await saveAs(c1.d, M1, { address: "warm" }, (await store.getEmployee(db, M1.id, true))!.version);
   await rows(`INSERT INTO public.designation_grade (id, code, title, track, rank_order) VALUES (977, 410, 'Memory Probe', 'nonexec', 30)`);
   const bOpen = snapshot(c1.n);
@@ -439,14 +439,14 @@ async function main() {
   ok("opening a panel (the lookups request) reads the lists FRESH even while the memory is valid: a designation added a moment ago by a script is on the screen at once", listed.grades.some((g) => g.title === "Memory Probe") && c1.n.layout === bOpen.layout + 1 && c1.n.lists === bOpen.lists + 2, JSON.stringify([bOpen, c1.n]));
   ok("...and what that read found is what the saves use afterwards (nothing more to read)", await (async () => { const b = snapshot(c1.n); await saveAs(c1.d, M1, { address: "after open" }, (await store.getEmployee(db, M1.id, true))!.version); return c1.n.layout === b.layout && c1.n.lists === b.lists; })());
 
-  // a designation added behind the memory's back
+  // I add a designation behind the memory's back
   await rows(`INSERT INTO public.designation_grade (id, code, title, track, rank_order) VALUES (978, 411, 'Memory Probe Two', 'nonexec', 31)`);
   const healed = await store.addEmployee(c1.d, HOD, full({ ticketNo: "342811", name: "Healed Person", gradeId: 978, departmentId: 4 }));
   ok("a designation ADDED by a script after the lists were remembered: a save using it is NOT refused (the refusal is checked against the real list once): the person is added", healed.status === "ok" && healed.employee.gradeId === 978, JSON.stringify(healed));
   ok("...and the real list is remembered from then on (the next save with it reads nothing)", await (async () => { const b = snapshot(c1.n); const r = await store.addEmployee(c1.d, HOD, full({ ticketNo: "342812", name: "Healed Person Two", gradeId: 978, departmentId: 4 })); return r.status === "ok" && c1.n.lists === b.lists; })());
   ok("a designation that does NOT exist anywhere is still refused (the check against the real list does not let anything through): it says so, and nothing is written", await (async () => { const r = await store.addEmployee(c1.d, HOD, full({ ticketNo: "342813", name: "Nobody Grade", gradeId: 9999, departmentId: 4 })); return r.status === "invalid" && !!r.errors.gradeId && (await count(`SELECT count(*) AS n FROM public.employee_roster WHERE ticket_no='342813'`)) === 0; })());
 
-  // a designation removed behind the memory's back
+  // I remove a designation behind the memory's back
   await rows(`DELETE FROM public.employee_roster WHERE ticket_no IN ('342811', '342812')`);
   await rows(`DELETE FROM public.designation_grade WHERE id = 978`);
   const gone = await store.addEmployee(c1.d, HOD, full({ ticketNo: "342814", name: "Gone Grade", gradeId: 978, departmentId: 4 }));
@@ -477,7 +477,7 @@ async function main() {
   ok("...and withdrawn there is withdrawn at once", (await db.run((x) => store.authorityOf(x, "412777"))) === null);
   const storeSrc = readFileSync(join(process.cwd(), "src/lib/employees/admin/store.ts"), "utf8");
   ok("the store names no old table, keeps no lock words of its own, and takes its lock, its authority and the withdrawal on deletion through the shared kit (one Forbidden for all)", !/employee_admin_(delegate|audit)/.test(storeSrc) && !/const LOCK\b/.test(storeSrc) && /sharedBegin\(q, "employee", actor, needHod\)/.test(storeSrc) && /sharedAuthorityOf\(q, "employee", ticket\)/.test(storeSrc) && /export \{ Forbidden \}/.test(storeSrc) && /revokeEverywhere\(q, actor, role, cur\.ticketNo/.test(storeSrc));
-  { // deleting a delegate withdraws his authority in EVERY tool (owner's decision, 2 Nov 2026; step 68d): one history line in each tool
+  { // Deleting a delegate withdraws his authority in EVERY tool (my decision, 2 Nov 2026; step 68d): one history line in each tool
     const dd = await addX(HOD, { ticketNo: "412880", name: "Double Delegate", gradeId: 9, departmentId: 1 });
     ok("(set-up) an executive is added, authorised for the employee manager (by the HOD) and for the PAX editor (by a script)", dd.status === "ok" && (await store.grantDelegate(db, HOD, { ticket: "412880", name: "DOUBLE DELEGATE" })).status === "ok" && (await rows(`INSERT INTO public.facility_delegate (facility, ticket_no, name, granted_by_ticket, granted_by_name) VALUES ('pax', '412880', 'DOUBLE DELEGATE', '400001', 'HOD') RETURNING id`)).length === 1);
     if (dd.status === "ok") {

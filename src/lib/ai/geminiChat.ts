@@ -1,8 +1,8 @@
 // src/lib/ai/geminiChat.ts
 //
-// ONE hardened place for every Gemini text/JSON generation call in the app
+// This is the one hardened place for every Gemini text/JSON generation call in the app
 // (Executive Deep Synthesis, the NL2SQL model, the intent classifier, the query
-// router). Written after a review found the first inline version had:
+// router). It exists because a review found the first inline version had:
 //   * no timeout (the route's maxDuration is 60 s: Vercel killed the request),
 //   * no control of "thinking" (on Gemini 3 thinking tokens are counted against
 //     maxOutputTokens: measured, Pro with a 256 cap answered "{" and stopped with
@@ -14,17 +14,19 @@
 //   * every failure (even a bad key or a bad request) re-sent the whole prompt to
 //     the next model.
 //
-// This file never throws a message that contains the provider's response body:
-// the details go to the server log, the caller gets a short safe sentence.
+// My rule for this file: it never throws a message that contains the provider's response body.
+// The details go to the server log, and the caller gets a short safe sentence.
 
-import { PERF } from "@/lib/perf/switches"; // which models write and check an Executive Deep Search briefing
+import { PERF } from "@/lib/perf/switches";
+import { claudeCall, isClaudeModel } from "./claudeChat";
+import { withoutPro, modelAllowed } from "./noPro"; // my rule, no Pro models (23 Nov 2026) // models named "claude-..." go to Anthropic // which models write and check an Executive Deep Search briefing
 import { traceModelCall } from "../search/frontPathTrace";
 
 export type ThinkingLevel = "minimal" | "low" | "medium" | "high";
 
 export interface GeminiUsage {
   prompt: number;
-  /** answer tokens PLUS thinking tokens (thinking is billed as output) */
+  /** Answer tokens plus thinking tokens, because thinking is billed as output. */
   completion: number;
   total: number;
   cached: number;
@@ -32,25 +34,27 @@ export interface GeminiUsage {
 
 export interface GeminiRequest {
   system?: string;
-  /** ask for application/json (the model then returns bare JSON) */
+  /** I ask for application/json here (the model then returns bare JSON). */
   json?: boolean;
-  /** answer budget; thinking is extra on top of this (see thinkingBudgetPad) */
+  /** Answer budget; thinking comes extra on top of this (see thinkingBudgetPad). */
   maxOutputTokens?: number;
   temperature?: number;
-  /** a fixed seed makes repeated calls with the same prompt as alike as the provider allows (a model that rejects it is retried without) */
+  /** A fixed seed makes repeated calls with the same prompt as alike as the provider allows; a model that rejects it is retried without. */
   seed?: number;
-  /** "low" keeps Pro/Flash fast and leaves the budget for the visible answer. null = provider default. */
+  /** I use "low" to keep Pro/Flash fast and to leave the budget for the visible answer. null = provider default. */
   thinking?: ThinkingLevel | null;
-  /** models to try in order (first = main). Duplicates are removed. */
+  /** Models to try in order (first = main). I remove duplicates. */
   models: string[];
-  /** one HTTP attempt may take at most this long */
+  /** I let one HTTP attempt take at most this long. */
   attemptTimeoutMs?: number;
-  /** all attempts together may take at most this long (keep under the route's maxDuration) */
+  /** All attempts together may take at most this long; keep it under the route's maxDuration. */
   totalTimeoutMs?: number;
-  /** HEDGE: when the first request has not answered after this long, the same request is sent a second time and the first answer to arrive is used (the other is dropped). A call that HANGS (a model that
-   *  takes 45 s for what normally takes 12) then costs this long, not its whole timeout. Used only when set; the second request is made only when the first is late, so it costs nothing on a normal call. */
+  /**
+   * Hedge: when the first request has not answered after this long, I send the same request a second time and use the first answer to arrive (the other is dropped). A call that hangs (a model that
+   *  takes 45 s for what normally takes 12) then costs this long, not its whole timeout. I use it only when it is set; the second request is made only when the first is late, so it costs nothing on a normal call.
+   */
   hedgeAfterMs?: number;
-  /** extra label for the server log */
+  /** Extra label for the server log. */
   label?: string;
   onUsage?: (u: GeminiUsage) => void;
 }
@@ -62,11 +66,11 @@ export interface GeminiReply {
   finishReason: string;
 }
 
-/** An error whose .message is safe to show to a user; .detail is for the server log only. */
+/** I made this error so that its .message is safe to show to a user; .detail is for the server log only. */
 export class GeminiError extends Error {
   status: number | null;
   detail: string;
-  /** true when another model might succeed (rate limit, overload, model missing, timeout) */
+  /** True when another model might succeed (rate limit, overload, model missing, timeout). */
   retryable: boolean;
   constructor(message: string, opts: { status?: number | null; detail?: string; retryable?: boolean } = {}) {
     super(message);
@@ -79,11 +83,11 @@ export class GeminiError extends Error {
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-/** Thinking is billed and counted as output: leave room for it so the visible answer is never cut. */
+/** Thinking is billed and counted as output, so I leave room for it: the visible answer must never be cut. */
 const THINKING_PAD: Record<ThinkingLevel, number> = { minimal: 256, low: 2048, medium: 6144, high: 12288 };
 
 function pickText(parts: any[] | undefined): string {
-  // Join every NON-thought text part (a thought summary part can come first).
+  // I join every NON-thought text part, because a thought summary part can come first.
   return (parts || [])
     .filter((p) => p && typeof p.text === "string" && !p.thought)
     .map((p) => p.text as string)
@@ -93,7 +97,7 @@ function pickText(parts: any[] | undefined): string {
 
 function usageOf(meta: any): GeminiUsage {
   const prompt = Number(meta?.promptTokenCount ?? 0);
-  // candidatesTokenCount EXCLUDES thinking: add it, or the trace undercounts the cost.
+  // candidatesTokenCount excludes thinking, so I add it; otherwise the trace undercounts the cost.
   const completion = Number(meta?.candidatesTokenCount ?? 0) + Number(meta?.thoughtsTokenCount ?? 0);
   return {
     prompt,
@@ -103,7 +107,7 @@ function usageOf(meta: any): GeminiUsage {
   };
 }
 
-// Models that answered "400 ... seed": not asked for a seed again in this process.
+// Models that answered "400 ... seed": I do not ask them for a seed again in this process.
 const noSeedModels = new Set<string>();
 
 function bodyFor(prompt: string, req: GeminiRequest, withThinking: boolean, model: string): string {
@@ -116,7 +120,7 @@ function bodyFor(prompt: string, req: GeminiRequest, withThinking: boolean, mode
       ...(req.json ? { responseMimeType: "application/json" } : {}),
       temperature: req.temperature ?? 0.1,
       ...(typeof req.seed === "number" && !noSeedModels.has(model) ? { seed: req.seed } : {}),
-      // pad covers thinking tokens when thinking is on (they count against this limit)
+      // The pad covers thinking tokens when thinking is on, because they count against this limit.
       maxOutputTokens: (req.maxOutputTokens ?? 4096) + (withThinking && level ? pad : 0),
       ...(withThinking && level ? { thinkingConfig: { thinkingLevel: level } } : {}),
     },
@@ -124,10 +128,10 @@ function bodyFor(prompt: string, req: GeminiRequest, withThinking: boolean, mode
 }
 
 /**
- * Call Gemini with a model fallback chain, a per-attempt timeout and a total deadline.
- * Fallback rules: 429 / 5xx / 404 / timeout -> next model. 400 mentioning thinking -> same
+ * I call Gemini here with a model fallback chain, a per-attempt timeout and a total deadline.
+ * My fallback rules: 429 / 5xx / 404 / timeout -> next model. 400 mentioning thinking -> same
  * model once without thinkingConfig. Bad key (401/403) or any other 4xx -> stop at once.
- * A cut-off answer (finishReason MAX_TOKENS) is an error, never returned as if complete.
+ * A cut-off answer (finishReason MAX_TOKENS) is an error; I never return it as if it were complete.
  */
 export async function geminiGenerate(prompt: string, req: GeminiRequest): Promise<GeminiReply> {
   const hedge = req.hedgeAfterMs ?? 0;
@@ -141,7 +145,7 @@ export async function geminiGenerate(prompt: string, req: GeminiRequest): Promis
     const lose = (e: unknown) => {
       firstError ??= e;
       pending--;
-      // a failure before the hedge was due: the chain of models has already been tried, and a non-retryable one (credit, key) would fail again: no second request
+      // A failure before the hedge was due: the chain of models has already been tried, and a non-retryable one (credit, key) would fail again, so I send no second request.
       if (pending === 0 && timer !== null) { clearTimeout(timer); timer = null; }
       if (pending === 0 && timer === null) reject(firstError);
     };
@@ -159,21 +163,41 @@ export async function geminiGenerate(prompt: string, req: GeminiRequest): Promis
 
 async function geminiGenerateOnce(prompt: string, req: GeminiRequest): Promise<GeminiReply> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new GeminiError("The AI service is not configured (GEMINI_API_KEY missing).", { retryable: false });
+  if (!apiKey && !req.models.some(isClaudeModel)) throw new GeminiError("The AI service is not configured (GEMINI_API_KEY missing).", { retryable: false });
 
-  const models = req.models.filter((m, i, a) => m && a.indexOf(m) === i);
+  const models = withoutPro(req.models.filter((m, i, a) => m && a.indexOf(m) === i), `geminiGenerate ${req.label || ""}`.trim());
+  if (models.length === 0) throw new GeminiError("The AI service has no allowed model for this request (Pro models are refused).", { retryable: false });
   const attemptMs = req.attemptTimeoutMs ?? 40_000;
   const deadline = Date.now() + (req.totalTimeoutMs ?? 55_000);
   const label = req.label || "gemini";
   let last: GeminiError | null = null;
 
   for (const model of models) {
+    // I call a Claude model (name starts with "claude") through src/lib/ai/claudeChat.ts; a failure that another model might survive moves on to the next one in the chain.
+    if (isClaudeModel(model)) {
+      const remainingC = deadline - Date.now();
+      if (remainingC < 1500) throw last ?? new GeminiError("The AI service took too long to answer. Please try again.", { retryable: true });
+      const startedC = Date.now();
+      try {
+        const r = await claudeCall(model, prompt, req, Math.min(attemptMs, remainingC));
+        traceModelCall({ model, ...r.usage, ms: Date.now() - startedC });
+        if (req.onUsage) req.onUsage(r.usage);
+        return r;
+      } catch (e: any) {
+        if (!(e instanceof GeminiError)) throw e;
+        console.warn(`[${label}] ${e.detail || e.message}`);
+        if (!e.retryable) throw e;
+        last = e;
+        continue;
+      }
+    }
+    if (!apiKey) { last ??= new GeminiError("The AI service is not configured (GEMINI_API_KEY missing).", { retryable: false }); continue; } // Only a Gemini model needs the key; a Claude one before it did not.
     for (const withThinking of [true, false]) {
       const remaining = deadline - Date.now();
       if (remaining < 1500) {
         throw last ?? new GeminiError("The AI service took too long to answer. Please try again.", { retryable: true });
       }
-      if (!withThinking && (req.thinking === null)) break; // thinking was already off: nothing different to try
+      if (!withThinking && (req.thinking === null)) break; // Thinking is already off, so there is nothing different to try.
       const started = Date.now();
       let res: Response;
       try {
@@ -196,12 +220,12 @@ async function geminiGenerateOnce(prompt: string, req: GeminiRequest): Promise<G
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         const status = res.status;
-        // The one retry on the SAME model: this model rejected the thinking setting.
+        // This is the one retry I allow on the SAME model, because it rejected the thinking setting.
         if (status === 400 && withThinking && /thinking/i.test(text)) {
           console.warn(`[${label}] ${model} rejected thinkingConfig, retrying without it`);
           continue;
         }
-        // This model rejected the seed: ask it again, once, without one.
+        // This model rejected the seed, so I ask it again, once, without one.
         if (status === 400 && typeof req.seed === "number" && !noSeedModels.has(model) && /seed/i.test(text)) {
           console.warn(`[${label}] ${model} rejected the seed, retrying without it`);
           noSeedModels.add(model);
@@ -219,7 +243,7 @@ async function geminiGenerateOnce(prompt: string, req: GeminiRequest): Promise<G
           { status, detail: `${model} HTTP ${status}: ${text.slice(0, 400)}`, retryable },
         );
         console.warn(`[${label}] ${last.detail}`);
-        if (!retryable) throw last; // a bad key / bad request will fail on every model: stop
+        if (!retryable) throw last; // A bad key or a bad request fails on every model, so I stop.
         break; // next model
       }
 
@@ -257,25 +281,30 @@ async function geminiGenerateOnce(prompt: string, req: GeminiRequest): Promise<G
   throw last ?? new GeminiError("The AI service is unavailable.", { retryable: true });
 }
 
-/** Model chains. Each is overridable from the environment; duplicates are removed by geminiGenerate. */
+/** Model chains. Each can be overridden from the environment; geminiGenerate removes the duplicates. */
 export function chatModels(): string[] {
   return [process.env.GEMINI_CHAT_MODEL || "gemini-3.8-flash", "gemini-flash-latest"];
 }
-/** the models of the writer of an Executive Deep Search briefing: the environment (GEMINI_SYNTHESIS_MODEL), else the switch PERF.edsDraftModel (src/lib/perf/switches.js; "" = the pro model, the previous way), then the fallbacks */
+/** I take the models of the writer of an Executive Deep Search briefing from the environment (GEMINI_SYNTHESIS_MODEL), else the switch PERF.edsDraftModel (src/lib/perf/switches.js; "" = the pro model, the previous way), then the fallbacks. */
 export function synthesisModels(): string[] {
-  const first = (process.env.GEMINI_SYNTHESIS_MODEL || "").trim() || PERF.edsDraftModel || "gemini-3.1-pro-preview";
-  return [first, "gemini-pro-latest", "gemini-3.8-flash"];
+  // I ignore an environment value that names a Pro model (no Pro models: src/lib/ai/noPro.ts), so a leftover GEMINI_SYNTHESIS_MODEL=gemini-3.1-pro-preview cannot bring the dear model back.
+  const envModel = (process.env.GEMINI_SYNTHESIS_MODEL || "").trim();
+  const first = (envModel && modelAllowed(envModel) ? envModel : "") || PERF.edsDraftModel || "gemini-3.8-flash";
+  if (envModel && !modelAllowed(envModel)) withoutPro([envModel], "GEMINI_SYNTHESIS_MODEL");
+  return [modelAllowed(first) ? first : "gemini-3.8-flash", "gemini-flash-latest"].filter((m, i, a) => a.indexOf(m) === i);
 }
-/** the models of the second reading (the checker): the environment (GEMINI_VERIFY_MODEL), else the switch PERF.edsVerifyModel ("" = the writer's own chain, the previous way), then the writer's chain as fallbacks */
+/** I take the models of the second reading (the checker) from the environment (GEMINI_VERIFY_MODEL), else the switch PERF.edsVerifyModel ("" = the writer's own chain, the previous way), then the writer's chain as fallbacks. */
 export function verifyModels(): string[] {
-  const v = (process.env.GEMINI_VERIFY_MODEL || "").trim() || PERF.edsVerifyModel;
-  return v ? [v, ...synthesisModels()] : synthesisModels();
+  const envV = (process.env.GEMINI_VERIFY_MODEL || "").trim();
+  const v = (envV && modelAllowed(envV) ? envV : "") || PERF.edsVerifyModel;
+  if (envV && !modelAllowed(envV)) withoutPro([envV], "GEMINI_VERIFY_MODEL");
+  return v && modelAllowed(v) ? [v, ...synthesisModels()] : synthesisModels();
 }
 
 /**
- * Which provider the app's chat/JSON calls use (see chatLlm in nl2sql/llm.ts):
+ * This decides which provider the app's chat/JSON calls use (see chatLlm in nl2sql/llm.ts):
  *   LLM_PROVIDER=gemini | groq  explicit choice;
- *   otherwise Gemini whenever GEMINI_API_KEY exists; Groq only when it is the only key present.
+ *   otherwise I use Gemini whenever GEMINI_API_KEY exists, and Groq only when it is the only key present.
  */
 export function preferGroq(): boolean {
   const want = (process.env.LLM_PROVIDER || "").trim().toLowerCase();

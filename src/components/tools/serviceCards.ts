@@ -1,7 +1,7 @@
 // src/components/tools/serviceCards.ts
 //
-// THE CARDS OF THE UTILITY SERVICES PAGE, worked out from the registry (src/tools/registry.ts and registry.ui.tsx), never written by hand: every topic that has a page of its own (a calculator or reader) or a live
-// card (prices, news, weather, trains, the guides) is one card, sorted A to Z. A new topic added to the registry appears here by itself. This file names no topic.
+// The cards of the utility services page, worked out from the registry (src/tools/registry.ts and registry.ui.tsx), never written by hand: every topic that has a page of its own (a calculator or reader) or a live
+// card (prices, news, weather, trains, the guides) is one card, sorted A to Z. A new topic added to the registry appears here by itself, and this file names no topic.
 // Title and sentence: a calculator or reader uses its tile in the list of calculators (so the two lists agree word for word); a live card uses its topic's own name and sentence (topic.ts `intent`).
 // "Type": a short sample question of the topic (pickType), which the registry's test proves the topic answers.
 import type React from "react";
@@ -21,14 +21,14 @@ export interface ServiceCard {
   text: string;
   tone: Tone;
   icon: React.ReactNode;
-  /** a calculator or reader opens its own page; a live card opens in place */
+  /** A calculator or reader opens its own page; a live card opens in place. */
   kind: "form" | "live";
   group: ServiceGroup;
-  /** the words that open it from the search bar */
+  /** The words that open it from the search bar. */
   type: string;
 }
 
-/** the words shown on a card: the topic's first sample question that is short enough to read at a glance (5 to 24 characters), else its first ("durgapur weather report with forecast" gives way to "weather") */
+/** The words shown on a card: I take the topic's first sample question that is short enough to read at a glance (5 to 24 characters), else its first ("durgapur weather report with forecast" gives way to "weather"). */
 export function pickType(samples: readonly { q: string }[] | undefined, fallback: string): string {
   const qs = (samples ?? []).map((s) => s.q).filter(Boolean);
   return qs.find((q) => q.length >= 5 && q.length <= 24) ?? qs[0] ?? fallback;

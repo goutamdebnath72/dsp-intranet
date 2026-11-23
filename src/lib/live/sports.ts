@@ -1,10 +1,10 @@
 // src/lib/live/sports.ts
 //
-// SPORTS HEADLINES: from the feeds of ESPNcricinfo, The Hindu Sport and BBC Sport. Each story is sorted by its own words into
+// Sports headlines, from the feeds of ESPNcricinfo, The Hindu Sport and BBC Sport. I sort each story by its own words into
 //   INDIA          India or an Indian team, player or league is directly in it (the national teams, the IPL, the ISL, the Ranji Trophy, the BCCI ...);
 //   WORLD EVENTS   a major world event, with or without India (a World Cup, the Olympics, the Asian or Commonwealth Games, the Champions Trophy, a Grand Slam, Formula 1 ...);
 //   OTHER          everything else.
-// A story can be both. These are HEADLINES with links to the publisher's page; no free, steady live-score feed exists, and a card does not pretend to be one.
+// A story can be both. These are headlines with links to the publisher's page; no free, steady live-score feed exists, and I do not let a card pretend to be one.
 import type { DateTime } from "luxon";
 import { mergeFeeds, newestFirst, parseRss, type FeedItem } from "./rss";
 import type { FeedSource } from "./news";
@@ -47,6 +47,6 @@ export function buildSports(texts: Array<string | null>, now: DateTime, limit = 
     if (items.length) { feeds.push(items); used.push(s.name); } else failed.push(s.name);
   });
   if (!feeds.length) throw new Error("None of the sports feeds answered.");
-  // the stories are CHOSEN a paper at a time (so that no one paper fills the list) and SHOWN by time, the latest at the top: every tab (India, World events, All sports) is a filter of this one list, so each is in time order too
+  // I CHOOSE the stories a paper at a time (so that no one paper fills the list) and SHOW them by time, the latest at the top: every tab (India, World events, All sports) is a filter of this one list, so each is in time order too.
   return { items: newestFirst(mergeFeeds(feeds, limit, now, 48), (i) => i.publishedAt).map((i) => ({ ...i, groups: classify(i) })), used, failed };
 }

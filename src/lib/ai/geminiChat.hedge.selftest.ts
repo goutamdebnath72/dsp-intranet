@@ -1,5 +1,5 @@
 // src/lib/ai/geminiChat.hedge.selftest.ts: npx tsx --tsconfig tsconfig.selftest.json src/lib/ai/geminiChat.hedge.selftest.ts
-// The hedge (GeminiRequest.hedgeAfterMs): a call that has not answered in time is sent again and the first answer wins; a call that answers in time is sent once.
+// This tests the hedge (GeminiRequest.hedgeAfterMs): I send a call again when it has not answered in time and the first answer wins; a call that answers in time is sent once.
 import { geminiGenerate } from "./geminiChat";
 
 process.env.GEMINI_API_KEY = "test-key";
@@ -19,14 +19,14 @@ async function main() {
     const r1 = await geminiGenerate("p", REQ);
     ok("without a hedge the request is sent once", r1.text === "a" && calls === 1, `calls=${calls}`);
 
-    // 2. answered before the hedge is due: still one request, and no second one later
+    // 2. When the answer comes before the hedge is due, I expect still one request, and no second one later.
     calls = 0;
     globalThis.fetch = (async () => { calls++; await sleep(50); return reply("fast"); }) as any;
     const r2 = await geminiGenerate("p", { ...REQ, hedgeAfterMs: 300 });
     await sleep(450);
     ok("an answer that comes in time is the only request (the hedge is cancelled)", r2.text === "fast" && calls === 1, `calls=${calls}`);
 
-    // 3. the first request hangs: the second, sent at the hedge, answers and wins long before the first would have timed out
+    // 3. The first request hangs: the second, sent at the hedge, answers and wins long before the first would have timed out.
     calls = 0;
     globalThis.fetch = ((_u: any, init: any) => {
       const n = ++calls;
@@ -39,7 +39,7 @@ async function main() {
     ok("a hung first request is hedged: the second request's answer is used", r3.text === "second" && calls === 2, `calls=${calls} text=${r3.text}`);
     ok("and it takes about the hedge plus the second request, not the first one's timeout", took >= 300 && took < 1500, `took=${took}`);
 
-    // 4. both requests fail: the call fails (it does not hang)
+    // 4. When both requests fail, the call fails; it must not hang.
     calls = 0;
     globalThis.fetch = (async () => { calls++; await sleep(20); return new Response("{}", { status: 500 }); }) as any;
     let err: any = null;

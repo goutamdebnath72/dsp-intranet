@@ -1,7 +1,7 @@
 -- 09_circular_ingest_log.sql
 --
--- What the upload DECIDED about each circular, one row per upload: which kind it recognised, what it did, and why. Nothing reads this to answer a
--- question; it is the backend's memory, so that "why is there no health check-up data for this circular?" can be answered by looking:
+-- I keep here what the upload DECIDED about each circular, one row per upload: which kind it recognised, what it did, and why. Nothing reads this to answer a
+-- question; it is the backend's memory, so that I can answer "why is there no health check-up data for this circular?" by looking:
 --
 --   SELECT c.id, c."serialNumber", l.kind, l.status, l.detail, l.created_at
 --   FROM public.circular_ingest_log l JOIN public.circulars c ON c.id = l.circular_id ORDER BY l.id DESC LIMIT 10;
@@ -15,8 +15,8 @@
 --         'failed'       the reading or the storing failed (the detail says why): run the tool
 --         'saved'        a general or holiday-list circular, saved as usual
 --
--- Deleting a circular deletes its rows here too (ON DELETE CASCADE), so a deleted and re-uploaded circular starts with a clean history.
--- Safe to run more than once. The upload keeps working if this table does not exist (it only writes the log when it can).
+-- Rows go with their circular (ON DELETE CASCADE), so a deleted and re-uploaded circular starts with a clean history.
+-- Safe to run more than once. I made the upload keep working if this table does not exist: it writes the log only when it can.
 
 CREATE TABLE IF NOT EXISTS public.circular_ingest_log (
   id          bigserial PRIMARY KEY,

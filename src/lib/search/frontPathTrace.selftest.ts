@@ -1,5 +1,5 @@
 // Run: npx tsx --tsconfig tsconfig.json src/lib/search/frontPathTrace.selftest.ts
-// No database, no network, no real model: the Groq endpoint is faked.
+// No database, no network, no real model: I fake the Groq endpoint.
 
 import {
   startTrace, withTrace, traceStep, traceModelCall, traceWait, setTraceRoute, setTraceGate, setTraceSynth, summarizeTrace,
@@ -102,7 +102,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   globalThis.fetch = (async () => {
     call++;
     if (call === 1) {
-      // first answer: a per-minute 429 that asks us to wait 0.1 s
+      // first answer: a per-minute 429 that asks the caller to wait 0.1 s
       return new Response(JSON.stringify({ error: { message: "Rate limit reached ... Please try again in 100ms." } }), { status: 429, headers: { "retry-after": "0.1" } });
     }
     return new Response(
@@ -123,13 +123,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   eq("the adapter reported one successful call", tr.calls.length, 1);
   eq("with the real token numbers", [tr.calls[0]?.prompt, tr.calls[0]?.completion, tr.calls[0]?.total], [4687, 185, 4872]);
   ok("and the time it slept for the 429", tr.waitedMs >= 600 && tr.waitedMs < 5_000, `waited ${tr.waitedMs}`);
-  // outside a trace the adapter works exactly as before
+  // outside a trace the adapter must work exactly as before
   call = 1;
   globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: "x" } }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }), { status: 200 })) as typeof fetch;
   console.info = () => {};
   try { eq("the adapter works untraced", await groqLlm()("hello"), "x"); } finally { console.info = origInfo; globalThis.fetch = realFetch; }
 
-  // the umbrella's shadow comparison (src/records): headers and a mention in the line only when it says something
+  // the umbrella's shadow comparison (src/records): headers, and a mention in the line, only when it says something
   eq("no plan/scope headers when not recorded", ["x-omni-plan" in h, "x-omni-scope" in h], [false, false]);
   eq("plan and scope headers", [traceHeaders({ ...sum, plan: "pax", scope: "auto" })["x-omni-plan"], traceHeaders({ ...sum, plan: "pax", scope: "auto" })["x-omni-scope"]], ["pax", "auto"]);
   ok("console line stays quiet under Everything when the planner has no reading", !traceLine({ ...sum, plan: "-", scope: "auto" }, "q").includes("scope"));

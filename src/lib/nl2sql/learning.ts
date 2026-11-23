@@ -11,7 +11,7 @@
 //           model as mistakes to avoid (loadNegativeExamples / pickNegatives); (c) the person's reason picks
 //           a different second attempt (retryHint, and the route chosen in omnibar.ts).
 //   Everything is stored in public.nl2sql_log / public.omnibar_feedback and summarised by
-//   eval/feedback-report.ts so a human can turn recurring failures into tests and rules.
+//   eval/feedback-report.ts, so I can turn recurring failures into tests and rules.
 
 import type { SqlClient } from "./types";
 import { latestVotesCte } from "./votes";
@@ -26,7 +26,7 @@ export const ANSWER_SOURCES = ["nl2sql", "cache", "holiday", "legacy", "circular
 export type AnswerSource = (typeof ANSWER_SOURCES)[number];
 export const isAnswerSource = (x: unknown): x is AnswerSource => typeof x === "string" && (ANSWER_SOURCES as readonly string[]).includes(x);
 
-/** Confirmations needed before an answer is served without the model. One "Yes" is final (a later "No" revokes it). */
+/** Confirmations needed before I serve an answer without the model. One "Yes" is final (a later "No" revokes it). */
 export function verifiedMinConfirms(): number {
   const n = Number(process.env.NL2SQL_VERIFIED_MIN_CONFIRMS);
   return Number.isInteger(n) && n >= 1 ? n : 1;
@@ -45,7 +45,7 @@ const REASON_HINTS: Record<ReasonCode, string> = {
   other: "The answer was not what the person meant.",
 };
 
-/** The sentence added to the prompt for a second attempt, from the reason and the person's own words. */
+/** The sentence I add to the prompt for a second attempt, built from the reason and the person's own words. */
 export function retryHint(reason: ReasonCode | null, note: string | null): string {
   const base = REASON_HINTS[reason ?? "other"];
   const words = (note || "").replace(/\s+/g, " ").trim().slice(0, 300);
@@ -60,7 +60,7 @@ export interface NegativeExample {
   reason: string | null;
 }
 
-/** Recently rejected question/SQL pairs (newest first, distinct). */
+/** Loads the recently rejected question/SQL pairs (newest first, distinct). */
 export async function loadNegativeExamples(client: SqlClient, limit = 200): Promise<NegativeExample[]> {
   try {
     const r = await client.query(
@@ -84,7 +84,7 @@ export async function loadNegativeExamples(client: SqlClient, limit = 200): Prom
   }
 }
 
-/** The rejected readings of the most SIMILAR earlier questions (a similar question, not necessarily this one). */
+/** Picks the rejected readings of the most SIMILAR earlier questions (a similar question, not necessarily this one). */
 export function pickNegatives(question: string, negatives: NegativeExample[], k = 2, minSimilarity = 0.34): NegativeExample[] {
   return negatives
     .map((n) => ({ n, s: similarity(question, n.question) }))
@@ -103,8 +103,8 @@ export interface VerifiedAnswer {
 }
 
 /**
- * A stored SQL for this exact (normalized) question that at least `minConfirms` DIFFERENT PEOPLE confirmed (latest vote of each
- * person, see votes.ts; one Yes is enough by default) and that NOBODY rejected. A Yes and a No from different people = disputed = not here. It is served by re-running the SQL (always fresh data), without calling the model.
+ * Finds a stored SQL for this exact (normalized) question that at least `minConfirms` DIFFERENT PEOPLE confirmed (latest vote of each
+ * person, see votes.ts; one Yes is enough by default) and that NOBODY rejected. A Yes and a No from different people means disputed, so it is not returned. I serve it by re-running the SQL (always fresh data), without calling the model.
  * A single later "No" removes it from this list, so a verified answer can always be revoked.
  */
 export async function findVerifiedSql(client: SqlClient, question: string, minConfirms: number): Promise<VerifiedAnswer | null> {

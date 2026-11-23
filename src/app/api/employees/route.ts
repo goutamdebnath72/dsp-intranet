@@ -19,14 +19,14 @@ export const fetchCache = "force-no-store";
  * mode=id   -> live, exact lookups (ticket / mobile / SAIL PNO) as the user types.
  * mode=name -> fuzzy + phonetic name search, triggered on Enter.
  *
- * Login-gated (same privilege model as the rest of the app). Contact fields
- * come back MASKED; the /reveal endpoint returns full values and logs access.
+ * This route is login-gated, with the same privilege model as the rest of the app. I return contact fields MASKED;
+ * the /reveal endpoint returns full values and logs access.
  */
 export async function GET(request: Request) {
   const authOptions = await getAuthOptions();
   const session = await getServerSession(authOptions);
 
-  // Employee directory is for authenticated users only.
+  // I let only authenticated users into the employee directory.
   if (!session?.user) {
     return NextResponse.json({ results: [] }, { status: 401 });
   }
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ results: maskAnswer(results, { signedIn: true }) });
     }
 
-    // mode === "id": only run if the shape is actually an ID pattern.
+    // In mode === "id" I run the lookup only if the shape is really an ID pattern.
     const shape = detectShape(q);
     if (
       shape.kind === "ticket" ||
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ results: maskAnswer(results, { signedIn: true }) });
     }
 
-    // A name-shaped query in id mode -> nothing live (waits for Enter).
+    // A name-shaped query in id mode returns nothing live; it waits for Enter.
     return NextResponse.json({ results: [] });
   } catch (error: any) {
     console.error("❌ Employee search failed:", error?.message ?? error);

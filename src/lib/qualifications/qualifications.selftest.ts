@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/qualifications/qualifications.selftest.ts
-// Step 58a: the TABLE OF DEGREES and the parser. Owner, 26 Oct 2026: "the system does not understand what post graduate means": it listed MBBS doctors for "post graduate degree on medicine". A degree now has a
+// Step 58a: the TABLE OF DEGREES and the parser. My complaint (26 Oct 2026): "the system does not understand what post graduate means": it listed MBBS doctors for "post graduate degree on medicine". A degree now has a
 // level, and "post graduate" is every level above graduate.
 
 import { existsSync, readFileSync } from "node:fs";
@@ -45,7 +45,7 @@ ok("MBBS plus a postgraduate diploma is POSTGRADUATE (the highest wins): MBBS,DG
 ok("MCh & DrNB is SUPER-specialty, above postgraduate", level("MCH & DRNB PLASTIC SURGERY") === "superspecialty" && levelRank("superspecialty") > levelRank("postgraduate"));
 ok("an MD is POSTGRADUATE although it is called a doctor's degree, and a PhD is the doctorate", level("MD") === "postgraduate" && level("PhD") === "doctorate");
 
-// ---- the other fields the owner named: engineering, arts, science, commerce, computer
+// ---- the other fields I named: engineering, arts, science, commerce, computer
 const fields: [string, string][] = [
   ["B.E.", "graduate"], ["B.Tech", "graduate"], ["B.Tech (Mechanical)", "graduate"], ["AMIE", "graduate"], ["M.E.", "postgraduate"], ["M.Tech", "postgraduate"], ["M.Tech CSE", "postgraduate"],
   ["BA", "graduate"], ["B.A. (Hons)", "graduate"], ["MA", "postgraduate"], ["M.A. (English)", "postgraduate"],

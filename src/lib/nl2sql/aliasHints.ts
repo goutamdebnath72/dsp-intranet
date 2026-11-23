@@ -1,30 +1,30 @@
 import { DEPARTMENT_GROUPS, type DepartmentGroup } from "./departmentAliases";
 // src/lib/nl2sql/aliasHints.ts
 //
-// Static SNAPSHOT of the short forms people type, copied on 29 Sep 2026 from
-// the legacy src/lib/employees/departments.ts and designationGrades.ts so this
-// experiment stays self-contained (the legacy files are untouched and dormant).
-// These are HINTS shown to the model, not code paths: adding one is a data
-// edit. Department full names come live from the database at run time.
+// I keep this as a static SNAPSHOT of the short forms people type, copied on 29 Sep 2026 from the legacy src/lib/employees/departments.ts and designationGrades.ts,
+// so that this experiment stays self-contained (the legacy files are untouched and dormant).
+// These are HINTS shown to the model, not code paths: adding one is a data edit. Department full names come live from the database at run time.
 
-/** [department name as in the legacy list, [short forms]] -- names are
- *  approximate; the model must match them against the live department list. */
+/**
+ * [department name as in the legacy list, [short forms]] -- the names are approximate;
+ * the model must match them against the live department list.
+ */
 export const DEPARTMENT_SHORT_FORMS: [string, string[]][] = [
   ["ADMINISTRATION", ["admin"]],
   ["BUSINESS EXCELLENCE", ["be"]],
   ["C & IT", ["c&it", "cit", "c and it", "computer and it", "it department"]],
   ["CALCUTTA BRANCH", ["kolkata branch"]],
   ["CENTRAL STORES", ["csd"]],
-  // step 45a: "CHRD INDUSTRIAL 2" removed (no such row in the real list; CHRD is to be mapped to its real row)
+  // Step 45a: I removed "CHRD INDUSTRIAL 2" (no such row in the real list; CHRD is to be mapped to its real row).
   ["CO & CC", ["cocc"]],
   ["COKE OVEN REFRACTORY", ["refractory"]],
   ["ELECTRICAL TECHNICAL LAB", ["etl"]],
   ["FINANCE & A/C BRANCH", ["finance"]],
   ["FIRE SERVICES", ["fire"]],
-  // step 45a: "plant medical" no longer points to IPU: Plant Medical (PMU) is in the MAIN HOSPITAL group of departmentAliases.ts
+  // Step 45a: "plant medical" no longer points to IPU, because Plant Medical (PMU) is in the MAIN HOSPITAL group of departmentAliases.ts.
   ["LOCO REPAIR SHOP", ["lrs"]],
   ["M&HS", ["main hospital"]],
-  // step 45a: "MANAGEMENT TRAINEE" removed (no such department; it is a designation)
+  // Step 45a: I removed "MANAGEMENT TRAINEE": there is no such department, it is a designation.
   ["MATERIAL MANAGEMENT", ["mm"]],
   ["R & C LABORATORY", ["rcl"]],
   ["RAJBHASHA", ["hindi cell"]],
@@ -32,8 +32,10 @@ export const DEPARTMENT_SHORT_FORMS: [string, string[]][] = [
   ["WAGON REPAIR SHOP", ["wrs"]],
 ];
 
-/** Departments that consist of SEVERAL department rows (sections). The model
- *  must include ALL of the listed department codes for such a department. */
+/**
+ * These are departments that consist of SEVERAL department rows (sections).
+ * I require the model to include ALL of the listed department codes for such a department.
+ */
 export const MULTI_ROW_DEPARTMENTS: { name: string; aliases: string[]; codes: number[]; note: string }[] = [
   {
     name: "C & IT",
@@ -43,16 +45,16 @@ export const MULTI_ROW_DEPARTMENTS: { name: string; aliases: string[]; codes: nu
   },
   {
     name: "PLANT GARAGE",
-    aliases: ["plant garage", "mhemd", "mheod", "M.H.E.M.D.", "M.H.E.O.D."], // the bare word "garage" is NOT a nickname: the township garage is another department (step 49a asks which)
+    aliases: ["plant garage", "mhemd", "mheod", "M.H.E.M.D.", "M.H.E.O.D."], // I do not treat the bare word "garage" as a nickname: the township garage is another department (step 49a asks which)
     codes: [85000, 85070, 85110, 85200, 85330, 85430],
     note: "85110 = Operation Garage (M.H.E.O.D.), 85200 = Maintenance Garage (M.H.E.M.D.); all six are Plant Garage. The TOWNSHIP garage is a different department and is not one of these rows.",
   },
 ];
 
-/** The nicknames and groupings of the large departments now live in ONE file, departmentAliases.ts (step 45a); this name stays for the code that reads it. */
+/** I moved the nicknames and groupings of the large departments into ONE file, departmentAliases.ts (step 45a); I keep this name for the code that reads it. */
 export const DEPARTMENT_FAMILIES: DepartmentGroup[] = DEPARTMENT_GROUPS;
 
-/** Words that department names abbreviate (seen in the live list: "(ELECT)", "(MECH)", "(OPRN)", "ELECT.MAINT.", "DEPTT."). */
+/** Here are the words that department names abbreviate (seen in the live list: "(ELECT)", "(MECH)", "(OPRN)", "ELECT.MAINT.", "DEPTT."). */
 export const DEPARTMENT_WORD_ABBREVIATIONS: [string, string][] = [
   ["electrical", "ELECT"],
   ["mechanical", "MECH"],
@@ -63,7 +65,7 @@ export const DEPARTMENT_WORD_ABBREVIATIONS: [string, string][] = [
   ["laboratory", "LAB"],
 ];
 
-/** Designation short forms -> the exact stored title(s). */
+/** Designation short forms, each mapped to the exact stored title(s). */
 export const DESIGNATION_SHORT_FORMS: [string, string[]][] = [
   ["Director In-charge", ["DIC", "director incharge"]],
   ["Executive Director", ["ED"]],

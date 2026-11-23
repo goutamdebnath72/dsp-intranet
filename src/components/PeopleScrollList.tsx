@@ -4,10 +4,10 @@
 // THE SCROLLING LIST OF THE "PEOPLE & EVENTS" WIDGET (step 65a): one component for the three lists (birthdays today, retirements this month, silver jubilees this month), replacing the two
 // mock-data lists. The cards and the scrolling are the ones the widget already had: a card with the photo and three lines, the list loops without a seam, pauses while the mouse is over it,
 // and scrolls UP (birthdays) or DOWN (retirements, silver jubilees).
-// What is new: real people; the initials when a person has no photo (or the photo does not load); a sentence when the list is empty; and the list is repeated for the seamless loop ONLY
+// What is new: real people; the initials when a person has no photo (or the photo does not load); a sentence when the list is empty; and I repeat the list for the seamless loop ONLY
 // when it really is taller than its box (with one or two people the repeat would show as a second, identical card).
 
-import { useOnScreen } from "@/hooks/useOnScreen"; // the list stands still while it is off the screen
+import { useOnScreen } from "@/hooks/useOnScreen"; // I keep the list still while it is off the screen
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { DateTime } from "luxon";
 import { DIRECTION, SCROLL_CONFIG, type Direction } from "@/lib/SCROLL_CONFIG";
@@ -16,10 +16,10 @@ import type { PersonEvent } from "@/lib/peopleEvents/query";
 
 export type CardKind = "birthday" | "retirement" | "jubilee";
 
-/** "2026-10-31" -> "Oct 31, 2026" (the form the retirement card already used). */
+/** Turns "2026-10-31" into "Oct 31, 2026", the form the retirement card already used. */
 export const dayText = (iso: string | null | undefined): string => (iso ? DateTime.fromISO(iso, { zone: ZONE }).toFormat("LLL dd, yyyy") : "");
 
-/** The first letter of the first and of the last word of the name: "MOHD ANWAR ULLAH" -> "MU". */
+/** Takes the first letter of the first and of the last word of the name: "MOHD ANWAR ULLAH" -> "MU". */
 export const initialsOf = (name: string): string => {
   const w = String(name ?? "").trim().split(/\s+/).filter(Boolean);
   if (w.length === 0) return "?";
@@ -65,7 +65,7 @@ export function PeopleScrollList({ people, direction, kind, emptyText }: { peopl
   const [loop, setLoop] = useState(false);
   const { speedPxPerSec, gapHeight } = SCROLL_CONFIG;
 
-  // is the list taller than its box? only then it is repeated and scrolled
+  // Is the list taller than its box? Only then do I repeat it and scroll it.
   const measure = useCallback(() => {
     const box = boxRef.current, list = listRef.current;
     if (!box || !list) return;

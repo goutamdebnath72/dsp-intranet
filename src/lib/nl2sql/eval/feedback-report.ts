@@ -1,14 +1,14 @@
 // src/lib/nl2sql/eval/feedback-report.ts
 //
-// The learning loop's review list: what people said Yes and No to, WHY, which No's were fixed by a second
+// My review list for the learning loop: what people said Yes and No to, WHY, which No's were fixed by a second
 // attempt (a rejected SQL and the SQL that replaced it: ready-made regression cases), which answers are now
-// verified, and the questions that keep failing. Run it weekly (or after a testing session) and turn the
+// verified, and the questions that keep failing. I run it weekly (or after a testing session) and turn the
 // recurring failures into rules, examples and golden test cases.
 //
 //   npx tsx --env-file=.env.local src/lib/nl2sql/eval/feedback-report.ts            (last 30 days)
 //   npx tsx --env-file=.env.local src/lib/nl2sql/eval/feedback-report.ts --days=7
 //
-// Read-only. Writes nl2sql-eval-feedback.md (git-ignored). NOTE: it contains the questions people typed,
+// Read-only. Writes nl2sql-eval-feedback.md (git-ignored). Important: it contains the questions people typed,
 // which can include names; read it before sharing it.
 
 import { nowIso } from "../../dates";

@@ -1,7 +1,7 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/search/edsEngine.selftest.ts
 //
-// The consistency engine of the Executive Deep Synthesis: score, pick the best of several candidates, store the winner, serve it ever after.
-// The model is replaced by one that answers DIFFERENTLY at every call (as the real one does), so what is proved is the engine, not luck.
+// This tests the consistency engine of the Executive Deep Synthesis: score, pick the best of several candidates, store the winner, serve it ever after.
+// I replace the model with one that answers DIFFERENTLY at every call (as the real one does), so what is proved is the engine, not luck.
 // The source text is the real wording of Circular 2022/46 (rules for retention of company accommodation), paragraph 5.1.
 
 import { definedAbbreviations, usedDefinitions } from "./abbreviations";
@@ -88,7 +88,7 @@ const GOOD = {
     },
   ],
 };
-// the SAME numbers drawn as a pie, no table: what one of the morning runs looked like
+// The SAME numbers drawn as a pie, with no table: this is what one of the morning runs looked like.
 const PIE_NO_TABLE = {
   headline: "Retention rules",
   overview: "Type A cities escalate faster than Type B cities in retention rent for ex-employees under the circular.",
@@ -199,7 +199,7 @@ const run = async () => {
   ok("a 'trend' of single moments stays a line", decideChartType("trend", "₹", [{ label: "2023" }, { label: "2024" }, { label: "2025" }]) === "line");
   ok("the scope / meaning / completeness rules are in the prompt", /CONTEXT COLUMNS/.test(ENGINE_SRC) && /STRUCTURE \/ BREAKDOWN \/ CALCULATION/.test(ENGINE_SRC) && /WHAT A SCHEDULE OF AMOUNTS MEANS/.test(ENGINE_SRC) && /ELIGIBILITY \/ CRITERIA asked/.test(ENGINE_SRC));
 
-  // the record header carries the circular's own name for the situation, and the prompt tells the model to use it
+  // The record header carries the circular's own name for the situation, and I have the prompt tell the model to use it.
   let sawPrompt = "";
   clearExecutiveSynthesisCache();
   await executeExecutiveSynthesis(Q + "tag", [{ ...records[0], chunkText: "Sub: Revised of GPAIS amount (Mid-term inclusion) for contract workers. " + SOURCE }] as any, labels, { store: null, candidates: 1, generate: async (userPrompt) => { sawPrompt = userPrompt; return JSON.stringify(GOOD); } });
@@ -259,25 +259,25 @@ const run = async () => {
   ok("the evolution rule is in the prompt (earliest step, trial/pilot, one timeline)", /EVOLUTION \/ TRACE \/ HISTORY/.test(ENGINE_SRC) && /trial or pilot starts/.test(ENGINE_SRC));
 
   // ================= 3. the engine: one briefing per question, whatever the model does =================
-  // a model that answers differently every time: the good briefing, the pie one, a made-up one, in random order
+  // The model answers differently every time here: the good briefing, the pie one, a made-up one, in random order.
   const variants = [GOOD, PIE_NO_TABLE, MADE_UP];
   let calls = 0;
-  let seed = 20261108; // a fixed pseudo-random sequence: the model's draws vary, the test does not
+  let seed = 20261108; // fixed pseudo-random sequence, so the model's draws vary but the test does not
   const draw = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   const randomModel = async () => {
     calls++;
     return JSON.stringify(variants[Math.floor(draw() * variants.length)]);
   };
 
-  // CONTROL: with no store, and servers that do not share memory, the same question gives different briefings (the reported problem)
+  // Control case: with no store, and servers that do not share memory, the same question gives different briefings (the reported problem).
   const seen = new Set<string>();
   for (let i = 0; i < 40; i++) {
-    clearExecutiveSynthesisCache(); // a new server / a cold start
+    clearExecutiveSynthesisCache(); // simulates a new server or a cold start
     seen.add(JSON.stringify(await executeExecutiveSynthesis(Q, records, labels, { store: null, candidates: 1, generate: randomModel })));
   }
   ok("CONTROL: without the store a random model gives several different briefings for one question", seen.size > 1, `distinct=${seen.size}`);
 
-  // THE FIX: 100 asks on 100 'servers' (memory cleared each time) share ONE stored briefing
+  // The fix: 100 asks on 100 'servers' (memory cleared each time) share ONE stored briefing.
   const rows = new Map<string, EdsRow>();
   let puts = 0;
   let fp = "57.86.abc.465.1751";
@@ -287,7 +287,7 @@ const run = async () => {
     put: async (r) => {
       puts++;
       const have = rows.get(r.key);
-      if (have && have.fingerprint === r.fingerprint) return have; // the first stands
+      if (have && have.fingerprint === r.fingerprint) return have; // the first one stands
       const row: EdsRow = { key: r.key, fingerprint: r.fingerprint, result: r.result, score: r.score };
       rows.set(r.key, row);
       return row;
@@ -306,7 +306,7 @@ const run = async () => {
   ok("what was stored is the best the model gave: good enough, no made-up figure, no pie of multipliers", !!stored && stored.score >= STORE_MIN_SCORE && !JSON.stringify(stored.result).includes("9x") && !stored.result.charts.some((c) => c.type === "pie"), `score=${stored?.score}`);
   ok("the same question typed with other capitals, spaces and punctuation is the same question", edsKeyFor("Type A  vs Type B?") === edsKeyFor("type a vs type b") && edsKeyFor("type a vs type b") !== edsKeyFor("type a versus type b rules"));
 
-  // best of several: the good one wins whichever candidate it is
+  // Best of several: the good one must win whichever candidate it is.
   for (const order of [[PIE_NO_TABLE, GOOD], [GOOD, PIE_NO_TABLE], [MADE_UP, GOOD], [GOOD, MADE_UP]]) {
     clearExecutiveSynthesisCache();
     rows.clear();
@@ -314,7 +314,7 @@ const run = async () => {
     ok("the better of two candidates is the one shown", r.table?.rows.length === 4, `order ${order.map((o) => o.headline).join(" / ")}`);
   }
 
-  // a poor briefing is shown but NOT stored: the next ask tries again
+  // A poor briefing is shown but NOT stored, so the next ask tries again.
   rows.clear();
   puts = 0;
   clearExecutiveSynthesisCache();
@@ -326,7 +326,7 @@ const run = async () => {
   ok("a poor briefing is still shown", !!r1.overview);
   ok("a poor briefing is not stored, so the next ask tries again", puts === 0 && poorCalls === 2, `puts=${puts} calls=${poorCalls}`);
 
-  // the archive changes (a circular added / re-read): the briefing is made afresh, once
+  // When the archive changes (a circular added or re-read), I make the briefing afresh, once.
   rows.clear();
   clearExecutiveSynthesisCache();
   await executeExecutiveSynthesis(Q, records, labels, { store: fakeStore, candidates: 1, generate: async () => JSON.stringify(GOOD) });
@@ -338,7 +338,7 @@ const run = async () => {
   await executeExecutiveSynthesis(Q, records, labels, { store: fakeStore, candidates: 1, generate: async () => (afresh++, JSON.stringify(GOOD)) });
   ok("a changed archive makes the briefing afresh, and only once", afresh === 1, `afresh=${afresh}`);
 
-  // the model cannot be reached (no credit): a briefing stored for the older archive is shown, not an error
+  // When the model cannot be reached (no credit), a briefing stored for the older archive is shown, not an error.
   fp = "59.88.ghi.480.1770";
   clearExecutiveSynthesisCache();
   const outage = await executeExecutiveSynthesis(Q, records, labels, { store: fakeStore, candidates: 2, generate: async () => { throw new Error("HTTP 402"); } });
@@ -349,14 +349,14 @@ const run = async () => {
   ok("with the model down and nothing stored, a plain message is shown (no raw error)", !!nothing.error && !/402/.test(nothing.overview), nothing.overview);
   ok("...and it is not stored", rows.size === 0);
 
-  // two asks at once on one server make it once
+  // Two asks at once on one server must make the briefing only once.
   rows.clear();
   clearExecutiveSynthesisCache();
   let concurrent = 0;
   await Promise.all([1, 2, 3].map(() => executeExecutiveSynthesis(Q, records, labels, { store: fakeStore, candidates: 2, generate: async () => (concurrent++, JSON.stringify(GOOD)) })));
   ok("three simultaneous asks use the model for ONE making (2 candidates)", concurrent === 2, `calls=${concurrent}`);
 
-  // another server stored first: the row that stands is shown, not ours
+  // Another server stored first: the row that stands is shown, not ours.
   rows.clear();
   clearExecutiveSynthesisCache();
   const other = { ...GOOD, headline: "STORED FIRST ELSEWHERE" };
@@ -364,7 +364,7 @@ const run = async () => {
   const raced = await executeExecutiveSynthesis(Q, records, labels, { store: racingStore, candidates: 1, generate: async () => JSON.stringify(GOOD) });
   ok("when another server stored first, its briefing is the one shown", raced.headline === "STORED FIRST ELSEWHERE");
 
-  // a store that fails must never break the answer
+  // A store that fails must never break the answer.
   clearExecutiveSynthesisCache();
   const brokenStore: EdsStore = { fingerprint: async () => { throw new Error("db down"); }, get: async () => { throw new Error("db down"); }, put: async () => { throw new Error("db down"); } };
   const withBroken = await executeExecutiveSynthesis(Q, records, labels, { store: brokenStore, candidates: 1, generate: async () => JSON.stringify(GOOD) });
@@ -383,7 +383,7 @@ const run = async () => {
     const savedEnv = process.env.EDS_CANDIDATES;
     delete process.env.EDS_CANDIDATES;
     try {
-      // drafts: "hedged" writes ONE draft by default; "both" writes two; a number asked for on purpose is always honoured
+      // Drafts: "hedged" writes ONE draft by default and "both" writes two; a number asked for on purpose is always honoured.
       const count = async (mode: "hedged" | "both", candidates?: number) => {
         (PERF as any).edsDrafts = mode;
         clearExecutiveSynthesisCache();
@@ -395,7 +395,7 @@ const run = async () => {
       ok("both (the previous way): two drafts are written", (await count("both")) === 2);
       ok("a number of candidates asked for on purpose is honoured under 'hedged' too", (await count("hedged", 2)) === 2);
 
-      // the second reading and the repair: the order of the calls
+      // The second reading and the repair: I check the order of the calls.
       const orderOf = async (during: boolean) => {
         (PERF as any).edsVerifyDuringRepair = during;
         clearExecutiveSynthesisCache();

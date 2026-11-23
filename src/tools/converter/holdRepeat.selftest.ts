@@ -1,5 +1,5 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/holdRepeat.selftest.ts
-// Press and hold: one step at once; a short press is one step only; a held press goes on one step at a time until it is let go, and then stops.
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/holdRepeat.selftest.ts
+// I check press and hold: one step at once; a short press is one step only; a held press goes on one step at a time until it is let go, and then stops.
 import { startHold } from "./holdRepeat";
 
 let pass = 0, fail = 0;

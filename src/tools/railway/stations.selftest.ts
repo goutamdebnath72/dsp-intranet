@@ -1,12 +1,12 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/railway/stations.selftest.ts
-// The station names and places: every code at the end of a train that stops at Durgapur (the 77 of 13 Nov 2026) has its full name and its city and state, except the one whose city is not certain; a station that is not in
+// This test checks the station names and places: every code at the end of a train that stops at Durgapur (the 77 of 13 Nov 2026) has its full name and its city and state, except the one whose city is not certain; a station that is not in
 // the table keeps the name the railway source gives.
 import { STATIONS, stationLabel } from "./stations";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 
-// the codes at the two ends of the 258 trains that stop at Durgapur, as RailRadar listed them on 13 Nov 2026
+// These are the codes at the two ends of the 258 trains that stop at Durgapur, as RailRadar listed them on 13 Nov 2026.
 const SEEN = "HWH KOAA SDAH BWN ASN PNBE GKP RXL JYG DBG MAS SMI NDLS KYQ ASR ANVT DHN MFP MLDT KWP BNRS GCT YNRK PURI RNC TBM GWL AGC BJU MBI SHM SMVB BKN KUR SSB SURI LKU BUI ST ARA RJPB SHTT NTSK MAU MTJ INDB PRRB KLK KGM ERS DGHR PRTN CSMT DGHA LKQ JSME JAT BPL ADI MDJN AII GGH LDH NJP AMG GAYA JBP BTH MKA THE AMH CNB BKSC JAJ HTE DGR UDL".split(" ");
 const STATES = new Set(["West Bengal", "Bihar", "Jharkhand", "Tamil Nadu", "Karnataka", "Kerala", "Odisha", "Assam", "Delhi", "Punjab", "Jammu and Kashmir", "Haryana", "Uttarakhand", "Uttar Pradesh", "Madhya Pradesh", "Rajasthan", "Gujarat", "Maharashtra"]);
 

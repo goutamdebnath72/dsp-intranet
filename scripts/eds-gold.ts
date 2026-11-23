@@ -1,6 +1,6 @@
-// scripts/eds-gold.ts: the GOLD test of the EDS engine. Runs each question of scripts/eds-gold-keys.ts through the real engine (no store, one at a time) and scores
+// scripts/eds-gold.ts: the GOLD test of the EDS engine. It runs each question of scripts/eds-gold-keys.ts through the real engine (no store, one at a time) and scores
 // the answer against its KEY: facts found / facts required, statements that must not appear, and every figure in the answer that appears in NONE of the circulars read
-// (a possible invention or a derived figure; listed for a human to judge, not counted as an error).
+// (a possible invention or a derived figure; I list it for a human to judge, it is not counted as an error).
 //   npx tsx --env-file=.env.local scripts/eds-gold.ts [G01 G05 ...]     env: GOLD_REPS=1 (repeats per question), GOLD_OUT=path (full JSON)
 import { Client } from "pg";
 import { writeFileSync } from "node:fs";
@@ -29,7 +29,7 @@ async function retrieve(c: Client, q: string) {
 const norm = (s: string) =>
   s.toLowerCase().replace(/(\d),(?=\d)/g, "$1").replace(/(\d)(st|nd|rd|th)\b/g, "$1").replace(/₹|rs\.?(?=\s*\d)/g, "rs ").replace(/\s+/g, " ");
 
-/** Every string of the answer, tables as "label | cell | cell" lines. */
+/** Flattens every string of the answer, with tables as "label | cell | cell" lines. */
 function flatten(res: any): string {
   const out: string[] = [];
   const walk = (v: any) => {
@@ -60,7 +60,7 @@ function scoreOne(g: any, res: any, srcFig: Set<string>) {
 }
 
 async function main() {
-  // GOLD_RESCORE=a.json,b.json : score saved answers again with the current keys (no model call, no cost)
+  // GOLD_RESCORE=a.json,b.json : score saved answers again with the current keys (no model call, no cost).
   if (process.env.GOLD_RESCORE) {
     const { readFileSync } = await import("node:fs");
     const c0 = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });

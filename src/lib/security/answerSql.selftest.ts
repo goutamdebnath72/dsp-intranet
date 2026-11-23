@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/security/answerSql.selftest.ts
-// The SQL of a model answer never leaves the server.
+// My rule, tested here: the SQL of a model answer never leaves the server.
 import { readFileSync } from "fs";
 import { withoutSql } from "./answerSql";
 
@@ -16,7 +16,7 @@ ok("an answer without a model block is returned as it is", JSON.stringify(withou
 ok("a block nested deeper is emptied too", (withoutSql({ a: [{ nl2sql: { sql: "SELECT 1" } }] }) as any).a[0].nl2sql.sql === "");
 ok("null, text and numbers pass through", withoutSql(null) === null && withoutSql("x") === "x" && withoutSql(3) === 3);
 
-// the search route really uses it, and the screen no longer draws the SQL or the model's "Understood as" line
+// I check that the search route really uses it, and that the screen no longer draws the SQL or the model's "Understood as" line
 const route = readFileSync("src/app/api/ai-search/route.ts", "utf8");
 ok("the search route empties the SQL on its way out", /withoutSql\(/.test(route) && /from "@\/lib\/security\/answerSql"/.test(route));
 const extras = readFileSync("src/components/Nl2SqlAnswerExtras.tsx", "utf8");

@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/freshness.selftest.ts
-// Whether a live card's figure is marked live, the last close, or a saved copy, at the hours that matter.
+// Checks whether a live card's figure is marked live, the last close, or a saved copy, at the hours that matter.
 import { DateTime } from "luxon";
 import { quoteFreshness, goldFreshness } from "./freshness";
 
@@ -9,7 +9,7 @@ const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++;
 const ist = (iso: string) => DateTime.fromISO(iso, { zone: "Asia/Kolkata" });
 const Q = (name: string, time: string) => ({ name, time });
 
-// Monday 16 Nov 2026 is a weekday; Saturday 14 and Sunday 15 are not
+// I use Monday 16 Nov 2026 as the weekday; Saturday 14 and Sunday 15 are not weekdays.
 const monMid = ist("2026-11-16T11:00:00");
 ok("a price a few minutes old, inside the session, is LIVE", quoteFreshness(Q("Sensex", ist("2026-11-16T10:48:00").toISO()!), monMid).state === "live");
 ok("the same price, 25 minutes old, is the last close (the feed has stopped or the day is a holiday)", quoteFreshness(Q("Sensex", ist("2026-11-16T10:35:00").toISO()!), monMid).state === "last");

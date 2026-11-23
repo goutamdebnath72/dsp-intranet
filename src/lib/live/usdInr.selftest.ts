@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/usdInr.selftest.ts
-// The dollar-rupee history: read from the real answer of Frankfurter (the European Central Bank's reference rates) of 13 Nov 2026, and refused when it is not what it should be.
+// I test the dollar-rupee history: it is read from the real answer of Frankfurter (the European Central Bank's reference rates) of 13 Nov 2026, and refused when it is not what it should be.
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
 import { parseUsdInr, rangeStart, validUsdInr, RateTrendError } from "./usdInr";
@@ -18,17 +18,17 @@ ok("the rate on this day a year ago (13 Nov 2025) is 88.69 and the latest is 94.
 const hi = pts.reduce((a, p) => (p.value > a.value ? p : a)), lo = pts.reduce((a, p) => (p.value < a.value ? p : a));
 ok("the highest is 96.83 on 20 May 2026 and the lowest 88.50 on 19 Nov 2025", hi.value === 96.83 && hi.date === "2026-05-20" && lo.value === 88.5 && lo.date === "2025-11-19");
 ok("the days before the anniversary that the request carried are dropped", !pts.some((p) => p.date < "2025-11-13"));
-// a weekend anniversary: no rate is published, the last working day's rate is the one in force, said so, and the chart still begins on the very date
+// A weekend anniversary: no rate is published, so the last working day's rate is the one in force, the card says so, and the chart still begins on the very date.
 const sunday = parseUsdInr(real, DateTime.fromISO("2026-11-15T11:00:00", { zone: "Asia/Kolkata" }));
 ok("when the anniversary is a Saturday (15 Nov 2025, today 15 Nov 2026) the chart begins on that date with the rate of Friday 14 Nov, marked as carried; the next point is the Monday", sunday[0].date === "2025-11-15" && sunday[0].carried === "2025-11-14" && sunday[0].value === 88.68 && sunday[1].date === "2025-11-17" && sunday[1].carried === undefined);
 ok("a working-day anniversary needs no carrying", pts.every((p) => p.carried === undefined));
 ok("a valid trend is accepted; a short or unordered one is not", validUsdInr({ points: pts }) && !validUsdInr({ points: pts.slice(0, 50) }) && !validUsdInr({ points: [...pts].reverse() }) && !validUsdInr(null));
 
-// the order in which the source lists the days does not matter
+// The order in which the source lists the days does not matter.
 const shuffled = { rates: Object.fromEntries(Object.entries(real.rates).reverse()) };
 ok("the days are sorted whatever the order of the answer", parseUsdInr(shuffled, NOW)[0].date === "2025-11-13");
 
-// refusals: a changed answer is an error, never a wrong number
+// Refusals: a changed answer is an error, never a wrong number.
 ok("not an object of rates is refused", throwsWith(() => parseUsdInr({}, NOW), /form expected/) && throwsWith(() => parseUsdInr(null, NOW), /form expected/));
 { const j = clone(); j.rates["2026-03-02"] = { INR: 9.4 as number }; ok("an implausible rate (9.4) is refused", throwsWith(() => parseUsdInr(j, NOW), /not a plausible figure/)); }
 { const j = clone(); (j.rates as Record<string, unknown>)["2026-03-02"] = { USD: 94 }; ok("a day without a rupee rate is refused", throwsWith(() => parseUsdInr(j, NOW), /not a plausible figure/)); }

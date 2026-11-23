@@ -1,8 +1,8 @@
 // src/tools/encashment/encashment.ts
 //
-// LEAVE ENCASHMENT (EL / HPL): the pay for the days encashed, with the limit of days.
-// Pure function: the numbers a person types are used in the browser and are never stored, logged or sent anywhere.
-// These are APPROXIMATIONS and the screen says so. Every rate is an input with a default, not a hidden constant: the rules change, and the person knows the figures of his own case.
+// Leave encashment (EL / HPL): the pay for the days encashed, with the limit of days.
+// This is a pure function: the numbers a person types are used in the browser and are never stored, logged or sent anywhere.
+// These are APPROXIMATIONS and the screen says so. I made every rate an input with a default, not a hidden constant: the rules change, and the person knows the figures of his own case.
 
 import { inRange, type Problem } from "@/lib/tools/money";
 
@@ -12,9 +12,9 @@ export interface EncashmentInput {
   basic: number;
   da: number;
   days: number;
-  /** the most days that may be encashed */
+  /** The most days that may be encashed. */
   maxDays: number;
-  /** the divisor of a month's pay (30) */
+  /** The divisor of a month's pay (30). */
   divisor: number;
 }
 export interface EncashmentResult {

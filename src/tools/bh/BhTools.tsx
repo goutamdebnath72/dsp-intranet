@@ -1,7 +1,7 @@
 // src/tools/bh/BhTools.tsx
 //
-// THE TWO LITTLE TOOLS INSIDE THE BH GUIDE: "Am I eligible?" (pick your employer, see the proof you need) and the two-year road tax estimate (invoice price and fuel, see the tax and the working).
-// Computed in the browser from src/tools/bh/bh.ts. Nothing typed or picked here is stored or sent.
+// The two little tools inside the BH guide: "Am I eligible?" (pick your employer, see the proof you need) and the two-year road tax estimate (invoice price and fuel, see the tax and the working).
+// I compute both in the browser from src/tools/bh/bh.ts. Nothing typed or picked here is stored or sent.
 "use client";
 
 import React, { useMemo, useState } from "react";

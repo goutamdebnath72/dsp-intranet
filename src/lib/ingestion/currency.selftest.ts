@@ -1,7 +1,7 @@
 /**
  * Self-test of the rupee-sign checks (step 42b). Run: npx tsx --tsconfig tsconfig.json src/lib/ingestion/currency.selftest.ts
- * The readings tested are the REAL ones an OCR engine's English model wrote for a printed rupee sign (342 degraded renders in 19 font faces, 19 Oct 2026), and the
- * 11 hard pages of the pilot are the false-positive check.
+ * I test with the REAL readings an OCR engine's English model wrote for a printed rupee sign (342 degraded renders in 19 font faces, 19 Oct 2026), and the
+ * 11 hard pages of the pilot serve as my false-positive check.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

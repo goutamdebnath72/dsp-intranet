@@ -1,9 +1,9 @@
 "use client";
 // src/components/RecordsScopeBar.tsx
 //
-// THE FIXED SELECTIONS under the search box (src/records): Everything (the bar decides, as always), People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices. A chosen selection is answered by its own
-// engines only; for People there are three ways to look (Name or number, Department & designation, Ask in words), and the middle one is two pick-lists, so nothing has to be understood at all.
-// Under Everything, a line whose words name a selection earns a small suggestion (planLine, pure, in the browser).
+// The fixed selections under the search box (src/records): Everything (the bar decides, as always), People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices. I answer a chosen selection by its own
+// engines only. For People there are three ways to look (Name or number, Department & designation, Ask in words), and the middle one is two pick-lists, so nothing has to be understood at all.
+// I show a small suggestion under Everything when a line's words name a selection (planLine, pure, in the browser).
 
 import { useMemo } from "react";
 import useSWR from "swr";
@@ -25,23 +25,23 @@ const fetchOptions = async (url: string): Promise<Options> => {
 export interface RecordsScopeBarProps {
   selection: Selection;
   onChange: (next: Selection) => void;
-  /** under Everything: the selection the typed line looks like it is for (planLine), or null */
+  /** Set only under Everything: the selection the typed line looks like it is for (planLine), or null */
   suggestion: DomainId | null;
-  /** a tap on an example line */
+  /** Called when someone taps an example line */
   onExample: (line: string) => void;
   /** the finder's button */
   onRunFinder: (labels: { deptName: string | null; gradeName: string | null }) => void;
-  /** the Utility Services page is open now */
+  /** True while the Utility Services page is open */
   utilitiesOpen: boolean;
-  /** a tap on the Utility Services button: the page of all the utilities opens */
+  /** Called on a tap of the Utility Services button: I open the page of all the utilities. */
   onUtilities: () => void;
-  /** a sentence under the choices (EDS asked by a signed-in person who is not an executive) */
+  /** A sentence I show under the choices (EDS asked by a signed-in person who is not an executive) */
   notice?: string | null;
-  /** the person may use Executive Deep Search (a signed-in executive): only then are its hint and example questions shown; for anyone else the prompt or the notice stands alone */
+  /** True when the person may use Executive Deep Search (a signed-in executive). Only then do I show its hint and example questions; for anyone else the prompt or the notice stands alone. */
   edsReady?: boolean;
-  /** a signed-in person pressed Admin: the hint and the examples may show (before that, the prompt asks who is asking) */
+  /** True once a signed-in person has pressed Admin: only then may the hint and the examples show (before that, the prompt asks who is asking). */
   adminReady?: boolean;
-  /** the Admin button is pointed at, touched or focused: the management page can be fetched ahead (so pressing it shows the page at once) */
+  /** Called when the Admin button is pointed at, touched or focused: I fetch the management page ahead, so pressing it shows the page at once. */
   onAdminHint?: () => void;
 }
 
@@ -63,16 +63,16 @@ export function RecordsScopeBar({ selection, onChange, suggestion, onExample, on
   const gradeOptions = useMemo<SelectOption[]>(() => [{ id: "", label: "Any designation" }, ...(lists?.designations ?? []).map((d) => ({ id: String(d.id), label: d.name }))], [lists]);
   const choose = (s: ScopeId) => onChange({ ...AUTO_SELECTION, scope: s, facet: "find" });
   const facetInfo = facetById(facet);
-  const edsLocked = scope === "eds" && !edsReady; // the prompt (or the notice) says what EDS is: the same words must not stand beneath the button as well
-  const adminLocked = scope === "admin" && !adminReady; // the prompt asks first: nothing about the admin pages stands beneath the button before that
-  // under Executive Deep Search the questions to try are the shelf in the window (src/components/EdsExamples.tsx), not buttons under the bar
+  const edsLocked = scope === "eds" && !edsReady; // The prompt (or the notice) says what EDS is, so I do not put the same words beneath the button as well.
+  const adminLocked = scope === "admin" && !adminReady; // The prompt asks first, so I show nothing about the admin pages beneath the button before that.
+  // Under Executive Deep Search I show the questions to try as the shelf in the window (src/components/EdsExamples.tsx), not as buttons under the bar.
   const examples = edsLocked || adminLocked ? [] : scope === "people" ? facetInfo?.examples ?? [] : scope === "eds" ? [] : scope === "admin" ? ADMIN_CHOICE.examples : domain?.examples ?? [];
   const hint = scope === "auto" || edsLocked || adminLocked ? null : scope === "people" ? facetInfo?.hint : scope === "eds" ? EDS_CHOICE.hint : scope === "admin" ? ADMIN_CHOICE.hint : domain?.hint;
   const label = (id: string, opts: SelectOption[]) => opts.find((o) => o.id === id && o.id !== "")?.label ?? null;
 
   return (
     <div data-records-bar className="border-b border-neutral-200 bg-gradient-to-b from-white to-neutral-50/60 px-4 pb-2.5 pt-2">
-      {/* BOTH ROWS IN ONE GRID: the column of labels is as wide as the widest label ("More tools"), so no label wraps and the two rows of chips start at the same place (on a phone the labels are left out and the rows stack) */}
+      {/* Both rows in one grid: I make the column of labels as wide as the widest label ("More tools"), so no label wraps and the two rows of chips start at the same place (on a phone the labels are left out and the rows stack). */}
       <div className="grid grid-cols-1 gap-y-1.5 sm:grid-cols-[max-content_minmax(0,1fr)] sm:gap-x-3">
       <div className="contents">
         <span className="hidden self-start whitespace-nowrap pt-[0.6em] text-[11px] font-bold uppercase tracking-wider text-neutral-400 sm:inline">Search in</span>
@@ -92,7 +92,7 @@ export function RecordsScopeBar({ selection, onChange, suggestion, onExample, on
         </div>
       </div>
 
-      {/* MORE TOOLS: the choices that are not records, on their own row: the Utility Services (opens its page), Executive Deep Search (a different kind of answer, for executives) and Admin (the management pages, for those authorised) */}
+      {/* More tools: I put the choices that are not records on their own row: the Utility Services (opens its page), Executive Deep Search (a different kind of answer, for executives) and Admin (the management pages, for those authorised). */}
       <div data-records-more className="contents">
         <span className="hidden self-start whitespace-nowrap pt-[0.6em] text-[11px] font-bold uppercase tracking-wider text-neutral-400 sm:inline">More tools</span>
         <div role="radiogroup" aria-label="More tools" className="flex min-w-0 flex-wrap gap-1.5 py-0.5">

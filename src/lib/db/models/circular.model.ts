@@ -11,7 +11,7 @@ import { DateTime } from "luxon";
 import { CircularPage } from "./circular_pages.model";
 
 /**
- * ValueTransformer to automatically bridge native database JS Dates
+ * I use this ValueTransformer to bridge the native JS Dates from the database
  * to Luxon DateTime objects across the Next.js application layer.
  */
 const LuxonDateTimeTransformer: ValueTransformer = {
@@ -69,12 +69,12 @@ export class Circular {
   @Column({ type: "integer", nullable: true })
   serialNumber?: number;
 
-  // ✅ The arrow function defers evaluation and Relation<> safely isolates TS metadata
+  // The arrow function defers evaluation, and Relation<> safely isolates the TS metadata
   @OneToMany(() => CircularPage, (page) => page.circular)
   pages!: Relation<CircularPage>[];
 
   /**
-   * One Circular tracks multiple read-confirmations from Users
+   * One Circular holds many read-confirmations from Users
    */
   @OneToMany("CircularReadStatus", "circular", { cascade: true })
   readByUsers?: any[];

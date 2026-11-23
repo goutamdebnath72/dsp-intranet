@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/employees/admin/validate.selftest.ts
-// Step 66a: the rules of an employee record. PURE.
+// Step 66a: here I test the rules of an employee record. They are PURE.
 
 import { DateTime } from "luxon";
 import { cleanText, cohortOfTicket, departmentFitsCohort, describeDates, gradeFitsCohort, isTicket, seniorityRank, validateEmployee } from "./validate";

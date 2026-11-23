@@ -1,4 +1,4 @@
-/** Self-test of the Gemini reading check. Run: npx tsx src/lib/ingestion/geminiCheck.selftest.ts (no network, no database: scripted readers). */
+/** Self-test of the Gemini reading check. Run: npx tsx src/lib/ingestion/geminiCheck.selftest.ts (needs no network and no database: the readers are scripted). */
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +12,7 @@ const pages: { id: string; pipeline: string; gemini: string }[] = JSON.parse(rea
 const P = (id: string) => pages.find((p) => p.id === id)!;
 const GOOD = P("football-trial"), GATE = P("gate-pass-13"), WAGE = P("wage-notice");
 
-/** A reader that answers per image URL from a table, counting its calls; the image "bytes" are the URL itself. */
+/** A reader that answers per image URL from a table and counts its calls; I use the URL itself as the image "bytes". */
 function scripted(table: Record<string, string | (() => string)>, name = "gemini:test") {
   const calls: string[] = [];
   const reader: PageReader = { name, async read(png: Buffer) { const url = png.toString(); calls.push(url); const v = table[url]; if (v === undefined) throw new Error("no script for " + url); return typeof v === "function" ? v() : v; } };

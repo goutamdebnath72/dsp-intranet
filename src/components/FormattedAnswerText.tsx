@@ -67,7 +67,7 @@ export function getBadgeStyle(category: string): { badge: string; label: string 
 }
 
 /**
- * Highlights headcount breakdown figures (e.g. "18 executives and 7 non-executives")
+ * I highlight headcount breakdown figures (e.g. "18 executives and 7 non-executives")
  * with distinctive, eye-catching pill badges styled to match their SAIL DSP cadres.
  */
 export function FormattedAnswerText({ text }: FormattedAnswerTextProps) {

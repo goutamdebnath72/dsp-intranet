@@ -1,14 +1,14 @@
 // src/lib/live/snapshotStore.ts
 //
-// THE SAVED LAST GOOD ANSWER OF A LIVE CARD (table public.live_snapshot, src/lib/nl2sql/sql/25_live_snapshot.sql): one row for each card that asks for it, holding the whole answer as it was last had from its source and the time it was
-// received. When the source does not answer AND the server's memory is empty (a restart, a new instance, a night of silence), the card shows this, marked stale with its own time, instead of an error.
+// The saved last good answer of a live card (table public.live_snapshot, src/lib/nl2sql/sql/25_live_snapshot.sql): one row for each card that asks for it, holding the whole answer as it was last had from its source and the time it was
+// received. When the source does not answer AND the server's memory is empty (a restart, a new instance, a night of silence), I show this on the card, marked stale with its own time, instead of an error.
 // A card opts in (liveRoute's `persist`); today the gold card does. Nothing here may break a card: database trouble is logged once and the store then answers "nothing saved" (get) or does nothing (put), like marketStore.ts,
-// whose pattern this follows. Nothing in it is personal data.
+// whose pattern I follow. Nothing in it is personal data.
 import { DateTime } from "luxon";
 
 export interface SavedSnapshot {
   value: unknown;
-  /** when it was received from the source (ms since the epoch) */
+  /** When it was received from the source (ms since the epoch). */
   at: number;
 }
 export interface SnapshotStore {
@@ -32,7 +32,7 @@ export const SNAPSHOT_TABLE_STATEMENTS: string[] = [
 
 const rowsOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.rows) ? r.rows : []);
 
-/** a saved row read back: its payload, parsed if it came as text, and its time; null when it is not the shape written */
+/** Reads a saved row back: its payload, parsed if it came as text, and its time; returns null when it is not the shape written. */
 export function snapshotFromRow(x: any): SavedSnapshot | null {
   const value = typeof x?.payload === "string" ? safeJson(x.payload) : x?.payload;
   const at = x?.fetched_at instanceof Date ? x.fetched_at.getTime() : DateTime.fromISO(String(x?.fetched_at)).toMillis();
@@ -90,7 +90,7 @@ export function typeormSnapshotStore(ds: Queryable): SnapshotStore {
   };
 }
 
-/** a store that holds nothing, for when the database cannot be had at all: the card then works as it did before */
+/** A store that holds nothing, for when the database cannot be had at all: the card then works as it did before. */
 export const NO_SNAPSHOT_STORE: SnapshotStore = { get: async () => null, put: async () => undefined };
 
 const stores = new WeakMap<object, SnapshotStore>();

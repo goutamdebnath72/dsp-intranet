@@ -1,8 +1,8 @@
 // src/lib/ingestion/pageReader.ts
 //
-// THE GEMINI PAGE READER. A vision model reads layout, Hindi, Bengali and symbols well but can invent a digit or stop early, so every page is read by TWO models
+// The Gemini page reader. A vision model reads layout, Hindi, Bengali and symbols well but can invent a digit or stop early, so I have every page read by TWO models
 // (a primary and a checker, geminiOcr.ts): where they agree, a value is very probably right; where they disagree, it is flagged (readingCheck.ts).
-// This file is only the connection to Gemini, kept behind one small interface.
+// This file is only the connection to Gemini, and I keep it behind one small interface.
 //
 //   PAGE_READER=gemini   (needs GEMINI_API_KEY; GEMINI_VISION_MODEL names the model, default below: model names are retired from time to time)
 //   PAGE_READER unset or "none": no second reader
@@ -18,7 +18,7 @@ export interface AttemptInfo {
 }
 
 export interface ReadHooks {
-  /** Called after every attempt that failed and will be retried (or was the last): for the log of an upload. */
+  /** Called after every attempt that failed and will be retried (or was the last): it feeds the log of an upload. */
   onAttempt?: (info: AttemptInfo) => void;
 }
 
@@ -26,7 +26,7 @@ export interface PageReader {
   name: string;
   /** Plain words on how the reader is set up (for the upload log), e.g. that page images are shrunk. */
   note?: string;
-  /** The text of one page image. Throws if the service fails. */
+  /** Gives the text of one page image. Throws if the service fails. */
   read(png: Buffer, hooks?: ReadHooks): Promise<string>;
 }
 
@@ -37,7 +37,8 @@ type FetchLike = (url: string, init: { method: string; headers: Record<string, s
   json(): Promise<any>;
   }>;
 
-/** The model Google named when it retired the previous one (17 Oct 2026). Model names change: GEMINI_VISION_MODEL in .env.local overrides this. */
+/** The model Google named when it retired the previous one (17 Oct 2026). Model names change, so GEMINI_VISION_MODEL in .env.local overrides this. */
+import { orReplacement } from "../ai/noPro";
 export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
 
 export const PAGE_READER_PROMPT = `You are transcribing ONE page of a scanned official document of a steel plant. The page is in English, Hindi, sometimes Bengali.
@@ -52,21 +53,21 @@ Rules:
 - A blank form or table to be filled in (rows with nothing written in them): do NOT write the blank rows out; write [blank form rows] once and go on with the rest of the page.
 Output only the transcription.`;
 
-/** Wait before a retry: 1.5 s, then 4 s. */
+/** I wait 1.5 s before the first retry and 4 s before the second. */
 const BACKOFF_MS = [1500, 4000];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** What a 429 ("You exceeded your current quota") says: which limit was hit and how long to wait. */
 export interface QuotaInfo {
-  /** per-day: today's allowance is used up, no wait helps. per-minute: wait and retry. other: no detail given. */
+  /** per-day: today's allowance is used up, so no wait helps. per-minute: wait and retry. other: no detail given. */
   kind: "per-day" | "per-minute" | "other";
   /** One plain line, without brackets, for logs and for the uploader. */
   summary: string;
-  /** How long the service asked to wait before the next request. */
+  /** How long the service asked me to wait before the next request. */
   retryAfterMs?: number;
 }
 
-/** Reads the body of a 429 (Google's error JSON: quotaId, quotaValue, retryDelay, or only the message "Please retry in 31.5s"). Never throws. */
+/** Reads the body of a 429 (Google's error JSON: quotaId, quotaValue, retryDelay, or only the message "Please retry in 31.5s"). It never throws. */
 export function parseQuotaError(body: string): QuotaInfo {
   const text = String(body ?? "");
   const id = /"quotaId"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? "";
@@ -88,7 +89,7 @@ export interface GeminiOptions {
   model?: string;
   /** The instructions sent with the image (default: the page-text prompt). */
   prompt?: string;
-  /** Ask for a JSON reply (a structured reading such as a roster); a cut-off reply is then an error, not a reading with a marker. */
+  /** Ask for a JSON reply (a structured reading such as a roster). I treat a cut-off reply then as an error, not as a reading with a marker. */
   json?: boolean;
   /** Attempts per read, the first included (default 3: the first and two retries). */
   maxAttempts?: number;
@@ -96,13 +97,13 @@ export interface GeminiOptions {
   timeoutMs?: number;
   /** Test hook: no real waiting between retries. */
   noWait?: boolean;
-  /** The longest wait the service may ask for on a per-minute limit (default 30 s); a longer one fails at once. */
+  /** The longest wait I accept when the service asks for one on a per-minute limit (default 30 s); a longer one fails at once. */
   maxRetryWaitMs?: number;
-  /** For tests: replaces the real wait and is told how long it was asked to wait. */
+  /** Used by tests: it replaces the real wait and is told how long it was asked to wait. */
   sleepImpl?: (ms: number) => Promise<unknown>;
 }
 
-/** The kind of an image from its first bytes (the archive's page images may be PNG, JPEG or WebP); PNG when unsure. */
+/** Tells the kind of an image from its first bytes (the archive's page images may be PNG, JPEG or WebP). When unsure I answer PNG. */
 export function sniffImageMime(buf: Buffer): string {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
   if (buf.length >= 12 && buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP") return "image/webp";
@@ -112,7 +113,7 @@ export function sniffImageMime(buf: Buffer): string {
 
 export function geminiReader(opts: GeminiOptions = {}): PageReader {
   const apiKey = opts.apiKey ?? process.env.GEMINI_API_KEY ?? "";
-  const model = opts.model ?? (process.env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL);
+  const model = orReplacement(opts.model ?? (process.env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL), DEFAULT_GEMINI_MODEL, "page reader"); // I refuse a Pro model here (src/lib/ai/noPro.ts)
   const doFetch: FetchLike = opts.fetchImpl ?? ((url, init) => fetch(url, init as any) as any);
   return {
     name: `gemini:${model}`,
@@ -137,7 +138,7 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
             const parts: any[] = data?.candidates?.[0]?.content?.parts ?? [];
             const text = parts.map((p) => (typeof p?.text === "string" ? p.text : "")).join("").trim();
             if (!text) throw new Error(`Gemini returned no text (${data?.candidates?.[0]?.finishReason ?? data?.promptFeedback?.blockReason ?? "no reason given"})`);
-            // a reply that did not end normally (cut off at the length limit, stopped by a safety rule) or in which the model looped is marked
+            // I mark a reply that did not end normally (cut off at the length limit, stopped by a safety rule) or in which the model looped
             const finish = data?.candidates?.[0]?.finishReason;
             if (opts.json) {
               if (finish && finish !== "STOP") throw new Error(`Gemini's reply was cut off (${finish})`);
@@ -149,13 +150,13 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
           }
           const raw = await res.text();
           const quota = res.status === 429 ? parseQuotaError(raw) : null;
-          const msg = raw.slice(0, res.status === 429 ? 1500 : 300); // a 429 keeps its whole body: the limit and the wait are in it
+          const msg = raw.slice(0, res.status === 429 ? 1500 : 300); // I keep the whole body of a 429: the limit and the wait are in it
           lastErr = `Gemini answered ${res.status}${quota ? ` (${quota.summary})` : ""}: ${msg}${res.status === 404 ? ` (the model name "${model}" may be out of date: set GEMINI_VISION_MODEL in .env.local to a current model)` : ""}`;
           if (res.status !== 429 && res.status !== 500 && res.status !== 503) throw new Error(lastErr); // a wrong key or model is not worth retrying
-          if (quota?.kind === "per-day") throw new Error(lastErr); // today's allowance is used up: no wait helps
+          if (quota?.kind === "per-day") throw new Error(lastErr); // today's allowance is used up, so no wait helps
           if (quota?.retryAfterMs !== undefined) {
             if (quota.retryAfterMs > (opts.maxRetryWaitMs ?? 30_000)) throw new Error(lastErr); // too long to wait here
-            waitMs = quota.retryAfterMs + 500; // the wait the service asked for, not a guess
+            waitMs = quota.retryAfterMs + 500; // I wait the time the service asked for, not a guess
           }
         } catch (e) {
           if ((e as Error).message?.startsWith("Gemini")) throw e;
@@ -171,9 +172,9 @@ export function geminiReader(opts: GeminiOptions = {}): PageReader {
   };
 }
 
-/** Written at the end of a reading that did not reach the end of the page: cut off by the service, or the model began repeating the same line. */
+/** I write this at the end of a reading that did not reach the end of the page: cut off by the service, or the model began repeating the same line. */
 export const STOPPED_MARKER = "[reading incomplete: the reply was cut off or the model began repeating itself]";
-/** This many identical lines in a row (blank table rows count as identical) mean the model is looping. */
+/** This many identical lines in a row (blank table rows count as identical) mean to me that the model is looping. */
 export const LOOP_RUN = 6;
 /** A table row with no text in any cell. */
 const BLANK_ROW = /^\|(\s*\|)+\s*$/;
@@ -183,8 +184,8 @@ function loopKey(line: string): string {
 }
 
 /**
- * A reading cut where the model began repeating itself: from the first line of a run of LOOP_RUN identical lines (blank table rows count as
- * identical) the rest is dropped and STOPPED_MARKER is written. A text without such a run is returned unchanged.
+ * Cuts a reading where the model began repeating itself: from the first line of a run of LOOP_RUN identical lines (blank table rows count as
+ * identical) I drop the rest and write STOPPED_MARKER. A text without such a run is returned unchanged.
  */
 export function cutAtLoop(text: string): string {
   let scanned = 0, run = 0, lastKey = "", firstOfRunEnd = 0;
@@ -199,9 +200,9 @@ export function cutAtLoop(text: string): string {
   }
 }
 
-/** The reader the settings ask for, or null for none. */
+/** Gives the reader the settings ask for, or null for none. */
 export function readerFromEnv(env: Record<string, string | undefined> = process.env): PageReader | null {
   const which = (env.PAGE_READER ?? "").trim().toLowerCase();
-  if (which === "gemini") return geminiReader({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL });
+  if (which === "gemini") return geminiReader({ apiKey: env.GEMINI_API_KEY, model: orReplacement(env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_MODEL, "page reader") });
   return null;
 }

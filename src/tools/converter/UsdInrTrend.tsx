@@ -1,6 +1,6 @@
 // src/tools/converter/UsdInrTrend.tsx
 //
-// THE US DOLLAR IN RUPEES OVER THE LAST YEAR: the chart under the currency converter, shown only while the converter is on USD and INR (either way round: it is the same relation). It is drawn like the
+// The US dollar in rupees over the last year: the chart under the currency converter, shown only while the converter is on USD and INR (either way round: it is the same relation). I drew it like the
 // gold and fuel charts: dates along the bottom, the highest and the lowest day marked with their date, and four figures under it (the rate a year ago, the highest, the lowest and the latest).
 // The data come from /api/live/usd-inr (src/lib/live/usdInr.ts): the European Central Bank's reference rate of each working day, the same table as the converter's own rate. Nothing typed is sent anywhere.
 "use client";
@@ -15,11 +15,11 @@ import { LiveGate, SourceLine, TrendChart, type TrendPoint } from "@/components/
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const COLOR = "#4f46e5";
 
-/** ₹94.04, or ₹90 for a round figure (the axis shows round values) */
+/** Written as ₹94.04, or ₹90 for a round figure (the axis shows round values) */
 export const inr = (v: number) => `₹${Number.isInteger(v) ? v : v.toFixed(2)}`;
 const dmy = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1] ?? ""} ${iso.slice(0, 4)}`;
 
-/** the chart is for exactly this pair of currencies, in either order */
+/** I show the chart for exactly this pair of currencies, in either order */
 export const isUsdInr = (from: string, to: string) => (from === "USD" && to === "INR") || (from === "INR" && to === "USD");
 
 export function usdInrPoints(t: UsdInrTrend): TrendPoint[] {

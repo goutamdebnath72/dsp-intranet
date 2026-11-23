@@ -1,12 +1,12 @@
 // src/lib/ingestion/schedule/ingest.ts
 //
-// Reading a health check-up schedule, checking it against HR and storing it: ONE definition, used by the circular UPLOAD (so a schedule is ready the
+// Reading a health check-up schedule, checking it against HR and storing it is ONE definition here, used by the circular UPLOAD (so a schedule is ready the
 // moment its circular is saved, with nobody running anything) and by scripts/import-health-checkups.ts (dry runs, reports, a re-import by hand).
 // They cannot disagree, because they are the same code.
 //
-// Everything outside the logic (the Gemini readers, the database) is passed in, so it is tested without a network.
+// I pass in everything outside the logic (the Gemini readers, the database), so it is tested without a network.
 //
-// THE RULES (the same whoever calls):
+// My rules (the same whoever calls):
 //   * A schedule is STORED only if nothing looked wrong: no problems at all (a row without a date, a group of an odd size, dates out of order, a month
 //     that could not be read, no rows). Anything else is reported and left for a person (the import tool shows why); the circular itself is never affected.
 //   * Storing REPLACES the circular's rows (delete + insert), so reading the same circular again gives the same result, never doubled rows.
@@ -16,10 +16,10 @@ import { ScheduleTimeBudgetError, type ExtractedSchedule } from "./extractSchedu
 import { extractScheduleGemini, geminiRosterReaders, type RosterReaders } from "./geminiSchedule";
 import { fixCodesByDepartment, verifyAgainstHr, type DeptPair, type HrEmployee, type VerifiedRow } from "./importSchedule";
 
-/** Runs one SQL statement and returns its rows. (An EntityManager, a pg client or a test double can all be adapted to this.) */
+/** Runs one SQL statement and returns its rows. An EntityManager, a pg client or a test double can all be adapted to this. */
 export type Sql = (text: string, params?: unknown[]) => Promise<any[]>;
 
-/** Runs `fn` in one database transaction (BEGIN ... COMMIT; ROLLBACK if it throws). */
+/** Runs `fn` inside one database transaction: BEGIN ... COMMIT, and ROLLBACK if it throws. */
 export type InTransaction = <T>(fn: (sql: Sql) => Promise<T>) => Promise<T>;
 
 // -------------------------------------------------------------------------------------------------------------------------------------- HR
@@ -29,8 +29,10 @@ export interface HrContext {
   deptPairs: DeptPair[];
 }
 
-/** The HR directory (EVERYONE, not only non-executives: a person on an old roster may have been promoted since and is still the same person) and
- *  which department code belongs to which department name (used to check the codes read from the pages). */
+/**
+ * I load the HR directory (EVERYONE, not only non-executives: a person on an old roster may have been promoted since and is still the same person) and
+ * which department code belongs to which department name (used to check the codes read from the pages).
+ */
 export async function loadHrContext(sql: Sql): Promise<HrContext> {
   const hrRows = await sql(`SELECT ticket_no, name, name_codes, department_code FROM nlq.employees`);
   const hr: HrEmployee[] = hrRows.map((r: any) => ({
@@ -50,14 +52,14 @@ export interface PreparedSchedule {
   month: { month: number; year: number } | null;
   rows: VerifiedRow[];
   groups: Array<{ date: string | null; rows: number }>;
-  /** rows whose department code was changed because it did not belong to the department printed on the row */
+  /** Rows whose department code I changed because it did not belong to the department printed on the row. */
   codeFixes: VerifiedRow[];
-  /** anything that looked wrong: the schedule is NOT stored while this is not empty */
+  /** Anything that looked wrong. I do not store the schedule while this is not empty. */
   problems: string[];
   counts: { verified: number; corrected: number; unverified: number };
 }
 
-/** Checks every row: the department code against the printed department, then the people against HR. Reads the HR phonetic codes of the printed names from the database. */
+/** Checks every row: the department code against the printed department, then the people against HR. I read the HR phonetic codes of the printed names from the database. */
 export async function prepareSchedule(extracted: ExtractedSchedule, ctx: HrContext, sql: Sql): Promise<PreparedSchedule> {
   const names = extracted.rows.map((r) => r.name);
   const codeRows = names.length ? await sql(`SELECT nlq.name_codes_of(n) AS codes FROM unnest($1::text[]) WITH ORDINALITY AS t(n, i) ORDER BY i`, [names]) : [];
@@ -79,14 +81,14 @@ export async function prepareSchedule(extracted: ExtractedSchedule, ctx: HrConte
   };
 }
 
-/** The one rule for storing: only a schedule with no problems at all. */
+/** My one rule for storing: only a schedule with no problems at all. */
 export function scheduleVerdict(p: PreparedSchedule): { apply: boolean; problems: string[] } {
   return { apply: p.problems.length === 0 && p.month !== null && p.rows.length > 0, problems: p.problems };
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------ store
 
-/** Replaces the circular's rows in public.health_checkup_schedule (delete, then insert in batches). The caller owns the transaction. */
+/** I replace the circular's rows in public.health_checkup_schedule (delete, then insert in batches); the caller owns the transaction. */
 export async function storeSchedule(sql: Sql, circularId: number, p: PreparedSchedule): Promise<void> {
   if (!p.month) throw new Error("cannot store a schedule whose month is unknown");
   const sm = p.month;
@@ -113,7 +115,7 @@ export type StageStatus = "ready" | "needs-review" | "timeout" | "failed";
 
 export interface ScheduleStage {
   status: StageStatus;
-  /** present when the pages were read and checked (status ready or needs-review) */
+  /** Present when the pages were read and checked (status ready or needs-review). */
   prepared: PreparedSchedule | null;
   problems: string[];
   seconds: number;
@@ -121,7 +123,7 @@ export interface ScheduleStage {
 }
 
 /**
- * Reads the schedule from the circular's pages and checks it, WITHOUT storing anything. Never throws: whatever happens, the caller gets a status
+ * I read the schedule from the circular's pages and check it, WITHOUT storing anything. This never throws: whatever happens, the caller gets a status
  * (ready / needs-review / timeout / failed) and saves the circular regardless.
  *   pages       every page image of the circular, in order (so page numbers are the circular's real page numbers; pages that are not rosters are skipped)
  *   deadlineAt  Date.now() value after which the reading stops with status "timeout"
@@ -133,7 +135,7 @@ export async function runScheduleStage(args: {
   deadlineAt: number;
   readers?: RosterReaders;
   hr?: HrContext;
-  /** for tests: replaces the real page reading */
+  /** For tests: replaces the real page reading. */
   extract?: (pages: Buffer[], deps: { readers: RosterReaders; shouldStop?: () => boolean }) => Promise<ExtractedSchedule>;
 }): Promise<ScheduleStage> {
   const t0 = Date.now();
@@ -151,7 +153,7 @@ export async function runScheduleStage(args: {
   }
 }
 
-/** Stores a ready schedule in its own transaction. Throws if the stage is not ready or the database refuses (the caller logs it; the circular stays). */
+/** Stores a ready schedule in its own transaction. I throw if the stage is not ready or the database refuses; the caller logs it and the circular stays. */
 export async function applyScheduleStage(inTransaction: InTransaction, circularId: number, stage: ScheduleStage): Promise<{ stored: number }> {
   if (stage.status !== "ready" || !stage.prepared) throw new Error(`only a schedule that is ready is stored (this one is ${stage.status})`);
   const prepared = stage.prepared;
@@ -164,7 +166,7 @@ export async function applyScheduleStage(inTransaction: InTransaction, circularI
 export type IngestKind = "health-schedule" | "holiday-list" | "general";
 export type IngestStatus = "applied" | "needs-review" | "timeout" | "failed" | "saved";
 
-/** What a stage found, in a form for the log (small: never the rows themselves). */
+/** What a stage found, in a form for the log. I keep it small: never the rows themselves. */
 export function stageDetail(stage: ScheduleStage, rosterPages: number[]): Record<string, unknown> {
   const p = stage.prepared;
   return {
@@ -184,7 +186,7 @@ export function stageDetail(stage: ScheduleStage, rosterPages: number[]): Record
   };
 }
 
-/** Writes what the upload decided. Best effort: the log must never be the reason an upload fails (the table may not exist yet). Returns whether it was written. */
+/** Writes what the upload decided. Best effort: I never want the log to be the reason an upload fails (the table may not exist yet). Returns whether it was written. */
 export async function logIngest(sql: Sql, circularId: number, kind: IngestKind, status: IngestStatus, detail: Record<string, unknown>): Promise<boolean> {
   try {
     await sql(`INSERT INTO public.circular_ingest_log (circular_id, kind, status, detail) VALUES ($1, $2, $3, $4::jsonb)`, [circularId, kind, status, JSON.stringify(detail)]);

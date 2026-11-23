@@ -1,7 +1,7 @@
 // src/tools/calculator/CalculatorCard.tsx
 //
-// THE FULL CALCULATOR, laid out like the Mac's: BASIC (four columns) and SCIENTIFIC (ten columns: brackets, memory, powers, roots, logs, trig, hyperbolic, 2nd, Rad/Deg, EE), no converters in it.
-// Grey function keys, darker number keys, orange operators (the pending one lights up white). It works with the mouse, the touch and the keyboard (digits, + - * /, Enter, Backspace, Delete).
+// The full calculator, laid out like the Mac's: BASIC (four columns) and SCIENTIFIC (ten columns: brackets, memory, powers, roots, logs, trig, hyperbolic, 2nd, Rad/Deg, EE), no converters in it.
+// I made the function keys grey, the number keys darker and the operators orange (the pending one lights up white). It works with the mouse, the touch and the keyboard (digits, + - * /, Enter, Backspace, Delete).
 // In the scientific calculator a second switch, DEC · BIN · OCT · HEX, writes the number in that base (whole numbers; the keys the base does not have are greyed, and in HEX the six trig keys of the left block become A-F, so the
 // panel keeps its size). In another base the line under the number shows it in the other bases.
 // All the arithmetic is in src/tools/calculator/calcEngine.ts (a pure state machine, tested). Nothing is stored or sent: the memory and the history are only in this window.
@@ -20,14 +20,14 @@ interface Btn {
   label: React.ReactNode;
   aria: string;
   kind: Kind;
-  /** lit while this operator is the pending one (or 2nd is on) */
+  /** Set to light the key while this operator is the pending one (or 2nd is on). */
   lit?: boolean;
 }
 
 const sup = (t: string) => <sup style={{ fontSize: "0.6em", lineHeight: 0 }}>{t}</sup>;
 const sub = (t: string) => <sub style={{ fontSize: "0.6em", lineHeight: 0 }}>{t}</sub>;
 
-// the Mac's colours: light grey for AC ⌫ %, mid grey for the numbers, dark grey for the scientific functions, amber orange (#ff9f0a) for the operators
+// I took the Mac's colours: light grey for AC ⌫ %, mid grey for the numbers, dark grey for the scientific functions, amber orange (#ff9f0a) for the operators.
 const KIND: Record<Kind, string> = {
   top: "bg-[#8b8b90] text-white hover:bg-[#9a9aa0]",
   num: "bg-[#59595d] text-white hover:bg-[#6a6a6f]",
@@ -36,7 +36,7 @@ const KIND: Record<Kind, string> = {
   eq: "bg-[#ff9f0a] text-white hover:bg-[#ffb340]",
 };
 
-/** the four columns on the right, the same in both modes */
+/** These are the four columns on the right, the same in both modes. */
 function right(s: CalcState): Btn[][] {
   const pending: BinOp | null = s.awaiting && s.stack.length && s.stack[s.stack.length - 1].t === "o" ? (s.stack[s.stack.length - 1] as { v: BinOp }).v : null;
   const n = (d: string): Btn => ({ key: d as Key, label: d, aria: d, kind: "num" });
@@ -51,12 +51,12 @@ function right(s: CalcState): Btn[][] {
   ];
 }
 
-/** the six columns on the left of the scientific layout; "2nd" swaps the keys that have an inverse or an alternate */
+/** These are the six columns on the left of the scientific layout; "2nd" swaps the keys that have an inverse or an alternate. */
 function left(s: CalcState): Btn[][] {
   const two = s.second;
   const f = (key: Key, label: React.ReactNode, aria: string): Btn => ({ key, label, aria, kind: "fn" });
   const rows = leftRows(s, two, f);
-  // HEX: the six trig keys (sin cos tan / sinh cosh tanh) are the digits A-F, in the same six places
+  // In HEX the six trig keys (sin cos tan / sinh cosh tanh) become the digits A-F, in the same six places.
   if (s.base === 16) {
     const hex = (c: string): Btn => ({ key: `h${c}` as Key, label: c, aria: `Digit ${c}`, kind: "num" });
     rows[3] = [rows[3][0], hex("A"), hex("B"), hex("C"), rows[3][4], rows[3][5]];
@@ -76,13 +76,13 @@ function leftRows(s: CalcState, two: boolean, f: (key: Key, label: React.ReactNo
 }
 
 /**
- * EVERYTHING IN THE CALCULATOR IS SIZED FROM ONE HEIGHT, --calc-h (the same for the basic and the scientific calculator, so that they are equally tall). From it come the key height --calc-d
+ * I size everything in the calculator from one height, --calc-h (the same for the basic and the scientific calculator, so that they are equally tall). From it come the key height --calc-d
  * (a twelfth-part of it, as in the Mac's), the padding, the gaps, the display, the width of each calculator, the radius, and every size of text below, as a share of --calc-d.
  * The basic keys are circles (width = height = d); the scientific keys are 1.24 d wide, the Mac's 62 : 50.
  */
 export const KEY_RATIO = 1.24;
 
-/** the size of a key's text as a share of the key height: the arithmetic signs are the largest, the scientific words the smallest */
+/** I give the size of a key's text as a share of the key height: the arithmetic signs are the largest, the scientific words the smallest. */
 export function labelScale(b: { kind: Kind; key: Key }): number {
   if (b.kind === "op" || b.kind === "eq") return 0.62;
   if (b.key === "pct") return 0.46;
@@ -110,16 +110,16 @@ function KeyButton({ b, onPress, off }: { b: Btn; onPress: (k: Key) => void; off
   );
 }
 
-/** the size of the number on the display, as a share of the key height: large, and smaller as the number gets longer (the scientific display is wider, so it keeps the size for longer) */
+/** I give the size of the number on the display as a share of the key height: large, and smaller as the number gets longer (the scientific display is wider, so it keeps the size for longer). */
 export function displayScale(text: string, sci: boolean, base: Base = 10): number {
-  // a binary number of 53 digits is 66 characters with its spaces, but its digits (0 and 1) are narrow: measured in a browser, 62 characters of binary take about 0.43 of the text size each, so BIN may hold 24 where decimal holds 15; the others keep 15
+  // I let BIN hold 24 digits where decimal holds 15; the others keep 15. A binary number of 53 digits is 66 characters with its spaces, but its digits (0 and 1) are narrow: measured in a browser, 62 characters of binary take about 0.43 of the text size each.
   const room = base === 2 ? 24 : sci ? 15 : 7;
   return Math.max(base === 10 ? 0.34 : 0.22, 0.95 * Math.min(1, room / Math.max(1, text.length)));
 }
 
 const MODES: Array<[Mode, string]> = [["basic", "Basic"], ["sci", "Scientific"]];
 
-/** `startBase` and `startValue`: open the scientific calculator on a value in a base (a typed "0xFF"); `autoFocus` false when it is drawn while the user is still typing in the search line */
+/** `startBase` and `startValue` open the scientific calculator on a value in a base (a typed "0xFF"); pass `autoFocus` false when it is drawn while the user is still typing in the search line. */
 export function CalculatorCard({ start = "basic", startBase, startValue, autoFocus = true }: { start?: Mode; startBase?: Base; startValue?: number; autoFocus?: boolean }) {
   const [s, setS] = useState<CalcState>(() => (startBase !== undefined && startValue !== undefined ? startAt(startBase, startValue) : initialState(start)));
   const [showHistory, setShowHistory] = useState(false);
@@ -127,20 +127,20 @@ export function CalculatorCard({ start = "basic", startBase, startValue, autoFoc
   const sci = s.mode === "sci";
 
   const hit = useCallback((k: Key) => setS((prev) => press(prev, k, Math.random())), []);
-  // the calculator takes the keyboard when it opens, as the Mac's does (the search line closes this form when it is typed in)
+  // I make the calculator take the keyboard when it opens, as the Mac's does (the search line closes this form when it is typed in).
   useEffect(() => { if (autoFocus) panel.current?.focus({ preventScroll: true }); }, [autoFocus]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const k = keyFor(e.key, e.ctrlKey || e.metaKey, s.base);
     if (!k) return;
-    e.preventDefault(); // Enter on a focused key would press that key again
+    e.preventDefault(); // I stop it here: Enter on a focused key would press that key again
     e.stopPropagation();
     hit(k);
   };
 
   const text = s.error ?? displayNumber(s.entry, s.base);
   const words = !s.error && s.fresh && s.base === 10 ? indianWords(valueOf(s.entry)) : null;
-  // in BIN, OCT or HEX the line under the number shows the same number in the other bases (the longest, binary, last: it is cut with "…" when it does not fit, and the whole is in the line's title)
+  // In BIN, OCT or HEX I show the same number in the other bases in the line under the number (the longest, binary, last: it is cut with "…" when it does not fit, and the whole is in the line's title).
   const others = !s.error && s.base !== 10 ? (inAllBases(valueIn(s)) ?? []).filter((x) => x.base !== s.base) : [];
   const othersText = others.map((x) => `${x.label} ${x.text}`).join("  ·  ");
   const pending = pendingText(s);
@@ -174,7 +174,7 @@ export function CalculatorCard({ start = "basic", startBase, startValue, autoFoc
       </div>
 
       <div className="[container-type:inline-size]">
-        {/* the calculator takes the keyboard like a desktop calculator does: one focusable panel that handles the keys of its own buttons (the buttons stay real buttons, tabbable and labelled) */}
+        {/* The calculator takes the keyboard like a desktop calculator does: one focusable panel handles the keys of its own buttons, and I keep the buttons real buttons, tabbable and labelled. */}
         {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
         <div
           ref={panel}
@@ -195,7 +195,7 @@ export function CalculatorCard({ start = "basic", startBase, startValue, autoFoc
               borderRadius: "calc(var(--calc-h) * 0.045)",
             } as React.CSSProperties
           }
-          // overflow-hidden: while the panel widens (basic to scientific) or narrows, no key may show outside its edge; the grid is held to the RIGHT edge (self-end below), so the four basic columns stay where they are and the scientific columns are uncovered from the left as the panel grows
+          // overflow-hidden: while the panel widens (basic to scientific) or narrows, no key may show outside its edge. I hold the grid to the RIGHT edge (self-end below), so the four basic columns stay where they are and the scientific columns are uncovered from the left as the panel grows.
           className="mx-auto flex flex-col overflow-hidden bg-gradient-to-b from-[#2d2d30] to-[#1f1f21] shadow-2xl shadow-black/30 outline-none ring-1 ring-white/10 transition-[width] duration-500 ease-out [--calc-h:29rem] [max-width:100%] focus-visible:ring-2 focus-visible:ring-violet-400/60 supports-[width:1cqw]:[--calc-h:min(29rem,60cqw)]"
         >
           <div className="relative flex flex-col justify-end px-2 pb-2 pt-1" style={{ height: "var(--calc-disp)" }}>

@@ -1,7 +1,7 @@
 // src/tools/flights/FlightsCard.tsx
 //
-// THE FLIGHTS TO AND FROM ANDAL AIRPORT: two lists, leaving Durgapur and reaching Durgapur, each flight with its time at Durgapur, the other city, the flight number, the time there and how long it flies; the next
-// flight of each list is marked, and flights already gone for the day are dimmed. It is the airport's TIMETABLE (src/lib/live/flights.ts reads the airport's own flight page and checks it): the card says so, says
+// THE FLIGHTS TO AND FROM ANDAL AIRPORT: I show two lists, flights leaving Durgapur and flights reaching Durgapur, each flight with its time at Durgapur, the other city, the flight number, the time there and how long it flies; the next
+// flight of each list is marked, and flights already gone for the day are dimmed. This is the airport's TIMETABLE (src/lib/live/flights.ts reads the airport's own flight page and checks it), and the card says so, says
 // when the airport last updated it, and links the airport's own live boards. Nothing typed is sent anywhere: the request carries nothing.
 "use client";
 
@@ -14,12 +14,12 @@ import { AIRPORT, duration, FLIGHTS_URL, LIVE_ARRIVALS_URL, LIVE_DEPARTURES_URL,
 import { LiveGate, SourceLine } from "@/components/tools/live/LivePieces";
 
 export const FLIGHTS_REFRESH_MS = 10 * 60 * 1000;
-/** the time now at Durgapur, "HH:mm" */
+/** Returns the time now at Durgapur as "HH:mm". */
 export const hmNow = (): string => DateTime.now().setZone(AIRPORT.zone).toFormat("HH:mm");
 /** "12 Nov, 8:20 pm" */
 export const updatedText = (iso: string): string => DateTime.fromISO(iso, { zone: AIRPORT.zone }).toFormat("d LLL, h:mm a").replace("AM", "am").replace("PM", "pm");
 
-/** the clock of the card: the time at Durgapur, ticking every half minute (its own small state, so that the lists are not redrawn by anything else) */
+/** The clock of the card: the time at Durgapur, ticking every half minute. I keep it as its own small state so that nothing else redraws the lists. */
 function useClock(): string {
   const [t, setT] = useState(hmNow);
   useEffect(() => { const id = setInterval(() => setT(hmNow()), 30_000); return () => clearInterval(id); }, []);
@@ -27,14 +27,14 @@ function useClock(): string {
 }
 
 /**
- * THE TOP OF THE TIME AND THE TOP OF THE FIRST LINE ARE ONE ROW OF PIXELS. Both have the room ABOVE a capital trimmed (text-box: trim-start cap alphabetic: only the top, because the title is cut with overflow hidden for its ellipsis and trimming its bottom would clip the tails of g, y and p), so the larger time does not poke above the smaller text; a
- * browser without it falls back to aligning the baselines. Poppins' round digits (0 2 3 6 8 9) stand 0.04 to 0.045 em ABOVE its capitals, so the time is let down 0.05 em (relative top, in em: the text stays elastic). THE TITLE ALSO HAS 0.12 em OF HEADROOM (padding above it and the same negative margin): the trim puts the top of the box at capital height, and the ellipsis clip would otherwise shave the tops of b, d, h, k, l, the dot of i and the tops of f and j, which stand higher than a capital in Poppins.
+ * THE TOP OF THE TIME AND THE TOP OF THE FIRST LINE ARE ONE ROW OF PIXELS. I trim the room ABOVE a capital on both (text-box: trim-start cap alphabetic: only the top, because the title is cut with overflow hidden for its ellipsis and trimming its bottom would clip the tails of g, y and p), so the larger time does not poke above the smaller text; a
+ * browser without it falls back to aligning the baselines. Poppins' round digits (0 2 3 6 8 9) stand 0.04 to 0.045 em ABOVE its capitals, so I let the time down 0.05 em (relative top, in em: the text stays elastic). THE TITLE ALSO HAS 0.12 em OF HEADROOM (padding above it and the same negative margin): the trim puts the top of the box at capital height, and the ellipsis clip would otherwise shave the tops of b, d, h, k, l, the dot of i and the tops of f and j, which stand higher than a capital in Poppins.
  * MEASURED on the real card (screenshots read pixel by pixel, 12 cards, widths 1160 to 2560, 100% to 200% scaling): the tops are the same row on 100% screens of common widths and within ONE physical pixel
- * everywhere else, which is the most there is: each text puts its baseline on a whole device pixel by itself.
+ * everywhere else, which is the most there is, because each text puts its baseline on a whole device pixel by itself.
  */
 function Row({ f, now, next, kind, today }: { f: Flight; now: string; next: boolean; kind: "dep" | "arr"; today: DateTime }) {
   const gone = f.time < now;
-  // the days a flight runs: a chip only when someone has checked them (flightFacts.ts); a rough fare: for a flight LEAVING Durgapur only (the listings it comes from are for Durgapur to the city)
+  // The days a flight runs: I show a chip only when someone has checked them (flightFacts.ts). The rough fare is for a flight LEAVING Durgapur only, because the listings it comes from are for Durgapur to the city.
   const days = daysChip(f.number);
   const fare = kind === "dep" ? fareChip(f.iata, today) : null;
   return (

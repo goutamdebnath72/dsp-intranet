@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/ElapsedTimer.selftest.tsx </dev/null
-// The digital timer of an Executive Deep Search answer: the clock face, its two states (ticking, stopped), and where the search window starts and stops it.
+// Checks the digital timer of an Executive Deep Search answer: the clock face, its two states (ticking, stopped), and where the search window starts and stops it.
 import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

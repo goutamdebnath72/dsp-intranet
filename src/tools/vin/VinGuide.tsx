@@ -1,7 +1,7 @@
 // src/tools/vin/VinGuide.tsx
 //
 // THE LITERATURE OF THE VIN, under the reader: what a VIN is and the full forms of its words, its three sections, why I, O and Q are never used, the model-year codes, the check digit, how the numbers of
-// Indian makers differ, and what a VIN cannot tell. A panel of its own (violet and indigo, so that it is not mistaken for the reading above it). All from src/tools/vin/vin.ts; nothing is stored or sent.
+// Indian makers differ, and what a VIN cannot tell. I made it a panel of its own (violet and indigo) so that it is not mistaken for the reading above it. All from src/tools/vin/vin.ts; nothing is stored or sent.
 "use client";
 
 import React, { useState } from "react";

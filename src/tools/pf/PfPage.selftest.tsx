@@ -1,4 +1,4 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/pf/PfPage.selftest.tsx
+// How to run it (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/pf/PfPage.selftest.tsx
 // The provident fund page: ONE page with two tabs (PF maturity, PF loan EMI), one tile in the calculators' list in place of the two it had, and the loan tab for the refundable PF loan only.
 import { readFileSync } from "node:fs";
 import React from "react";

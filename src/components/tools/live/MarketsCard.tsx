@@ -1,7 +1,7 @@
 // src/components/tools/live/MarketsCard.tsx
 //
-// SENSEX AND NIFTY, with the day's line and change, and the biggest movers of a fixed watch list of large companies (SAIL among them). Market data from a public feed, possibly delayed about
-// fifteen minutes, and NEVER advice: the card says both, and names the list instead of claiming to show the whole market. Nothing typed is sent anywhere.
+// Sensex and Nifty, with the day's line and change, and the biggest movers of a fixed watch list of large companies (SAIL among them). Market data comes from a public feed, possibly delayed about
+// fifteen minutes, and is NEVER advice: the card says both, and I name the list instead of claiming to show the whole market. Nothing typed is sent anywhere.
 "use client";
 
 import React from "react";
@@ -15,7 +15,7 @@ import { ChangeChip, LiveGate, SourceLine, Sparkline, StatusPill, stamp } from "
 
 const num = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** each index has its own deep gradient with white text (so that it stands out from the card's own pale green); whether the day is up or down is said by the change pill and by the line: green on a dark tile would be lost, so the line is white and the pill is the pale green or red it always was */
+/** Each index has its own deep gradient with white text, so that it stands out from the card's own pale green. The change pill and the line say whether the day is up or down: green on a dark tile would be lost, so I make the line white and keep the pill the pale green or red it always was. */
 const TILES = [
   { tile: "from-indigo-600 via-violet-600 to-purple-700 border-indigo-400/60 shadow-indigo-500/30", name: "text-indigo-100", sub: "text-indigo-100/90" },
   { tile: "from-sky-500 via-blue-600 to-indigo-600 border-sky-300/60 shadow-sky-500/30", name: "text-sky-100", sub: "text-sky-100/90" },
@@ -54,7 +54,7 @@ export function MarketsBody({ data }: { data: MarketsData }) {
   const sail = data.stocks.find((s) => s.name === "SAIL");
   const asOf = data.indices[0]?.time || data.stocks[0]?.time || "";
   const savedNames = data.saved?.names ?? [];
-  // the watch list is one session: its pill is the state of its first share (they come from the same feed at the same time)
+  // The watch list is one session, so its pill is the state of its first share; they come from the same feed at the same time.
   const listState = data.stocks[0] ? quoteFreshness(data.stocks[0], DateTime.now(), savedNames) : null;
   return (
     <div>

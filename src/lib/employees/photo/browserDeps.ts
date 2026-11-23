@@ -2,8 +2,8 @@
 
 // src/lib/employees/photo/browserDeps.ts
 //
-// THE REAL BROWSER PARTS of the photo check (step 70): decode the file (the browser turns a phone photo upright by itself), find faces with a small model (TinyFaceDetector, 190 KB, kept in /public/models/face; the finder
-// itself, @vladmandic/face-api, is loaded only when a photo is chosen), cut the square on a canvas. The picture never leaves the PC until the employee is saved.
+// The real browser parts of the photo check (step 70): decode the file (the browser turns a phone photo upright by itself), find faces with a small model (TinyFaceDetector, 190 KB, kept in /public/models/face; the finder
+// itself, @vladmandic/face-api, is loaded only when a photo is chosen), and cut the square on a canvas. The picture never leaves the PC until the employee is saved.
 
 import { PHOTO, type Box, type Square } from "./crop";
 import type { PhotoDeps } from "./client";
@@ -16,7 +16,7 @@ function loadFinder() {
       await api.nets.tinyFaceDetector.loadFromUri("/models/face");
       return api;
     })();
-    finder.catch(() => { finder = null; }); // a failed start can be tried again
+    finder.catch(() => { finder = null; }); // so a failed start can be tried again
   }
   return finder;
 }
@@ -48,7 +48,7 @@ export const browserPhotoDeps: PhotoDeps = {
       // Sort by area descending
       const sorted = [...hits].sort((a, b) => (b.box.width * b.box.height) - (a.box.width * a.box.height));
       const mainArea = sorted[0].box.width * sorted[0].box.height;
-      // Only keep detections that are at least 30% the area of the largest face (filters out tiny background artifacts)
+      // I keep only detections that are at least 30% the area of the largest face, which filters out tiny background artifacts.
       const significant = sorted.filter((h) => (h.box.width * h.box.height) >= 0.3 * mainArea);
       return significant.length === 1 ? [significant[0]] : sorted;
     };
@@ -63,19 +63,19 @@ export const browserPhotoDeps: PhotoDeps = {
       }));
     };
 
-    // Stage 1: Standard 416 resolution at 0.35 (optimal for clean / clear glasses)
+    // Stage 1: standard 416 resolution at 0.35 (optimal for clean / clear glasses)
     let found = await scan(416, 0.35);
     if (found.length > 0) return toBoxes(found);
 
-    // Stage 2: 416 resolution at 0.22 (for tinted glasses / reflection / shadows)
+    // Stage 2: 416 resolution at 0.22, for tinted glasses / reflection / shadows
     found = await scan(416, 0.22);
     if (found.length > 0) return toBoxes(found);
 
-    // Stage 3: 320 resolution at 0.22 (for close-up portrait framing)
+    // Stage 3: 320 resolution at 0.22, for close-up portrait framing
     found = await scan(320, 0.22);
     if (found.length > 0) return toBoxes(found);
 
-    // Stage 4: 416 resolution at 0.16 (sensitive fallback for harsh glare)
+    // Stage 4: 416 resolution at 0.16, a sensitive fallback for harsh glare
     found = await scan(416, 0.16);
     if (found.length > 0) return toBoxes(found);
 

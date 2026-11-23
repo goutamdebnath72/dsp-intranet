@@ -2,8 +2,8 @@
 //
 // GET /api/announcements/<id>/page/<n>   the picture (PNG) of page n of an announcement's PDF, as the search index kept it (the circulars keep theirs the same way).
 //
-// Open to whoever may read the announcements (they are public on the home page). The address of the picture in Vercel Blob never leaves the server: this route fetches it and passes the bytes on.
-// A page that has no picture (the PDF was not prepared for the search bar, or that page's picture was not kept), or a database with no such table yet, answers 404.
+// I keep this open to whoever may read the announcements (they are public on the home page). The address of the picture in Vercel Blob never leaves the server: this route fetches it and passes the bytes on.
+// A page that has no picture (the PDF was not prepared for the search bar, or that page's picture was not kept), or a database with no such table yet, gets a 404.
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";

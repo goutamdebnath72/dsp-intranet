@@ -1,14 +1,14 @@
 // src/lib/qualifications/degreeAnswer.ts
 //
-// QUESTIONS ABOUT THE DEGREES THEMSELVES, answered from the table of degrees (step 61a). No model call, nothing is read from a database.
-// Owner, 26 Oct 2026: "what are the post graduate degrees in engineering" is a question about degrees, not about people: the table of degrees (degrees.ts: 120 degrees, each with its level and its field)
-// answers it. Three kinds of question are taken:
+// QUESTIONS ABOUT THE DEGREES THEMSELVES, answered from the table of degrees (step 61a). I use no model call here and read nothing from a database.
+// My rule (26 Oct 2026): "what are the post graduate degrees in engineering" is a question about degrees, not about people, so the table of degrees (degrees.ts: 120 degrees, each with its level and its field)
+// answers it. I take three kinds of question:
 //   1. a LIST:      "what are the post graduate degrees in engineering", "list the engineering degrees", "how many post graduate degrees are there in medicine", "which degrees are higher than graduate"
 //   2. A VERDICT:   "is MD a postgraduate degree", "is dnb a post graduate degree", "is mbbs graduate or post graduate"
 //   3. ONE DEGREE:  "what is mtech", "full form of dnb", "what level is bds"
-// A question that is about PEOPLE (doctors, employees, who, a ticket ...) is never taken: the hospital route and the directory answer those. The table is general knowledge, NOT an official list, and the
-// answer says so; a degree the author was not sure of is marked with * and named. A field the table does not have is said so: nothing is guessed.
-// Pure (no server code): the pipeline calls answerDegreeQuestion(question).
+// I never take a question that is about PEOPLE (doctors, employees, who, a ticket ...): the hospital route and the directory answer those. The table is general knowledge, NOT an official list, and the
+// answer says so; a degree the author was not sure of is marked with * and named. If the table has no such field, the answer says so: nothing is guessed.
+// This file is pure (no server code): the pipeline calls answerDegreeQuestion(question).
 
 import { DEGREES, LEVELS, LEVEL_LABEL, LEVEL_RANK, SEGMENTS, type DegreeDef, type Level, type Segment } from "./degrees";
 import { degreeByKey, keyOf } from "./parse";
@@ -20,7 +20,7 @@ const DEGREE_WORD = /\b(degrees?|qualifications?|courses?)\b/i;
 
 const norm = (s: string) => String(s ?? "").toLowerCase().replace(/[“”"']/g, "").replace(/&/g, " and ").replace(/[^a-z0-9.\s]/g, " ").replace(/\s+/g, " ").trim();
 
-/** The level a question names (the longest wording first: "post graduate" before "graduate"), or null. */
+/** Returns the level a question names (I match the longest wording first: "post graduate" before "graduate"), or null. */
 const LEVEL_WORDS: [RegExp, Level][] = [
   [/\bsuper\s?-?\s?speciali?[tc]y\b/, "superspecialty"],
   [/\b(?:post\s?-?\s?graduate|post\s?-?\s?graduation|postgraduation|pg|master'?s?|masters)\b/, "postgraduate"],
@@ -35,13 +35,13 @@ function levelsIn(q: string): Level[] {
   for (const [re, lv] of LEVEL_WORDS) {
     if (re.test(s)) {
       if (!out.includes(lv)) out.push(lv);
-      s = s.replace(new RegExp(re.source, "g"), " "); // "post graduate" is not also "graduate"
+      s = s.replace(new RegExp(re.source, "g"), " "); // so "post graduate" is not also "graduate"
     }
   }
   return out;
 }
 
-/** Words that name a FIELD, each to the segment of the table. */
+/** Words that name a FIELD, each mapped to its segment of the table. */
 const SEGMENT_WORDS: [RegExp, Segment][] = [
   [/\b(?:engineering|engg|engineer|engineers|technology|technical|btech|b\.tech)\b/, "Engineering and technology"],
   [/\b(?:medicine|medical|allopathy|allopathic)\b/, "Medical (allopathy)"],
@@ -64,18 +64,18 @@ function segmentIn(q: string): Segment | null {
   for (const [re, seg] of SEGMENT_WORDS) if (re.test(q)) return seg;
   return null;
 }
-/** After "in / of / for / under": is a FIELD named at all (so that an unknown field can be said to be unknown)? */
+/** After "in / of / for / under" I check whether a FIELD is named at all, so that an unknown field can be said to be unknown. */
 const FIELD_PHRASE = /\b(?:in|of|for|under|within)\s+(?:the\s+)?(?:field\s+of\s+)?(?:(?:post\s?-?\s?graduate|graduate|super\s?-?\s?speciali?[tc]y)\s+)?([a-z][a-z .&-]{2,40}?)\s*(?:\?|$|\bdegrees?\b)/;
 const NOT_A_FIELD = /^(?:the\s+)?(?:table|system|list|plant|dsp|sail|steel|india|general|any\s+field|all|total|world|this|that|it)\b/;
 
-/** A field as a person says it: "Medicine (allopathy)", "AYUSH", "Engineering and technology". */
+/** A field the way a person says it: "Medicine (allopathy)", "AYUSH", "Engineering and technology". */
 const segLabel = (seg: Segment): string => (seg.startsWith("Medical") ? "Medicine (allopathy)" : seg.replace(/ \(.*\)$/, ""));
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 const PG_PLUS = (d: DegreeDef) => LEVEL_RANK[d.level] >= LEVEL_RANK.postgraduate;
 
 const NOTE = "This is the table of degrees kept in the system (general knowledge, not an official list), so it may be incomplete.";
 
-/** What counts at each level, folded under the answer. */
+/** What counts at each level; this is folded under the answer. */
 const EXPLAIN: Record<Level, string> = {
   certificate: "A certificate is a school or trade qualification (Class X, Class XII, ITI).",
   diploma: "A diploma below graduate level (polytechnic engineering, D.Pharm, GNM ...). A diploma taken AFTER a bachelor's degree is a postgraduate diploma (PGDM, PGDCA, DGO ...).",
@@ -107,15 +107,15 @@ function listCard(args: { title: string; head: string; sentence: string; ds: Deg
   return { summary: `${head}. ${sentence}`, card };
 }
 
-/** The degree a question is about, looked up by what follows "is / what is / full form of ...". null when it names none the table knows. */
+/** Looks up the degree a question is about, by what follows "is / what is / full form of ...". Returns null when the question names none that the table knows. */
 function degreeNamed(text: string, original: string): DegreeDef | null {
   const t = norm(text).replace(/^(?:the|a|an)\s+/, "").replace(/\s+(?:degree|qualification|course)$/, "").trim();
   if (!t || t.split(" ").length > 5) return null;
   const k = keyOf(t);
-  // "DTM&H" is cleaned to "dtm and h": a degree whose code has an ampersand is found without the "and" as well
+  // "DTM&H" is cleaned to "dtm and h", so I also look for a degree whose code has an ampersand without the "and".
   const d = degreeByKey(k) ?? degreeByKey(keyOf(t.replace(/\band\b/g, " ")));
   if (!d) return null;
-  // a two-letter word (me, ms, ma, be, md ...) is a degree only when it is written in capitals or the question is plainly about a degree
+  // A two-letter word (me, ms, ma, be, md ...) counts as a degree only when it is written in capitals or the question is plainly about a degree.
   if (k.length <= 2) {
     const asWritten = /\b[A-Z][A-Z.]{1,3}\b/.test(original);
     if (!asWritten && !DEGREE_WORD.test(original)) return null;
@@ -140,7 +140,7 @@ export function answerDegreeQuestion(question: string): HospitalResult | null {
     const asked = lvls[0];
     const yes = asked === "postgraduate" ? LEVEL_RANK[vd.level] >= LEVEL_RANK.postgraduate : vd.level === asked;
     if (lvls.length >= 2) {
-      // "is mbbs graduate or post graduate": the answer is the level itself
+      // For "is mbbs graduate or post graduate" the answer is the level itself.
       return levelCard(vd);
     }
     const exact = LEVEL_LABEL[vd.level];
@@ -161,7 +161,7 @@ export function answerDegreeQuestion(question: string): HospitalResult | null {
   const wd = one(whatIs);
   if (wd && (keyOf(whatIs ? whatIs[1] : "").length >= 3 || DEGREE_WORD.test(q))) return levelCard(wd);
 
-  // ---- 1. a LIST: it must say "degree(s)" (or "qualification(s)") and name a level or a field, or say "higher than graduate"
+  // ---- 1. a LIST: the question must say "degree(s)" (or "qualification(s)") and name a level or a field, or say "higher than graduate"
   if (!DEGREE_WORD.test(q)) return null;
   const higher = /\b(?:higher|above|beyond|after|more)\s+(?:than\s+)?(?:a\s+|the\s+)?(?:graduate|graduation|bachelor'?s?|bachelors)\b/.test(q);
   const level: Level | null = higher ? "postgraduate" : lvls[0] ?? null;
@@ -196,7 +196,7 @@ export function answerDegreeQuestion(question: string): HospitalResult | null {
   return listCard({ title, head, sentence, ds, showField: !seg, showLevel: !level || higher, level: higher ? "postgraduate" : level, seg });
 }
 
-/** One degree: its level is the clean answer (headline), then what it is. */
+/** For one degree, its level is the clean answer (the headline), then what the degree is. */
 function levelCard(d: DegreeDef): HospitalResult {
   const label = LEVEL_LABEL[d.level];
   const sentence = `${d.code} is the ${d.name}: ${/^[aeiou]/i.test(label) ? "an" : "a"} ${label.toLowerCase()} degree in ${segLabel(d.segment)}.`;

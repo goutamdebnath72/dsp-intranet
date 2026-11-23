@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/fareService.selftest.ts
-// What the card is told about fares: the SAVED ones only, with the date received. The app never asks RailRadar's fare service (the plant's paid month ends on 13 Dec 2026): not for an old row, not for a missing one, not before or after the month.
+// My rule for this test: the card is told about the SAVED fares only, with the date received. The app never asks RailRadar's fare service (the plant's paid month ends on 13 Dec 2026): not for an old row, not for a missing one, not before or after the month.
 import { readdirSync, readFileSync } from "node:fs";
 import { DateTime } from "luxon";
 import type { FareSet } from "./fare";
@@ -40,7 +40,7 @@ const throwsAsync = async (f: () => Promise<unknown>) => { try { await f(); retu
   let msg = ""; try { await fareAnswer("12019", s.deps); } catch (e) { msg = (e as Error).message; }
   ok("a database failure is a plain message, without the database's own words", /could not be read/.test(msg) && !/db down/.test(msg));
 
-  // after the paid month: the same, shown frozen
+  // After the paid month the answer is the same, but I show it frozen.
   s = setup(row("2026-11-20T06:00:00Z"), { now: "2026-12-20T12:00:00" });
   r = await fareAnswer("12019", s.deps);
   ok("AFTER the month the fares are shown frozen with their time", r.data.frozen && r.stale && r.data.receivedAt === "2026-11-20T06:00:00.000Z" && s.c.puts === 0);
@@ -48,10 +48,10 @@ const throwsAsync = async (f: () => Promise<unknown>) => { try { await f(); retu
   r = await fareAnswer("12019", s.deps);
   ok("from the first minute of 14 Dec the fares are frozen, even those a week old", r.data.frozen);
 
-  // the app has no way to ask RailRadar for a fare: the service takes the store and nothing else
+  // I gave the app no way to ask RailRadar for a fare: the service takes the store and nothing else.
   const src = readFileSync("src/lib/live/fareService.ts", "utf8") + readFileSync("src/app/api/live/railway-fare/route.ts", "utf8");
   ok("neither the fare service nor the fare route can reach RailRadar: no ask, no target, no fetcher, no timetable load", !/askFares|askLocalFare|railRadarFetch|loadRailway|deps\.ask|deps\.target/.test(src.replace(/\/\/.*$/gm, "")));
-  // the whole app: only fare.ts defines the asking functions, and nothing in src but its own test uses them (the collection scripts in scripts/ do)
+  // Check the whole app: only fare.ts defines the asking functions, and nothing in src but its own test uses them (the collection scripts in scripts/ do).
   const files: string[] = [];
   const walk = (d: string) => { for (const e of readdirSync(d, { withFileTypes: true })) { const f = `${d}/${e.name}`; if (e.isDirectory()) walk(f); else if (/\.(ts|tsx)$/.test(e.name) && !/\.selftest\./.test(e.name)) files.push(f); } };
   walk("src");

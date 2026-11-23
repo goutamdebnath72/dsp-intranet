@@ -1,5 +1,5 @@
 // src/lib/security/passwordModule.selftest.ts
-// The password module's one switch (passwordModule.ts) really is the only thing standing between the module and the users: every place that shows or serves the module reads it.
+// I check that the password module's one switch (passwordModule.ts) really is the only thing standing between the module and the users: every place that shows or serves the module reads it.
 // Run: npx tsx src/lib/security/passwordModule.selftest.ts
 import { readFileSync } from "node:fs";
 import { PASSWORD_MODULE_ENABLED } from "./passwordModule";

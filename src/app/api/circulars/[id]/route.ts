@@ -30,7 +30,7 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const circularRepository = dataSource.getRepository(Circular);
-    // the viewer reads only the headline and the pages: the 768-number embedding and the whole extracted text stay in the database (src/lib/perf/switches.js: slimCircularReads)
+    // The viewer reads only the headline and the pages, so I leave the 768-number embedding and the whole extracted text in the database (src/lib/perf/switches.js: slimCircularReads).
     const circular = await circularRepository.findOne({
       where: { id },
       ...(PERF.slimCircularReads ? { select: { id: true, headline: true, fileUrls: true, publishedAt: true, uploadedAt: true, serialNumber: true, authorTicketNo: true } } : {}),
@@ -55,10 +55,10 @@ export async function GET(request: Request, context: RouteContext) {
 
 /**
  * WHO MAY CHANGE A CIRCULAR (PATCH and DELETE): the HOD of C&IT may change any; a delegate of the Circular manager only
- * the circulars he or she uploaded, within EDIT_DELETE_WINDOW_HOURS of the upload. Decided from the DATABASE on every
- * request, and decided again under the facility lock inside the transaction. (The old rule was "the ticket starts with 4
+ * the circulars he or she uploaded, within EDIT_DELETE_WINDOW_HOURS of the upload. I decide this from the DATABASE on every
+ * request, and decide it again under the facility lock inside the transaction. The old rule was "the ticket starts with 4
  * and is the author": no login-state check beyond the cookie, no audit row, a withdrawn delegate could keep deleting,
- * and a non-executive delegate could never delete his own upload.)
+ * and a non-executive delegate could never delete his own upload.
  */
 async function authorise(request: Request, circular: { authorTicketNo?: string | null; uploadedAt?: any } | null) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
@@ -75,7 +75,7 @@ async function authorise(request: Request, circular: { authorTicketNo?: string |
       return { res: NextResponse.json({ error: "Forbidden: you can change only the circulars you uploaded." }, { status: 403 }) };
     }
     const now = DateTime.now();
-    // Window is measured from UPLOAD time, not the (possibly backfilled) issue date.
+    // I measure the window from UPLOAD time, not from the (possibly backfilled) issue date.
     if (now.diff(circular.uploadedAt || now, "hours").hours > EDIT_DELETE_WINDOW_HOURS) {
       return { res: NextResponse.json({ error: "The change window for this circular has expired." }, { status: 403 }) };
     }
@@ -94,8 +94,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     const auth = await authorise(request, circular);
     if ("res" in auth) return auth.res;
 
-    // Only the headline can be edited. (The old handler also accepted `fileUrls` from the client: those addresses are
-    // what DELETE later passes to the Blob store to be removed, so a caller could have had OTHER files deleted.)
+    // Only the headline can be edited. The old handler also accepted `fileUrls` from the client; those addresses are
+    // what DELETE later passes to the Blob store to be removed, so a caller could have had OTHER files deleted. I removed that.
     const body = await request.json().catch(() => ({}));
     const headline = typeof body?.headline === "string" ? body.headline.replace(/^\s*\d+[.\-\s]+/, "").trim().slice(0, 500) : "";
     if (!headline) return NextResponse.json({ error: "A headline is required." }, { status: 400 });
@@ -134,8 +134,8 @@ export async function DELETE(request: Request, context: RouteContext) {
     if (!circular) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const now = DateTime.now();
 
-    // Blob URLs to remove AFTER the DB commit succeeds. Blobs are the
-    // irreplaceable side, so they go last: if blob deletion fails we are
+    // These are the Blob URLs to remove AFTER the DB commit succeeds. Blobs are the
+    // irreplaceable side, so I delete them last: if blob deletion fails I am
     // left with a harmless orphan (catchable by audit-blob.mjs), never a
     // circular row pointing at missing files.
     const blobUrls = Array.isArray(circular.fileUrls) ? circular.fileUrls : [];
@@ -145,36 +145,36 @@ export async function DELETE(request: Request, context: RouteContext) {
 
     // ---- ATOMIC DB DELETE + RENUMBER (single transaction) ----
     // If ANY step throws, the whole transaction rolls back and nothing in
-    // the database changes. Blobs are untouched until this commits.
+    // the database changes. I leave the blobs untouched until this commits.
     await dataSource.transaction(async (manager) => {
-      // Serialize against concurrent uploads/deletes for the same year so
+      // I serialize against concurrent uploads/deletes for the same year so
       // the renumber below sees a stable set of rows.
       await manager.query(`SELECT pg_advisory_xact_lock($1)`, [year]);
 
-      // The Circular manager's lock and the authority, decided again NOW (same order as the upload: year lock first,
-      // then the facility lock, so the two can never wait for each other). The row must still exist: a second delete
-      // of the same circular must not "succeed" and renumber twice.
+      // The Circular manager's lock and the authority are decided again NOW, in the same order as the upload: year lock first,
+      // then the facility lock, so the two can never wait for each other. The row must still exist: I do not let a second delete
+      // of the same circular "succeed" and renumber twice.
       const q = async (sql: string, params?: unknown[]) => manager.query(sql, params as never[]);
       const role = await begin(q, "circular", auth.actor);
       const still = await manager.query(`SELECT id FROM public.circulars WHERE id = $1 FOR UPDATE`, [circularId]);
       if (!still.length) throw new NotFoundNow();
 
-      // 1. Delete the child chunks (raw table, no cascade defined).
+      // Step 1: delete the child chunks (raw table, no cascade defined).
       await manager.query(
         `DELETE FROM public.circular_chunks WHERE circular_id = $1`,
         [circularId],
       );
 
-      // 1b. Delete who-has-read-it rows (no foreign key on that table, so nothing removes them by itself: they would stay for ever, pointing at a circular that is gone).
+      // Step 1b: delete the who-has-read-it rows. That table has no foreign key, so nothing removes them by itself: they would stay for ever, pointing at a circular that is gone.
       await manager.query(`DELETE FROM public.circularreadstatus WHERE "circularId" = $1`, [circularId]);
 
-      // 2. Delete the circular row itself.
+      // Step 2: delete the circular row itself.
       await manager.query(`DELETE FROM public.circulars WHERE id = $1`, [
         circularId,
       ]);
 
-      // 3. Renumber that year's remaining circulars to close the gap.
-      //    Done in TWO phases to avoid a transient unique-constraint collision
+      // Step 3: I renumber that year's remaining circulars to close the gap.
+      //    I do it in TWO phases to avoid a transient unique-constraint collision
       //    on circulars_year_serial_uidx: a single bulk UPDATE to 1..N can make
       //    one row momentarily take a serial another row still holds, which
       //    Postgres rejects mid-statement even though the FINAL state is valid.
@@ -198,7 +198,7 @@ export async function DELETE(request: Request, context: RouteContext) {
         `,
         [year],
       );
-      // 3b. Flip the parked negatives to their final positive serials.
+      // Step 3b: flip the parked negatives to their final positive serials.
       await manager.query(
         `
           UPDATE public.circulars
@@ -217,7 +217,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     });
 
     // ---- COMPENSATING BLOB CLEANUP (after commit) ----
-    // DB is already consistent. A failure here only leaves orphan blobs.
+    // The DB is already consistent here, so a failure only leaves orphan blobs.
     if (blobUrls.length > 0) {
       try {
         await del(blobUrls);
@@ -230,7 +230,7 @@ export async function DELETE(request: Request, context: RouteContext) {
           e?.message || e,
           blobUrls,
         );
-        // Not fatal: DB is consistent; orphan blobs are auditable/removable later.
+        // Not fatal: the DB is consistent, and I can audit and remove orphan blobs later.
       }
     }
 
@@ -238,7 +238,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   } catch (error: any) {
     if (error instanceof Forbidden) return NextResponse.json({ error: "Your authority was withdrawn." }, { status: 403 });
     if (error instanceof NotFoundNow) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    // The real cause goes to the server log; the browser gets a plain answer (no SQL or stack).
+    // I send the real cause to the server log; the browser gets a plain answer (no SQL or stack).
     console.error(`DELETE /api/circulars failed for id=${circularId}:`, error?.stack || error?.message || error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }

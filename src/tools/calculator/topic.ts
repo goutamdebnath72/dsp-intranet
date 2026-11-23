@@ -1,7 +1,7 @@
 // src/tools/calculator/topic.ts
 //
-// WHAT THE SEARCH LINE NEEDS TO KNOW ABOUT THIS TOPIC (pure, no React): the words that ask for the full calculator, a number typed in a base (0xFF, 255 to binary), and a typed sum that is answered as you type (12*45+7, 15% of 2400, 5 lakh * 12).
-// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. It is listed once, in src/tools/registry.ts.
+// What the search line needs to know about this topic (pure, no React): the words that ask for the full calculator, a number typed in a base (0xFF, 255 to binary), and a typed sum that I answer as you type (12*45+7, 15% of 2400, 5 lakh * 12).
+// How it looks in the panel is in ui.tsx; its logic is in the files beside this one. I list it once, in src/tools/registry.ts.
 import { defineTopic } from "@/tools/types";
 import { evaluateExpression } from "./expression";
 import { parseBaseLine } from "./numberBase";
@@ -12,11 +12,11 @@ export const calcTopic = defineTopic({
   form: {
     rank: 10,
     nouns: ["calculator", "calc", "scientific", "basic", "standard", "numerical", "numeric", "full", "normal", "simple", "mac", "online", "free", "open", "the", "a", "my", "show", "need", "want"],
-    // the full calculator (basic and scientific): "calculator", "scientific calculator", "calc"; the plural, "tools" and "menu" are the list of all the calculators
+    // I open the full calculator (basic and scientific) for "calculator", "scientific calculator", "calc"; the plural, "tools" and "menu" mean the list of all the calculators instead.
     wants: (c) => c.has(["calculator", "calc"]) && c.only() && !c.has(["tools", "tool", "menu", "list"]),
   },
   hits: [
-    // rank 105: ahead of the sum (110); the reader is strict (a 0x/0b/0o prefix, or "to/in" and a base word), so no ordinary line is taken for a number in a base
+    // Rank 105: ahead of the sum (110). I keep the reader strict (a 0x/0b/0o prefix, or "to/in" and a base word), so no ordinary line is taken for a number in a base
     { rank: 105, detect: (q) => { const r = parseBaseLine(q); return r ? { kind: "calcbase" as const, value: r.value, base: r.base } : null; } },
     { rank: 110, detect: (q) => { const result = evaluateExpression(q); return result ? { kind: "expression" as const, result } : null; } },
   ],

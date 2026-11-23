@@ -1,20 +1,20 @@
 // src/tools/calculator/expression.ts
 //
-// THE CALCULATOR OF THE SEARCH BAR. A small hand-written parser: it never calls eval or Function, so what a user types can only ever be arithmetic.
+// The calculator of the search bar. I wrote it as a small hand-made parser: it never calls eval or Function, so what a user types can only ever be arithmetic.
 // Pure: no I/O, no model, nothing is stored or sent anywhere.
 //
 // Understands: + - * / ^ (and ** × ÷), brackets, "%" the way a pocket calculator does (200 + 10% = 220, 200 - 10% = 180, 200 * 10% = 20), "15% of 2400",
 // Indian number words (5 lakh, 1.2 crore, 3 thousand) and 5k, Indian digit grouping (1,00,000), constants pi and e, and the usual functions.
 //
-// The detector is STRICT: the whole text must be arithmetic, with at least one operator or function. A date ("24-01-2026"), a year range ("2025-26"), a telephone-like number
-// ("033-2345678"), a ticket number or any sentence is NOT an expression: such text goes to the ordinary search untouched.
+// I keep the detector STRICT: the whole text must be arithmetic, with at least one operator or function. A date ("24-01-2026"), a year range ("2025-26"), a telephone-like number
+// ("033-2345678"), a ticket number or any sentence is NOT an expression, and such text goes to the ordinary search untouched.
 
 export interface ExpressionResult {
   /** the value */
   value: number;
-  /** the expression as it was understood, tidied ("200 + 10%") */
+  /** The expression as the parser understood it, tidied ("200 + 10%") */
   shown: string;
-  /** set when the question was for a constant itself ("value of pi"): its digits to full display length */
+  /** Set when the question was for a constant itself ("value of pi"); then I give its digits to full display length */
   exact?: string;
 }
 
@@ -57,13 +57,13 @@ const MULTIPLIERS: Record<string, number> = { thousand: 1e3, k: 1e3, lakh: 1e5, 
 const MAX_LENGTH = 200;
 const MAX_DEPTH = 40;
 
-/** Text that only looks like arithmetic: dates, year ranges, telephone-like numbers. */
+/** I use this to catch text that only looks like arithmetic: dates, year ranges, telephone-like numbers. */
 function looksLikeNonMath(s: string): boolean {
   const t = s.trim();
   if (/^\d{1,2}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{2,4}$/.test(t)) return true; // 24-01-2026, 24/01/26
   if (/^\d{4}\s*[-/]\s*\d{2,4}$/.test(t)) return true; // 2025-26, 2025/2026
   if (/^\d{4}\s*[-/]\s*\d{1,2}\s*[-/]\s*\d{1,2}$/.test(t)) return true; // 2026-11-12
-  if (/(^|[\s(+\-*/^])0\d+/.test(t) && !/0\./.test(t)) return true; // a number with a leading zero (a code, a telephone number)
+  if (/(^|[\s(+\-*/^])0\d+/.test(t) && !/0\./.test(t)) return true; // A number with a leading zero is a code or a telephone number, not arithmetic
   return false;
 }
 
@@ -84,7 +84,7 @@ function tokenize(src: string): Tok[] | null {
     const num = /^(?:\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d+)?(?:e[+-]?\d+)?|^\.\d+(?:e[+-]?\d+)?/i.exec(s.slice(i));
     if (num && /[\d.]/.test(c)) {
       const text = num[0];
-      // "2e" followed by a letter is not an exponent ("2e" then "x"): the regex already needs digits after e
+      // "2e" followed by a letter is not an exponent ("2e" then "x"): my regex already needs digits after the e
       const v = Number(text.replace(/,/g, ""));
       if (!Number.isFinite(v)) return null;
       out.push({ t: "num", v });
@@ -95,7 +95,7 @@ function tokenize(src: string): Tok[] | null {
     if (c === "x" && out.length && out[out.length - 1].t !== "op" && /^x\s*[\d(.]/i.test(s.slice(i))) { out.push({ t: "op", v: "*" }); i++; continue; } // "2 x 3"
     const id = /^[a-z]+\d*/i.exec(s.slice(i));
     if (id) { out.push({ t: "id", v: id[0].toLowerCase() }); i += id[0].length; continue; }
-    return null; // any other character: not arithmetic
+    return null; // Any other character means the text is not arithmetic
   }
   return out;
 }
@@ -103,7 +103,7 @@ function tokenize(src: string): Tok[] | null {
 class Parser {
   private p = 0;
   private depth = 0;
-  /** an operator or a function was used (a lone number is not a calculation) */
+  /** Set once an operator or a function was used: I do not count a lone number as a calculation */
   used = false;
   constructor(private toks: Tok[]) {}
 
@@ -121,9 +121,9 @@ class Parser {
       this.used = true;
       const rightStart = this.p;
       const right = this.term();
-      // a pocket calculator: 200 + 10% means 200 + 10% of 200
+      // I follow a pocket calculator here: 200 + 10% means 200 + 10% of 200
       const a = this.toks[rightStart], b = this.toks[rightStart + 1];
-      const pct = this.p - rightStart === 2 && a?.t === "num" && b?.t === "op" && b.v === "%"; // exactly "10%"; "10%*3" or "(5+5)%" are plain arithmetic
+      const pct = this.p - rightStart === 2 && a?.t === "num" && b?.t === "op" && b.v === "%"; // Only exactly "10%" counts; "10%*3" or "(5+5)%" are plain arithmetic
       const amount = pct ? left * right : right;
       left = op === "+" ? left + amount : left - amount;
     }
@@ -131,7 +131,7 @@ class Parser {
     return left;
   }
 
-  /** "2pi", "2(3+4)", "(1+1)pi", "pi 5": a number, bracket or constant straight before a constant, a function or an opening bracket means "times" (a number straight before a number does not) */
+  /** "2pi", "2(3+4)", "(1+1)pi", "pi 5": I read a number, bracket or constant straight before a constant, a function or an opening bracket as "times"; a number straight before a number is not. */
   private implicitTimes(prev: Tok | undefined): boolean {
     const t = this.peek();
     if (!t || !prev) return false;
@@ -167,7 +167,7 @@ class Parser {
     if (this.isOp("^")) {
       this.p++;
       this.used = true;
-      return Math.pow(base, this.unary()); // right-associative: 2^3^2 = 2^9; and -2^2 = -(2^2), because the sign is read before the power
+      return Math.pow(base, this.unary()); // I make it right-associative: 2^3^2 = 2^9; and -2^2 = -(2^2), because the sign is read before the power
     }
     return base;
   }
@@ -181,7 +181,7 @@ class Parser {
   private postfix(): number {
     let v = this.primary();
     for (;;) {
-      if (this.isOp("%")) { this.p++; v = v / 100; continue; } // a percent alone is not a calculation (it does not set `used`)
+      if (this.isOp("%")) { this.p++; v = v / 100; continue; } // A percent alone is not a calculation, so I do not set `used`
       if (this.isOp("!")) {
         this.p++;
         this.used = true;
@@ -234,8 +234,10 @@ class Parser {
   }
 }
 
-/** Roots and powers written as words: "sq rt of 4^3", "square root of 64", "cube root of 27", "5th root of 32", "square of 12", "cube of 3", "5 squared".
- *  After "of" the WHOLE rest is the argument ("square root of 16 + 9" is the root of 25), which the card shows back as "√(16 + 9)". */
+/**
+ * I accept roots and powers written as words: "sq rt of 4^3", "square root of 64", "cube root of 27", "5th root of 32", "square of 12", "cube of 3", "5 squared".
+ * After "of" I take the WHOLE rest as the argument ("square root of 16 + 9" is the root of 25), which the card shows back as "√(16 + 9)".
+ */
 const SQRT_WORDS = /\b(?:sq(?:uare)?\.?\s*r(?:oo)?t|sqrt)\b/gi;
 const CBRT_WORDS = /\b(?:(?:cb|cu)(?:be)?\.?\s*r(?:oo)?t|cbrt)\b/gi;
 function rewriteWordedMaths(input: string, depth = 0): string {
@@ -261,7 +263,7 @@ function rewriteWordedMaths(input: string, depth = 0): string {
   return s;
 }
 
-/** "what is", "calculate", "calc", "=" around the arithmetic are noise; "15% of 2400" becomes "15% * 2400". */
+/** I treat "what is", "calculate", "calc" and "=" around the arithmetic as noise and strip them; "15% of 2400" becomes "15% * 2400". */
 function tidy(raw: string): string {
   let s = (raw || "").trim();
   s = s.replace(/^(?:what\s+is|what's|calculate|calc|compute|solve|find|evaluate)\s+/i, "");
@@ -272,7 +274,7 @@ function tidy(raw: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-/** The expression as the card shows it back: roots as √ and ∛, simple squares and cubes as ² and ³. */
+/** I show the expression back on the card like this: roots as √ and ∛, simple squares and cubes as ² and ³. */
 function prettyShown(s: string): string {
   return s
     .replace(/\s+/g, " ")
@@ -283,8 +285,10 @@ function prettyShown(s: string): string {
     .replace(/\((\d[\d.,]*)\)\^3/g, "$1³");
 }
 
-/** "pi", "π", "value of pi", "pi value", "what is e", "euler's number", "golden ratio", "φ": the constant itself, to full length.
- *  A lone "e" or a lone "phi" is not taken (a letter, a name people may type); "golden ratio" and the symbols π and φ are. */
+/**
+ * "pi", "π", "value of pi", "pi value", "what is e", "euler's number", "golden ratio", "φ": I answer with the constant itself, to full length.
+ * I do not take a lone "e" or a lone "phi" (a letter, a name people may type); "golden ratio" and the symbols π and φ I do take.
+ */
 function constantQuestion(raw: string): { name: "pi" | "e" | "phi"; shown: string } | null {
   const t = (raw || "").trim().toLowerCase().replace(/[?.!]+$/, "").replace(/\s+/g, " ");
   const NAME = "(pi|π|e|phi|φ|euler'?s?(?: number| constant)?|golden (?:ratio|number|section|mean))";
@@ -297,7 +301,7 @@ function constantQuestion(raw: string): { name: "pi" | "e" | "phi"; shown: strin
   return which(w.startsWith("golden") ? "phi" : w);
 }
 
-/** The value of an arithmetic expression, or null when the text is not one (or cannot be evaluated: division by zero, an unknown word). */
+/** Returns the value of an arithmetic expression, or null when the text is not one or cannot be evaluated (division by zero, an unknown word). */
 export function evaluateExpression(raw: string): ExpressionResult | null {
   const c = constantQuestion(raw);
   if (c) return { value: CONSTS[c.name], shown: c.shown, exact: CONSTANT_DIGITS[c.name] };
@@ -317,7 +321,7 @@ export function evaluateExpression(raw: string): ExpressionResult | null {
   return { value, shown: prettyShown(s) };
 }
 
-/** Indian digit grouping: 1234567.891 -> "12,34,567.891". Up to 10 significant digits; very large or small values in scientific form. */
+/** I group digits the Indian way: 1234567.891 -> "12,34,567.891". Up to 10 significant digits; very large or small values go in scientific form. */
 export function formatNumber(v: number, sig = 10): string {
   if (!Number.isFinite(v)) return "—";
   if (v === 0) return "0";
@@ -334,7 +338,7 @@ export function formatNumber(v: number, sig = 10): string {
   return `${rounded < 0 ? "-" : ""}${g}${frac ? "." + frac : ""}`;
 }
 
-/** The same value in Indian words when it is large: 12500000 -> "1.25 crore"; null below one lakh. */
+/** Gives the same value in Indian words when it is large: 12500000 -> "1.25 crore"; null below one lakh. */
 export function indianWords(v: number): string | null {
   const abs = Math.abs(v);
   if (!Number.isFinite(v) || abs < 1e5 || abs >= 1e15) return null;

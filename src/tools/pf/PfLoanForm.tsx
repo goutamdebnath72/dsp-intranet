@@ -1,6 +1,6 @@
 // src/tools/pf/PfLoanForm.tsx
 //
-// THE REFUNDABLE PF LOAN EMI FORM of DSP. Keeps what is typed in the browser's memory only (React state): nothing is stored, logged or sent. The rules and the sums are in the pure file beside it (pfLoan.ts):
+// THE REFUNDABLE PF LOAN EMI FORM of DSP. I keep what is typed in the browser's memory only (React state): nothing is stored, logged or sent. The rules and the sums are in the pure file beside it (pfLoan.ts):
 // the loan's interest is always 1 point more than the PF deposit's, the period is at most 10 years and never beyond the service left, and the interest is on the balance still owed, month by month.
 "use client";
 
@@ -22,7 +22,7 @@ const VIEWS: Array<{ id: LoanView; label: string }> = [{ id: "year", label: "Yea
 
 /**
  * THE REPAYMENT TABLE, in two views of the same loan: YEAR-WISE (for each year the total paid, the principal, the interest and the balance at its end) and MONTH-WISE (from the first month to the last: each month's
- * instalment, and what part of it is principal and what part interest, and the balance after it). Every row is shown (the month-wise view scrolls inside its box, its header stays in sight).
+ * instalment, and what part of it is principal and what part interest, and the balance after it). I show every row; the month-wise view scrolls inside its box and its header stays in sight.
  */
 export function LoanTable({ res, initialView = "year" }: { res: PfLoanResult; initialView?: LoanView }) {
   const [view, setView] = useState<LoanView>(initialView);
@@ -54,7 +54,7 @@ export function LoanTable({ res, initialView = "year" }: { res: PfLoanResult; in
   );
 }
 
-/** today in India as day, month, year (the service left is counted from the current month) */
+/** Today in India as day, month, year; I count the service left from the current month. */
 export const todayIndia = (): YMD => { const d = DateTime.now().setZone("Asia/Kolkata"); return { day: d.day, month: d.month, year: d.year }; };
 
 export function PfLoanForm({ today }: { today?: YMD }) {

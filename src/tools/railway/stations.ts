@@ -2,12 +2,12 @@
 //
 // THE FULL NAME AND THE PLACE OF A STATION, for the code the railway uses ("HWH", "KOAA", "PRRB"), so that the card can say "Howrah Junction (HWH), Howrah, West Bengal" and the reader need not decipher a code.
 // RailRadar's answer gives each end of a train as a code and a short name ("Howrah Jn", "Kolkatta Terminal"), but no city or state, and a few names are misspelt; this table holds the stations that appear at the ends of the
-// trains that stop at Durgapur (the 77 of 13 Nov 2026). The CODE IS ALWAYS KEPT beside the name (it is what a ticket and the railway's own boards show).
-// Names carry no brackets of their own (the code is printed in brackets beside them). A station that is not in the table is shown by the name RailRadar gives, with no place: nothing is guessed. Pratapnagar (PRTN, Vadodara, Gujarat) was added on the owner's word (14 Nov 2026), not from a source the tool read. A JUNCTION is a station whose official name carries "Junction" (RailRadar writes "Jn"); the card marks it. Nothing else is called a junction here (Agra Cantt, Malda Town and Jhajha are junctions in practice but not by name, so they are not marked).
+// trains that stop at Durgapur (the 77 of 13 Nov 2026). I ALWAYS KEEP THE CODE beside the name (it is what a ticket and the railway's own boards show).
+// Names carry no brackets of their own (the code is printed in brackets beside them). A station that is not in the table is shown by the name RailRadar gives, with no place: I guess nothing. Pratapnagar (PRTN, Vadodara, Gujarat) was added on my word (14 Nov 2026), not from a source the tool read. A JUNCTION is a station whose official name carries "Junction" (RailRadar writes "Jn"); the card marks it. I call nothing else a junction here (Agra Cantt, Malda Town and Jhajha are junctions in practice but not by name, so they are not marked).
 export interface Station {
-  /** the full name, "Jn" written out */
+  /** I write "Jn" out in the full name. */
   name: string;
-  /** the city or town, and the state (the city is left out when it is the state: Delhi) */
+  /** The city or town, and the state; I leave the city out when it is the state (Delhi). */
   city: string;
   state: string;
 }
@@ -104,17 +104,17 @@ export const STATIONS: Record<string, Station> = {
 
 export interface StationLabel {
   code: string;
-  /** the full name (RailRadar's own when the station is not in the table) */
+  /** The full name; RailRadar's own when the station is not in the table. */
   name: string;
-  /** "Howrah, West Bengal", "Delhi"; null when the station is not in the table */
+  /** The place, such as "Howrah, West Bengal" or "Delhi"; null when the station is not in the table. */
   place: string | null;
-  /** a junction: the official name carries "Junction" (or the source's name carries "Jn") */
+  /** True for a junction: the official name carries "Junction" (or the source's name carries "Jn"). */
   junction: boolean;
 }
 
 const JUNCTION = /\bJunction\b|\bJn\b\.?/;
 
-/** the label of a station: the table's name and place when it has the code, else the name RailRadar gave and no place */
+/** Returns the label of a station: the table's name and place when it has the code, else the name RailRadar gave and no place. */
 export function stationLabel(code: string, railRadarName: string): StationLabel {
   const s = STATIONS[code];
   if (!s) return { code, name: railRadarName, place: null, junction: JUNCTION.test(railRadarName) };

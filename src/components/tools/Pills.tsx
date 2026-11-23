@@ -1,7 +1,7 @@
 // src/components/tools/Pills.tsx
 //
-// A ROW OF TABS shared by the cards of the search bar (the AICPI card's tabs, the Durgapur areas card's tabs): a real tab list (the arrow keys, Home and End move between the tabs), and the chosen tab has a pill that slides to it.
-// `gradient` is the pill's colour (Tailwind classes, written whole so that the stylesheet has them).
+// A row of tabs shared by the cards of the search bar (the AICPI card's tabs, the Durgapur areas card's tabs): a real tab list (the arrow keys, Home and End move between the tabs), and the chosen tab has a pill that slides to it.
+// I write `gradient`, the pill's colour, as whole Tailwind classes so that the stylesheet has them.
 "use client";
 
 import React from "react";

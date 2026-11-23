@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/registry.selftest.ts
 //
-// THE GUARD OF MODULARITY. Every topic of the search bar's tools is ONE folder (src/tools/<topic>/) and ONE line in each of the two registries; nothing else may name a topic. This test fails when
+// THE GUARD OF MODULARITY. My rule: every topic of the search bar's tools is ONE folder (src/tools/<topic>/) and ONE line in each of the two registries; nothing else may name a topic. This test fails when
 // someone breaks that: a topic missing its two descriptor files or its own test, a topic that answers a line nobody can draw, a sample question that its own topic does not answer, a shared file that
 // has started to import a topic's internals, or two topics that reach into each other.
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
@@ -18,9 +18,9 @@ const ids = topics.map((t) => t.id);
 const files = (d: string): string[] => readdirSync(d).flatMap((n) => (statSync(`${d}/${n}`).isDirectory() ? files(`${d}/${n}`) : [`${d}/${n}`]));
 const strip = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
-// the live-data topics keep their data engines and cards in src/lib/live and src/components/tools/live, and are tested there (live.selftest.tsx)
+// I keep the data engines and cards of the live-data topics in src/lib/live and src/components/tools/live, and test them there (live.selftest.tsx).
 const LIVE = ["gold", "markets", "fuel", "news", "sports"];
-// the folder of a topic is not always its id
+// Careful: the folder of a topic is not always its id.
 const FOLDER: Record<string, string> = { calc: "calculator" };
 const folder = (id: string) => `src/tools/${FOLDER[id] ?? id}`;
 
@@ -30,14 +30,14 @@ ok("every topic has a folder with its two descriptors, topic.ts (what the search
 ok("every folder of src/tools is a listed topic (no folder is left out of the registry)", readdirSync("src/tools").filter((n) => statSync(`src/tools/${n}`).isDirectory()).every((n) => ids.some((id) => (FOLDER[id] ?? id) === n)));
 ok("every topic with logic of its own has its own selftest in its folder (a new topic cannot be added untested)", ids.filter((id) => !LIVE.includes(id)).every((id) => files(folder(id)).some((f) => /\.selftest\.tsx?$/.test(f))), ids.filter((id) => !LIVE.includes(id) && !files(folder(id)).some((f) => /\.selftest\.tsx?$/.test(f))).join());
 
-// what a topic says it does, it must do
+// My rule: what a topic says it does, it must do.
 ok("every form is drawn: a title, a tone, an icon and a tile in the list of calculators", topics.filter((t) => t.form).every((t) => { const f = TOPIC_UIS.find((u) => u.id === t.id)?.form; return !!f && f.title.length > 5 && !!f.tone && !!f.icon && f.menu.title.length > 3 && f.menu.text.length > 10; }));
 ok("a topic has a form in one registry exactly when it has one in the other", topics.every((t) => !!t.form === !!TOPIC_UIS.find((u) => u.id === t.id)?.form));
 ok("every live topic has its card, every card its words", topics.filter((t) => t.live).every((t) => !!TOPIC_UIS.find((u) => u.id === t.id)?.live && (t.live!.keys.length > 0 || (t.live!.phrases?.length ?? 0) > 0)) && TOPIC_UIS.filter((u) => u.live).every((u) => !!topics.find((t) => t.id === u.id)?.live));
 ok("form ranks are unique (the order in which plain-word requests are tried is never a tie)", new Set(topics.filter((t) => t.form).map((t) => t.form!.rank)).size === topics.filter((t) => t.form).length);
 ok("every form has nouns, and a request that is only its nouns and fillers can be told from a sentence", topics.filter((t) => t.form).every((t) => t.form!.nouns.length > 0));
 
-// every sample question is answered by its own topic, the way it says
+// I require every sample question to be answered by its own topic, the way it says.
 const hitKindsOf = (id: string) => (TOPIC_UIS.find((u) => u.id === id)?.hits ?? []).map((h) => h.kind as string);
 const bad: string[] = [];
 for (const t of topics) {
@@ -54,14 +54,14 @@ ok("the list of calculators answers its own sample", MENU_SAMPLES.every((s) => d
 ok("the page of all the utility services answers its own sample, and the two lists never answer for each other", SERVICES_SAMPLES.every((s) => detectForm(s.q) === "services") && detectForm("calculators") === "menu" && detectForm("utility services") === "services" && detectForm("utilities") === "services" && detectForm("all utilities") === "services" && detectForm("list of utilities") === "services");
 ok("every kind of answer a topic gives has a card (every sample that is answered as you type can be drawn)", topics.flatMap((t) => (t.samples ?? []).filter((s) => s.instant)).every((s) => { const h = detectTool(s.q); return !!h && (h.kind === "live" ? !!TOPIC_UIS.find((u) => u.id === h.topic)?.live : TOPIC_UIS.some((u) => u.hits?.some((x) => x.kind === h.kind))); }));
 
-// the shared files name no topic
+// My rule: the shared files name no topic.
 const SHARED = ["src/lib/tools/detect.ts", "src/components/tools/ToolPanel.tsx", "src/lib/help/sampleQuestions.ts"];
 const SHARED_OK = /^@\/tools\/(registry|registry\.ui|menu|services|types|uiTypes|converter\/useRates)$/;
 const importsOf = (src: string) => [...src.matchAll(/from\s+["'](@\/tools\/[^"']+)["']/g)].map((m) => m[1]);
 ok("detect.ts, ToolPanel.tsx and sampleQuestions.ts import only the registries and the contract (plus the one rate-table hook): they name no topic", SHARED.every((f) => importsOf(strip(f)).every((i) => SHARED_OK.test(i))), SHARED.flatMap((f) => importsOf(strip(f)).filter((i) => !SHARED_OK.test(i)).map((i) => `${f}: ${i}`)).join("\n"));
 ok("the shared files do not mention a topic by its words either (no 'tyre', 'vin', 'gratuity'... in detect.ts or ToolPanel.tsx outside comments)", ["src/lib/tools/detect.ts", "src/components/tools/ToolPanel.tsx"].every((f) => !/\b(tyre|vin|gratuity|encashment|bharat|emi|pf)\b/i.test(strip(f).replace(/"[^"]*"/g, '""'))), "");
 
-// topics do not reach into each other (tyre and rim are one reader in two parts: a declared dependency)
+// Topics do not reach into each other. Tyre and rim are one reader in two parts, so I declare that dependency.
 const DEPENDS: Record<string, string[]> = { tyre: ["rim"], rim: ["tyre"] };
 const reach: string[] = [];
 for (const id of ids) {
@@ -75,14 +75,14 @@ for (const id of ids) {
 }
 ok("a topic imports only its own folder, the shared libraries and the contract, apart from the declared tyre/rim dependency", reach.length === 0, reach.join("\n"));
 
-// the stylesheet is built only from the folders that tailwind.config.js lists: a topic folder outside them would be drawn unstyled (this once happened when the topics were moved into src/tools)
+// The stylesheet is built only from the folders that tailwind.config.js lists, so a topic folder outside them would be drawn unstyled (this once happened when the topics were moved into src/tools).
 const tw = readFileSync("tailwind.config.js", "utf8");
 const globs = [...tw.matchAll(/"\.\/(src\/[^*"]+)\/\*\*/g)].map((m) => m[1]);
 const withClasses = files("src").filter((f) => /\.tsx$/.test(f) && !/selftest/.test(f) && /className=/.test(readFileSync(f, "utf8")));
 const uncovered = withClasses.filter((f) => !globs.some((g) => f.startsWith(g + "/")));
 ok("every file that draws markup with Tailwind classes is inside a folder that tailwind.config.js scans", uncovered.length === 0 && globs.includes("src/tools"), uncovered.join("\n"));
 
-// every topic says what it is (title, one sentence, words), so that the search box can find it from a line that uses none of its keywords (src/lib/tools/intent.ts)
+// I want every topic to say what it is (title, one sentence, words), so that the search box can find it from a line that uses none of its keywords (src/lib/tools/intent.ts).
 const noIntent = (TOPICS as readonly { id: string; intent?: { title: string; about: string; words: string[] } }[]).filter((t) => !t.intent || t.intent.title.length < 4 || t.intent.about.length < 30 || t.intent.words.length < 4);
 ok("every topic has an intent (a title, a sentence about it, and at least four words people use for it)", noIntent.length === 0, noIntent.map((t) => t.id).join());
 

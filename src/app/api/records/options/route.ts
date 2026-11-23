@@ -1,7 +1,7 @@
 // src/app/api/records/options/route.ts
 //
-// THE TWO PICK-LISTS of the People finder ("Department & designation"): every department and every designation of the directory, as { id, name }. Names of offices and grades only: no person, no number.
-// Kept in the server's memory for 10 minutes (the lists change rarely) and sent with a 5 minute browser cache.
+// The two pick-lists of the People finder ("Department & designation"): every department and every designation of the directory, as { id, name }. Names of offices and grades only: no person, no number.
+// I keep them in the server's memory for 10 minutes (the lists change rarely) and send them with a 5 minute browser cache.
 
 import { PERF } from "@/lib/perf/switches";
 import { NextResponse } from "next/server";
@@ -19,7 +19,7 @@ export async function GET() {
       const ds = await getDb();
       const askDepartments = (): Promise<Array<{ id: number; name: string }>> => ds.query(`SELECT id, name FROM public.sail_department ORDER BY name`);
       const askDesignations = (): Promise<Array<{ id: number; title: string }>> => ds.query(`SELECT id, title FROM public.designation_grade ORDER BY rank_order, title`);
-      // the two lists are independent: asked together (src/lib/perf/switches.js: parallelReads)
+      // The two lists are independent, so I ask for them together (src/lib/perf/switches.js: parallelReads)
       const [d, g] = PERF.parallelReads ? await Promise.all([askDepartments(), askDesignations()]) : [await askDepartments(), await askDesignations()];
       cache = {
         at: Date.now(),

@@ -1,9 +1,9 @@
 // src/app/api/employees/pattern-feedback/route.ts
 //
-// Receives feedback on a PENDING learned query pattern (see
+// This receives feedback on a PENDING learned query pattern (see
 // src/lib/employees/patternCache.ts and queryOrchestrator.ts): an explicit
 // tick/cross from the person who saw that specific LLM-derived answer. This is the ONLY way a pattern ever becomes 'confirmed' (matchable
-// for everyone else) or 'rejected' -- nothing is ever cached from the LLM path
+// for everyone else) or 'rejected'. My rule: nothing is ever cached from the LLM path
 // alone, and nothing is inferred from behaviour (no dwell-time signals).
 
 import { NextResponse } from "next/server";
@@ -18,13 +18,13 @@ export const fetchCache = "force-no-store";
  * Body:
  *   { patternId: number, verdict: "confirm" | "reject" }   -- explicit tick/cross
  *
- * Always returns 200 with { ok: true } even when nothing was actually
+ * I always return 200 with { ok: true } even when nothing was actually
  * changed (e.g. the pattern was already decided, or doesn't exist) --
  * this is fire-and-forget telemetry from the frontend's point of view, not
  * a user-facing action that should ever surface an error.
  */
 export async function POST(req: Request) {
-  // Signed-in people only: an anonymous tick or cross must not be able to train the pattern cache.
+  // Signed-in people only: I do not let an anonymous tick or cross train the pattern cache.
   if (!(await getSessionTicket())) {
     return NextResponse.json({ ok: false, error: "sign in to give feedback" }, { status: 401 });
   }

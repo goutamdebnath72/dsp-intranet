@@ -1,16 +1,16 @@
 // src/lib/search/edsVerify.ts
 //
-// THE CHECK THAT READS THE CIRCULARS. Until 11 Nov 2026 every fault found in a briefing was met with one more rule in the prompt or one more regex
+// THE CHECK THAT READS THE CIRCULARS. Until 11 Nov 2026 I met every fault found in a briefing with one more rule in the prompt or one more regex
 // (a wrong count, a discretion holder called an issuer, "directly" added, "Not stated" for an item the circular lists ...). Each such rule fixes the
 // last question and nothing else. This module is the general form of all of them: after the best candidate is chosen, a SECOND model call reads the
 // whole circular text and the briefing, and reports, sentence by sentence and cell by cell, what the circulars do not support, what they contradict,
 // what the table lacks, which part of the question is unanswered, and what each short form stands for in these circulars.
 //
-// The verifier is itself a model, so nothing it says is taken on trust. Plain code (applyVerdict) applies a report only when the code can check it:
-//   - a corrected sentence or cell is used only when its figures are in the circulars (figuresSafe) and its wording is the circulars' wording;
-//   - a quote the verifier gives must be found, verbatim, in the circular text, or the item is ignored;
-//   - a sentence the circulars do not support, for which no checkable correction is given, is REMOVED (the briefing then says less, never more that is wrong);
-//   - a cell is never blanked on the verifier's word alone: "Not stated" is the absence check's business (absenceCheck.ts), which fills, never blanks.
+// The verifier is itself a model, so I take nothing it says on trust. Plain code (applyVerdict) applies a report only when the code can check it:
+//   - I use a corrected sentence or cell only when its figures are in the circulars (figuresSafe) and its wording is the circulars' wording;
+//   - a quote the verifier gives must be found, verbatim, in the circular text, or I ignore the item;
+//   - a sentence the circulars do not support, with no checkable correction given, is REMOVED: the briefing then says less, never more that is wrong;
+//   - I never blank a cell on the verifier's word alone: "Not stated" is the absence check's business (absenceCheck.ts), which fills, never blanks.
 // Pure except for `verifyBriefing`, which makes the model call.
 
 import type { SynthesisResult, SynthesisTable, SynthesisFinding } from "./executiveSynthesis";
@@ -23,7 +23,7 @@ export interface VerifyCell { table?: "table" | "table2"; row: string; column: s
 export interface VerifyRow { table?: "table" | "table2"; label: string; cells: string[]; quote: string }
 export interface VerifyPart { part: string; status: "in_circular" | "not_in_circular"; fact?: string; quote?: string }
 export interface VerifyAbbr { abbr: string; meaning: string; quote: string }
-/** a year or edition the question names that the table has no column for: one value per row, each with its own quote */
+/** Holds a year or edition that the question names and the table has no column for: one value per row, each with its own quote. */
 export interface VerifyColumn { table?: "table" | "table2"; column: string; cells: Array<{ row: string; value: string; quote: string }> }
 export interface Verdict {
   sentences: VerifySentence[];
@@ -32,7 +32,7 @@ export interface Verdict {
   missingColumns: VerifyColumn[];
   unanswered: VerifyPart[];
   abbreviations: VerifyAbbr[];
-  /** a misspelt word of the briefing's own sentences, and its correction (optional: older reports have none) */
+  /** A misspelt word in the briefing's own sentences, with its correction (optional: older reports have none). */
   spelling?: Array<{ wrong: string; right: string }>;
 }
 
@@ -73,7 +73,7 @@ NOT A FAULT (never list these): a rupee sign or a number format ("₹1,000" for 
 
 Rules: a "quote" is ALWAYS copied verbatim from the circular text, 3 to 60 words, never paraphrased and never from the briefing. A supported sentence is not listed. A right cell is not listed. When nothing is wrong, every array is empty. Figures in a "fix" or a "value" must appear in the circular text. Output JSON only.`;
 
-/** The short forms with more than one confirmed sense (abbreviationSenses.ts) that the briefing uses, written as a short form (capitals, word on its own). */
+/** Returns the short forms the briefing uses that have more than one confirmed sense (abbreviationSenses.ts), written as a short form (capitals, word on its own). */
 export function ambiguousShortForms(r: SynthesisResult): string[] {
   const text = [r.overview, ...(r.keyFindings ?? []).map((f) => f.text), ...[r.table, r.extraTable].flatMap((t) => (t ? [t.title ?? "", ...t.columns, ...t.rows.flat()] : []))].join(" \n ");
   return Object.keys(KNOWN_SENSES).filter((abbr) => new RegExp(`(?:^|[^\\p{L}])${abbr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}])`, "u").test(text));
@@ -81,12 +81,12 @@ export function ambiguousShortForms(r: SynthesisResult): string[] {
 
 /**
  * CLAUSES THE BRIEFING DOES NOT USE. A reader of a long circular misses a clause that bears on the question (a shorter limit for another case, a condition, an exception): the
- * circular is long and the clause is one sentence. Plain code narrows the haystack: the clauses (sentences) of the circulars that share at least two content words with the
+ * circular is long and the clause is one sentence. I let plain code narrow the haystack: the clauses (sentences) of the circulars that share at least two content words with the
  * question and carry a figure the briefing never uses, the likeliest first. Code does not judge whether a clause belongs to the answer; it only points, and the verifier decides.
  */
-/** a code a reader acts on: letters with digits mixed (an IFSC code, a policy number) or a long run of digits (an account number); a telephone number is not one */
+/** I count as a code anything a reader acts on: letters with digits mixed (an IFSC code, a policy number) or a long run of digits (an account number); a telephone number is not one. */
 const CODE_LIKE = (t: string): boolean => {
-  if (/^\d{9,18}$/.test(t)) return !/^[6-9]\d{9}$/.test(t) && !/^0\d{9,11}$/.test(t); // not a mobile or a landline
+  if (/^\d{9,18}$/.test(t)) return !/^[6-9]\d{9}$/.test(t) && !/^0\d{9,11}$/.test(t); // a mobile or landline number does not count
   return t.length >= 6 && /[A-Za-z]/.test(t) && /\d{3,}/.test(t) && !/^\d+(?:st|nd|rd|th)$/i.test(t);
 };
 
@@ -102,14 +102,14 @@ export function unusedClauses(q: string, r: SynthesisResult, contextData: string
     return codes.some((t) => used.has(t.toLowerCase())) && codes.some((t) => !used.has(t.toLowerCase()));
   };
   const clauses = contextData
-    .replace(/\[(?:Circular|Announcement) id=[^\]]*\]/g, "\n") // the record header of each circular (or announcement) ends a clause
-    .replace(/\d+ \| P a g e|\[handwritten:[^\]]*\]|\[logo\]/gi, " ") // page footers, signatures and logos are not clauses
+    .replace(/\[(?:Circular|Announcement) id=[^\]]*\]/g, "\n") // I end a clause at the record header of each circular (or announcement)
+    .replace(/\d+ \| P a g e|\[handwritten:[^\]]*\]|\[logo\]/gi, " ") // I do not count page footers, signatures and logos as clauses
     .split(/\n+|(?<=[.;])\s+(?=[A-Z*"'(“‘])|\s(?=\d{1,2}\.\d{1,2}\s+[A-Z‘“"'(])/)
     .map((c) => c.replace(/\s+/g, " ").trim())
     .filter((c) => {
       const w = c.split(" ").length;
-      // not a table row (a row is the table's business: the briefing's own table and the missing-row check carry it), not a letterhead, a date stamp or a form
-      // a table row is the table's business, EXCEPT a record in which the briefing carries one code but drops another (the account number kept, its IFSC code dropped)
+      // I skip a table row (a row is the table's business: the briefing's own table and the missing-row check carry it), a letterhead, a date stamp or a form.
+      // A table row is the table's business, EXCEPT a record in which the briefing carries one code but drops another (the account number kept, its IFSC code dropped).
       if (c.includes(" | ") && !droppedCode(c)) return false;
       return w >= 8 && w <= (c.includes(" | ") ? 170 : 100) && !/GMT[+-]\d|handwritten|\bP a g e\b|\b(?:date of (?:issue|effect)|reference no|page \d|(?:circular|announcement) id=|annexure|proforma|signature|distribution|tick)\b/i.test(c) && !/\b\d{1,2}[./]\d{1,2}[./]\d{2,4}\b/.test(c);
     });
@@ -122,9 +122,9 @@ export function unusedClauses(q: string, r: SynthesisResult, contextData: string
     const shared = [...stemsOf(c)].filter((st) => qStems.has(st)).length;
     const dropped = c.includes(" | ") && droppedCode(c);
     if (shared < 2 && !dropped) continue;
-    if (dropped) { out.push({ c, shared: 99 }); continue; } // a record that lost a code is always worth the verifier's look
-    const figures = flatText(c.replace(/^\d{1,2}(?:\.\d{1,2})*\.?\s+/, "")).match(/\b\d+(?:\.\d+)?\b/g) || []; // the clause's own number is not a figure of its content
-    // a clause with no figure can still LIMIT the answer ("only once in career", "on pro-rata basis", "shall not exceed"): it counts when its limiting phrase is not in the briefing
+    if (dropped) { out.push({ c, shared: 99 }); continue; } // I always send a record that lost a code to the verifier
+    const figures = flatText(c.replace(/^\d{1,2}(?:\.\d{1,2})*\.?\s+/, "")).match(/\b\d+(?:\.\d+)?\b/g) || []; // I do not count the clause's own number as a figure of its content
+    // A clause with no figure can still LIMIT the answer ("only once in career", "on pro-rata basis", "shall not exceed"), so I count it when its limiting phrase is not in the briefing.
     const limit = c.match(LIMIT_PHRASE);
     const limitUnused = !!limit && !flatText(briefingText).includes(flatText(limit[0]));
     if (!figures.some((n) => !used.has(n)) && !limitUnused) continue;
@@ -135,15 +135,15 @@ export function unusedClauses(q: string, r: SynthesisResult, contextData: string
 
 /**
  * TIMES UNDER THE WRONG NAME. A time is a fact only with its event ("Arrival and address of the Chief Guest 07:45", "Flag-off 08:00"): a briefing that puts the time under another
- * name ("Assembly: 7:45 AM") misleads a reader who acts on it. Plain code compares: for each clock time of the briefing, the words written just before it are looked for beside the
- * same time in the circulars; when none of them stands there, the circulars' own words beside that time are given to the verifier, who decides. Code only points.
+ * name ("Assembly: 7:45 AM") misleads a reader who acts on it. Plain code compares: for each clock time of the briefing, I look for the words written just before it beside the
+ * same time in the circulars; when none of them stands there, the circulars' own words beside that time go to the verifier, who decides. Code only points.
  */
 const CLOCK = /(?<!\d[\s:.])\b(\d{1,2})(?:[:.](\d{2}))?\s?(AM|PM|a\.m\.|p\.m\.)(?![A-Za-z])/gi;
 const minuteOfDay = (h: string, m: string | undefined, ap: string): number => ((Number(h) % 12) + (/^p/i.test(ap) ? 12 : 0)) * 60 + Number(m ?? 0);
-const TIME_WORDS = /^(?:time|timi|from|onwa|star|begi|comm|date|till|unti|dead|last|held|open|clos|that|this|with|will|when|endi|befo|afte|arou|abou|appr|fixe|sche|plan|sett|repo)/; // stems are four letters (stemsOf)
+const TIME_WORDS = /^(?:time|timi|from|onwa|star|begi|comm|date|till|unti|dead|last|held|open|clos|that|this|with|will|when|endi|befo|afte|arou|abou|appr|fixe|sche|plan|sett|repo)/; // here a stem is four letters (stemsOf)
 export function mislabelledTimes(r: SynthesisResult, contextData: string, max = 4): string[] {
   const src = contextData.replace(/\s+/g, " ");
-  const around = new Map<number, string[]>(); // minute of day -> the circulars' words beside each occurrence
+  const around = new Map<number, string[]>(); // maps each minute of day to the circulars' words beside every occurrence
   for (const m of src.matchAll(CLOCK)) {
     const at = m.index ?? 0;
     const k = minuteOfDay(m[1], m[2], m[3]);
@@ -160,7 +160,7 @@ export function mislabelledTimes(r: SynthesisResult, contextData: string, max = 
     for (const m of text.matchAll(CLOCK)) {
       const k = minuteOfDay(m[1], m[2], m[3]);
       const beside = around.get(k);
-      if (!beside) continue; // a time the circulars do not print is the figure guard's business
+      if (!beside) continue; // I leave a time the circulars do not print to the figure guard
       let name = nameOf(text.slice(0, m.index ?? 0));
       let label = [...stemsOf(name)].filter((st) => !TIME_WORDS.test(st));
       if (label.length === 0 && unit.row) { name = unit.row.split(/\s+/).slice(-3).join(" "); label = [...stemsOf(name)].filter((st) => !TIME_WORDS.test(st)); }
@@ -197,12 +197,12 @@ export function uncoveredLists(q: string, r: SynthesisResult, contextData: strin
   for (const list of lists) {
     if (list.length < 3 || list.length > 20 || list[0].n > 1) continue;
     const heading = flat.slice(Math.max(0, list[0].at - 420), list[0].at);
-    const headTail = heading.split(/\d\.\s+(?=[A-Z])/).pop()!.trim(); // the heading is the text after the last clause number ("1. CLOSED/ PUBLIC HOLIDAYS: Following ...")
+    const headTail = heading.split(/\d\.\s+(?=[A-Z])/).pop()!.trim(); // I take the heading to be the text after the last clause number ("1. CLOSED/ PUBLIC HOLIDAYS: Following ...")
     if ([...stemsOf(headTail.slice(0, 120))].filter((st) => qStems.has(st)).length < 2) continue;
     const entries = list.map((m, i) => {
       const next = list[i + 1]?.at ?? Math.min(flat.length, m.end + 170);
       const parts = readable(flat.slice(m.end, Math.min(next, m.end + 170)).replace(/\s+/g, " ").trim()).split(" · ").slice(0, 5);
-      // the last entry of a list runs on into the prose that follows it: its last field is cut to a few words
+      // The last entry of a list runs on into the prose that follows it, so I cut its last field to a few words.
       if (!list[i + 1]) parts[parts.length - 1] = parts[parts.length - 1].split(/\s\d{1,2}\.\s+[A-Z]/)[0].split(" ").slice(0, 4).join(" ");
       return parts.join(" · ");
     });
@@ -215,7 +215,7 @@ export function uncoveredLists(q: string, r: SynthesisResult, contextData: strin
   return out.slice(0, max);
 }
 
-/** The user prompt of the verifier: the question, the briefing to check, the ambiguous short forms it must rule on, and the same circular records the writer saw. */
+/** Builds the user prompt of the verifier: the question, the briefing to check, the ambiguous short forms it must rule on, and the same circular records the writer saw. */
 export function verifierInput(q: string, r: SynthesisResult, contextData: string): string {
   const tableOf = (t: SynthesisTable | null | undefined) => (t ? { title: t.title ?? "", columns: t.columns, rows: t.rows } : null);
   const briefing = {
@@ -253,14 +253,14 @@ export function verifierInput(q: string, r: SynthesisResult, contextData: string
 const asArray = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 const str = (v: unknown): string => (v == null ? "" : String(v)).trim();
 const whichTable = (v: unknown): "table" | "table2" | undefined => (str(v).toLowerCase() === "table2" ? "table2" : str(v).toLowerCase() === "table" ? "table" : undefined);
-/** "STEEL AUTHORITY OF INDIA LIMITED" (a letterhead) -> "Steel Authority of India Limited"; a meaning not written in capitals is left as it is */
+/** Turns "STEEL AUTHORITY OF INDIA LIMITED" (a letterhead) into "Steel Authority of India Limited"; I leave a meaning that is not written in capitals as it is. */
 const titleCase = (s: string): string =>
   /^[^a-z]*$/.test(s) && /[A-Z]{2}/.test(s) ? s.toLowerCase().replace(/(^|[\s(/-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()).replace(/\b(Of|And|The|For|In)\b/g, (w) => w.toLowerCase()) : s;
 
-/** A value the verifier built from pieces of a list ("Republic Day ... May Day") reads as a list: the skipped-text marks become commas. (A quote keeps its marks: they are how it is checked.) */
+/** A value the verifier built from pieces of a list ("Republic Day ... May Day") reads as a list, so I turn the skipped-text marks into commas. (A quote keeps its marks: they are how it is checked.) */
 const asList = (v: string): string => v.replace(/\s*(?:\.{3,}|\u2026)\s*/g, ", ").replace(/^[,\s]+|[,\s]+$/g, "");
 
-/** The verifier's JSON, read defensively: a field that is not of the expected shape is an empty list, never a crash. Null when there is no JSON at all. */
+/** I read the verifier's JSON defensively: a field that is not of the expected shape becomes an empty list, never a crash. Returns null when there is no JSON at all. */
 export function parseVerdict(raw: string): Verdict | null {
   if (!raw) return null;
   const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
@@ -290,7 +290,7 @@ export function parseVerdict(raw: string): Verdict | null {
   };
 }
 
-/** letters and digits only, one space between, thousands commas removed: "Rs. 1,000/-" and "rs 1000" compare equal */
+/** Keeps letters and digits only, one space between, thousands commas removed, so "Rs. 1,000/-" and "rs 1000" compare equal. */
 export const flatText = (s: string): string =>
   (s || "")
     .toLowerCase()
@@ -300,20 +300,20 @@ export const flatText = (s: string): string =>
 
 /**
  * The pieces of a quote. A quote may skip text with "..." ("SL. NO: 1 | HOLIDAY: Republic Day ... SL. NO: 4 | HOLIDAY: Mahatma Gandhi's Birthday"): then each piece
- * is a quote of its own. A piece shorter than two words proves nothing, and a quote of more than eight pieces is not a quote.
+ * is a quote of its own. I let a piece shorter than two words prove nothing, and a quote of more than eight pieces is not a quote.
  */
 export function quotePieces(quote: string): string[] {
   const pieces = (quote || "").split(/\s*(?:\.{3,}|\u2026)\s*/).map(flatText).filter(Boolean);
   return pieces.length >= 1 && pieces.length <= 8 && pieces.every((p) => p.split(" ").length >= 2) ? pieces : [];
 }
 
-/** True when the quote (every piece of it) is found verbatim, after flattening, in the source. A quote under 4 characters proves nothing. */
+/** True when the quote (every piece of it) is found verbatim, after flattening, in the source. I let a quote under 4 characters prove nothing. */
 export function quoteInSource(quote: string, flatSource: string): boolean {
   const pieces = quotePieces(quote);
   return pieces.length > 0 && pieces.join(" ").length >= 4 && pieces.every((p) => flatSource.includes(p));
 }
 
-/** share of the text's content words (stems) that the source also has: 1 when every word is the circular's */
+/** Gives the share of the text's content words (stems) that the source also has: 1 when every word is the circular's. */
 function wordingSupport(text: string, srcStems: Set<string>): number {
   const st = stemsOf(text);
   if (st.size === 0) return 1;
@@ -326,7 +326,7 @@ const SENTENCE_SPLIT = /(?<=[.!?])\s+(?=[A-Z*"'(“])/;
 
 const wordsOf = (s: string): Set<string> => new Set(flatText(s).split(" ").filter(Boolean));
 
-/** how alike two sentences are, as the share of their words they have in common (1 = the same words) */
+/** Scores how alike two sentences are, as the share of their words they have in common (1 = the same words). */
 function alike(a: string, b: string): number {
   const wa = wordsOf(a), wb = wordsOf(b);
   if (wa.size === 0 || wb.size === 0) return 0;
@@ -335,7 +335,7 @@ function alike(a: string, b: string): number {
   return both / (wa.size + wb.size - both);
 }
 
-/** index of the sentence of `text` that the verifier quoted (the same words, or nearly: a word the guards took out does not lose it), or -1 */
+/** Returns the index of the sentence of `text` that the verifier quoted (the same words, or nearly: a word the guards took out does not lose it), or -1. */
 function findSentence(sentences: string[], wanted: string): number {
   const w = flatText(wanted);
   if (!w) return -1;
@@ -351,33 +351,33 @@ function findSentence(sentences: string[], wanted: string): number {
 }
 
 export interface RepairContext {
-  /** every circular the briefing was written from, with its text: a quote names its circular */
+  /** Every circular the briefing was written from, with its text, because a quote names its circular. */
   sources: Array<{ id: number; text: string }>;
-  /** true when every figure in the text is in the circulars (the writer's own figure guard) */
+  /** Returns true when every figure in the text is in the circulars (the writer's own figure guard). */
   figuresSafe: (text: string) => boolean;
-  /** the question asked: a part the verifier reports as unanswered must be made of the question's own words (optional: without it the check is not made) */
+  /** The question asked. I want a part the verifier reports as unanswered to be made of the question's own words (optional: without it the check is not made). */
   question?: string;
 }
 
 export interface RepairOutcome {
   result: SynthesisResult;
-  /** one line per change made, for the log and the stored record */
+  /** One line per change made, for the log and the stored record. */
   changes: string[];
-  /** reports the code could not act on (a quote not found, a fix with a figure the circulars lack): the briefing is left as it was there */
+  /** Counts the reports the code could not act on (a quote not found, a fix with a figure the circulars lack): I leave the briefing as it was there. */
   ignored: number;
-  /** one line per report left alone, saying which and why (for the log) */
+  /** One line per report left alone, saying which and why (for the log). */
   ignoredWhy: string[];
-  /** sentences removed as unsupported */
+  /** Counts the sentences removed as unsupported. */
   removed: number;
 }
 
 const MAX_FINDINGS = 6;
-/** a fact the circulars state and the briefing omits is worth a place even when the writer used all six: two more, each one checked sentence */
+/** A fact the circulars state and the briefing omits earns a place even when the writer used all six, so I allow two more, each one a checked sentence. */
 const MAX_WITH_OMITTED = MAX_FINDINGS + 2;
 const MAX_ROWS_ADDED = 8;
 const MIN_WORDING = 0.7;
 
-/** Applies what the verifier reported, to the extent plain code can check it. Never changes the input objects. */
+/** Applies what the verifier reported, to the extent plain code can check it. It never changes the input objects. */
 export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairContext): RepairOutcome {
   const flatSrc = flatText(ctx.sources.map((s) => s.text).join("\n"));
   const srcStems = stemsOf(ctx.sources.map((s) => s.text).join("\n"));
@@ -393,11 +393,11 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
     extraTable: input.extraTable ? { ...input.extraTable, columns: [...input.extraTable.columns], rows: input.extraTable.rows.map((r) => [...r]) } : input.extraTable,
     abbreviations: { ...(input.abbreviations ?? {}) },
   };
-  // a quote with skipped text may take its pieces from several circulars (the lists of two years): each circular holding a piece is cited
+  // A quote with skipped text may take its pieces from several circulars (the lists of two years), so I cite each circular that holds a piece.
   const circularOf = (quote: string): number[] =>
     quoteInSource(quote, flatSrc) ? ctx.sources.filter((s) => { const f = flatText(s.text); return quotePieces(quote).some((p) => f.includes(p)); }).map((s) => s.id) : [];
   /**
-   * A corrected text the code accepts: its figures are in the circulars, its quote (if any) is found there verbatim, and the words it ADDS to what
+   * I accept a corrected text only when its figures are in the circulars, its quote (if any) is found there verbatim, and the words it ADDS to what
    * was written before are the circulars' words (what it keeps of the writer's own sentence was already scored once).
    */
   const acceptable = (text: string, quote: string, before = ""): boolean => {
@@ -410,9 +410,9 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
     return added.filter((st) => srcStems.has(st)).length / added.length >= MIN_WORDING;
   };
 
-  /** the same numbers and no word the original lacks: a change of format or wording only ("₹1,000" -> "1000", "Executives" -> "Exe"), not of fact */
+  /** I allow a change of format or wording only, not of fact: the same numbers and no word the original lacks ("₹1,000" -> "1000", "Executives" -> "Exe"). */
   const numbersOf = (t: string) => (flatText(t).match(/\d+(?:\.\d+)?/g) || []).map(Number).sort((a, b) => a - b).join(",");
-  // a fix that takes out a scope word ("unchanged", "all", "only") removes a CLAIM: that is a change of fact, not of format
+  // A fix that takes out a scope word ("unchanged", "all", "only") removes a CLAIM, so I treat it as a change of fact, not of format.
   const SCOPE_WORDS = /\b(?:unchanged|same|identical|all|every|entire|entirely|completely|only|always|never|no|not|none|remain\w*|across)\b/i;
   const cosmetic = (before: string, after: string): boolean => {
     if (numbersOf(before) !== numbersOf(after)) return false;
@@ -434,7 +434,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
       changes.push(`${label}: "${parts[at].slice(0, 70)}" -> "${fix.slice(0, 70)}"`);
       parts[at] = fix;
     } else {
-      if (fix) skip(`${label}: the fix "${fix.slice(0, 60)}" could not be checked; the sentence was removed instead`); // the sentence goes rather than stand unsupported
+      if (fix) skip(`${label}: the fix "${fix.slice(0, 60)}" could not be checked; the sentence was removed instead`); // I let the sentence go rather than leave it standing unsupported
       changes.push(`${label}: removed "${parts[at].slice(0, 90)}" (${s.verdict})`);
       removed++;
       parts.splice(at, 1);
@@ -444,7 +444,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
   for (const s of v.sentences) {
     const where = (s.where || "").toLowerCase();
     if (where.startsWith("headline")) {
-      // the title is never removed: a fix is taken only when it is checkable, else the title stays
+      // I never remove the title: a fix is taken only when it is checkable, otherwise the title stays.
       const fix = (s.fix || "").trim();
       if (result.headline && fix && fix.split(/\s+/).length <= 14 && flatText(fix) !== flatText(result.headline) && !cosmetic(result.headline, fix) && acceptable(fix, s.quote || "", result.headline)) {
         changes.push(`headline: "${result.headline.slice(0, 70)}" -> "${fix.slice(0, 70)}"`);
@@ -466,7 +466,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
       if (r.done) { result.overview = r.text; done = true; }
     }
     if (!done) {
-      // the place was not given or was wrong: look everywhere once
+      // The place was not given or was wrong, so I look everywhere once.
       for (let i = 0; i < result.keyFindings.length && !done; i++) {
         const r = editText(result.keyFindings[i].text, s, `finding ${i + 1}`);
         if (r.done) { result.keyFindings[i] = { ...result.keyFindings[i], text: r.text }; done = true; }
@@ -481,7 +481,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
   result.keyFindings = result.keyFindings.filter((f) => f.text.trim().length > 0);
 
   // ---- 1b. misspelt words of the briefing's own sentences ----
-  // Taken only when it is plainly a typing slip: one word of seven letters or more, which the circulars do not print, and the correction is ONE letter away
+  // I take a correction only when it is plainly a typing slip: one word of seven letters or more, which the circulars do not print, and the correction is ONE letter away
   // (one added, dropped, changed, or two side by side swapped). A word two letters away may be another word altogether ("increased" / "decreased").
   const oneLetterAway = (a: string, b: string): boolean => {
     if (a === b) return false;
@@ -526,7 +526,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
         break;
       }
       if (flatText(t.rows[ri][ci] ?? "") === flatText(value)) { done = true; break; }
-      // the same words in two cells of one row say nothing twice (a "-" cell is a deliberate blank, not a gap to fill)
+      // I count the same words in two cells of one row as saying nothing twice (a "-" cell is a deliberate blank, not a gap to fill).
       if (t.rows[ri].some((other, oi) => oi !== ci && flatText(other) === flatText(value) || (oi !== ci && oi > 0 && flatText(other).length > 20 && (flatText(other).includes(flatText(value)) || flatText(value).includes(flatText(other)))))) {
         skip(`cell "${c.row.slice(0, 40)}" / "${c.column.slice(0, 30)}": the value repeats another cell of the row`);
         done = true;
@@ -543,12 +543,12 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
   // ---- 3. rows the table lacks ----
   let added = 0;
   for (const r of v.missingRows) {
-    // the table the verifier names; with two tables and no name, the one whose column count fits, else the first
+    // I use the table the verifier names; with two tables and no name, the one whose column count fits, else the first.
     const t0 = r.table ? named(r.table)[0] : tables.length > 1 ? tables.find((t) => t.columns.length === r.cells.length + 1) ?? tables[0] : tables[0];
     if (!t0 || added >= MAX_ROWS_ADDED) { skip(`row "${r.label.slice(0, 40)}": no table, or enough rows added`); continue; }
     const row = [r.label.trim(), ...r.cells.map((x) => x.trim())];
     const have = t0.rows.some((x) => flatText(x[0] ?? "") === flatText(row[0]));
-    if (have) continue; // already there: nothing to report
+    if (have) continue; // already there, so there is nothing to report
     const okShape = row.length === t0.columns.length && row.every((x) => x.length > 0);
     if (!okShape || !r.quote || !quoteInSource(r.quote, flatSrc) || !row.every((x) => ctx.figuresSafe(x)) || wordingSupport(row.join(" "), srcStems) < MIN_WORDING) {
       skip(`row "${r.label.slice(0, 40)}": ${!okShape ? "wrong number of cells" : "the quote, a figure or the words are not the circular's"}`);
@@ -559,7 +559,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
     changes.push(`row added: "${row[0].slice(0, 60)}"`);
   }
 
-  // ---- 3b. columns the table lacks (a year the question names): one value per row, each on its own quote. A value the code cannot prove is NOT written as
+  // ---- 3b. columns the table lacks (a year the question names): one value per row, each on its own quote. I do not write a value the code cannot prove as
   // "Not stated in circular" (that claims an absence the code has not checked: the 2024 list of four public holidays never says "4 days"); it says so plainly. ----
   for (const mc of v.missingColumns) {
     const t = mc.table ? named(mc.table)[0] : tables[0];
@@ -573,13 +573,13 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
       return c.value.trim();
     });
     if (proven * 2 < t.rows.length) { skip(`column "${header}": only ${proven} of ${t.rows.length} values rest on a quote found in the circulars`); continue; }
-    // the new column goes where its year belongs among year headings, else last
+    // I place the new column where its year belongs among year headings, else last.
     const yearOf = (h: string) => Number((h.match(/\b(?:19|20)\d{2}\b/) || [])[0]) || 0;
     const y = yearOf(header);
     let at = t.columns.length;
     if (y && t.columns.slice(1).every((h) => yearOf(h) > 0)) {
       const later = t.columns.findIndex((h, i) => i > 0 && yearOf(h) > y);
-      at = later > 0 ? later : t.columns.length; // before the first later year, else last
+      at = later > 0 ? later : t.columns.length; // goes before the first later year, else last
     }
     t.columns.splice(at, 0, header);
     t.rows.forEach((row, i) => row.splice(at, 0, values[i]));
@@ -587,7 +587,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
   }
 
   // ---- 4. parts of the question ----
-  // words of five letters or more by their first five letters (the stemmer drops common words such as "employee" and "regarding", which is exactly what must be seen here)
+  // I compare words of five letters or more by their first five letters (the stemmer drops common words such as "employee" and "regarding", which is exactly what must be seen here).
   const PLAIN = new Set(["which", "whose", "those", "these", "their", "there", "about", "other", "would", "could", "should", "after", "under", "where", "while"]);
   const prefixes = (t: string): string[] => (t.toLowerCase().match(/\p{L}{5,}/gu) || []).map((w) => w.slice(0, 5)).filter((w) => !PLAIN.has(w));
   const qWords = ctx.question ? new Set(prefixes(ctx.question)) : null;
@@ -598,7 +598,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
     return outside >= 2 && outside / Math.max(1, w.length) >= 0.3;
   };
   for (const u of v.unanswered) {
-    // a part the question never asked (the verifier added words of its own: "regarding employee categorization") is not reported, either way
+    // A part the question never asked (the verifier added words of its own: "regarding employee categorization") I do not report, either way.
     if (notAsked(u.part)) { skip(`part "${u.part.slice(0, 60)}": not made of the question's own words`); continue; }
     if (u.status === "in_circular") {
       const fact = (u.fact || "").trim();
@@ -611,7 +611,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
     } else {
       const part = u.part.replace(/[.\s]+$/, "");
       if (!part) continue;
-      // already said: an overview sentence with a negation that shares two content words with the part
+      // I count a part as already said when an overview sentence with a negation shares two content words with it.
       const partStems = stemsOf(part);
       const already = result.overview.split(SENTENCE_SPLIT).some((sent) => /\b(?:none|no|not|absent|without)\b/i.test(sent) && [...stemsOf(sent)].filter((st) => partStems.has(st)).length >= 2);
       if (already) continue;
@@ -623,8 +623,8 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
 
   // ---- 5. short forms ----
   const shown = [result.overview, ...result.keyFindings.map((f) => f.text), ...tables.flatMap((t) => [t.title ?? "", ...t.columns, ...t.rows.flat()])].join(" \n ");
-  // The verifier's only say on short forms: which of the CONFIRMED senses of an ambiguous one (abbreviationSenses.ts: TA) the circular's context shows.
-  // Anything else it offers is dropped: a meaning the circular spells out is found by code (abbreviations.ts: "Full Phrase (ABBR)"), the rest comes from the
+  // I give the verifier only one say on short forms: which of the CONFIRMED senses of an ambiguous one (abbreviationSenses.ts: TA) the circular's context shows.
+  // I drop anything else it offers: a meaning the circular spells out is found by code (abbreviations.ts: "Full Phrase (ABBR)"), the rest comes from the
   // curated list, and a "meaning" that is only words copied from near the short form (seen live: "IED = Implementing/ Executing Authority") is no meaning.
   for (const a of v.abbreviations) {
     const abbr = a.abbr.trim();
@@ -638,7 +638,7 @@ export function applyVerdict(input: SynthesisResult, v: Verdict, ctx: RepairCont
   }
   if (Object.keys(result.abbreviations!).length === 0) delete result.abbreviations;
 
-  // an overview emptied by the reading is replaced by a sentence built from the table, never by a copy of a finding
+  // When the reading empties the overview, I replace it with a sentence built from the table, never with a copy of a finding.
   if (!result.overview.trim()) {
     const t = result.table;
     result.overview = t?.title ? `The table below sets out the ${t.title.replace(/[.\s]+$/, "")}, in the circular's own words.` : t ? `The table below sets out the ${t.rows.length} rows the circulars give, in their own words.` : "The findings below say what the circulars say.";

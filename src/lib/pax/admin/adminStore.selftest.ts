@@ -1,7 +1,7 @@
 // Run (from the project root; needs a scratch Postgres):
 //   NL2SQL_TEST_ADMIN_URL=postgres://postgres:pw@127.0.0.1:5432/postgres npx tsx --tsconfig tsconfig.json src/lib/pax/admin/adminStore.selftest.ts
 // Step 64a: the PAX admin operations against a real database: who may do what, every kind of clash, the history of who did it, two people at the same moment, and a change that fails half way.
-// The table pax_directory is rebuilt as the handoff and the owner's checks describe it (his own check of 31 Oct: columns, text number, nullable location and note, RLS on, API roles without rights);
+// I rebuild the table pax_directory as the handoff and my own checks describe it (my check of 31 Oct: columns, text number, nullable location and note, RLS on, API roles without rights);
 // the NEW tables come from the real migration file sql/13_pax_admin.sql, run twice. The people and numbers are INVENTED.
 
 import { readFileSync } from "node:fs";
@@ -12,7 +12,7 @@ if (!adminUrl) {
   console.log("adminStore selftest: skipped (NL2SQL_TEST_ADMIN_URL is not set)");
   process.exit(0);
 }
-// the HOD C&IT is known by ticket from the environment, read when superAdmin.ts is first loaded: set it BEFORE the code is loaded
+// The HOD C&IT is known by ticket from the environment, read when superAdmin.ts is first loaded, so set it BEFORE the code is loaded
 process.env.SUPERADMIN_TICKETS = "400001";
 
 let pass = 0, fail = 0;
@@ -44,7 +44,7 @@ async function main() {
       SELECT CASE WHEN n ~ '^4[0-2][0-9]{3}$' THEN 'plant' WHEN n ~ '^45[0-9]{3}$' OR n ~ '^5[0-9]{4}$' THEN 'outside plant' ELSE 'not classified' END $f$;
     ALTER TABLE public.pax_directory ENABLE ROW LEVEL SECURITY;
     REVOKE ALL ON public.pax_directory FROM anon, authenticated;`);
-  // Telecom's own lines, as printed (invented numbers except 42043 on two names, which the owner confirmed)
+  // Telecom's own lines, as printed (invented numbers except 42043 on two names, which I confirmed)
   const legacy: Array<[string, string, string, string]> = [
     ["CISF", "Admin Gate", "40384", "CISF Admin Gate"], ["CISF", "Tumla Gate", "40926", "CISF Tumla Gate"], ["CISF", "Tumla Gate", "42043", "CISF Tumla Gate"],
     ["CISF", "Gate No. 2A", "42384", "CISF Gate No. 2A"], ["Weigh Bridge", "Tumla Gate", "42043", "Weigh Bridge – Tumla Gate"], ["Weigh Bridge", "60T", "40173", "Weigh Bridge – 60T"],
@@ -52,13 +52,13 @@ async function main() {
   ];
   for (const [d, l, n, label] of legacy) await pool.query(`INSERT INTO public.pax_directory (dept_name, location, number, label, note) VALUES ($1, NULLIF($2,''), $3, $4, NULL)`, [d, l, n, label]);
 
-  // the real migration file, run twice: it must be safe to run again
+  // This is the real migration file, run twice: it must be safe to run again.
   const migration = readFileSync("src/lib/nl2sql/sql/13_pax_admin.sql", "utf8");
   await pool.query(migration);
   let again = true;
   try { await pool.query(migration); } catch { again = false; }
   ok("the migration (sql/13) runs, and runs again without error", again);
-  // step 68c: the authorisations and the history live in the SHARED tables (sql/17); its closing check also reads the employee manager's two old tables, so sql/15 runs here as it did live
+  // Step 68c: the authorisations and the history live in the SHARED tables (sql/17). Its closing check also reads the employee manager's two old tables, so sql/15 runs here as it did live.
   await pool.query(readFileSync("src/lib/nl2sql/sql/15_employee_admin.sql", "utf8"));
   const m17 = readFileSync("src/lib/nl2sql/sql/17_facility_kit.sql", "utf8");
   await pool.query(m17);
@@ -69,7 +69,7 @@ async function main() {
   let again18 = true; try { await pool.query(m18); } catch { again18 = false; }
   ok("the migration sql/18 runs twice without error", again18);
 
-  // the database as the code sees it: each operation in its own transaction on its own connection
+  // The database as the code sees it: each operation runs in its own transaction on its own connection.
   const db: import("./store").PaxDb = {
     async run(fn) {
       const c = await pool.connect();
@@ -90,7 +90,7 @@ async function main() {
   const RAKESH = { ticket: "412345", name: "RAKESH OJHA (invented)" };
   const STRANGER = { ticket: "123456", name: "A TECHNICIAN (invented)" };
   const count = async (sql: string) => Number((await pool.query(sql)).rows[0].n);
-  // a person LOADS the line and then saves what he typed WITH THE VERSION HE SAW (src/lib/concurrency/version.ts)
+  // Here I imitate a person who LOADS the line and then saves what he typed WITH THE VERSION HE SAW (src/lib/concurrency/version.ts)
   const seenV = async (id: number) => (await store.listEntries(db, "")).find((e) => e.id === id)?.version;
   const modX = async (actor: { ticket: string; name: string }, id: number, raw: { department: string; location: string; number: string }, acks: Array<"second-number" | "different"> = []) => store.modifyEntry(db, actor, id, raw, acks, await seenV(id));
   const typedNumber = async (id: number) => String((await pool.query(`SELECT "number"::text AS n FROM public.pax_directory WHERE id = $1`, [id])).rows[0]?.n ?? "");
@@ -362,7 +362,7 @@ async function main() {
   const fiveR = await Promise.all(five.map((l) => store.modifyEntry(db, HOD, l.id, { department: l.department, location: "Parallel", number: l.number }, [], l.version)));
   ok("five DIFFERENT lines changed at the same moment: all five are saved (only the same line has to wait), none is lost", fiveR.every((r) => r.status === "ok") && (await count(`SELECT count(*) AS n FROM public.pax_directory WHERE location = 'Parallel'`)) === 5);
 
-  // a writer that does not know our lock (a SQL script)
+  // a writer that does not know my lock (a SQL script)
   const L5 = await line("Conc Dept Five", "", "43651");
   const script = await pool.connect();
   await script.query("BEGIN"); await script.query(`UPDATE public.pax_directory SET location = 'sql script' WHERE id = $1`, [L5.id]);
@@ -374,13 +374,13 @@ async function main() {
   const afterScript = await waiting;
   ok("a writer that does NOT know our lock (a SQL script with a change not yet committed): the save WAITS for it, and when the script has committed the save is refused as stale: the script's change is NOT overwritten", stillWaiting && afterScript.status === "stale" && (await pool.query(`SELECT location FROM public.pax_directory WHERE id = $1`, [L5.id])).rows[0].location === "sql script", `${stillWaiting} ${afterScript.status}`);
 
-  // the number belongs to ONE place: two people add it at the same moment
+  // a number belongs to ONE place, so here two people add it at the same moment
   const sameNumber = await Promise.all([
     store.addEntry(db, HOD, { department: "Race Dept One", location: "", number: "43661" }),
     store.addEntry(db, RAKESH, { department: "Race Dept Two", location: "", number: "43661" }),
   ]);
   ok("two people add the SAME PAX number (for two different places) at the same moment: one is saved, the other is told that a number belongs to one place only", sameNumber.filter((r) => r.status === "ok").length === 1 && sameNumber.filter((r) => r.status === "conflict").length === 1 && (await count(`SELECT count(*) AS n FROM public.pax_directory WHERE "number"::text = '43661'`)) === 1, JSON.stringify(sameNumber.map((r) => r.status)));
-  // two people CHANGE two different lines to the SAME number at the same moment (a number belongs to one place only)
+  // here two people CHANGE two different lines to the SAME number at the same moment (a number belongs to one place only)
   const Q1 = await line("Race Change One", "", "43671"), Q2 = await line("Race Change Two", "", "43672");
   const sameTarget = await Promise.all([
     store.modifyEntry(db, HOD, Q1.id, { department: "Race Change One", location: "", number: "43679" }, [], Q1.version),

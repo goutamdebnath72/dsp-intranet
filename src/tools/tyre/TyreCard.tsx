@@ -1,7 +1,7 @@
 // src/tools/tyre/TyreCard.tsx
 //
 // THE TYRE AND RIM SIZE READER: "HOW TO READ YOUR TYRE SIZE" (and, under it, how to read the wheel's own marking, RimGuide.tsx): the size is typed (or arrives from the search line), and each part of it is explained: width, height of the sidewall, construction, rim, load index, speed symbol.
-// Each part has its own colour, on the plate and in the list below it, so the eye can pair them. Computed in the browser from src/tools/tyre/tyre.ts; nothing is stored or sent.
+// I give each part its own colour, on the plate and in the list below it, so the eye can pair them. It is computed in the browser from src/tools/tyre/tyre.ts; nothing is stored or sent.
 "use client";
 
 import React, { useState } from "react";
@@ -13,7 +13,7 @@ import { RimGuide } from "@/tools/rim/RimGuide";
 
 const SAMPLES = ["205/55 R16 91V", "185/65 R15 88T", "215/60 R17 96H", "165/80 R14 85T"];
 
-/** one colour for each kind of part, on the plate and in the list */
+/** One colour for each kind of part, on the plate and in the list */
 const PART_STYLE: Record<string, { text: string; chip: string; bar: string }> = {
   "Type of tyre": { text: "text-fuchsia-300", chip: "bg-fuchsia-100 text-fuchsia-800", bar: "bg-fuchsia-400" },
   "Tyre width": { text: "text-sky-300", chip: "bg-sky-100 text-sky-800", bar: "bg-sky-400" },
@@ -107,7 +107,7 @@ export function TyreCard({ start }: { start: string }) {
         )}
       </AnimatePresence>
 
-      {/* after the tyre's own specification: the wheel it sits on, a section of its own */}
+      {/* I put the wheel it sits on after the tyre's own specification, as a section of its own */}
       <RimGuide start="8Jx20" tyre={size} />
     </div>
   );

@@ -2,8 +2,8 @@
 
 // src/components/ManagementHubPanel.tsx
 //
-// THE MANAGEMENT PAGE, drawn in the answer area of the search bar: the titles of the management tools this person may open, each a button that opens the tool (like the list of calculators). The list comes from the server
-// (src/lib/facility/hub.ts) and holds only what the login may use; pressing a title types the tool's own words into the search bar, and the tool checks the person again before it opens.
+// THE MANAGEMENT PAGE, drawn in the answer area of the search bar: I show the titles of the management tools this person may open, each a button that opens the tool (like the list of calculators). The list comes from the server
+// (src/lib/facility/hub.ts) and holds only what the login may use. Pressing a title types the tool's own words into the search bar, and the tool checks the person again before it opens.
 import React from "react";
 import { ArrowRight, CalendarDays, Eye, FileText, LockKeyhole, Megaphone, Phone, ShieldAlert, ShieldCheck, Users } from "lucide-react";
 import { GATE_TEXT, type ManagementGate, type ManagementHubOpen, type HubTool } from "@/lib/facility/hub";
@@ -27,9 +27,9 @@ const TILE: Record<FacilityKey, string> = {
   access_log: "bg-gradient-to-br from-rose-600 to-red-600",
 };
 
-export function ManagementHubPanel({ open, onOpen, onPrefetch, onClose }: { open: ManagementHubOpen; onOpen: (phrase: string) => void; /** called when a title is pointed at, touched or focused: the page behind it is asked for ahead of the press */ onPrefetch?: (phrase: string) => void; onClose: () => void }) {
+export function ManagementHubPanel({ open, onOpen, onPrefetch, onClose }: { open: ManagementHubOpen; onOpen: (phrase: string) => void; /** called when a title is pointed at, touched or focused: I ask for the page behind it ahead of the press */ onPrefetch?: (phrase: string) => void; onClose: () => void }) {
   const hod = open.role === "hod";
-  // the page is a ToolShell, the frame of the calculators' pages: the same soft gradient and blurred lights (the bluish glow behind the cross), the same header, the same cross
+  // I made the page a ToolShell, the frame of the calculators' pages: the same soft gradient and blurred lights (the bluish glow behind the cross), the same header, the same cross
   return (
     <ToolShell
       title="Management"
@@ -41,7 +41,7 @@ export function ManagementHubPanel({ open, onOpen, onPrefetch, onClose }: { open
       closeLabel="Close the management page"
       onClose={onClose}
     >
-      {/* every card is the same size: the rows share the height of the tallest card (auto-rows-fr), and each card fills its cell (h-full), so a one-line description never makes a smaller card */}
+      {/* I keep every card the same size: the rows share the height of the tallest card (auto-rows-fr), and each card fills its cell (h-full), so a one-line description never makes a smaller card */}
       <ul data-management-hub data-hub-grid className="grid auto-rows-fr gap-3 sm:grid-cols-2">
         {open.tools.map((t: HubTool) => (
           <li key={t.key} className="flex">
@@ -68,7 +68,7 @@ export function ManagementHubPanel({ open, onOpen, onPrefetch, onClose }: { open
   );
 }
 
-/** the Back button above a management tool's page: back to the management page (the same button, on the right as the calculators' pages have) */
+/** The Back button above a management tool's page goes back to the management page. I made it the same button as on the calculators' pages, on the right. */
 export function ManagementBack({ onBack }: { onBack: () => void }) {
   return (
     <div data-management-back className="mb-3 flex justify-end">
@@ -78,8 +78,8 @@ export function ManagementBack({ onBack }: { onBack: () => void }) {
 }
 
 /**
- * WHAT A PERSON WHO MAY NOT HAVE THE PAGE SEES, in the calculators' frame: not signed in, a card that asks him to sign in, with a Sign in button that opens the login window (and, when he has signed in, the same question is asked
- * again by itself: he gets the page if he is authorised and the refusal if he is not); signed in and not authorised, the refusal. The refusal is the same words whichever way he came to it.
+ * WHAT A PERSON WHO MAY NOT HAVE THE PAGE SEES, in the calculators' frame: not signed in, a card asks him to sign in, with a Sign in button that opens the login window (and, once he has signed in, the same question is asked
+ * again by itself: he gets the page if he is authorised and the refusal if he is not); signed in and not authorised, the refusal. I use the same words for the refusal whichever way he came to it.
  */
 export function ManagementGatePanel({ gate, onSignIn, onClose }: { gate: ManagementGate; onSignIn?: () => void; onClose: () => void }) {
   const login = gate.state === "login";

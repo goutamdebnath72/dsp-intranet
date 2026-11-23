@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/PersonBadges.selftest.tsx
-// The badges after a name: EXE as before, PhD only for the listed non-medical PhD holders, nothing for anyone else.
+// I expect the badges after a name to be EXE as before, PhD only for the listed non-medical PhD holders, and nothing for anyone else.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

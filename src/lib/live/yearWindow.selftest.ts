@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/yearWindow.selftest.ts
-// THE ONE-YEAR WINDOW: every one-year chart starts on the same date one year before today and ends today (or on the latest published day).
+// The one-year window: I want every one-year chart to start on the same date one year before today and end today (or on the latest published day).
 import { DateTime } from "luxon";
 import { carryToToday, fromYearAgo, reachesYearAgo, yearAgo } from "./yearWindow";
 

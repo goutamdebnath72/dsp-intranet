@@ -1,14 +1,14 @@
 // src/lib/search/kpiFromTable.ts
 //
 // THE BIG NUMBER CARDS. A short table that holds ONE amount per row (a deposit per size of house, a premium per month, a rate per grade) is the kind of answer a reader's eye goes to
-// first when the amounts stand as large cards. The writer is told not to repeat the table's numbers in a chart, so on some runs it drew the cards and on others it did not (owner,
-// 11 Nov 2026: "that kind of result attracts the users eye ... that is a must where it is possible"). The cards are therefore built here, from the table's own cells, which the
+// first when the amounts stand as large cards. The writer is told not to repeat the table's numbers in a chart, so on some runs it drew the cards and on others it did not (my words,
+// 11 Nov 2026: "that kind of result attracts the users eye ... that is a must where it is possible"). So I build the cards here, from the table's own cells, which the
 // engine has already checked against the circulars: no figure is new. Pure.
 import type { SynthesisChart, SynthesisResult, SynthesisTable } from "./executiveSynthesis";
 
 const MONEY = /^\s*(?:₹|rs\.?)\s*([\d,]+(?:\.\d+)?)\s*(lakhs?|crores?|cr\b)?/i;
 const PERCENT = /^\s*([\d.]+)\s*%/;
-/** how many cards are worth drawing: two to four rows, each with its own figure */
+/** how many cards are worth drawing: I take two to four rows, each with its own figure */
 const MIN_CARDS = 2;
 const MAX_CARDS = 4;
 
@@ -30,7 +30,7 @@ const parseCell = (cell: string): Parsed | null => {
   return null;
 };
 
-/** The cards of one table, or null when it is not that shape: every row has an amount (or a percentage) first in the same column, all in one unit, and the figures are not all alike. */
+/** Returns the cards of one table, or null when it is not that shape: every row has an amount (or a percentage) first in the same column, all in one unit, and the figures are not all alike. */
 export function kpiFromTable(t: SynthesisTable | null | undefined): SynthesisChart | null {
   if (!t || t.rows.length < MIN_CARDS || t.rows.length > MAX_CARDS || t.columns.length < 2) return null;
   for (let col = 1; col < t.columns.length; col++) {
@@ -53,7 +53,7 @@ export function kpiFromTable(t: SynthesisTable | null | undefined): SynthesisCha
   return null;
 }
 
-/** The result with cards added when it has none and fewer than two charts, from the first table that gives them. The result is not changed in place. */
+/** Returns the result with cards added when it has none and fewer than two charts, taken from the first table that gives them. I never change the result in place. */
 export function withKpiCards(r: SynthesisResult): SynthesisResult {
   const charts = r.charts ?? [];
   if (charts.length >= 2 || charts.some((c) => c.type === "kpi")) return r;

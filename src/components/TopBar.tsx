@@ -18,17 +18,18 @@ import {
   LogOut,
   Undo2,
   KeyRound,
+  BookOpenText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogoModal } from "./LogoModal";
 import { lazyComponent } from "@/lib/ui/lazyLoad";
-import { PERF } from "@/lib/perf/switches"; // when the search window and the guide are fetched is chosen there
+import { PERF } from "@/lib/perf/switches"; // I choose there when the search window and the guide are fetched
 import type { GuideTab } from "./HelpManualModal";
 import { OMNIBAR_PREFILL_EVENT, OPEN_GUIDE_EVENT } from "@/lib/help/sampleQuestions";
 import { HolidayNotificationToast } from "./HolidayNotificationToast";
 import { getFriendlyFirstName, getInitials } from "@/lib/utils/nameHelper";
 
-// The search window and the guide are the two biggest pieces of the page and nobody sees them before a click: they are fetched AFTER the page is interactive (the search window once the browser is idle, the guide when the pointer reaches its button)
+// The search window and the guide are the two biggest pieces of the page and nobody sees them before a click, so I fetch them AFTER the page is interactive (the search window once the browser is idle, the guide when the pointer reaches its button)
 const loadOmnibar = () => import("./OmnibarModal");
 const loadHelp = () => import("./HelpManualModal");
 const OmnibarModal = lazyComponent(loadOmnibar, "OmnibarModal", PERF.searchWindowLoad);
@@ -44,7 +45,7 @@ const DspLogoVibrant: React.FC<{ onClick: () => void }> = ({ onClick }) => {
       <Image
         src="/sail-logo-bw.png"
         alt="SAIL Logo"
-        width={PERF.rightSizedLogos ? 96 : 878} // drawn 48 px high (src/lib/perf/switches.js: rightSizedLogos)
+        width={PERF.rightSizedLogos ? 96 : 878} // it is drawn 48 px high (src/lib/perf/switches.js: rightSizedLogos)
         height={PERF.rightSizedLogos ? 103 : 861}
         className="h-12 w-auto transition-transform duration-200 group-hover:scale-110"
         priority
@@ -76,7 +77,7 @@ const TopBarSearch: React.FC<{ onClick: () => void }> = ({ onClick }) => {
   const [viewportWidth, setViewportWidth] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
-  // 1. Capture dynamic window dimensions
+  // Step 1: I capture the dynamic window dimensions
   useEffect(() => {
     setViewportWidth(window.innerWidth);
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -84,7 +85,7 @@ const TopBarSearch: React.FC<{ onClick: () => void }> = ({ onClick }) => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 2. Slot machine timer
+  // Step 2: the slot machine timer
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % searchCategories.length);
@@ -92,7 +93,7 @@ const TopBarSearch: React.FC<{ onClick: () => void }> = ({ onClick }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // --- PURE MATHEMATICS LOGIC ---
+  // --- Pure mathematics logic ---
   const isMounted = viewportWidth > 0;
 
   const baseWidth = isMounted ? Math.min(384, viewportWidth * 0.8) : 384;
@@ -173,7 +174,7 @@ export function TopBar() {
   const pathname = usePathname();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isPasswordOpen, setIsPasswordOpen] = useState(false);
-  // the password has run out (180 days): the window comes up by itself after sign-in and cannot be closed
+  // True when the password has run out (180 days): the window comes up by itself after sign-in and cannot be closed
   const [passwordRequired, setPasswordRequired] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -185,13 +186,13 @@ export function TopBar() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [guideTab, setGuideTab] = useState<GuideTab>("samples");
 
-  // Compute executive validation using exact 6-digit rule starting with 4 + user role check
+  // I compute the executive validation with the exact 6-digit rule starting with 4, plus the user role check
   const userTicket = (session?.user as any)?.ticketNo || "";
 
-  // Authorized if it's a valid 6-digit ticket starting with 4
+  // I treat the user as authorized if it is a valid 6-digit ticket starting with 4
   const isExecutiveUser = /^4\d{5}$/.test(userTicket.trim());
 
-  // AFTER SIGN-IN: if this person's password has run out (valid 180 days), the change window comes up by itself and cannot be closed. One small request per sign-in; the server decides (the HOD in the development phase never is).
+  // After sign-in: if this person's password has run out (valid 180 days), the change window comes up by itself and cannot be closed. I make one small request per sign-in; the server decides (the HOD in the development phase never is).
   useEffect(() => {
     const t = userTicket.trim();
     if (!PASSWORD_MODULE_ENABLED || !t) { setPasswordRequired(false); return; }
@@ -203,46 +204,46 @@ export function TopBar() {
     return () => { live = false; };
   }, [userTicket]);
 
-  // Listen for programmatic Omnibar open requests across components
+  // I listen for programmatic Omnibar open requests from any component
   useEffect(() => {
     const handleOpenOmnibar = () => setIsOmnibarOpen(true);
     window.addEventListener("open-omnibar", handleOpenOmnibar);
     return () => window.removeEventListener("open-omnibar", handleOpenOmnibar);
   }, []);
 
-  // The guide can be opened from anywhere on the page (a hint in the search bar, a link), on the tab asked for
+  // I let the guide be opened from anywhere on the page (a hint in the search bar, a link), on the tab asked for
   useEffect(() => {
     const handleOpenGuide = (e: Event) => {
       const tab = (e as CustomEvent<{ tab?: GuideTab }>).detail?.tab;
-      setGuideTab(tab === "how" || tab === "utility" || tab === "eds" ? tab : (tab as string) === "types" ? "how" : "samples"); // the old "What to type" tab is now the end of "How it works"
+      setGuideTab(tab === "how" || tab === "utility" || tab === "eds" ? tab : (tab as string) === "types" ? "how" : "samples"); // my old "What to type" tab is now the end of "How it works"
       setIsHelpOpen(true);
     };
     window.addEventListener(OPEN_GUIDE_EVENT, handleOpenGuide);
     return () => window.removeEventListener(OPEN_GUIDE_EVENT, handleOpenGuide);
   }, []);
 
-  // "Try it" in the guide: close the guide, open the search bar and type the sample question in it. The reader edits any [blank] and presses Enter: nothing is sent by itself.
+  // "Try it" in the guide: I close the guide, open the search bar and type the sample question in it. The reader edits any [blank] and presses Enter: nothing is sent by itself.
   const tryQuestion = (question: string) => {
     setIsHelpOpen(false);
     setIsOmnibarOpen(true);
-    // the search window is fetched lazily: the sample is handed over once its code is here (at once when it is already), so it is never sent to a window that is not listening yet
+    // The search window is fetched lazily, so I hand the sample over once its code is here (at once when it already is); it is never sent to a window that is not listening yet
     void loadOmnibar().then(() => window.setTimeout(() => window.dispatchEvent(new CustomEvent(OMNIBAR_PREFILL_EVENT, { detail: { query: question } })), 120));
   };
 
-  // Single, clean keyboard listener with capture mode for robust global interception
+  // I use a single, clean keyboard listener with capture mode for robust global interception
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Toggle modal on Cmd+K / Ctrl+K
+      // I toggle the modal on Cmd+K / Ctrl+K
       if ((e.metaKey || e.ctrlKey) && e.code === "KeyK") {
         e.preventDefault();
         e.stopPropagation();
         setIsOmnibarOpen((prev) => !prev);
       }
-      // Close modal on Escape
+      // I close the modal on Escape
       if (e.key === "Escape" || e.code === "Escape") {
-        // an open dropdown of the calculators takes this Escape for itself (it closes the list, not the search window); so does a picture opened over the page (src/components/ImageLightbox.tsx)
+        // I leave this Escape to an open dropdown of the calculators (it closes the list, not the search window); same for a picture opened over the page (src/components/ImageLightbox.tsx)
         if (e.target instanceof Element && e.target.closest('[data-select-open="true"], [data-escape-own="true"]')) return;
-        // the Utility Services page standing alone in the search window takes this Escape for itself: it goes back one step, to the ordinary window (OmnibarModal.tsx marks itself with data-escape-back)
+        // I leave this Escape to the Utility Services page when it stands alone in the search window: it goes back one step, to the ordinary window (OmnibarModal.tsx marks itself with data-escape-back)
         if (document.querySelector('[data-escape-back="true"]')) return;
         setIsOmnibarOpen(false);
       }
@@ -350,6 +351,18 @@ export function TopBar() {
                         <KeyRound size={18} />
                         <span className="text-sm">Change password</span>
                       </button>}
+                      {/* The developer reference (/developers, built by scripts/docs/build-api-docs.mjs). I put it just above Logout in this menu. It opens in a new tab, and a plain link is right here: the route is a handler, not a page. */}
+                      <a
+                        href="/developers"
+                        target="_blank"
+                        rel="noopener"
+                        data-developer-reference
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="w-full flex items-center gap-3 p-2 rounded-md text-neutral-600 font-medium hover:bg-neutral-100 transition-colors"
+                      >
+                        <BookOpenText size={18} />
+                        <span className="text-sm">Developer reference</span>
+                      </a>
                       <button
                         onClick={() => signOut()}
                         className="w-full flex items-center gap-3 p-2 rounded-md text-neutral-600 font-medium hover:bg-neutral-100 transition-colors"

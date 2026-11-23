@@ -1,23 +1,23 @@
 // src/lib/announcements/searchIndex/edsSources.ts
 //
 // ANNOUNCEMENTS AS SOURCES OF A DEEP SUMMARY (EDS): their full text (the body, then the text of the PDF) as the engine reads it, and the name a reader sees for each.
-// The numbers they travel under are in src/lib/search/sourceKey.ts.
+// I keep the numbers they travel under in src/lib/search/sourceKey.ts.
 
 import type { DataSource } from "typeorm";
 import { DateTime } from "luxon";
 import { IST } from "@/lib/dates";
 
-/** the most characters of one source handed to the writer (the circulars' own budget) */
+/** the most characters of one source handed to the writer; I use the circulars' own budget */
 export const EDS_SOURCE_CHARS = 60000;
 
-/** body, then the PDF's text, clamped: what the engine reads of an announcement */
+/** body, then the PDF's text, clamped: this is what the engine reads of an announcement */
 export function announcementFullText(body: string | null | undefined, pdfText: string | null | undefined): string {
   const parts = [String(body ?? "").trim(), String(pdfText ?? "").trim()].filter(Boolean);
   const text = parts.join("\n");
   return text.length > EDS_SOURCE_CHARS ? text.slice(0, EDS_SOURCE_CHARS) : text;
 }
 
-/** how the briefing names an announcement to the reader: Announcement "Title" (17 Nov 2026) */
+/** I name an announcement to the reader in the briefing like this: Announcement "Title" (17 Nov 2026) */
 export function announcementLabel(title: string, date: string | null | undefined): string {
   const t = String(title ?? "").replace(/\s+/g, " ").trim();
   const short = t.length > 60 ? `${t.slice(0, 59).trimEnd()}…` : t;
@@ -25,7 +25,7 @@ export function announcementLabel(title: string, date: string | null | undefined
   return `Announcement “${short}”${d?.isValid ? ` (${d.toFormat("dd LLL yyyy")})` : ""}`;
 }
 
-/** The full text of these announcements by their real id. A database without the index tables gives the body alone; a failure gives nothing (the caller keeps the search excerpt). */
+/** The full text of these announcements by their real id. A database without the index tables gives the body alone; a failure gives nothing, and the caller keeps the search excerpt. */
 export async function fetchAnnouncementFullText(ds: DataSource, ids: number[]): Promise<Map<number, string>> {
   const out = new Map<number, string>();
   const want = Array.from(new Set(ids.filter((n) => Number.isInteger(n) && n > 0)));
@@ -45,7 +45,7 @@ export async function fetchAnnouncementFullText(ds: DataSource, ids: number[]): 
     try {
       take(await ds.query(`SELECT id, "contentText", NULL AS pdf_text FROM public.announcement WHERE id = ANY($1::int[])`, [want]));
     } catch {
-      /* the search excerpt stands */
+      /* I let the search excerpt stand */
     }
   }
   return out;

@@ -1,17 +1,17 @@
 // src/lib/employees/admin/store.ts
 //
-// THE EMPLOYEE MANAGER'S OPERATIONS (step 66a; owner, 1 Nov 2026): add, change and delete an employee; authorise and withdraw an executive; read the history. Like the PAX editor's store, every operation
-//   - runs in ONE transaction, under one lock (two people cannot add the same ticket at the same moment),
-//   - checks the person's authority INSIDE the transaction (the HOD of C&IT by SUPERADMIN_TICKETS, or an executive the HOD has authorised and not withdrawn),
-//   - writes its audit line in the same transaction: a change cannot be saved without the record of who made it and of the record before and after.
+// THE EMPLOYEE MANAGER'S OPERATIONS (step 66a; my request, 1 Nov 2026): add, change and delete an employee; authorise and withdraw an executive; read the history. As in the PAX editor's store, I made every operation
+//   - run in ONE transaction, under one lock (two people cannot add the same ticket at the same moment),
+//   - check the person's authority INSIDE the transaction (the HOD of C&IT by SUPERADMIN_TICKETS, or an executive the HOD has authorised and not withdrawn),
+//   - write its audit line in the same transaction: a change cannot be saved without the record of who made it and of the record before and after.
 // WHAT IS DIFFERENT FROM PAX:
-//   - the two DATES (birth, joining) are the HOD's alone: for anybody else they are neither shown nor changed, in the form and in the history (the owner: "no user can search the dob and doj ... except the HOD");
+//   - the two DATES (birth, joining) are the HOD's alone: for anybody else they are neither shown nor changed, in the form and in the history (my rule: "no user can search the dob and doj ... except the HOD");
 //   - only the HOD DELETES a person (it can never be the HOD himself), and he may remove the person's login account with him;
 //   - the table is the live roster, whose exact columns this code does not assume: the optional ones (address, e-mails, the doctor flag, the dates, source_snapshot_date) are DISCOVERED in the database.
-// THE LOGIN ACCOUNT (step 66b): the mobile number and the general e-mail of an employee are kept in his login account (public."user": contactNo, email: what the search cards mask and reveal), so adding an employee
-// also creates that account, with his SAIL P.No. as the first password (bcrypt, as the other accounts are); a person who has an account already (the same ticket) is linked, not duplicated. A change keeps the
-// account's name, P.No., designation, mobile and e-mail in step with the roster and NEVER touches the password. The manager never shows a whole mobile number or e-mail: the masks of the search cards.
-// The database is reached through a tiny interface (EmpDb) so the same code runs against the application's connection and against a scratch database in the tests.
+// THE LOGIN ACCOUNT (step 66b): the mobile number and the general e-mail of an employee are kept in his login account (public."user": contactNo, email: what the search cards mask and reveal), so when I add an employee
+// I also create that account, with his SAIL P.No. as the first password (bcrypt, as the other accounts are); a person who has an account already (the same ticket) is linked, not duplicated. A change keeps the
+// account's name, P.No., designation, mobile and e-mail in step with the roster and NEVER touches the password. The manager never shows a whole mobile number or e-mail: it uses the masks of the search cards.
+// The database is reached through a tiny interface (EmpDb), so the same code runs against the application's connection and against a scratch database in the tests.
 
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
@@ -31,20 +31,20 @@ import { formatDepartmentDisplay } from "@/lib/employees/sailDepartments";
 
 export interface EmpDb {
   run<T>(fn: (q: QueryFn) => Promise<T>): Promise<T>;
-  /** What the remembered table layout and code lists hang on (the database connection): without it nothing is remembered and every call reads them again (as the tests' wrappers do). */
+  /** This is what the remembered table layout and code lists hang on (the database connection). Without it nothing is remembered and every call reads them again, as the tests' wrappers do. */
   cacheKey?: object;
 }
 export interface Actor { ticket: string; name: string }
 
 const EXECUTIVE = /^4\d{5}$/;
-/** One Forbidden for every tool (src/lib/facility/authority.ts): the kit's `begin` throws it and this store's catch blocks recognise it. */
+/** I keep one Forbidden for every tool (src/lib/facility/authority.ts): the kit's `begin` throws it and this store's catch blocks recognise it. */
 export { Forbidden };
-/** A login-account rule that refuses the whole change (carries the field errors); thrown inside the transaction so that nothing is kept, caught outside it. */
+/** A login-account rule that refuses the whole change (it carries the field errors). I throw it inside the transaction so that nothing is kept, and catch it outside. */
 class LoginRefused extends Error { constructor(public errors: FieldErrors) { super("login refused"); } }
 
 export const authorityOf = (q: QueryFn, ticket: string | null | undefined): Promise<Authority | null> => sharedAuthorityOf(q, "employee", ticket);
 
-/** The start of every write: the tool's global write lock, then who is acting (the kit's, src/lib/facility/authority.ts). */
+/** Every write starts here: first the tool's global write lock, then who is acting (the kit's, src/lib/facility/authority.ts). */
 const begin = (q: QueryFn, actor: Actor, needHod = false): Promise<Authority> => sharedBegin(q, "employee", actor, needHod);
 
 // ---- what the live tables look like (discovered, not assumed) ----
@@ -86,8 +86,8 @@ const SELECT = (c: Cols) => `SELECT er.id, er.ticket_no, ${opt(c, "sail_pno")} A
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 
 /**
- * THE VERSION of a row, worked out from the RAW values of every field the manager can change (the real mobile and e-mails, not the masks), signed with the server's secret (src/lib/concurrency/version.ts).
- * The dates are part of it only for somebody who may see them: an authorised executive's version does not move when the HOD changes only a date he cannot even see.
+ * THE VERSION of a row, worked out from the RAW values of every field the manager can change (the real mobile and e-mails, not the masks), and signed with the server's secret (src/lib/concurrency/version.ts).
+ * I include the dates only for somebody who may see them, so an authorised executive's version does not move when the HOD changes only a date he cannot even see.
  */
 export function versionOfRow(r: Record<string, unknown>, canSeeDates: boolean): string {
   return versionOf("employee", [
@@ -105,7 +105,7 @@ export function rowToRecord(r: Record<string, unknown>, canSeeDates: boolean): E
   };
 }
 
-/** What the history keeps of a person: every editable field, the dates included (the history is read by the HOD with the dates, by everybody else without). */
+/** This is what I keep in the history of a person: every editable field, the dates included (the HOD reads the history with the dates, everybody else without). */
 const snap = (r: EmployeeRecord) => ({
   ticketNo: r.ticketNo, sailPno: r.sailPno, name: r.name, gradeId: r.gradeId, gradeTitle: r.gradeTitle, departmentId: r.departmentId, departmentName: r.departmentName, position: r.position,
   address: r.address, emailNic: r.emailNic, webmail: r.webmail, mobile: r.mobileMasked, email: r.emailMasked, doctor: r.doctor, dateOfBirth: r.dateOfBirth, dateOfJoining: r.dateOfJoining,
@@ -118,7 +118,7 @@ async function getRow(q: QueryFn, cols: Cols, id: number) {
 }
 
 /**
- * LOCK the person's row (and his login account's) BEFORE it is read for a change or a delete. The global write lock every save takes already makes two saves of this manager wait for each other; this row lock
+ * LOCK the person's row (and his login account's) BEFORE it is read for a change or a delete. The global write lock every save takes already makes two saves of this manager wait for each other; my row lock
  * closes the gap for any writer that does not know that lock (a SQL script, another program): it has to wait until this transaction ends, and the version check that follows then sees what it did.
  */
 async function lockRow(q: QueryFn, cols: Cols, id: number): Promise<void> {
@@ -126,25 +126,25 @@ async function lockRow(q: QueryFn, cols: Cols, id: number): Promise<void> {
   if (cols.has.has("user_id") && cols.user.has("id")) await q(`SELECT 1 FROM public."user" WHERE id = (SELECT user_id FROM public.employee_roster WHERE id = $1) FOR UPDATE`, [id]);
 }
 
-/** What the manager last recorded for this person (an add or a change): who and when. Only the facts, never a value, so that nothing the reader may not see is told. */
+/** Returns what the manager last recorded for this person (an add or a change): who and when. I give only the facts, never a value, so that nothing the reader may not see is told. */
 const lastChangeOf = (q: QueryFn, id: number): Promise<LastChange | null> => sharedLastChange(q, "employee", id);
 
 const escapeLike = (w: string) => w.replace(/[\\%_]/g, (m) => `\\${m}`);
 // ---------------------------------------------------------------------------------------------------------------------------------
-// REMEMBERING THE TABLE LAYOUT AND THE CODE LISTS (step 67d; owner, 1 Nov 2026: "speed up saves by remembering the table layout and the code lists for a few minutes instead of reading them on every save").
-// Every search, add, change and delete first asked the database what columns the tables have (discover) and, for add and change, for the whole list of designations and departments (loadLookups): three
-// round trips to Supabase, each about half a second on a development machine, on EVERY save. They change only when somebody runs a migration, so they are remembered for 5 minutes, SEPARATELY (the layout and the lists).
+// REMEMBERING THE TABLE LAYOUT AND THE CODE LISTS (step 67d; my request, 1 Nov 2026: "speed up saves by remembering the table layout and the code lists for a few minutes instead of reading them on every save").
+// Every search, add, change and delete used to ask the database first what columns the tables have (discover) and, for add and change, for the whole list of designations and departments (loadLookups): three
+// round trips to Supabase, each about half a second on a development machine, on EVERY save. They change only when somebody runs a migration, so I remember them for 5 minutes, SEPARATELY (the layout and the lists).
 // WHERE: on the database connection (`db.cacheKey`), not in a global: another database, a test database or a restarted server never sees this memory, and a wrapper without a key remembers nothing.
 // WHY IT CANNOT MAKE A SAVE WRONG:
 //   * when a panel opens (the `lookups` request) both are read FRESH and remembered, so what is on the screen is never staler than the moment it was opened;
 //   * a save refused only because a designation or department is not in the REMEMBERED list reads the real list and checks again before it gives up (a designation added by a script a minute ago works at once);
 //   * a designation or department removed since it was remembered is refused by the database (a foreign key): that becomes a clear message, the memory is cleared, and nothing is half written.
-// Only the layout and the codes and titles are remembered: nothing about a person, so nothing private.
+// I remember only the layout and the codes and titles: nothing about a person, so nothing private.
 // ---------------------------------------------------------------------------------------------------------------------------------
 export const SCHEMA_MEMORY_MS = 5 * 60 * 1000;
 interface Remembered { cols?: { v: Cols; at: number }; lookups?: { v: Lookups; at: number } }
 const memory = new WeakMap<object, Remembered>();
-/** `now` can be moved by a test; `clear(db)` forgets everything of one database. */
+/** A test can move `now`; `clear(db)` forgets everything of one database. */
 export const schemaMemory = {
   now: (): number => Date.now(),
   ttlMs: SCHEMA_MEMORY_MS,
@@ -153,7 +153,7 @@ export const schemaMemory = {
 const alive = (e: { at: number } | undefined): boolean => !!e && schemaMemory.now() - e.at <= schemaMemory.ttlMs;
 const keep = (db: EmpDb, patch: Remembered): void => { if (db.cacheKey) memory.set(db.cacheKey, { ...(memory.get(db.cacheKey) ?? {}), ...patch }); };
 
-/** The table layout: from the memory while it is fresh, else read (and remembered). */
+/** Gives the table layout: from the memory while it is fresh, otherwise I read it (and remember it). */
 async function colsFor(db: EmpDb, q: QueryFn): Promise<Cols> {
   const m = db.cacheKey ? memory.get(db.cacheKey) : undefined;
   if (m?.cols && alive(m.cols)) return m.cols.v;
@@ -161,7 +161,7 @@ async function colsFor(db: EmpDb, q: QueryFn): Promise<Cols> {
   keep(db, { cols: { v, at: schemaMemory.now() } });
   return v;
 }
-/** The designations and departments: from the memory while fresh (`cached` says so), else read (and remembered). */
+/** Gives the designations and departments: from the memory while fresh (`cached` tells you so), otherwise I read them (and remember them). */
 async function lookupsFor(db: EmpDb, q: QueryFn, cols: Cols): Promise<{ lk: Lookups; cached: boolean }> {
   const m = db.cacheKey ? memory.get(db.cacheKey) : undefined;
   if (m?.lookups && alive(m.lookups)) return { lk: m.lookups.v, cached: true };
@@ -169,14 +169,14 @@ async function lookupsFor(db: EmpDb, q: QueryFn, cols: Cols): Promise<{ lk: Look
   keep(db, { lookups: { v, at: schemaMemory.now() } });
   return { lk: v, cached: false };
 }
-/** Read the real lists NOW and remember them. */
+/** I read the real lists NOW and remember them. */
 async function freshLookups(db: EmpDb, q: QueryFn, cols: Cols): Promise<Lookups> {
   const v = await loadLookups(q, cols);
   keep(db, { lookups: { v, at: schemaMemory.now() } });
   return v;
 }
 /**
- * Validate a record against the lists. If the lists came from the MEMORY and the only trouble is that a designation or department is not in them, the real lists are read and the record is checked once more:
+ * I validate a record against the lists. If the lists came from the MEMORY and the only trouble is that a designation or department is not in them, I read the real lists and check the record once more:
  * the memory can be a few minutes old, and a refusal must never be because of that.
  */
 async function validateHealing(db: EmpDb, q: QueryFn, cols: Cols, raw: Record<string, unknown>, opts: Parameters<typeof validateEmployee>[2], first: { lk: Lookups; cached: boolean }): Promise<{ lk: Lookups; v: ReturnType<typeof validateEmployee> }> {
@@ -212,7 +212,7 @@ export async function getEmployee(db: EmpDb, id: number, canSeeDates: boolean): 
   });
 }
 
-/** Asked once when a panel opens: reads the layout AND the lists fresh from the database and remembers them, so that what the person sees is as fresh as the moment he opened the panel. */
+/** Asked once when a panel opens. It reads the layout AND the lists fresh from the database and remembers them, so that what the person sees is as fresh as the moment he opened the panel. */
 export const lookups = (db: EmpDb): Promise<Lookups> => db.run(async (q) => {
   const cols = await discover(q);
   keep(db, { cols: { v: cols, at: schemaMemory.now() } });
@@ -224,7 +224,7 @@ async function audit(q: QueryFn, actor: Actor, role: Authority, action: "add" | 
   await writeAudit(q, "employee", actor, role, action, { targetId: employeeId, targetTicket, targetName, before, after, note });
 }
 
-/** The name-search helper tables are refreshed after a name changes; a database without that function (or any failure in it) must never undo the change itself, hence the savepoint. */
+/** I refresh the name-search helper tables after a name changes. A database without that function (or any failure in it) must never undo the change itself, hence the savepoint. */
 async function refreshNameCodes(q: QueryFn): Promise<void> {
   await q("SAVEPOINT name_codes");
   try { await q("SELECT nlq.refresh_name_codes()"); await q("RELEASE SAVEPOINT name_codes"); } catch { await q("ROLLBACK TO SAVEPOINT name_codes"); }
@@ -241,7 +241,7 @@ export type SaveResult =
   | { status: "invalid"; errors: FieldErrors; warnings?: string[] }
   | { status: "conflict"; conflicts: EmployeeConflict[]; acknowledgeable: AcknowledgeKind[] }
   | { status: "unchanged" }
-  /** The record is not what the person saw: somebody changed it first. Nothing was written. `current` is the record as it is now (as this person may see it), `last` the change recorded last. */
+  /** The record is not what the person saw, because somebody changed it first. Nothing was written. `current` is the record as it is now (as this person may see it), `last` is the change recorded last. */
   | { status: "stale"; current: EmployeeRecord; last: LastChange | null }
   | { status: "missing" }
   | { status: "forbidden" };
@@ -265,15 +265,15 @@ export function rosterMails(cohort: "executive" | "nonexecutive", x: { emailNic:
   if (cohort === "executive") return { emailNic: x.emailNic, webmail: x.webmail };
   return { emailNic: endsWithDomain(x.email, NIC_DOMAIN) ? x.email : keep.emailNic, webmail: endsWithDomain(x.email, WEBMAIL_DOMAIN) ? x.email : keep.webmail };
 }
-/** The e-mail the login account carries: an executive's NIC mail (else his web-mail); a non-executive's own e-mail. */
+/** The e-mail the login account carries: for an executive his NIC mail (else his web-mail), for a non-executive his own e-mail. */
 export const loginEmailOf = (cohort: "executive" | "nonexecutive", x: { emailNic: string; webmail: string; email: string }): string => (cohort === "executive" ? x.emailNic || x.webmail : x.email);
 
 const newLoginId = () => `c${randomBytes(12).toString("hex")}`;
 const digits = (v: unknown) => String(v ?? "").replace(/\D/g, "");
 
 /**
- * The employee's login account (public."user"): created when there is none (his SAIL P.No. is the first password, hashed like every other), or linked when the same ticket already has one; its mobile and e-mail are
- * set from what was typed (empty = leave as it is). Only the columns that exist are written. The password of an account that exists is NEVER changed. Returns the field errors when an e-mail is already another login's.
+ * Handles the employee's login account (public."user"): I create it when there is none (his SAIL P.No. is the first password, hashed like every other), or link it when the same ticket already has one; its mobile and e-mail are
+ * set from what was typed (empty = leave as it is). I write only the columns that exist, and I NEVER change the password of an account that exists. Returns the field errors when an e-mail is already another login's.
  */
 async function ensureLogin(q: QueryFn, cols: Cols, p: { rosterId: number; ticketNo: string; name: string; sailPno: string; gradeTitle: string; mobile: string; loginEmail: string; emailField: "emailNic" | "email" }): Promise<{ errors?: FieldErrors }> {
   if (!cols.user.has("id") || !cols.user.has("ticketNo")) return {};
@@ -332,7 +332,7 @@ export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, u
       const names: string[] = ["ticket_no", "name", "designation_grade_id", "sail_department_id", "cohort", "within_grade_position", "global_seniority_rank"];
       const vals: unknown[] = [x.ticketNo, x.name, grade.id, x.departmentId, cohort, position, seniorityRank(grade, position)];
       const addOpt = (col: string, value: unknown) => { if (cols.has.has(col)) { names.push(col); vals.push(value); } };
-      // THE LIVE ROSTER'S id HAS NO AUTOMATIC NUMBERING (its rows were loaded with fixed ids; seen in the owner's log of 1 Nov 2026: "null value in column id violates not-null constraint"): then the next id is taken here, with the
+      // THE LIVE ROSTER'S id HAS NO AUTOMATIC NUMBERING (its rows were loaded with fixed ids; seen in my log of 1 Nov 2026: "null value in column id violates not-null constraint"), so in that case I take the next id here, with the
       // table locked against every writer (also one that does not know the global lock: a SQL script waits until this transaction ends), so that two inserts can never take the same number. A table that numbers its own ids is left alone.
       if (cols.notNullNoDefault.has("id")) {
         await q(`LOCK TABLE public.employee_roster IN SHARE ROW EXCLUSIVE MODE`);
@@ -351,9 +351,9 @@ export async function addEmployee(db: EmpDb, actor: Actor, raw: Record<string, u
       if (cols.notNullNoDefault.has("source_snapshot_date") && !names.includes("source_snapshot_date")) { names.push("source_snapshot_date"); vals.push(now.toISODate()); }
       const ins = await q(`INSERT INTO public.employee_roster (${names.join(", ")}) VALUES (${vals.map((_, i) => `$${i + 1}`).join(", ")}) RETURNING id`, vals);
       const id = Number(ins[0].id);
-      // his login account: created (SAIL P.No. = first password) or linked; an e-mail that is another login's is refused and NOTHING of the addition is kept
+      // His login account is created (SAIL P.No. = first password) or linked. If the e-mail is another login's, I refuse it and NOTHING of the addition is kept.
       const login = await ensureLogin(q, cols, { rosterId: id, ticketNo: x.ticketNo, name: x.name, sailPno: x.sailPno, gradeTitle: grade.title, mobile: x.mobile, loginEmail: loginEmailOf(cohort, x), emailField: cohort === "executive" ? "emailNic" : "email" });
-      if (login.errors) throw new LoginRefused(login.errors); // thrown inside the transaction: it is rolled back, nothing of the addition is kept
+      if (login.errors) throw new LoginRefused(login.errors); // thrown inside the transaction, so it is rolled back and nothing of the addition is kept
       const rec = rowToRecord(await getRow(q, cols, id), true);
       await audit(q, actor, role, "add", id, rec.ticketNo, rec.name, null, snap(rec), rec.hasLogin ? "login account made, first password = SAIL P.No." : null);
       await refreshNameCodes(q);
@@ -377,7 +377,7 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
       const role = await begin(q, actor);
       const cols = await colsFor(db, q);
       const hod = role === "hod";
-      // THE GUARD AGAINST A LOST UPDATE (the kit's, src/lib/facility/guard.ts): the save is for the record AS THE PERSON SAW IT. If it is not that any more, nothing is written (not even a part), and he is told what it is now and who changed it.
+      // THE GUARD AGAINST A LOST UPDATE (the kit's, src/lib/facility/guard.ts): I take the save to be for the record AS THE PERSON SAW IT. If it is not that any more, nothing is written (not even a part), and he is told what it is now and who changed it.
       const g = await guardRecord(q, "employee", id, { sent: version, load: async () => { await lockRow(q, cols, id); return (await getRow(q, cols, id)) ?? null; }, version: (r) => versionOfRow(r, hod), current: (r) => rowToRecord(r, hod) });
       if (g.status !== "fresh") return g;
       const curRow = g.row;
@@ -390,15 +390,15 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
       let position = x.position;
       if (position === null) position = x.gradeId === cur.gradeId ? cur.position : Number((await q(`SELECT coalesce(max(within_grade_position), 0) + 1 AS n FROM public.employee_roster WHERE designation_grade_id = $1`, [grade.id]))[0].n);
       if (position > 9999) return { status: "invalid", errors: { position: "This grade is full (the position would pass 9999)." } };
-      // the roster's two mail columns by cohort (a non-executive's own columns stay as they are unless he typed a SAIL address); the login account's mobile and e-mail: changed only when something was typed
+      // The roster's two mail columns follow the cohort (a non-executive's own columns stay as they are unless he typed a SAIL address). The login account's mobile and e-mail change only when something was typed.
       const curNic = str(curRow.email_nic), curWeb = str(curRow.webmail);
-      // empty keeps (a mail is shown masked, so typing is replacing); an executive's own two fields, a non-executive's SAIL address kept as such
+      // Empty keeps the old value (a mail is shown masked, so typing means replacing). An executive has his own two fields; a non-executive's SAIL address is kept as such.
       const mails = cur.cohort === "executive" ? { emailNic: x.emailNic || curNic, webmail: x.webmail || curWeb } : rosterMails(cur.cohort, x, { emailNic: curNic, webmail: curWeb });
       const nicChanged = mails.emailNic !== curNic, webChanged = mails.webmail !== curWeb;
       const loginEmail = loginEmailOf(cur.cohort, x);
       const mobileChanged = x.mobile !== "" && x.mobile !== digits(curRow.contact_no);
       const emailChanged = loginEmail !== "" && loginEmail !== str(curRow.user_email).toLowerCase();
-      // for anybody but the HOD the dates stay as they are
+      // For anybody but the HOD I leave the dates as they are.
       const next: Snap = {
         ...snap(cur), sailPno: x.sailPno, name: x.name, gradeId: x.gradeId as number, gradeTitle: grade.title, departmentId: x.departmentId, departmentName: lk.departments.find((d) => d.id === x.departmentId)?.name ?? "",
         position, address: x.address, emailNic: maskEmail(mails.emailNic), webmail: maskEmail(mails.webmail), doctor: x.doctor === null ? cur.doctor : x.doctor,
@@ -433,7 +433,7 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
       if (datesTouched) {
         set("date_of_birth", nullable(next.dateOfBirth));
         set("date_of_joining", nullable(next.dateOfJoining));
-        // a date the HOD sets by hand is a real date, no longer a sample; with both dates cleared the label goes too
+        // A date the HOD sets by hand is a real date, no longer a sample; when both dates are cleared the label goes too.
         if (col("dates_source")) set("dates_source", next.dateOfBirth || next.dateOfJoining ? "hr" : null);
       }
       if (sets.length === 0 && !mobileChanged && !emailChanged && !nicChanged && !webChanged) return { status: "unchanged" };
@@ -441,7 +441,7 @@ export async function modifyEmployee(db: EmpDb, actor: Actor, id: number, raw: R
         vals.push(id);
         await q(`UPDATE public.employee_roster SET ${sets.join(", ")} WHERE id = $${vals.length}`, vals);
       }
-      // the login account: mobile and e-mail replaced when typed; name, P.No. and designation kept in step; the PASSWORD is never touched. A person without an account who is given a mobile or e-mail gets one (it needs his P.No.).
+      // The login account: mobile and e-mail are replaced when typed; name, P.No. and designation are kept in step; I NEVER touch the PASSWORD. A person without an account who is given a mobile or e-mail gets one (it needs his P.No.).
       const hasLogin = curRow.user_id !== null && curRow.user_id !== undefined;
       if (mobileChanged || emailChanged) {
         const pno = next.sailPno || cur.sailPno;
@@ -477,18 +477,18 @@ export type DeleteResult =
   | { status: "ok"; name: string; ticketNo: string; loginRemoved: boolean }
   | { status: "invalid"; reason: string }
   | { status: "protected" }
-  /** The record has changed since the person saw it: nothing was deleted; he is shown the record as it is now. */
+  /** The record has changed since the person saw it. Nothing was deleted; he is shown the record as it is now. */
   | { status: "stale"; current: EmployeeRecord; last: LastChange | null }
   | { status: "missing" }
   | { status: "forbidden" };
 
-/** Only the HOD of C&IT deletes. The ticket must be typed back; the HOD himself (and the actor's own record) can never be deleted. */
+/** Only the HOD of C&IT deletes. The ticket must be typed back, and I never allow the HOD himself (or the actor's own record) to be deleted. */
 export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: { confirmTicket: string; removeLogin: boolean; version?: string }): Promise<DeleteResult> {
   try {
     return await db.run(async (q): Promise<DeleteResult> => {
       const role = await begin(q, actor, true);
       const cols = await colsFor(db, q);
-      // a person is deleted AS THE HOD SAW HIM (the kit's guard): if he has been changed since, nothing is deleted and the HOD looks again
+      // A person is deleted AS THE HOD SAW HIM (the kit's guard): if he has been changed since, nothing is deleted and the HOD looks again.
       const g = await guardRecord(q, "employee", id, { sent: opts.version, load: async () => { await lockRow(q, cols, id); return (await getRow(q, cols, id)) ?? null; }, version: (r) => versionOfRow(r, true), current: (r) => rowToRecord(r, true) });
       if (g.status !== "fresh") return g;
       const row = g.row;
@@ -501,7 +501,7 @@ export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: 
       let loginRemoved = false;
       if (opts.removeLogin && login) { await q(`DELETE FROM public."user" WHERE id = $1`, [loginId]); loginRemoved = true; }
       await audit(q, actor, role, "delete", id, cur.ticketNo, cur.name, snap(cur), { loginRemoved, ...(login ? { login: { id: String(login.id), ticketNo: str(login.ticketNo), name: str(login.name) } } : {}) });
-      // an employee who was authorised for ANY tool and is deleted loses every one of those authorities with the job (owner's decision, 2 Nov 2026): one history line in each tool, in this same transaction
+      // My decision (2 Nov 2026): an employee who was authorised for ANY tool and is deleted loses every one of those authorities along with the job. One history line in each tool, in this same transaction.
       await revokeEverywhere(q, actor, role, cur.ticketNo, "deleted with the employee");
       await refreshNameCodes(q);
       return { status: "ok", name: cur.name, ticketNo: cur.ticketNo, loginRemoved };
@@ -515,7 +515,7 @@ export async function deleteEmployee(db: EmpDb, actor: Actor, id: number, opts: 
 // ---- delegation: only the HOD of C&IT authorises and withdraws ----
 export type { DelegateResult };
 
-/** The authorised executives, the authorising and the withdrawing are the kit's (src/lib/facility/authority.ts): the same code, the same rules and words, for every tool. */
+/** The authorised executives, the authorising and the withdrawing are the kit's (src/lib/facility/authority.ts): I use the same code, rules and words for every tool. */
 export const listDelegates = (db: EmpDb): Promise<DelegateView[]> => sharedList(db, "employee");
 export const grantDelegate = (db: EmpDb, actor: Actor, target: { ticket: string; name: string; confirmNonExecutive?: boolean }): Promise<DelegateResult> => sharedGrant(db, "employee", actor, target);
 export const revokeDelegate = (db: EmpDb, actor: Actor, ticketNo: string): Promise<DelegateResult> => sharedRevoke(db, "employee", actor, ticketNo);
@@ -542,7 +542,7 @@ export function diffSnapshots(before: Partial<Snap> | null, after: Partial<Snap>
 export async function recentAudit(db: EmpDb, limit = 50, canSeeDates = false): Promise<AuditView[]> {
   const lines = await recentAuditRows(db, "employee", limit);
   return lines.map((x): AuditView => {
-    const isPhoto = x.action === "photo"; // a photo change or removal (step 70) reads as a change of the person, in words, with nothing to compare
+    const isPhoto = x.action === "photo"; // a photo change or removal (step 70) reads in words as a change of the person, with nothing to compare
     const action = (isPhoto ? "modify" : x.action) as AuditView["action"];
     const targetName = x.targetName, targetTicket = x.targetTicket;
     const who = `${targetName} (${targetTicket})`;

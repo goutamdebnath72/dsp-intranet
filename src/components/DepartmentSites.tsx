@@ -58,7 +58,7 @@ import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { Tooltip } from "./Tooltip";
 
 // --- ADDED NEW LINK TYPE ---
-// This type matches the data we cleaned in page.tsx (undefined -> null)
+// This type matches the data I cleaned in page.tsx (undefined -> null)
 type Link = {
   id: number;
   category: string;
@@ -125,13 +125,13 @@ const iconSizeConfig = {
   small: ["/hindi.svg", "/train.png", "/dumper-icon.png"],
 };
 
-// --- MODIFIED: Updated props to accept Link[] type ---
+// --- Changed: props now accept the Link[] type ---
 type DepartmentSitesProps = {
   departmentData: Link[];
   sailSitesData: Link[]; // <-- ADDED: sailSitesData prop
 };
 
-// --- MODIFIED: Updated items type to Link[] ---
+// --- Changed: items are now typed Link[] ---
 const createColumns = (items: Link[]) => {
   const columns = [];
   for (let i = 0; i < items.length; i += 2) {
@@ -140,7 +140,7 @@ const createColumns = (items: Link[]) => {
   return columns;
 };
 
-// --- MODIFIED: Updated items type to Link[] ---
+// --- Changed: items are now typed Link[] ---
 const createSailColumns = (items: Link[], itemsPerColumn: number) => {
   const columns = [];
   for (let i = 0; i < items.length; i += itemsPerColumn) {
@@ -149,7 +149,7 @@ const createSailColumns = (items: Link[], itemsPerColumn: number) => {
   return columns;
 };
 
-// --- MODIFIED: Added sailSitesData to destructuring ---
+// --- Changed: sailSitesData added to the destructuring ---
 const DepartmentSites: React.FC<DepartmentSitesProps> = ({
   departmentData,
   sailSitesData,
@@ -161,7 +161,7 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
   const isXlScreen = useBreakpoint(1800);
   const [activeTab, setActiveTab] = useState("dspSites");
 
-  // All refs, state, and functions purely for the 'sailSites' tab
+  // All refs, state, and functions that serve only the 'sailSites' tab
   const sailScrollContainerRef = useRef<HTMLDivElement>(null);
   const sailScrollPositionRef = useRef(0);
   const [sailCanScrollLeft, setSailCanScrollLeft] = useState(false);
@@ -282,7 +282,7 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
   }, [activeTab]);
   const departmentColumns = createColumns(departmentData);
 
-  // --- MODIFIED: This now uses the 'sailSitesData' prop ---
+  // --- Changed: this now uses the 'sailSitesData' prop ---
   const sailColumns = createSailColumns(sailSitesData, 5);
   const tabContainerVariants = {
     hidden: { opacity: 0 },
@@ -421,7 +421,7 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
                                 <Building2 className="w-8 h-8 text-neutral-400" />
                               )}
                             </div>
-                            {/* --- MODIFIED: Use dept.title --- */}
+                            {/* --- Changed: I use dept.title --- */}
                             <span className="text-sm text-wrap">
                               {dept.title}
                             </span>
@@ -495,7 +495,7 @@ const DepartmentSites: React.FC<DepartmentSitesProps> = ({
                             className="flex items-center space-x-3 p-2 rounded-md transition-colors duration-200 hover:bg-primary-100/50 text-neutral-700"
                           >
                             <IconComponent className="h-5 w-5 text-primary-600 flex-shrink-0" />
-                            {/* --- MODIFIED: Use site.title --- */}
+                            {/* --- Changed: I use site.title --- */}
                             <span className="text-sm font-medium whitespace-nowrap">
                               {site.title}
                             </span>

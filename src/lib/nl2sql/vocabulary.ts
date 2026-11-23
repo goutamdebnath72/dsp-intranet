@@ -1,13 +1,13 @@
 // src/lib/nl2sql/vocabulary.ts
 //
-// Two general safety nets, in the same spirit as quoted.ts. Both catch a model answer that
+// I built two general safety nets, in the same spirit as quoted.ts. Both catch a model answer that
 // CONTRADICTS a fixed fact about this database, send it back with the exact reason, and let the
 // model fix it. Neither is tied to a particular phrasing.
 //
 // 1. Vocabulary: words like officer(s), executive(s), staff, workers, non-executive(s) name a
 //    COHORT (executive / nonexecutive). A model once read "officers" as a designation word and
-//    "staff" as plain "employees". The cohort words are shown to the model for THIS question and
-//    the SQL is checked for a cohort condition. A word that is part of a real department name or
+//    "staff" as plain "employees". So I show the cohort words to the model for THIS question and
+//    check the SQL for a cohort condition. A word that is part of a real department name or
 //    designation title in the question (e.g. "COMPUTER and IT STAFF", "Medical Officer") is not
 //    treated as a cohort word.
 // 2. nlq.norm patterns: nlq.norm() returns only lowercase letters, digits and single spaces, so a
@@ -18,7 +18,7 @@ export interface VocabHit {
   cohort: "executive" | "nonexecutive";
 }
 
-/** Same normalization as the database function nlq.norm(). */
+/** I use the same normalization as the database function nlq.norm(). */
 function norm(s: string): string {
   return (s || "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -26,13 +26,13 @@ function norm(s: string): string {
 const NONEXEC = /\b(?:non ?ex(?:ec(?:utives?)?)?|staff|workers?|non ?officers?)\b/g;
 const EXEC = /\b(?:executives?|execs?|officers?)\b/g;
 
-/** Cohort words in the question. `knownPhrases` = real department names and designation titles. */
+/** Finds the cohort words in the question. `knownPhrases` = real department names and designation titles. */
 export function vocabularyHits(question: string, knownPhrases: string[]): VocabHit[] {
   const q = " " + norm(question) + " ";
   const exempt = new Set<string>();
   for (const p of knownPhrases) {
     const pn = norm(p);
-    // the phrase may appear in the question as written or in its plural ("medical officers")
+    // The phrase may appear in the question as written or in its plural ("medical officers"), so I check both.
     if (pn && (q.includes(" " + pn + " ") || q.includes(" " + pn + "s "))) pn.split(" ").forEach((w) => exempt.add(w));
   }
   const isExempt = (match: string) => {
@@ -45,7 +45,7 @@ export function vocabularyHits(question: string, knownPhrases: string[]): VocabH
     if (!isExempt(word) && !hits.some((h) => h.word === word)) hits.push({ word, cohort });
   };
   for (const m of q.matchAll(NONEXEC)) add(m[0], "nonexecutive");
-  const rest = q.replace(NONEXEC, " "); // "non executives" must not also count as "executives"
+  const rest = q.replace(NONEXEC, " "); // I must not count "non executives" again as "executives"
   for (const m of rest.matchAll(EXEC)) add(m[0], "executive");
   return hits;
 }
@@ -55,7 +55,7 @@ const MEANING = {
   nonexecutive: "non-executives -> cohort = 'nonexecutive'",
 } as const;
 
-/** Extra prompt line for THIS question, or null when it has no cohort words. */
+/** The extra prompt line for THIS question, or null when it has no cohort words. */
 export function vocabularyLine(question: string, knownPhrases: string[]): string | null {
   const hits = vocabularyHits(question, knownPhrases);
   if (!hits.length) return null;
@@ -63,7 +63,7 @@ export function vocabularyLine(question: string, knownPhrases: string[]): string
   return `IMPORTANT (vocabulary): in this question ${parts.join("; ")}.`;
 }
 
-/** null when fine; otherwise why the SQL contradicts the cohort vocabulary of the question. */
+/** Returns null when fine; otherwise why the SQL contradicts the cohort vocabulary of the question. */
 export function checkVocabulary(question: string, sql: string, knownPhrases: string[]): string | null {
   const hits = vocabularyHits(question, knownPhrases);
   if (!hits.length) return null;
@@ -86,7 +86,7 @@ export function checkVocabulary(question: string, sql: string, knownPhrases: str
   return null;
 }
 
-/** null when fine; otherwise a pattern that nlq.norm() output can never match. */
+/** Returns null when fine; otherwise a pattern that nlq.norm() output can never match. */
 export function checkNormPatterns(sql: string): string | null {
   const re = /nlq\.norm\s*\([^()]*\)\s*(not\s+)?(ilike|like|=)\s*'((?:[^']|'')*)'/gi;
   for (const m of sql.matchAll(re)) {

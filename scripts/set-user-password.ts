@@ -1,12 +1,12 @@
 // scripts/set-user-password.ts
 //
-// GIVE ONE ACCOUNT A NEW PASSWORD (the first password of every account is the person's SAIL P.No., which many people know: the HOD's was in the code and in the user manual, and is to be changed).
-// The password is read from the keyboard (typed twice, not shown, never put on the command line, never in a file), hashed with bcrypt exactly as the sign-in checks it, and written to that one account.
+// This GIVES ONE ACCOUNT A NEW PASSWORD (the first password of every account is the person's SAIL P.No., which many people know: the HOD's was in the code and in the user manual, and is to be changed).
+// I read the password from the keyboard (typed twice, not shown, never put on the command line, never in a file), hash it with bcrypt exactly as the sign-in checks it, and write it to that one account.
 //
 //   npx tsx --env-file=.env.local scripts/set-user-password.ts 498301            asks for the new password twice, shows the person's name, asks "yes", then writes
 //   npx tsx --env-file=.env.local scripts/set-user-password.ts 498301 --check    only shows who the ticket is (nothing is written)
 //
-// Needs DATABASE_URL (or DIRECT_DATABASE_URL). The new password must be at least 10 characters, and not the same as the person's P.No. The old password stops working at once; a session already open stays open
+// It needs DATABASE_URL (or DIRECT_DATABASE_URL). The new password must be at least 10 characters, and not the same as the person's P.No. The old password stops working at once; a session already open stays open
 // until it ends (24 hours at most). Nothing here changes any other account.
 
 import { createInterface } from "node:readline";

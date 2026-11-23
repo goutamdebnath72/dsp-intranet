@@ -8,12 +8,12 @@
 //  * InterpretationNote -- one line stating how an LLM-derived query was
 //    understood. The server's verifier proves the listed rows match the
 //    interpreted condition; only the person can judge whether the condition
-//    is what they MEANT, and this makes a misreading visible at a glance.
+//    is what they MEANT, and I show this note so that a misreading is visible at a glance.
 //
 //  * PatternFeedbackBar -- the tick/cross for a fresh, not-yet-trusted
 //    LLM-derived pattern (payload carries `pendingPatternId`). Only an
-//    explicit click counts. Nothing is inferred from behaviour such as how
-//    long the answer stayed on screen -- that was removed permanently,
+//    explicit click counts. I infer nothing from behaviour such as how
+//    long the answer stayed on screen -- I removed that permanently,
 //    because reading a confidently wrong answer looks the same as reading a
 //    right one.
 
@@ -23,7 +23,7 @@ import { Check, X } from "lucide-react";
 const FEEDBACK_URL = "/api/employees/pattern-feedback";
 
 function sendVerdict(patternId: number, verdict: "confirm" | "reject") {
-  // Best-effort: never surface an error to the person.
+  // I do this on a best-effort basis and never show an error to the person.
   try {
     void fetch(FEEDBACK_URL, {
       method: "POST",
@@ -46,7 +46,7 @@ export function InterpretationNote({ text }: { text: string }) {
 export function PatternFeedbackBar({ patternId }: { patternId: number }) {
   const [verdict, setVerdict] = useState<"confirm" | "reject" | null>(null);
 
-  // A new answer (different pattern) starts unanswered.
+  // I start a new answer (a different pattern) as unanswered.
   useEffect(() => {
     setVerdict(null);
   }, [patternId]);

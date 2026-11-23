@@ -1,7 +1,7 @@
 // src/app/api/pax/admin/route.ts
 //
 // POST /api/pax/admin  { op: "me" | "list" | "add" | "modify" | "delete" | "delegates" | "find-executive" | "grant" | "revoke" | "audit", ... }
-// The PAX directory's admin requests (step 64a). The person is the LOGIN SESSION's; the rules are in src/lib/pax/admin/api.ts.
+// These are the PAX directory's admin requests (step 64a). The person is the LOGIN SESSION's; the rules are in src/lib/pax/admin/api.ts.
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";

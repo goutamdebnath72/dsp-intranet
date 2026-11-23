@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/RecordsScopeBar.selftest.tsx </dev/null
-// The fixed selections under the search box: what is drawn for each, and how the Omnibar is wired to them.
+// This checks the fixed selections under the search box: what is drawn for each, and how the Omnibar is wired to them.
 
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";

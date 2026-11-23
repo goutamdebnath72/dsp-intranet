@@ -1,39 +1,39 @@
 // src/tools/ev/evGuideData.ts
 //
-// "EV SPECIFICATIONS, IN PLAIN WORDS": the second tab of the electric-car window. A person who is not an electrical engineer meets the same dozen words on every EV page, advert and spec sheet (kW, kWh, bhp, PS, Nm,
-// volt, LFP, Blade battery, AC and DC charging, CCS2, C-rate). This file says what each means, in the order a buyer meets them, in six distinct sections. Pure data, no React (EvGuide.tsx draws it); tested in evGuide.selftest.ts.
+// "EV specifications, in plain words": the second tab of the electric-car window. A person who is not an electrical engineer meets the same dozen words on every EV page, advert and spec sheet (kW, kWh, bhp, PS, Nm,
+// volt, LFP, Blade battery, AC and DC charging, CCS2, C-rate). I wrote this file to say what each means, in the order a buyer meets them, in six distinct sections. Pure data, no React (EvGuide.tsx draws it); tested in evGuide.selftest.ts.
 //
 // Where a figure is a maker's claim or a news report, the section says so and names it; where a figure is arithmetic (bhp from kW) it is computed here from the same constants as the converter (src/tools/converter/units.ts).
-// The Blade-battery facts are BYD's own (its blog of January 22, 2023) and, for the Indian cars, Autocar India, Autocar Professional and S&P Global Mobility; nothing here is a price, a range figure for a named car or a warranty.
+// The Blade-battery facts are BYD's own (its blog of January 22, 2023) and, for the Indian cars, Autocar India, Autocar Professional and S&P Global Mobility. Nothing here is a price, a range figure for a named car or a warranty.
 
 export interface GuideSource { name: string; url: string; quote: string }
 
-/** the two sources of the mechanical and metric horsepower, in watts: the same as the converter's (bhp 745.7 W, PS 735.5 W) */
+/** The two sources of the mechanical and metric horsepower, in watts: the same as the converter's (bhp 745.7 W, PS 735.5 W). */
 export const WATTS = { bhp: 745.6998715823, ps: 735.49875 } as const;
 export const kwToBhp = (kw: number): number => (kw * 1000) / WATTS.bhp;
 export const kwToPs = (kw: number): number => (kw * 1000) / WATTS.ps;
 export const bhpToKw = (bhp: number): number => (bhp * WATTS.bhp) / 1000;
 
 export interface GuideTerm {
-  /** the word as it is printed on a spec sheet */
+  /** The word as it is printed on a spec sheet. */
   term: string;
-  /** what it means, with no jargon */
+  /** What it means, with no jargon. */
   plain: string;
-  /** the one thing to remember when comparing two cars (optional) */
+  /** The one thing to remember when comparing two cars (optional). */
   tip?: string;
 }
 
 export interface GuideSection {
   id: "two" | "power" | "battery" | "blade" | "charging" | "socket";
-  /** 1 to 6, the order a buyer meets them */
+  /** 1 to 6, the order a buyer meets them. */
   no: number;
   title: string;
-  /** one line under the title: the question the section answers */
+  /** One line under the title: the question the section answers. */
   question: string;
   tone: "emerald" | "sky" | "violet" | "amber" | "rose" | "teal";
   intro: string;
   terms: GuideTerm[];
-  /** a short note in the margin (what to watch for) */
+  /** A short note in the margin (what to watch for). */
   watch?: string;
   sources?: GuideSource[];
 }
@@ -41,7 +41,7 @@ export interface GuideSection {
 export const GUIDE_LEAD =
   "Every electric car is described by a few numbers. This page says what each one means, in plain words, in the order you meet it: how strong the car is, what its battery holds, what the Blade battery is, and how it charges. Nothing here needs any electrical training.";
 
-/** the picture to keep in mind: a petrol car's tank and engine */
+/** The picture to keep in mind: a petrol car's tank and engine. */
 export const TWO_NUMBERS = {
   kwh: { unit: "kWh", name: "kilowatt-hour", picture: "the fuel tank", says: "how much energy the battery holds, so how FAR the car can go" },
   kw: { unit: "kW", name: "kilowatt", picture: "the engine", says: "how much power the motor (or the charger) can give at one moment, so how FAST and how STRONG" },
@@ -145,5 +145,5 @@ export const GUIDE: GuideSection[] = [
   },
 ];
 
-/** a worked example: a made-up car, with the figures worked out so that each term has a number beside it (it is an illustration, not a real car) */
+/** A worked example: a made-up car, with the figures worked out so that each term has a number beside it. It is an illustration, not a real car. */
 export const EXAMPLE = { capacityKwh: 60, motorKw: 110, kmPerKwh: 5, acKw: 7.4 };

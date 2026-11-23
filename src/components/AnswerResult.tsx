@@ -2,14 +2,13 @@
 
 // src/components/AnswerResult.tsx
 //
-// Shows the result of an answer written by the language model, adapting to whatever came back:
+// Shows the result of an answer written by the language model, and adapts to whatever came back:
 //   * Cards  -- a list of people (the omnibar's person cards, passed in as `peopleView`)
 //   * Table  -- every column the SQL returned: readable titles, sort by clicking a heading, a filter box,
 //               Yes/No for true/false, tidy numbers and dates; copy / CSV for signed-in people
 //   * Chart  -- a bar chart for "a count per group"
-// Which one opens first, the heading and the column titles come from lib/nl2sql/display.ts: the model's
-// suggestion VERIFIED against the real result, or a layout chosen from the data's shape. Every column the SQL
-// returned is always visible (see display.ts). A switcher appears when more than one view is possible.
+// Which view opens first, the heading and the column titles come from lib/nl2sql/display.ts: the model's suggestion VERIFIED against the real result,
+// or a layout I choose from the data's shape. Every column the SQL returned is always visible (see display.ts). A switcher appears when more than one view is possible.
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Check, ChevronDown, Copy, Download, LayoutList, Loader2, Search, Table2 } from "lucide-react";
@@ -204,7 +203,7 @@ export function BarChartView({ table, columns, bar }: { table: Nl2SqlTable; colu
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
         {valueCol?.label ?? "Value"} by {(labelCol?.label ?? "group").toLowerCase()}
       </p>
-      {/* role="list" is deliberate: with list-style removed, Safari's screen reader stops announcing this as a list unless the role is explicit */}
+      {/* I set role="list" on purpose: with list-style removed, Safari's screen reader stops announcing this as a list unless the role is explicit. */}
       {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
       <ul role="list" className="flex flex-col gap-1.5">
         {items.map((it, i) => (
@@ -226,7 +225,7 @@ export function BarChartView({ table, columns, bar }: { table: Nl2SqlTable; colu
   );
 }
 
-/** "Show 100 more" with a running count; for a signed-out visitor it says to log in. */
+/** I show "Show 100 more" with a running count; for a signed-out visitor it says to log in. */
 export function ShowMore({ more }: { more: MoreState }) {
   const p = pageProgress(more.shown, more.total);
   return (
@@ -268,11 +267,11 @@ export function AnswerResult({
 }: {
   nl2sql: Nl2SqlExtras;
   authenticated: boolean;
-  /** The omnibar's person cards (already rendered by the page), or null when the answer is not a list of people. */
+  /** The omnibar's person cards, already rendered by the page, or null when the answer is not a list of people. */
   peopleView: ReactNode | null;
-  /** Set while more rows exist beyond the ones shown ("Show more", 100 at a time). */
+  /** I set this while more rows exist beyond the ones shown ("Show more", 100 at a time). */
   more?: MoreState | null;
-  /** Opens a circular in the viewer (at the given 1-based pages): used by the "Source" line of a health check-up answer. */
+  /** Opens a circular in the viewer (at the given 1-based pages). I use it for the "Source" line of a health check-up answer. */
   onOpenCircular?: (circularId: number, pages: number[]) => void;
 }) {
   const display = nl2sql.display ?? null;

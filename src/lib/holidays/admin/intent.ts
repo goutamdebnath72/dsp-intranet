@@ -1,7 +1,7 @@
 // src/lib/holidays/admin/intent.ts
 //
-// Omnibar intent detection for Holiday Management facility.
-// Identifies when an authorised user wants to manage, seed, clear, review, or delegate holiday tools.
+// Omnibar intent detection for the Holiday Management facility.
+// I use it to identify when an authorised user wants to manage, seed, clear, review, or delegate holiday tools.
 
 import type { HolidayAdminOp } from "./types";
 
@@ -19,15 +19,15 @@ export function detectHolidayAdminIntent(typed: string): HolidayAdminIntent | nu
   const norm = typed.toLowerCase().trim();
   if (!norm) return null;
 
-  // Must mention holiday and an administrative action word
+  // The text must mention holiday and an administrative action word.
   if (!CUE.test(norm) || !ADMIN_WORDS.test(norm)) {
-    // Also catch direct phrases like "holiday admin", "holidays admin", "manage holidays", "holiday manager"
+    // I also catch direct phrases like "holiday admin", "holidays admin", "manage holidays", "holiday manager".
     if (!/\bholidays?\s+(?:admin|manager|management|dashboard)\b/i.test(norm)) {
       return null;
     }
   }
 
-  // Pure questions about calendar dates ("is tomorrow a holiday", "when is durga puja") are NOT admin intents
+  // Pure questions about calendar dates ("is tomorrow a holiday", "when is durga puja") are NOT admin intents, so I let them through.
   if (/^(?:when\s+is|is\s+today|is\s+tomorrow|list\s+of\s+holidays\s+in|how\s+many\s+holidays|upcoming\s+holidays)/i.test(norm) && !ADMIN_WORDS.test(norm)) {
     return null;
   }

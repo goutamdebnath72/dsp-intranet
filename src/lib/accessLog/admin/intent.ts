@@ -1,7 +1,7 @@
 // src/lib/accessLog/admin/intent.ts
 //
-// Omnibar intent detection for Contact Access Log facility.
-// Recognizes requests from authorised users to inspect or manage contact access logs.
+// Omnibar intent detection for the Contact Access Log facility.
+// It recognises requests from authorised users to inspect or manage contact access logs.
 
 import type { AccessLogAdminOp, AccessLogField } from "./types";
 
@@ -15,7 +15,7 @@ export interface AccessLogAdminIntent {
   };
 }
 
-// Phrases specifically indicating Contact Access Log facility
+// Phrases that point specifically to the Contact Access Log facility
 const EXACT_PHRASES = [
   "contact access log",
   "contact access logs",
@@ -56,17 +56,17 @@ export function detectAccessLogAdminIntent(typed: string): AccessLogAdminIntent 
   const norm = typed.toLowerCase().trim().replace(/\s+/g, " ");
   if (!norm) return null;
 
-  // Direct exact phrase or start-with matching
+  // I match a direct exact phrase, or a phrase the text starts with
   const hasExact = EXACT_PHRASES.some((phrase) => norm === phrase || norm.startsWith(phrase + " "));
 
   if (!hasExact) {
-    // Both CUE and an administration/audit keyword must be present
+    // I need both the CUE and an administration/audit keyword to be present
     if (!ACCESS_LOG_CUE.test(norm) || !ADMIN_WORDS.test(norm)) {
       return null;
     }
   }
 
-  // Pure unrelated questions should not trigger
+  // Purely unrelated questions must not trigger this
   if (
     /^(?:what\s+is|where\s+is|how\s+to\s+login|network\s+access|gate\s+access|vpn\s+access)\b/i.test(norm)
   ) {
@@ -83,7 +83,7 @@ export function detectAccessLogAdminIntent(typed: string): AccessLogAdminIntent 
     op = "logs";
   }
 
-  // Prefill detection if viewer or viewed was mentioned
+  // I detect a prefill if a viewer or a viewed person was mentioned
   let viewer: string | undefined;
   let viewed: string | undefined;
 

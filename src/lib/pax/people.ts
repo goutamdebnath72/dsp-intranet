@@ -1,32 +1,32 @@
 // src/lib/pax/people.ts
 //
-// THE SUBJECT IS A PERSON (step 63b; owner, 31 Oct 2026): "pax number", "phone number" and "contact number" are one keyword. When the thing asked about is a department or any other non-human entity the answer is its
+// THE SUBJECT IS A PERSON (step 63b; my rule, 31 Oct 2026): "pax number", "phone number" and "contact number" are one keyword. When the thing asked about is a department or any other non-human entity the answer is its
 // PAX number (answer.ts); when it is a HUMAN BEING who is an EXECUTIVE (a six-digit ticket that starts with 4) the number asked for is his or her CUG MOBILE number. This file is the person half. PURE: no database.
 //
 // What it does NOT change: how the number is shown. The CUG number is masked on the card (943479xxxx) and the full number comes only through the existing Reveal button, which needs a login and writes the audit row
-// (/api/employees/[id]/reveal, contact_access_log). The answer here puts the masked number first; it never prints a full number.
+// (/api/employees/[id]/reveal, contact_access_log). I never print a full number here: the answer puts the masked number first.
 //
-// A person is taken ONLY when every word the person typed is a WHOLE word of the stored name ("sanjay roy" = SANJAY KUMAR ROY). The directory's own name search is fuzzy and phonetic on purpose, which is right for a people search
+// I take a person ONLY when every word the person typed is a WHOLE word of the stored name ("sanjay roy" = SANJAY KUMAR ROY). The directory's own name search is fuzzy and phonetic on purpose, which is right for a people search
 // and wrong for deciding that a question is about a person at all: "contact number of water pump" must not turn into somebody with a similar-sounding name.
-// A non-executive is NOT answered here (the owner gave no rule for them): the question goes on to the other routes exactly as before.
+// A non-executive is NOT answered here (I gave no rule for them): the question goes on to the other routes exactly as before.
 
 import type { EmployeeResult } from "@/lib/search/employeeSearch";
 import type { AnswerHeadline } from "@/lib/ui/answerHeadline";
 import { normalizePax } from "./matcher";
 
-/** Titles that are not part of the stored name. */
+/** Titles that I drop because they are not part of the stored name. */
 const TITLES = new Set(["dr", "doctor", "mr", "mrs", "ms", "shri", "sri", "smt", "prof"]);
 
-/** A name is at most this many words; a longer subject is a sentence, not a name (no name search is run for it). */
+/** I allow a name at most this many words; a longer subject is a sentence, not a name, and I run no name search for it. */
 export const MAX_NAME_WORDS = 4;
-/** At most this many executives are shown for one name ("kumar" is hundreds). */
+/** I show at most this many executives for one name ("kumar" is hundreds). */
 export const MAX_PEOPLE = 10;
 
 export const isExecutiveTicket = (t: string | null | undefined): boolean => /^4\d{5}$/.test(String(t ?? "").trim());
 
 export const subjectWords = (tokens: string[]): string[] => tokens.filter((t) => t && !TITLES.has(t));
 
-/** The people whose stored name holds EVERY typed word as a whole word (each person once). */
+/** Returns the people whose stored name holds EVERY typed word as a whole word (each person once). */
 export function namedPeople(tokens: string[], found: EmployeeResult[]): EmployeeResult[] {
   const words = subjectWords(tokens);
   if (words.length === 0 || words.length > MAX_NAME_WORDS) return [];
@@ -47,7 +47,7 @@ export interface PeopleAnswer {
   summary: string;
   interpretation: string;
   headline: AnswerHeadline;
-  /** The cards: the existing person cards (masked number + Reveal). Only the executives, at most MAX_PEOPLE, with the e-mail button left off (it was not asked for). */
+  /** The cards: the existing person cards (masked number + Reveal). Only the executives, at most MAX_PEOPLE, and I leave the e-mail button off because it was not asked for. */
   people: EmployeeResult[];
   total: number;
   truncated: boolean;

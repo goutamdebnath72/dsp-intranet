@@ -1,7 +1,7 @@
-// scripts/harvest-legs.ts: COLLECT AND SAVE THE FARES TO EVERY STOP AFTER DURGAPUR on the route of each train (with --station ASN: after ASANSOL, for the trains of the Asansol tab, into public.train_fare_leg_asn), while the plant's paid RailRadar month lasts (to 14 Dec 2026).
-// The plant pays for the fare service, so the most is taken from it: for each express/mail train that has fares (public.train_fare, filled by scripts/harvest-fares.ts) and for each stop after Durgapur, the fare of each class the
+// scripts/harvest-legs.ts: collects and saves the fares to every stop after Durgapur on the route of each train (with --station ASN: after ASANSOL, for the trains of the Asansol tab, into public.train_fare_leg_asn), while the plant's paid RailRadar month lasts (to 14 Dec 2026).
+// The plant pays for the fare service, so I take the most from it: for each express/mail train that has fares (public.train_fare, filled by scripts/harvest-fares.ts) and for each stop after Durgapur, the fare of each class the
 // train has, saved in public.train_fare_leg with the time received. For each LOCAL (MEMU) train the stops get the hint from the railway's fare table (no fare request). The card shows them under "Fares to every stop".
-// RUN scripts/harvest-fares.ts FIRST (it finds which classes each train has), then this:
+// Run scripts/harvest-fares.ts FIRST (it finds which classes each train has), then this:
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts                         everything not saved in the last 72 hours
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts --only 12019,13005      just these trains
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts --limit 10              at most 10 trains this time
@@ -10,8 +10,8 @@
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts --no-locals | --no-express
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts --station ASN ...       the same for the Asansol tab's trains (run harvest-fares.ts --station ASN first)
 //   npx tsx --env-file=.env.local scripts/harvest-legs.ts list                    what is saved
-// COST: one request for each train's schedule, then one per class per stop (about 3 to 5 classes, 10 to 30 stops): a whole pass is several thousand requests of the 30,000 a month, at 20 a minute: ABOUT 15 HOURS for the whole 18,000. It can be stopped
-// at any time and run again: a stop saved in the last 72 hours is not asked again. It stops at once if RailRadar says the limit is reached or the key is refused, and it refuses to run after FARES_LIVE_UNTIL.
+// Cost: one request for each train's schedule, then one per class per stop (about 3 to 5 classes, 10 to 30 stops). A whole pass is several thousand requests of the 30,000 a month, at 20 a minute: ABOUT 15 HOURS for the whole 18,000. You can stop it
+// at any time and run it again: a stop saved in the last 72 hours is not asked again. It stops at once if RailRadar says the limit is reached or the key is refused, and it refuses to run after FARES_LIVE_UNTIL.
 import { Pool } from "pg";
 import { DateTime } from "luxon";
 import { askLeg, CLASSES, journeyDateFor, localLegs, parseSchedule, type FareClass } from "../src/lib/live/fare";
@@ -30,7 +30,7 @@ async function main() {
   const station = (arg("--station") ?? "DGR").toUpperCase();
   if (station !== "DGR" && station !== "ASN") throw new Error("--station is DGR (the default) or ASN.");
   const from: FareStation = station;
-  // a pool, not one connection: a dropped connection (the network blinking in a run of many hours) is replaced by a new one instead of ending the run
+  // I use a pool, not one connection: a dropped connection (the network blinking in a run of many hours) is replaced by a new one instead of ending the run
   const db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 2 });
   db.on("error", (e) => console.warn("database connection lost, a new one is made on the next call:", e.message));
   try {
@@ -49,7 +49,7 @@ async function main() {
     const only = arg("--only")?.split(",").map((x) => x.trim()).filter(Boolean);
     const limit = Number(arg("--limit") ?? Infinity);
     const cap = Number(arg("--max-requests") ?? 14000);
-    // 3 s between requests = 20 a minute: the key allows 30, and the rest is left for the intranet's own requests (the timetable, a click on Fares): at 27 a minute the app was turned away now and then
+    // I leave 3 s between requests = 20 a minute: the key allows 30, and the rest is kept for the intranet's own requests (the timetable, a click on Fares). At 27 a minute the app was turned away now and then
     const { fetcher, count } = makePaced(Number(arg("--gap-ms") ?? 3000));
     const fares = typeormFareStore(db, from), legs = typeormLegStore(db, from);
     const fresh = (iso: string) => DateTime.now().diff(DateTime.fromISO(iso), "hours").hours < maxAgeH;
@@ -74,7 +74,7 @@ async function main() {
       localAll = { east: [], west: [], other: as.local };
     }
     const pick = (g: { east: Train[]; west: Train[]; other: Train[] }) => [...g.east, ...g.west, ...g.other].filter((t, i, a) => t.toCode !== from && a.findIndex((u) => u.number === t.number) === i && (!only || only.includes(t.number))).sort((a, b) => a.number.localeCompare(b.number));
-    // the REGULAR trains first, the specials (festival and Puja trains, numbered 0xxxx, there are many and they run a few days) after them, each group in number order
+    // I put the REGULAR trains first and the specials (festival and Puja trains, numbered 0xxxx; there are many and they run a few days) after them, each group in number order
     const express = (flag("--no-express") ? [] : pick(expressAll)).sort((a, b) => Number(a.kind === "special") - Number(b.kind === "special") || a.number.localeCompare(b.number));
     const locals = flag("--no-locals") ? [] : pick(localAll);
     console.log(`${express.length} express/mail and ${locals.length} local trains go on from ${from === "DGR" ? "Durgapur" : "Asansol"}.\n`);
@@ -118,7 +118,7 @@ async function main() {
       }
     }
 
-    // the local trains: one request for the schedule, the hints are worked out
+    // The local trains: one request for the schedule, and the hints are worked out here
     let localDone = 0, localLegsSaved = 0;
     for (const t of stopped ? [] : locals) {
       if (localDone >= limit || count() >= cap) break;

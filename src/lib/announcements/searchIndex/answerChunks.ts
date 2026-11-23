@@ -1,6 +1,6 @@
 // src/lib/announcements/searchIndex/answerChunks.ts
 //
-// THE PASSAGES AN ANNOUNCEMENT OFFERS TO A QUESTION (the answer-from-inside path, src/app/api/ai-search/answer/route.ts): its body text first, then the passages of its PDF in page order, each with its page.
+// THE PASSAGES AN ANNOUNCEMENT OFFERS TO A QUESTION (the answer-from-inside path, src/app/api/ai-search/answer/route.ts): I offer its body text first, then the passages of its PDF in page order, each with its page.
 // A title-only announcement offers just its PDF's passages; an announcement with neither offers one empty passage (as it did before), which the answer path discards.
 
 export interface PdfPassageRow {

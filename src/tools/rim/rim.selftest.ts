@@ -32,7 +32,7 @@ ok("a multi-piece marking says so, a missing flange letter is mentioned", /multi
 ok("ordinary text and tyre sizes are not wheel markings", ["", "gold rate", "205/55 R16 91V", "8 x 20", "2*3", "hello 8Jx20 world", "8Jx20 junk", "J x 20", "99Jx20", "8Jx5", "8Jx40"].every((x) => parseRim(x) === null));
 ok("a very long line is refused at once", parseRim("8Jx20 " + "ET35 ".repeat(100)) === null);
 
-// the guide for the tyre widths
+// The guide for the tyre widths.
 ok("20 mm of tyre width more or less for each inch of rim width", tyreWidthsFor(7).min === 205 && tyreWidthsFor(7).max === 235 && tyreWidthsFor(9).min === 245 && tyreWidthsFor(9).max === 275 && tyreWidthsFor(6.5).min === 195 && tyreWidthsFor(6.5).max === 225);
 ok("and the other way: 205 mm tyres suit rims of about 5.5 to 7 inches, 255 mm tyres 8 to 9.5", rimWidthsFor(205).lo === 5.5 && rimWidthsFor(205).hi === 7 && rimWidthsFor(255).lo === 8 && rimWidthsFor(255).hi === 9.5);
 const t = parseTyre("255/50 R20 109V");

@@ -1,4 +1,4 @@
-// The text reader of pdf-parse, taken from its lib folder: the package's own index file tries to read a test file when it is bundled, so the lib file is imported instead (as the live fuel route does).
+// I import the text reader of pdf-parse from its lib folder, because the package's own index file tries to read a test file when it is bundled (the live fuel route does the same).
 declare module "pdf-parse/lib/pdf-parse.js" {
   const pdfParse: (data: Uint8Array) => Promise<{ text: string; numpages: number }>;
   export default pdfParse;

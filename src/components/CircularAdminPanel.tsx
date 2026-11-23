@@ -3,7 +3,7 @@
 // src/components/CircularAdminPanel.tsx
 //
 // CIRCULAR MANAGER FACILITY PANEL (Modular Facility Kit).
-// Renders inside the Omnibar modal answer area when an authorised user asks to manage or post circulars.
+// I render this inside the Omnibar modal answer area when an authorised user asks to manage or post circulars.
 // Features:
 //   - Post / Upload new circular with dual-pass OCR & vector embeddings (or holiday bypass)
 //   - Issue Date Picker (Luxon IST) & Drag-and-drop file upload (up to 15 MB)
@@ -261,16 +261,16 @@ export function CircularAdminPanel({ open }: { open: CircularAdminOpen }) {
       const note = typeof data?.readingLine === "string" ? data.readingLine : "";
       setReadingNote(note);
 
-      // The upload response is { message, circular: {id, fileUrls, ...}, warning?, readingLine, ... }. (The audit row is
-      // written by the server in the same transaction as the circular: there is nothing to record from here.)
+      // The upload response is { message, circular: {id, fileUrls, ...}, warning?, readingLine, ... }. The server writes the audit row in the same transaction as the circular,
+      // so I record nothing from here.
       const created = data?.circular;
       if (created?.id) setUploadedCircularId(Number(created.id));
       const firstFile = Array.isArray(created?.fileUrls) ? created.fileUrls[0] : null;
       if (typeof firstFile === "string" && firstFile) setUploadedCircularUrl(firstFile);
       const warning = typeof data?.warning === "string" ? data.warning : "";
 
-      // The upload is finished at the back end (read, checked, chunked, embedded and saved): a toast at the top of the screen stays until its cross is clicked,
-      // so it is seen even when the modal is closed meanwhile.
+      // The upload is finished at the back end (read, checked, chunked, embedded and saved), so I use a toast at the top of the screen that stays until its cross is clicked:
+      // it is seen even when the modal is closed meanwhile.
       stickySuccess(warning ? "✅ Circular uploaded. Please read the note in the panel." : "✅ Circular upload is successful!");
 
       setNotice(

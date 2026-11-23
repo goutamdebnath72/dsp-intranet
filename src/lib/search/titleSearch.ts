@@ -13,11 +13,11 @@ export type SearchResultRow = {
   publishedAt: string | null;
   similarity?: number | null;
   chunkText?: string | null;
-  matchPage?: number | null; // 1-based page of the best-matching chunk (viewer jump target)
-  matchPages?: number[]; // all distinct 1-based pages that contain a match
-  /** an announcement whose best evidence is a passage of its PDF (matchPage is then a page of that PDF) */
+  matchPage?: number | null; // 1-based page of the best-matching chunk, the viewer's jump target
+  matchPages?: number[]; // All distinct 1-based pages that contain a match
+  /** Set for an announcement whose best evidence is a passage of its PDF (matchPage is then a page of that PDF) */
   matchInPdf?: boolean;
-  /** an announcement found by its words (the typed phrase, or most of the question's content words): it keeps its place beside the circulars however low its cosine is */
+  /** Set for an announcement found by its words (the typed phrase, or most of the question's content words): I let it keep its place beside the circulars however low its cosine is */
   lexicalHit?: boolean;
 };
 
@@ -44,7 +44,7 @@ export async function executeTitleSearch(
       where: { headline: ILike(`%${q}%`) },
       order: { publishedAt: "DESC" },
       take: 5,
-      // only what is shown (src/lib/perf/switches.js: slimCircularReads): not the embedding and the extracted text of each row
+      // I read only what is shown (src/lib/perf/switches.js: slimCircularReads), not the embedding and the extracted text of each row
       ...(PERF.slimCircularReads ? { select: { id: true, headline: true, fileUrls: true, publishedAt: true } } : {}),
     }),
     announcementRepository.find({

@@ -1,4 +1,4 @@
-// scripts/eds-circular-text.ts: prints the stored text of circulars whose headline matches a word, for checking a briefing against its source.
+// scripts/eds-circular-text.ts: prints the stored text of circulars whose headline matches a word, so that I can check a briefing against its source.
 //   npx tsx --env-file=.env.local scripts/eds-circular-text.ts "Retention of Company Accomodation"
 import { Client } from "pg";
 async function main() {

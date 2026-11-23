@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/snapshotStore.selftest.ts
-// The saved last good answer of a live card: the table is made once, an answer is written and read back, a row that is not the shape written is not shown, database trouble never breaks the card, and a route that opts in
+// I test the saved last good answer of a live card: the table is made once, an answer is written and read back, a row that is not the shape written is not shown, database trouble never breaks the card, and a route that opts in
 // (liveRoute's `persist`) saves every fresh answer and, when the source fails with nothing in memory, shows the saved one marked stale with its own time.
 import { readFileSync } from "node:fs";
 import { SNAPSHOT_TABLE_STATEMENTS, NO_SNAPSHOT_STORE, snapshotFromRow, typeormSnapshotStore, type SnapshotStore } from "./snapshotStore";
@@ -52,7 +52,7 @@ function fakeDb(o: { tableExists?: boolean; failCreate?: boolean; failRead?: boo
   const r1 = await run(async () => answer);
   const b1 = await r1.json();
   ok("a fresh answer is shown and saved", r1.status === 200 && b1.stale === false && mem.has("t-gold") && (mem.get("t-gold")!.value as typeof answer).gold24Per10g === 135809);
-  clearMemo(); // a restart: the memory is empty
+  clearMemo(); // I simulate a restart: the memory is empty
   const r2 = await run(async () => { throw new Error("The source did not answer."); });
   const b2 = await r2.json();
   ok("the source fails and the memory is empty (a restart): the saved answer is shown, marked stale, with the time it was received", r2.status === 200 && b2.ok === true && b2.stale === true && b2.data.gold24Per10g === 135809 && b2.fetchedAt === new Date(mem.get("t-gold")!.at).toISOString());

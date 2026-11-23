@@ -1,7 +1,7 @@
 // src/tools/bh/BhGuide.tsx
 //
-// THE LITERATURE OF THE BHARAT (BH) SERIES, under the reader: what it is and why it exists, how the mark is built, who can have it (with a check), how to get it for a new and for an existing vehicle,
-// the road tax (with an estimate), moving, selling and losing eligibility, whether it suits you, common doubts, and where the sources differ. A panel of its own (emerald and amber, not the
+// The literature of the Bharat (BH) series, under the reader: what it is and why it exists, how the mark is built, who can have it (with a check), how to get it for a new and for an existing vehicle,
+// the road tax (with an estimate), moving, selling and losing eligibility, whether it suits you, common doubts, and where the sources differ. I gave it a panel of its own (emerald and amber, not the
 // colours of the reading above it). The facts are in src/tools/bh/bh.ts; nothing typed or picked here is stored or sent.
 "use client";
 

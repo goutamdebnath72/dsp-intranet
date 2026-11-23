@@ -1,16 +1,16 @@
 // src/components/tools/live/LiveStories.tsx
 //
-// A LIVE WALL OF HEADLINE CARDS, each one a ROLLER, in the manner of a departure board: it keeps itself current, and the screen never jumps.
-//   - ONE STORY, ONE CARD. A card is a story (src/lib/live/rss.ts, mergeFeeds): the same event from several papers is one card, shown under the identity of the FIRST report and by the LATEST headline,
+// A live wall of headline cards, each one a roller in the manner of a departure board: I made it keep itself current, and the screen never jumps.
+//   - One story, one card. A card is a story (src/lib/live/rss.ts, mergeFeeds): the same event from several papers is one card, shown under the identity of the FIRST report and by the LATEST headline,
 //     with the other papers named. Cards are ordered by when their story began, newest first, and a card never changes its place when its story develops.
 //   - A card turns like a drum about an axis behind it. When its story develops (another paper adds a later headline) THAT card alone rolls: the old headline turns up and away, the new one turns in from
 //     below, and the card says "Updated" and where the story began. A new story rolls in at the top, the others gliding down a card's height; a story that leaves rolls away. On first showing, the cards
-//     roll in one after another. Several rolling at once are staggered 140 ms apart, never together, and only transforms and opacity move (smooth, no layout shifts).
+//     roll in one after another. I stagger several rolling at once 140 ms apart, never together, and only transforms and opacity move (smooth, no layout shifts).
 //   - Every card has the same height (two lines of headline, three on a phone; the whole headline is in its tooltip), so a roll never changes the size of anything around it.
-//   - While you are READING (the pointer is over the list, a link has the keyboard focus, or you have scrolled down) arrivals and developments are HELD, so that nothing turns under your hand: a small
+//   - While you are READING (the pointer is over the list, a link has the keyboard focus, or you have scrolled down) I HOLD arrivals and developments, so that nothing turns under your hand: a small
 //     pill, "2 new · 1 updated", floats at the top (taking no room in the list); click it, or take the pointer away at the top, and the cards roll.
 //   - Times ("12 min ago") tick on their own every 15 seconds. Reduced-motion users get the same cards with a plain fade and no turning.
-// The data and their refresh are the card's (NewsCard.tsx, useLive); this component only shows them. Nothing typed is sent anywhere.
+// The data and their refresh belong to the card (NewsCard.tsx, useLive); this component only shows them. Nothing typed is sent anywhere.
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -20,38 +20,38 @@ import { DateTime } from "luxon";
 import { diffStories, storyKey, type FeedItem } from "@/lib/live/rss";
 import { ago } from "./StoryList";
 
-/** how long a story keeps its NEW chip after it comes in */
+/** How long a story keeps its NEW chip after it comes in. */
 export const NEW_CHIP_MS = 90_000;
-/** a story newer than this has its time in green */
+/** A story newer than this has its time shown in green. */
 export const RECENT_MIN = 30;
-/** the pause between one rolling card and the next, in seconds */
+/** The pause between one rolling card and the next, in seconds. */
 export const ROLL_STAGGER = 0.14;
-/** the pause between one card and the next when the wall is first shown, in seconds */
+/** The pause between one card and the next when the wall is first shown, in seconds. */
 export const FIRST_STAGGER = 0.07;
-/** the radius of the drum in pixels: the card turns about an axis this far behind it (about half its height) */
+/** The radius of the drum in pixels: the card turns about an axis this far behind it, about half its height. */
 const DRUM = 46;
-/** seconds of a roll in, and out */
+/** Seconds a roll takes in, and out. */
 const ROLL_IN = 0.7, ROLL_OUT = 0.55;
 const EASE = [0.4, 0, 0.2, 1] as const;
 
 const CHIP = ["bg-sky-100 text-sky-800", "bg-rose-100 text-rose-800", "bg-emerald-100 text-emerald-800", "bg-violet-100 text-violet-800", "bg-amber-100 text-amber-800", "bg-cyan-100 text-cyan-800"];
 export const chipOf = (source: string) => CHIP[[...source].reduce((a, c) => a + c.charCodeAt(0), 0) % CHIP.length];
 
-/** is this story under half an hour old at `now`? (no time, no claim) */
+/** Is this story under half an hour old at `now`? With no time I make no claim. */
 export function isRecent(iso: string, now: DateTime): boolean {
   if (!iso) return false;
   const d = DateTime.fromISO(iso);
   return d.isValid && now.diff(d, "minutes").minutes < RECENT_MIN;
 }
 
-/** the headline on the card is a LATER headline than the story's first report (the story has developed) */
+/** True when the headline on the card is a LATER headline than the story's first report, that is, when the story has developed. */
 export const isUpdated = (it: FeedItem): boolean => !!it.id && it.id !== it.link;
 
 export type Plan<T> = { kind: "idle" } | { kind: "hold"; added: number; changed: number } | { kind: "apply"; added: T[]; changed: T[] };
 
 /**
- * What to do when a refresh arrives, as a plain decision: nothing (the same cards), hold it (someone is reading and there are new stories or developments: say how many), or take it in (nobody is
- * reading). A refresh that only removes stories, or only changes which papers are named, waits for a moment of no reading too, so that nothing changes under the hand.
+ * What to do when a refresh arrives, as a plain decision: nothing (the same cards), hold it (someone is reading and there are new stories or developments, so I say how many), or take it in (nobody is
+ * reading). A refresh that only removes stories, or only changes which papers are named, also waits for a moment of no reading, so that nothing changes under the hand.
  */
 export function planRefresh<T extends FeedItem>(shown: T[], items: T[], reading: boolean): Plan<T> {
   const { added, removed, changed } = diffStories(shown, items);
@@ -67,10 +67,10 @@ export function pillText(added: number, changed: number): string {
   return `${added ? "↑ " : "↻ "}${parts.join(" · ")}`;
 }
 
-/** the seconds each rolling card waits, by the link of the headline it shows: the cards that roll together are staggered, in the order of the wall */
+/** The seconds each rolling card waits, by the link of the headline it shows: cards that roll together are staggered, in the order of the wall. */
 export type Delays = Record<string, number>;
 
-/** the roll of a card: it turns about an axis behind it, in from below and out upward; with reduced motion a plain fade */
+/** The roll of a card: it turns about an axis behind it, in from below and out upward; with reduced motion I use a plain fade. */
 export function rollVariants(link: string, calm: boolean) {
   const wait = (d: Delays) => d?.[link] ?? 0;
   return calm
@@ -91,7 +91,7 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
   const [shown, setShown] = useState<FeedItem[]>(items);
   const [pending, setPending] = useState({ added: 0, changed: 0 });
   const [freshAt, setFreshAt] = useState<Record<string, number>>({});
-  // the first showing: the cards roll in one after another
+  // First showing: I roll the cards in one after another.
   const [delays, setDelays] = useState<Delays>(() => Object.fromEntries(items.map((it, i) => [it.link, FIRST_STAGGER * i])));
   const [now, setNow] = useState(() => DateTime.now());
   const [hover, setHover] = useState(false);
@@ -101,14 +101,14 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
   const top = useRef<HTMLDivElement>(null);
   const settled = useRef(false);
 
-  // the clock of the page: times and chips are re-read every 15 seconds
+  // The clock of the page: I re-read times and chips every 15 seconds.
   useEffect(() => {
     settled.current = true;
     const t = setInterval(() => setNow(DateTime.now()), 15_000);
     return () => clearInterval(t);
   }, []);
 
-  // is the top of the list in view? (scrolled away = reading further down)
+  // Is the top of the list in view? If it is scrolled away, I take it that you are reading further down.
   useEffect(() => {
     const el = top.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
@@ -120,7 +120,7 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
   const reading = hover || focus || !atTop;
 
   const apply = (next: FeedItem[], added: FeedItem[], changed: FeedItem[]) => {
-    // the cards that roll, in the order of the wall, each a beat after the one before (a changed card's OLD headline leaves on the same beat its new one comes in)
+    // The cards that roll, in the order of the wall, each a beat after the one before. A changed card's OLD headline leaves on the same beat its new one comes in.
     const addedKeys = new Set(added.map(storyKey)), changedKeys = new Set(changed.map(storyKey));
     const d: Delays = {};
     let k = 0;
@@ -142,7 +142,7 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
     if (added.length || changed.length) setSaid(`${added.length ? `${added.length} new ${added.length === 1 ? "story" : "stories"}` : ""}${added.length && changed.length ? ", " : ""}${changed.length ? `${changed.length} updated` : ""}`);
   };
 
-  // a refresh arrived: take it in at once when nobody is reading, otherwise hold it and say how many are waiting
+  // A refresh arrived: I take it in at once when nobody is reading, otherwise I hold it and say how many are waiting.
   useEffect(() => {
     const plan = planRefresh(shown, items, reading);
     if (plan.kind === "idle") { if (pending.added || pending.changed) setPending({ added: 0, changed: 0 }); return; }
@@ -164,7 +164,7 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
   return (
     <div lang={lang}>
       <div ref={top} aria-hidden="true" className="h-px" />
-      {/* the pill takes no room in the list: a zero-height, sticky holder */}
+      {/* The pill takes no room in the list: I use a zero-height, sticky holder. */}
       <div className="sticky top-2 z-20 h-0 overflow-visible">
         <AnimatePresence>
           {havePending && (
@@ -198,12 +198,12 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
             const isNew = at !== undefined && Date.now() - at < NEW_CHIP_MS;
             const recent = isRecent(it.publishedAt, now);
             const updated = isUpdated(it);
-            // under the headline: where a developed story began, or the other papers that carried it
+            // Under the headline: where a developed story began, or the other papers that carried it.
             const began = updated ? `first reported by ${it.firstSource ?? "another paper"}${it.firstAt ? ` ${ago(it.firstAt, now)}` : ""}${it.also?.filter((n) => n !== it.firstSource).length ? ` · also ${it.also.filter((n) => n !== it.firstSource).join(", ")}` : ""}` : it.also?.length ? `also in ${it.also.join(", ")}` : "";
             return (
-              // the slot: a fixed height, so that a roll never changes the size of anything around it; it only glides when cards above it come or go
+              // The slot has a fixed height, so a roll never changes the size of anything around it; it only glides when cards above it come or go.
               <motion.li key={it.link} layout={calm ? false : "position"} transition={spring} className="relative h-[108px] [perspective:900px] sm:h-[88px]">
-                {/* the card: a drum that turns about an axis behind it (the slot gives the perspective, so that a card at rest is exactly its own size) */}
+                {/* The card: a drum that turns about an axis behind it. The slot gives the perspective, so a card at rest is exactly its own size. */}
                 <motion.div
                   custom={delays}
                   variants={rollVariants(it.link, calm)}

@@ -1,6 +1,6 @@
 // src/lib/announcements/searchIndex/defaults.ts
 //
-// The real parts of the search index (the PDF reader, the embedding, the page storage, the clock), put together for the manager's route and the catch-up script. Tests pass their own.
+// Here I put together the real parts of the search index (the PDF reader, the embedding, the page storage, the clock) for the manager's route and the catch-up script. Tests pass their own.
 
 import { generateEmbedding, normalizeVector } from "@/lib/ai/embedding.service";
 import { embedAnnouncementById } from "@/lib/announcements/embedAnnouncement";

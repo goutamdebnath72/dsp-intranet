@@ -14,7 +14,7 @@ const check = (label: string, ok: boolean, detail = "") => {
   }
 };
 
-// id 49 = serial 7 of 2026 (the corrigendum), id 51 = serial 8 of 2026. id 7 is ANOTHER circular (serial 5 of 2024): the trap for "007".
+// id 49 = serial 7 of 2026 (the corrigendum), id 51 = serial 8 of 2026. id 7 is ANOTHER circular (serial 5 of 2024), which is the trap for "007".
 const citations = [
   { id: 49, headline: "Circular - Gift card corrigendum", publishedAt: "2026-08-08" },
   { id: 51, headline: "Circular - Online option for Gift Card Rs. 15000 to employees", publishedAt: "2026-08-03" },

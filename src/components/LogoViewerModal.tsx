@@ -26,7 +26,7 @@ export function LogoViewerModal({ isOpen, onClose }: LogoViewerModalProps) {
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.9, y: 20 }}
-            onClick={(e) => e.stopPropagation()} // Prevents modal from closing when clicking inside it
+            onClick={(e) => e.stopPropagation()} // I stop the modal from closing when someone clicks inside it
             className="relative bg-transparent rounded-lg p-2"
           >
             <button

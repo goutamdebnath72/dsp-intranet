@@ -1,7 +1,7 @@
 // src/lib/facility/guard.ts
 //
-// THE GUARD AGAINST A LOST UPDATE, once for every tool (it was written four times: change and delete of the employee manager, change and delete of the PAX editor).
-// A change or a delete is for the record AS THE PERSON SAW IT. The tool says how to lock and read the record and how to work out its version; the guard answers
+// The guard against a lost update, written once for every tool (it used to be written four times: change and delete of the employee manager, change and delete of the PAX editor).
+// A change or a delete is for the record AS THE PERSON SAW IT. The tool says how to lock and read the record and how to work out its version, and the guard answers
 //   missing  there is no such record any more                               nothing is written
 //   stale    the record is not what he saw (somebody changed it first)       nothing is written; he gets the record as it is now (as THIS person may see it) and who changed it last
 //   fresh    it is the record he saw: here it is, locked, go on

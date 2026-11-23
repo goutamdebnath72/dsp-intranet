@@ -27,10 +27,9 @@ export async function GET(
   }
 }
 
-// PATCH and DELETE moved to the Announcement Manager (src/lib/announcements/admin): it checks the authority in the
-// DATABASE on every request (a revoked delegate loses the right at once), holds the facility lock, protects against
-// a lost update with the record version and writes an audit row. The old handlers here checked only "ticket starts
-// with 4 and is the author": no audit, no version, and a withdrawn delegate could keep editing and deleting.
+// I moved PATCH and DELETE to the Announcement Manager (src/lib/announcements/admin): it checks the authority in the DATABASE on every request (a revoked delegate loses the right at once), holds the facility lock,
+// protects against a lost update with the record version and writes an audit row. The old handlers here checked only "ticket starts with 4 and is the author":
+// no audit, no version, and a withdrawn delegate could keep editing and deleting.
 export async function PATCH(
   _request: Request,
   _ctx: { params: Promise<{ id: string }> },

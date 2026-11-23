@@ -1,8 +1,8 @@
 -- 21_train_fare.sql
 --
--- The saved fares of the trains that stop at Durgapur (src/lib/live/fareStore.ts). One row per train: the fares from Durgapur to the end of its run, for each class the
+-- Here I save the fares of the trains that stop at Durgapur (src/lib/live/fareStore.ts). One row per train: the fares from Durgapur to the end of its run, for each class the
 -- train has, as the railway's reservation system gave them through RailRadar's paid fare service, and THE TIME THEY WERE RECEIVED (fetched_at), which the card shows
--- as "Fares last received ...". The paid service is used for one month only (to 14 Dec 2026): until then rows are refreshed; after it, the rows stay as they are, and
+-- as "Fares last received ...". I use the paid service for one month only (to 14 Dec 2026): until then rows are refreshed; after it, the rows stay as they are, and
 -- the card says so.
 --
 -- Safe to run more than once. The application also creates this table by itself on first use if its database user may; running this file is the clean way.

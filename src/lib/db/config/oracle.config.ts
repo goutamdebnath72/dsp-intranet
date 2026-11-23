@@ -1,4 +1,4 @@
-// Stubs for legacy Sequelize types during TypeORM migration
+// Stubs for the legacy Sequelize types while I migrate to TypeORM
 type Options = any;
 type Dialect = any;
 

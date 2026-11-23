@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/PeopleAndEvents.selftest.tsx
-// Step 65a: the "People & Events" widget as it is drawn: the cards, the initials, the empty sentences, the four tabs, the note about placeholder dates, and guards on the hook's risky lines.
+// Step 65a: here I test the "People & Events" widget as it is drawn: the cards, the initials, the empty sentences, the four tabs, the note about placeholder dates, and guards on the hook's risky lines.
 // (The loading of the data, the midnight refresh and the clicks are covered by the click-through described in STATUS.)
 
 import { existsSync, readFileSync } from "node:fs";

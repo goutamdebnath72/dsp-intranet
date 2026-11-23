@@ -1,7 +1,7 @@
 // src/components/tools/live/StoryList.tsx
 //
-// A LIST OF HEADLINES for the news and sports cards: the first story large, the rest in rows, each with its publisher, how long ago, and a link that opens the publisher's page in a NEW TAB
-// (rel noopener noreferrer: the other site learns nothing about this one). Only headlines and links are shown, never the story itself.
+// A list of headlines for the news and sports cards: the first story large, the rest in rows, each with its publisher, how long ago, and a link that opens the publisher's page in a NEW TAB
+// (rel noopener noreferrer: the other site learns nothing about this one). I show only headlines and links, never the story itself.
 "use client";
 
 import React from "react";
@@ -10,7 +10,7 @@ import { ArrowUpRight } from "lucide-react";
 import { DateTime } from "luxon";
 import type { FeedItem } from "@/lib/live/rss";
 
-/** "12 min ago", "3 h ago", "yesterday"; "" for a story without a time */
+/** Gives "12 min ago", "3 h ago", "yesterday"; "" for a story without a time. */
 export function ago(iso: string, now: DateTime = DateTime.now()): string {
   if (!iso) return "";
   const d = DateTime.fromISO(iso);

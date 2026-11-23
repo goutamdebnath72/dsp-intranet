@@ -1,7 +1,7 @@
 // scripts/reingest-circulars-gemini.ts
 //
-// Ingests / re-reads circulars with ONLINE GEMINI VISION OCR (gemini-3.5-flash).
-// Replaces poor text and corrupted tables with high-fidelity verbatim text,
+// This ingests / re-reads circulars with ONLINE GEMINI VISION OCR (gemini-3.5-flash).
+// It replaces poor text and corrupted tables with high-fidelity verbatim text,
 // recalculates Google embeddings, and atomically updates PostgreSQL circular_chunks.
 //
 // USAGE:
@@ -10,7 +10,7 @@
 //   npx tsx --env-file=.env.local scripts/reingest-circulars-gemini.ts --year 2024
 //   npx tsx --env-file=.env.local scripts/reingest-circulars-gemini.ts --dry-run
 //
-// SAFEGUARDS (added in the review of 7 Nov 2026; the first version had none of them):
+// SAFEGUARDS (I added them in the review of 7 Nov 2026; the first version had none of them):
 //   * holiday-list circulars and health check-up roster circulars are SKIPPED, exactly as the upload route treats them
 //     (their body is deliberately not chunked: the facts live in structured tables);
 //   * a page whose reading ended with the "reading incomplete" marker, or came back empty, is never cached and never saved:
@@ -46,7 +46,7 @@ async function main() {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) throw new Error("DATABASE_URL is not set.");
 
-  const model = process.env.GEMINI_VISION_MODEL || arg("model") || "gemini-3.1-pro-preview";
+  const model = process.env.GEMINI_VISION_MODEL || arg("model") || "gemini-3.8-flash"; // this was gemini-3.1-pro-preview until 23 Nov 2026; I use no Pro models any more (src/lib/ai/noPro.ts refuses one anyway)
   const dryRun = flag("dry-run");
   const force = flag("force");
   const allowIncomplete = flag("allow-incomplete");
@@ -60,7 +60,7 @@ async function main() {
 
   const candidateModels = [
     model,
-    "gemini-pro-latest",
+    "gemini-3.6-flash",
     "gemini-3.8-flash",
   ].filter((v, i, a) => a.indexOf(v) === i);
 
@@ -124,7 +124,7 @@ async function main() {
     const { rows } = await client.query(query, params);
     console.log(`Selected ${rows.length} circulars for processing.\n`);
 
-    // Circulars the upload path keeps as display-only or as structured data: never re-chunked from their body text.
+    // These are circulars the upload path keeps as display-only or as structured data, so I never re-chunk them from their body text.
     const structured = await client.query(
       `SELECT DISTINCT circular_id FROM public.circular_ingest_log WHERE kind IN ('health-schedule', 'holiday-list')`,
     ).then((r) => new Set<number>(r.rows.map((x: any) => Number(x.circular_id)))).catch(() => new Set<number>());
@@ -176,7 +176,7 @@ async function main() {
               console.log(`  Page ${pageNum}/${numPages}: [CACHE HIT] Loaded ${pageText.length} chars from disk`);
             }
           } catch {
-            // ignore cache parse error and re-read
+            // I ignore a cache parse error and re-read the page.
           }
         }
 
@@ -194,12 +194,12 @@ async function main() {
           const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
           console.log(`  Page ${pageNum}/${numPages}: [${modelUsed} OK] ${pageText.length} chars extracted in ${elapsed}s`);
 
-          // an incomplete or empty reading is never cached (it would be served from disk as if it were a good one next time)
+          // I never cache an incomplete or empty reading: next time it would be served from disk as if it were a good one.
           if (pageText.trim() && !pageText.includes(STOPPED_MARKER)) {
             writeFileSync(cacheFile, JSON.stringify({ circularId, page: pageNum, text: pageText, timestamp: DateTime.now().toUTC().toISO() }, null, 2), "utf8");
           }
 
-          // Pace requests to respect quota safely
+          // I pace the requests so the quota is respected safely.
           if (p < numPages - 1 || i < rows.length - 1) {
             await sleep(delayMs);
           }
@@ -290,17 +290,17 @@ async function main() {
           await client.query(`UPDATE public.circulars SET embedding = $1::vector WHERE id = $2`, [vectorLiteral(docVector), circularId]);
         }
         await client.query("COMMIT");
-        writeFileSync(doneFlag, DateTime.now().toUTC().toISO() ?? "", "utf8"); // "done" is decided HERE, after the commit
+        writeFileSync(doneFlag, DateTime.now().toUTC().toISO() ?? "", "utf8"); // I decide "done" HERE, after the commit
         console.log(`  [DB COMMITTED] Replaced ${oldChunksRes.rows.length} old chunks with ${plannedChunks.length} Gemini chunks (backup: ${backupFile})`);
         totalChunksSaved += plannedChunks.length;
       } catch (dbErr) {
         await client.query("ROLLBACK");
-        try { unlinkSync(backupFile); } catch { /* nothing was changed: the backup is not needed */ }
+        try { unlinkSync(backupFile); } catch { /* Nothing was changed, so the backup is not needed. */ }
         console.error(`  [DB ERROR] Rolled back transaction for circular ${circularId}:`, dbErr);
         throw dbErr;
       }
       } catch (err: any) {
-        // one circular failing must not stop the others (a network error on page 7 of circular 30 used to end the whole run)
+        // One circular failing must not stop the others: I learned this when a network error on page 7 of circular 30 used to end the whole run.
         console.error(`  [FAILED] circular ${circularId}: ${err?.message || err}`);
         failures.push(`${circularId}: ${err?.message || err}`);
         continue;

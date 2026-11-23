@@ -1,8 +1,8 @@
 // src/lib/live/cpiStore.ts
 //
-// THE SAVED CONSUMER PRICE INDEX (table public.cpi_month, src/lib/nl2sql/sql/23_cpi_month.sql): MoSPI's index and inflation rate for each month, State and sector, with the time received. The card is built from these rows, and MoSPI is
-// asked only for a month that is not saved yet, so the card keeps working when MoSPI's service is down, and a month once published stays.
-// Nothing here may break a card: database trouble is logged once and the store then answers "nothing saved" (all) or does nothing (put), like src/lib/live/fareStore.ts, whose pattern this follows.
+// THE SAVED CONSUMER PRICE INDEX (table public.cpi_month, src/lib/nl2sql/sql/23_cpi_month.sql): MoSPI's index and inflation rate for each month, State and sector, with the time received. I build the card from these rows, and ask MoSPI
+// only for a month that is not saved yet, so the card keeps working when MoSPI's service is down, and a month once published stays.
+// Nothing here may break a card: database trouble is logged once and the store then answers "nothing saved" (all) or does nothing (put). I followed the pattern of src/lib/live/fareStore.ts here.
 import type { CpiRow, Sector } from "./cpi";
 
 export interface CpiStore {
@@ -31,7 +31,7 @@ export const CPI_TABLE_STATEMENTS: string[] = [
 
 const rowsOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.rows) ? r.rows : []);
 
-/** a saved row read back and CHECKED: a row that is not the shape written is dropped, never shown */
+/** Reads a saved row back and CHECKS it: a row that is not the shape written is dropped, never shown. */
 export function cpiFromRow(x: any): CpiRow | null {
   const base = String(x?.base_year), sector = String(x?.sector), index = Number(x?.idx);
   const inflation = x?.inflation === null || x?.inflation === undefined ? null : Number(x.inflation);
@@ -79,7 +79,7 @@ export function typeormCpiStore(ds: Queryable): CpiStore {
     async put(rows, receivedAt) {
       if (!rows.length || !(await ensure())) return;
       try {
-        // in batches of 400 rows, each one statement (the rows travel as arrays)
+        // Writes in batches of 400 rows, each one statement (the rows travel as arrays).
         for (let i = 0; i < rows.length; i += 400) {
           const b = rows.slice(i, i + 400);
           await ds.query(

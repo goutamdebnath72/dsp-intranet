@@ -1,7 +1,7 @@
 -- 19_employee_photo.sql  (step 70)
 --
 -- The photo of an employee (optional): the table holds only WHERE the two pictures are kept (the large and the small one, in Vercel Blob) and which version is current; the pictures themselves are not in the database.
--- It has no foreign key to the roster on purpose (a roster row removed by a script must never be blocked by a photo; the screen deletes the photo with the employee).
+-- I gave it no foreign key to the roster on purpose: a roster row removed by a script must never be blocked by a photo (the screen deletes the photo with the employee).
 -- Safe to run more than once. Run it in the Supabase SQL editor (the whole file at once).
 
 CREATE TABLE IF NOT EXISTS public.employee_photo (

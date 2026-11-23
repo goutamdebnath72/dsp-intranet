@@ -1,4 +1,4 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/gratuity/gratuity.selftest.ts
+// How to run it (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/gratuity/gratuity.selftest.ts
 import { gratuityCalc, type GratuityResult } from "./gratuity";
 import { isProblem } from "@/lib/tools/money";
 

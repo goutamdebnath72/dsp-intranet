@@ -1,7 +1,7 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/pf/pf.selftest.ts
+// How to run it (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/pf/pf.selftest.ts
 // The probable PF at superannuation. Every figure below is made up for the test (round numbers whose answers can be worked by hand); no real person's PF is used.
 // The method is the DSP PF trust's own (read from a DSP yearly statement): interest on the opening balance = balance x rate; a month's contribution earns from its own month to the year's end (April 12 months,
-// March 1 month); interest is added at the year's end; the company's share is the employee's less the EPS part; taxable interest is what is put in beyond the yearly limit, with 10% TDS in the employee's column.
+// March 1 month); interest is added at the year's end; taxable interest is what is put in beyond the yearly limit, with 10% TDS in the employee's column. The company's share is the employee's less the EPS part.
 import { PF_DEFAULTS, fyLabel, fyOf, parseDate, parseMonthYear, pfAtRetirement, pfWhatIf, slotOf, total, type PfInput, type PfResult } from "./pf";
 import { isProblem } from "@/lib/tools/money";
 
@@ -9,8 +9,8 @@ let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
 const near = (a: number, b: number, tol = 0.01) => Math.abs(a - b) <= tol;
 const zero = { emp: 0, comp: 0, vpf: 0 };
-// the base case: the page posted up to April 2026 (month 1 of the year, the page showing April's contribution and its interest for that one month), eleven months and 2026-27 to complete, no pay rise, no tax.
-// "run" builds that page from the monthly figures, so a whole year is April's contribution (12 months of interest) down to March's (1 month): the sums below are worked by hand.
+// The base case: the page posted up to April 2026 (month 1 of the year, the page showing April's contribution and its interest for that one month), eleven months and 2026-27 to complete, no pay rise, no tax.
+// "run" builds that page from the monthly figures, so a whole year is April's contribution (12 months of interest) down to March's (1 month); I worked the sums below by hand.
 const base: PfInput = {
   postedMonth: 4, postedYear: 2026, retireMonth: 3, retireYear: 2027,
   opening: { emp: 1_000_000, comp: 500_000, vpf: 200_000 }, contributions: zero, contributionInterest: zero,
@@ -40,10 +40,10 @@ ok("a VPF above the ceiling is cut to the ceiling (50,000 is taken as 30,000)", 
 ok("the parts add up: the closing balance = opening + added + interest (- TDS)", near(y1.finalTotal, total(base.opening) + (10_000 + 8_750) + y1.futureContributions + y1.years[0].interest - y1.tdsTotal));
 
 // ---- the page's own identity, and a year begun
-// posted up to October (7 months): the page says closing = a + b + e + f with b = a x rate x 7 / 12
+// Posted up to October (7 months): the page says closing = a + b + e + f with b = a x rate x 7 / 12.
 const mid = run({ postedMonth: 10, postedYear: 2026, retireMonth: 3, retireYear: 2027, contributions: { emp: 70_000, comp: 61_250, vpf: 0 }, contributionInterest: { emp: 1_400, comp: 1_200, vpf: 0 } });
 ok("where the page stands now: a + a x 8% x 7/12 + e + f for each column", near(mid.now.emp, 1_000_000 + 1_000_000 * 0.08 * 7 / 12 + 70_000 + 1_400) && near(mid.now.comp, 500_000 + 500_000 * 0.08 * 7 / 12 + 61_250 + 1_200) && mid.postedMonths === 7 && mid.monthsToGo === 5);
-// to March: opening 1,000,000 x 8% = 80,000; posted 70,000 earns 70,000 x 8% x 5/12 more = 2,333.33 on top of the 1,400 posted; five more months of 10,000 earn 10,000 x 8% x (5+4+3+2+1)/12 = 1,000
+// To March: opening 1,000,000 x 8% = 80,000; posted 70,000 earns 70,000 x 8% x 5/12 more = 2,333.33 on top of the 1,400 posted; five more months of 10,000 earn 10,000 x 8% x (5+4+3+2+1)/12 = 1,000.
 ok("to the end of the year: the page's interest on the posted months, the posted months' remaining months, and each coming month from its own month", near(mid.final.emp, 1_000_000 + 70_000 + 50_000 + 80_000 + 1_400 + 70_000 * 0.08 * 5 / 12 + 1_000));
 ok("five months are still to be paid, and 50,000 + 43,750 are added by the employee and the company", mid.monthsToGo === 5 && near(mid.futureContributions, 5 * 10_000 + 5 * 8_750));
 
@@ -53,14 +53,14 @@ ok("five years: five rows, 2026-27 to 2030-31, each 12 months", five.years.lengt
 ok("the first coming year stays at today's CPF and the pay rise starts the April after (10,000, 10,500, 11,025)", near(five.years[0].monthlyEmp, 10_000) && near(five.years[1].monthlyEmp, 10_500) && near(five.years[2].monthlyEmp, 11_025));
 ok("each year closes at the last year's close + what was added + the interest - the TDS", five.years.every((y, i) => i === 0 || near(y.closingTotal, five.years[i - 1].closingTotal + total(y.added) + y.interest - y.tds, 0.01)) && near(five.final.emp, five.years[4].closing.emp));
 const part = run({ retireMonth: 9, retireYear: 2026 });
-// retiring in September 2026: months April..September (6): interest 1,000,000 x 8% x 6/12 = 40,000; 10,000 x 8% x (6+5+4+3+2+1)/12 = 1,400
+// Retiring in September 2026 means months April..September (6): interest 1,000,000 x 8% x 6/12 = 40,000; 10,000 x 8% x (6+5+4+3+2+1)/12 = 1,400.
 ok("a retirement inside the year: only the months up to the retirement month, interest for those months (40,000 + 1,400)", near(part.final.emp, 1_000_000 + 60_000 + 40_000 + 1_400) && part.years[0].months === 6 && part.monthsToGo === 5);
 ok("another rate for the future leaves the page's own interest on the posted months alone (the balance now is the page's, whatever rate is tried)", (() => { const f = { emp: 66.67, comp: 58.33, vpf: 0 }; return near(run({ interestPct: 7, contributionInterest: f }).nowTotal, run({ interestPct: 9, contributionInterest: f }).nowTotal, 0.001); })());
 ok("a higher rate, a higher rise and a longer career each give more", run({ retireYear: 2031, interestPct: 9 }).finalTotal > run({ retireYear: 2031 }).finalTotal && run({ retireYear: 2031, risePct: 5 }).finalTotal > run({ retireYear: 2031, risePct: 0 }).finalTotal && run({ retireYear: 2032 }).finalTotal > run({ retireYear: 2031 }).finalTotal);
 
 // ---- the tax on interest
 // 10,000 PF + 20,000 VPF a month = 30,000: the 250,000 limit is crossed in the 9th month (cumulative 270,000): 20,000 taxable then, and 30,000 in each of months 10, 11 and 12 = 110,000 in all.
-// interest on it: 20,000 x 8% x 4/12 + 30,000 x 8% x (3+2+1)/12 = 533.33 + 1,200 = 1,733.33; TDS 10% = 173.33; taxable balance 0 + 110,000 + 1,733.33 - 173.33 = 111,560.
+// Interest on it: 20,000 x 8% x 4/12 + 30,000 x 8% x (3+2+1)/12 = 533.33 + 1,200 = 1,733.33; TDS 10% = 173.33; taxable balance 0 + 110,000 + 1,733.33 - 173.33 = 111,560.
 const tx = run({ monthlyVpf: 20_000, taxableOpening: 0 });
 ok("the taxable part: 110,000 beyond the limit, interest 1,733.33, TDS 173.33, taxable balance 111,560", near(tx.tdsTotal, 173.33, 0.02) && near(tx.taxableClosing!, 111_560, 0.05));
 ok("the TDS is taken from the employee's column only, and the other columns are as without tax", near(tx.final.emp, run({ monthlyVpf: 20_000 }).final.emp - tx.tdsTotal, 0.001) && near(tx.final.comp, run({ monthlyVpf: 20_000 }).final.comp) && near(tx.final.vpf, run({ monthlyVpf: 20_000 }).final.vpf));

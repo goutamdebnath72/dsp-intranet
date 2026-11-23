@@ -1,8 +1,8 @@
 // src/lib/ingestion/schedule/dates.ts
 //
 // Reading a printed check-up date ("01-01-25", "13.01.2025") and judging it against the month the circular says it schedules.
-// Nothing is guessed silently: a date whose YEAR is plainly wrong for its schedule is corrected only when day and month are consistent,
-// and the correction is recorded; a date that does not fit at all is reported, never stored as if it were fine.
+// I guess nothing silently: a date whose YEAR is plainly wrong for its schedule is corrected only when day and month are consistent,
+// and I record the correction; a date that does not fit at all is reported, never stored as if it were fine.
 
 import { DateTime } from "luxon";
 
@@ -15,7 +15,7 @@ export interface ParsedDate {
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
-/** "01-01-25", "13.01.2025", "13/01/2025", "010125": day, month, year. Null when it is not a calendar date. */
+/** Reads "01-01-25", "13.01.2025", "13/01/2025", "010125" as day, month, year. Null when it is not a calendar date. */
 export function parsePrintedDate(text: string): ParsedDate | null {
   const t = (text || "").trim();
   let m = t.match(/^(\d{1,2})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{2}|\d{4})$/);
@@ -34,7 +34,7 @@ export function parsePrintedDate(text: string): ParsedDate | null {
   return { day, month, year, twoDigitYear: two };
 }
 
-/** The month a roster schedules, read from its title: "...FOR THE MONTH OF JANNUARY 2025", "...DECEMBER 2024", "...MONTH OF JAN-2026". */
+/** Reads the month a roster schedules from its title: "...FOR THE MONTH OF JANNUARY 2025", "...DECEMBER 2024", "...MONTH OF JAN-2026". */
 export function parseScheduleMonth(text: string): { month: number; year: number } | null {
   const t = (text || "").toUpperCase().replace(/\s+/g, " ");
   const m = t.match(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\W{0,4}(20\d\d)\b/);
@@ -55,7 +55,7 @@ export interface JudgedDate {
   note: string | null;
 }
 
-/** Judge a printed date against the schedule month. */
+/** I judge a printed date against the schedule month. */
 export function judgeDate(printed: string, schedule: { month: number; year: number } | null): JudgedDate {
   const p = parsePrintedDate(printed);
   if (!p) return { ok: false, date: null, note: `"${printed}" is not a date` };
@@ -69,7 +69,7 @@ export function judgeDate(printed: string, schedule: { month: number; year: numb
 }
 
 /**
- * A printed date that is not a calendar date ("11/012/25": a stray digit in the circular itself). It is read only when removing ONE digit
+ * Handles a printed date that is not a calendar date ("11/012/25": a stray digit in the circular itself). I read it only when removing ONE digit
  * gives exactly ONE date that fits the schedule's month and year; otherwise it stays unread. Returns null when there is no such reading.
  */
 export function repairPrintedDate(printed: string, schedule: { month: number; year: number } | null): { date: string; note: string } | null {

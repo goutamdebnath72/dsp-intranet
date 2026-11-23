@@ -1,13 +1,13 @@
 // src/lib/ingestion/chunking.ts
 //
-// How a circular's text becomes stored chunks. ONE definition, used by the upload route AND by the archive re-read tool
+// How a circular's text becomes stored chunks. I keep ONE definition, used by the upload route AND by the archive re-read tool
 // (reread.ts), so a re-read circular is chunked exactly like a freshly uploaded one.
 // (This is the logic that used to sit inline in the upload route; it behaves the same.)
 
 export const CHUNK_WORDS = 200;
 
 export interface PageUnit {
-  page: number; // 1-based page, or 0 when the text has no page (whole document)
+  page: number; // page is 1-based; I use 0 when the text has no page (whole document)
   text: string;
 }
 export interface PlannedChunk {
@@ -17,8 +17,8 @@ export interface PlannedChunk {
 }
 
 /**
- * Prefer the per-page OCR text, so every chunk keeps its page number (the viewer jumps to that page). With no per-page text
- * (a born-digital PDF whose text came from the PDF itself), the whole document is one page-less unit (page 0).
+ * I prefer the per-page OCR text, so every chunk keeps its page number (the viewer jumps to that page). With no per-page text
+ * (a born-digital PDF whose text came from the PDF itself), the whole document becomes one page-less unit (page 0).
  */
 export function buildPageUnits(perPageText: string[], extractedText: string): PageUnit[] {
   const units: PageUnit[] = [];
@@ -34,7 +34,7 @@ export function buildPageUnits(perPageText: string[], extractedText: string): Pa
   return units;
 }
 
-/** 200-word chunks, per page, numbered 0.. across the whole document. */
+/** I cut 200-word chunks, per page, numbered 0.. across the whole document. */
 export function planChunks(units: PageUnit[], chunkWords: number = CHUNK_WORDS): PlannedChunk[] {
   const out: PlannedChunk[] = [];
   let index = 0;
@@ -50,7 +50,7 @@ export function planChunks(units: PageUnit[], chunkWords: number = CHUNK_WORDS):
   return out;
 }
 
-/** The text of the whole document, as used for its single whole-document vector (clean spaces, at most 8192 characters). */
+/** Returns the text of the whole document as I use it for its single whole-document vector (clean spaces, at most 8192 characters). */
 export function documentEmbeddingText(text: string): string | null {
   const t = (text || "").replace(/\s+/g, " ").trim();
   if (t.length <= 20) return null;

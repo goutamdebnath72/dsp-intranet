@@ -4,7 +4,7 @@ import { Entity, PrimaryGeneratedColumn, Column, Index } from "typeorm";
 /**
  * Per-year, per-category Restricted Holiday quota (e.g. 2026: Category A &
  * C may take 4 RH, Category B may take 2, Category D may take 4). This is a
- * year-level policy fact, not tied to any single holiday, so it lives in its
+ * year-level policy fact, not tied to any single holiday, so I keep it in its
  * own table rather than as a column on HolidayYear.
  */
 @Entity({ name: "holiday_rh_quota" })

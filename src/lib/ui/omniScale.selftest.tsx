@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/ui/omniScale.selftest.tsx
-// Step 56b: the text of the query modal keeps its OLD proportion to the modal's width (the modal got wider in step 54i, the text did not). This guards the three things that can silently go wrong:
+// Step 56b: I want the text of the query modal to keep its OLD proportion to the modal's width (the modal got wider in step 54i, the text did not). This guards the three things that can silently go wrong:
 // the factor, a text size that has no rule (it would simply not grow), and a wide table that is scaled with the rest (it would break again).
 
 import React from "react";
@@ -34,8 +34,8 @@ while (queue.length) {
   const src = readFileSync(f, "utf8");
   const dir = f.slice(0, f.lastIndexOf("/"));
   for (const m of src.matchAll(/from\s+["'](@\/components\/|@\/tools\/|\.\/)((?:[A-Za-z0-9_]+\/)*[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)?)["']/g)) {
-    if (/CircularViewerLightbox|ImageLightbox/.test(m[2])) continue; // their own full-screen layers, drawn on <body>, not inside the modal card
-    const base = m[1] === "./" ? dir : m[1] === "@/tools/" ? "src/tools" : "src/components"; // a "./" import is relative to the file that has it; the topics of the tools live in src/tools
+    if (/CircularViewerLightbox|ImageLightbox/.test(m[2])) continue; // these have their own full-screen layers, drawn on <body>, not inside the modal card
+    const base = m[1] === "./" ? dir : m[1] === "@/tools/" ? "src/tools" : "src/components"; // a "./" import is relative to the file that has it, and I keep the topics of the tools in src/tools
     for (const ext of [".tsx", ".ts"]) { const p = `${base}/${m[2]}${ext}`; if (existsSync(p)) { queue.push(p); break; } }
   }
 }
@@ -54,7 +54,7 @@ ok("no other unit of arbitrary font size that has no rule (px and em are handled
 // ---- the stylesheet itself
 ok("the stylesheet scales the root of the modal and lets a table opt out (the variable is 1 inside it)", /\.omni-scale \{[^}]*font-size: calc\(1rem \* var\(--omni-k, 1\) - var\(--omni-shrink, 1pt\)\);\s*\}/.test(css) && /\.omni-scale \.omni-noscale \{\s*--omni-k: 1;\s*font-size: calc\(1rem - var\(--omni-shrink, 1pt\)\);\s*\}/.test(css));
 ok("every size rule multiplies by the variable, with 1 as the fallback (no variable, no change)", (css.match(/var\(--omni-k, 1\)/g) ?? []).length === 28 && !/var\(--omni-k\)/.test(css));
-// ---- step 66b: every text of the modal is ONE POINT smaller (owner, 1 Nov 2026)
+// ---- step 66b: every text of the modal is ONE POINT smaller (my rule, 1 Nov 2026)
 ok("the shrink is written ONCE, as 1pt, on the modal's root (change it there)", (css.match(/--omni-shrink: 1pt;/g) ?? []).length === 1 && /\.omni-scale \{[^}]*--omni-shrink: 1pt;/.test(css));
 const sizeRules = [...css.matchAll(/(?:font-size|line-height): calc\([^;]*\);/g)].map((m) => m[0]);
 ok("EVERY font size and line height of the sheet that follows the factor also subtracts the shrink (no size can escape it)", sizeRules.filter((r) => r.includes("var(--omni-k, 1)")).length === 28 && sizeRules.filter((r) => r.includes("var(--omni-k, 1)")).every((r) => r.includes("- var(--omni-shrink, 1pt)")), sizeRules.filter((r) => r.includes("var(--omni-k, 1)") && !r.includes("var(--omni-shrink")).join(" | "));

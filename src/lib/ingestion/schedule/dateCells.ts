@@ -1,6 +1,6 @@
 // src/lib/ingestion/schedule/dateCells.ts
 //
-// The DATE column of a roster: the rightmost box of the table, cut by horizontal rules into merged cells, one per check-up day. The date is
+// The DATE column of a roster is the rightmost box of the table, cut by horizontal rules into merged cells, one per check-up day. The date is
 // printed inside each cell; the cell's top and bottom rules say exactly which rows it covers.
 import { clusterLines, findHorizontalLines, findVerticalLines, type Gray, type Line } from "./lines";
 
@@ -11,12 +11,12 @@ export interface Frame {
   bottom: number;
 }
 
-/** The table frame: the vertical rules that run (nearly) the whole height of the table. */
+/** Finds the table frame: the vertical rules that run (nearly) the whole height of the table. */
 export function findFrame(g: Gray): Frame | null {
   const minLen = Math.round(0.06 * g.height);
-  const vs = clusterLines(findVerticalLines(g, { minLen, maxGap: 6 }), 8).filter((l) => l.pos > 8 && l.pos < g.width - 8); // (a table can reach almost to the edge; scanner-edge artefacts are short and dropped below)
+  const vs = clusterLines(findVerticalLines(g, { minLen, maxGap: 6 }), 8).filter((l) => l.pos > 8 && l.pos < g.width - 8); // a table can reach almost to the edge; I drop the short scanner-edge artefacts below
   if (vs.length < 3) return null;
-  // the table is the biggest set of rules that share (about) the same vertical extent
+  // I take the table to be the biggest set of rules that share (about) the same vertical extent
   const longest = Math.max(...vs.map((l) => l.to - l.from));
   const rules = vs.filter((l) => l.to - l.from >= 0.6 * longest);
   if (rules.length < 3) return null;
@@ -35,7 +35,7 @@ export interface DateCell {
   openBottom: boolean;
 }
 
-/** The merged cells of the DATE column: the space between two consecutive horizontal rules that cross the whole column. */
+/** Finds the merged cells of the DATE column: the space between two consecutive horizontal rules that cross the whole column. */
 export function findDateCells(g: Gray, frame: Frame): { band: { xL: number; xR: number }; cells: DateCell[]; rules: Line[] } | null {
   const n = frame.rules.length;
   if (n < 2) return null;

@@ -18,7 +18,7 @@ ok("LPG of Mumbai, Chennai, Kolkata 14.2 kg: 941.50, 957.50, 968", by("Mumbai").
 ok("a change is read with its sign: +17.00 for the Kolkata 19 kg cylinder", by("Kolkata").lpg.com19.change === 17 && by("Delhi").petrol.change === 0);
 ok("the rupee sign written as an entity is decoded, tags become separators", htmlToText("<td>&#x20b9;941.50</td><td>0.00</td>") === "| ₹941.50| 0.00|" && amount("₹2,775.00") === 2775 && amount("+10.50") === 10.5 && amount("(0.00)") === 0 && amount("n/a") === null);
 
-// the self-check: a changed page is an error, never a wrong number
+// The self-check: I make a changed page an error, never a wrong number.
 const throws = (f: () => unknown) => { try { f(); return false; } catch { return true; } };
 ok("a missing table is an error", throws(() => parseMetroTable("nothing here", "Petrol")) && throws(() => parseLpgCity("nothing here", "Delhi")));
 ok("a missing city is an error", throws(() => parseMetroTable(fx("fuel-petrol").replace("| Chennai|", "| Madras|"), "Petrol")));

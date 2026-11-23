@@ -4,7 +4,7 @@
 //
 // The NAME WORDS of the directory, and nothing else: no person, no ticket, no department, nothing that says whose word it is. The search bar loads it once, when it opens, to recognise a word as part
 // of an Indian name while the user types ("Looks like a name. Press Enter to search people": src/lib/search/nameHint/nameHint.ts). About 2,900 words, 22 KB; the browser and the edge keep it for ten minutes.
-// Open to a person who has not signed in (the name search itself is open to them, and answers with the name and department), and limited per address.
+// I left it open to a person who has not signed in (the name search itself is open to them, and answers with the name and department), and I limit it per address.
 
 import { NextResponse } from "next/server";
 import { withDefaultClient } from "@/lib/nl2sql/db";

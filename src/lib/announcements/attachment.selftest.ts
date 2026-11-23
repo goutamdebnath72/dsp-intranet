@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/announcements/attachment.selftest.ts
-// The PDF of an announcement: what is accepted, how a name is cleaned, how a file is served, how the upload form is read, and the guards on the two routes.
+// What I check here: the PDF of an announcement: what is accepted, how a name is cleaned, how a file is served, how the upload form is read, and the guards on the two routes.
 import { readFileSync } from "node:fs";
 import { MAX_PDF_BYTES, checkPdf, cleanFileName, fileHeaders, fileRoute, formatBytes, memoryFileStorage, readUploadForm } from "./attachment";
 

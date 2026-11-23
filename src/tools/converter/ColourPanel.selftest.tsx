@@ -1,5 +1,5 @@
-// Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/ColourPanel.selftest.tsx
-// The colour converter's card: RGB on one side, HEX on the other, the colour under them; that it is a kind of the converter's dropdown; and that a typed line reaches it (and a plain number does not).
+// Run it from the project root: npx tsx --tsconfig tsconfig.selftest.json src/tools/converter/ColourPanel.selftest.tsx
+// I check the colour converter's card: RGB on one side, HEX on the other, the colour under them; that it is a kind of the converter's dropdown; and that a typed line reaches it (and a plain number does not).
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { detectTool } from "@/lib/tools/detect";
@@ -27,7 +27,7 @@ ok("the card's other kinds are unchanged: length still opens the two unit boxes"
 ok("each of the six boxes (red, green, blue, hue, saturation, lightness) has a spinner: an Increase and a Decrease arrow, which are hidden until the pointer is over the box or it is being typed in", count(card, /data-colour-spinner/g) === 6 && ["Red", "Green", "Blue", "Hue", "Saturation", "Lightness"].every((n) => new RegExp(`aria-label="Increase ${n}"`).test(card) && new RegExp(`aria-label="Decrease ${n}"`).test(card)) && count(card, /opacity-0[^"]*group-hover:opacity-100/g) === 12 && count(card, /group-focus-within:opacity-100/g) === 12);
 ok("the arrows cannot be pressed while hidden (no stray taps), are buttons that are skipped by Tab, and the HEX box has none", count(card, /pointer-events-none[^"]*group-hover:pointer-events-auto/g) === 12 && count(card, /tabindex="-1"/g) === 12 && !/data-colour-model="hex"[\s\S]*data-colour-spinner/.test(card.slice(card.indexOf('data-colour-model="hex"'), card.indexOf('data-colour-model="hsl"'))));
 
-// the typed line reaches the colour card
+// Here I check that the typed line reaches the colour card
 ok("'#ff5733 to rgb', 'rgb(255, 87, 51) to hex', '255,87,51 to hex' and 'rgb to hex' are answered as you type by the colour card", ["#ff5733 to rgb", "rgb(255, 87, 51) to hex", "255,87,51 to hex", "rgb to hex"].every((q) => (hit(q) as { kind?: string } | null)?.kind === "colour"));
 ok("the answer carries the colour as a six-digit HEX: #ff5733 -> #FF5733, rgb(255,87,51) -> #FF5733, rgb to hex -> the default #4F46E5", (hit("#ff5733") as { hex?: string } | null)?.hex === "#FF5733" && (hit("rgb(255,87,51)") as { hex?: string } | null)?.hex === "#FF5733" && (hit("rgb to hex") as { hex?: string } | null)?.hex === "#4F46E5");
 ok("other lines are not taken for a colour: a number, a unit conversion, a currency, a sum, a word of three hex letters", ["255 87 51", "5 km in miles", "100 usd to inr", "12*45+7", "bad", "add"].every((q) => (hit(q) as { kind?: string } | null)?.kind !== "colour"));

@@ -1,27 +1,27 @@
 // src/lib/help/edsGuide.ts
 //
-// THE "DEEP SEARCH (EDS)" TAB OF THE USER GUIDE: one data file, read by src/components/help/EdsTab.tsx. EDS is the main strength of the app, so it has a tab of its own, and NOTHING about it is described on the other three tabs.
+// The "Deep search (EDS)" tab of the user guide: one data file, read by src/components/help/EdsTab.tsx. EDS is the main strength of the app, so I gave it a tab of its own, and NOTHING about it is described on the other three tabs.
 // The tab says (1) what EDS covers today, (2) what EDS is, with examples, (3) what the back end does when a circular is uploaded, page by page, and which AI model works at each step, (4) what happens, and which model works, when an
 // executive asks a deep question, and (5) the questions to test it with, and how to make more.
 //
-// NOTHING HERE IS GUESSED. Every step and every model name below was read from the code (the upload route, geminiOcr.ts, chunking.ts, geminiEmbedding.ts, executiveSynthesis.ts, edsVerify.ts, edsStore.ts, synthesisIntent.ts) and is pinned by
+// Nothing here is guessed. Every step and every model name below was read from the code (the upload route, geminiOcr.ts, chunking.ts, geminiEmbedding.ts, executiveSynthesis.ts, edsVerify.ts, edsStore.ts, synthesisIntent.ts) and is pinned by
 // src/lib/help/edsGuide.selftest.ts, which reads those files and fails when the guide and the code disagree. The list of questions is the project's own test questions of 9 to 12 November 2026 (the panel, the gold set, the fresh set, and the corrected forms of three of them), de-duplicated; the selftest runs every one through the real detector (synthesisIntent.ts) so that "reaches EDS as typed" is a measured fact, not a claim.
-// This file must stay free of server-only imports (it is drawn in the browser).
+// Keep this file free of server-only imports: it is drawn in the browser.
 
 export const EDS_TITLE = "Executive Deep Search (EDS)";
 
-/** the models, as the code names them today (the administrator can change them in the server settings; the tab says so) */
+/** These are the models as the code names them today; the administrator can change them in the server settings, and the tab says so. */
 export const MODELS = {
-  ocrMain: "gemini-3.1-pro-preview",
-  ocrChecker: "gemini-3.8-flash",
+  ocrMain: "gemini-3.8-flash",
+  ocrChecker: "gemini-3.6-flash",
   embedding: "gemini-embedding-001",
   router: "gemini-3.8-flash",
   writer: "gemini-3.8-flash",
   checker: "gemini-3.8-flash",
-  writerFallbacks: ["gemini-pro-latest", "gemini-3.8-flash"],
+  writerFallbacks: ["gemini-flash-latest"],
 } as const;
 
-/** what EDS covers now and what it will cover */
+/** What EDS covers now and what it will cover. */
 export const SCOPE = {
   now: "Today EDS works on uploaded circulars and on announcements (their text and the text of their PDFs).",
   later: "After its success, and when reliable, true data becomes available, it will be extended to many more scopes.",
@@ -29,7 +29,7 @@ export const SCOPE = {
   who: "It is for signed-in executives (a six-digit ticket starting with 4). A visitor who has not signed in is asked \"Are you an executive?\" and, if not, gets the simple answer of the normal search.",
 };
 
-/** THE TWO WAYS IN (23 Nov 2026): typing a deep question, and the Executive Deep Search button of the bar's second row ("More tools") */
+/** I offer two ways in (23 Nov 2026): typing a deep question, and the Executive Deep Search button of the bar's second row ("More tools") */
 export const WAYS_IN = "There are two ways in. Type a deep question and press Enter, or press the Executive Deep Search button under the box (the second row, More tools). The button is there for everyone: if you have not signed in it first asks \"Are you an executive?\", Yes opens the sign-in window at once and No takes you back to Everything. Signed in as an executive, the window shows the questions that have been proven to work: press one and it runs at once. Above them are the keywords to keep in a question of your own.";
 
 export interface Example { kind: string; question: string; gets: string }
@@ -52,7 +52,7 @@ export const WHAT_IS = {
 
 export interface Step { no: number; title: string; what: string }
 
-/** what the back end does, in order, when a circular is uploaded (src/app/api/circulars/route.ts) */
+/** Here I list what the back end does, in order, when a circular is uploaded (src/app/api/circulars/route.ts) */
 export const UPLOAD_STEPS: Step[] = [
   { no: 1, title: "Who may upload, and what", what: "Only the HOD of C&IT or an authorised delegate of the Circular manager can upload; the server checks that from the database before any page is read. The file must be a PDF, PNG or JPG of at most 15 MB, with a headline and the circular's own date (not in the future, not before the year 2000)." },
   { no: 2, title: "Every page is turned into a picture and saved", what: "A PDF is drawn page by page as a PNG picture at 300 dpi (a photo or a scan is one page). Each page picture is saved in Vercel Blob storage and its web link is kept with the circular: these pictures are what the circular viewer shows." },
@@ -73,7 +73,7 @@ export const UPLOAD_MODELS: ModelRow[] = [
   { stage: "Everything else", model: "no AI", job: "drawing the PDF pages, storage, the Hindi/Bengali checks, cutting into chunks, saving to the database" },
 ];
 
-/** what happens when an executive asks a deep question */
+/** What happens when an executive asks a deep question. */
 export const ASK_STEPS: Step[] = [
   { no: 1, title: "The line is recognised as a deep question", what: "In the browser, plain rules (no AI) score the line: an analytic verb such as compare, trace or summarise; a version relation such as what changed or the corrected circular; several years or things named; two questions in one; a long question. A score of 5 or more is a deep question. A signed-in executive is sent on, and the server checks the ticket against the staff directory again. A visitor who has not signed in is first asked \"Are you an executive?\": Yes tells them to sign in with their own account (the question then runs by itself as EDS once they have), No gives the simple answer of the normal search. A question about people (who is the head, a phone number, an e-mail, a designation) is never a deep question: the employee directory answers it." },
   { no: 2, title: "A second way in: the language-model router", what: "For a line the browser did not recognise, a fast Gemini model reads it in any phrasing and names the tool it needs. If it judges that several circulars must be combined and the person is a signed-in executive, EDS runs. If the model is slow, unavailable or answers something invalid, the ordinary search answers; a wrong guess never replaces a right answer." },
@@ -97,17 +97,17 @@ export const ASK_MODELS: ModelRow[] = [
 
 export interface TestQuery {
   id: string;
-  /** the question, exactly as to be typed */
+  /** The question, exactly as it is to be typed. */
   q: string;
   kind: string;
-  /** the circulars it needs: what to look for in the Circulars list before trying it */
+  /** The circulars it needs: look for these in the Circulars list before trying the question */
   needs: string;
-  /** the ids it has in the project's own test lists (P: the panel, G: the gold set, F: the fresh set); a corrected form of a question has none */
+  /** The ids it has in the project's own test lists (P: the panel, G: the gold set, F: the fresh set); a corrected form of a question has none */
   also: string[];
   note?: string;
 }
 
-/** The questions that REACH EDS as typed (the selftest scores each with the real detector: 5 or more). */
+/** The questions that REACH EDS as typed: the selftest scores each with the real detector and wants 5 or more. */
 export const TEST_QUERIES: TestQuery[] = [
   { id: "E01", kind: "Compare years", also: ["P03", "G01"], needs: "the holiday lists notified for DSP employees for 2024, 2025 and 2026", q: "How do the public holidays notified for DSP employees in 2024, 2025 and 2026 compare, and which festival dates differ between the years?" },
   { id: "E02", kind: "Compare years", also: ["F03"], needs: "the holiday lists notified for DSP for 2022 and for 2023", q: "Compare the holiday lists notified for DSP for 2022 and 2023: closed and public holidays, festival holidays for each category, restricted holidays, and what differs between the two years." },
@@ -134,8 +134,8 @@ export const TEST_QUERIES: TestQuery[] = [
   { id: "E23", kind: "Boundary: the circulars do not cover it", also: ["B03"], needs: "none: on 9 November the archive had no circular on 2025 or 2026 bonus and productivity-linked reward rules for executives", q: "Summarise the 2026 bonus and productivity-linked reward rules for executives and compare them with the 2025 rules.", note: "A test of honesty: a good answer says plainly that the circulars do not state these rules, and does not offer another scheme's figures instead. Try it only to see that." },
 ];
 
-export interface NotDeep { id: string; /** other ids of the same question in the project's test lists */ also?: string[]; q: string; why: string }
-/** The project's other test questions: typed as they stand they do NOT reach EDS (each scores below 5 or is blocked), so the normal search or another engine answers them. */
+export interface NotDeep { id: string; /** Other ids of the same question in the project's test lists. */ also?: string[]; q: string; why: string }
+/** The project's other test questions. Typed as they stand they do NOT reach EDS (each scores below 5 or is blocked), so I let the normal search or another engine answer them. */
 export const NOT_DEEP: NotDeep[] = [
   { id: "P05", q: "What are the reporting time, venue, preparation instructions and the report-collection arrangements for the non-executive health check-ups in December 2024, January 2025 and January 2026?", why: "scores 4: add a verb such as compare, as in E09" },
   { id: "P07", also: ["G04"], q: "Explain the refundable PF loan pre-mature repayment procedure and, separately, the PF contribution granted to Junior Officers of the 2008 and 2010 batches.", why: "scores 4: two unrelated subjects, no analytic cue; the normal search answers each part" },

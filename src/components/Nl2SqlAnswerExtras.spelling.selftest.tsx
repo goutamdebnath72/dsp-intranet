@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/components/Nl2SqlAnswerExtras.spelling.selftest.tsx
-// Step 55b: the sentence that says a name was searched by its nearest real spelling is drawn in an amber box above "Departments covered", only when there is one.
+// Step 55b: I draw the sentence that says a name was searched by its nearest real spelling in an amber box above "Departments covered", only when there is one.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

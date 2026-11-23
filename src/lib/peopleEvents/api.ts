@@ -1,7 +1,7 @@
 // src/lib/peopleEvents/api.ts
 //
-// THE REPLY OF /api/people-events (step 65a). Kept apart from the route so it can be tested. The lists are public like the rest of the home page (a name, a post, a department, a photo); no date of birth and no
-// date of joining ever leaves the server. A missing column (sql/14 not yet run) gets a reply that NAMES the fix; any other failure stays generic (no detail leaked).
+// THE REPLY OF /api/people-events (step 65a). I keep it apart from the route so it can be tested. The lists are public like the rest of the home page (a name, a post, a department, a photo); no date of birth and no
+// date of joining ever leaves the server. A missing column (sql/14 not yet run) gets a reply that NAMES the fix; any other failure stays generic, so no detail is leaked.
 
 import { DateTime } from "luxon";
 import type { QueryFn } from "@/lib/pax/store";

@@ -19,17 +19,17 @@ import {
 const DEFAULT_EDITOR_MIN_HEIGHT = "160px";
 
 type Props = {
-  /** Current HTML value (controlled). */
+  /** The current HTML value; the editor is controlled. */
   value: string;
-  /** Fires with sanitized-on-save HTML whenever the doc changes. */
+  /** Fires whenever the doc changes, with HTML that is sanitized on save. */
   onChange: (html: string) => void;
   placeholder?: string;
   minHeight?: string;
-  /** a PDF is attached (or chosen), so selected words may be made a link to it; without one the "PDF link" button is switched off */
+  /** A PDF is attached (or chosen), so selected words may be made a link to it. Without one I switch off the "PDF link" button. */
   pdfLinkAvailable?: boolean;
 };
 
-// The toolbar's swatches: "Default" (clears the colour) and the palette (src/lib/announcements/palette.ts), which is also the only set of colours the saving code keeps.
+// The toolbar's swatches: "Default" (clears the colour) and the palette (src/lib/announcements/palette.ts), which is also the only set of colours I let the saving code keep.
 const COLORS = [{ name: "Default", value: "" }, ...TEXT_COLOURS];
 
 function ToolbarButton({
@@ -48,7 +48,7 @@ function ToolbarButton({
       type="button"
       aria-label={label}
       aria-pressed={active}
-      // onMouseDown + preventDefault keeps the editor selection intact
+      // I use onMouseDown + preventDefault to keep the editor selection intact
       // (a plain onClick blurs the selection before the command runs).
       onMouseDown={(e) => {
         e.preventDefault();
@@ -68,7 +68,7 @@ function ToolbarButton({
 function Toolbar({ editor, pdfLinkAvailable }: { editor: Editor; pdfLinkAvailable: boolean }) {
   const currentColor = editor.getAttributes("textStyle").color || "";
   const inPdfLink = editor.isActive("pdfLink");
-  // pressed inside linked words it takes the link off those words; on selected words it makes them the link; with nothing selected it does nothing
+  // What it does: pressed inside linked words it takes the link off those words; on selected words it makes them the link; with nothing selected it does nothing
   const togglePdfLink = () => {
     if (inPdfLink) editor.chain().focus().extendMarkRange("pdfLink").unsetMark("pdfLink").run();
     else if (!editor.state.selection.empty) editor.chain().focus().setMark("pdfLink").run();
@@ -102,7 +102,7 @@ function Toolbar({ editor, pdfLinkAvailable }: { editor: Editor; pdfLinkAvailabl
 
       <span className="mx-1 h-5 w-px bg-slate-300" aria-hidden />
 
-      {/* PDF link: the selected words open the announcement's PDF. Only when a PDF is attached. */}
+      {/* PDF link: the selected words open the announcement's PDF. I show it only when a PDF is attached. */}
       <button
         type="button"
         data-pdf-link-button
@@ -177,10 +177,10 @@ export default function RichTextEditor({
   pdfLinkAvailable = false,
 }: Props) {
   const editor = useEditor({
-    // SSR-safe: Tiptap renders immediately on the client only.
+    // I keep this SSR-safe: Tiptap renders immediately on the client only.
     immediatelyRender: false,
     extensions: [
-      // StarterKit's own Link is off: it keeps an address and turns typed web addresses into links. The only link here is the PDF link.
+      // I turn off StarterKit's own Link: it keeps an address and turns typed web addresses into links. The only link here is the PDF link.
       StarterKit.configure({ link: false }),
       Underline,
       TextStyle,
@@ -189,7 +189,7 @@ export default function RichTextEditor({
     ],
     content: value || "",
     editorProps: {
-      // pasted text arrives WITHOUT its own colour (a chat, a page or a document brings a pale grey that dimmed the body); colour is put on with the swatches
+      // Pasted text arrives WITHOUT its own colour (a chat, a page or a document brings a pale grey that dimmed the body); I put colour on only with the swatches.
       transformPastedHTML: stripPastedColours,
       attributes: {
         class:
@@ -200,13 +200,13 @@ export default function RichTextEditor({
     },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      // Tiptap emits "<p></p>" for an empty doc; normalize that to "".
+      // Tiptap emits "<p></p>" for an empty doc; I normalize that to "".
       onChange(html === "<p></p>" ? "" : html);
     },
   });
 
-  // Keep the editor in sync when the parent replaces `value` externally
-  // (e.g. loading an existing announcement for editing). Guard against
+  // I keep the editor in sync when the parent replaces `value` externally
+  // (e.g. loading an existing announcement for editing). This guards against
   // clobbering the user's in-progress typing.
   useEffect(() => {
     if (!editor) return;

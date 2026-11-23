@@ -1,23 +1,22 @@
 // src/lib/nl2sql/scope.ts
 //
-// "Which departments did this answer actually cover?" -- computed by the SYSTEM from the SQL, not
-// written by the model. The model's plain-English reading can drift from what its SQL does (it once
+// "Which departments did this answer actually cover?" -- the SYSTEM computes this from the SQL; the model does not write it. The model's plain-English reading can drift from what its SQL does (it once
 // described one department while the SQL matched a pattern that covered seven). So for every answer
-// that filters by department through a sub-query on nlq.departments, the same sub-query is run on its
-// own and the matched department names are shown next to the answer.
+// that filters by department through a sub-query on nlq.departments, I run the same sub-query on its
+// own and show the matched department names next to the answer.
 //
 // The line appears for an answer that FILTERS by department, however the model worded that filter (a sub-query on
 // nlq.departments, a JOIN with d.code IN (...), department_id / department_code / department conditions). An answer
 // with no department filter shows no line, and neither does an EXCLUSION ("not in C&IT").
 //
-// Only departments that really hold people in the answer are listed. A department filter such as "C&IT
+// I list only departments that really hold people in the answer. A department filter such as "C&IT
 // (all its sections)" matches three department records, but executives usually sit under ONE of them and
-// the granular sections hold the non-executives. So the filter's matches are narrowed to the departments
+// the granular sections hold the non-executives. So I narrow the filter's matches to the departments
 // where at least one person satisfying the answer's OWN conditions (cohort, designation, ...) works: an
 // executive answer names only departments that have executives, a non-executive answer only those that
 // have non-executives.
 //
-// Deliberately conservative: it only reports a scope it can compute exactly. A sub-query that cannot run
+// Deliberately conservative: I report only a scope I can compute exactly. A sub-query that cannot run
 // on its own (e.g. it refers to a column of the outer query), and sub-queries under NOT / NOT IN (which
 // EXCLUDE departments), never produce a scope; the answer is then shown without one.
 
@@ -25,7 +24,7 @@ import { parse, toSql } from "pgsql-ast-parser";
 import type { DepartmentScope, SqlClient } from "./types";
 import { runReadOnly } from "./executor";
 
-/** Standalone `SELECT code, name FROM nlq.departments WHERE ...` for each department sub-query. */
+/** Builds a standalone `SELECT code, name FROM nlq.departments WHERE ...` for each department sub-query. */
 export function departmentScopeQueries(sql: string): string[] {
   let root: any;
   try {
@@ -58,13 +57,13 @@ export function departmentScopeQueries(sql: string): string[] {
 }
 
 /**
- * Standalone query: which departments hold at least one person who satisfies the answer's own WHERE
+ * Builds a standalone query: which departments hold at least one person who satisfies the answer's own WHERE
  * (cohort, designation, department filter ...), grouped by department record. JOINs are fine (the model often joins
- * nlq.departments just to read a department code): the FROM and WHERE are kept as written and only the person table
+ * nlq.departments just to read a department code): I keep the FROM and WHERE as written and only the person table
  * (nlq.employees, under whatever alias the answer gave it) supplies the department. Returns null when the answer's shape
  * does not allow that to be computed exactly (no person table or two of them, a sub-select in FROM, a set operation,
  * a CTE, HAVING ...).
- * ORDER BY / LIMIT / GROUP BY of the original are dropped: the question is "where do these people work", not "which ten".
+ * I drop ORDER BY / LIMIT / GROUP BY of the original: the question is "where do these people work", not "which ten".
  */
 export function peopleFootprintQuery(sql: string): string | null {
   let root: any;
@@ -79,12 +78,12 @@ export function peopleFootprintQuery(sql: string): string | null {
   const isEmployees = (f: any) =>
     String(f.name?.name).toLowerCase() === "employees" && (f.name?.schema ? String(f.name.schema).toLowerCase() === "nlq" : true);
   const people = root.from.filter(isEmployees);
-  if (people.length !== 1) return null; // none, or a self-join: cannot say which row is "the person"
+  if (people.length !== 1) return null; // none, or a self-join: I cannot say which row is "the person"
   const ref = people[0].name?.alias ? String(people[0].name.alias) : "employees";
   const tpl: any = (parse(
     "SELECT employees.department_code AS code, employees.department AS name, count(*) AS n FROM nlq.employees GROUP BY employees.department_code, employees.department",
   ) as any[])[0];
-  // point the column references at the person table exactly as the answer's SQL names it
+  // I point the column references at the person table exactly as the answer's SQL names it
   const repoint = (n: any) => {
     if (n && n.type === "ref" && n.table) n.table.name = ref;
   };
@@ -100,7 +99,7 @@ const DEPT_COLUMNS_ON_DEPARTMENTS = new Set(["id", "code", "name", "cohort_scope
 const NEGATING_BINARY = new Set(["NOT IN", "NOT LIKE", "NOT ILIKE", "!=", "<>"]);
 
 /**
- * Does the answer's SQL filter by department (in WHERE, or in a JOIN condition), and is any such condition an exclusion?
+ * I check whether the answer's SQL filters by department (in WHERE, or in a JOIN condition), and whether any such condition is an exclusion.
  * A department column compared with another column (the plain join condition e.department_id = d.id) is NOT a filter.
  * Returns null when the SQL cannot be read.
  */
@@ -113,8 +112,8 @@ export function departmentFilterInfo(sql: string): { has: boolean; negated: bool
   }
   if (!root || root.type !== "select") return null;
   interface Ctx {
-    aliases: Set<string>; // names under which nlq.departments appears in the FROM of the select being read
-    unqualifiedDept: boolean; // that select reads ONLY nlq.departments, so a bare `code` / `name` is a department column
+    aliases: Set<string>; // the names under which nlq.departments appears in the FROM of the select I am reading
+    unqualifiedDept: boolean; // when that select reads ONLY nlq.departments, a bare `code` / `name` is a department column
   }
   const ctxOf = (sel: any, outer: Ctx | null): Ctx => {
     const aliases = new Set<string>(outer ? Array.from(outer.aliases) : []);
@@ -141,7 +140,7 @@ export function departmentFilterInfo(sql: string): { has: boolean; negated: bool
     if (Array.isArray(n)) return n.forEach((x) => walk(x, neg, ctx));
     if (!n || typeof n !== "object") return;
     if (n.type === "select" && n !== root) {
-      // a nested select is read with ITS OWN tables
+      // I read a nested select with ITS OWN tables
       const inner = ctxOf(n, ctx);
       walk(n.where, neg, inner);
       for (const f of Array.isArray(n.from) ? n.from : []) if (f?.join?.on) walk(f.join.on, neg, inner);
@@ -149,7 +148,7 @@ export function departmentFilterInfo(sql: string): { has: boolean; negated: bool
     }
     if (n.type === "binary") {
       const op = String(n.op).toUpperCase();
-      if (op === "=" && n.left?.type === "ref" && n.right?.type === "ref") return; // a join condition, not a filter
+      if (op === "=" && n.left?.type === "ref" && n.right?.type === "ref") return; // this is a join condition, not a filter
       const childNeg = neg || NEGATING_BINARY.has(op);
       walk(n.left, childNeg, ctx);
       walk(n.right, childNeg, ctx);
@@ -174,7 +173,7 @@ export function departmentFilterInfo(sql: string): { has: boolean; negated: bool
 }
 
 /**
- * The departments that hold the people in this answer, for an answer that filters by department; null when the answer has
+ * Returns the departments that hold the people in this answer, for an answer that filters by department; null when the answer has
  * no department filter, excludes departments, or has a shape whose people cannot be located exactly.
  */
 export async function computeDepartmentScope(client: SqlClient, sql: string): Promise<DepartmentScope | null> {

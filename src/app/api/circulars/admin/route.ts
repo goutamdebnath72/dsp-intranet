@@ -1,8 +1,8 @@
 // src/app/api/circulars/admin/route.ts
 //
 // POST /api/circulars/admin
-// The Circular Manager facility endpoint (Modular Facility Kit).
-// Protected by same-origin, session verification, and granular authority.
+// This is the Circular Manager facility endpoint (Modular Facility Kit).
+// I protect it with same-origin, session verification, and granular authority.
 
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";

@@ -1,8 +1,8 @@
 "use client";
 
 // src/app/nl2sql-lab/page.tsx
-// EXPERIMENT: ask a question, see the SQL the language model wrote, its plain-
-// English reading, and the result. Separate from the omnibar. Needs
+// Experiment: ask a question, see the SQL the language model wrote, its plain-
+// English reading, and the result. I keep it separate from the omnibar. It needs
 // NL2SQL_LAB_ENABLED=true on the server and a logged-in session.
 
 import { useState } from "react";
@@ -31,7 +31,7 @@ export default function Nl2SqlLab() {
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<"confirm" | "reject" | null>(null);
-  // The app signs a tab out when it finds no "logged in here" note for that tab.
+  // My app signs a tab out when it finds no "logged in here" note for that tab.
   // Logging in from THIS page creates the note in this very tab.
   const { status, data: session } = useVerifiedSession();
   const { openModal } = useModal();

@@ -3,13 +3,13 @@
 // (Every function that asks or reads takes the STARTING STATION as a last argument, Durgapur unless given: the Asansol tab's trains have their fares from Asansol (ASN), saved in their own tables.)
 // THE FARE OF A TRAIN FROM DURGAPUR TO THE END OF ITS RUN, read from RailRadar's fare service (GET https://api.railradar.in/v1/trains/{number}/fare?source=DGR&destination=CODE&journeyDate=YYYY-MM-DD&classCode=XX), which
 // relays the railway's own passenger reservation system ("source": "prs" in its reply). It needs the paid plan (the free plan is refused with PLAN_UPGRADE_REQUIRED). Checked on 14 Nov 2026 with about 35 calls:
-//   * ONE CLASS PER CALL. The card asks for the eight reserved classes (CLASSES below) and a class that the train does not have is answered 404 "API:DATA_NOT_AVAILABLE": that class is simply left out.
-//   * THE DATE MUST BE ONE ON WHICH THE TRAIN IS AT DURGAPUR (a train that runs on Sundays at Durgapur is refused for any other date), so the date is the first day from tomorrow on which the train, by its days AT DURGAPUR, runs.
-//     Fares did not change between the dates tried (a week and five weeks ahead), so an answer is kept three days.
-//   * NO UNRESERVED FARE and no fare for the local (MEMU) trains: the reservation system holds none (UR, II and the MEMU numbers are all refused). The card says so; no number is made up.
-//   * The reply itemises the fare: baseFare, reservationCharge, superfastCharge, goodsServiceTax (GST), cateringCharge (Shatabdi, Vande Bharat, Rajdhani...), dynamicFare, tatkalFare, otherCharge, and totalFare. The
-//     total is READ, never added up by us; it is only CHECKED against the parts (the total is the parts rounded: up to 4 rupees above their sum, as non-AC totals go up to the next 5 rupees; seen 0 to +4 on 14 Nov 2026) and an answer that does not add up, or that is not the train asked, is refused.
-// The general quota (GN) and the full adult fare are what is asked: no concession, no Tatkal, no other quota. A fare is the railway's figure of the day, shown as approximate with that date.
+//   * ONE CLASS PER CALL. The card asks for the eight reserved classes (CLASSES below) and a class that the train does not have is answered 404 "API:DATA_NOT_AVAILABLE": I simply leave that class out.
+//   * THE DATE MUST BE ONE ON WHICH THE TRAIN IS AT DURGAPUR (a train that runs on Sundays at Durgapur is refused for any other date), so I take the first day from tomorrow on which the train, by its days AT DURGAPUR, runs.
+//     Fares did not change between the dates tried (a week and five weeks ahead), so I keep an answer three days.
+//   * NO UNRESERVED FARE and no fare for the local (MEMU) trains: the reservation system holds none (UR, II and the MEMU numbers are all refused). The card says so, and I make up no number.
+//   * The reply itemises the fare: baseFare, reservationCharge, superfastCharge, goodsServiceTax (GST), cateringCharge (Shatabdi, Vande Bharat, Rajdhani...), dynamicFare, tatkalFare, otherCharge, and totalFare. I READ the
+//     total and never add it up myself; I only CHECK it against the parts (the total is the parts rounded: up to 4 rupees above their sum, as non-AC totals go up to the next 5 rupees; seen 0 to +4 on 14 Nov 2026) and I refuse an answer that does not add up, or that is not the train asked.
+// What I ask for is the general quota (GN) and the full adult fare: no concession, no Tatkal, no other quota. A fare is the railway's figure of the day, shown as approximate with that date.
 import { DateTime } from "luxon";
 import { UpstreamError } from "./http";
 import { DAYS, STATION, type Day } from "./railway";
@@ -19,7 +19,7 @@ export const FARE_BASE_URL = "https://api.railradar.in/v1/trains";
 export const FARE_KEPT_S = 3 * 24 * 60 * 60;
 
 export interface FareClass { code: string; name: string }
-/** the reserved classes asked, from the cheapest to the dearest; the unreserved class is not among them (the source has none) */
+/** The reserved classes asked, from the cheapest to the dearest. The unreserved class is not among them because the source has none. */
 export const CLASSES: FareClass[] = [
   { code: "2S", name: "Second sitting" },
   { code: "SL", name: "Sleeper" },
@@ -34,13 +34,13 @@ export const CLASSES: FareClass[] = [
 export interface ClassFare {
   code: string;
   name: string;
-  /** the fare in rupees (for an ESTIMATE from the fare table, the lowest of its range) */
+  /** The fare in rupees (for an ESTIMATE from the fare table, the lowest of its range). */
   total: number;
-  /** only for an estimate whose range crosses a fare step: the highest fare of the range */
+  /** Only for an estimate whose range crosses a fare step: the highest fare of the range. */
   high?: number;
-  /** "table": worked out from the railway's published fare table (a hint), not read from the reservation system */
+  /** "table": worked out from the railway's published fare table (a hint), not read from the reservation system. */
   basis?: "table";
-  /** the parts the railway itemises, only those above zero, in the order they are printed */
+  /** The parts the railway itemises, only those above zero, in the order they are printed. */
   parts: Array<{ label: string; amount: number }>;
 }
 
@@ -49,7 +49,7 @@ export interface FareSet {
   trainName: string;
   from: string;
   to: string;
-  /** the day the fares were asked for ("2026-11-22"): a day on which the train is at Durgapur */
+  /** The day the fares were asked for ("2026-11-22"): a day on which the train is at Durgapur. */
   journeyDate: string;
   distanceKm: number;
   classes: ClassFare[];
@@ -68,7 +68,7 @@ const PART_LABELS: Array<[string, string]> = [
 
 const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) && x >= 0 ? x : null);
 
-/** the first day from tomorrow (Indian time) on which a train that is at Durgapur on `days` runs, as "YYYY-MM-DD" */
+/** Returns the first day from tomorrow (Indian time) on which a train that is at Durgapur on `days` runs, as "YYYY-MM-DD". */
 export function journeyDateFor(days: Day[], now: DateTime = DateTime.now()): string | null {
   const start = now.setZone(STATION.zone).startOf("day");
   for (let i = 1; i <= 8; i++) {
@@ -80,7 +80,7 @@ export function journeyDateFor(days: Day[], now: DateTime = DateTime.now()): str
 
 export type ClassReading = { kind: "fare"; fare: ClassFare; distance: number; name: string } | { kind: "absent" };
 
-/** Reads one class's answer. A 404 means the train has no such class. Anything else that is not a clean fare of the train asked is an error, never a guess. */
+/** Reads one class's answer. A 404 means the train has no such class. Anything else that is not a clean fare of the train asked is an error: I never guess. */
 export function parseClassFare(status: number, json: unknown, number: string, cls: FareClass): ClassReading {
   if (status === 404) return { kind: "absent" };
   const root = json as { success?: unknown; data?: { trainNumber?: unknown; trainName?: unknown; distance?: unknown; breakdown?: Record<string, unknown> } } | null;
@@ -97,7 +97,7 @@ export function parseClassFare(status: number, json: unknown, number: string, cl
     sum += v;
     if (v > 0) parts.push({ label, amount: v });
   }
-  // the total is the parts rounded: non-AC totals go UP to the next 5 rupees (255 for parts of 251), the others differ by a rupee or two (seen 14 Nov 2026: 0 to +4); anything outside -2..+5 is not a fare we understand
+  // The total is the parts rounded: non-AC totals go UP to the next 5 rupees (255 for parts of 251), the others differ by a rupee or two (seen 14 Nov 2026: 0 to +4). Anything outside -2..+5 is not a fare I understand.
   const diff = total - sum;
   if (diff < -2 || diff > 5) throw new UpstreamError("The parts of RailRadar's fare do not add up to its total.");
   return { kind: "fare", fare: { code: cls.code, name: cls.name, total, parts }, distance, name: d.trainName };
@@ -106,10 +106,10 @@ export function parseClassFare(status: number, json: unknown, number: string, cl
 export type Fetcher = (url: string) => Promise<{ status: number; json: unknown }>;
 
 /**
- * The fares of one train from Durgapur to `to` for the day `journeyDate`: every class asked, the absent ones left out. All eight are asked together (the key's limit is 30 a minute). A rate refusal, a key refusal,
- * a failure of the service or a class whose answer is unreadable makes the whole thing an error (a half list would be mistaken for the train's real classes).
+ * The fares of one train from Durgapur to `to` for the day `journeyDate`: every class asked, the absent ones left out. I ask all eight together (the key's limit is 30 a minute). A rate refusal, a key refusal,
+ * a failure of the service or a class whose answer is unreadable makes the whole thing an error, because a half list would be mistaken for the train's real classes.
  */
-/** one class of one train from Durgapur to `to`: the reading, or an error for a refusal (429, 401/403), a failure, or an unreadable answer */
+/** One class of one train from Durgapur to `to`: the reading, or an error for a refusal (429, 401/403), a failure, or an unreadable answer. */
 export async function readClass(number: string, to: string, journeyDate: string, cls: FareClass, fetcher: Fetcher, from: string = STATION.code): Promise<ClassReading> {
   const url = `${FARE_BASE_URL}/${number}/fare?source=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&journeyDate=${journeyDate}&classCode=${cls.code}`;
   const { status, json } = await fetcher(url);
@@ -135,16 +135,16 @@ export async function askFares(number: string, to: string, journeyDate: string, 
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// THE LOCAL (MEMU) TRAINS: A HINT, NOT A LOOKUP. The reservation system holds no fare for a train with unreserved seats only (its schedule says so: "category": "Local", "isPrsBookable": false), so the fare of a local
-// train is WORKED OUT from the railway's own published ordinary-class fare table (src/lib/live/ordinaryFare.ts) for the distance from Durgapur to the end of the run. That distance is the difference of two cumulative
-// distances in RailRadar's schedule of the train (GET /v1/trains/{number}?haltsOnly=true: each stop has "distance" from the start), one request per train. It is said to be an estimate, and a range when the distance's own
+// THE LOCAL (MEMU) TRAINS: A HINT, NOT A LOOKUP. The reservation system holds no fare for a train with unreserved seats only (its schedule says so: "category": "Local", "isPrsBookable": false), so I WORK OUT the fare of a local
+// train from the railway's own published ordinary-class fare table (src/lib/live/ordinaryFare.ts) for the distance from Durgapur to the end of the run. That distance is the difference of two cumulative
+// distances in RailRadar's schedule of the train (GET /v1/trains/{number}?haltsOnly=true: each stop has "distance" from the start), one request per train. I say it is an estimate, and a range when the distance's own
 // uncertainty crosses a fare step. A train that reverses on the way (cumulative distance not a straight line) gets no hint.
 export const LOCAL_CLASS: FareClass = { code: "UR", name: "Unreserved second class (ordinary)" };
 
-/** a local train for which no hint can be made (it reverses on its way): not a failure of the source, and worth remembering, so that the next click does not ask again */
+/** A local train for which no hint can be made (it reverses on its way). This is not a failure of the source, and I remember it so that the next click does not ask again. */
 export class NoHintError extends UpstreamError {}
 
-/** the distance from Durgapur to `to` along the train's own route, in km, from RailRadar's schedule of the train; refused when the schedule is not that train's, lacks a stop, runs the other way or reverses */
+/** Gives the distance from Durgapur to `to` along the train's own route, in km, from RailRadar's schedule of the train. I refuse it when the schedule is not that train's, lacks a stop, runs the other way or reverses. */
 export function parseLocalDistance(json: unknown, number: string, to: string, from: string = STATION.code): number {
   const root = json as { success?: unknown; data?: { train?: { number?: unknown; isPrsBookable?: unknown; hasReversal?: unknown }; route?: unknown } } | null;
   const d = root?.success === true ? root.data : undefined;
@@ -160,7 +160,7 @@ export function parseLocalDistance(json: unknown, number: string, to: string, fr
   return Math.round((db - da) * 10) / 10;
 }
 
-/** the hint for a local train: one class, "UR", an estimate from the table; the distance is the rounded km used */
+/** The hint for a local train: one class, "UR", an estimate from the table; the distance is the rounded km used. */
 export async function askLocalFare(number: string, to: string, fetcher: Fetcher, today: string, from: string = STATION.code): Promise<FareSet> {
   const { status, json } = await fetcher(`${FARE_BASE_URL}/${number}?haltsOnly=true`);
   if (status === 429) throw new UpstreamError("RailRadar's limit for the plant's key has been reached (or the minute's: try again in a moment).", 429);
@@ -171,7 +171,7 @@ export async function askLocalFare(number: string, to: string, fetcher: Fetcher,
   try {
     km = parseLocalDistance(json, number, to, from);
   } catch (e) {
-    // a train that reverses has no straight distance: an empty answer (saved, so that it is not asked again), not an error
+    // A train that reverses has no straight distance, so I return an empty answer (saved, so that it is not asked again) and not an error.
     if (e instanceof NoHintError) return { train: number, trainName: typeof name === "string" ? name : "", from, to, journeyDate: today, distanceKm: 0, classes: [] };
     throw e;
   }
@@ -189,16 +189,16 @@ export async function askLocalFare(number: string, to: string, fetcher: Fetcher,
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// THE FARE TO EVERY STOP AFTER DURGAPUR (the "legs"). The plant pays for the fare service for one month, so for each train the fares are collected not only to the end of its run but to EVERY stop after Durgapur: for each
+// THE FARE TO EVERY STOP AFTER DURGAPUR (the "legs"). The plant pays for the fare service for one month, so for each train I collect the fares not only to the end of its run but to EVERY stop after Durgapur: for each
 // class the train has (the classes found for its end station), one request per stop. A class the train does not sell between Durgapur and a stop is simply absent there; a stop for which no class answers has no leg.
 // For a local (MEMU) train the same stops get the table HINT (no request: the distances are in the schedule already read), up to the first reversal on its route (beyond it the cumulative distance is not a line).
 export interface LegFare {
-  /** the stop's station code and the name RailRadar gives it */
+  /** The stop's station code and the name RailRadar gives it. */
   to: string;
   name: string;
-  /** its place in the train's route (grows along the run) */
+  /** Its place in the train's route (grows along the run). */
   seq: number;
-  /** from Durgapur, as the railway gives it (the fare service) or as worked out for a hint */
+  /** From Durgapur, as the railway gives it (the fare service) or as worked out for a hint. */
   distanceKm: number;
   journeyDate: string;
   classes: ClassFare[];
@@ -207,15 +207,15 @@ export interface LegFare {
 export interface ScheduleStop { code: string; name: string; seq: number; km: number }
 export interface Schedule {
   trainName: string;
-  /** Durgapur's distance from the start of the train's run */
+  /** Durgapur's distance from the start of the train's run. */
   durgapurKm: number;
-  /** the halts after Durgapur, in order, each with its distance from Durgapur (km along the route); cut after the first reversal (that stop is kept) */
+  /** The halts after Durgapur, in order, each with its distance from Durgapur (km along the route). I cut the list after the first reversal (that stop is kept). */
   stops: ScheduleStop[];
-  /** the train reverses on its way after Durgapur: the stops are those up to it */
+  /** True when the train reverses on its way after Durgapur: the stops are those up to it. */
   reverses: boolean;
 }
 
-/** the halts after Durgapur from RailRadar's schedule of a train (GET /v1/trains/{number}?haltsOnly=true) */
+/** Reads the halts after Durgapur from RailRadar's schedule of a train (GET /v1/trains/{number}?haltsOnly=true). */
 export function parseSchedule(json: unknown, number: string, from: string = STATION.code): Schedule {
   const root = json as { success?: unknown; data?: { train?: { number?: unknown; name?: unknown }; route?: unknown } } | null;
   const d = root?.success === true ? root.data : undefined;
@@ -239,7 +239,7 @@ export function parseSchedule(json: unknown, number: string, from: string = STAT
   return { trainName: typeof d.train.name === "string" ? d.train.name : "", durgapurKm: dk, stops, reverses };
 }
 
-/** the fares of the classes `classes` from Durgapur to one stop, asked one after the other; null when no class answers (the train does not run, or sell, between them) */
+/** Asks for the fares of the classes `classes` from Durgapur to one stop, one after the other. Returns null when no class answers (the train does not run, or sell, between them). */
 export async function askLeg(number: string, stop: ScheduleStop, classes: FareClass[], date: string, fetcher: Fetcher, from: string = STATION.code): Promise<LegFare | null> {
   const found: Array<{ fare: ClassFare; distance: number }> = [];
   for (const cls of classes) {
@@ -251,7 +251,7 @@ export async function askLeg(number: string, stop: ScheduleStop, classes: FareCl
   return { to: stop.code, name: stop.name, seq: stop.seq, distanceKm: found[0].distance, journeyDate: date, classes: found.map((f) => f.fare) };
 }
 
-/** the hints for a local train's stops after Durgapur (no request): one leg per stop that the table covers */
+/** Makes the hints for a local train's stops after Durgapur (no request): one leg per stop that the table covers. */
 export function localLegs(schedule: Schedule, today: string): LegFare[] {
   const legs: LegFare[] = [];
   for (const st of schedule.stops) {

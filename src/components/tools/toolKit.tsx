@@ -1,12 +1,12 @@
 // src/components/tools/toolKit.tsx
 //
-// THE LOOK OF THE CALCULATORS AND CONVERTERS, in the family of the management windows (employee, PAX): glass cards on a soft gradient with two blurred lights, gradient icon tiles, rounded-3xl frames,
+// The look of the calculators and converters, in the family of the management windows (employee, PAX): glass cards on a soft gradient with two blurred lights, gradient icon tiles, rounded-3xl frames,
 // inputs with an inner shadow and a coloured focus ring. Here are the pieces that have a life of their own:
 //   - ToolShell: the frame of a card, with its tone, its Instant pill and an entrance;
 //   - Elastic: a box whose height follows its content with a spring (so a long unit name inflates the box and a short one lets it deflate, smoothly);
 //   - ToolSelect: the dropdown, with a proper chevron, the WHOLE of a long option visible (it wraps), search when the list is long, the keyboard, and an animated list;
 //   - fitSize: the size of a big number, shrinking as it gets longer so that it is always seen whole.
-// Nothing here knows any sum. Nothing is stored or sent. Only Tailwind sizes the modal's scale sheet (omniScale.css) knows are used, so all of it follows the modal's text scale.
+// Nothing here knows any sum, and nothing is stored or sent. I use only Tailwind sizes that the modal's scale sheet (omniScale.css) knows, so all of it follows the modal's text scale.
 "use client";
 
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -18,20 +18,20 @@ import { ToolNotice } from "./toolAtoms";
 export type Tone = "sky" | "amber" | "emerald" | "violet" | "rose";
 
 export interface ToneStyle {
-  /** the gradient of icon tiles, chips and chevrons */
+  /** The gradient of icon tiles, chips and chevrons. */
   grad: string;
-  /** the card frame: border, background, shadow */
+  /** The card frame: border, background, shadow. */
   frame: string;
   light1: string;
   light2: string;
-  /** a coloured text, a soft background, a focus ring */
+  /** A coloured text, a soft background, a focus ring. */
   text: string;
   soft: string;
   ring: string;
   /** the dark result panel */
   dark: string;
   border: string;
-  /** the glow under the arrow tile of a dropdown */
+  /** The glow under the arrow tile of a dropdown. */
   glow: string;
 }
 
@@ -98,7 +98,7 @@ export const TONES: Record<Tone, ToneStyle> = {
   },
 };
 
-/** useLayoutEffect on the browser, useEffect where there is no browser (the tests, a server render): no warning either way */
+/** I use useLayoutEffect in the browser and useEffect where there is no browser (the tests, a server render): no warning either way. */
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const SPRING = { type: "spring" as const, stiffness: 260, damping: 28, mass: 0.9 };
@@ -111,24 +111,24 @@ export interface ToolShellProps {
   icon: React.ReactNode;
   tone?: Tone;
   instant?: boolean;
-  /** the cross: closes the card (the calculators list, which leaves the search window as it is) */
+  /** The cross closes the card (the calculators list, which leaves the search window as it is). */
   onClose?: () => void;
-  /** what the cross says it closes, for the screen reader (the calculators say "Close this calculator") */
+  /** What the cross says it closes, for the screen reader (the calculators say "Close this calculator"). */
   closeLabel?: string;
-  /** a small chip at the right of the header, before the back arrow and the cross (the management page puts who holds it there) */
+  /** A small chip at the right of the header, before the back arrow and the cross (the management page puts who holds it there). */
   badge?: React.ReactNode;
-  /** the back arrow: a page opened from a list goes back to it. A cross would say "close", and this does not close anything */
+  /** The back arrow: a page opened from a list goes back to it. I do not use a cross here, because a cross would say "close" and this does not close anything. */
   onBack?: () => void;
-  /** what the back arrow says it goes to, for the screen reader and the tooltip (the calculators list when not said) */
+  /** What the back arrow says it goes to, for the screen reader and the tooltip (the calculators list when not said). */
   backLabel?: string;
-  /** the card downloads the public rate table (said in the notice) */
+  /** The card downloads the public rate table (said in the notice). */
   rates?: boolean | string;
-  /** false: the card leaves out the privacy and approximation notice (a card that has nothing to type into and no sums, such as a reading card); true when not said */
+  /** false: the card leaves out the privacy and approximation notice (a card that has nothing to type into and no sums, such as a reading card); true when not said. */
   notice?: boolean;
   children: React.ReactNode;
 }
 
-/** THE BACK BUTTON of every page that was opened from a list (the calculators' pages, the management pages): the arrow and "Back", one look everywhere; `label` says where it goes (for the screen reader and the tooltip) */
+/** The back button of every page that was opened from a list (the calculators' pages, the management pages): the arrow and "Back", one look everywhere. `label` says where it goes (for the screen reader and the tooltip). */
 export function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-label={label} title={label} className="group flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 pl-2.5 pr-3.5 text-xs font-bold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-900">
@@ -138,7 +138,7 @@ export function BackButton({ label, onClick }: { label: string; onClick: () => v
   );
 }
 
-/** THE CROSS of every page that can be closed (the calculators' pages, the management page): one look everywhere; `label` says what it closes (for the screen reader) */
+/** The cross of every page that can be closed (the calculators' pages, the management page): one look everywhere. `label` says what it closes (for the screen reader). */
 export function CloseButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-label={label} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-500 shadow-sm transition hover:rotate-90 hover:border-slate-300 hover:text-slate-800">
@@ -159,7 +159,7 @@ export function ToolShell({ title, subtitle, icon, tone = "sky", instant, badge,
       transition={SPRING}
       className={`relative isolate mb-3 rounded-3xl border p-4 sm:p-5 ${t.frame}`}
     >
-      {/* the lights are clipped in a box of their own, so that a dropdown list may reach beyond the card */}
+      {/* I clip the lights in a box of their own, so that a dropdown list may reach beyond the card. */}
       <span aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl">
         <span className={`absolute -right-24 -top-28 h-72 w-72 rounded-full blur-3xl ${t.light1}`} />
         <span className={`absolute -bottom-32 -left-24 h-72 w-72 rounded-full blur-3xl ${t.light2}`} />
@@ -213,7 +213,7 @@ export function Elastic({ children, className = "" }: { children: React.ReactNod
   );
 }
 
-/** The size class of a big number: the longer it is, the smaller, so that it is always seen whole. */
+/** The size class of a big number: the longer it is, the smaller I make it, so that it is always seen whole. */
 export function fitSize(text: string, scale: "hero" | "big" = "hero"): string {
   const n = text.length;
   if (scale === "big") return n <= 10 ? "text-2xl" : n <= 16 ? "text-xl" : n <= 22 ? "text-lg" : "text-base";
@@ -228,7 +228,7 @@ export interface SelectOption {
   hint?: string;
 }
 
-/** the index to move to on an arrow key: stays inside the list, never beyond either end */
+/** The index to move to on an arrow key: it stays inside the list, never beyond either end. */
 export function nextIndex(current: number, key: "ArrowDown" | "ArrowUp" | "Home" | "End", length: number): number {
   if (length <= 0) return -1;
   if (key === "Home") return 0;
@@ -237,7 +237,7 @@ export function nextIndex(current: number, key: "ArrowDown" | "ArrowUp" | "Home"
   return key === "ArrowDown" ? Math.min(length - 1, current + 1) : Math.max(0, current - 1);
 }
 
-/** the options that match what was typed in the search box (every typed word must be in the label) */
+/** The options that match what was typed in the search box (every typed word must be in the label). */
 export function filterOptions(options: SelectOption[], query: string): SelectOption[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return options;
@@ -245,8 +245,8 @@ export function filterOptions(options: SelectOption[], query: string): SelectOpt
 }
 
 /**
- * Where a dropdown list goes. Measured BEFORE it opens: the room below the button against the height the list normally has; below is the first choice; if it does not fit there but fits
- * above, above; if it fits on neither side it takes the larger side and its list scrolls inside the room there is. It is drawn over everything (a portal on the page, position fixed),
+ * Where a dropdown list goes. I measure BEFORE it opens: the room below the button against the height the list normally has; below is the first choice; if it does not fit there but fits
+ * above, I use above; if it fits on neither side it takes the larger side and its list scrolls inside the room there is. It is drawn over everything (a portal on the page, position fixed),
  * so no window, bar or scrolling area it sits in can hide any part of it.
  */
 export function placeList(buttonTop: number, buttonBottom: number, viewportHeight: number, natural: number, margin = 12, gap = 8): { up: boolean; room: number } {
@@ -257,7 +257,7 @@ export function placeList(buttonTop: number, buttonBottom: number, viewportHeigh
   return below >= above ? { up: false, room: Math.max(96, below) } : { up: true, room: Math.max(96, above) };
 }
 
-/** the height a list normally has: its rows (about 2.5 rem each) and its search box, never more than 20 rem */
+/** The height a list normally has: its rows (about 2.5 rem each) and its search box, never more than 20 rem. */
 export function naturalListHeight(rows: number, searchable: boolean): number {
   return Math.min(320, 16 + (searchable ? 56 : 0) + rows * 40);
 }
@@ -290,10 +290,10 @@ export interface ToolSelectProps {
   id?: string;
   tone?: Tone;
   variant?: SelectVariant;
-  /** on a dark panel: light text */
+  /** On a dark panel: light text. */
   dark?: boolean;
   className?: string;
-  /** the list opens towards the right edge instead of the left */
+  /** The list opens towards the right edge instead of the left. */
   alignRight?: boolean;
   placeholder?: string;
 }
@@ -301,7 +301,7 @@ export interface ToolSelectProps {
 /**
  * The dropdown of the tools. The button shows the WHOLE of the chosen option (a long name wraps onto more lines and the box inflates and deflates with a spring); the chevron turns over when
  * the list opens; the list animates in, scrolls when long, can be searched (more than eight options), and is driven from the keyboard (arrows, Home, End, Enter, Escape, type to search).
- * Escape closes only the list, never the search window around it.
+ * I made Escape close only the list, never the search window around it.
  */
 export function ToolSelect({ value, options, onChange, ariaLabel, id, tone = "sky", variant = "field", dark, className = "", alignRight, placeholder }: ToolSelectProps) {
   const t = TONES[tone];
@@ -324,14 +324,14 @@ export function ToolSelect({ value, options, onChange, ariaLabel, id, tone = "sk
   const current = options.find((o) => o.id === value);
 
   const close = useCallback((refocus = true) => { setOpen(false); setQuery(""); if (refocus) btn.current?.focus(); }, []);
-  /** measure the button and the window now, and decide where the list goes */
+  /** Here I measure the button and the window now, and decide where the list goes. */
   const place = useCallback((): ListPos | null => {
     const el = btn.current;
     if (!el) return null;
     const r = el.getBoundingClientRect();
     const vw = window.innerWidth, vh = window.innerHeight;
     const { up, room } = placeList(r.top, r.bottom, vh, naturalListHeight(options.length, options.length > 8));
-    const k = getComputedStyle(el).getPropertyValue("--omni-k").trim() || "1"; // the text scale of the search window, so that the list's text is the same size
+    const k = getComputedStyle(el).getPropertyValue("--omni-k").trim() || "1"; // The text scale of the search window, so that the list's text is the same size.
     const p: ListPos = { up, room, minWidth: r.width, maxWidth: 416, k };
     if (alignRight) { p.right = Math.max(8, vw - r.right); p.maxWidth = Math.min(416, r.right - 8); } else { p.left = Math.max(8, Math.min(r.left, vw - 8 - Math.min(r.width, 200))); p.maxWidth = Math.min(416, vw - p.left - 8); }
     if (up) p.bottom = vh - r.top + 8; else p.top = r.bottom + 8;
@@ -339,13 +339,13 @@ export function ToolSelect({ value, options, onChange, ariaLabel, id, tone = "sk
   }, [options.length, alignRight]);
 
   const openList = useCallback(() => {
-    btn.current?.focus(); // a click does not focus a button in every browser; the keys (and Escape, which must close only the list) go to the focused element
+    btn.current?.focus(); // A click does not focus a button in every browser; the keys (and Escape, which must close only the list) go to the focused element.
     setPos(place());
     setActive(Math.max(0, options.findIndex((o) => o.id === value)));
     setOpen(true);
   }, [options, value, place]);
 
-  // while open: follow the button when the page or the scrolling area moves or the window changes size; close when the button leaves the window
+  // While open: I follow the button when the page or the scrolling area moves or the window changes size, and close when the button leaves the window.
   useEffect(() => {
     if (!open) return;
     const follow = (e?: Event) => {
@@ -387,7 +387,7 @@ export function ToolSelect({ value, options, onChange, ariaLabel, id, tone = "sk
   };
 
   const v = VARIANT[variant];
-  // THE ARROW: a rounded-square tile (never a circle, so it cannot be taken for the tick of a chosen option), a gradient with a glow under it on the light fields and a glass tile on the dark
+  // The arrow: a rounded-square tile (never a circle, so it cannot be taken for the tick of a chosen option), a gradient with a glow under it on the light fields and a glass tile on the dark
   // panel; it turns over when the list opens and lifts a little under the pointer.
   const chevron = (
     <motion.span
@@ -462,7 +462,7 @@ export function ToolSelect({ value, options, onChange, ariaLabel, id, tone = "sk
                       onClick={() => choose(o)}
                       className={`relative flex cursor-pointer items-start gap-2 rounded-xl py-2 pl-4 pr-3 text-sm leading-snug transition-colors ${selected ? `${t.soft} font-semibold ${t.text}` : i === active ? "bg-slate-100 text-slate-900" : "text-slate-700"}`}
                     >
-                      {/* THE CHOSEN OPTION: an accent bar down its left edge and a bold tick in the tone's colour, no tile or circle: nothing like the arrow tile of the button above */}
+                      {/* The chosen option: I give it an accent bar down its left edge and a bold tick in the tone's colour, with no tile or circle, so it looks nothing like the arrow tile of the button above. */}
                       {selected && <span aria-hidden="true" className={`absolute bottom-1.5 left-1 top-1.5 w-1 rounded-full ${t.grad}`} />}
                       <span className="min-w-0 flex-1 break-words">{o.label}{o.hint && <span className="block text-xs font-normal text-slate-500">{o.hint}</span>}</span>
                       {selected && <Check size={18} strokeWidth={3.5} className="mt-px shrink-0 drop-shadow-sm" aria-hidden="true" />}

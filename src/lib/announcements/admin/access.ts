@@ -1,6 +1,6 @@
 // src/lib/announcements/admin/access.ts
 //
-// Access helpers and session resolution for the Announcement Manager facility.
+// Here are my access helpers and the session resolution for the Announcement Manager facility.
 
 import type { DataSource } from "typeorm";
 import { getSessionTicket } from "@/lib/apiAuth";

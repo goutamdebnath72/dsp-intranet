@@ -1,5 +1,5 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.json src/lib/concurrency/version.selftest.ts
-// Step 67b: the version token of a record. Pure.
+// Step 67b: tests of the version token of a record. The code under test is pure.
 
 import { sameVersion, versionOf, versionSecret } from "./version";
 

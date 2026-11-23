@@ -2,7 +2,7 @@
 // Step 63a: the PAX directory search. The planner decides what the route may take; the matcher finds the rows (abbreviations, spelling slips, areas); the answer puts the ONE clean answer first;
 // the route sits in runOmnibar before the hospital route and reads the table with the application's own connection, never the model's.
 //
-// THE FIXTURE: the names and numbers that the project's handoff documents (Civil (A - Zone); PAX Complain (In Plant) 40221 and (Township) 45221; CISF Tumla Gate and Weigh Bridge - Tumla Gate on one number, 42043;
+// THE FIXTURE: the names and numbers that the project's handoff documents give (Civil (A - Zone); PAX Complain (In Plant) 40221 and (Township) 45221; CISF Tumla Gate and Weigh Bridge - Tumla Gate on one number, 42043;
 // CISF Main Hospital 46298, the number that fits neither area rule; Network Team (C & IT) / (CMMS); C & IT (Console) / (DR) / (DRC); Plant Medical (PMU); MRS Control (Electrical Complain); CISF (PCR)).
 // Every OTHER number below is INVENTED for this test and is not Telecom's.
 
@@ -18,9 +18,9 @@ const ok = (name: string, cond: boolean, extra = "") => {
   else { fail++; console.log(`FAIL ${name} ${extra}`); }
 };
 
-// the area rule as the handoff states it (the database function public.pax_area is the real one): plant = 4[0-2]xxx, outside = 45xxx or 5xxxx, else not classified
+// The area rule as the handoff states it (the database function public.pax_area is the real one): plant = 4[0-2]xxx, outside = 45xxx or 5xxxx, else not classified
 const areaOf = (n: string): PaxArea => (/^4[0-2]\d{3}$/.test(n) ? "plant" : /^45\d{3}$|^5\d{4}$/.test(n) ? "outside" : "unclassified");
-// the label split as the handoff states it: a name that ends in a bracket is split there
+// The label is split as the handoff states it: a name that ends in a bracket is split there
 const mk = (label: string, number: string, note = ""): PaxRow => {
   const m = /^(.*?)\s*\(([^)]*)\)\s*$/.exec(label);
   return { label, deptName: m ? m[1] : label, location: m ? m[2] : "", number, note, area: areaOf(number) };
@@ -35,7 +35,7 @@ const ROWS: PaxRow[] = [
   mk("PAX Complain (In Plant)", "40221"), mk("PAX Complain (Township)", "45221"),
   mk("Township Garage", "45310"), mk("Water Supply (Township)", "45401"),
 ];
-const DISTINCT = new Set(ROWS.map((r) => r.number)).size; // 18 numbers on 19 entries (42043 twice)
+const DISTINCT = new Set(ROWS.map((r) => r.number)).size; // 18 numbers on 19 entries, since 42043 is used twice
 
 type Card = NonNullable<Awaited<ReturnType<typeof answerPax>>>["card"];
 const ask = async (q: string, rows: PaxRow[] = ROWS) => answerPax(q, async () => rows);
@@ -92,7 +92,7 @@ async function main() {
     "who is the head of civil engineering", "", "   ", "a",
   ]) {
     const p = plan(q);
-    // a plan may exist for a weak cue (it still has to FIND a name); the question is whether the ROUTE answers: checked below with the real rows
+    // A plan may exist for a weak cue (it still has to FIND a name); what matters is whether the ROUTE answers, which I check below with the real rows
     const answered = p ? await ask(q) : null;
     ok(`"${q.slice(0, 60)}" is not taken by the PAX route`, answered === null, JSON.stringify(p));
   }
@@ -109,7 +109,7 @@ async function main() {
     a = await ask(q);
     ok(`"${q}" -> 42046`, head(a) === "42046", JSON.stringify(a?.card.headline));
   }
-  // spelling slips are said, never silent
+  // I always say a spelling slip, never silently
   a = await ask("pax fire servise");
   ok("'pax fire servise' finds Fire Service by a spelling slip and SAYS so", head(a) === "42046" && /Read “servise” as “service”/.test(a?.interpretation ?? "") && /Read “servise” as “service”/.test(a?.summary ?? ""), a?.interpretation);
   ok("'pax fier service' (swapped letters) is found too", head(await ask("pax fier service")) === "42046");
@@ -143,7 +143,7 @@ async function main() {
   ok("'pax water pump': amber, said to be NOT an exact match, and only the related entry's own numbers (Water Supply) are shown: no number is invented", /related entr/.test(head(a) ?? "") && tone(a) === "unknown" && /No PAX entry is named/.test(a?.card.status?.text ?? "") && !!a?.card.table && a.card.table.rows.every((r) => /Water Supply/i.test(r[0])), JSON.stringify(a?.card));
   a = await ask("pax fire brigade");
   ok("'pax fire brigade': no exact entry, so the related entry (Fire Service) is shown WITH its numbers, marked related", /related entr/.test(head(a) ?? "") && !!a?.card.table && a.card.table.rows.some((r) => /Fire Service/i.test(r[0])) && /No PAX entry is named/.test(a?.card.status?.text ?? ""), JSON.stringify(a?.card));
-  // the owner's case (23 Nov 2026): "central store" is no entry, but the sub-departments "Store House - SH # nn" share "store": ALL of them are shown with their numbers, said to be related
+  // My case (23 Nov 2026): "central store" is no entry, but the sub-departments "Store House - SH # nn" share "store": ALL of them are shown with their numbers, said to be related
   {
     const sh = ["08", "11", "29", "31", "33", "40"].map((n, i): PaxRow => ({ label: `Store House - SH # ${n}`, deptName: "Store House", location: `SH # ${n}`, number: String(41100 + i), note: "", area: "plant" }));
     const other: PaxRow[] = [{ label: "Fire Service", deptName: "Fire Service", location: "", number: "42050", note: "", area: "plant" }];
@@ -174,7 +174,7 @@ async function main() {
   ok("two numbers at once: both found", head(a) === "2 of 2 numbers found" && nums(a).length === 2);
   a = await ask("pax 42046 and 11111");
   ok("two numbers, one missing: 1 of 2, and the missing one is named", head(a) === "1 of 2 numbers found" && (a?.card.lines ?? []).some((l) => /Not in the directory: 11111/.test(l)));
-  // ---- a department with more than one number: ONE row, "first / second" (owner, 31 Oct 2026); a name that shares a number joins that department ----
+  // ---- a department with more than one number: ONE row, "first / second" (my rule, 31 Oct 2026); a name that shares a number joins that department ----
   const TWO: PaxRow[] = [mk("CISF Tumla Gate", "40926"), mk("CISF Tumla Gate", "42043"), mk("Weigh Bridge - Tumla Gate", "42043"), mk("CISF (PCR)", "42041"), mk("Fire Service", "42046"), mk("Fire Service", "42050")];
   a = await ask("pax tumla gate", TWO);
   ok("'pax tumla gate': CISF Tumla Gate with two numbers is ONE row '40926 / 42043'; Weigh Bridge - Tumla Gate is under CISF too (it shares 42043)", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["CISF", "Tumla Gate", "40926 / 42043"], ["CISF", "Weigh Bridge - Tumla Gate", "42043"]]), JSON.stringify(a?.card.table?.rows));
@@ -189,7 +189,7 @@ async function main() {
 
   ok("TEMPORARY: an empty location is shown as 'Office' (owner, 31 Oct 2026); a location that exists is never replaced", (a?.card.table?.rows ?? []).every((r) => r[1] !== "") && (await ask("pax civil"))?.card.table?.rows.map((r) => r[1]).join() === "A - Zone,B - Zone,C - Zone");
 
-  // ---- a question can start from ANY of the three columns (owner, 31 Oct 2026): Department, Location or PAX. The names and numbers are the ones seen in the owner's screenshots. ----
+  // ---- a question can start from ANY of the three columns (my rule, 31 Oct 2026): Department, Location or PAX. The names and numbers are the ones seen in my screenshots. ----
   const REAL: PaxRow[] = ([
     ["Weigh Bridge – 60T", "40173"], ["Weigh Bridge – 80T", "40273"], ["Weigh Bridge – Gate 5(Oxy)", "42746"], ["Weigh Bridge – North End", "41241"], ["Weigh Bridge – South End", "40591"], ["Weigh Bridge – Tumla Gate", "42043"], ["Weigh Bridge – Waria Gate", "40373"],
     ["Water Supply (A – Zone)", "45622"], ["Water Supply (B – Zone)", "45109"], ["Tumla Invoice", "41837"],
@@ -212,7 +212,7 @@ async function main() {
     const x = await ask(q, REAL);
     ok(`"${q}" -> ${want}`, head(x) === want, `got ${head(x)}`);
   }
-  // "Gate No. 2" is the same gate as "Gate No. 2A" (owner, 31 Oct 2026), both ways; another number is not
+  // "Gate No. 2" is the same gate as "Gate No. 2A" (my rule, 31 Oct 2026), both ways; another number is not
   const G2: PaxRow[] = [mk("CISF Gate No. 2A", "42384"), mk("CISF Gate No. 2B", "42385"), mk("CISF Gate No. 5", "42748"), mk("CISF Gate No. 20", "42120"), mk("Weigh Bridge – Gate 5(Oxy)", "42746")];
   ok("'pax gate no 2' finds Gate No. 2A and 2B (not 5, not 20)", JSON.stringify(nums(await ask("pax gate no 2", G2)).sort()) === JSON.stringify(["42384", "42385"]));
   ok("'pax cisf gate 2' and 'phone number of gate no 2' are the same", JSON.stringify(nums(await ask("pax cisf gate 2", G2)).sort()) === JSON.stringify(["42384", "42385"]) && JSON.stringify(nums(await ask("phone number of gate no 2", G2)).sort()) === JSON.stringify(["42384", "42385"]));
@@ -221,7 +221,7 @@ async function main() {
   ok("the other way: 'pax gate no 2a' finds a row printed 'Gate No. 2'", JSON.stringify(nums(await ask("pax gate no 2a", G2PLAIN))) === JSON.stringify(["42380"]));
   ok("'pax gate 5' still finds only the 5s, 'pax gate no 20' only 20", JSON.stringify(nums(await ask("pax gate 5", G2)).sort()) === JSON.stringify(["42746", "42748"]) && JSON.stringify(nums(await ask("pax gate no 20", G2))) === JSON.stringify(["42120"]));
   ok("'pax cisf gate 2a' in the real-names fixture -> 42384 (as before)", head(await ask("pax cisf gate 2a", REAL)) === "42384" && head(await ask("pax gate no 2", REAL)) === "42384");
-  // a department and its location are written together ONE way: "Weigh Bridge - 60T" (owner, 31 Oct 2026), whatever dash or bracket the printed list used
+  // A department and its location are written together ONE way: "Weigh Bridge - 60T" (my rule, 31 Oct 2026), whatever dash or bracket the printed list used
   ok("the sentence of a lookup writes it 'Weigh Bridge - 60T', not with the printed en dash", (await ask("pax 60t", REAL))?.summary === "Weigh Bridge - 60T — PAX 40173." && (await ask("pax main gate in", REAL))?.summary === "CISF - Main Gate (IN) — PAX 40385.", (await ask("pax 60t", REAL))?.summary);
   ok("a name from a number is written the same way: 'who has 42746' -> Weigh Bridge - Gate 5(Oxy); a department with no location stays alone: Fire Service", (await ask("who has 42746", REAL))?.summary === "PAX 42746 is Weigh Bridge - Gate 5(Oxy)." && (await ask("who has 42050", REAL))?.summary === "PAX 42050 is Fire Service.");
   ok("the related entries are written the same way (department and location apart, never the printed en dash)", ((await ask("pax weigh bridge pump", REAL))?.card.table?.rows ?? []).length > 0 && ((await ask("pax weigh bridge pump", REAL))?.card.table?.rows ?? []).every((r) => /^Weigh Bridge/.test(r[0]) && !r.join(" ").includes("\u2013")), JSON.stringify((await ask("pax weigh bridge pump", REAL))?.card.table));
@@ -229,13 +229,13 @@ async function main() {
   ok("a short number is part of a name ('gate 5'), a group of three to five digits is a number", JSON.stringify((planPaxQuery("pax gate 5") as { tokens: string[] }).tokens) === JSON.stringify(["gate", "5"]) && planPaxQuery("pax gate 42746")?.kind === "number");
   ok("a trailing 'in' is only a narrowing word: 'pax numbers in plant' is still the area, not a name", (planPaxQuery("pax numbers in plant") as { area: string }).area === "plant" && planPaxQuery("pax numbers in plant")?.kind === "list");
 
-  // ---- the owner's screenshot of 31 Oct: en-dash names, 42043 on two names, nothing at the foot ----
+  // ---- my screenshot of 31 Oct: en-dash names, 42043 on two names, nothing at the foot ----
   const WB: PaxRow[] = [mk("Weigh Bridge – 60T", "40173"), mk("Weigh Bridge – Tumla Gate", "42043"), mk("CISF Tumla Gate", "42043"), mk("CISF (PCR)", "42041")];
   a = await ask("pax number of departments", WB);
   ok("'pax number of departments': 'Weigh Bridge' is the department, no dash after it, the location is the rest", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["CISF", "PCR", "42041"], ["CISF", "Tumla Gate", "42043"], ["Weigh Bridge", "60T", "40173"], ["Weigh Bridge", "Tumla Gate", "42043"]]), JSON.stringify(a?.card.table?.rows));
   ok("...and NOTHING at the foot: no red line about 42043, no 'What is PAX?'", !a?.card.notes && !a?.card.details && !JSON.stringify(a?.card).includes("42043 is listed") && !JSON.stringify(a?.card).includes("What is PAX"), JSON.stringify(a?.card).slice(-200));
 
-  // ---- complete department names are never cut (owner, 31 Oct 2026) ----
+  // ---- complete department names are never cut (my rule, 31 Oct 2026) ----
   const PLANTS: PaxRow[] = [mk("Plant Control", "40001"), mk("Plant Medical (PMU)", "41301"), mk("Fire Service", "42046")];
   a = await ask("pax plant control", PLANTS);
   ok("'pax plant control': Plant Control | Office | 40001 (the department is whole; no location, so the temporary word)", JSON.stringify(a?.card.table?.rows) === JSON.stringify([["Plant Control", "Office", "40001"]]) && head(a) === "40001", JSON.stringify(a?.card.table?.rows));

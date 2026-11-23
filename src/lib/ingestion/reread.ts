@@ -1,12 +1,12 @@
 // src/lib/ingestion/reread.ts
 //
-// Replacing the stored text of an ALREADY-UPLOADED circular, in place: its chunks (circular_chunks) and its whole-document vector (circulars.embedding).
-// NEVER its id, serial number, dates, headline, author or page images. Used by scripts/ocr-consensus.ts (the consensus correction of the stored text).
+// This replaces the stored text of an ALREADY-UPLOADED circular, in place: its chunks (circular_chunks) and its whole-document vector (circulars.embedding).
+// It NEVER touches its id, serial number, dates, headline, author or page images. Used by scripts/ocr-consensus.ts (the consensus correction of the stored text).
 //
-// SAFETY: applyReread() computes every embedding first (a failure there changes nothing), saves the old chunks and vectors to a backup file, then replaces them in ONE
+// Safety: applyReread() computes every embedding first (a failure there changes nothing), saves the old chunks and vectors to a backup file, then replaces them in ONE
 // transaction; if anything fails nothing changes. restoreFromBackup() puts the old text and vectors back exactly.
 //
-// Everything outside the logic (the embedding service, the database) is injected, so it is tested without network access.
+// Everything outside the logic (the embedding service, the database) is injected, so I can test it without network access.
 
 import { nowIso } from "../dates";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -21,7 +21,7 @@ export interface RereadDeps {
   embed(text: string): Promise<number[]>;
 }
 
-/** What is about to replace a circular's stored text. Only a plan whose status is "would-change" is applied. */
+/** What is about to replace a circular's stored text. I apply only a plan whose status is "would-change". */
 export interface RereadPlan {
   id: number;
   serialNumber: number | null;
@@ -50,17 +50,17 @@ export interface ApplyResult {
 
 const vectorLiteral = (v: number[]) => `[${v.join(",")}]`;
 
-/** Replaces the circular's chunks and whole-document vector with the re-read ones. Only for a plan whose status is "would-change". */
+/** Replaces the circular's chunks and whole-document vector with the re-read ones. Only for a plan whose status is "would-change"; I refuse any other. */
 export async function applyReread(client: SqlClient, deps: Pick<RereadDeps, "embed">, plan: RereadPlan, backupDir: string): Promise<ApplyResult> {
   if (plan.status !== "would-change") throw new Error(`refusing to apply a plan with status "${plan.status}"`);
 
-  // 1. Every embedding first, before anything is written: a failure here changes nothing.
+  // 1. I compute every embedding first, before anything is written: a failure here changes nothing.
   const docText = documentEmbeddingText(plan.extractedText);
   const docVector = docText ? vectorLiteral(await deps.embed(docText)) : null;
   const chunkVectors: string[] = [];
   for (const c of plan.newChunks) chunkVectors.push(vectorLiteral(await deps.embed(c.text)));
 
-  // 2. Back up exactly what is about to be replaced (text AND vectors), so it can be restored.
+  // 2. I back up exactly what is about to be replaced (text AND vectors), so it can be restored.
   const old = await client.query(
     `SELECT chunk_index, page_number, text, embedding::text AS embedding FROM public.circular_chunks WHERE circular_id = $1 ORDER BY chunk_index`,
     [plan.id],

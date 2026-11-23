@@ -1,9 +1,9 @@
 // src/tools/railway/FareFinder.tsx
 //
 // "FIND A FARE": the user says where they are going from Durgapur (or from Asansol, on the Asansol tab: `from="ASN"`, the fares from Asansol, in their own tables) and sees every train that goes there with its fare for each class. The fares to every stop were collected and SAVED while the plant's paid fare service lasted
-// (src/lib/live/fareLegStore.ts), so this asks only the database (src/app/api/live/railway-fare-find): nothing is asked of RailRadar's fare service, and nothing is requested until the box is opened. The list of stations is
+// (src/lib/live/fareLegStore.ts), so this asks only the database (src/app/api/live/railway-fare-find): I ask nothing of RailRadar's fare service, and nothing is requested until the box is opened. The list of stations is
 // the stations that have a saved fare; the choice is made in the tools' own searchable dropdown. Results follow the card's two switches (only trains that run today; specials) and can be ordered by time or by price.
-// What is said honestly: the date of the OLDEST fare shown, that fares have been collected for X of Y trains (so a train may be missing), that a local train's figure is an estimate from the fare table, and the disclaimer.
+// What I say honestly: the date of the OLDEST fare shown, that fares have been collected for X of Y trains (so a train may be missing), that a local train's figure is an estimate from the fare table, and the disclaimer.
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -19,7 +19,7 @@ import { stationLabel } from "./stations";
 
 export type SortBy = "time" | "price";
 
-/** the trains that pass the card's switches, in the order asked for */
+/** Returns the trains that pass the card's switches, in the order asked for */
 export function shownTrains(trains: FindTrain[], opts: { today: Moment["day"] | null; specials: boolean; sort: SortBy }): FindTrain[] {
   const list = trains.filter((t) => (opts.specials || t.kind !== "special") && (!opts.today || t.days.length === 0 || t.days.includes(opts.today)));
   return opts.sort === "price" ? [...list].sort((a, b) => cheapest(a) - cheapest(b) || a.number.localeCompare(b.number)) : list;
@@ -61,7 +61,7 @@ export function FindRow({ t }: { t: FindTrain }) {
   );
 }
 
-/** the result for a station: the list, the date of the oldest fare, how much has been collected, the disclaimer */
+/** The result for a station: the list, the date of the oldest fare, how much has been collected, the disclaimer */
 export function FindResults({ answer, now, onlyToday, specials, sort, from = "DGR" }: { answer: FindAnswer; now: Moment; onlyToday: boolean; specials: boolean; sort: SortBy; from?: FareFrom }) {
   const list = shownTrains(answer.trains, { today: onlyToday ? now.day : null, specials, sort });
   const stop = stationLabel(answer.stop.code, answer.stop.name);
@@ -114,7 +114,7 @@ function FinderOpen({ now, onlyToday, specials, from }: { now: Moment; onlyToday
   );
 }
 
-/** the finder: closed until asked for (so a page of trains makes no request), then the station box */
+/** The finder stays closed until asked for, so a page of trains makes no request; then it shows the station box */
 export function FareFinder({ now, onlyToday, specials, from = "DGR" }: { now: Moment; onlyToday: boolean; specials: boolean; from?: FareFrom }) {
   const [open, setOpen] = useState(false);
   return (
