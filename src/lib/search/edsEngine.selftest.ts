@@ -22,6 +22,7 @@ import { DateTime } from "luxon";
 import { scoreBriefing, pickBest, wantsEvolution, subjectQualifiers, ACCEPT_SCORE, STORE_MIN_SCORE } from "./edsQuality";
 import type { EdsRow, EdsStore } from "./edsStore";
 import { readFileSync } from "node:fs";
+import { PERF } from "@/lib/perf/switches";
 
 const ENGINE_SRC = readFileSync("src/lib/search/executiveSynthesis.ts", "utf8");
 
@@ -373,6 +374,48 @@ const run = async () => {
   rows.clear();
   const withFlaky = await executeExecutiveSynthesis(Q, records, labels, { store: flakyPut, candidates: 1, generate: async () => JSON.stringify(GOOD) });
   ok("a failed write does not break the answer", withFlaky.table?.rows.length === 4);
+
+  // ================= the speed switches (src/lib/perf/switches.js): how many drafts, and when the second reading starts =================
+  {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const EMPTY_VERDICT = JSON.stringify({ sentences: [], cells: [], missingRows: [], unanswered: [], abbreviations: [] });
+    const saved = { d: PERF.edsDrafts, v: PERF.edsVerifyDuringRepair };
+    const savedEnv = process.env.EDS_CANDIDATES;
+    delete process.env.EDS_CANDIDATES;
+    try {
+      // drafts: "hedged" writes ONE draft by default; "both" writes two; a number asked for on purpose is always honoured
+      const count = async (mode: "hedged" | "both", candidates?: number) => {
+        (PERF as any).edsDrafts = mode;
+        clearExecutiveSynthesisCache();
+        let calls = 0;
+        await executeExecutiveSynthesis(Q + Math.random(), records, labels, { store: null, ...(candidates ? { candidates } : {}), generate: async () => (calls++, JSON.stringify(GOOD)) });
+        return calls;
+      };
+      ok("hedged (the default): one draft is written", (await count("hedged")) === 1);
+      ok("both (the previous way): two drafts are written", (await count("both")) === 2);
+      ok("a number of candidates asked for on purpose is honoured under 'hedged' too", (await count("hedged", 2)) === 2);
+
+      // the second reading and the repair: the order of the calls
+      const orderOf = async (during: boolean) => {
+        (PERF as any).edsVerifyDuringRepair = during;
+        clearExecutiveSynthesisCache();
+        const order: string[] = [];
+        await executeExecutiveSynthesis("Compare the retention rules for 2023 and 2024 " + Math.random(), records, labels, {
+          store: null, candidates: 1, repair: true,
+          generate: async (_p, _s, i) => { order.push(`draft${i}`); await sleep(120); return JSON.stringify(GOOD); },
+          verify: async () => { order.push("verify"); return EMPTY_VERDICT; },
+        });
+        return order.join(",");
+      };
+      const early = await orderOf(true);
+      const late = await orderOf(false);
+      ok("edsVerifyDuringRepair: the second reading starts before the repair's draft is back", early === "draft0,verify,draft1", early);
+      ok("edsVerifyDuringRepair off (the previous way): the second reading waits for the repair", late === "draft0,draft1,verify", late);
+    } finally {
+      (PERF as any).edsDrafts = saved.d; (PERF as any).edsVerifyDuringRepair = saved.v;
+      if (savedEnv !== undefined) process.env.EDS_CANDIDATES = savedEnv;
+    }
+  }
 
   console.log(`EDS engine selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

@@ -24,5 +24,10 @@ export interface PerfSwitches {
   nl2sqlExamplesCacheSeconds: number;
   peopleEventsCacheSeconds: number;
   browserCacheFontsAndVideo: boolean;
+  edsDrafts: "hedged" | "both";
+  edsHedgeSeconds: number;
+  edsVerifyDuringRepair: boolean;
+  edsDraftModel: string;
+  edsVerifyModel: string;
 }
 export const PERF: PerfSwitches;

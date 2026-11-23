@@ -16,7 +16,8 @@ export const MODELS = {
   ocrChecker: "gemini-3.8-flash",
   embedding: "gemini-embedding-001",
   router: "gemini-3.8-flash",
-  writer: "gemini-3.1-pro-preview",
+  writer: "gemini-3.8-flash",
+  checker: "gemini-3.8-flash",
   writerFallbacks: ["gemini-pro-latest", "gemini-3.8-flash"],
 } as const;
 
@@ -29,7 +30,7 @@ export const SCOPE = {
 };
 
 /** THE TWO WAYS IN (23 Nov 2026): typing a deep question, and the Executive Deep Search button of the bar's second row ("More tools") */
-export const WAYS_IN = "There are two ways in. Type a deep question and press Enter, or press the Executive Deep Search button under the box (the second row, More tools). The button is there for everyone: if you have not signed in it first asks \"Are you an executive?\", Yes opens the sign-in window at once and No takes you back to Everything. Signed in as an executive, the box is ready for a deep question and shows a hint and examples.";
+export const WAYS_IN = "There are two ways in. Type a deep question and press Enter, or press the Executive Deep Search button under the box (the second row, More tools). The button is there for everyone: if you have not signed in it first asks \"Are you an executive?\", Yes opens the sign-in window at once and No takes you back to Everything. Signed in as an executive, the window shows the questions that have been proven to work: press one and it runs at once. Above them are the keywords to keep in a question of your own.";
 
 export interface Example { kind: string; question: string; gets: string }
 export const WHAT_IS = {
@@ -78,8 +79,8 @@ export const ASK_STEPS: Step[] = [
   { no: 2, title: "A second way in: the language-model router", what: "For a line the browser did not recognise, a fast Gemini model reads it in any phrasing and names the tool it needs. If it judges that several circulars must be combined and the person is a signed-in executive, EDS runs. If the model is slow, unavailable or answers something invalid, the ordinary search answers; a wrong guess never replaces a right answer." },
   { no: 3, title: "The question becomes a vector and pgvector finds the nearest text", what: "The same embedding model turns the question into 768 numbers. PostgreSQL's pgvector then compares them with the vector of every stored chunk (cosine similarity) and, in the same search, looks for the question's literal words. The best chunks are ranked by circular." },
   { no: 4, title: "The best circulars are chosen and read in full", what: "Up to five relevant circulars are kept. The writer is given their text (condensed only to fit its budget), not search snippets." },
-  { no: 5, title: "The writer builds the briefing", what: "The main Gemini model reads the question and the circulars and writes the briefing in a fixed structure: overview, findings (each with the circulars behind it), tables, and charts as data. By default it writes two drafts; plain code scores them and keeps the better one, and gives the writer one more attempt when it can see a structural fault such as a year asked for but missing from the table. The AI never chooses a chart type: code does." },
-  { no: 6, title: "A second reading checks it", what: "A model reads the circulars and the briefing again, sentence by sentence and cell by cell, and reports what is unsupported or contradicted, which rows the table lacks and which part of the question is unanswered. Plain code applies a report only where it can check it: a quotation must be found word for word in the circulars, and a corrected figure must be in the circulars. Nothing is changed on the model's word alone." },
+  { no: 5, title: "The writer builds the briefing", what: "The main Gemini model reads the question and the circulars and writes the briefing in a fixed structure: overview, findings (each with the circulars behind it), tables, and charts as data. By default it writes ONE draft (a second one is asked for only when the first is late); plain code scores it, and gives the writer one more attempt when it can see a structural fault such as a year asked for but missing from the table. The AI never chooses a chart type: code does." },
+  { no: 6, title: "A second reading checks it", what: "A model (the checker) reads the circulars and the briefing again, sentence by sentence and cell by cell, and reports what is unsupported or contradicted, which rows the table lacks and which part of the question is unanswered. Plain code applies a report only where it can check it: a quotation must be found word for word in the circulars, and a corrected figure must be in the circulars. Nothing is changed on the model's word alone." },
   { no: 7, title: "Plain-code guards", what: "Code, not AI, makes sure every figure in the briefing appears in the circulars, restores abbreviations as the circulars print them, shows a short form's meaning only when the circulars or a confirmed sense give it, builds the tables and number cards, and says \"Not stated in circular\" where a value cannot be proven." },
   { no: 8, title: "It is shown, and kept", what: "The briefing appears with its circular chips (each opens that circular) and a PDF to download. The first good briefing of a question is saved in the database (the table eds_briefing), so the same question asked again, by anyone, gets the same briefing, until the archive of circulars changes. A briefing written by a weaker fallback model, because the main one was out of allowance, is shown once but never saved." },
 ];
@@ -89,8 +90,8 @@ export const ASK_MODELS: ModelRow[] = [
   { stage: "The router (a second way in)", model: MODELS.router, job: "names the tool a line needs; short answer, little thinking" },
   { stage: "The question's vector", model: `${MODELS.embedding} (768 numbers)`, job: "turns the question into numbers that pgvector compares with the stored chunks" },
   { stage: "Finding the text", model: "PostgreSQL with pgvector", job: "cosine similarity over the chunk vectors, plus the literal words; no model writes anything here" },
-  { stage: "Writing the briefing", model: `${MODELS.writer}, then ${MODELS.writerFallbacks.join(", then ")} if the one before is out of allowance`, job: "builds the briefing from the full text of the circulars (two drafts by default)" },
-  { stage: "The second reading", model: "the same models, in the same order", job: "checks the briefing against the circulars; code applies only what it can verify" },
+  { stage: "Writing the briefing", model: `${MODELS.writer}, then ${MODELS.writerFallbacks.join(", then ")} if the one before is out of allowance`, job: "builds the briefing from the full text of the circulars (one draft by default; a second only when the first is late)" },
+  { stage: "The second reading", model: `${MODELS.checker}, then the writer's models if the one before is out of allowance`, job: "checks the briefing against the circulars; code applies only what it can verify" },
   { stage: "Guards, tables, number cards, charts", model: "no AI", job: "code" },
 ];
 

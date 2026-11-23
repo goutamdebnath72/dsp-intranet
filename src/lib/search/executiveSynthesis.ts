@@ -9,12 +9,13 @@ import { Agent } from "undici";
 import { createHash } from "node:crypto";
 import { SearchResultRow } from "./titleSearch";
 import { buildSourceNames, sanitizeSourceRefs } from "./sourceRefs";
-import { GeminiError, geminiGenerate, synthesisModels, type ThinkingLevel } from "../ai/geminiChat";
+import { GeminiError, geminiGenerate, synthesisModels, verifyModels, type ThinkingLevel } from "../ai/geminiChat";
 import { isAnnouncementSourceId } from "./sourceKey";
 import { scoreBriefing, pickBest, isMagnitudeNotShare, smallNumbersIn, subjectQualifiers, stemsOf, STORE_MIN_SCORE, type BriefingScore, type ScoreContext } from "./edsQuality";
 import type { EdsRow, EdsStore } from "./edsStore";
 import { withKpiCards } from "./kpiFromTable";
 import { withConditionFindings } from "./conditionFinding";
+import { PERF } from "@/lib/perf/switches"; // how the briefing is made fast: src/lib/perf/switches.js ("Executive Deep Search" block)
 
 const ollamaDispatcher = new Agent({
   headersTimeout: 10 * 60 * 1000,
@@ -585,10 +586,15 @@ JSON Output:`;
   const sourceText = sources.map((r) => r.chunkText || "").join("\n");
   const wanted = Math.round(Number(opts.candidates ?? process.env.EDS_CANDIDATES ?? 2));
   const n = Math.min(3, Math.max(1, Number.isFinite(wanted) ? wanted : 2));
+  // PERF.edsDrafts "hedged": ONE draft is written (a second only when the first is late: the hedge below); "both": n drafts side by side, the best kept (the previous way). The drafts of one question were word for word alike
+  // at temperature 0, so the second added cost and the wait for the slower of the two, not quality; the gold test (scripts/eds-gold.ts) is the check.
+  // (a number of candidates asked for on purpose, by the caller or by EDS_CANDIDATES, is always honoured: the switch changes only the default)
+  const drafts = PERF.edsDrafts === "hedged" && opts.candidates === undefined && !process.env.EDS_CANDIDATES ? 1 : n;
+  const hedgeAfterMs = PERF.edsHedgeSeconds > 0 ? PERF.edsHedgeSeconds * 1000 : undefined;
 
   // true when a model other than the main (pro) one answered, because the main one was out of quota or down: such a briefing is shown once but never kept
   let weakerModel = false;
-  const noteModel = (m: string) => { if (m && m !== synthesisModels()[0] && !/pro/i.test(m)) weakerModel = true; };
+  const noteModel = (m: string, main: string = synthesisModels()[0]) => { if (m && m !== main && !/pro/i.test(m)) weakerModel = true; };
   const callModel = async (i: number, prompt: string = userPrompt): Promise<string> => {
     if (opts.generate) return opts.generate(prompt, SYSTEM_PROMPT, i);
     const useLocalOllama = process.env.AI_ENVIRONMENT === "local" && process.env.NODE_ENV === "development";
@@ -625,13 +631,14 @@ JSON Output:`;
       thinking,
       attemptTimeoutMs: 45_000,
       totalTimeoutMs: 60_000,
-      label: n > 1 ? `EDS#${i + 1}` : "EDS",
+      hedgeAfterMs,
+      label: drafts > 1 ? `EDS#${i + 1}` : "EDS",
     });
     noteModel(reply.model);
     return reply.text;
   };
 
-  const settled = await Promise.allSettled(Array.from({ length: n }, (_, i) => callModel(i)));
+  const settled = await Promise.allSettled(Array.from({ length: drafts }, (_, i) => callModel(i)));
   const cands: Array<{ result: SynthesisResult; score: BriefingScore; differences: { text: string; sources: number[] } | null; scoreCtx: ScoreContext }> = [];
   let firstError: unknown = null;
   /** one raw answer -> a built, checked and scored candidate (null when unreadable) */
@@ -741,6 +748,41 @@ JSON Output:`;
   // A fault plain code can SEE in the best candidate's structure (a year the inquiry names with no column in the table; a comparison with no
   // table; an evolution with no timeline) is put to the writer once more, named, and the new answer is kept only if it scores higher.
   // General: the faults are the score's own notes (edsQuality.ts), not anything about this question.
+  // ---- THE SECOND READING, STARTED (edsVerify.ts) ---------------------------------------------------------------------------
+  // The best candidate is read against the circulars by a second model call (below, "THE SECOND READING"). With PERF.edsVerifyDuringRepair the reading of the best draft STARTS NOW, side by side with the repair attempt that
+  // follows, instead of after it: when the repair is not kept (the usual case) its answer is already there; when the repair IS kept, the repaired answer is read again, as before (the earlier reading is dropped).
+  const verifyOff = (process.env.EDS_VERIFY || "").trim().toLowerCase() === "off" || (!!opts.generate && !opts.verify);
+  type VerifyCall = Promise<{ raw: string } | { skipped: string } | { error: string }>;
+  const startVerify = (cand: (typeof cands)[number]): VerifyCall => {
+    const left = EDS_DEADLINE_MS - (Date.now() - started);
+    if (left < VERIFY_MIN_MS) return Promise.resolve({ skipped: `only ${Math.round(left / 1000)} s left` });
+    return (async () => {
+      try {
+        const input = verifierInput(q, cand.result, contextData);
+        if (opts.verify) return { raw: await opts.verify(input, VERIFY_PROMPT) };
+        const reply = await geminiGenerate(input, {
+          system: VERIFY_PROMPT,
+          json: true,
+          models: verifyModels(),
+          maxOutputTokens: 4000,
+          temperature: 0.0,
+          seed: SEED_BASE,
+          thinking: "low",
+          attemptTimeoutMs: Math.min(45_000, left - 1_000),
+          totalTimeoutMs: Math.min(47_000, left - 500),
+          hedgeAfterMs,
+          label: "EDS-check",
+        });
+        noteModel(reply.model, verifyModels()[0]);
+        return { raw: reply.text };
+      } catch (e: any) {
+        return { error: String(e?.message || e) };
+      }
+    })();
+  };
+  const bestBeforeRepair = best;
+  let verifyCall: VerifyCall | null = !verifyOff && PERF.edsVerifyDuringRepair ? startVerify(best) : null;
+
   const repairs = structuralRepairs(best.score.notes);
   if (repairs.length && (!opts.generate || opts.repair) && EDS_DEADLINE_MS - (Date.now() - started) > 45_000) {
     try {
@@ -761,37 +803,21 @@ JSON Output:`;
   }
 
   // ---- THE SECOND READING (edsVerify.ts) ----------------------------------------------------------------------------------
-  // The best candidate is read against the circulars by a second model call, and what that reading reports is applied only where plain code can
-  // check it (a quote found verbatim in the circulars, figures the circulars write, the circulars' own words). "failed" = the call could not be
+  // What the reading reports is applied only where plain code can check it (a quote found verbatim in the circulars, figures the circulars write, the circulars' own words). "failed" = the call could not be
   // made or gave no report: the briefing is shown as it is, but NOT stored, so the next ask reads it again.
   let verifyState: "done" | "failed" | "off" = "off";
-  const verifyOff = (process.env.EDS_VERIFY || "").trim().toLowerCase() === "off" || (!!opts.generate && !opts.verify);
   if (!verifyOff) {
-    const left = EDS_DEADLINE_MS - (Date.now() - started);
-    if (left < VERIFY_MIN_MS) {
+    if (!verifyCall || best !== bestBeforeRepair) verifyCall = startVerify(best); // not started early, or the repair changed the answer: read the answer that stands
+    const called = await verifyCall;
+    if ("skipped" in called) {
       verifyState = "failed";
-      console.warn(`[EDS] verification skipped: only ${Math.round(left / 1000)} s left`);
+      console.warn(`[EDS] verification skipped: ${called.skipped}`);
+    } else if ("error" in called) {
+      verifyState = "failed";
+      console.warn("[EDS] verification failed:", called.error);
     } else {
       try {
-        const input = verifierInput(q, best.result, contextData);
-        const raw = opts.verify
-          ? await opts.verify(input, VERIFY_PROMPT)
-          : await (async () => {
-              const reply = await geminiGenerate(input, {
-                system: VERIFY_PROMPT,
-                json: true,
-                models: synthesisModels(),
-                maxOutputTokens: 4000,
-                temperature: 0.0,
-                seed: SEED_BASE,
-                thinking: "low",
-                attemptTimeoutMs: Math.min(45_000, left - 1_000),
-                totalTimeoutMs: Math.min(47_000, left - 500),
-                label: "EDS-check",
-              });
-              noteModel(reply.model);
-              return reply.text;
-            })();
+        const raw = called.raw;
         if (process.env.EDS_DEBUG_VERIFY) console.log("[EDS-check raw]", raw);
         const verdict = parseVerdict(raw);
         if (!verdict) {

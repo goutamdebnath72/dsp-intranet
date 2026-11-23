@@ -110,7 +110,7 @@ const fresh = (s: string) => `${s} ${Date.now()} ${uid++}`; // the query cache i
 
     // The reason this module exists: it must never import the database (entity decorators cannot run under tsx).
     const src = readFileSync(join(__dirname, "geminiEmbedding.ts"), "utf8");
-    check("GUARD: geminiEmbedding.ts imports nothing (no database, no entities)", !/^\s*import\s/m.test(src) && !/getDb|@\/lib\/db/.test(src));
+    check("GUARD: geminiEmbedding.ts imports no database and no entities: its one import is the pure word-family file (src/lib/search/termFamilies.ts, which imports nothing)", (src.match(/^\s*import\s.*$/gm) ?? []).every((l) => /@\/lib\/search\/termFamilies/.test(l)) && !/getDb|@\/lib\/db/.test(src) && !/^\s*import\s/m.test(readFileSync(join(__dirname, "..", "search", "termFamilies.ts"), "utf8")));
     const svc = readFileSync(join(__dirname, "embedding.service.ts"), "utf8");
     check("embedding.service.ts re-exports generateEmbedding and normalizeVector, so every existing import still works", /export \{ generateEmbedding, normalizeVector \}/.test(svc) && !/export (async )?function generateEmbedding/.test(svc));
   } finally {

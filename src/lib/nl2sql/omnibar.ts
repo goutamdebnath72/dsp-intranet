@@ -106,6 +106,8 @@ export interface OmnibarDeps {
   employeeAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** The date of birth or date of joining of an employee (step 65b): ONLY the HOD of C&IT may know them. For him an answer; for everybody else, logged in or not, one plain sentence; null when the sentence is not about an employee. The person is the LOGIN's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
   dates?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
+  /** A question about the FIRST DIGITS of executives' CUG numbers ("executives whose CUG number does not start with 943479"): read by rules, answered by the application's own code for a signed-in executive, never by the model (src/lib/contact/cugPattern.ts); null when the sentence is not such a question. */
+  cugPattern?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** A request to CHANGE the PAX directory (step 64a): "add new pax number", "delete pax 42046", "delegate pax to ...". The editor opens for the HOD C&IT and for an executive he authorised; for anybody else a plain message says why not. The person is the login's ticket (`userKey`), never anything typed. Optional, so older callers need nothing. */
   paxAdmin?: (q: string, ticket: string | null) => Promise<AnalyticsPayload | null>;
   /** A request to manage HOLIDAYS: "manage holidays", "holiday admin", "seed holiday", "clear holiday". */
@@ -397,6 +399,10 @@ export async function runOmnibar(typed: string, userKey: string | null, deps: Om
     const dates = may("dates") && deps.dates ? await deps.dates(q, userKey).catch(() => null) : null;
     if (dates) return { ...dates, source: "holiday", attempt };
 
+    // 0--a. a question about the FIRST DIGITS of executives' CUG numbers: the model is never given the digits, so it would refuse; plain code reads the sentence and the application's own connection tests the digits (a signed-in executive only; the numbers stay masked)
+    const cugPattern = may("cugPattern") && deps.cugPattern ? await deps.cugPattern(q, userKey).catch(() => null) : null;
+    if (cugPattern) return { ...cugPattern, source: "nl2sql", attempt };
+
     // 0--. a request to CHANGE the PAX directory (step 64a): the sentence is read first (pure); only such a sentence asks who the person is. It comes before the question about the directory below.
     const paxAdmin = deps.paxAdmin ? await deps.paxAdmin(q, userKey).catch(() => null) : null;
     if (paxAdmin) return { ...paxAdmin, source: "holiday", attempt };
@@ -674,6 +680,27 @@ export async function answerOmnibar(q: string, userKey: string | null, retry: Re
         findByName: async (name) => searchEmployeesByName(await getDb(), name),
         findByTicket: async (t) => searchEmployeesById(await getDb(), { kind: "ticket", value: t }),
         datesOf: async (tickets) => readDates(async (sql, params) => rowsOf(await (await getDb()).query(sql, params as never[])), tickets),
+      });
+    },
+    cugPattern: async (qq, ticket) => {
+      const { answerCugPattern, MAX_SHOWN } = await import("@/lib/contact/cugPattern");
+      const { getDb } = await import("@/lib/db");
+      return answerCugPattern(qq, ticket, {
+        search: async (pq) => {
+          const ds = await getDb();
+          // every executive, with the last ten digits of the number on record (country code and spaces dropped); the digits are tested here and never leave this function
+          const rows: Array<{ ticket_no: string; d: string }> = await ds.query(
+            `SELECT er.ticket_no, right(regexp_replace(coalesce(u."contactNo", ''), '[^0-9]', '', 'g'), 10) AS d
+               FROM public.employee_roster er LEFT JOIN public."user" u ON u.id = er.user_id
+              WHERE er.ticket_no ~ '^4[0-9]{5}$'
+              ORDER BY er.global_seniority_rank NULLS LAST, er.ticket_no`,
+          );
+          const withNumber = rows.filter((r) => r.d !== "");
+          const matching = withNumber.filter((r) => r.d.startsWith(pq.digits) !== pq.negate);
+          const client = { query: async (text: string, params?: any[]) => ({ rows: await ds.query(text, params) }) };
+          const people = await peopleFor(client, matching.slice(0, MAX_SHOWN).map((r) => String(r.ticket_no).trim()));
+          return { withNumber: withNumber.length, matching: matching.length, withoutNumber: rows.length - withNumber.length, people };
+        },
       });
     },
     pax: async (qq) => {

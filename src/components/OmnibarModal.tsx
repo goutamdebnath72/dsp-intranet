@@ -76,7 +76,9 @@ import AnnouncementModal from "@/components/AnnouncementModal";
 import { generateSmartSnippet } from "@/lib/utils/searchUtils";
 import { searchSites } from "@/lib/search/siteSearch";
 import { findDepartmentInText } from "@/lib/employees/departments";
-import { ExternalLink, Globe, UserRound, Phone, Mail, ShieldCheck, Copy, Check, AlertTriangle } from "lucide-react";
+import { ExternalLink, Globe, UserRound, Phone, Mail, ShieldCheck, Copy, Check, AlertTriangle, ArrowLeft } from "lucide-react";
+import { EdsExamples } from "@/components/EdsExamples"; // the shelf of proven questions under Executive Deep Search
+import { ElapsedTimer } from "@/components/ElapsedTimer"; // the digital timer of an Executive Deep Search answer
 
 interface OmnibarModalProps {
   isOpen: boolean;
@@ -715,10 +717,13 @@ export function OmnibarModal({
   // Executive Deep Search, chosen on purpose: an executive's question goes straight to it; a visitor is asked the usual "Are you an executive?"; a signed-in person who is not one is told so
   const [edsNote, setEdsNote] = useState<string | null>(null);
   const EDS_NOT_EXECUTIVE = "Executive Deep Search is for signed-in executives. To search the circulars, choose Circulars & Notices.";
-  const runEds = (line: string) => {
+  // `picked`: the question was chosen from the shelf of samples (not written in the box); the way back differs (see edsBackLink / deepBack)
+  const [edsPicked, setEdsPicked] = useState<string | null>(null);
+  const runEds = (line: string, picked = false) => {
     const text = line.trim();
     if (text.length < 3) return;
     setEdsNote(null);
+    setEdsPicked(picked ? text : null);
     if (authStatus === "loading") return;
     if (authStatus === "unauthenticated") {
       setExecutiveAsk({ query: text, said: null });
@@ -733,6 +738,33 @@ export function OmnibarModal({
     setEmployeeResults([]);
     triggerSearch("intellectual", { query: text });
   };
+  // THE SHELF OF PROVEN QUESTIONS: while Executive Deep Search is chosen by an executive and nothing has been asked, the window shows the questions to try (each runs when pressed; a question written in the box needs Enter).
+  // Once one is asked the answer takes the place; "All sample questions" above the answer brings the shelf back (the box is emptied, like any other way back).
+  const edsExecutive = selection.scope === "eds" && authStatus === "authenticated" && isExecutive;
+  const edsShelfOpen = edsExecutive && mode === null && !isLoading && !executiveAsk && !edsNote && !toolForm;
+  // A question chosen from the shelf is answered with "All sample questions" above it (back to the shelf). A question written in the box (or sent to the deep search by the Enter key in Everything) has a plain "Back" there (back to the
+  // ordinary window, Everything with an empty box). Either way, once a deep answer is on the screen the row of buttons above is taken away to give the answer the room (owner, 23 Nov 2026); it comes back with the way back.
+  const deepAnswerShown = mode === "intellectual" && !isLoading && !isStale && !!synthesis;
+  const edsBackLink = edsExecutive && mode !== null && !isLoading && edsPicked !== null && edsPicked === submittedQuery.trim();
+  const deepBack = deepAnswerShown && !edsBackLink;
+  const backToDefault = () => { employeeReq.current++; setEmployeeResults([]); setSelection(AUTO_SELECTION); clearSearch(); setQuery(""); setEdsNote(null); setEdsPicked(null); forgetRoute(); textareaRef.current?.focus(); };
+  // THE TIMER OF AN ANSWER: it runs for EVERY search that has to be waited for, whatever works it out (the engine's own rules, the language model, the deep synthesis), whether the question was written and sent with Enter, or pressed among the
+  // sample questions (owner, 23 Nov 2026). It starts when the search starts loading and stops in the very render that draws the reply (loading ends); the time it took stays on screen, frozen, with the reply, until another search is made or the
+  // box is cleared. An answer that comes at once from the cache never loads, so it shows none. A search that is run again for the same words at once (the Enter key's deep answer that found nothing, and the ordinary search that follows it)
+  // is one wait to the person, so the clock goes on from its first start instead of beginning again.
+  const [searchClock, setSearchClock] = useState<{ start: number; end: number | null; q: string } | null>(null);
+  useEffect(() => {
+    if (mode === null || !submittedQuery) { setSearchClock(null); return; }
+    setSearchClock((c) => {
+      if (isLoading) {
+        if (c && c.end === null && c.q === submittedQuery) return c;
+        if (c && c.q === submittedQuery && c.end !== null && Date.now() - c.end < 1500) return { ...c, end: null };
+        return { start: Date.now(), end: null, q: submittedQuery };
+      }
+      return c && c.end === null ? { ...c, end: Date.now() } : c;
+    });
+  }, [isLoading, mode, submittedQuery]);
+  const backToEdsShelf = () => { employeeReq.current++; setEmployeeResults([]); clearSearch(); setQuery(""); textareaRef.current?.focus(); };
   // the cross of the management page (or of its "not authorised" card): the page goes; if it came from the Admin button the Admin choice goes with it, the box is wiped and the choice returns to Everything (every way back lands there)
   const closeManagement = () => { if (selection.scope === "admin") changeSelection({ ...AUTO_SELECTION }); else clearSearch(); };
   // the Utility Services button: the page of all the utilities, with the box and any answer cleared
@@ -1204,7 +1236,9 @@ export function OmnibarModal({
               {/* Step 41a: no Executive Deep Synthesis button any more. The Enter key decides (see the Enter handler above). */}
 
               {/* The fixed selections (src/records): Everything, People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices. */}
-              <RecordsScopeBar selection={selection} onChange={changeSelection} suggestion={selection.scope === "auto" ? suggestion : null} onExample={selection.scope === "eds" ? runEds : runScoped} onRunFinder={runFinder} utilitiesOpen={toolForm === "services"} onUtilities={openUtilities} notice={edsNote} edsReady={authStatus === "authenticated" && isExecutive} adminReady={authStatus === "authenticated"} onAdminHint={() => { if (authStatus === "authenticated") preloadManagementPanels(); if (authStatus === "authenticated") prefetchSearch("semantic", "management", { ...AUTO_SELECTION, scope: "admin" }); }} />
+              {!deepAnswerShown && (
+                <RecordsScopeBar selection={selection} onChange={changeSelection} suggestion={selection.scope === "auto" ? suggestion : null} onExample={selection.scope === "eds" ? runEds : runScoped} onRunFinder={runFinder} utilitiesOpen={toolForm === "services"} onUtilities={openUtilities} notice={edsNote} edsReady={authStatus === "authenticated" && isExecutive} adminReady={authStatus === "authenticated"} onAdminHint={() => { if (authStatus === "authenticated") preloadManagementPanels(); if (authStatus === "authenticated") prefetchSearch("semantic", "management", { ...AUTO_SELECTION, scope: "admin" }); }} />
+              )}
 
               {nameNotice && <FormerNameNotice notice={nameNotice} />}
               {executiveAsk && (
@@ -1235,6 +1269,25 @@ export function OmnibarModal({
               )}
 
               <div className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">
+                {/* THE ROW OF AN ANSWER: "All sample questions" (Executive Deep Search only) at the left, the timer at the right, both centred on the same line. It is a real row (it takes its own height), so the timer never lies over the reply's own buttons (Download PDF),
+                    and it is NOT sticky: it sits at the top of the reply and scrolls away with it (owner, 23 Nov 2026). A question typed by hand has no back link yet; the row is there all the same, for the timer. */}
+                {(edsBackLink || deepBack || (searchClock && !isStale)) && (
+                  <div data-eds-toolbar className="-mx-2 -mt-2 mb-2 flex min-h-[2.5rem] items-center justify-between gap-3 border-b border-neutral-100 bg-white px-3 py-1">
+                    <div className="min-w-0">
+                      {edsBackLink && (
+                        <button type="button" data-eds-back onClick={backToEdsShelf} className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 transition hover:bg-amber-100">
+                          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> All sample questions
+                        </button>
+                      )}
+                      {deepBack && (
+                        <button type="button" data-eds-back-default onClick={backToDefault} className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 transition hover:bg-amber-100">
+                          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back
+                        </button>
+                      )}
+                    </div>
+                    {searchClock && !isStale && <ElapsedTimer startedAt={searchClock.start} stoppedAt={searchClock.end} />}
+                  </div>
+                )}
                 {isLoading && mode === "intellectual" ? (
                   <div className="py-12 flex flex-col items-center justify-center text-center">
                     <Loader2 className="h-8 w-8 animate-spin text-amber-600 mb-4" />
@@ -1272,6 +1325,7 @@ export function OmnibarModal({
                   </div>
                 ) : (
                   <>
+                    {edsShelfOpen && <EdsExamples onPick={(q) => runEds(q, true)} />}
                     {/* Calculators, converters and date answers: as you type, or a form after Enter. Runs in the browser; nothing typed here is stored or sent. */}
                     {understanding && (
                       <div role="status" className="mb-3 flex items-center gap-2 rounded-2xl border border-dashed border-violet-300 bg-violet-50 px-4 py-2.5 text-sm text-violet-900">

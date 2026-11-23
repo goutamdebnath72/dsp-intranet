@@ -17,6 +17,7 @@
 // This file never throws a message that contains the provider's response body:
 // the details go to the server log, the caller gets a short safe sentence.
 
+import { PERF } from "@/lib/perf/switches"; // which models write and check an Executive Deep Search briefing
 import { traceModelCall } from "../search/frontPathTrace";
 
 export type ThinkingLevel = "minimal" | "low" | "medium" | "high";
@@ -46,6 +47,9 @@ export interface GeminiRequest {
   attemptTimeoutMs?: number;
   /** all attempts together may take at most this long (keep under the route's maxDuration) */
   totalTimeoutMs?: number;
+  /** HEDGE: when the first request has not answered after this long, the same request is sent a second time and the first answer to arrive is used (the other is dropped). A call that HANGS (a model that
+   *  takes 45 s for what normally takes 12) then costs this long, not its whole timeout. Used only when set; the second request is made only when the first is late, so it costs nothing on a normal call. */
+  hedgeAfterMs?: number;
   /** extra label for the server log */
   label?: string;
   onUsage?: (u: GeminiUsage) => void;
@@ -126,6 +130,34 @@ function bodyFor(prompt: string, req: GeminiRequest, withThinking: boolean, mode
  * A cut-off answer (finishReason MAX_TOKENS) is an error, never returned as if complete.
  */
 export async function geminiGenerate(prompt: string, req: GeminiRequest): Promise<GeminiReply> {
+  const hedge = req.hedgeAfterMs ?? 0;
+  if (!(hedge > 0)) return geminiGenerateOnce(prompt, req);
+  const t0 = Date.now();
+  const first = geminiGenerateOnce(prompt, req);
+  return new Promise<GeminiReply>((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let pending = 1;
+    let firstError: unknown = null;
+    const lose = (e: unknown) => {
+      firstError ??= e;
+      pending--;
+      // a failure before the hedge was due: the chain of models has already been tried, and a non-retryable one (credit, key) would fail again: no second request
+      if (pending === 0 && timer !== null) { clearTimeout(timer); timer = null; }
+      if (pending === 0 && timer === null) reject(firstError);
+    };
+    timer = setTimeout(() => {
+      timer = null;
+      if (pending === 0) return;
+      pending++;
+      const label = `${req.label || "gemini"}~hedge`;
+      console.warn(`[${label}] no answer after ${((Date.now() - t0) / 1000).toFixed(0)} s: the same request is sent again, the first answer is used`);
+      geminiGenerateOnce(prompt, { ...req, hedgeAfterMs: undefined, label, totalTimeoutMs: Math.max(5_000, (req.totalTimeoutMs ?? 55_000) - (Date.now() - t0)) }).then(resolve, lose);
+    }, hedge);
+    first.then((r) => { if (timer !== null) { clearTimeout(timer); timer = null; } resolve(r); }, lose);
+  });
+}
+
+async function geminiGenerateOnce(prompt: string, req: GeminiRequest): Promise<GeminiReply> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new GeminiError("The AI service is not configured (GEMINI_API_KEY missing).", { retryable: false });
 
@@ -173,7 +205,7 @@ export async function geminiGenerate(prompt: string, req: GeminiRequest): Promis
         if (status === 400 && typeof req.seed === "number" && !noSeedModels.has(model) && /seed/i.test(text)) {
           console.warn(`[${label}] ${model} rejected the seed, retrying without it`);
           noSeedModels.add(model);
-          return geminiGenerate(prompt, { ...req, totalTimeoutMs: Math.max(1500, deadline - Date.now()) });
+          return geminiGenerateOnce(prompt, { ...req, totalTimeoutMs: Math.max(1500, deadline - Date.now()) });
         }
         const retryable = status === 429 || status === 404 || status >= 500;
         last = new GeminiError(
@@ -229,8 +261,15 @@ export async function geminiGenerate(prompt: string, req: GeminiRequest): Promis
 export function chatModels(): string[] {
   return [process.env.GEMINI_CHAT_MODEL || "gemini-3.8-flash", "gemini-flash-latest"];
 }
+/** the models of the writer of an Executive Deep Search briefing: the environment (GEMINI_SYNTHESIS_MODEL), else the switch PERF.edsDraftModel (src/lib/perf/switches.js; "" = the pro model, the previous way), then the fallbacks */
 export function synthesisModels(): string[] {
-  return [process.env.GEMINI_SYNTHESIS_MODEL || "gemini-3.1-pro-preview", "gemini-pro-latest", "gemini-3.8-flash"];
+  const first = (process.env.GEMINI_SYNTHESIS_MODEL || "").trim() || PERF.edsDraftModel || "gemini-3.1-pro-preview";
+  return [first, "gemini-pro-latest", "gemini-3.8-flash"];
+}
+/** the models of the second reading (the checker): the environment (GEMINI_VERIFY_MODEL), else the switch PERF.edsVerifyModel ("" = the writer's own chain, the previous way), then the writer's chain as fallbacks */
+export function verifyModels(): string[] {
+  const v = (process.env.GEMINI_VERIFY_MODEL || "").trim() || PERF.edsVerifyModel;
+  return v ? [v, ...synthesisModels()] : synthesisModels();
 }
 
 /**

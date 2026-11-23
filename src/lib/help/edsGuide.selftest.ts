@@ -7,7 +7,7 @@ import { detectSynthesisIntent } from "../search/synthesisIntent";
 import { DEFAULT_CHECK_MODEL, DEFAULT_PRIMARY_MODEL } from "../ingestion/geminiOcr";
 import { CHUNK_WORDS } from "../ingestion/chunking";
 import { SHRINK_EDGE, SHRINK_QUALITY } from "../ingestion/pageImage";
-import { chatModels, synthesisModels } from "../ai/geminiChat";
+import { chatModels, synthesisModels, verifyModels } from "../ai/geminiChat";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -15,14 +15,14 @@ const read = (f: string) => readFileSync(f, "utf8");
 const ALL = JSON.stringify({ UPLOAD_STEPS, UPLOAD_MODELS, ASK_STEPS, ASK_MODELS, WHAT_IS, SCOPE });
 
 // ---- the models are the code's models
-delete process.env.GEMINI_CHAT_MODEL; delete process.env.GEMINI_SYNTHESIS_MODEL; delete process.env.OCR_PRIMARY_MODEL; delete process.env.OCR_CHECK_MODEL; delete process.env.GEMINI_VISION_MODEL;
+delete process.env.GEMINI_CHAT_MODEL; delete process.env.GEMINI_SYNTHESIS_MODEL; delete process.env.GEMINI_VERIFY_MODEL; delete process.env.OCR_PRIMARY_MODEL; delete process.env.OCR_CHECK_MODEL; delete process.env.GEMINI_VISION_MODEL;
 ok("the two OCR readers are the code's defaults: the main reader gemini-3.1-pro-preview, the checker gemini-3.8-flash", MODELS.ocrMain === DEFAULT_PRIMARY_MODEL && MODELS.ocrChecker === DEFAULT_CHECK_MODEL);
 ok("the router is the first chat model of the code (gemini-3.8-flash)", MODELS.router === chatModels()[0]);
-ok("the writer and the second reader use the synthesis chain of the code: gemini-3.1-pro-preview, then gemini-pro-latest, then gemini-3.8-flash", [MODELS.writer, ...MODELS.writerFallbacks].join("|") === synthesisModels().join("|"));
+ok("the writer uses the synthesis chain of the code (gemini-3.8-flash, then gemini-pro-latest, then gemini-3.8-flash) and the checker is the switch's model (gemini-3.8-flash)", MODELS.checker === verifyModels()[0] && [MODELS.writer, ...MODELS.writerFallbacks].join("|") === synthesisModels().join("|"));
 const emb = read("src/lib/ai/geminiEmbedding.ts");
 ok("the embedding model is gemini-embedding-001 with 768 numbers, a document type for what is stored and a query type for a question", emb.includes(`models/${MODELS.embedding}:embedContent`) && /outputDimensionality: 768/.test(emb) && /RETRIEVAL_DOCUMENT/.test(emb) && /RETRIEVAL_QUERY/.test(emb));
 const sw = read("src/lib/search/executiveSynthesis.ts");
-ok("the writer and the second reading both call the synthesis chain, with the thinking at low, and the briefing is stored only when it is good and the main model wrote it", (sw.match(/models: synthesisModels\(\)/g) ?? []).length >= 2 && /STORE_MIN_SCORE && verifyState !== "failed" && !weakerModel/.test(sw));
+ok("the writer and the second reading both call the synthesis chain, with the thinking at low, and the briefing is stored only when it is good and the main model wrote it", (sw.match(/models: (?:synthesisModels|verifyModels)\(\)/g) ?? []).length >= 2 && /STORE_MIN_SCORE && verifyState !== "failed" && !weakerModel/.test(sw));
 const route = read("src/app/api/ai-search/route.ts");
 ok("the router is used only for the plain search (not for a line already sent as a deep question), with ONE chat model", /mode === "semantic" && !retrievalOnly && !retryInfo \? await parseQueryWithLlm/.test(route) && /models: \[chatModels\(\)\[0\]\]/.test(read("src/lib/search/pureAiEngine.ts")));
 ok("an executive is a six-digit ticket starting with 4, checked in the staff directory by the server", /\^4\\d\{5\}\$/.test(route) && /"ticketNo" LIKE '4%'/.test(route));
@@ -36,7 +36,7 @@ ok("the chunks are about 200 words and keep their page; the vectors are one per 
 ok("the save: one transaction, the circular row and every chunk row (text, page number, vector), an audit row, a serial number within the year; a failure deletes the page pictures", /dataSource\.transaction/.test(up) && /INSERT INTO public\.circular_chunks \(circular_id, chunk_index, page_number, text, embedding\)/.test(up) && /writeAudit/.test(up) && /MAX\("serialNumber"\)/.test(up) && /cleanupBlobs/.test(up) && `${UPLOAD_STEPS[6].title} ${UPLOAD_STEPS[6].what}`.includes("PostgreSQL on Supabase") && `${UPLOAD_STEPS[6].title} ${UPLOAD_STEPS[6].what}`.includes("pgvector"));
 ok("the two special cases: a holiday-list circular is not read or chunked (a headline vector only); a roster is saved as rows", /detectHolidayListCircular/.test(up) && /skipOcrAndEmbedding/.test(up) && /applyScheduleStage/.test(up) && UPLOAD_STEPS[7].what.includes("holiday-list") && UPLOAD_STEPS[7].what.includes("rows"));
 ok("the search finds text by cosine similarity on the 768-number vectors in pgvector (<=>) and by the literal words", /<=> \$1::vector\(768\)/.test(read("src/lib/search/semanticContentSearch.ts")) && ASK_STEPS[2].what.includes("cosine similarity") && ASK_STEPS[2].what.includes("literal words"));
-ok("up to five circulars are given to the writer; two drafts are written by default; the question's identity is its words without capitals or punctuation and the archive's fingerprint", /filterSourcesForRelevance\(q, records\)\.slice\(0, 5\)/.test(sw) && /EDS_CANDIDATES \?\? 2|process\.env\.EDS_CANDIDATES \?\? 2/.test(sw) && ASK_STEPS[3].what.includes("five") && ASK_STEPS[4].what.includes("two drafts") && /table public\.eds_briefing/.test(read("src/lib/search/edsStore.ts")) && ASK_STEPS[7].what.includes("eds_briefing"));
+ok("up to five circulars are given to the writer; one draft is written by default (a second only when the first is late: PERF.edsDrafts hedged); the question's identity is its words without capitals or punctuation and the archive's fingerprint", /filterSourcesForRelevance\(q, records\)\.slice\(0, 5\)/.test(sw) && /EDS_CANDIDATES \?\? 2|process\.env\.EDS_CANDIDATES \?\? 2/.test(sw) && ASK_STEPS[3].what.includes("five") && ASK_STEPS[4].what.includes("ONE draft") && /edsDrafts: "hedged"/.test(read("src/lib/perf/switches.js")) && /table public\.eds_briefing/.test(read("src/lib/search/edsStore.ts")) && ASK_STEPS[7].what.includes("eds_briefing"));
 
 // ---- the shape of the tab
 ok("eight steps for an upload and eight for a question, numbered in order, each with a title and an explanation", [UPLOAD_STEPS, ASK_STEPS].every((st) => st.length === 8 && st.every((x, i) => x.no === i + 1 && x.title.length > 8 && x.what.length > 80)));

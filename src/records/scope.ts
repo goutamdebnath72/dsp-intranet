@@ -8,11 +8,11 @@ import type { PeopleFacet, ScopeId, Selection } from "./types";
 import { DOMAIN_IDS, domainById, isPeopleFacet } from "./domains";
 
 /** the answer paths of runOmnibar, by name */
-export type Step = "admin" | "dates" | "pax" | "hospital" | "phd" | "degrees" | "holiday" | "departmentWords" | "verified" | "model";
+export type Step = "admin" | "dates" | "cugPattern" | "pax" | "hospital" | "phd" | "degrees" | "holiday" | "departmentWords" | "verified" | "model";
 
 const ALLOWED: Record<ScopeId, ReadonlySet<Step>> = {
-  auto: new Set<Step>(["admin", "dates", "pax", "hospital", "phd", "degrees", "holiday", "departmentWords", "verified", "model"]),
-  people: new Set<Step>(["admin", "dates", "phd", "departmentWords", "verified", "model"]),
+  auto: new Set<Step>(["admin", "dates", "cugPattern", "pax", "hospital", "phd", "degrees", "holiday", "departmentWords", "verified", "model"]),
+  people: new Set<Step>(["admin", "dates", "cugPattern", "phd", "departmentWords", "verified", "model"]),
   pax: new Set<Step>(["admin", "pax"]),
   hospital: new Set<Step>(["admin", "hospital"]),
   holidays: new Set<Step>(["admin", "holiday"]),

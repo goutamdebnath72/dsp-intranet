@@ -7,6 +7,7 @@ import {
   executeTitleSearch,
 } from "./titleSearch";
 import { classifyQuoted, escapeRegex } from "./quotedMatch";
+import { termFamilyAdditions } from "./termFamilies";
 
 export async function executeContentSearch(
   dataSource: DataSource,
@@ -78,6 +79,8 @@ export async function executeContentSearch(
     // de-dup, cap to keep the SQL sane
     const uniq = Array.from(new Set(toks)).slice(0, 8);
     if (uniq.length >= 2) {
+      // the other words of a term family the question uses are admitted too (biometric / face recognition / RFID / BAMS); the typed words stay
+      for (const w of termFamilyAdditions(cleanQ)) uniq.push(w.toLowerCase());
       // Each token -> its own ILIKE param; a chunk/headline matching ANY of
       // them is admitted (ranking below still rewards more/where matches).
       const parts: string[] = [];

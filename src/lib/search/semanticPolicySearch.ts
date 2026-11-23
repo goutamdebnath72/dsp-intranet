@@ -35,6 +35,7 @@ import { toDateTime } from "../dates";
 import { DataSource } from "typeorm";
 import { generateEmbedding, normalizeVector } from "@/lib/ai/embedding.service";
 import { hybridWithFallback } from "./searchResilience";
+import { termFamilyTsTerms } from "./termFamilies";
 import {
   SearchResultRow,
   formatLuxonDate,
@@ -81,7 +82,9 @@ function toOrTsquery(q: string): string | null {
     .split(/[^a-z0-9]+/)
     .filter((t) => t.length >= 2);
   const uniq = [...new Set(toks)];
-  return uniq.length ? uniq.join(" | ") : null;
+  // the other words of a term family the question uses (biometric / face recognition / RFID / BAMS) are alternatives too; the typed words stay
+  const more = uniq.length ? termFamilyTsTerms(q) : [];
+  return uniq.length ? [...uniq, ...more].join(" | ") : null;
 }
 
 type VecRow = {

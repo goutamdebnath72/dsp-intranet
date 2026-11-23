@@ -3,6 +3,7 @@
 // Talking to Google's embedding model. NO database, NO TypeORM entities here, on purpose: a standalone script (such as
 // scripts/test-eds-query.ts or scripts/reingest-circulars-gemini.ts, run with tsx) can import this without loading the entity classes, whose decorators need TypeScript's
 // emitDecoratorMetadata and so cannot run under tsx. embedding.service.ts re-exports everything below, so existing imports are unchanged.
+import { withTermFamilies } from "@/lib/search/termFamilies"; // pure (no database): words people use for the same thing
 
 /**
  * Normalizes an embedding vector to unit length.
@@ -102,6 +103,9 @@ export async function generateEmbedding(
   if (!apiKey) {
     throw new Error("Missing GEMINI_API_KEY in environment variables.");
   }
+
+  // a QUESTION that uses one word of a term family (biometric, face recognition, RFID, BAMS) is embedded together with the family's other words: the typed words stay, the others are added (src/lib/search/termFamilies.ts)
+  if (taskType === "search_query") text = withTermFamilies(text);
 
   const geminiTaskType =
     taskType === "search_query" ? "RETRIEVAL_QUERY" : "RETRIEVAL_DOCUMENT";

@@ -65,7 +65,8 @@ export function RecordsScopeBar({ selection, onChange, suggestion, onExample, on
   const facetInfo = facetById(facet);
   const edsLocked = scope === "eds" && !edsReady; // the prompt (or the notice) says what EDS is: the same words must not stand beneath the button as well
   const adminLocked = scope === "admin" && !adminReady; // the prompt asks first: nothing about the admin pages stands beneath the button before that
-  const examples = edsLocked || adminLocked ? [] : scope === "people" ? facetInfo?.examples ?? [] : scope === "eds" ? EDS_CHOICE.examples : scope === "admin" ? ADMIN_CHOICE.examples : domain?.examples ?? [];
+  // under Executive Deep Search the questions to try are the shelf in the window (src/components/EdsExamples.tsx), not buttons under the bar
+  const examples = edsLocked || adminLocked ? [] : scope === "people" ? facetInfo?.examples ?? [] : scope === "eds" ? [] : scope === "admin" ? ADMIN_CHOICE.examples : domain?.examples ?? [];
   const hint = scope === "auto" || edsLocked || adminLocked ? null : scope === "people" ? facetInfo?.hint : scope === "eds" ? EDS_CHOICE.hint : scope === "admin" ? ADMIN_CHOICE.hint : domain?.hint;
   const label = (id: string, opts: SelectOption[]) => opts.find((o) => o.id === id && o.id !== "")?.label ?? null;
 

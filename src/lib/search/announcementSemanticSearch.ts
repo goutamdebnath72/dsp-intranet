@@ -8,6 +8,7 @@ import {
 } from "./titleSearch";
 import { classifyQuoted, escapeRegex } from "./quotedMatch";
 import { contentTokens } from "./topicGate";
+import { termFamilyTsTerms } from "./termFamilies";
 
 /**
  * Semantic + literal search over ANNOUNCEMENTS.
@@ -127,7 +128,8 @@ export async function executeAnnouncementSemanticSearch(
     // The four queries below (title and body, the words in title and body, the PDFs' passages, the words in the passages) need only the vector and the words, never each other's rows: they are started TOGETHER and read in the
     // original order afterwards, so the answer is the same and the search waits for the slowest one instead of the sum of the four (each is a round trip to the database).
     const tokens = mode.isQuoted ? [] : lexicalTokens(safeQ);
-    const tsq = orTsQuery(tokens);
+    // the other words of a term family the question uses are alternatives too (src/lib/search/termFamilies.ts); the typed words stay, and isLexicalHit still counts only them
+    const tsq = tokens.length ? [orTsQuery(tokens), ...termFamilyTsTerms(safeQ)].filter(Boolean).join(" | ") : "";
     const litChunk = mode.wholeWord ? `c.text ~* $2` : `c.text ILIKE $2`;
     // a query that fails is read as "no rows" by the part that reads it (null), exactly as each part's own catch did; the .catch here only keeps a failure from being unhandled before it is read.
     // `later(f)` starts f NOW when the queries run together, and only when it is first read (as before) when src/lib/perf/switches.js says parallelAnnouncementSearch: false

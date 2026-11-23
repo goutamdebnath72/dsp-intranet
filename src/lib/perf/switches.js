@@ -58,6 +58,18 @@ const PERF = {
   peopleEventsCacheSeconds: 120,
   /** true: fonts and the plant video are kept a week in the browser (new). false: asked of the server on every visit (previous). Read by next.config.js. */
   browserCacheFontsAndVideo: true,
+
+  // ---------------------------------------------------------------- Executive Deep Search (src/lib/search/executiveSynthesis.ts)
+  /** "hedged": ONE draft is written, and a second only when the first is late (see edsHedgeSeconds) (new). "both": two drafts side by side, the better one kept (previous: it waited for the slower of the two and paid for both). */
+  edsDrafts: "hedged",
+  /** seconds: a model call (a draft, the repair, the second reading) that has not answered after this long is sent a second time and the first answer to arrive is used, so a call that hangs costs this, not its 45 s timeout (new: 20). 0 = never (previous). */
+  edsHedgeSeconds: 20,
+  /** true: the second reading of the best draft starts at once, side by side with the repair attempt, and the repaired answer is read again only if the repair is kept (new). false: the reading waits for the repair (previous). */
+  edsVerifyDuringRepair: true,
+  /** the model that WRITES a briefing: "gemini-3.8-flash" (new: 7 to 17 s a draft, against 11 to 17 s for pro on the same circulars, and as many key facts found in the gold test: scripts/eds-gold.ts). "" = gemini-3.1-pro-preview (previous). The environment (GEMINI_SYNTHESIS_MODEL) overrides. */
+  edsDraftModel: "gemini-3.8-flash",
+  /** the model that CHECKS a briefing against the circulars (the second reading): "gemini-3.8-flash" (new: 2 to 7 s, against 8 to 22 s for pro; it caught every error planted in four briefings, as pro did). "" = the writer's model (previous: pro). The environment (GEMINI_VERIFY_MODEL) overrides. */
+  edsVerifyModel: "gemini-3.8-flash",
 };
 
 module.exports = { PERF };

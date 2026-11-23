@@ -1,5 +1,5 @@
 /** Self-test of the data-gap routing rule. Run: npx tsx --tsconfig tsconfig.json src/lib/search/dataGapRule.selftest.ts (no database, no model). */
-import { PLAIN_DATA_GAP, continueToCirculars, friendlyUnanswerable } from "./dataGapRule";
+import { CONTACT_WITHHELD, PLAIN_DATA_GAP, continueToCirculars, friendlyUnanswerable } from "./dataGapRule";
 import { directoryWordIn, namesSomeone } from "./frontGate";
 
 let pass = 0, fail = 0;
@@ -45,6 +45,9 @@ const go = (q: string, p: { kind?: string; unanswerable?: boolean } | null = gap
   ok("a plain explanation is kept", friendlyUnanswerable("This data does not include salary.") === "This data does not include salary.");
   ok("a message naming the view and the column is replaced", friendlyUnanswerable("The health_checkups view does not include a pathology-room column, so this information cannot be retrieved from the available data") === PLAIN_DATA_GAP);
   ok("a message with 'nlq.employees' is replaced", friendlyUnanswerable("nlq.employees has no salary field") === PLAIN_DATA_GAP);
+  ok("a refusal because phone numbers are withheld says so, in plain words, whether or not it names the database's parts", friendlyUnanswerable("Actual phone numbers are not stored or accessible in the database; only a boolean indicating whether an employee has a mobile number is available.") === CONTACT_WITHHELD && friendlyUnanswerable("The has_mobile column is only a flag, so the digits of a CUG number cannot be filtered.") === CONTACT_WITHHELD && friendlyUnanswerable("Email addresses are not available.") === CONTACT_WITHHELD);
+  ok("that sentence tells the truth (kept out on purpose, not 'does not hold'), and says where a number can be seen: by name or ticket, masked, with Reveal", /on purpose/.test(CONTACT_WITHHELD) && !/do not hold/.test(CONTACT_WITHHELD) && /Reveal/.test(CONTACT_WITHHELD) && /masked/.test(CONTACT_WITHHELD));
+  ok("other missing data (salary, a pathology room) still gets the old plain sentence", friendlyUnanswerable("nlq.employees has no salary field") === PLAIN_DATA_GAP);
   ok("an empty message becomes the plain one", friendlyUnanswerable("  ") === PLAIN_DATA_GAP);
   ok("a message with 'table' in ordinary words is replaced too (a reader does not need it)", friendlyUnanswerable("The table has no such field.") === PLAIN_DATA_GAP);
 

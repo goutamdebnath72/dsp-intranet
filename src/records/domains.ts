@@ -98,8 +98,8 @@ export const EDS_CHOICE = {
   id: "eds" as const,
   label: "Executive Deep Search",
   hint: "A written summary built from several circulars read together, with the circulars it rests on. For signed-in executives.",
-  placeholder: "Ask a question that needs several circulars read together…",
-  examples: ["Compare the holiday lists notified for DSP for 2022 and 2023", "How does the January to May 2026 Hindi Teaching Scheme session differ from the one starting in January 2024"] as readonly string[],
+  placeholder: "Ask a question that needs several circulars read together…"
+  // the questions to try are not listed here: src/lib/help/edsExamples.ts (drawn by src/components/EdsExamples.tsx in the window)
 };
 
 /** THE OTHER CHOICE OF THE SECOND ROW THAT IS NOT A RECORD: Admin, the management pages (Employee, PAX directory, Holiday, Circular and Announcement managers, the Contact access log). Nothing here is searched: the button asks the server who is signed in
