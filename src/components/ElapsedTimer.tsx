@@ -7,20 +7,20 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 
-/** Formats milliseconds as a digital clock: 00:47.3 (minutes, seconds, tenths) */
+/** Formats milliseconds as a digital clock: 00:47.312 (minutes, seconds, milliseconds); the leftmost unit is the millisecond, so all three digits after the point are shown */
 export function formatElapsed(ms: number): string {
-  const t = Math.max(0, Math.floor(ms / 100));
-  const tenths = t % 10;
-  const secs = Math.floor(t / 10) % 60;
-  const mins = Math.floor(t / 600);
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${tenths}`;
+  const t = Math.max(0, Math.floor(ms));
+  const millis = t % 1000;
+  const secs = Math.floor(t / 1000) % 60;
+  const mins = Math.floor(t / 60_000);
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
 }
 
-/** The same, in words for a screen reader: "47.3 seconds", "1 minute 5.2 seconds" */
+/** The same, in words for a screen reader: "47.312 seconds", "1 minute 5.200 seconds" */
 export function spokenElapsed(ms: number): string {
-  const t = Math.max(0, Math.floor(ms / 100));
-  const mins = Math.floor(t / 600);
-  const secs = `${Math.floor(t / 10) % 60}.${t % 10}`;
+  const t = Math.max(0, Math.floor(ms));
+  const mins = Math.floor(t / 60_000);
+  const secs = `${Math.floor(t / 1000) % 60}.${String(t % 1000).padStart(3, "0")}`;
   return mins > 0 ? `${mins} minute${mins === 1 ? "" : "s"} ${secs} seconds` : `${secs} seconds`;
 }
 
@@ -30,8 +30,11 @@ export function ElapsedTimer({ startedAt, stoppedAt, now: nowForTest }: { starte
   useEffect(() => {
     if (!running) return;
     setNow(Date.now());
-    const id = window.setInterval(() => setNow(Date.now()), 100);
-    return () => window.clearInterval(id);
+    // I redraw on every frame of the screen, so the millisecond digits run smoothly (a slower tick would make them jump); the frame loop is cancelled when the timer stops or the panel goes
+    let frame = 0;
+    const tick = () => { setNow(Date.now()); frame = window.requestAnimationFrame(tick); };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
   }, [running]);
   const ms = (stoppedAt ?? now) - startedAt;
   return (
