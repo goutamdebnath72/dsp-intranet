@@ -80,9 +80,10 @@
   }
   const codebox = (code) => `<div class="codebox"><pre>${hl(code)}</pre><button class="copy" data-copy="${esc(code)}">Copy</button></div>`;
   const brief = (s) => { const d = first(s.doc || []); if (d) return d; if (s.members?.length) return `${s.members.length} ${s.kind === "interface" ? "fields and methods" : s.kind === "enum" ? "members" : s.kind === "class" || s.kind === "entity" ? "members" : "keys"}`; if (s.kind === "type" && s.sig) return s.sig.slice(0, 90); if (s.params) return `(${s.params.map((p) => p.name).join(", ")})${s.returns ? " → " + s.returns : ""}`.slice(0, 120); return ""; };
-  const first = (paras) => { const t = (paras || []).find((p) => !/^@/.test(p)) || ""; const m = /^(.{20,200}?[.!?])(\s|$)/.exec(t); return (m ? m[1] : t.slice(0, 180)); };
+  const first = (paras) => { const t = (paras || []).find((p) => !/^@/.test(p) && !/^[-=_#*]{4,}/.test(p)) || ""; const m = /^(.{20,200}?[.!?])(\s|$)/.exec(t); return (m ? m[1] : t.slice(0, 180)); };
   const fileLink = (id, text) => (FILES.has(id) ? `<a href="#/f/${FILES.get(id).h}">${esc(text ?? id)}</a>` : esc(text ?? id));
-  const shortName = (id) => id.split("/").slice(-2).join("/");
+  // the path without the leading src/: the whole folder is kept, because two files of one name (admin/store.ts) live in several folders
+  const shortName = (id) => id.replace(/^src\//, "");
 
   // ------------------------------------------------------------------------------------------------ shell
   function shell() {
