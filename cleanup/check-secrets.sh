@@ -3,9 +3,9 @@
 # Read-only: it changes nothing.
 set -u
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repository."; exit 1; }
-FILES=".env .env.local .env.backup.1762491806 run-docker.sh src/lib/citusers.js"
+FILES=".env .env.local .env.backup.1762491806 src/lib/citusers.js"
 echo "1. Files git tracks RIGHT NOW that must never be tracked:"
-tracked=$(git ls-files | grep -E '(^|/)\.env($|\.)|run-docker\.sh|citusers\.js' | grep -v '^\.env\.example$')
+tracked=$(git ls-files | grep -E '(^|/)\.env($|\.)|citusers\.js' | grep -v '^\.env\.example$')
 [ -z "$tracked" ] && echo "   none" || echo "$tracked" | sed 's/^/   TRACKED: /'
 echo
 echo "2. Were they ever committed (anywhere in history)?"
