@@ -8,7 +8,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, CalendarDays, Calculator, Globe2, Hash, ShieldCheck } from "lucide-react";
-import { SECTIONS, VIN_SAMPLES, checkSteps, readVin, splitVin, type VinPart } from "./vin";
+import { MAKERS, SECTIONS, checkSteps, readVin, splitVin, type VinPart } from "./vin";
 import { inputCls } from "@/components/tools/toolAtoms";
 import { VinGuide } from "./VinGuide";
 
@@ -40,10 +40,18 @@ export function VinCard({ start }: { start: string }) {
       <label htmlFor="vin-no" className="text-xs font-semibold uppercase tracking-wide text-slate-600">Vehicle Identification Number, as stamped on the chassis or printed on the invoice</label>
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <input id="vin-no" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" spellCheck={false} className={`${inputCls} max-w-md text-lg font-extrabold uppercase tracking-widest focus:border-amber-400 focus:ring-amber-100`} />
-        <span className="text-xs text-slate-500">try</span>
-        {VIN_SAMPLES.map((s) => (
-          <button key={s.vin} type="button" onClick={() => setText(s.vin)} title={s.vin} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-amber-300 hover:text-amber-800">{s.label}</button>
-        ))}
+      </div>
+      {/* One button for each of the five Indian makers (Hyundai and Kia are two, with two manufacturer codes): it puts a made-up number of that maker in the box. The button of the number now in the box is marked. */}
+      <div role="group" aria-label="Sample numbers of the Indian makers" className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-slate-500">Try a number of</span>
+        {MAKERS.map((m) => {
+          const on = typed.core === m.sample && !typed.suffix;
+          return (
+            <button key={m.id} type="button" aria-pressed={on} onClick={() => setText(m.sample)} title={`${m.maker}: ${m.sample} (a made-up number, not a real vehicle's)`} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold shadow-sm transition hover:-translate-y-0.5 ${on ? "border-amber-400 bg-amber-100 text-amber-900" : "border-slate-200 bg-white text-slate-700 hover:border-amber-300 hover:text-amber-800"}`}>
+              {m.button}<span className={`rounded-md px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider ${on ? "bg-amber-200 text-amber-900" : "bg-slate-100 text-slate-500"}`}>{m.wmi}</span>
+            </button>
+          );
+        })}
       </div>
 
       <AnimatePresence mode="wait" initial={false}>
@@ -87,7 +95,7 @@ export function VinCard({ start }: { start: string }) {
             <ul className="mt-3 grid gap-2">
               {r.parts.map((p) => (
                 <li key={p.id} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/90 px-3.5 py-2.5 shadow-sm">
-                  <span className={`mt-0.5 inline-flex min-w-[3.25rem] justify-center rounded-lg px-2 py-1 text-sm font-extrabold tracking-wider ${PART_STYLE[p.id].chip}`}>{p.text}</span>
+                  <span className={`mt-0.5 inline-flex w-[5.5rem] shrink-0 justify-center whitespace-nowrap rounded-lg px-2 py-1 text-sm font-extrabold tracking-wider ${PART_STYLE[p.id].chip}`}>{p.text}</span>
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-slate-900">{p.meaning} <span className="text-xs font-semibold text-slate-400">· {p.id === "month" ? "after the VIN" : p.from === p.to ? `position ${p.from}` : `positions ${p.from}–${p.to}`}</span></div>
                     <div className="text-sm leading-snug text-slate-600">{p.detail}</div>

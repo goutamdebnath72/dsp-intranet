@@ -9,6 +9,10 @@
 // plant only where I am sure, and says plainly when a part is the maker's own code. The vehicle's papers (registration certificate, invoice) and the maker are the authority.
 //
 // Indian chassis plates: Hyundai stamps the VIN followed by "*" and a letter for the month of manufacture (MALBM51BLKM000001*L: L = November); I read that suffix and guess nothing else.
+//
+// WHOSE NUMBERS I READ (my rule, 26 Nov 2026): the Indian makers only, and only these five: Hyundai Motor India, Kia India, Maruti Suzuki, Tata Motors and Mahindra. No foreign maker's code is listed. I keep a manufacturer code in the list
+// only when a source names it for that maker (Maruti's own customer page for MA3; the manufacturer-code listings for MAL, MZB, MAT and MA1); BIS, the Indian coordinator of the WMI, holds the official register. The codes of positions 4 to 8 of every
+// one of the five are the maker's own and no maker publishes them, so for none of them do I pretend to decode them.
 
 import { DateTime } from "luxon";
 
@@ -38,37 +42,26 @@ export const SECTIONS: Array<{ id: "WMI" | "VDS" | "VIS"; from: number; to: numb
   { id: "VIS", from: 10, to: 17, name: "Vehicle Indicator Section", purpose: "the model year, the assembly plant and the serial number of this vehicle" },
 ];
 
-/** Manufacturers by WMI, Indian ones (MA-ME) first. I list only codes that are well established; anything else is said to be unknown, never guessed. */
+/** The manufacturer codes (WMI) of the five Indian makers I cover. A code I could not confirm from a source is NOT here, so a number with another code is said to be unknown, never guessed. */
 export const WMIS: Record<string, { maker: string; country: string }> = {
   MAL: { maker: "Hyundai Motor India", country: "India" },
+  MZB: { maker: "Kia India", country: "India" },
   MA3: { maker: "Maruti Suzuki", country: "India" },
-  MBH: { maker: "Maruti Suzuki", country: "India" },
   MAT: { maker: "Tata Motors", country: "India" },
   MA1: { maker: "Mahindra & Mahindra", country: "India" },
-  MAB: { maker: "Mahindra & Mahindra", country: "India" },
-  MAC: { maker: "Mahindra & Mahindra", country: "India" },
-  MAJ: { maker: "Ford India", country: "India" },
-  MAK: { maker: "Honda Cars India", country: "India" },
-  MA6: { maker: "General Motors India (Chevrolet)", country: "India" },
-  MCB: { maker: "General Motors India (Chevrolet)", country: "India" },
-  MBJ: { maker: "Toyota Kirloskar Motor", country: "India" },
-  MBR: { maker: "Mercedes-Benz India", country: "India" },
-  MB1: { maker: "Ashok Leyland", country: "India" },
-  MCA: { maker: "Fiat India", country: "India" },
-  MC2: { maker: "Volvo Eicher Commercial Vehicles", country: "India" },
-  MDH: { maker: "Nissan Motor India", country: "India" },
-  MD2: { maker: "Bajaj Auto", country: "India" },
-  MEE: { maker: "Renault India", country: "India" },
-  KMH: { maker: "Hyundai Motor Company", country: "South Korea" },
-  KNA: { maker: "Kia", country: "South Korea" },
-  JHM: { maker: "Honda", country: "Japan" },
-  "1HG": { maker: "Honda", country: "United States" },
-  "5YJ": { maker: "Tesla", country: "United States" },
-  WVW: { maker: "Volkswagen", country: "Germany" },
-  WBA: { maker: "BMW", country: "Germany" },
-  WDD: { maker: "Mercedes-Benz", country: "Germany" },
-  TMB: { maker: "Škoda", country: "Czech Republic" },
 };
+
+/**
+ * THE FIVE MAKERS, one button each under the number box. Hyundai Motor India and Kia India are TWO buttons: they hold two different manufacturer codes (MAL and MZB), they are two separate companies, and I found no document that says their
+ * positions 4 to 8 follow one code, so I do not read one by the other. The samples are made-up numbers (serial 000001): none is a real vehicle's. `note` says only what a source states; it is shown under the reading of a number of that maker.
+ */
+export const MAKERS: Array<{ id: "hyundai" | "kia" | "maruti" | "tata" | "mahindra"; button: string; maker: string; wmi: string; sample: string; note: string }> = [
+  { id: "hyundai", button: "Hyundai India", maker: "Hyundai Motor India", wmi: "MAL", sample: "MALBM51BLKM000001", note: "Hyundai Motor India's code is MAL. Its chassis plate may carry a month letter after a star (read below, as Indian car guides and owners describe it)." },
+  { id: "kia", button: "Kia India", maker: "Kia India", wmi: "MZB", sample: "MZBPC81ALNN000001", note: "Kia India has a manufacturer code of its own, MZB, apart from Hyundai's MAL. I found no document saying that its positions 4 to 8 follow Hyundai's, so I do not read one by the other." },
+  { id: "maruti", button: "Maruti Suzuki", maker: "Maruti Suzuki", wmi: "MA3", sample: "MA3ZC62S1NN000001", note: "Maruti Suzuki describes its own chassis number as MA3 followed by 14 letters and digits (its page for customers), which is the 17 characters of the standard." },
+  { id: "tata", button: "Tata Motors", maker: "Tata Motors", wmi: "MAT", sample: "MAT6A1CZ2NP000001", note: "Tata Motors' code is MAT. What follows it is Tata's own; this reader names the maker and explains the positions the standard fixes." },
+  { id: "mahindra", button: "Mahindra", maker: "Mahindra & Mahindra", wmi: "MA1", sample: "MA1TA2GD4NM000001", note: "Mahindra & Mahindra's code is MA1. What follows it is Mahindra's own; this reader names the maker and explains the positions the standard fixes." },
+];
 
 /** The plant letter of position 11 is the maker's own, so I list only this one, which is known with certainty (Hyundai Motor India had a single plant in India, at Sriperumbudur near Chennai, until recent years). */
 const PLANTS: Record<string, Record<string, string>> = { MAL: { M: "Hyundai Motor India's plant at Sriperumbudur, near Chennai" } };
@@ -210,15 +203,17 @@ export function readVin(raw: string, nowYear: number = DateTime.now().year): Vin
   if (issues.length) return { ok: false, typed, issues };
 
   const vin = t.core;
-  const { region, country } = regionOf(vin);
+  const { region, country: rangeCountry } = regionOf(vin);
   const wmiCode = vin.slice(0, 3);
   const wmi = WMIS[wmiCode] ?? null;
+  // The first two characters name the country only for a range I know (MA to ME is India); Kia India's code MZB lies outside that range, so for a code that is in my list I take the country from the list.
+  const country = rangeCountry ?? wmi?.country ?? null;
   const warnings: string[] = [];
 
   const parts: VinPart[] = [];
   parts.push({
     id: "country", from: 1, to: 1, text: vin[0], meaning: "Country or region",
-    detail: country ? `${vin[0]}: the first character names where the manufacturer is based; with the second character (${vin.slice(0, 2)}) it is ${country} (${region})` : `${vin[0]}: the first character names where the manufacturer is based: ${region}${region === "unknown" ? "" : ` (the first two characters, ${vin.slice(0, 2)}, do not name the country in this reader's list)`}`,
+    detail: rangeCountry ? `${vin[0]}: the first character names where the manufacturer is based; with the second character (${vin.slice(0, 2)}) it is ${rangeCountry} (${region})` : country ? `${vin[0]}: the first character names where the manufacturer is based (${region}); the whole code ${wmiCode} is in this reader's list for ${wmi?.maker}, an Indian maker, so the country is ${country}` : `${vin[0]}: the first character names where the manufacturer is based: ${region}${region === "unknown" ? "" : ` (the first two characters, ${vin.slice(0, 2)}, do not name the country in this reader's list)`}`,
   });
   parts.push({
     id: "maker", from: 2, to: 3, text: vin.slice(1, 3), meaning: "Manufacturer",
@@ -272,7 +267,7 @@ export function readVin(raw: string, nowYear: number = DateTime.now().year): Vin
     if (wmiCode === "MAL" && /^[A-HJ-M]$/.test(t.suffix)) {
       parts.push({
         id: "month", from: 18, to: 19, text: `*${t.suffix}`, meaning: "Month (chassis plate)",
-        detail: `Hyundai stamps the month of manufacture after the VIN: ${t.suffix} is ${MONTH_CODES[t.suffix]} (A January ... H August, J September, K October, L November, M December; there is no I). The full stamped chassis number is therefore 19 characters, the VIN being the first 17`,
+        detail: `Hyundai stamps the month of manufacture after the VIN: ${t.suffix} is ${MONTH_CODES[t.suffix]} (A January ... H August, J September, K October, L November, M December; there is no I). The full stamped chassis number is therefore 19 characters, the VIN being the first 17. This is how Indian car guides and owners describe the plate; I found no Hyundai Motor India document that publishes it, so an authorised dealer can confirm a month`,
       });
     } else {
       notes.push(`"*${t.suffix}" after the VIN is an extension some makers stamp on the chassis plate; this reader decodes it only for Hyundai (month letter), so it says nothing about it here.`);
@@ -285,15 +280,12 @@ export function readVin(raw: string, nowYear: number = DateTime.now().year): Vin
     { label: "Model year", value: year ? `${year.year} (or ${year.other})` : "not a year code" },
     { label: "Check digit", value: check.state === "valid" ? `${c9} · correct` : check.state === "mismatch" ? `${c9} · calculated ${calc}` : "not used (a letter)" },
   ];
+  const makerNote = MAKERS.find((m) => m.wmi === wmiCode)?.note;
+  if (makerNote) notes.unshift(makerNote);
   notes.push("A VIN identifies one vehicle: this reader explains the code and does not look the vehicle up. The registration certificate, the invoice and the manufacturer are the authority for anything the maker codes for itself.");
   if (!year) notes.unshift("The tenth character should be the model year.");
   return { ok: true, vin, parts, facts, check, year, wmi, notes, warnings };
 }
 
-/** Made-up numbers that show the readings; none is a real vehicle's. */
-export const VIN_SAMPLES: Array<{ vin: string; label: string }> = [
-  { vin: "MALBM51BLKM000001", label: "Hyundai, India" },
-  { vin: "1HGBH41JXMN109186", label: "Honda, USA" },
-  { vin: "5YJSA1DG9DFP14705", label: "Tesla, USA" },
-  { vin: "1M8GDM9AXKP042788", label: "check digit X" },
-];
+/** The samples of the buttons: one made-up number for each of the five makers (none is a real vehicle's). */
+export const VIN_SAMPLES: Array<{ vin: string; label: string }> = MAKERS.map((m) => ({ vin: m.sample, label: m.button }));

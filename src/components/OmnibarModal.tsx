@@ -765,6 +765,10 @@ export function OmnibarModal({
       return c && c.end === null ? { ...c, end: Date.now() } : c;
     });
   }, [isLoading, mode, submittedQuery]);
+  // The Admin menu page (the list of management tools that the Admin button opens, and its "not authorised" card) shows NO timer: how long the list took to appear tells the person nothing (my wish, 26 Nov 2026). I hide it for the Admin choice
+  // as well, so it does not run for a moment while the authority is being checked. Every other answer keeps its timer.
+  const hideClock = selection.scope === "admin" || !!(analytics && (analytics.managementHub || analytics.managementGate));
+  const showClock = !!searchClock && !isStale && !hideClock;
   const backToEdsShelf = () => { employeeReq.current++; setEmployeeResults([]); clearSearch(); setQuery(""); textareaRef.current?.focus(); };
   // the cross of the management page (or of its "not authorised" card): the page goes. If it came from the Admin button, I take the Admin choice with it, wipe the box and return the choice to Everything (every way back lands there)
   const closeManagement = () => { if (selection.scope === "admin") changeSelection({ ...AUTO_SELECTION }); else clearSearch(); };
@@ -1280,7 +1284,7 @@ export function OmnibarModal({
                  * The row of an answer: "All sample questions" (Executive Deep Search only) at the left, the timer at the right, both centred on the same line. It is a real row (it takes its own height), so the timer never lies over the reply's own buttons (Download PDF),
                  * and I made it NOT sticky: it sits at the top of the reply and scrolls away with it (my rule, 23 Nov 2026). A question typed by hand has no back link yet; the row is there all the same, for the timer.
                  */}
-                {(edsBackLink || deepBack || (searchClock && !isStale)) && (
+                {(edsBackLink || deepBack || showClock) && (
                   <div data-eds-toolbar className="-mx-2 -mt-2 mb-2 flex min-h-[2.5rem] items-center justify-between gap-3 border-b border-neutral-100 bg-white px-3 py-1">
                     <div className="min-w-0">
                       {edsBackLink && (
@@ -1294,7 +1298,7 @@ export function OmnibarModal({
                         </button>
                       )}
                     </div>
-                    {searchClock && !isStale && <ElapsedTimer startedAt={searchClock.start} stoppedAt={searchClock.end} />}
+                    {showClock && searchClock && <ElapsedTimer startedAt={searchClock.start} stoppedAt={searchClock.end} />}
                   </div>
                 )}
                 {isLoading && mode === "intellectual" ? (

@@ -1,6 +1,6 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/tools/vin/vin.selftest.ts
 // Note that the numbers below are samples; none of them is a real person's vehicle.
-import { FULL_FORMS, MONTH_CODES, SECTIONS, VIN_SAMPLES, WMIS, YEAR_CODES, checkSteps, looksLikeVin, modelYear, readVin, regionOf, splitVin, yearsFor } from "./vin";
+import { FULL_FORMS, MAKERS, MONTH_CODES, SECTIONS, VIN_SAMPLES, WMIS, YEAR_CODES, checkSteps, looksLikeVin, modelYear, readVin, regionOf, splitVin, yearsFor } from "./vin";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -26,7 +26,7 @@ ok("an extension on another maker's number is not guessed", (() => { const x = r
 
 // North America: here the check digit is calculated.
 const hn = rd("1HGBH41JXMN109186");
-ok("an American number with a right check digit says it is right", !!hn && hn.check.state === "valid" && /a check digit, and it is right/.test(hn.parts[3].detail) && /United States/.test(hn.parts[0].detail) && hn.wmi?.maker === "Honda" && hn.year?.year === 2021);
+ok("an American number with a right check digit says it is right", !!hn && hn.check.state === "valid" && /a check digit, and it is right/.test(hn.parts[3].detail) && /United States/.test(hn.parts[0].detail) && hn.wmi === null && hn.year?.year === 2021);
 const wrong = rd("1HGBH41J1MN109186");
 ok("a wrong check digit in North America is a probable typing mistake, and says what it should be", !!wrong && wrong.check.state === "mismatch" && wrong.check.calculated === "X" && /must equal X/.test(wrong.parts[3].detail) && /mistyped/.test(wrong.parts[3].detail));
 ok("outside North America a digit that does not match is not called an error", (() => { const x = rd("MALBM51B1KM000001"); return !!x && x.check.state === "mismatch" && /not an error by itself/.test(x.parts[3].detail); })());
@@ -45,10 +45,20 @@ ok("a line is taken for a VIN, as you type, only when it is one: 17 valid charac
 
 // regions and the lists
 ok("regions: M is Asia, MA-ME India; 1, 4, 5 United States; J Japan; W Germany; KM South Korea; S UK; Z Italy", regionOf("MAL").region === "Asia" && regionOf("MAL").country === "India" && regionOf("MEE").country === "India" && regionOf("MF1").country === null && regionOf("1HG").country === "United States" && regionOf("5YJ").country === "United States" && regionOf("JHM").country === "Japan" && regionOf("WVW").country === "Germany" && regionOf("KMH").country === "South Korea" && regionOf("SAL").country === "United Kingdom" && regionOf("ZFA").country === "Italy" && regionOf("2HG").country === "Canada" && regionOf("9BW").region === "South America");
-ok("the manufacturers of India that are listed are the well-established ones, all MA-ME", ["MAL", "MA3", "MBH", "MAT", "MA1", "MAB", "MAC", "MAJ", "MAK", "MA6", "MCB", "MBJ", "MBR", "MB1", "MCA", "MC2", "MDH", "MD2", "MEE"].every((k) => WMIS[k]?.country === "India" && regionOf(k).country === "India") && WMIS.MAL.maker === "Hyundai Motor India" && WMIS.MA3.maker === "Maruti Suzuki" && WMIS.MAT.maker === "Tata Motors");
+ok("only the five Indian makers are listed (Hyundai Motor India, Kia India, Maruti Suzuki, Tata Motors, Mahindra), each with the code a source names, and no foreign maker", Object.keys(WMIS).sort().join() === "MA1,MA3,MAL,MAT,MZB" && WMIS.MAL.maker === "Hyundai Motor India" && WMIS.MZB.maker === "Kia India" && WMIS.MA3.maker === "Maruti Suzuki" && WMIS.MAT.maker === "Tata Motors" && WMIS.MA1.maker === "Mahindra & Mahindra" && Object.values(WMIS).every((w) => w.country === "India") && !["KMH", "KNA", "JHM", "1HG", "5YJ", "WVW", "WBA", "WDD", "TMB", "MAJ", "MAK", "MBJ"].some((k) => k in WMIS));
 ok("the full forms: VIN, WMI, VDS, VIS, the two ISO standards, SAE", FULL_FORMS.map((f) => f.abbr).join() === "VIN,WMI,VDS,VIS,ISO 3779,ISO 3780,SAE" && FULL_FORMS[0].full === "Vehicle Identification Number" && FULL_FORMS[1].full === "World Manufacturer Identifier" && FULL_FORMS[2].full === "Vehicle Descriptor Section");
 ok("the three sections cover positions 1 to 17 without a gap or an overlap", SECTIONS.map((s) => `${s.from}-${s.to}`).join() === "1-3,4-9,10-17" && SECTIONS.every((s, i, a) => i === 0 || s.from === a[i - 1].to + 1));
-ok("the samples are all readable, and none is the owner's vehicle (serial 000001 or textbook examples)", VIN_SAMPLES.every((s) => readVin(s.vin, 2026).ok && looksLikeVin(s.vin)) && VIN_SAMPLES[0].vin.endsWith("000001"));
+ok("the samples are all readable, and none is a real vehicle's (serial 000001, made up)", VIN_SAMPLES.every((s) => readVin(s.vin, 2026).ok && looksLikeVin(s.vin) && s.vin.endsWith("000001")) && VIN_SAMPLES.length === 5);
+
+// THE FIVE MAKERS (26 Nov 2026): one button each; Hyundai and Kia are two; no foreign sample
+ok("there are five buttons, in this order: Hyundai India, Kia India, Maruti Suzuki, Tata Motors, Mahindra; the samples carry the names of the buttons", MAKERS.map((m) => m.button).join("|") === "Hyundai India|Kia India|Maruti Suzuki|Tata Motors|Mahindra" && VIN_SAMPLES.map((v) => v.label).join("|") === MAKERS.map((m) => m.button).join("|"));
+ok("every sample is a number of its own maker (its first three characters are the maker's manufacturer code) and is read as that maker", MAKERS.every((m) => m.sample.startsWith(m.wmi) && WMIS[m.wmi]?.maker === m.maker && rd(m.sample)?.wmi?.maker === m.maker));
+ok("Hyundai and Kia are two buttons with two different manufacturer codes (MAL and MZB), and the Kia reading says that no document ties its positions 4 to 8 to Hyundai's", MAKERS.slice(0, 2).map((m) => m.wmi).join() === "MAL,MZB" && new Set(MAKERS.slice(0, 2).map((m) => m.wmi)).size === 2 && new Set(MAKERS.slice(0, 2).map((m) => m.maker)).size === 2 && (rd(MAKERS[1].sample)?.notes ?? []).some((n) => /MZB/.test(n) && /Hyundai's/.test(n) && /do not read one by the other/.test(n)));
+ok("a Kia number is read as India although MZB lies outside the MA-ME range: the country comes from the list, and the reading says so", (() => { const x = rd(MAKERS[1].sample); return !!x && regionOf("MZB").country === null && x.facts[1].value === "India · Asia" && /is in this reader's list for Kia India/.test(x.parts[0].detail); })());
+ok("Maruti's note is its own words (MA3 followed by 14 letters and digits); Tata's and Mahindra's say that what follows the code is the maker's own", /MA3 followed by 14 letters and digits/.test(MAKERS[2].note) && /Tata's own/.test(MAKERS[3].note) && /Mahindra's own/.test(MAKERS[4].note) && (rd(MAKERS[2].sample)?.notes ?? [])[0] === MAKERS[2].note);
+ok("only Hyundai's plant letter is named (Sriperumbudur, M); no other maker's plant is guessed", (() => { const k = rd(MAKERS[1].sample), m = rd(MAKERS[2].sample), t = rd(MAKERS[3].sample), w = rd(MAKERS[4].sample), hy = rd(MAKERS[0].sample); return !!hy && /Sriperumbudur/.test(hy.parts[5].detail) && [k, m, t, w].every((x) => !!x && !/Sriperumbudur/.test(x.parts[5].detail) && /does not have/.test(x.parts[5].detail)); })());
+ok("the descriptor of every one of the five is said to be the maker's own, never decoded", MAKERS.every((m) => /the maker's own description/.test(rd(m.sample)?.parts[2].detail ?? "")));
+ok("the Hyundai month letter says how sure it is (guides and owners; no Hyundai document found); a Kia number with a star is not read for a month", (() => { const m = rd("MALBM51BLKM000001*L")?.parts.find((p) => p.id === "month"); const k = rd("MZBPC81ALNN000001*L"); return !!m && /Indian car guides and owners describe/.test(m.detail) && /authorised dealer can confirm/.test(m.detail) && !!k && !k.parts.some((p) => p.id === "month"); })());
 
 console.log(`vin selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

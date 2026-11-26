@@ -60,7 +60,7 @@ export function VinGuide({ yearCode }: { yearCode: string | null }) {
             ))}
           </div>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
-            <li><b>Position 1</b> is where the manufacturer is based (A–H Africa, J–R Asia, S–Z Europe, 1–5 North America, 6–7 Oceania, 8–9 South America); <b>MA to ME is India</b>. With positions 2 and 3 it makes the <b>WMI</b>, which SAE International assigns to each maker.</li>
+            <li><b>Position 1</b> is where the manufacturer is based (A–H Africa, J–R Asia, S–Z Europe, 1–5 North America, 6–7 Oceania, 8–9 South America); <b>MA to ME is India</b> (Kia India's code, MZB, is an Indian code too). With positions 2 and 3 it makes the <b>WMI</b>, which SAE International assigns to each maker.</li>
             <li><b>Positions 4 to 8</b> are the maker's own description of the vehicle (model, body, engine, restraint system). Each maker has its own codes.</li>
             <li><b>Position 9</b> is a <b>check digit</b> (0–9 or X) in North America, where the law requires it. Makers in India and Europe usually use the place for a code of their own.</li>
             <li><b>Position 10</b> is the <b>model year</b>, <b>position 11</b> the <b>assembly plant</b>, and <b>positions 12 to 17</b> the vehicle's own <b>serial number</b>.</li>
@@ -94,9 +94,9 @@ export function VinGuide({ yearCode }: { yearCode: string | null }) {
         </Block>
 
         <Block icon={<Factory size={16} />} title="Indian numbers, and the month">
-          <p>Indian makers follow the same 17-character layout, with a WMI that starts <b>MA</b> to <b>ME</b>. The ISO standard does not put the <b>month</b> of manufacture in the VIN; some makers record it themselves. <b>Hyundai</b> stamps it after the VIN on the chassis plate as <b>*</b> and a letter, so that the full stamped chassis number is 19 characters (for example <b>…*L</b>). Its letters run A January, B February, C March, D April, E May, F June, G July, H August, J September, K October, L November, M December (there is no I). The reader decodes that suffix for Hyundai only; for the other makers it makes no guess, because their month codes are their own.</p>
+          <p>This guide covers five Indian makers: <b>Hyundai Motor India</b> (MAL), <b>Kia India</b> (MZB), <b>Maruti Suzuki</b> (MA3), <b>Tata Motors</b> (MAT) and <b>Mahindra &amp; Mahindra</b> (MA1). Hyundai and Kia are shown apart because they are two companies with two manufacturer codes, and I found no document saying that their positions 4 to 8 follow one code. All five follow the same 17-character layout. The ISO standard does not put the <b>month</b> of manufacture in the VIN; some makers record it themselves. <b>Hyundai</b> stamps it after the VIN on the chassis plate as <b>*</b> and a letter, so that the full stamped chassis number is 19 characters (for example <b>…*L</b>). Its letters run A January, B February, C March, D April, E May, F June, G July, H August, J September, K October, L November, M December (there is no I). The reader decodes that suffix for Hyundai only (it is how Indian car guides and owners describe the plate; I found no Hyundai Motor India document that publishes it, so an authorised dealer can confirm a month); for the other makers it makes no guess, because their month codes are their own. For all five, positions 4 to 8 are the maker's own code, which no maker publishes, so the reader explains what the standard fixes and says plainly that the rest is the maker's.</p>
           <button type="button" onClick={() => setShowMakers((v) => !v)} aria-expanded={showMakers} className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white px-3.5 py-1.5 text-xs font-bold text-violet-800 shadow-sm transition hover:bg-violet-50">
-            <ChevronDown size={14} className={`transition-transform ${showMakers ? "rotate-180" : ""}`} />{showMakers ? "Hide" : "Show"} the manufacturer codes of India
+            <ChevronDown size={14} className={`transition-transform ${showMakers ? "rotate-180" : ""}`} />{showMakers ? "Hide" : "Show"} the manufacturer codes covered here
           </button>
           <AnimatePresence initial={false}>
             {showMakers && (
@@ -109,7 +109,7 @@ export function VinGuide({ yearCode }: { yearCode: string | null }) {
                     </div>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-slate-500">Only well-established codes are listed; a maker can hold more than one. A code that is not here is not necessarily wrong.</p>
+                <p className="mt-2 text-xs text-slate-500">Only a code that a source names for one of these five makers is listed; a maker can hold more than one, and a code that is not here is not necessarily wrong. The official register is kept by BIS, the Indian coordinator of these codes (bis.gov.in, World Manufacturer Identifier).</p>
               </motion.div>
             )}
           </AnimatePresence>
