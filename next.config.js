@@ -113,6 +113,9 @@ const nextConfig = {
     return config;
   },
 
+  // dsp-shared (the name rules I share with ESS) is TypeScript source, so Next must compile it as part of this app.
+  transpilePackages: ["dsp-shared"],
+
   // Next 16: these three settings are top-level (they were under `experimental` in Next 14).
   // I keep allowing native database modules to load correctly at runtime.
   serverExternalPackages: [

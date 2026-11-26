@@ -5,6 +5,7 @@ import { NewCircularBadge } from "./NewCircularBadge";
 import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { openAppGate } from "./AppGateModal"; // the ESS and IMS buttons ask for the password first
 // --- I updated the icon imports ---
 import {
   Fingerprint,
@@ -122,6 +123,33 @@ const AccessButton: React.FC<{
           size={28}
           className="transition-transform duration-300 
 group-hover:scale-110"
+        />
+        <span className="text-xs font-semibold text-center leading-tight">
+          {link.title}
+          {link.subtitle && (
+            <>
+              <br />
+              {link.subtitle}
+            </>
+          )}
+        </span>
+      </motion.button>
+    );
+  }
+
+  // --- Special case: the "ESS" and "IMS" buttons. They do not open a link: each opens its application in a NEW tab: the application's sign-in page when nobody is signed in, or, after a password check, its home page (src/components/AppGateModal.tsx) ---
+  if (link.title === "ESS" || link.title === "IMS") {
+    const gateApp = link.title === "ESS" ? "ess" : "ims";
+    return (
+      <motion.button
+        onClick={() => openAppGate(gateApp)}
+        className={className}
+        whileHover={{ y: -5 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <Icon
+          size={28}
+          className="transition-transform duration-300 group-hover:scale-110"
         />
         <span className="text-xs font-semibold text-center leading-tight">
           {link.title}

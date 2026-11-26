@@ -31,7 +31,7 @@ export function Nl2SqlAnswerExtras({ nl2sql }: { nl2sql: Nl2SqlExtras }) {
         </p>
       ) : null}
       {scope && scope.total > 0 && (
-        <p className="text-xs leading-snug text-slate-600">
+        <div className="text-xs leading-snug text-slate-600">
           <span className="font-semibold">Departments covered ({scope.total}):</span>{" "}
           {names.slice(0, SHOW).join(", ")}
           {names.length > SHOW && (
@@ -40,7 +40,7 @@ export function Nl2SqlAnswerExtras({ nl2sql }: { nl2sql: Nl2SqlExtras }) {
               <span>{names.slice(SHOW).join(", ")}</span>
             </details>
           )}
-        </p>
+        </div>
       )}
       {nl2sql.departmentNote ? (
         <p className="mt-1 text-xs leading-snug text-blue-800" data-department-note="true">

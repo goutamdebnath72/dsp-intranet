@@ -5,6 +5,7 @@ import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import { ModalProvider } from "@/context/ModalContext";
 import LoginModal from "@/components/LoginModal";
+import AppGateModal from "@/components/AppGateModal"; // the door of the ESS and IMS buttons
 import { SessionGuard } from "@/components/SessionGuard"; // Import the guard
 import AppToaster from "@/components/AppToaster";
 import ImageGuard from "@/components/ImageGuard"; // no photograph can be saved: I refuse right-click and drag on pictures
@@ -43,6 +44,7 @@ export default function RootLayout({
                 <main>{children}</main>
               </div>
               <LoginModal />
+              <AppGateModal />
             </SessionGuard>
           </ModalProvider>
         </AuthProvider>

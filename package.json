@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "shared:update": "npm update dsp-shared",
     "dev:log": ": > .browser-console.log && next dev --webpack 2>&1 | tee .dev-server.log",
     "build": "next build --webpack",
     "start": "next start",
@@ -27,6 +28,7 @@
     "axios": "^1.13.1",
     "bcryptjs": "^2.4.3",
     "date-fns": "^4.4.0",
+    "dsp-shared": "github:goutamdebnath72/dsp-shared",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.544.0",
     "luxon": "^3.7.2",
