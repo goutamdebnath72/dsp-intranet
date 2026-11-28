@@ -22,7 +22,7 @@ import { memo, memoExpire, recall } from "@/lib/live/memo";
 import { NEWS_LANGS, NEWS_LIMIT, NEWS_SOURCES, READ_OF, SOURCES_OF, buildNews, buildTab, candidateLinks, hasRecentPriority, isLang, isTab, looksLikeNewsAnswer, needPictures, type NewsData, type NewsLang, type NewsTab } from "@/lib/live/news";
 import { FRONT_PAGE } from "@/lib/live/bengali";
 import { pictureByHeadline } from "@/lib/live/bingImages";
-import { dropSamePhoto, rejectLogos } from "@/lib/live/photoHash";
+import { dropSamePhoto, isInspected, rejectLogos } from "@/lib/live/photoHash";
 import { resolveFacts, type PageFacts } from "@/lib/live/pageFacts";
 import { parseRss } from "@/lib/live/rss";
 import { BreakingWatch, WATCHED } from "@/lib/live/newsWatch";
@@ -116,7 +116,10 @@ function tabOptions(lang: NewsTab) {
         }
         data = data ?? make();
         // NO RELEVANT PICTURE, NO STORY: a picture that is a logo (a paper's own, given by an image search for a story it has no picture of) is rejected, and the list is made again without those stories
-        for (let pass = 0; pass < 2 && (await rejectLogos(data.items.map((i) => i.image))) > 0; pass++) data = make();
+        // EVERY PICTURE SHOWN HAS BEEN LOOKED AT: the pictures of the list are looked at (4 s at most); a logo is rejected and the list made again without its story (twice); a story whose picture could not be looked at in time is NOT shown (a logo
+        // must never get through because the check was late), and the tab, short for it, is made again in two minutes, when the pictures looked at are remembered.
+        for (let pass = 0; pass < 3 && (await rejectLogos(data.items.map((i) => i.image), 4000)) > 0; pass++) data = make();
+        data = { ...data, items: data.items.filter((i) => isInspected(i.image)) };
         // ONE NEWS, ONE ROW, BEFORE THE ANSWER GOES: the judge of sameNews.ts (embeddings to shortlist, a light Gemini model to decide; only public headlines are sent) is asked about this list's own headlines, for at most 4 seconds, and the stories it calls
         // the same news are joined; what it said is kept, so a later build asks only about new headlines. Then one photograph, one story: two papers' copies of the same picture under stories of the same words are joined too.
         const asking = meaningLinks(data.items.map((i) => i.title)).catch(() => undefined);
@@ -125,7 +128,7 @@ function tabOptions(lang: NewsTab) {
         await Promise.race([asking.then(() => { late = false; }), new Promise((resolve) => { timer = setTimeout(resolve, 4000); })]);
         clearTimeout(timer);
         // THE JUDGE MAY BE TOO LATE (its first asking on a server that has just started can take longer than the 4 seconds): the answer then goes out as it is, and when the judge does answer, a list that its verdicts would shorten is made old at once, so that the next asking gets it joined (the verdicts are kept, so the rebuild asks nothing)
-        const result: NewsData = { ...data, items: await dropSamePhoto(dropSameMeaning(data.items)) };
+        const result: NewsData = { ...data, verified: true, items: await dropSamePhoto(dropSameMeaning(data.items)) };
         if (late) {
           keep(asking.then(() => {
             const joined = dropSameMeaning(result.items);

@@ -59,9 +59,10 @@ ok("a paid priority story is not shown either (the paywall rule has no exception
 // --- the saved copy of a tab (the database): only a copy of the right shape, with a picture on every story, is taken
 {
   const it = (extra: object = {}) => ({ title: "A story", link: "https://x.org/a", source: "P", publishedAt: "2026-11-28T06:00:00Z", summary: "", image: "https://th.bing.com/th?id=ONUT.A", ...extra });
-  const tab = (items: object[], extra: object = {}) => ({ lang: "steel", items, used: ["P"], failed: [], ...extra });
+  const tab = (items: object[], extra: object = {}) => ({ verified: true, lang: "steel", items, used: ["P"], failed: [], ...extra });
   ok("a saved tab of the right shape, every story with its picture, is taken (all five tabs' names)", looksLikeNewsAnswer(tab([it()])) && ["en", "hi", "bn", "biz", "steel"].every((l) => looksLikeNewsAnswer(tab([it()], { lang: l }))));
-  ok("a saved tab is refused when a story has no picture (a copy of an older build), no list, a wrong tab name, a link that is not http(s), or a picture that is not https", !looksLikeNewsAnswer(tab([it(), it({ image: undefined })])) && !looksLikeNewsAnswer(tab([])) && !looksLikeNewsAnswer(tab([it()], { lang: "xx" })) && !looksLikeNewsAnswer(tab([it({ link: "javascript:alert(1)" })])) && !looksLikeNewsAnswer(tab([it({ image: "http://x.org/a.jpg" })])) && !looksLikeNewsAnswer(null) && !looksLikeNewsAnswer("x") && !looksLikeNewsAnswer({ lang: "en" }));
+  ok("a saved copy that was not verified (its pictures were not all looked at: a copy of an earlier build) is not taken, and one that was is", looksLikeNewsAnswer(tab([it()])) && !looksLikeNewsAnswer(tab([it()], { verified: false })) && !looksLikeNewsAnswer({ lang: "en", items: [it()], used: [], failed: [] }));
+  ok("a saved tab is refused when a story has no picture (a copy of an older build), no list, a wrong tab name, a link that is not http(s), or a picture that is not https", !looksLikeNewsAnswer(tab([it(), it({ image: undefined })])) && !looksLikeNewsAnswer(tab([])) && !looksLikeNewsAnswer(tab([it()], { lang: "xx" })) && !looksLikeNewsAnswer(tab([it({ link: "javascript:alert(1)" })])) && !looksLikeNewsAnswer(tab([it({ image: "http://x.org/a.jpg" })])) && !looksLikeNewsAnswer(tab([it()], { verified: undefined })) && !looksLikeNewsAnswer(null) && !looksLikeNewsAnswer("x") && !looksLikeNewsAnswer({ lang: "en" }));
 }
 
 let later: Promise<void> = Promise.resolve();

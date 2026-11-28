@@ -115,6 +115,7 @@ function fakeDb(o: { tableExists?: boolean; failCreate?: boolean; failRead?: boo
   await Promise.all(jobs);
   const route = readFileSync("src/app/api/live/news/route.ts", "utf8");
   ok("the news route saves and seeds its tabs (looksLikeNewsAnswer, seed), and warms the other four after answering, two at a time, at most every 20 seconds, with the same options as serving", /persist: \{ store: savedAnswers, check: looksLikeNewsAnswer, seed: true \}/.test(route) && /function warmOthers/.test(route) && /ALL_TABS\.filter\(\(t\) => t !== lang\)/.test(route) && /\[0, 1\]\.map/.test(route) && /WARM_EVERY_MS = 20 \* 1000/.test(route) && /liveValue<NewsData>\(tabOptions\(t\)\)/.test(route) && /liveRoute<NewsData>\(tabOptions\(lang\)\)/.test(route) && /warmOthers\(lang\)/.test(route));
+  ok("every picture shown has been looked at: the route looks at the pictures of a tab (rejectLogos), makes the list again without a logo, drops a story whose picture could not be looked at in time (isInspected), and marks the tab verified; a saved copy without that mark is not taken", /rejectLogos\(data\.items\.map\(\(i\) => i\.image\), 4000\)/.test(route) && /isInspected\(i\.image\)/.test(route) && /verified: true/.test(route) && /d\.verified !== true/.test(readFileSync("src/lib/live/news.ts", "utf8")));
 
   console.log(`snapshotStore selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

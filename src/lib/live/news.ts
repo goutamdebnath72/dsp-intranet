@@ -149,6 +149,8 @@ const unlooked = (items: FeedItem[], facts: ReadonlyMap<string, PageFacts> | und
 export const LANG_LABEL: Record<NewsTab, string> = { biz: "Business", steel: "Steel", en: "English", hi: "हिन्दी", bn: "বাংলা" };
 
 export interface NewsData {
+  /** True when every picture of the list has been looked at and is not a logo (the route sets it; a saved copy without it is not taken). */
+  verified?: true;
   lang: NewsTab;
   items: FeedItem[];
   /** The feeds that answered, and the ones that did not. */
@@ -371,7 +373,7 @@ export function needPictures(tab: NewsTab, textsByLang: Partial<Record<NewsLang,
 export function looksLikeNewsAnswer(x: unknown): x is NewsData {
   const d = x as NewsData | null;
   if (!d || typeof d !== "object" || !isTab(typeof d.lang === "string" ? d.lang : null)) return false;
-  if (!Array.isArray(d.items) || !d.items.length || !Array.isArray(d.used) || !Array.isArray(d.failed)) return false;
+  if (d.verified !== true || !Array.isArray(d.items) || !d.items.length || !Array.isArray(d.used) || !Array.isArray(d.failed)) return false;
   return d.items.every((i) => !!i && typeof i.title === "string" && !!i.title && typeof i.link === "string" && /^https?:\/\//i.test(i.link) && typeof i.source === "string" && typeof i.publishedAt === "string" && typeof i.image === "string" && /^https:\/\//i.test(i.image));
 }
 

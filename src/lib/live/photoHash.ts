@@ -6,7 +6,7 @@
 // (words and photograph), so two different stories that share a stock picture, or two photographs of one company, are not joined. Only pictures on the allowed hosts are fetched, with a time limit and a size ceiling, as the thumbnail route does.
 import sharp from "sharp";
 import { BROWSER_UA } from "./http";
-import { isAllowedImage, MAX_SOURCE_BYTES, rejectPicture, usableImage } from "./thumb";
+import { isAllowedImage, MAX_SOURCE_BYTES, rejectPicture, smallerAddress, usableImage } from "./thumb";
 import { pictureKey, wordsOf, type FeedItem } from "./rss";
 
 export const MAX_DIFFERENT = 8;
@@ -23,7 +23,8 @@ export async function inspect(image: string, timeoutMs = 3500): Promise<{ hash: 
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const r = await fetch(image, { signal: ctl.signal, redirect: "follow", headers: { "User-Agent": BROWSER_UA, Accept: "image/avif,image/webp,image/*;q=0.8" } });
+    // the picture as the thumbnail route will fetch it (the paper's small version where there is one): what is judged here is what the card will show
+    const r = await fetch(smallerAddress(image), { signal: ctl.signal, redirect: "follow", headers: { "User-Agent": BROWSER_UA, Accept: "image/avif,image/webp,image/*;q=0.8" } });
     if (!r.ok || !isAllowedImage(r.url)) return null;
     const buf = Buffer.from(await r.arrayBuffer());
     if (buf.length > MAX_SOURCE_BYTES) return null;
@@ -37,6 +38,9 @@ export async function inspect(image: string, timeoutMs = 3500): Promise<{ hash: 
     clearTimeout(timer);
   }
 }
+
+/** Has this picture been looked at (and read) already? Only such a picture may be shown: the owner's rule is no logo, ever, so a picture that could not be looked at in time is not shown until it has been. */
+export const isInspected = (image: string | undefined): boolean => !!image && !!KEPT.get(pictureKey(image));
 
 /** The fingerprint of a picture (null when it cannot be read). */
 export const photoHash = async (image: string, timeoutMs = 3500): Promise<bigint | null> => (await inspect(image, timeoutMs))?.hash ?? null;
