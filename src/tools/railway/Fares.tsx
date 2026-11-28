@@ -13,13 +13,15 @@ import { CLASSES, LOCAL_CLASS, type FareSet } from "@/lib/live/fare";
 import type { FareAnswer, LegsAnswer } from "@/lib/live/fareService";
 import { ORDINARY_SOURCE } from "@/lib/live/ordinaryFare";
 import { RAILRADAR_SITE } from "@/lib/live/railway";
+import { startName, type StartCode } from "@/lib/live/kolkataView";
 import { stationLabel } from "./stations";
 
 export const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
-/** The starting station of a fare: Durgapur, or Asansol for the trains of the Asansol tab */
-export type FareFrom = "DGR" | "ASN";
-export const originName = (from: string | undefined): string => (from === "ASN" ? "Asansol" : "Durgapur");
-const fromQuery = (from: FareFrom) => (from === "ASN" ? "&from=ASN" : "");
+/** The starting station of a fare: Durgapur, Asansol for the trains of the Asansol tab, or one of the four Kolkata stations for the Kolkata tab (Howrah, Sealdah, Santragachi, Kolkata) */
+export type FareFrom = "DGR" | "ASN" | StartCode;
+export const originName = (from: string | undefined): string => (from === "ASN" ? "Asansol" : from && from !== "DGR" ? startName(from) : "Durgapur");
+/** The part of a fare address that names the starting station (Durgapur is the default and needs none) */
+export const fromQuery = (from: FareFrom) => (from === "DGR" ? "" : `&from=${from}`);
 
 const when = (iso: string) => DateTime.fromISO(iso, { zone: "Asia/Kolkata" }).toFormat("ccc d LLL yyyy");
 
@@ -126,8 +128,8 @@ export function ClassKey({ codes, from = "DGR" }: { codes: string[]; from?: Fare
   );
 }
 
-/** Every short form the card uses, written out once at the bottom of the whole card */
-export function ShortForms() {
+/** Every short form the card uses, written out once at the bottom of the whole card; `more` adds the short forms of one tab (the Kolkata tab's four stations) */
+export function ShortForms({ more = [] }: { more?: Array<[string, string]> }) {
   const items: Array<[string, string]> = [
     ...Object.entries(CLASS_FULL).filter(([c]) => c !== "UR"),
     ["MEMU", "Mainline Electric Multiple Unit (the local train)"],
@@ -136,6 +138,7 @@ export function ShortForms() {
     ["GST", "Goods and Services Tax"],
     ["IRCTC", "Indian Railway Catering and Tourism Corporation (the ticket booking site)"],
     ["NTES", "National Train Enquiry System (live running status)"],
+    ...more,
   ];
   return (
     <p className="mt-3 text-xs leading-snug text-slate-500" data-short-forms>

@@ -12,7 +12,7 @@ import { useLive } from "@/hooks/useLive";
 import { ToolSelect, type SelectOption } from "@/components/tools/toolKit";
 import { cheapest, type FindAnswer, type FindTrain, type StopsAnswer } from "@/lib/live/fareFind";
 import { daysChip, type Moment } from "@/lib/live/railway";
-import { FareDisclaimer, FareSource, originName, ReceivedLine, rupees, type FareFrom } from "./Fares";
+import { FareDisclaimer, FareSource, fromQuery, originName, ReceivedLine, rupees, type FareFrom } from "./Fares";
 import { PREMIUM } from "./premium";
 import { viaOf } from "./routeVia";
 import { stationLabel } from "./stations";
@@ -83,7 +83,7 @@ export function FindResults({ answer, now, onlyToday, specials, sort, from = "DG
 }
 
 function FinderOpen({ now, onlyToday, specials, from }: { now: Moment; onlyToday: boolean; specials: boolean; from: FareFrom }) {
-  const q = from === "ASN" ? "&from=ASN" : "";
+  const q = fromQuery(from);
   const stops = useLive<StopsAnswer>(`/api/live/railway-fare-find?stops=1${q}`, true);
   const [to, setTo] = useState("");
   const [sort, setSort] = useState<SortBy>("time");

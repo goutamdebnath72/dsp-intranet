@@ -99,6 +99,9 @@ const LABEL: Record<string, string> = {
   MEMU: "MEMU (local)",
 };
 
+/** The class in words for a RailRadar train type ("Superfast Express" -> "Superfast"); a type that has no short word is kept as it is. */
+export const labelOf = (type: string): string => LABEL[type] ?? type;
+
 const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const mins = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 const isDay = (d: unknown): d is Day => typeof d === "string" && (DAYS as string[]).includes(d);

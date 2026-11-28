@@ -12,7 +12,10 @@ const STATES = new Set(["West Bengal", "Bihar", "Jharkhand", "Tamil Nadu", "Karn
 
 ok("77 distinct codes were seen at the ends of the trains", SEEN.length === 77 && new Set(SEEN).size === 77);
 ok("every one of them is in the table, Pratapnagar (PRTN) included: Vadodara, Gujarat", SEEN.every((c) => STATIONS[c]) && STATIONS.PRTN.city === "Vadodara" && STATIONS.PRTN.state === "Gujarat", SEEN.filter((c) => !STATIONS[c]).join());
-ok("the table holds no code that is not a real end of those trains (no stray entries)", Object.keys(STATIONS).every((c) => SEEN.includes(c)), Object.keys(STATIONS).filter((c) => !SEEN.includes(c)).join());
+// SRC (Santragachi Junction, Howrah, West Bengal) was added on 28 Nov 2026 for the Kolkata tab: it is one of its four starting stations, so it is named in full there (the other three were already here)
+const ALSO = ["SRC"];
+ok("the table holds no code that is not a real end of those trains, or one of the Kolkata tab's four starting stations (no stray entries)", Object.keys(STATIONS).every((c) => SEEN.includes(c) || ALSO.includes(c)), Object.keys(STATIONS).filter((c) => !SEEN.includes(c) && !ALSO.includes(c)).join());
+ok("Santragachi is Santragachi Junction, Howrah, West Bengal", STATIONS.SRC.name === "Santragachi Junction" && STATIONS.SRC.city === "Howrah" && STATIONS.SRC.state === "West Bengal");
 ok("every entry has a full name, a city and a known state (a typo in a state would show here)", Object.entries(STATIONS).every(([, s]) => s.name.length > 2 && s.city.length > 1 && STATES.has(s.state)), Object.entries(STATIONS).filter(([, s]) => !STATES.has(s.state)).map(([c]) => c).join());
 ok("no name carries brackets of its own (the code is printed in brackets beside it)", Object.values(STATIONS).every((s) => !/[()]/.test(s.name)));
 ok("no name is left abbreviated as 'Jn' or 'Jn.' (written out as Junction) and none keeps the railway source's misspelling 'Kolkatta'", Object.values(STATIONS).every((s) => !/\bJn\b\.?/.test(s.name) && !/Kolkatta/.test(s.name)));

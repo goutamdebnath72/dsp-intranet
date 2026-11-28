@@ -20,6 +20,7 @@ export const STATIONS: Record<string, Station> = {
   SHM: S("Shalimar", "Howrah", "West Bengal"),
   KOAA: S("Kolkata Chitpur", "Kolkata", "West Bengal"),
   SDAH: S("Sealdah", "Kolkata", "West Bengal"),
+  SRC: S("Santragachi Junction", "Howrah", "West Bengal"),
   BWN: S("Bardhaman Junction", "Bardhaman", "West Bengal"),
   ASN: S("Asansol Junction", "Asansol", "West Bengal"),
   UDL: S("Andal Junction", "Andal", "West Bengal"),

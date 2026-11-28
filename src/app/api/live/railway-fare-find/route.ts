@@ -1,6 +1,6 @@
 // src/app/api/live/railway-fare-find/route.ts
 //
-// "Find a fare": (`from=ASN` for the Asansol tab: the fares from Asansol, from its own tables) ?stops=1 gives the stations that have a saved fare to them (for the search box); ?to=PNBE gives every train that goes from Durgapur to that station, with the saved fare of each class (src/lib/live/fareFind.ts).
+// "Find a fare": (`from=ASN` for the Asansol tab: the fares from Asansol, from its own tables; `from=HWH`, SDAH, SRC or KOAA for the Kolkata tab: the fares from that station, among the trains the tab shows, from the Kolkata tables) ?stops=1 gives the stations that have a saved fare to them (for the search box); ?to=PNBE gives every train that goes from Durgapur to that station, with the saved fare of each class (src/lib/live/fareFind.ts).
 // DATABASE ONLY for the fares (I ask nothing of RailRadar's fare service: the plant pays for it for one month and the fares were collected then); the kept timetable (free plan, twelve hours) supplies the times and days.
 // The caller sends only a station code, which I check to be letters and digits.
 import { NextResponse, type NextRequest } from "next/server";
@@ -12,6 +12,8 @@ import { legStoreFor, type StopInfo } from "@/lib/live/fareLegStore";
 import { ORDINARY_SOURCE } from "@/lib/live/ordinaryFare";
 import { RAILRADAR_SITE, type Railway } from "@/lib/live/railway";
 import { loadAsansol, loadRailway } from "@/lib/live/railwayLoad";
+import { kolkataFind } from "@/lib/live/kolkataRead";
+import { isStartCode, type StartCode } from "@/lib/live/kolkataView";
 import type { AsansolTrains } from "@/lib/live/railwayAsansol";
 
 export const dynamic = "force-dynamic";
@@ -23,11 +25,31 @@ const SOURCE = "RailRadar (fares from the railway's reservation system)";
 /** I keep the list of stations of each starting station for ten minutes in this copy's memory (the search box asks for it once per opening) */
 const stopsKept: Partial<Record<"DGR" | "ASN", { at: number; stops: StopInfo[] }>> = {};
 
+/** The Kolkata tab's finder: the same two answers (the stations, and the trains to one), from the Kolkata tables and only for the trains the tab shows (src/lib/live/kolkataRead.ts keeps them ten minutes) */
+async function kolkataFinder(code: StartCode, q: URLSearchParams) {
+  const find = await kolkataFind(await getDb(), code);
+  if (q.get("stops") === "1") {
+    if (find.stops.length === 0) return fail("No fares to the stops of these trains have been collected.", 404);
+    const body: LiveEnvelope<StopsAnswer> = { ok: true, fetchedAt: DateTime.now().toUTC().toISO() ?? "", source: SOURCE, sourceUrl: RAILRADAR_SITE, stale: false, data: { stops: find.stops } };
+    return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
+  }
+  const to = q.get("to") ?? "";
+  if (!/^[A-Z0-9]{1,8}$/.test(to)) return fail("Send a station code (letters and digits).", 400);
+  const rows = find.toStop(to);
+  const a = rows.length ? buildFind({ code: to, name: rows[0].leg.name }, rows, find.timetable, find.coverage, DateTime.now()) : null;
+  if (!a) return fail("No saved fare goes to this station.", 404);
+  const body: LiveEnvelope<FindAnswer> = { ok: true, fetchedAt: a.receivedAt, source: SOURCE, sourceUrl: RAILRADAR_SITE, stale: a.frozen, data: a };
+  if (!validEnvelope(body)) return fail("The fares could not be read.", 503);
+  return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams;
   // The station the fares start from: Durgapur unless the Asansol tab asks (`from=ASN`). I accept nothing else.
-  const from = q.get("from") === "ASN" ? "ASN" : "DGR";
+  const asked = q.get("from");
+  const from = asked === "ASN" ? "ASN" : "DGR";
   try {
+    if (isStartCode(asked)) return await kolkataFinder(asked, q);
     const store = legStoreFor(await getDb(), from);
     if (q.get("stops") === "1") {
       let kept = stopsKept[from];

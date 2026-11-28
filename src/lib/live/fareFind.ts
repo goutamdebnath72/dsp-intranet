@@ -44,8 +44,11 @@ export interface FindAnswer {
 /** The cheapest fare of a train to the stop (its lowest class), used for sorting; I return Infinity when it has none. */
 export const cheapest = (t: FindTrain): number => (t.classes.length ? Math.min(...t.classes.map((c) => c.total)) : Infinity);
 
-/** I return every train of a timetable, whichever of the two shapes it has: Durgapur's (in groups by direction) or Asansol's (two lists). */
-export function trainsOf(t: Railway | AsansolTrains | null): Train[] {
+/** A timetable that is two flat lists (Asansol's, and the Kolkata tab's) */
+export interface FlatTimetable { express: Train[]; local: Train[] }
+
+/** I return every train of a timetable, whichever of the shapes it has: Durgapur's (in groups by direction) or the flat one of Asansol and Kolkata (two lists). */
+export function trainsOf(t: Railway | AsansolTrains | FlatTimetable | null): Train[] {
   if (!t) return [];
   if (Array.isArray(t.express)) return [...t.express, ...(t.local as Train[])];
   const r = t as Railway;
@@ -53,7 +56,7 @@ export function trainsOf(t: Railway | AsansolTrains | null): Train[] {
 }
 
 /** I build the trains to a station from the saved fares and the timetable (null when the timetable could not be read); the result is null when no train has a saved fare to it. */
-export function buildFind(stop: { code: string; name: string }, rows: StopTrainRow[], railway: Railway | AsansolTrains | null, coverage: Coverage, now: DateTime, until?: string): FindAnswer | null {
+export function buildFind(stop: { code: string; name: string }, rows: StopTrainRow[], railway: Railway | AsansolTrains | FlatTimetable | null, coverage: Coverage, now: DateTime, until?: string): FindAnswer | null {
   if (rows.length === 0) return null;
   const all: Train[] = trainsOf(railway);
   const byNumber = new Map(all.map((t) => [t.number, t]));

@@ -8,6 +8,8 @@ import { getDb } from "@/lib/db";
 import { validEnvelope, type LiveEnvelope } from "@/lib/live/envelope";
 import { fareServiceOpen, legsAnswer, type LegsAnswer } from "@/lib/live/fareService";
 import { legStoreFor } from "@/lib/live/fareLegStore";
+import { kolkataLegRows } from "@/lib/live/kolkataRead";
+import { isStartCode } from "@/lib/live/kolkataView";
 import { ORDINARY_SOURCE } from "@/lib/live/ordinaryFare";
 import { RAILRADAR_SITE } from "@/lib/live/railway";
 
@@ -17,11 +19,13 @@ const fail = (error: string, status: number) => NextResponse.json({ ok: false, e
 
 export async function GET(req: NextRequest) {
   const number = req.nextUrl.searchParams.get("train") ?? "";
-  // The station the fare starts from: Durgapur unless the Asansol tab asks (`from=ASN`). I accept nothing else.
-  const from = req.nextUrl.searchParams.get("from") === "ASN" ? "ASN" : "DGR";
+  // The station the fare starts from: Durgapur unless the Asansol tab asks (`from=ASN`) or the Kolkata tab (the code of its station). I accept nothing else.
+  const asked = req.nextUrl.searchParams.get("from");
+  const from = asked === "ASN" ? "ASN" : "DGR";
   if (!/^\d{5}$/.test(number)) return fail("Send the five-digit train number.", 400);
   try {
-    const rows = await legStoreFor(await getDb(), from).list(number);
+    const db = await getDb();
+    const rows = isStartCode(asked) ? await kolkataLegRows(db, number) : await legStoreFor(db, from).list(number);
     const a = legsAnswer(number, rows, DateTime.now());
     if (!a) return fail(fareServiceOpen(DateTime.now()) ? "The fares to the stops of this train are not collected yet: the collection is still running. Try again later." : "The fares to the stops of this train were not collected before the paid fare service ended.", 404);
     const body: LiveEnvelope<LegsAnswer> = a.hint

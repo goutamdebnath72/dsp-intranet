@@ -52,14 +52,14 @@ function StationName({ label }: { label: { name: string; junction: boolean } }) 
 }
 
 /** This draws one train. I keep the top of the time and the top of the first line on one row of pixels (the same trimming as the flights card: the room above a capital is trimmed from both, the time let down 0.05 em for Poppins' round digits). */
-/** Props: `fares` is the fare button (on by default); `origin` is the station the fares start from, Durgapur unless the Asansol tab says ASN (a train that ends at that station has no fare onward); `extra` is a chip of the caller's own beside the days. */
-export function Row({ t, now, next, tone = "express", fares: withFares = true, origin = "DGR", extra }: { t: Train; now: Moment; next: boolean; tone?: Tone; fares?: boolean; origin?: FareFrom; extra?: React.ReactNode }) {
+/** Props: `fares` is the fare button (on by default); `origin` is the station the fares start from, Durgapur unless another tab says so (a train that ends at that station has no fare onward); `extra` is a chip of the caller's own beside the days; `reserved` says the fares of a local train are the reservation system's own and not a hint worked out from the fare table (the Kolkata tab has a few such local trains). */
+export function Row({ t, now, next, tone = "express", fares: withFares = true, origin = "DGR", extra, reserved = false }: { t: Train; now: Moment; next: boolean; tone?: Tone; fares?: boolean; origin?: FareFrom; extra?: React.ReactNode; reserved?: boolean }) {
   const c = TONE[tone];
   const premium = PREMIUM[t.label];
   const [fares, setFares] = useState(false);
   // I look up a fare for an express or mail train (or a special) that goes on from Durgapur; for a local (MEMU) train, which is unreserved and has no fare in the reservation system, I work out a HINT from the railway's fare table.
   const hasFares = withFares && t.toCode !== origin;
-  const isLocal = t.kind === "local";
+  const isLocal = t.kind === "local" && !reserved;
   const runsToday = t.days.includes(now.day);
   const gone = runsToday && clock(t) < now.hm;
   const chip = daysChip(t.days);
@@ -96,7 +96,8 @@ export function Row({ t, now, next, tone = "express", fares: withFares = true, o
   );
 }
 
-export function Column({ title, list, now, empty, tone, sub, fares = true, origin = "DGR", extra }: { title: string; list: Train[]; now: Moment; empty: string; tone: Tone; sub?: string; fares?: boolean; origin?: FareFrom; extra?: (t: Train) => React.ReactNode }) {
+/** `fares` is on for every train of the list, or a function that says it train by train (the Kolkata tab: only a train that has a saved fare gets the button) */
+export function Column({ title, list, now, empty, tone, sub, fares = true, origin = "DGR", extra, reserved = false }: { title: string; list: Train[]; now: Moment; empty: string; tone: Tone; sub?: string; fares?: boolean | ((t: Train) => boolean); origin?: FareFrom; extra?: (t: Train) => React.ReactNode; reserved?: boolean }) {
   const next = nextTrain(list, now);
   return (
     // I need min-w-0 here: a grid column may otherwise grow to the width of its longest unbroken line (a long train name) and push the cards past the edge of a phone.
@@ -109,7 +110,7 @@ export function Column({ title, list, now, empty, tone, sub, fares = true, origi
         // and together they stretch the scroll area of the whole window by thousands of pixels (a blank, scrollable space under the card).
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         <ol tabIndex={0} aria-label={`${title}: list of trains`} className="relative max-h-[26rem] space-y-1.5 overflow-y-auto pr-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300">
-          {list.map((t) => <Row key={`${t.number}-${clock(t)}`} t={t} now={now} next={t === next} tone={tone} fares={fares} origin={origin} extra={extra?.(t)} />)}
+          {list.map((t) => <Row key={`${t.number}-${clock(t)}`} t={t} now={now} next={t === next} tone={tone} fares={typeof fares === "function" ? fares(t) : fares} origin={origin} extra={extra?.(t)} reserved={reserved} />)}
         </ol>
       )}
     </section>

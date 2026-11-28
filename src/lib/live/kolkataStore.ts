@@ -10,6 +10,7 @@
 import { DateTime } from "luxon";
 import type { ClassFare, FareSet, LegFare } from "./fare";
 import type { HaltRow, TrainFull } from "./kolkataSet";
+import { legFromRow, type LegRow } from "./fareLegStore";
 
 export interface Queryable {
   query(sql: string, params?: unknown[]): Promise<any>;
@@ -117,6 +118,12 @@ export interface KolStore {
   putLeg(number: string, leg: LegFare, at: Date): Promise<void>;
   /** the halts that have a saved fare for a train, with when */
   legs(number: string): Promise<Array<{ to: string; receivedAt: string }>>;
+  /** THE SCREEN'S READS. What the end-of-run fare of each train said: how many classes answered (0 = none sold), and when. */
+  fareSummaries(): Promise<Array<{ number: string; classes: number; receivedAt: string }>>;
+  /** The saved fares to every halt of one train, in route order (the "Fares to every stop" table). */
+  legRows(number: string): Promise<LegRow[]>;
+  /** The saved fares to every halt of several trains at once (the fare finder), each with its train number. */
+  legRowsFor(numbers: string[]): Promise<Array<{ number: string; row: LegRow }>>;
   /** counts for the report */
   summary(): Promise<{ trains: number; inSet: number; withFares: number; withLegs: number; legRows: number; oldest: Date | null; newest: Date | null }>;
 }
@@ -165,6 +172,19 @@ export function kolStore(ds: Queryable): KolStore {
     async legs(number) {
       const r = rowsOf(await ds.query(`SELECT to_code, fetched_at FROM public.${t.legs} WHERE train_number = $1 ORDER BY seq`, [number]));
       return r.map((x) => ({ to: String(x.to_code), receivedAt: (x.fetched_at instanceof Date ? DateTime.fromJSDate(x.fetched_at) : DateTime.fromISO(String(x.fetched_at))).toUTC().toISO() ?? "" }));
+    },
+    async fareSummaries() {
+      const r = rowsOf(await ds.query(`SELECT train_number, jsonb_array_length(classes) AS n, fetched_at FROM public.${t.fares}`));
+      return r.map((x) => ({ number: String(x.train_number), classes: Number(x.n) || 0, receivedAt: (x.fetched_at instanceof Date ? DateTime.fromJSDate(x.fetched_at) : DateTime.fromISO(String(x.fetched_at))).toUTC().toISO() ?? "" }));
+    },
+    async legRows(number) {
+      const r = rowsOf(await ds.query(`SELECT to_code, to_name, seq, distance_km, to_char(journey_date, 'YYYY-MM-DD') AS journey_date, classes, fetched_at FROM public.${t.legs} WHERE train_number = $1 ORDER BY seq`, [number]));
+      return r.flatMap((x) => { const l = legFromRow(x); return l ? [l] : []; });
+    },
+    async legRowsFor(numbers) {
+      if (numbers.length === 0) return [];
+      const r = rowsOf(await ds.query(`SELECT train_number, to_code, to_name, seq, distance_km, to_char(journey_date, 'YYYY-MM-DD') AS journey_date, classes, fetched_at FROM public.${t.legs} WHERE train_number = ANY($1::text[]) ORDER BY train_number, seq`, [numbers]));
+      return r.flatMap((x) => { const l = legFromRow(x); return l && /^\d{5}$/.test(String(x.train_number)) ? [{ number: String(x.train_number), row: l }] : []; });
     },
     async summary() {
       const a = rowsOf(await ds.query(`SELECT count(*)::int AS trains, count(*) FILTER (WHERE in_set)::int AS in_set, min(fetched_at) AS oldest, max(fetched_at) AS newest FROM public.${t.trains}`))[0];
