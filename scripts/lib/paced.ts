@@ -4,8 +4,10 @@ import type { Fetcher } from "../../src/lib/live/fare";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function makePaced(gapMs = 2200): { fetcher: Fetcher; count: () => number } {
+export function makePaced(gapMs = 2200): { fetcher: Fetcher; count: () => number; remaining: () => number | null } {
   let calls = 0;
+  // what RailRadar itself says is left of the month (the header of the last answer); null until one has come
+  let left: number | null = null;
   let last = 0;
   let chain: Promise<unknown> = Promise.resolve();
   const fetcher: Fetcher = (url) => {
@@ -21,6 +23,8 @@ export function makePaced(gapMs = 2200): { fetcher: Fetcher; count: () => number
         const timer = setTimeout(() => ctl.abort(), 15000);
         try {
           const r = await fetch(url, { signal: ctl.signal, headers: { Authorization: `Bearer ${key}`, Accept: "application/json" } });
+          const h = Number(r.headers.get("x-ratelimit-remaining-month"));
+          if (Number.isFinite(h) && r.headers.get("x-ratelimit-remaining-month") !== null) left = h;
           if (r.status === 429 && attempt < 3) { console.log("  (RailRadar asked for a pause: waiting 65 seconds)"); await sleep(65000); continue; }
           return { status: r.status, json: (await r.json().catch(() => null)) as unknown };
         } finally {
@@ -31,5 +35,5 @@ export function makePaced(gapMs = 2200): { fetcher: Fetcher; count: () => number
     chain = run.catch(() => undefined);
     return run;
   };
-  return { fetcher, count: () => calls };
+  return { fetcher, count: () => calls, remaining: () => left };
 }

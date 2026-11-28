@@ -14,7 +14,7 @@ import { DateTime } from "luxon";
 import { useLive } from "@/hooks/useLive";
 import { LiveGate, SourceLine, TrendChart, type TrendPoint } from "@/components/tools/live/LivePieces";
 import { CpiPanel, Pills } from "./CpiCharts";
-import { announcedFor, IDA_ANNOUNCED_CHECKED, idaAmount, idaForQuarter, idaProjected, LINK_POINT, LINKING_FACTOR, PERCENT_PER_POINT, quarterOf, quartersOf, ZONE, type Aicpi, type IdaWork, type IndexPoint } from "@/lib/live/aicpi";
+import { announcementFor, IDA_ANNOUNCED_CHECKED, idaAmount, idaForQuarter, idaProjected, LINK_POINT, LINKING_FACTOR, PERCENT_PER_POINT, quarterOf, quartersOf, ZONE, type Aicpi, type IdaWork, type IndexPoint } from "@/lib/live/aicpi";
 
 export const AICPI_REFRESH_MS = 6 * 60 * 60 * 1000;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -48,6 +48,17 @@ function Figure({ title, big, sub, tone }: { title: string; big: string; sub: Re
 
 const rangeText = (w: IdaWork) => `${monthText(w.months[0])} to ${monthText(w.months[2])}`;
 
+/** The "DPE order" cell of a quarter: the order's rate with a tick when the formula gives the same, a warning when it does not; a link to the order's PDF when the server found it; for an order whose rate has not been read, a link to open it. */
+function orderChip(a: ReturnType<typeof announcementFor>, w: IdaWork): React.ReactNode {
+  if (!a) return <span className="text-slate-400">no order yet</span>;
+  const chip = a.rate === null
+    ? <span className="rounded-full bg-slate-100 px-2 py-0.5 font-bold text-slate-700">order issued: open to read</span>
+    : a.rate === w.rate
+      ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800">{f1(a.rate)}% ✓</span>
+      : <span className="rounded-full bg-red-100 px-2 py-0.5 font-bold text-red-800">{f1(a.rate)}% (worked out {f1(w.rate)}%)</span>;
+  return a.pdf ? <a href={a.pdf} target="_blank" rel="noopener noreferrer" title={a.order} aria-label={`Open the order: ${a.order}`}>{chip}</a> : <span title={a.order}>{chip}</span>;
+}
+
 export function AicpiBody({ data, today = DateTime.now().setZone(ZONE), basic = "" }: { data: Aicpi; today?: DateTime; basic?: string }) {
   const pts = data.points;
   const [typed, setTyped] = useState(basic);
@@ -56,13 +67,20 @@ export function AicpiBody({ data, today = DateTime.now().setZone(ZONE), basic = 
   const due = nextDue(latest.month);
   const { startsOn, next } = quarterOf(today);
   const inForce = idaForQuarter(pts, startsOn);
-  const announced = announcedFor(startsOn);
-  const coming = idaForQuarter(pts, next) ?? idaProjected(pts, next);
   const quarters = quartersOf(pts, today);
+  const orders = data.orders;
+  const announced = announcementFor(startsOn, orders);
+  // the order is the authority: when it has been read, its rate is the one in force (and the worked-out one is shown beside it when they differ)
+  const rateNow = announced?.rate ?? inForce?.rate ?? null;
+  // how the formula stands against the orders: of the quarters in the table that have an order with a rate, in how many does it give the same
+  const checked = quarters.filter((q) => q.known === 3).map((q) => ({ q, a: announcementFor(q.startsOn, orders) })).filter((x): x is { q: IdaWork; a: NonNullable<ReturnType<typeof announcementFor>> & { rate: number } } => x.a !== null && x.a.rate !== null);
+  const agree = checked.filter((x) => x.a.rate === x.q.rate);
+  const differ = checked.filter((x) => x.a.rate !== x.q.rate);
+  const coming = idaForQuarter(pts, next) ?? idaProjected(pts, next);
   const pay = Number(typed.replace(/[^\d]/g, ""));
   const validPay = Number.isFinite(pay) && pay > 0 && pay <= 10_000_000;
   const rows = validPay ? [
-    inForce ? { name: `From ${dayText(startsOn)}, ${f1(inForce.rate)}%`, rate: inForce.rate } : null,
+    rateNow !== null ? { name: `From ${dayText(startsOn)}, ${f1(rateNow)}%`, rate: rateNow } : null,
     coming ? { name: `From ${dayText(next)}, ${f1(coming.rate)}%${coming.known < 3 ? " (expected)" : ""}`, rate: coming.rate } : null,
   ].filter((r): r is { name: string; rate: number } => !!r) : [];
   return (
@@ -77,7 +95,7 @@ export function AicpiBody({ data, today = DateTime.now().setZone(ZONE), basic = 
 
       <h4 className="mb-1.5 mt-5 text-sm font-extrabold text-slate-800">Dearness allowance, quarter by quarter (IDA, 2017 pay scales)</h4>
       <div className="grid gap-2 sm:grid-cols-3">
-        <Figure tone="border-emerald-200 bg-emerald-50/80" title={`From ${dayText(startsOn)}`} big={inForce ? `${f1(inForce.rate)}%` : "–"} sub={inForce ? <>of basic pay, from {rangeText(inForce)} ({f2(inForce.exact)}%){announced ? <>. {announced.order}.</> : <>. Worked out here; no order of this quarter is in the list.</>}</> : "The months of this quarter are not in the record."} />
+        <Figure tone="border-emerald-200 bg-emerald-50/80" title={`From ${dayText(startsOn)}`} big={rateNow !== null ? `${f1(rateNow)}%` : "–"} sub={announced || inForce ? <>of basic pay{inForce ? <>, from {rangeText(inForce)} ({f2(inForce.exact)}%)</> : null}{announced ? <>. {announced.order}{announced.rate === null ? "" : "."}{inForce && announced.rate !== null && announced.rate !== inForce.rate ? <> Worked out here: {f1(inForce.rate)}%.</> : null}{announced.listed !== null ? <> (My list had {f1(announced.listed)}%.)</> : null}{announced.pdf ? <> <a href={announced.pdf} target="_blank" rel="noopener noreferrer" className="font-bold text-emerald-800 underline">Open the order</a></> : null}</> : <>. Worked out here; DPE has not put an order of this quarter on its website yet.</>}</> : "The months of this quarter are not in the record."} />
         <Figure tone="border-violet-200 bg-violet-50/80" title={`${coming && coming.known === 3 ? "From" : "Expected from"} ${dayText(next)}`} big={coming ? `${f1(coming.rate)}%` : "–"} sub={coming ? (coming.known === 3 ? <>from {rangeText(coming)} ({f2(coming.exact)}%).</> : <>from {rangeText(coming)}: {coming.known} of 3 months published, the rest taken at {f1(latest.value)} ({f2(coming.exact)}%). A projection, not an announcement.</>) : "Not enough months."} />
         <Figure tone="border-sky-200 bg-sky-50/80" title="One point of the index" big={`${PERCENT_PER_POINT.toFixed(2)}%`} sub={<>of DA for each point the three-month average rises (2.88 ÷ 277.33 × 100): a rise of 2 points in the average adds about {(PERCENT_PER_POINT * 2).toFixed(1)}%.</>} />
       </div>
@@ -91,7 +109,7 @@ export function AicpiBody({ data, today = DateTime.now().setZone(ZONE), basic = 
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
             {quarters.map((w) => {
-              const a = announcedFor(w.startsOn);
+              const a = announcementFor(w.startsOn, orders);
               return (
                 <tr key={w.startsOn} className={w.startsOn === startsOn ? "bg-emerald-50/70 font-semibold" : ""}>
                   <td className="px-3 py-1.5">{dayText(w.startsOn)}{w.known < 3 ? <span className="ml-1 rounded-full bg-violet-100 px-1.5 text-[11px] font-bold text-violet-800">expected</span> : null}</td>
@@ -99,7 +117,7 @@ export function AicpiBody({ data, today = DateTime.now().setZone(ZONE), basic = 
                   <td className="px-3 py-1.5 text-right tabular-nums">{f2(w.average)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{f2(w.linked)}</td>
                   <td className="px-3 py-1.5 text-right font-bold tabular-nums text-slate-900">{f1(w.rate)}%</td>
-                  <td className="px-3 py-1.5 text-xs">{a ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800" title={a.order}>{f1(a.rate)}% ✓</span> : <span className="text-slate-400">not in the list</span>}</td>
+                  <td className="px-3 py-1.5 text-xs">{orderChip(a, w)}</td>
                 </tr>
               );
             })}
@@ -116,7 +134,7 @@ export function AicpiBody({ data, today = DateTime.now().setZone(ZONE), basic = 
           <li><strong>The three months.</strong> The DA from 1 January uses September, October and November; from 1 April, December to February; from 1 July, March to May; from 1 October, June to August.</li>
           <li><strong>{LINK_POINT}</strong> is the link point of the 2017 pay scales (the average of September to November 2016 on the 2001-base index, from which the DA began again at zero: the DPE order of 3 August 2017). <strong>{LINKING_FACTOR}</strong> is the factor that carries today&apos;s base-2016 index back to that base; the orders do not print it, and it is the one that gives the rates they announce.</li>
           <li><strong>Rounded to the nearest tenth:</strong> 59.06% is 59.1% (the order of 27 October 2026).</li>
-          <li><strong>Checked against the orders.</strong> With the Labour Bureau&apos;s own indices the formula gives 53.4% for 1 January 2026 and 59.1% for 1 October 2026, the two rates the Department of Public Enterprises&apos; orders give.</li>
+          <li><strong>Checked against the orders.</strong> {checked.length === 0 ? <>No order of the quarters in the table could be compared.</> : <>With the Labour Bureau&apos;s own indices the formula gives the rate of the Department of Public Enterprises&apos; order in {agree.length} of the {checked.length} quarters in the table that have one ({agree.map((x) => `${f1(x.a.rate)}% from ${dayText(x.q.startsOn)}`).join(", ") || "none"}){differ.length ? <>; it does <strong>not</strong> give the order&apos;s rate from {differ.map((x) => `${dayText(x.q.startsOn)} (order ${f1(x.a.rate)}%, worked out ${f1(x.q.rate)}%)`).join(", ")}: the order is the authority</> : null}.</>}</li>
         </ul>
         {inForce && (
           <table className="mt-3 w-full max-w-md text-sm" aria-label={`The work for the quarter from ${dayText(startsOn)}`}>
@@ -150,7 +168,7 @@ export function AicpiBody({ data, today = DateTime.now().setZone(ZONE), basic = 
 
       <p className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900">
         <Info size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-        <span><strong>What this rests on.</strong> The formula and the rates are those of the Department of Public Enterprises&apos; orders for the 2017 pay scales (the IDA pattern, 100% neutralisation, adjusted once in three months). SAIL&apos;s executives are under those guidelines, and SAIL&apos;s wage agreement of 22 October 2021 for its non-executives is reported to give them the same DA on the same link point. <strong>SAIL&apos;s own circular is the authority</strong>: its pages could not be read for this, so no extra factor of SAIL&apos;s own is included, and none was found. The announced rates are listed by hand from the orders (last compared on {DateTime.fromISO(IDA_ANNOUNCED_CHECKED).toFormat("d LLL yyyy")}); the other quarters are worked out here.</span>
+        <span><strong>What this rests on.</strong> The formula and the rates are those of the Department of Public Enterprises&apos; orders for the 2017 pay scales (the IDA pattern, 100% neutralisation, adjusted once in three months). SAIL&apos;s executives are under those guidelines, and SAIL&apos;s wage agreement of 22 October 2021 for its non-executives is reported to give them the same DA on the same link point. <strong>SAIL&apos;s own circular is the authority</strong>: its pages could not be read for this, so no extra factor of SAIL&apos;s own is included, and none was found. The orders are read from the Department of Public Enterprises&apos; website each time the card is loaded, so a new order appears by itself; an order that is only a scanned picture cannot be read by a machine, and its rate is one I read by eye and listed (last compared on {DateTime.fromISO(IDA_ANNOUNCED_CHECKED).toFormat("d LLL yyyy")}); the other quarters are worked out here.</span>
       </p>
     </div>
   );

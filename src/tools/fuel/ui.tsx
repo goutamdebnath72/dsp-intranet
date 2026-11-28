@@ -11,5 +11,5 @@ import { type TopicUi } from "@/tools/uiTypes";
 
 export const fuelUi: TopicUi = {
   id: "fuel",
-  live: { title: "Petrol, diesel and LPG", subtitle: "Delhi, Mumbai, Chennai and Kolkata", tone: "rose", icon: <Fuel size={20} />, card: () => <FuelCard /> },
+  live: { title: "Petrol, diesel and LPG", subtitle: "Delhi, Mumbai, Chennai and Kolkata", tone: "rose", icon: <Fuel size={20} />, card: () => <FuelCard />, notice: { estimate: true } },
 };

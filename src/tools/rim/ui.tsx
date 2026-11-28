@@ -14,7 +14,7 @@ export const rimUi: TopicUi = {
   id: "rim",
   hits: [
     onHit("rim", (hit) => (
-      <ToolShell title="How to read a wheel (rim) marking" subtitle="Appears as you type" tone="emerald" icon={<Disc3 size={20} />} instant>
+      <ToolShell title="How to read a wheel (rim) marking" subtitle="Appears as you type" tone="emerald" icon={<Disc3 size={20} />} instant notice={false}>
         <RimGuide key={hit.text} start={hit.text} standalone />
       </ToolShell>
     )),

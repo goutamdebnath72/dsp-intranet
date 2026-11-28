@@ -10,9 +10,11 @@
 //
 // Indian chassis plates: Hyundai stamps the VIN followed by "*" and a letter for the month of manufacture (MALBM51BLKM000001*L: L = November); I read that suffix and guess nothing else.
 //
-// WHOSE NUMBERS I READ (my rule, 26 Nov 2026): the Indian makers only, and only these five: Hyundai Motor India, Kia India, Maruti Suzuki, Tata Motors and Mahindra. No foreign maker's code is listed. I keep a manufacturer code in the list
-// only when a source names it for that maker (Maruti's own customer page for MA3; the manufacturer-code listings for MAL, MZB, MAT and MA1); BIS, the Indian coordinator of the WMI, holds the official register. The codes of positions 4 to 8 of every
-// one of the five are the maker's own and no maker publishes them, so for none of them do I pretend to decode them.
+// WHOSE NUMBERS I READ (my rule of 26 Nov 2026, widened on 27 Nov): the makers whose cars are sold in India, and for each only the manufacturer code it uses in INDIA. Twenty buttons: the five Indian makers (Hyundai Motor India, Kia India,
+// Maruti Suzuki, Tata Motors, Mahindra) and, at the owner's request, Honda, Toyota, Nissan, Volkswagen, Škoda, Renault and Citroën, and (28 Nov) Jeep, Mercedes-Benz, Fiat and Ford (the last two have a `remark`: their new cars are no longer sold in India, which I checked first: Ford's own statement of 9 Sep 2021 and Business Standard of 18 Mar 2025; reports of May 2026 that Fiat has announced no return). The owner also asked for Volvo, BYD, Audi and BMW, but no source I could read gives a manufacturer code for their cars made or sold in India (the compiled list has only BMW's motorcycles made by TVS, WB3, and Volvo Eicher's commercial vehicles, MC2, which are not those cars), so they were NOT here at first. The owner then decided (28 Nov): where no source gives an Indian code, give the INTERNATIONAL code with a clear declaration. So Audi (WAU, WA1), BMW (WBA, WBS, WBX, WBY), Volvo (YV1, YV4) and BYD (LGX, LC0) are here, each named in the compiled list and by NHTSA's vPIC, each marked `scope: international`: the code is the maker's anywhere in the world, the country shown is the code's, and nothing says where this car was built. A code is never guessed. A code stays in the list only when a source names it for that maker: Maruti's own customer page (MA3) and Renault
+// India's own page (MEE) say it themselves; for the others a compiled manufacturer-code list names it (Wikibooks' World Manufacturer Identifier list, read on 27 Nov 2026) and, where I found one, a second source. Each entry says which (`basis`).
+// BIS, the Indian coordinator of the WMI, holds the official register; SAE International assigns the codes and the register is not published, so no source I could read is "the" register. The codes of positions 4 to 8 of every maker are the maker's own
+// and none of them publishes them, so for none do I pretend to decode them; dealer guides that give a month or a model at some position (for Volkswagen, Tata, Mahindra) I could not confirm from a maker, and I do not use them.
 
 import { DateTime } from "luxon";
 
@@ -42,25 +44,72 @@ export const SECTIONS: Array<{ id: "WMI" | "VDS" | "VIS"; from: number; to: numb
   { id: "VIS", from: 10, to: 17, name: "Vehicle Indicator Section", purpose: "the model year, the assembly plant and the serial number of this vehicle" },
 ];
 
-/** The manufacturer codes (WMI) of the five Indian makers I cover. A code I could not confirm from a source is NOT here, so a number with another code is said to be unknown, never guessed. */
-export const WMIS: Record<string, { maker: string; country: string }> = {
-  MAL: { maker: "Hyundai Motor India", country: "India" },
-  MZB: { maker: "Kia India", country: "India" },
-  MA3: { maker: "Maruti Suzuki", country: "India" },
-  MAT: { maker: "Tata Motors", country: "India" },
-  MA1: { maker: "Mahindra & Mahindra", country: "India" },
+/** The manufacturer codes (WMI) I know, each with the company it was issued to, as a source names it. A code I could not confirm from a source is NOT here, so a number with another code is said to be unknown, never guessed. `basis` says how sure I am of the code: "maker" when the maker's own page names it, "list" when a compiled manufacturer-code list does (and a second source where I found one). */
+export const WMIS: Record<string, { maker: string; country: string; basis: "maker" | "list" | "list+vpic"; scope?: "international" }> = {
+  MAL: { maker: "Hyundai Motor India", country: "India", basis: "list" },
+  MB2: { maker: "Hyundai Motor India", country: "India", basis: "list" },
+  MZB: { maker: "Kia India", country: "India", basis: "list" },
+  MA3: { maker: "Maruti Suzuki", country: "India", basis: "maker" },
+  MAT: { maker: "Tata Motors", country: "India", basis: "list" },
+  MA1: { maker: "Mahindra & Mahindra", country: "India", basis: "list" },
+  MAK: { maker: "Honda Cars India", country: "India", basis: "list" },
+  MBJ: { maker: "Toyota Kirloskar Motor", country: "India", basis: "list" },
+  MDH: { maker: "Nissan Motor India", country: "India", basis: "list" },
+  MEE: { maker: "Renault India", country: "India", basis: "maker" },
+  MEX: { maker: "Škoda Auto Volkswagen India", country: "India", basis: "list" },
+  MZZ: { maker: "Citroën India (PCA Automobiles India)", country: "India", basis: "list" },
+  MCA: { maker: "FCA India Automobiles (Fiat, Jeep)", country: "India", basis: "list" },
+  MAH: { maker: "Fiat India Automobiles Pvt. Ltd.", country: "India", basis: "list" },
+  MAJ: { maker: "Ford India", country: "India", basis: "list" },
+  MBR: { maker: "Mercedes-Benz India", country: "India", basis: "list" },
+  // INTERNATIONAL CODES (owner's decision of 28 Nov 2026: if no source gives an Indian code, give the international one with a clear declaration). `scope: "international"`: the code is the maker's own anywhere in the world, not issued for India, and the country is the code's, not the car's. Each is named in the compiled list AND by NHTSA's vPIC (DecodeWMI, read 28 Nov 2026).
+  WAU: { maker: "Audi AG (cars)", country: "Germany", basis: "list+vpic", scope: "international" },
+  WA1: { maker: "Audi AG (SUVs)", country: "Germany", basis: "list+vpic", scope: "international" },
+  WBA: { maker: "BMW AG (cars)", country: "Germany", basis: "list+vpic", scope: "international" },
+  WBS: { maker: "BMW M GmbH (M cars)", country: "Germany", basis: "list+vpic", scope: "international" },
+  WBX: { maker: "BMW AG (SUVs)", country: "Germany", basis: "list+vpic", scope: "international" },
+  WBY: { maker: "BMW AG (i cars)", country: "Germany", basis: "list+vpic", scope: "international" },
+  YV1: { maker: "Volvo Car Corporation (cars)", country: "Sweden", basis: "list+vpic", scope: "international" },
+  YV4: { maker: "Volvo Car Corporation (SUVs)", country: "Sweden", basis: "list+vpic", scope: "international" },
+  LGX: { maker: "BYD Auto Co., Ltd.", country: "China", basis: "list+vpic", scope: "international" },
+  LC0: { maker: "BYD Auto Industry Company Limited", country: "China", basis: "list+vpic", scope: "international" },
 };
 
+/** Jeep's code belongs to the company, which the list names for both its brands, so the code alone cannot tell a Jeep from a Fiat. */
+const JEEP_NOTE = "Jeep's code in India is MCA, which the compiled code list (read on 28 Nov 2026) gives to FCA India Automobiles Pvt. Ltd. and names for both its brands, Fiat and Jeep, so MCA alone cannot tell the two apart. I found no Jeep or FCA document that prints it and no second source. A Jeep imported ready-built carries its foreign code, not MCA, and is said to be unknown. What follows MCA is the maker's own; this reader names the maker and explains the positions the standard fixes.";
+
+/** The sample of a maker is made up, and says so by its look: the maker's code, five letters and digits of no meaning, a letter in position 9 (so no check digit is shown), P (2023), T and serial 000001. None is a real vehicle's. */
+const sample = (wmi: string, descriptor: string) => `${wmi}${descriptor}EPT000001`;
+
+/** One note for both brands that carry MEX: a number cannot say which of the two it is, so the reading of either shows the same words. */
+const MEX_NOTE = "Volkswagen and Škoda cars built in India carry the same code, MEX, issued to Škoda Auto Volkswagen India (the lists add “2015 on”), so MEX alone cannot tell the two brands apart. What follows MEX is the maker's own; dealer guides that read a month or a year from fixed positions of these numbers I could not confirm from the maker, so I do not use them.";
+
 /**
- * THE FIVE MAKERS, one button each under the number box. Hyundai Motor India and Kia India are TWO buttons: they hold two different manufacturer codes (MAL and MZB), they are two separate companies, and I found no document that says their
- * positions 4 to 8 follow one code, so I do not read one by the other. The samples are made-up numbers (serial 000001): none is a real vehicle's. `note` says only what a source states; it is shown under the reading of a number of that maker.
+ * THE MAKERS, one button each under the number box: the first four are chips of their own; the rest (`more`, Mahindra first) are in the dropdown of the FIFTH chip, which shows Mahindra until another is chosen and then shows the maker chosen (one row of five, whatever the number of makers). Hyundai Motor India and Kia India are TWO: they hold different
+ * manufacturer codes and are two companies, and I found no document that says their positions 4 to 8 follow one code. Volkswagen and Škoda are two buttons too (the owner asked for both), but they share ONE code, MEX, issued to one company, so the code
+ * cannot tell the two brands apart and the notes say so. `note` says only what a source states; it is shown under the reading of a number of that maker. `alsoWmi` lists a further code listed for the same maker.
  */
-export const MAKERS: Array<{ id: "hyundai" | "kia" | "maruti" | "tata" | "mahindra"; button: string; maker: string; wmi: string; sample: string; note: string }> = [
-  { id: "hyundai", button: "Hyundai India", maker: "Hyundai Motor India", wmi: "MAL", sample: "MALBM51BLKM000001", note: "Hyundai Motor India's code is MAL. Its chassis plate may carry a month letter after a star (read below, as Indian car guides and owners describe it)." },
+export const MAKERS: Array<{ id: "hyundai" | "kia" | "maruti" | "tata" | "mahindra" | "honda" | "toyota" | "nissan" | "volkswagen" | "skoda" | "renault" | "citroen" | "jeep" | "mercedes" | "fiat" | "ford" | "audi" | "bmw" | "volvo" | "byd"; button: string; maker: string; wmi: string; alsoWmi?: string[]; sample: string; note: string; /** said in bold on the reading and under the name in the dropdown: a maker whose new cars are no longer sold in India */ remark?: string; more?: true }> = [
+  { id: "hyundai", button: "Hyundai India", maker: "Hyundai Motor India", wmi: "MAL", alsoWmi: ["MB2"], sample: "MALBM51BLKM000001", note: "Hyundai Motor India's code is MAL, and the compiled code lists give it a second, MB2, for its SUVs (I found no Hyundai document that prints either). Its chassis plate may carry a month letter after a star (read below, as Indian car guides and owners describe it)." },
   { id: "kia", button: "Kia India", maker: "Kia India", wmi: "MZB", sample: "MZBPC81ALNN000001", note: "Kia India has a manufacturer code of its own, MZB, apart from Hyundai's MAL. I found no document saying that its positions 4 to 8 follow Hyundai's, so I do not read one by the other." },
   { id: "maruti", button: "Maruti Suzuki", maker: "Maruti Suzuki", wmi: "MA3", sample: "MA3ZC62S1NN000001", note: "Maruti Suzuki describes its own chassis number as MA3 followed by 14 letters and digits (its page for customers), which is the 17 characters of the standard." },
   { id: "tata", button: "Tata Motors", maker: "Tata Motors", wmi: "MAT", sample: "MAT6A1CZ2NP000001", note: "Tata Motors' code is MAT. What follows it is Tata's own; this reader names the maker and explains the positions the standard fixes." },
-  { id: "mahindra", button: "Mahindra", maker: "Mahindra & Mahindra", wmi: "MA1", sample: "MA1TA2GD4NM000001", note: "Mahindra & Mahindra's code is MA1. What follows it is Mahindra's own; this reader names the maker and explains the positions the standard fixes." },
+  { id: "mahindra", button: "Mahindra", maker: "Mahindra & Mahindra", wmi: "MA1", sample: "MA1TA2GD4NM000001", more: true, note: "Mahindra & Mahindra's code is MA1. What follows it is Mahindra's own; this reader names the maker and explains the positions the standard fixes." },
+  { id: "honda", button: "Honda", maker: "Honda Cars India", wmi: "MAK", sample: sample("MAK", "AB1CD"), more: true, note: "Honda Cars India's code is MAK: the compiled code lists give it, and the Honda Accord numbers quoted in Indian consumer-court orders begin with it. What follows MAK is Honda's own; this reader names the maker and explains the positions the standard fixes." },
+  { id: "toyota", button: "Toyota", maker: "Toyota Kirloskar Motor", wmi: "MBJ", sample: sample("MBJ", "BC2DE"), more: true, note: "Toyota Kirloskar Motor's code is MBJ, as the compiled code lists give it; I found no Toyota document that prints it. What follows MBJ is Toyota's own; this reader names the maker and explains the positions the standard fixes." },
+  { id: "nissan", button: "Nissan", maker: "Nissan Motor India", wmi: "MDH", sample: sample("MDH", "CD3EF"), more: true, note: "Nissan Motor India's code is MDH (the compiled lists say it includes Datsun). Nissan India's own VIN-check page gives no layout of the number. Renault has a code of its own, MEE, not Nissan's. What follows MDH is Nissan's own." },
+  { id: "volkswagen", button: "Volkswagen", maker: "Škoda Auto Volkswagen India", wmi: "MEX", sample: sample("MEX", "DE4FG"), more: true, note: MEX_NOTE },
+  { id: "skoda", button: "Škoda", maker: "Škoda Auto Volkswagen India", wmi: "MEX", sample: sample("MEX", "EF5GH"), more: true, note: MEX_NOTE },
+  { id: "renault", button: "Renault", maker: "Renault India", wmi: "MEE", sample: sample("MEE", "FG6HJ"), more: true, note: "Renault India says it on its own page: the VIN is 17 characters starting with MEE, written on the registration certificate or at the bottom of the windscreen. What follows MEE is Renault's own; this reader names the maker and explains the positions the standard fixes." },
+  { id: "citroen", button: "Citroën", maker: "Citroën India (PCA Automobiles India)", wmi: "MZZ", sample: sample("MZZ", "GH7JK"), more: true, note: "Citroën India's code is MZZ, issued to PCA Automobiles India Private Limited, as a compiled code list and a decoder site give it; I found no Citroën document that prints it. MZZ lies outside the MA to ME range of India, as Kia's MZB does, so the country comes from this reader's list. What follows MZZ is Citroën's own." },
+  { id: "jeep", button: "Jeep", maker: "FCA India Automobiles (Fiat, Jeep)", wmi: "MCA", sample: sample("MCA", "HJ8KL"), more: true, note: JEEP_NOTE },
+  { id: "mercedes", button: "Mercedes-Benz", maker: "Mercedes-Benz India", wmi: "MBR", sample: sample("MBR", "JK9LM"), more: true, note: "Mercedes-Benz India's code is MBR, as the compiled code list gives it (read on 28 Nov 2026); I found no Mercedes-Benz document that prints it and no second source. The same list gives the Daimler trucks and buses of India (BharatBenz) a code of their own, which is not read here. A car imported ready-built carries Mercedes-Benz's German code, not MBR, and is said to be unknown. What follows MBR is Mercedes-Benz's own; this reader names the maker and explains the positions the standard fixes." },
+  { id: "fiat", button: "Fiat", maker: "Fiat India Automobiles Pvt. Ltd.", wmi: "MAH", sample: sample("MAH", "PR5ST"), more: true, remark: "No new Fiat cars are sold in India now: Fiat's last cars here (Punto, Linea) went around 2019 to 2020 with the BS6 rules, and reports of May 2026 say Fiat has announced no return. Fiat cars are still on the road.", note: "Fiat India Automobiles' code is MAH, as the compiled code list gives it (read on 28 Nov 2026); I found no Fiat document that prints it and no second source. The same list gives MCA to FCA India Automobiles for Fiat and Jeep, so a Fiat of the Indian plant may carry MAH or MCA, and a number with either code may also be a Jeep: the code names the company, not the brand. What follows the code is the maker's own; this reader names the maker and explains the positions the standard fixes." },
+  { id: "ford", button: "Ford", maker: "Ford India", wmi: "MAJ", sample: sample("MAJ", "RS6TV"), more: true, remark: "No new Ford cars are sold in India now: Ford announced on 9 Sep 2021 that it would stop making vehicles in India (Sanand 2021, Chennai 2022), said it would keep service and warranty going, and in March 2025 said its Chennai plant would restart for engines for export only, with no plan to build cars.", note: "Ford India's code is MAJ, as the compiled code list gives it (read on 28 Nov 2026); I found no Ford document that prints it and no second source. A Ford imported ready-built carries Ford's foreign code, not MAJ, and is said to be unknown. What follows MAJ is Ford's own; this reader names the maker and explains the positions the standard fixes." },
+  { id: "audi", button: "Audi", maker: "Audi AG (international code)", wmi: "WAU", alsoWmi: ["WA1"], sample: sample("WAU", "KL1MN"), more: true, note: "Audi's codes in the compiled code list (read on 28 Nov 2026) are WAU for cars and WA1 for SUVs, and NHTSA's vPIC names both as Audi AG. These are international codes: no source I could read gives Audi a separate code for the cars made or sold in India (NHTSA's decoder, vPIC, lists no Indian code for the brand either), so a number with one of them may be a car assembled in India, an import or a car built elsewhere, and the code cannot say which. The country shown is the country of the code, not where this car was built. The plant is position 11, the maker's own, and is not decoded; the registration certificate and the maker are the authority. Audi assembles some of its models in India." },
+  { id: "bmw", button: "BMW", maker: "BMW AG (international code)", wmi: "WBA", alsoWmi: ["WBS", "WBX", "WBY"], sample: sample("WBA", "LM2NP"), more: true, note: "BMW's codes in the compiled code list (read on 28 Nov 2026) are WBA (cars), WBS (M cars), WBX (SUVs) and WBY (i cars), and NHTSA's vPIC names them as BMW AG and BMW M GmbH. These are international codes: no source I could read gives BMW a separate code for the cars made or sold in India (NHTSA's decoder, vPIC, lists no Indian code for the brand either), so a number with one of them may be a car assembled in India, an import or a car built elsewhere, and the code cannot say which. The country shown is the country of the code, not where this car was built. The plant is position 11, the maker's own, and is not decoded; the registration certificate and the maker are the authority. BMW assembles some of its cars at its plant near Chennai. The list's one Indian BMW code, WB3, is for motorcycles made in India by TVS, not for cars, and is not read here." },
+  { id: "volvo", button: "Volvo", maker: "Volvo Car Corporation (international code)", wmi: "YV1", alsoWmi: ["YV4"], sample: sample("YV1", "MN3PR"), more: true, note: "Volvo's codes in the compiled code list (read on 28 Nov 2026) are YV1 for cars and YV4 for SUVs, and NHTSA's vPIC names both as Volvo Car Corporation. These are international codes: no source I could read gives Volvo a separate code for the cars made or sold in India (NHTSA's decoder, vPIC, lists no Indian code for the brand either), so a number with one of them may be a car assembled in India, an import or a car built elsewhere, and the code cannot say which. The country shown is the country of the code, not where this car was built. The plant is position 11, the maker's own, and is not decoded; the registration certificate and the maker are the authority. Volvo assembles some of its cars in India. The list's one Indian entry with Volvo's name, MC2, is Volvo Eicher Commercial Vehicles (trucks and buses), a different business, and is not read here." },
+  { id: "byd", button: "BYD", maker: "BYD Auto Co., Ltd. (international code)", wmi: "LGX", alsoWmi: ["LC0"], sample: sample("LGX", "NP4RS"), more: true, note: "BYD's codes in the compiled code list (read on 28 Nov 2026) are LGX and LC0, and NHTSA's vPIC names them as BYD Auto Co., Ltd. and BYD Auto Industry Company Limited, of China. These are international codes: no source I could read gives BYD a separate code for the cars made or sold in India (NHTSA's decoder, vPIC, lists no Indian code for the brand either), so a number with one of them may be a car assembled in India, an import or a car built elsewhere, and the code cannot say which. The country shown is the country of the code, not where this car was built. The plant is position 11, the maker's own, and is not decoded; the registration certificate and the maker are the authority. I found no document on how BYD's cars sold in India are numbered, so a BYD number is read by its Chinese code." },
 ];
 
 /** The plant letter of position 11 is the maker's own, so I list only this one, which is known with certainty (Hyundai Motor India had a single plant in India, at Sriperumbudur near Chennai, until recent years). */
@@ -169,8 +218,15 @@ export interface VinCheck {
   state: "valid" | "mismatch" | "none";
 }
 
+/** One line of the answer to the question users bring to a VIN: is the manufacturing YEAR (or MONTH) in this number? `state` is said in bold on the card, YES or NO. */
+export interface DateLine { state: "yes" | "no"; head: string; detail: string }
+
 export interface VinReading {
   ok: true;
+  /** Is the manufacturing year, and the month, in this number: both answered plainly, YES or NO, for every number read */
+  made: { year: DateLine; month: DateLine };
+  /** the maker's remark (its new cars are no longer sold in India), or null */
+  remark: string | null;
   vin: string;
   parts: VinPart[];
   facts: Array<{ label: string; value: string }>;
@@ -213,7 +269,7 @@ export function readVin(raw: string, nowYear: number = DateTime.now().year): Vin
   const parts: VinPart[] = [];
   parts.push({
     id: "country", from: 1, to: 1, text: vin[0], meaning: "Country or region",
-    detail: rangeCountry ? `${vin[0]}: the first character names where the manufacturer is based; with the second character (${vin.slice(0, 2)}) it is ${rangeCountry} (${region})` : country ? `${vin[0]}: the first character names where the manufacturer is based (${region}); the whole code ${wmiCode} is in this reader's list for ${wmi?.maker}, an Indian maker, so the country is ${country}` : `${vin[0]}: the first character names where the manufacturer is based: ${region}${region === "unknown" ? "" : ` (the first two characters, ${vin.slice(0, 2)}, do not name the country in this reader's list)`}`,
+    detail: wmi?.scope === "international" ? `${vin[0]}: the first character names where the manufacturer is based (${region}); ${wmiCode} is ${wmi.maker.replace(/ \(.*\)$/, "")}'s INTERNATIONAL code, so it names ${country}, the maker's country, and NOT where this car was built: a car assembled in India, an import or a car built elsewhere may carry it` : rangeCountry ? `${vin[0]}: the first character names where the manufacturer is based; with the second character (${vin.slice(0, 2)}) it is ${rangeCountry} (${region})` : country ? `${vin[0]}: the first character names where the manufacturer is based (${region}); the whole code ${wmiCode} is in this reader's list for ${wmi?.maker}, a code issued for India, so the country is ${country}` : `${vin[0]}: the first character names where the manufacturer is based: ${region}${region === "unknown" ? "" : ` (the first two characters, ${vin.slice(0, 2)}, do not name the country in this reader's list)`}`,
   });
   parts.push({
     id: "maker", from: 2, to: 3, text: vin.slice(1, 3), meaning: "Manufacturer",
@@ -277,15 +333,27 @@ export function readVin(raw: string, nowYear: number = DateTime.now().year): Vin
   const facts = [
     { label: "Length", value: "17 characters" },
     { label: "Region", value: country ? `${country} · ${region}` : region },
+    ...(wmi?.scope === "international" ? [{ label: "Code", value: "the maker's international code, not India's" }] : []),
     { label: "Model year", value: year ? `${year.year} (or ${year.other})` : "not a year code" },
     { label: "Check digit", value: check.state === "valid" ? `${c9} · correct` : check.state === "mismatch" ? `${c9} · calculated ${calc}` : "not used (a letter)" },
   ];
-  const makerNote = MAKERS.find((m) => m.wmi === wmiCode)?.note;
+  const makerNote = MAKERS.find((m) => m.wmi === wmiCode || m.alsoWmi?.includes(wmiCode))?.note;
   if (makerNote) notes.unshift(makerNote);
   notes.push("A VIN identifies one vehicle: this reader explains the code and does not look the vehicle up. The registration certificate, the invoice and the manufacturer are the authority for anything the maker codes for itself.");
   if (!year) notes.unshift("The tenth character should be the model year.");
-  return { ok: true, vin, parts, facts, check, year, wmi, notes, warnings };
+  // THE QUESTION USERS COME WITH: is the manufacturing month and year in this number? Always answered, YES or NO, in bold on the card, and only from what a source says: the standard puts the MODEL year at position 10 and has no month field; Hyundai's plate suffix is the one month this reader reads.
+  const yearLine: DateLine = year
+    ? { state: "yes", head: `YEAR: in the number, position 10 is ${vin[9]} = ${year.year} (or ${year.other})`, detail: "The standard puts the model year at position 10. It is the maker's own designation of the model year, so it can differ from the calendar year the vehicle was built; the code repeats every 30 years, so the vehicle's look and papers settle which. For the exact date read the manufacturer's plate and the registration certificate." }
+    : { state: "no", head: `YEAR: not in this number, position 10 (${vin[9]}) is not a year code`, detail: "Position 10 should hold the model-year code; this character is never one, so no year can be read from it. The manufacturer's plate and the registration certificate give the real date." };
+  const maker = wmi?.maker.replace(/ \(.*\)$/, "") ?? "this maker";
+  const monthLine: DateLine = wmiCode === "MAL" && t.suffix && /^[A-HJ-M]$/.test(t.suffix)
+    ? { state: "yes", head: `MONTH: on the plate, *${t.suffix} is ${MONTH_CODES[t.suffix]}`, detail: "Not in the 17 characters: Hyundai stamps the month after the VIN on the chassis plate (a star and a letter). This is how Indian car guides and owners describe the plate; I found no Hyundai document that says it. The registration certificate gives the month printed." }
+    : wmiCode === "MAL"
+      ? { state: "no", head: "MONTH: not in these 17 characters", detail: "Hyundai's chassis plate may carry the month after the VIN as a star and a letter (…*L); type the stamp after the VIN to read it. The registration certificate gives the month printed." }
+      : { state: "no", head: "MONTH: not in this number", detail: `The standard has no month field, and I found no document of ${maker} that puts a month in its VIN (positions 4 to 8, 11 and 12 to 17 are the maker's own and are not decoded). Dealer guides that read a month at some position disagree with one another, so none is used. The manufacturer's plate and the registration certificate (which prints the month and year of manufacture) give the date.` };
+  const remark = MAKERS.find((m) => m.wmi === wmiCode || m.alsoWmi?.includes(wmiCode))?.remark ?? null;
+  return { ok: true, vin, made: { year: yearLine, month: monthLine }, remark, parts, facts, check, year, wmi, notes, warnings };
 }
 
-/** The samples of the buttons: one made-up number for each of the five makers (none is a real vehicle's). */
+/** The samples of the buttons: one made-up number for each maker (none is a real vehicle's). */
 export const VIN_SAMPLES: Array<{ vin: string; label: string }> = MAKERS.map((m) => ({ vin: m.sample, label: m.button }));

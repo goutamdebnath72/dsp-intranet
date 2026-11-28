@@ -6,6 +6,7 @@ import type React from "react";
 import type { Rates } from "@/tools/converter/currency";
 import type { FormKind, ToolHit } from "@/lib/tools/detect";
 import type { Tone } from "@/components/tools/toolKit";
+import type { Notice } from "@/components/tools/toolAtoms";
 
 export type RatesState = "idle" | "loading" | "ok" | "error";
 
@@ -30,6 +31,8 @@ export interface FormUi {
   menu: { title: string; text: string };
   /** The page says that the public exchange-rate table is downloaded */
   rates?: boolean;
+  /** The two lines at the foot of the page, each said only where it means something (toolAtoms.tsx, Notice): `{ typing }`, `{ estimate }`, `false` for neither; both when not said. */
+  notice?: Notice;
   /** For a page that needs a WIDE box of the search bar I offer two settings: `true` = as wide as the page behind it (the width an answer with a table of 4 or more columns gets); `{ maxRem }` = that wide but never more than maxRem (a width that follows the text size and the zoom), and never wider than the page. Read by toolWidth.ts */
   wide?: boolean | { maxRem: number };
   render: (c: UiCtx) => React.ReactNode;
@@ -48,8 +51,8 @@ export interface LiveUi {
   tone: Tone;
   icon: React.ReactNode;
   card: (lang?: string) => React.ReactNode;
-  /** Set false and I draw the card without the privacy and approximation notice (it has nothing to type into and gives no sums); it is true when not said */
-  notice?: boolean;
+  /** The two lines at the foot of the card, each said only where it means something (toolAtoms.tsx, Notice): `{ typing }` for a card where the reader types something of their own, `{ estimate }` for a card of forecasts, rates or estimates, `false` for neither (headlines, a directory, a story); both when not said */
+  notice?: Notice;
 }
 
 export interface TopicUi {

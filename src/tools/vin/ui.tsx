@@ -17,11 +17,13 @@ export const vinUi: TopicUi = {
     tone: "amber",
     icon: <Car size={18} />,
     menu: { title: "Vehicle number (VIN) reader", text: "What the 17 characters of a VIN mean, and its full forms" },
+    // No foot notice at all (owner, 28 Nov 2026: "Nothing you type here is saved anywhere" under the VIN window is irrelevant): a VIN is read from a code, nothing is estimated and nothing private is typed.
+    notice: false,
     render: () => <VinCard start="MALBM51BLKM000001" />,
   },
   hits: [
     onHit("vin", (hit) => (
-      <ToolShell title="How to read a VIN" subtitle="Appears as you type" tone="amber" icon={<Car size={20} />} instant>
+      <ToolShell title="How to read a VIN" subtitle="Appears as you type" tone="amber" icon={<Car size={20} />} instant notice={false}>
         <VinCard key={hit.text} start={hit.text} />
       </ToolShell>
     )),

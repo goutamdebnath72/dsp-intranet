@@ -11,5 +11,5 @@ import { type TopicUi } from "@/tools/uiTypes";
 
 export const marketsUi: TopicUi = {
   id: "markets",
-  live: { title: "Sensex, Nifty and shares", subtitle: "Market data, not advice", tone: "emerald", icon: <TrendingUp size={20} />, card: () => <MarketsCard /> },
+  live: { title: "Sensex, Nifty and shares", subtitle: "Market data, not advice", tone: "emerald", icon: <TrendingUp size={20} />, card: () => <MarketsCard />, notice: { estimate: true } },
 };

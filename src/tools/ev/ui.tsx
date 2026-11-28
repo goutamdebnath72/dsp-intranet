@@ -16,6 +16,8 @@ export const evUi: TopicUi = {
     tone: "emerald",
     icon: <BatteryCharging size={18} />,
     menu: { title: "Electric car charging", text: "Time and cost of a charge, 10% to 90%; battery and charger words" },
+    // Time and cost of a charge are estimates; what is typed (a battery size, a tariff) is nobody's private matter.
+    notice: { estimate: true },
     render: () => <EvForm />,
   },
 };

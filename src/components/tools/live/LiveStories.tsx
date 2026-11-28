@@ -6,9 +6,12 @@
 //   - A card turns like a drum about an axis behind it. When its story develops (another paper adds a later headline) THAT card alone rolls: the old headline turns up and away, the new one turns in from
 //     below, and the card says "Updated" and where the story began. A new story rolls in at the top, the others gliding down a card's height; a story that leaves rolls away. On first showing, the cards
 //     roll in one after another. I stagger several rolling at once 140 ms apart, never together, and only transforms and opacity move (smooth, no layout shifts).
-//   - Every card has the same height (two lines of headline, three on a phone; the whole headline is in its tooltip), so a roll never changes the size of anything around it.
+//   - Every card has the same height (a picture box of 180 x 120, two lines of headline, three on a phone; the whole headline is in its tooltip), so a roll never changes the size of anything around it.
 //   - While you are READING (the pointer is over the list, a link has the keyboard focus, or you have scrolled down) I HOLD arrivals and developments, so that nothing turns under your hand: a small
 //     pill, "2 new · 1 updated", floats at the top (taking no room in the list); click it, or take the pointer away at the top, and the cards roll.
+//   - Priority news (a death of a renowned person, a big accident, a diplomatic visit, a record of the market: src/lib/live/priority.ts) stands first and has a chip saying which, and where (West Bengal, India, the world; a visit: to India, or the PM abroad).
+//   - Every card has a picture at its left, 180 x 120 (3:2, the shape the owner measured on a news page; 126 x 84 on a phone; the picture is cropped to it, never stretched): the paper's own, made small and kept by the intranet's route (src/app/api/live/thumb). A story with no picture is not shown at all, in any tab, priority news and Steel included (news.ts applyFacts; a card whose picture fails to load goes too).
+//   - A headline in Hindi is marked as Hindi for the screen reader and the font (the Steel tab and the Business tab carry Hindi headlines among English ones).
 //   - Times ("12 min ago") tick on their own every 15 seconds. Reduced-motion users get the same cards with a plain fade and no turning.
 // The data and their refresh belong to the card (NewsCard.tsx, useLive); this component only shows them. Nothing typed is sent anywhere.
 "use client";
@@ -18,23 +21,58 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight, RotateCw } from "lucide-react";
 import { DateTime } from "luxon";
 import { diffStories, storyKey, type FeedItem } from "@/lib/live/rss";
+import { thumbSrc } from "@/lib/live/thumb";
 import { ago } from "./StoryList";
 
 /** How long a story keeps its NEW chip after it comes in. */
 export const NEW_CHIP_MS = 90_000;
 /** A story newer than this has its time shown in green. */
 export const RECENT_MIN = 30;
+/** A card names at most this many of the other papers that carried its story, then says how many more (a news told by fifty papers is one card). */
+export const ALSO_NAMED = 3;
 /** The pause between one rolling card and the next, in seconds. */
 export const ROLL_STAGGER = 0.14;
 /** The pause between one card and the next when the wall is first shown, in seconds. */
 export const FIRST_STAGGER = 0.07;
-/** The radius of the drum in pixels: the card turns about an axis this far behind it, about half its height. */
-const DRUM = 46;
+/** The radius of the drum in pixels: the card turns about an axis this far behind it, about half its height (the card is 140 pixels high on a larger screen). */
+const DRUM = 70;
 /** Seconds a roll takes in, and out. */
 const ROLL_IN = 0.7, ROLL_OUT = 0.55;
 const EASE = [0.4, 0, 0.2, 1] as const;
 
 const CHIP = ["bg-sky-100 text-sky-800", "bg-rose-100 text-rose-800", "bg-emerald-100 text-emerald-800", "bg-violet-100 text-violet-800", "bg-amber-100 text-amber-800", "bg-cyan-100 text-cyan-800"];
+/** The chips of priority news: a death of a renowned person, a big accident, a record of the market; and where. */
+export const FLAG_LABEL = { demise: "Demise", accident: "Accident", massacre: "Massacre", record: "Record", visit: "Visit" } as const;
+export const FLAG_CHIP = { demise: "bg-slate-800", accident: "bg-rose-600", massacre: "bg-red-800", record: "bg-emerald-600", visit: "bg-indigo-600" } as const;
+export const SCOPE_LABEL = { wb: "West Bengal", india: "India", world: "World" } as const;
+/** A visit says where it is by who goes where: a foreign visitor comes TO India (scope india), the Prime Minister goes ABROAD (scope world). */
+export const VISIT_SCOPE_LABEL = { wb: "In West Bengal", india: "To India", world: "PM abroad" } as const;
+
+/** The size of the picture box of a card, in pixels: 180 x 120 (3:2, as the owner measured on a news page: more height than 16:9 at the same width, and never stretched); on a phone 126 x 84. The same for every card. The route makes the picture twice this, for sharp screens (src/lib/live/thumb.ts). */
+export const THUMB_BOX = { w: 180, h: 120 } as const;
+export const THUMB_BOX_PHONE = { w: 126, h: 84 } as const;
+
+/**
+ * The small picture at the left of a card. The picture is the paper's own, made small by this intranet's route (a few KB, kept by the browser and the host); it loads lazily, so a card that is far down the list costs nothing until it nears the
+ * screen, and the box has its size from the start, so nothing moves when it arrives. A story with no picture in its paper's feed (the Google News searches have none), or whose picture could not be had, shows a tile in the colour of its paper
+ * with the paper's initial, so that the cards all look alike.
+ */
+export function Thumb({ image, source, onBroken }: { image?: string | null; source: string; onBroken?: () => void }) {
+  const [failed, setFailed] = useState(false);
+  const src = thumbSrc(image);
+  // the initial of the paper's own name: "The Hindu" is H, not T ("The" begins half the papers)
+  const initial = Array.from(source.trim().replace(/^the\s+/i, ""))[0]?.toUpperCase() ?? "";
+  return (
+    <span aria-hidden="true" className="relative h-[84px] w-[126px] shrink-0 self-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200/70 sm:h-[120px] sm:w-[180px]">
+      {src && !failed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" width={THUMB_BOX.w} height={THUMB_BOX.h} loading="lazy" decoding="async" draggable={false} onError={() => { setFailed(true); onBroken?.(); }} className="h-full w-full object-cover" />
+      ) : (
+        <span className={`flex h-full w-full items-center justify-center text-3xl font-extrabold ${chipOf(source)}`}>{initial}</span>
+      )}
+    </span>
+  );
+}
 export const chipOf = (source: string) => CHIP[[...source].reduce((a, c) => a + c.charCodeAt(0), 0) % CHIP.length];
 
 /** Is this story under half an hour old at `now`? With no time I make no claim. */
@@ -86,7 +124,7 @@ export function rollVariants(link: string, calm: boolean) {
       };
 }
 
-export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: string; empty: string }) {
+export function LiveStories({ items, lang, empty, pictureRequired = true }: { items: FeedItem[]; lang?: string; empty: string; pictureRequired?: boolean }) {
   const calm = !!useReducedMotion();
   const [shown, setShown] = useState<FeedItem[]>(items);
   const [pending, setPending] = useState({ added: 0, changed: 0 });
@@ -100,6 +138,8 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
   const [said, setSaid] = useState("");
   const top = useRef<HTMLDivElement>(null);
   const settled = useRef(false);
+  // the owner's rule: a story with no picture is not shown, so a card whose picture could not be loaded goes (priority news keeps its tile)
+  const [broken, setBroken] = useState<Set<string>>(() => new Set());
 
   // The clock of the page: I re-read times and chips every 15 seconds.
   useEffect(() => {
@@ -157,7 +197,8 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
     top.current?.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "nearest" });
   };
 
-  if (!shown.length) return <p className="rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 text-sm text-slate-600">{empty}</p>;
+  const visible = pictureRequired ? shown.filter((it) => !broken.has(it.link)) : shown;
+  if (!visible.length) return <p className="rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 text-sm text-slate-600">{empty}</p>;
   const spring = calm ? { duration: 0 } : { type: "spring" as const, stiffness: 340, damping: 32, mass: 0.9 };
   const first = !settled.current;
   const havePending = pending.added > 0 || pending.changed > 0;
@@ -192,17 +233,19 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocus(false); }}
       >
         <AnimatePresence initial={first} mode="popLayout" custom={delays}>
-          {shown.map((it) => {
+          {visible.map((it) => {
             const id = storyKey(it);
             const at = freshAt[id];
             const isNew = at !== undefined && Date.now() - at < NEW_CHIP_MS;
             const recent = isRecent(it.publishedAt, now);
             const updated = isUpdated(it);
             // Under the headline: where a developed story began, or the other papers that carried it.
-            const began = updated ? `first reported by ${it.firstSource ?? "another paper"}${it.firstAt ? ` ${ago(it.firstAt, now)}` : ""}${it.also?.filter((n) => n !== it.firstSource).length ? ` · also ${it.also.filter((n) => n !== it.firstSource).join(", ")}` : ""}` : it.also?.length ? `also in ${it.also.join(", ")}` : "";
+            const others = (it.also ?? []).filter((n) => n !== it.firstSource);
+            const alsoText = `${others.slice(0, ALSO_NAMED).join(", ")}${others.length > ALSO_NAMED ? ` and ${others.length - ALSO_NAMED} more` : ""}`;
+            const began = updated ? `first reported by ${it.firstSource ?? "another paper"}${it.firstAt ? ` ${ago(it.firstAt, now)}` : ""}${others.length ? ` · also ${alsoText}` : ""}` : it.also?.length ? `also in ${(it.also ?? []).slice(0, ALSO_NAMED).join(", ")}${(it.also ?? []).length > ALSO_NAMED ? ` and ${(it.also ?? []).length - ALSO_NAMED} more` : ""}` : "";
             return (
               // The slot has a fixed height, so a roll never changes the size of anything around it; it only glides when cards above it come or go.
-              <motion.li key={it.link} layout={calm ? false : "position"} transition={spring} className="relative h-[108px] [perspective:900px] sm:h-[88px]">
+              <motion.li key={it.link} layout={calm ? false : "position"} transition={spring} className="relative h-[116px] [perspective:900px] sm:h-[140px]">
                 {/* The card: a drum that turns about an axis behind it. The slot gives the perspective, so a card at rest is exactly its own size. */}
                 <motion.div
                   custom={delays}
@@ -215,9 +258,12 @@ export function LiveStories({ items, lang, empty }: { items: FeedItem[]; lang?: 
                 >
                   <a href={it.link} target="_blank" rel="noopener noreferrer" title={it.title} className={`group relative flex h-full items-start gap-3 overflow-hidden rounded-2xl border bg-white/90 border-slate-200 px-3.5 py-2.5 shadow-sm transition-[border-color,box-shadow] hover:border-slate-300 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500`}>
                     {at !== undefined && !calm && <motion.span aria-hidden="true" initial={{ opacity: 0.7 }} animate={{ opacity: 0 }} transition={{ duration: 2.6, ease: "easeOut" }} className="pointer-events-none absolute inset-0 bg-emerald-300/40" />}
+                    <Thumb image={it.image} source={it.source} onBroken={() => setBroken((b) => (b.has(it.link) ? b : new Set(b).add(it.link)))} />
                     <span className="relative flex h-full min-w-0 flex-1 flex-col justify-center gap-1.5">
-                      <span className="line-clamp-3 text-sm font-semibold leading-snug text-slate-900 group-hover:underline sm:line-clamp-2">{it.title}</span>
+                      <span lang={/[\u0900-\u097F]/.test(it.title) ? "hi" : undefined} className="line-clamp-3 text-sm font-semibold leading-snug text-slate-900 group-hover:underline sm:line-clamp-2">{it.title}</span>
                       <span className="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden whitespace-nowrap text-xs">
+                        {it.flag && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white ${FLAG_CHIP[it.flag.kind]}`}>{FLAG_LABEL[it.flag.kind]}</span>}
+                        {it.flag && it.flag.kind !== "record" && <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-500">{(it.flag.kind === "visit" ? VISIT_SCOPE_LABEL : SCOPE_LABEL)[it.flag.scope]}</span>}
                         <span className={`shrink-0 rounded-full px-2 py-0.5 font-bold ${chipOf(it.source)}`}>{it.source}</span>
                         {it.publishedAt && (
                           <span className={`shrink-0 tabular-nums ${recent ? "font-bold text-emerald-700" : "text-slate-500"}`}>

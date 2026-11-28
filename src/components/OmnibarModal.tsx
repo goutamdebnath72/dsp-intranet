@@ -4,7 +4,7 @@
 import { isAnnouncementSourceId, realSourceId } from "@/lib/search/sourceKey";
 import { isIdQuery } from "@/lib/search/idQuery";
 import { formatCircularTitle } from "@/lib/circularTitle";
-import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
+import React, { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { lockPageScroll } from "@/lib/ui/scrollLock";
 import {
@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { DateTime } from "luxon";
 import { useOmniSearch } from "@/hooks/useOmniSearch";
+import { useResultRoom } from "./useResultRoom";
+import { countLines, inputRows } from "./inputRows";
 import { RecordsScopeBar } from "@/components/RecordsScopeBar";
 import { ADMIN_CHOICE, EDS_CHOICE, domainById, facetById } from "@/records/domains";
 import { suggestDomain } from "@/records/plan";
@@ -745,9 +747,38 @@ export function OmnibarModal({
   const edsShelfOpen = edsExecutive && mode === null && !isLoading && !executiveAsk && !edsNote && !toolForm;
   // I answer a question chosen from the shelf with "All sample questions" above it (back to the shelf). A question written in the box (or sent to the deep search by the Enter key in Everything) has a plain "Back" there (back to the
   // ordinary window, Everything with an empty box). Either way, once a deep answer is on the screen I take the row of buttons above away to give the answer the room (my wish, 23 Nov 2026); it comes back with the way back.
+  // Since 27 Nov 2026 the same holds for EVERY result, not the deep answer alone: the two rows of choices (Search in, More tools) and what hangs under them take two or three lines of the window, and a result is what the person came for. So
+  // while ANY result is on the screen (a search, a list of people, an answer, a card that appears as you type, a calculator or a utility that was opened) the choices are left out and the row of the answer carries a Back at its left, on
+  // the line of the timer, which goes back to the ordinary window with the choices (Everything, empty box). A prompt (the "Press Enter" hints, "Are you an executive?", the shelf of sample questions) is not a result: the choices stay.
   const deepAnswerShown = mode === "intellectual" && !isLoading && !isStale && !!synthesis;
+  const typedResult = (() => {
+    if (selection.scope !== "auto" && !routedQuery) return false;
+    const q = (routedQuery ?? query).trim();
+    const t = q.length >= 2 ? detectTool(q) : null;
+    return !!t && t.kind !== "form" && !isListPage(t.kind);
+  })();
+  // (a search whose box text has been edited since is stale: the choices come back so that the line can be sent again somewhere else, as they did for the deep answer)
+  const resultsShown = (mode !== null && !isStale) || (employeeResults.length > 0 && (!isStale || isIdQuery(query.trim()))) || toolForm !== null || !!routed || typedResult;
+  // The choices leave only when the result would NEED A SCROLL BAR with them there (useResultRoom.ts: my rule of 27 Nov 2026, from the owner's own idea): a small answer fits with them and keeps them (no Back is wanted then);
+  // a tall one takes their room and the row of the answer gets its Back.
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // How many lines the question takes in the box (wrapped lines too), read before the paint (inputRows.ts); the box is three lines by default and gives its empty lines back when a long result needs the room.
+  const [lineCount, setLineCount] = useState(1);
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const measure = () => { const n = countLines(el); setLineCount((c) => (c === n ? c : n)); };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [query, isOpen, pageAlone]);
+  const defaultRows = inputRows(lineCount, false);
+  const resultRoom = useResultRoom({ active: !pageAlone && resultsShown && !deepAnswerShown, modalRef, scrollRef: scrollAreaRef, panelRef, inputRef: textareaRef, defaultRows });
+  const panelHidden = !pageAlone && resultsShown && (deepAnswerShown || !resultRoom);
+  const boxRows = inputRows(lineCount, panelHidden);
   const edsBackLink = edsExecutive && mode !== null && !isLoading && edsPicked !== null && edsPicked === submittedQuery.trim();
-  const deepBack = deepAnswerShown && !edsBackLink;
+  const deepBack = panelHidden && !edsBackLink;
   const backToDefault = () => { employeeReq.current++; setEmployeeResults([]); setSelection(AUTO_SELECTION); clearSearch(); setQuery(""); setEdsNote(null); setEdsPicked(null); forgetRoute(); textareaRef.current?.focus(); };
   // The timer of an answer: I run it for EVERY search that has to be waited for, whatever works it out (the engine's own rules, the language model, the deep synthesis), whether the question was written and sent with Enter, or pressed among the
   // sample questions (my rule, 23 Nov 2026). It starts when the search starts loading and stops in the very render that draws the reply (loading ends); the time it took stays on screen, frozen, with the reply, until another search is made or the
@@ -1097,7 +1128,7 @@ export function OmnibarModal({
                 <Search className="h-5 w-5 text-neutral-400 mt-2 shrink-0" />
                 <textarea
                   ref={textareaRef}
-                  rows={3}
+                  rows={boxRows}
                   value={query}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -1219,7 +1250,7 @@ export function OmnibarModal({
                     }
                   }}
                   placeholder={placeholderText}
-                  className="flex-1 bg-transparent text-sm sm:text-base text-neutral-900 placeholder-neutral-400 focus:outline-none resize-none leading-relaxed overflow-y-auto max-h-24 py-1"
+                  className="flex-1 bg-transparent text-sm sm:text-base text-neutral-900 placeholder-neutral-400 focus:outline-none resize-none leading-relaxed overflow-y-auto py-1"
                 />
                 {isLoading && mode !== "intellectual" && (
                   <Loader2 className="h-5 w-5 animate-spin text-primary-600 mt-2 shrink-0" />
@@ -1247,8 +1278,10 @@ export function OmnibarModal({
               {/* Step 41a: I took away the Executive Deep Synthesis button; the Enter key decides now (see the Enter handler above). */}
 
               {/* My fixed selections (src/records): Everything, People, PAX, Hospital OPD, Holidays, Degrees, Circulars & Notices. */}
-              {!deepAnswerShown && (
+              {!deepAnswerShown && !panelHidden && (
+                <div ref={panelRef}>
                 <RecordsScopeBar selection={selection} onChange={changeSelection} suggestion={selection.scope === "auto" ? suggestion : null} onExample={selection.scope === "eds" ? runEds : runScoped} onRunFinder={runFinder} utilitiesOpen={toolForm === "services"} onUtilities={openUtilities} notice={edsNote} edsReady={authStatus === "authenticated" && isExecutive} adminReady={authStatus === "authenticated"} onAdminHint={() => { if (authStatus === "authenticated") preloadManagementPanels(); if (authStatus === "authenticated") prefetchSearch("semantic", "management", { ...AUTO_SELECTION, scope: "admin" }); }} />
+                </div>
               )}
 
               {nameNotice && <FormerNameNotice notice={nameNotice} />}
@@ -1279,7 +1312,7 @@ export function OmnibarModal({
               </>
               )}
 
-              <div className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">
+              <div ref={scrollAreaRef} className="scrollbar-thin overflow-y-auto overscroll-contain p-2 flex-1">
                 {/*
                  * The row of an answer: "All sample questions" (Executive Deep Search only) at the left, the timer at the right, both centred on the same line. It is a real row (it takes its own height), so the timer never lies over the reply's own buttons (Download PDF),
                  * and I made it NOT sticky: it sits at the top of the reply and scrolls away with it (my rule, 23 Nov 2026). A question typed by hand has no back link yet; the row is there all the same, for the timer.

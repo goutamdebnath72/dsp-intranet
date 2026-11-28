@@ -16,7 +16,7 @@ export const vinTopic = defineTopic({
   },
   hits: [{ rank: 40, detect: (q) => (looksLikeVin(q) ? { kind: "vin" as const, text: q } : null) }],
   samples: [
-    { q: "vin number", note: "opens the VIN reader: the 17 characters of a Vehicle Identification Number section by section, the full forms (WMI, VDS, VIS), the model-year codes and the check digit, with samples to try", },
+    { q: "vin number", note: "opens the VIN reader: the 17 characters of a Vehicle Identification Number section by section, the full forms (WMI, VDS, VIS), the model-year codes and the check digit, with sample numbers of twenty makers sold in India to try (Hyundai, Kia, Maruti Suzuki, Tata, Mahindra on chips; Honda, Toyota, Nissan, Volkswagen, Škoda, Renault, Citroën, Jeep, Mercedes-Benz, Fiat and Ford (no new cars sold in India now), and with their international codes Audi, BMW, Volvo, BYD in the dropdown of the last chip)", },
     { q: "MALBM51BLKM000001", note: "a VIN is read as you type: country, manufacturer (MAL is Hyundai India), the maker's descriptor, position 9, model year (K is 2019), plant and serial; a Hyundai month letter may follow (*L)", instant: true },
   ],
 });

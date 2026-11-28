@@ -19,6 +19,8 @@ export const calcUi: TopicUi = {
     tone: "violet",
     icon: <Calculator size={18} />,
     menu: { title: "Calculator", text: "Basic and scientific, like the Mac's" },
+    // A sum is exact, not an approximation: only the line about what is typed.
+    notice: { typing: true },
     render: () => <CalculatorCard />,
   },
   hits: [
@@ -28,7 +30,7 @@ export const calcUi: TopicUi = {
       const text = hit.result.exact ?? formatNumber(hit.result.value);
       const words = hit.result.exact ? "" : indianWords(hit.result.value);
       return (
-        <ToolShell title="Calculator" subtitle="Appears as you type" tone="sky" icon={<Calculator size={20} />} instant>
+        <ToolShell title="Calculator" subtitle="Appears as you type" tone="sky" icon={<Calculator size={20} />} instant notice={{ typing: true }}>
           <div className="flex items-start gap-3 rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
             <div className="min-w-0 flex-1">
               <div className="break-words text-sm font-medium text-slate-500">{hit.result.shown} =</div>

@@ -29,5 +29,7 @@ export const steelUi: TopicUi = {
     tone: "sky",
     icon: <Factory size={20} />,
     card: (lang) => <SteelCard key={lang ?? "prices|"} initialTab={readLang(lang)} />,
+    // Nothing to type; the prices and production figures are indicative, so only the second line.
+    notice: { estimate: true },
   },
 };

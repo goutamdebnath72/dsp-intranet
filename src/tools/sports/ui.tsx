@@ -11,5 +11,5 @@ import { type TopicUi } from "@/tools/uiTypes";
 
 export const sportsUi: TopicUi = {
   id: "sports",
-  live: { title: "Sports headlines", subtitle: "India, and the big world events", tone: "emerald", icon: <Trophy size={20} />, card: () => <SportsCard /> },
+  live: { title: "Sports headlines", subtitle: "India, and the big world events", tone: "emerald", icon: <Trophy size={20} />, card: () => <SportsCard />, notice: false },
 };

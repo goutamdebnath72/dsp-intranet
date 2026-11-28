@@ -15,11 +15,14 @@
 //   1 July (March to May) and 1 October (June to August).
 //   The Labour Bureau's index is now on base 2016, and it is linked to the 2001 base by the factor 2.88; the orders do not print that factor. Checked against the orders: with the 2016-base figures the formula gives 53.42%
 //   for 1 January 2026 (the rate in the DPE order circulated by Coal India: 53.4%) and 59.06% for 1 October 2026 (DPE OM No. W-02/0037/2025-DPE(WC)/FTS-14505 of 27 Oct 2026: 59.1%, which also shows that the figure is rounded to
-//   the nearest tenth, not cut). Two further quarters, 54.1% (April 2026) and 55.7% (July 2026), agree with rates reported by third parties (not orders). See aicpi.selftest.ts.
+//   the nearest tenth, not cut). Two further quarters, 54.1% (April 2026, OM of 24 April 2026) and 55.7% (July 2026, OM of 17 July 2026), agree with the orders themselves, which I read on DPE's website on 28 Nov 2026 (scanned pictures,
+//   read by eye). See aicpi.selftest.ts. THE ORDERS ARE NOW READ FROM DPE'S SITE EVERY TIME THE RECORD IS LOADED (src/lib/live/dpeOrders.ts): a new order appears on the card by itself; the list below is only the fall-back for the orders
+//   that are pictures, whose rates a machine cannot read.
 // What is NOT established: that SAIL pays exactly this for its employees. It rests on the DPE guidelines SAIL's executives are under, SAIL's agreement of 22 Oct 2021 (reported as giving executives and non-executives the same DA
 //   on the same link point) and the figures above; SAIL's own pages could not be read (sail.co.in fails its certificate, the exchange filings refuse access), so SAIL's own circular is the authority. I found nothing that makes SAIL's
 //   rule different (no extra factor), and I have invented none.
 import { DateTime } from "luxon";
+import type { DpeOrder } from "./dpeOrders";
 
 export const ZONE = "Asia/Kolkata";
 export const CPI_PAGE = "https://labourbureau.gov.in/consumer-price-index-numbers-for-industrial-workers";
@@ -39,6 +42,8 @@ export interface IndexPoint {
 export interface Aicpi {
   /** Holds the months from the same month a year before the latest to the latest, oldest first (13 points when the source holds them) */
   points: IndexPoint[];
+  /** The quarterly IDA orders read from the Department of Public Enterprises' website, newest first (absent or empty when the site could not be read: the card then has only the list below) */
+  orders?: DpeOrder[];
 }
 
 export class AicpiError extends Error {}
@@ -198,15 +203,48 @@ export function idaAmount(basicPay: number, rate: number): number {
 /** How much DA one more point of the AICPI-IW (base 2016) adds to the percentage, which I take as 2.88 / 277.33 x 100 */
 export const PERCENT_PER_POINT = r2((LINKING_FACTOR / LINK_POINT) * 100);
 
-/** The quarterly rates the Department of Public Enterprises has announced for the 2017 pay scales; I read them from its orders (a copy of the order of 27 October 2026 and the circular that quotes the January order) */
+/** The quarterly rates of the Department of Public Enterprises' orders that I have read by eye (most are scanned pictures that a machine cannot read); the orders on DPE's website are read by the server as well (dpeOrders.ts) and the card uses whichever it has */
 export const IDA_ANNOUNCED = [
+  { from: "2025-10-01", rate: 51.8, order: "DPE OM No. W-02/0037/2025-DPE(WC)/FTS-14505 dated 29 October 2025" },
   { from: "2026-01-01", rate: 53.4, order: "DPE OM No. W-02/0037/2025-DPE(WC)/FTS-14505, as circulated by Coal India Limited on 6 March 2026" },
+  { from: "2026-04-01", rate: 54.1, order: "DPE OM No. W-02/0037/2025-DPE(WC)/FTS-14505 dated 24 April 2026" },
+  { from: "2026-07-01", rate: 55.7, order: "DPE OM No. W-02/0037/2025-DPE(WC)/FTS-14505 dated 17 July 2026" },
   { from: "2026-10-01", rate: 59.1, order: "DPE OM No. W-02/0037/2025-DPE(WC)/FTS-14505 dated 27 October 2026" },
 ] as const;
-/** The date I last compared the list above with what has been issued */
-export const IDA_ANNOUNCED_CHECKED = "2026-11-13";
+/** The date I last compared the list above with what DPE has put on its website */
+export const IDA_ANNOUNCED_CHECKED = "2026-11-28";
 
 /** Returns the announced rate for a quarter, when the list has it */
 export function announcedFor(startsOn: string): (typeof IDA_ANNOUNCED)[number] | null {
   return IDA_ANNOUNCED.find((a) => a.from === startsOn) ?? null;
+}
+
+export interface Announcement {
+  /** The rate of the order, or null when there is an order but its rate has not been read (a picture that is not in my list) */
+  rate: number | null;
+  /** The order in words, for the card */
+  order: string;
+  /** The order's PDF on DPE's website, when the server found it */
+  pdf: string | null;
+  /** True when DPE's website lists the order */
+  onSite: boolean;
+  /** My list's rate, when it differs from the one read from the site (a re-issued order): the card says so */
+  listed: number | null;
+}
+
+const longDay = (iso: string): string => DateTime.fromISO(iso, { zone: ZONE }).toFormat("d LLLL yyyy");
+
+/**
+ * What the orders say about the quarter that begins on `startsOn`: from DPE's website (the order's PDF, and its rate when the PDF has text) and from my hand list (the rates I read from pictures). A rate read from the site's text wins
+ * over my list (it is the later reading of the order itself). Null when neither has an order for the quarter.
+ */
+export function announcementFor(startsOn: string, orders: DpeOrder[] | undefined): Announcement | null {
+  const hand = announcedFor(startsOn);
+  const site = (orders ?? []).find((o) => o.from === startsOn) ?? null;
+  if (!hand && !site) return null;
+  const rate = site?.rate ?? hand?.rate ?? null;
+  let order = hand?.order ?? "";
+  if (site && site.rate !== null && site.omNo) order = `DPE OM No. ${site.omNo}${site.omDate ? ` dated ${longDay(site.omDate)}` : ""}`;
+  else if (!hand && site) order = `DPE's order, put on its website on ${longDay(site.postedOn)} (a scanned picture: open it to read the rate)`;
+  return { rate, order, pdf: site?.pdf ?? null, onSite: !!site, listed: site && site.rate !== null && hand && hand.rate !== site.rate ? hand.rate : null };
 }

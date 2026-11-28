@@ -3,8 +3,8 @@
 // (liveRoute's `persist`) saves every fresh answer and, when the source fails with nothing in memory, shows the saved one marked stale with its own time.
 import { readFileSync } from "node:fs";
 import { SNAPSHOT_TABLE_STATEMENTS, NO_SNAPSHOT_STORE, snapshotFromRow, typeormSnapshotStore, type SnapshotStore } from "./snapshotStore";
-import { liveRoute } from "./envelope";
-import { clearMemo } from "./memo";
+import { liveRoute, liveValue, seedFromSaved } from "./envelope";
+import { clearMemo, recall, remember } from "./memo";
 import { looksLikeGoldAnswer, parseIbja } from "./gold";
 
 let pass = 0, fail = 0;
@@ -72,6 +72,49 @@ function fakeDb(o: { tableExists?: boolean; failCreate?: boolean; failRead?: boo
   const real = parseIbja(readFileSync("src/lib/live/fixtures/ibja-morning.html", "utf8"));
   ok("the guard accepts a real parsed answer and refuses a broken one", !!real && looksLikeGoldAnswer(real) && !looksLikeGoldAnswer({ ...real, history: [] }) && !looksLikeGoldAnswer({ ...real, gold24Per10g: "x" }) && !looksLikeGoldAnswer(null) && !looksLikeGoldAnswer("text"));
   ok("the gold route keeps its last good answer (it opts in, with the guard)", /persist: \{ store: savedAnswers, check: looksLikeGoldAnswer \}/.test(readFileSync("src/app/api/live/gold/route.ts", "utf8")));
+
+
+  // ---- SEEDING (28 Nov 2026): a server that starts empty takes the saved copy of a news tab, and the first asking is answered at once
+  const good = { lang: "en", items: [{ title: "A story", link: "https://x.org/a", source: "P", publishedAt: "2026-11-28T06:00:00Z", summary: "", image: "https://img.x.org/a.jpg" }], used: ["P"], failed: [] };
+  const isGood = (x: unknown): x is typeof good => !!x && typeof x === "object" && Array.isArray((x as typeof good).items) && (x as typeof good).items.length > 0;
+  const saved = (value: unknown, ageMs: number): SnapshotStore & { puts: number } => { const st = { puts: 0, async get() { return { value, at: Date.now() - ageMs }; }, async put() { st.puts++; } }; return st; };
+  clearMemo();
+  let builds = 0;
+  const build = async () => { builds++; return { ...good, items: [{ ...good.items[0], title: "Built now" }] }; };
+  const fresh = saved(good, 5 * 60 * 1000);
+  const v1 = await liveValue({ key: "seed-1", ttlMs: 30 * 60 * 1000, load: build, persist: { store: async () => fresh, check: isGood, seed: true }, swr: {} });
+  ok("an empty server takes the saved copy: answered at once from it (nothing built), with the time it was saved, and not written back", builds === 0 && v1.value.items[0].title === "A story" && Date.now() - v1.at >= 5 * 60 * 1000 - 50 && fresh.puts === 0);
+  clearMemo();
+  const old = saved(good, 4 * 60 * 60 * 1000);
+  const v2 = await liveValue({ key: "seed-2", ttlMs: 30 * 60 * 1000, load: build, persist: { store: async () => old, check: isGood, seed: true }, swr: {} });
+  ok("a copy older than the three hours an old answer may be served is not taken: the tab is built, and the new one is saved", builds === 1 && v2.value.items[0].title === "Built now" && old.puts === 1);
+  clearMemo();
+  const badCopy = saved({ ...good, items: [] }, 1000);
+  const v3 = await liveValue({ key: "seed-3", ttlMs: 30 * 60 * 1000, load: build, persist: { store: async () => badCopy, check: isGood, seed: true }, swr: {} });
+  ok("a copy that is not the shape expected is not taken", builds === 2 && v3.value.items[0].title === "Built now");
+  clearMemo();
+  remember("seed-4", { ...good, items: [{ ...good.items[0], title: "In memory" }] });
+  const memCopy = saved(good, 1000);
+  const v4 = await liveValue({ key: "seed-4", ttlMs: 30 * 60 * 1000, load: build, persist: { store: async () => memCopy, check: isGood, seed: true }, swr: {} });
+  ok("what the server already keeps is never replaced by the saved copy", v4.value.items[0].title === "In memory");
+  clearMemo();
+  let reads = 0;
+  const counting: SnapshotStore = { async get() { reads++; await new Promise((r) => setTimeout(r, 20)); return { value: good, at: Date.now() - 1000 }; }, async put() {} };
+  await Promise.all([1, 2, 3].map(() => seedFromSaved("seed-5", { store: async () => counting, check: isGood })));
+  ok("many asking together read the database once for the key", reads === 1 && !!recall("seed-5"));
+  clearMemo();
+  const none: SnapshotStore = { async get() { throw new Error("no database"); }, async put() { throw new Error("no database"); } };
+  const v6 = await liveValue({ key: "seed-6", ttlMs: 30 * 60 * 1000, load: build, persist: { store: async () => none, check: isGood, seed: true }, swr: {} });
+  ok("no database: the tab is simply built (the card never fails because of its saved copy)", v6.value.items[0].title === "Built now");
+  clearMemo();
+  const jobs: Promise<unknown>[] = [];
+  const slow: SnapshotStore = { async get() { return null; }, async put() { await new Promise((r) => setTimeout(r, 50)); } };
+  const t0 = Date.now();
+  await liveValue({ key: "seed-7", ttlMs: 30 * 60 * 1000, load: build, persist: { store: async () => slow, check: isGood, seed: true }, swr: { schedule: (j) => { jobs.push(j); } } });
+  ok("a card with serve-then-refresh does not wait for the write of its saved copy (it is handed to the host to finish)", Date.now() - t0 < 45 && jobs.length === 1);
+  await Promise.all(jobs);
+  const route = readFileSync("src/app/api/live/news/route.ts", "utf8");
+  ok("the news route saves and seeds its tabs (looksLikeNewsAnswer, seed), and warms the other four after answering, two at a time, at most every 20 seconds, with the same options as serving", /persist: \{ store: savedAnswers, check: looksLikeNewsAnswer, seed: true \}/.test(route) && /function warmOthers/.test(route) && /ALL_TABS\.filter\(\(t\) => t !== lang\)/.test(route) && /\[0, 1\]\.map/.test(route) && /WARM_EVERY_MS = 20 \* 1000/.test(route) && /liveValue<NewsData>\(tabOptions\(t\)\)/.test(route) && /liveRoute<NewsData>\(tabOptions\(lang\)\)/.test(route) && /warmOthers\(lang\)/.test(route));
 
   console.log(`snapshotStore selftest: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

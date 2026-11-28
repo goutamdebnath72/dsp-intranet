@@ -13,7 +13,7 @@ import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef,
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft, Check, ChevronDown, Search, X, Zap } from "lucide-react";
-import { ToolNotice } from "./toolAtoms";
+import { ToolNotice, noticeParts, type Notice } from "./toolAtoms";
 
 export type Tone = "sky" | "amber" | "emerald" | "violet" | "rose";
 
@@ -123,8 +123,8 @@ export interface ToolShellProps {
   backLabel?: string;
   /** The card downloads the public rate table (said in the notice). */
   rates?: boolean | string;
-  /** false: the card leaves out the privacy and approximation notice (a card that has nothing to type into and no sums, such as a reading card); true when not said. */
-  notice?: boolean;
+  /** The two lines at the foot (toolAtoms.tsx, Notice): `{ typing }` for a page where the reader types something of their own, `{ estimate }` for a page of estimates or forecasts, `false` for neither (headlines, a directory, a reading guide, a list of buttons); both when not said. */
+  notice?: Notice;
   children: React.ReactNode;
 }
 
@@ -185,7 +185,7 @@ export function ToolShell({ title, subtitle, icon, tone = "sky", instant, badge,
         )}
       </div>
       {children}
-      {notice && <ToolNotice rates={rates} />}
+      {(noticeParts(notice).typing || noticeParts(notice).estimate) && <ToolNotice rates={rates} notice={notice} />}
     </motion.section>
   );
 }

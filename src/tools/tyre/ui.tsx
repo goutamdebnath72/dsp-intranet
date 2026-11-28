@@ -17,11 +17,13 @@ export const tyreUi: TopicUi = {
     tone: "rose",
     icon: <Disc3 size={18} />,
     menu: { title: "Tyre and rim size reader", text: "What a tyre size like 205/55 R16 91V and a wheel marking like 8Jx20 mean, part by part" },
+    // A reading guide: a tyre size is nobody's private matter and its meaning is not an estimate, so it carries neither line.
+    notice: false,
     render: () => <TyreCard start="205/55 R16 91V" />,
   },
   hits: [
     onHit("tyre", (hit) => (
-      <ToolShell title="How to read a tyre size and its rim" subtitle="Appears as you type" tone="rose" icon={<Disc3 size={20} />} instant>
+      <ToolShell title="How to read a tyre size and its rim" subtitle="Appears as you type" tone="rose" icon={<Disc3 size={20} />} instant notice={false}>
         <TyreCard key={hit.text} start={hit.text} />
       </ToolShell>
     )),

@@ -11,5 +11,5 @@ import { type TopicUi } from "@/tools/uiTypes";
 
 export const goldUi: TopicUi = {
   id: "gold",
-  live: { title: "Gold and silver in India", subtitle: "IBJA rates, with the trend", tone: "amber", icon: <Coins size={20} />, card: () => <GoldCard /> },
+  live: { title: "Gold and silver in India", subtitle: "IBJA rates, with the trend", tone: "amber", icon: <Coins size={20} />, card: () => <GoldCard />, notice: { estimate: true } },
 };

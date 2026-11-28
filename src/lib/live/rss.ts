@@ -25,6 +25,10 @@ export interface FeedItem {
   desk?: string;
   /** The rank of the story's desk on a curated tab (the Bengali one): 1 is the most important. The curation sets it, never a feed, and I never show it on a card. */
   tier?: number;
+  /** Set when the story is PRIORITY news: the death of a renowned person or a big accident (the three language tabs), or a record of the market, gold, silver or the rupee (the Business tab). Such stories stand first, with a chip saying which and where (src/lib/live/priority.ts). */
+  flag?: { kind: "demise" | "accident" | "massacre" | "record" | "visit"; scope: "wb" | "india" | "world" };
+  /** The picture the feed gives for the story (an https address, nothing else), shown as a small thumbnail through the resizing route (src/app/api/live/thumb). Many feeds have none (the Google News searches never do): then the card shows a tile with the paper's initial. */
+  image?: string;
 }
 
 const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", hellip: "…", ndash: "–", mdash: "—" };
@@ -65,6 +69,37 @@ export function safeLink(raw: string): string {
   }
 }
 
+/** An https address that may be a picture, from an attribute's text (entities decoded); "" for anything else (http, a data: URL, a script, a relative address). */
+export function imageAddress(raw: string): string {
+  const u = safeLink(decodeEntities(raw.trim()));
+  return u.startsWith("https://") && u.length <= 600 ? u : "";
+}
+
+/**
+ * The picture a feed gives for an item, or "". In this order: a media:thumbnail (the smallest, when the feed gives one), a media:content that is an image, an enclosure that is an image, the first <img> in the item's text. The feeds differ:
+ * The Times of India and The Economic Times use enclosure; the Indian Express and Sangbad Pratidin a media:thumbnail; The Hindu, Hindustan Times, Mint, NDTV, Bhaskar and WSJ a media:content; BBC a media:thumbnail; Jagran, Amar Ujala and
+ * every Google News search give none. A video or audio media:content is not a picture.
+ */
+export function imageOf(block: string): string {
+  const attr = (a: string) => (t: string) => new RegExp(`\\s${a}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i").exec(t)?.slice(1).find((x) => x !== undefined) ?? "";
+  const url = attr("url"), medium = attr("medium"), type = attr("type");
+  for (const m of block.matchAll(/<media:thumbnail\b[^>]*>/gi)) { const a = imageAddress(url(m[0])); if (a) return a; }
+  for (const m of block.matchAll(/<media:content\b[^>]*>/gi)) {
+    const t = m[0], k = medium(t), ty = type(t);
+    if ((k && k !== "image") || (ty && !/^image\//i.test(ty))) continue;
+    const a = imageAddress(url(t));
+    if (a && (k === "image" || /^image\//i.test(ty) || /\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)|\.cms\b|\/im-\d+/i.test(a))) return a;
+  }
+  for (const m of block.matchAll(/<enclosure\b[^>]*>/gi)) {
+    const t = m[0];
+    if (!/^image\//i.test(type(t))) continue;
+    const a = imageAddress(url(t));
+    if (a) return a;
+  }
+  const img = /<img\b[^>]*?\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')|&lt;img\b[^&]*?\ssrc\s*=\s*(?:&quot;|")([^"&]*)/i.exec(block);
+  return img ? imageAddress(img[1] ?? img[2] ?? img[3] ?? "") : "";
+}
+
 /** Returns the items of an RSS 2.0 feed. `defaultSource` names the publisher when the item does not; with `splitSource`, a trailing " - Publisher" is moved out of the headline (Google News). */
 export function parseRss(xml: string, defaultSource: string, splitSource = false): FeedItem[] {
   const out: FeedItem[] = [];
@@ -78,13 +113,41 @@ export function parseRss(xml: string, defaultSource: string, splitSource = false
       const i = title.lastIndexOf(" - ");
       if (i > 10) { source = title.slice(i + 3).trim() || source; title = title.slice(0, i).trim(); }
     }
-    out.push({ title, link, publishedAt: parseDate(field(block, "pubDate") || field(block, "dc:date")), source, summary: field(block, "description").slice(0, 400) });
+    const image = imageOf(block);
+    out.push({ title, link, publishedAt: parseDate(field(block, "pubDate") || field(block, "dc:date")), source, summary: field(block, "description").slice(0, 400), ...(image ? { image } : {}) });
   }
   return out;
 }
 
+/**
+ * The stories of a paper's NEWS SITEMAP (the file a paper gives search engines: for each story its address, headline, time and often its picture). Bartaman and Ei Samay publish one, fresher and fuller than any search of them and with the paper's
+ * own addresses (Ei Samay's also carries the picture of each story). Newest first, at most `limit` of them (a sitemap holds two days of stories, three to five hundred).
+ */
+export function parseSitemap(xml: string, defaultSource: string, limit = 80): FeedItem[] {
+  const out: FeedItem[] = [];
+  for (const m of xml.matchAll(/<url>[\s\S]*?<\/url>/gi)) {
+    const block = m[0];
+    const link = safeLink(field(block, "loc"));
+    const title = field(block, "news:title");
+    if (!link || !title) continue;
+    const pic = /<image:loc>([\s\S]*?)<\/image:loc>/i.exec(block)?.[1];
+    const image = pic ? imageAddress(pic.replace(/<!\[CDATA\[|\]\]>/g, "")) : "";
+    out.push({ title, link, publishedAt: parseDate(field(block, "news:publication_date")), source: defaultSource, summary: "", ...(image ? { image } : {}) });
+  }
+  return newestFirst(out).slice(0, limit);
+}
+
 /** I compare the headlines of two feeds that are the same story by this key: lower case, only letters, marks (the vowel signs of Hindi and Bengali) and digits, the first 60 of them. */
-export const titleKey = (t: string): string => t.toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu, "").slice(0, 60);
+const KEYS = new Map<string, string>();
+/** The headline with everything but letters and digits taken out (kept for each headline, as the words are: the merge asks for it again and again). */
+export const titleKey = (t: string): string => {
+  const hit = KEYS.get(t);
+  if (hit !== undefined) return hit;
+  const k = t.toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu, "").slice(0, 60);
+  if (KEYS.size >= 6000) KEYS.delete(KEYS.keys().next().value as string);
+  KEYS.set(t, k);
+  return k;
+};
 
 /**
  * One list from several feeds, in the order of importance the feeds themselves give: the first story of each, then the second of each, and so on (a round robin; a feed of higher priority takes
@@ -109,7 +172,7 @@ export function mergeFeeds(feeds: FeedItem[][], limit: number, now: DateTime, ma
   const groups: Array<{ head: (typeof flat)[number]; members: Array<(typeof flat)[number]> }> = [];
   for (const x of byFirst) {
     // It joins every story that ANY of its headlines is the same as (the second paper may be nearer to the third than to the first); two stories it bridges become one, the earlier head staying.
-    const hits = groups.filter((q) => q.head.it.link === x.it.link || q.members.some((m) => titleKey(m.it.title) === titleKey(x.it.title) || sameStory(m.it.title, x.it.title, counts, flat.length)));
+    const hits = groups.filter((q) => q.head.it.link === x.it.link || q.members.some((m) => titleKey(m.it.title) === titleKey(x.it.title) || sameStory(m.it.title, x.it.title, counts, flat.length) || samePictureStory(m.it, x.it)));
     if (!hits.length) { groups.push({ head: x, members: [x] }); continue; }
     const g = hits[0];
     for (const o of hits.slice(1)) { g.members.push(...o.members); groups.splice(groups.indexOf(o), 1); }
@@ -122,7 +185,9 @@ export function mergeFeeds(feeds: FeedItem[][], limit: number, now: DateTime, ma
     const latest = g.members.reduce((best, m) => (at(m) > at(best) ? m : best), g.head);
     // The other papers go in the order the feeds were given (my order of priority), not the order they came in.
     const also = [...new Set([...g.members].sort((a, b) => a.fi - b.fi).map((m) => m.it.source).filter((n) => n !== latest.it.source))];
-    stories.set(g.head.it, { ...latest.it, id: g.head.it.link, firstAt: g.head.it.publishedAt, firstSource: g.head.it.source, ...(also.length ? { also } : {}) });
+    // a picture: the shown headline's own, else the first the papers that carried the story gave (in the order of my priority)
+    const image = latest.it.image ?? [...g.members].sort((a, b) => a.fi - b.fi).map((m) => m.it.image).find(Boolean);
+    stories.set(g.head.it, { ...latest.it, id: g.head.it.link, firstAt: g.head.it.publishedAt, firstSource: g.head.it.source, ...(also.length ? { also } : {}), ...(image ? { image } : {}) });
   }
   // A story belongs to the paper of highest priority that carried it (the heaviest weight; among papers of the SAME level the one that reported it first, so that the order of the list favours none; then the earlier feed), at that paper's place in its feed: so a story that The Telegraph
   // and a paper of lower priority both had counts as The Telegraph's, however the two were first to report it. (Who reported first is the story's identity and is named on the card; it does not decide whose it is.)
@@ -149,6 +214,42 @@ export function mergeFeeds(feeds: FeedItem[][], limit: number, now: DateTime, ma
     }
   }
   return out;
+}
+
+/** The identity of a picture, whatever size or crop it was asked in: Bing's thumbnail by its id, any other by its address without the query. "" when there is none. */
+export function pictureKey(image: string | undefined | null): string {
+  if (!image) return "";
+  try {
+    const u = new URL(image);
+    const id = u.hostname.endsWith("bing.com") ? u.searchParams.get("id") : null;
+    return id ? `bing:${id}` : `${u.hostname}${u.pathname}`;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * ONE PICTURE, ONE STORY: two reports that carry the SAME PICTURE and whose headlines share at least three words (SAIL, Rourkela, safety) are the one story told in different words, whatever the rules of the headlines said ("SAIL Rourkela Steel Plant launches
+ * safety initiative for contractual workers" and "SAIL's Rourkela Steel Plant Launches First Department-Level 'Surakshya Charcha' to Promote Workplace Safety", both with the photograph of the same meeting). The words are the guard against a stock picture
+ * (a company's logo, a paper's default image) that two different stories carry: they must also be about the same thing.
+ */
+export function samePictureStory(a: Pick<FeedItem, "title" | "image">, b: Pick<FeedItem, "title" | "image">): boolean {
+  const ka = pictureKey(a.image);
+  if (!ka || ka !== pictureKey(b.image)) return false;
+  const inB = wordsOf(b.title).set;
+  return wordsOf(a.title).list.filter((w) => inB.has(w)).length >= 3;
+}
+
+/** A list with each story once by its picture (samePictureStory): the first stays (the list's order is the order of priority), and the paper that told it again is named among the others. */
+export function onePerPicture<T extends FeedItem>(items: T[]): T[] {
+  const kept: T[] = [];
+  for (const it of items) {
+    const at = kept.findIndex((k) => samePictureStory(k, it));
+    if (at < 0) { kept.push(it); continue; }
+    const k = kept[at];
+    if (it.source !== k.source && !(k.also ?? []).includes(it.source)) kept[at] = { ...k, also: [...(k.also ?? []), it.source] };
+  }
+  return kept;
 }
 
 /** Returns the stories newest first, as a wire shows them (a story with no time goes last, in the order it had). `at` says which time counts. */
@@ -188,7 +289,15 @@ const FILLER = new Set(("a an the and or but of in on at to for from by with as 
   "এবং ও এর এই সেই করে করা হয় হবে হল হয়েছে না তার যে কী কি থেকে জন্য সঙ্গে পর একটি").split(" "));
 
 /** Returns the telling words of a headline: lower case, apostrophes dropped, a trailing plural s removed, filler left out, each word once. I let letters AND their combining marks make a word (Hindi and Bengali vowel signs). */
-export function storyWords(title: string): string[] {
+/**
+ * The words of a headline that say which story it is. I keep the answer for each headline (a bounded memory): the merge compares every headline with every story already made, and a headline was split into words again for each
+ * comparison, which was most of the two seconds a language tab took to build (measured 28 Nov 2026: 2.2 of 2.6 seconds). The array is shared: nobody may change it.
+ */
+const WORDS = new Map<string, { list: string[]; set: Set<string> }>();
+const MAX_WORDS_KEPT = 6000;
+export function wordsOf(title: string): { list: string[]; set: Set<string> } {
+  const hit = WORDS.get(title);
+  if (hit) return hit;
   const out = new Set<string>();
   for (const raw of title.toLowerCase().replace(/['’‘`]/g, "").split(/[^\p{L}\p{N}\p{M}]+/u)) {
     if (!raw) continue;
@@ -196,17 +305,21 @@ export function storyWords(title: string): string[] {
     if (w.length < 2 || FILLER.has(raw) || FILLER.has(w) || /^(19|20)\d\d$/.test(w)) continue; // a year says nothing about which story, so I skip it
     out.add(w);
   }
-  return [...out];
+  const made = { list: [...out], set: out };
+  if (WORDS.size >= MAX_WORDS_KEPT) WORDS.delete(WORDS.keys().next().value as string);
+  WORDS.set(title, made);
+  return made;
 }
-
-/** How common each telling word is across a batch of headlines: the number of headlines it is in. */
+export function storyWords(title: string): string[] {
+  return wordsOf(title).list;
+}
 export function wordCounts(titles: string[]): Map<string, number> {
   const df = new Map<string, number>();
   for (const t of titles) for (const w of storyWords(t)) df.set(w, (df.get(w) ?? 0) + 1);
   return df;
 }
 
-const isNumber = (w: string) => /^\d/.test(w);
+export const isNumber = (w: string) => /^\d/.test(w);
 
 /** I call a word DISTINCTIVE when few headlines of the batch use it: a name, a place, a figure; "Nvidia" in a week of Nvidia news is not, "Zakir" is. */
 export const DISTINCT_MAX = 6;
@@ -224,7 +337,7 @@ export const SAME_SHARE = 0.4;
  * `counts` is the batch's wordCounts and `total` its number of headlines; without them every word weighs the same and every word counts as distinctive.
  */
 export function sameStory(a: string, b: string, counts?: Map<string, number>, total = 0): boolean {
-  const A = storyWords(a), B = storyWords(b), inB = new Set(B);
+  const A = wordsOf(a).list, B = wordsOf(b).list, inB = wordsOf(b).set;
   const shared = A.filter((w) => inB.has(w));
   if (shared.length < 3) return false;
   const na = A.filter(isNumber), nb = new Set(B.filter(isNumber));

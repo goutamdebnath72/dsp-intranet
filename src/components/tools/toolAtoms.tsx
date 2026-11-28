@@ -1,23 +1,37 @@
 // src/components/tools/toolAtoms.tsx
 //
-// The small pieces the calculator forms share: the privacy and approximation notice, a labelled field, a stat card, a bar of two parts. They are plain and accessible, and keep no state of their own.
+// The small pieces the calculator forms share: the privacy and approximation notice (two lines, each said only where it means something), a labelled field, a stat card, a bar of two parts. They are plain and accessible, and keep no state of their own.
 "use client";
 
 import React, { useState } from "react";
 import { Lock, Info, Copy, Check } from "lucide-react";
 
-/** I say this on every calculator: nothing typed is kept, and the result is an approximation. */
-export function ToolNotice({ rates }: { rates?: boolean | string }) {
+/**
+ * THE TWO LINES AT THE FOOT OF A CARD, each said only where it means something:
+ *   typing:   "Nothing you type here is saved anywhere": for a page where the reader types something of their own (pay, service years, a date of birth, an amount, a vehicle number);
+ *   estimate: "Results are approximations: please double-check": for a page whose figures are estimates, forecasts or rates the reader may act on.
+ * A page of headlines, a directory, a reading guide or a list of buttons has neither, so it says neither; a page can have either one alone. `true` is both, `false` is neither.
+ */
+export type Notice = boolean | { typing?: boolean; estimate?: boolean };
+export const noticeParts = (n: Notice | undefined): { typing: boolean; estimate: boolean } => (n === undefined || n === true ? { typing: true, estimate: true } : n === false ? { typing: false, estimate: false } : { typing: !!n.typing, estimate: !!n.estimate });
+
+export function ToolNotice({ rates, notice = true }: { rates?: boolean | string; notice?: Notice }) {
+  const { typing, estimate } = noticeParts(notice);
+  if (!typing && !estimate) return null;
   return (
     <div className="mt-4 flex flex-col gap-1.5 rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50 to-teal-50/70 px-3.5 py-2.5 text-xs leading-snug text-emerald-900 shadow-sm sm:flex-row sm:items-center sm:gap-5">
-      <span className="flex items-center gap-2 font-semibold">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"><Lock size={12} /></span>
-        <span>Nothing you type here is saved anywhere. It stays in this window{rates ? ` (${typeof rates === "string" ? rates : "only the public exchange-rate table is downloaded"})` : ""}.</span>
-      </span>
-      <span className="flex items-center gap-2 text-emerald-800">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-white"><Info size={12} /></span>
-        <span>Results are approximations: please double-check them before you rely on them.</span>
-      </span>
+      {typing && (
+        <span className="flex items-center gap-2 font-semibold">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"><Lock size={12} /></span>
+          <span>Nothing you type here is saved anywhere. It stays in this window{rates ? ` (${typeof rates === "string" ? rates : "only the public exchange-rate table is downloaded"})` : ""}.</span>
+        </span>
+      )}
+      {estimate && (
+        <span className="flex items-center gap-2 text-emerald-800">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-white"><Info size={12} /></span>
+          <span>Results are approximations: please double-check them before you rely on them.</span>
+        </span>
+      )}
     </div>
   );
 }

@@ -17,11 +17,13 @@ export const bhUi: TopicUi = {
     tone: "emerald",
     icon: <Route size={18} />,
     menu: { title: "Bharat (BH) series number plate", text: "The all-India vehicle number: who can have it, how to apply, the road tax" },
+    // The tax estimate inside the guide says both lines itself, where they mean something; the reading of a number does not need them.
+    notice: false,
     render: () => <BhCard start="26 BH 1234 AA" />,
   },
   hits: [
     onHit("bh", (hit) => (
-      <ToolShell title="How to read a BH-series number" subtitle="Appears as you type" tone="emerald" icon={<Route size={20} />} instant>
+      <ToolShell title="How to read a BH-series number" subtitle="Appears as you type" tone="emerald" icon={<Route size={20} />} instant notice={false}>
         <BhCard key={hit.text} start={hit.text} />
       </ToolShell>
     )),

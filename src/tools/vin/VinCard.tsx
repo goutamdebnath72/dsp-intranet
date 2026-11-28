@@ -5,9 +5,9 @@
 // (VinGuide.tsx). It is computed in the browser from src/tools/vin/vin.ts; nothing typed is stored or sent.
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, CalendarDays, Calculator, Globe2, Hash, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CalendarDays, Calculator, ChevronDown, Globe2, Hash, ShieldCheck } from "lucide-react";
 import { MAKERS, SECTIONS, checkSteps, readVin, splitVin, type VinPart } from "./vin";
 import { inputCls } from "@/components/tools/toolAtoms";
 import { VinGuide } from "./VinGuide";
@@ -27,9 +27,89 @@ const FACT_ICON = [<Hash key="a" size={16} />, <Globe2 key="b" size={16} />, <Ca
 
 const partAt = (parts: VinPart[], pos: number): VinPart | undefined => parts.find((p) => p.from <= pos && pos <= p.to);
 
+/** The four makers that have a chip of their own, and the rest (Mahindra first), who are in the dropdown of the fifth chip. */
+const CHIPS = MAKERS.filter((m) => !m.more);
+const MORE = MAKERS.filter((m) => m.more);
+const CHIP_CLS = (on: boolean) => `inline-flex flex-auto items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[0.8125rem] font-semibold shadow-sm transition hover:-translate-y-0.5 xl:px-4 xl:py-2 xl:text-sm ${on ? "border-amber-400 bg-amber-100 text-amber-900" : "border-slate-200 bg-white text-slate-700 hover:border-amber-300 hover:bg-amber-50"}`;
+const WMI_CLS = (on: boolean) => `rounded-md px-1.5 py-0.5 text-[0.6875rem] font-extrabold tracking-wider xl:text-xs ${on ? "bg-amber-200 text-amber-900" : "bg-slate-100 text-slate-500"}`;
+
+/**
+ * The fifth chip: it is Mahindra's until another maker is chosen, and then it IS that maker's chip (name and code, marked when its number is in the box), so that the chosen maker stays in sight. It is one pill of two parts: the name puts the maker's made-up number
+ * in the box, the chevron opens a dropdown of every maker that has no chip of its own. A list of my own, not the browser's: arrow keys move, Enter chooses, Escape and a click outside close it; it opens to the left when there is no room on the right.
+ */
+function MoreMakers({ chosen, activeSample, onPick }: { chosen: string; activeSample: string | null; onPick: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  // where the list opens: from the right edge of the chip (growing leftwards) or from its left edge (growing rightwards), whichever side has more room, and the most width it may take there
+  const [place, setPlace] = useState<{ right: boolean; maxW: number }>({ right: true, maxW: 416 });
+  const [cursor, setCursor] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const pill = useRef<HTMLDivElement>(null);
+  const chev = useRef<HTMLButtonElement>(null);
+  const items = useRef<Array<HTMLButtonElement | null>>([]);
+  const maker = MORE.find((m) => m.id === chosen) ?? MORE[0];
+  const on = activeSample === maker.sample;
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => { if (root.current && !root.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
+  useEffect(() => { if (open) items.current[cursor]?.focus(); }, [open, cursor]);
+
+  const toggle = () => {
+    if (!open) {
+      const r = pill.current?.getBoundingClientRect();
+      if (r) {
+        const roomLeft = r.right, roomRight = window.innerWidth - r.left;
+        const right = roomLeft >= roomRight;
+        setPlace({ right, maxW: Math.max(160, Math.min(416, (right ? roomLeft : roomRight) - 8)) });
+      }
+      setCursor(Math.max(0, MORE.findIndex((m) => m.id === maker.id)));
+    }
+    setOpen((v) => !v);
+  };
+  const keys = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") { setOpen(false); chev.current?.focus(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => (c + 1) % MORE.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => (c - 1 + MORE.length) % MORE.length); }
+    else if (e.key === "Home") { e.preventDefault(); setCursor(0); }
+    else if (e.key === "End") { e.preventDefault(); setCursor(MORE.length - 1); }
+  };
+  const lit = on || open;
+  return (
+    <div ref={root} className="relative flex-auto">
+      <div ref={pill} className={`flex w-full items-stretch overflow-hidden rounded-full border text-[0.8125rem] font-semibold shadow-sm transition hover:-translate-y-0.5 xl:text-sm ${lit ? "border-amber-400 bg-amber-100 text-amber-900" : "border-slate-200 bg-white text-slate-700 hover:border-amber-300"}`}>
+        <button type="button" aria-pressed={on} onClick={() => onPick(maker.id)} title={`${maker.maker}: ${maker.sample} (a made-up number, not a real vehicle's)`} className={`inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap py-1.5 pl-3.5 pr-2.5 transition xl:py-2 xl:pl-4 ${lit ? "" : "hover:bg-amber-50"}`}>
+          {maker.button}<span className={WMI_CLS(on)}>{maker.wmi}</span>
+        </button>
+        <button ref={chev} type="button" aria-haspopup="listbox" aria-expanded={open} aria-label="Choose another maker" onClick={toggle} title="Choose another maker: Mahindra, Honda, Toyota, Nissan, Volkswagen, Škoda, Renault, Citroën, Jeep, Mercedes-Benz, Fiat, Ford, Audi, BMW, Volvo, BYD" className={`inline-flex items-center border-l px-2.5 transition xl:px-3 ${lit ? "border-amber-300 hover:bg-amber-200" : "border-slate-200 hover:bg-amber-50"}`}>
+          <ChevronDown size={15} aria-hidden="true" className={`transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+      <AnimatePresence>
+        {open && (
+          <motion.ul role="listbox" aria-label="More makers" onKeyDown={keys} initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }} style={{ maxWidth: place.maxW }} className={`absolute top-full z-30 mt-1.5 max-h-[min(26rem,70vh)] w-max min-w-[min(16rem,100%)] overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xl ring-1 ring-black/5 ${place.right ? "right-0" : "left-0"}`}>
+            {MORE.map((m, i) => (
+              <li key={m.id} role="presentation">
+                <button ref={(el) => { items.current[i] = el; }} type="button" role="option" aria-selected={m.id === maker.id} tabIndex={i === cursor ? 0 : -1} onClick={() => { onPick(m.id); setOpen(false); chev.current?.focus(); }} className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left text-[0.8125rem] transition hover:bg-amber-50 focus-visible:bg-amber-50 focus-visible:outline-none ${m.id === maker.id ? "bg-amber-100 font-bold text-amber-900" : "text-slate-700"}`}>
+                  <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-900">{m.button}</span><span className="block text-[0.6875rem] leading-snug text-slate-500">{m.maker}</span>{m.remark && <span className="mt-0.5 block text-[0.6875rem] font-extrabold leading-snug text-rose-700">No new cars sold in India now</span>}</span>
+                  <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[0.625rem] font-extrabold tracking-wider text-slate-600">{m.wmi}</span>
+                </button>
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function VinCard({ start }: { start: string }) {
   const [text, setText] = useState(start);
   const [showSteps, setShowSteps] = useState(false);
+  // The maker of the fifth chip: Mahindra until another is chosen in its dropdown (a number of one of them in the box at the start chooses it).
+  const [more, setMore] = useState<string>(() => MORE.find((m) => m.sample === splitVin(start).core)?.id ?? MORE[0].id);
   const r = readVin(text);
   const typed = splitVin(text);
   const steps = r.ok ? checkSteps(r.vin) : null;
@@ -41,17 +121,18 @@ export function VinCard({ start }: { start: string }) {
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <input id="vin-no" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" spellCheck={false} className={`${inputCls} max-w-md text-lg font-extrabold uppercase tracking-widest focus:border-amber-400 focus:ring-amber-100`} />
       </div>
-      {/* One button for each of the five Indian makers (Hyundai and Kia are two, with two manufacturer codes): it puts a made-up number of that maker in the box. The button of the number now in the box is marked. */}
-      <div role="group" aria-label="Sample numbers of the Indian makers" className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500">Try a number of</span>
-        {MAKERS.map((m) => {
+      {/* ONE ROW: a chip each for Hyundai, Kia (two companies, two manufacturer codes), Maruti Suzuki and Tata Motors, and a fifth that is Mahindra's until another maker is chosen in its dropdown (every other maker is there): each puts a made-up number of that maker in the box. The chip of the number now in the box is marked. EVERYTHING HERE IS CONTENT-SIZED AND WRAPS RATHER THAN OVERFLOWS (owner: from day 1 all sizes must adapt): each chip is as wide as its own words need and the chips share what is left of the row equally, so the fifth, which carries the name of whichever maker is chosen ("Mercedes-Benz" is wider than "Mahindra"), always ends at the right edge; when the names, the type size or the window do not fit in one row, the row wraps (never runs past the frame). Sizes are in rem, so a larger type setting scales them. The caption is left out between 1024 and 1280 px to keep the row single there. The list opens from the chip's right edge (or its left, where there is more room), is as wide as its longest line needs up to 26 rem and never wider than the room on its side. */}
+      <div role="group" aria-label="Sample numbers of the makers" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-2 xl:gap-x-3">
+        <span className="shrink-0 whitespace-nowrap text-[0.8125rem] font-semibold text-slate-500 lg:max-xl:hidden xl:text-sm">Try a number of</span>
+        {CHIPS.map((m) => {
           const on = typed.core === m.sample && !typed.suffix;
           return (
-            <button key={m.id} type="button" aria-pressed={on} onClick={() => setText(m.sample)} title={`${m.maker}: ${m.sample} (a made-up number, not a real vehicle's)`} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold shadow-sm transition hover:-translate-y-0.5 ${on ? "border-amber-400 bg-amber-100 text-amber-900" : "border-slate-200 bg-white text-slate-700 hover:border-amber-300 hover:text-amber-800"}`}>
-              {m.button}<span className={`rounded-md px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider ${on ? "bg-amber-200 text-amber-900" : "bg-slate-100 text-slate-500"}`}>{m.wmi}</span>
+            <button key={m.id} type="button" aria-pressed={on} onClick={() => setText(m.sample)} title={`${m.maker}: ${m.sample} (a made-up number, not a real vehicle's)`} className={CHIP_CLS(on)}>
+              {m.button}<span className={WMI_CLS(on)}>{m.wmi}</span>
             </button>
           );
         })}
+        <MoreMakers chosen={more} activeSample={typed.suffix ? null : typed.core} onPick={(id) => { setMore(id); setText(MAKERS.find((m) => m.id === id)?.sample ?? ""); }} />
       </div>
 
       <AnimatePresence mode="wait" initial={false}>
@@ -69,14 +150,14 @@ export function VinCard({ start }: { start: string }) {
                         return (
                           <div key={pos} className="flex flex-col items-center">
                             <span className={`flex h-10 w-7 items-center justify-center rounded-lg text-xl font-extrabold leading-none ring-1 sm:w-8 ${PART_STYLE[part.id].cell}`}>{r.vin[pos - 1]}</span>
-                            <span className="mt-1 text-[9px] font-bold tabular-nums text-white/50">{pos}</span>
+                            <span className="mt-1 text-[0.5625rem] font-bold tabular-nums text-white/50">{pos}</span>
                           </div>
                         );
                       })}
                     </div>
                     <span className="mt-1 h-1 w-full rounded-full bg-white/25" />
-                    <span className="mt-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white/80">{sec.id}</span>
-                    <span className="text-[10px] font-semibold text-white/50">{sec.name}</span>
+                    <span className="mt-1.5 text-[0.625rem] font-extrabold uppercase tracking-widest text-white/80">{sec.id}</span>
+                    <span className="text-[0.625rem] font-semibold text-white/50">{sec.name}</span>
                   </motion.div>
                 ))}
                 {month && (
@@ -85,12 +166,29 @@ export function VinCard({ start }: { start: string }) {
                       {["*", typed.suffix].map((c, k) => <span key={k} className={`flex h-10 w-7 items-center justify-center rounded-lg text-xl font-extrabold leading-none ring-1 sm:w-8 ${PART_STYLE.month.cell}`}>{c}</span>)}
                     </div>
                     <span className="mt-[1.125rem] h-1 w-full rounded-full bg-white/25" />
-                    <span className="mt-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white/80">Plate</span>
-                    <span className="text-[10px] font-semibold text-white/50">Hyundai month</span>
+                    <span className="mt-1.5 text-[0.625rem] font-extrabold uppercase tracking-widest text-white/80">Plate</span>
+                    <span className="text-[0.625rem] font-semibold text-white/50">Hyundai month</span>
                   </motion.div>
                 )}
               </div>
             </div>
+
+            {/* THE QUESTION USERS COME WITH: is the month and year of manufacture in this number? Answered for every number, YES or NO, in bold. */}
+            <section aria-label="Month and year of manufacture" className="mt-3">
+              <h3 className="text-xs font-extrabold uppercase tracking-wide text-slate-600">Month and year of manufacture: is it in this number?</h3>
+              <div className="mt-1.5 grid gap-2 sm:grid-cols-2">
+                {([r.made.year, r.made.month] as const).map((d) => (
+                  <div key={d.head} className={`rounded-2xl border-2 px-3.5 py-2.5 shadow-sm ${d.state === "yes" ? "border-emerald-300 bg-emerald-50" : "border-rose-300 bg-rose-50"}`}>
+                    <p className={`flex items-start gap-2 text-base font-extrabold leading-snug ${d.state === "yes" ? "text-emerald-900" : "text-rose-900"}`}>
+                      <span aria-hidden="true" className={`mt-0.5 inline-flex shrink-0 rounded-md px-1.5 py-0.5 text-xs tracking-wider text-white ${d.state === "yes" ? "bg-emerald-600" : "bg-rose-600"}`}>{d.state === "yes" ? "YES" : "NO"}</span>
+                      <span>{d.head}</span>
+                    </p>
+                    <p className="mt-1 text-xs leading-snug text-slate-700">{d.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+            {r.remark && <p role="note" className="mt-2 flex items-start gap-2 rounded-2xl border-2 border-rose-300 bg-rose-50 px-3.5 py-2.5 text-sm font-extrabold leading-snug text-rose-900"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>{r.remark}</span></p>}
 
             <ul className="mt-3 grid gap-2">
               {r.parts.map((p) => (
@@ -107,7 +205,7 @@ export function VinCard({ start }: { start: string }) {
             <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {r.facts.map((f, i) => (
                 <div key={f.label} className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-3.5 py-2.5 shadow-sm">
-                  <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500"><span className="text-amber-500">{FACT_ICON[i % 4]}</span>{f.label}</dt>
+                  <dt className="flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-slate-500"><span className="text-amber-500">{FACT_ICON[i % 4]}</span>{f.label}</dt>
                   <dd className="mt-0.5 text-base font-extrabold leading-tight text-slate-900">{f.value}</dd>
                 </div>
               ))}
@@ -122,7 +220,7 @@ export function VinCard({ start }: { start: string }) {
                   <div className="mt-3 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <table className="w-full min-w-[34rem] text-center text-xs">
                       <tbody>
-                        <tr className="bg-slate-100 text-[11px] font-bold uppercase text-slate-600"><th className="px-2 py-1.5 text-left">Position</th>{steps.steps.map((s) => <td key={s.pos} className="px-1 py-1.5">{s.pos}</td>)}</tr>
+                        <tr className="bg-slate-100 text-[0.6875rem] font-bold uppercase text-slate-600"><th className="px-2 py-1.5 text-left">Position</th>{steps.steps.map((s) => <td key={s.pos} className="px-1 py-1.5">{s.pos}</td>)}</tr>
                         <tr><th className="px-2 py-1 text-left text-slate-600">Character</th>{steps.steps.map((s) => <td key={s.pos} className={`px-1 py-1 text-sm font-extrabold ${s.pos === 9 ? "bg-rose-50 text-rose-700" : "text-slate-900"}`}>{s.ch}</td>)}</tr>
                         <tr className="border-t border-slate-100"><th className="px-2 py-1 text-left text-slate-600">Value</th>{steps.steps.map((s) => <td key={s.pos} className="px-1 py-1">{s.value}</td>)}</tr>
                         <tr className="border-t border-slate-100"><th className="px-2 py-1 text-left text-slate-600">Weight</th>{steps.steps.map((s) => <td key={s.pos} className="px-1 py-1">{s.weight}</td>)}</tr>

@@ -12,7 +12,7 @@ import { ToolShell } from "@/components/tools/toolKit";
 import { onHit, type TopicUi } from "@/tools/uiTypes";
 
 const engineShell = (children: React.ReactNode) => (
-  <ToolShell title="Engine power: PS, bhp and kW" subtitle="Appears as you type" tone="amber" icon={<Zap size={20} />} instant>{children}</ToolShell>
+  <ToolShell title="Engine power: PS, bhp and kW" subtitle="Appears as you type" tone="amber" icon={<Zap size={20} />} instant notice={false}>{children}</ToolShell>
 );
 
 export const converterUi: TopicUi = {
@@ -34,10 +34,10 @@ export const converterUi: TopicUi = {
       if (r.kind === "convert" && r.category === "power" && ENGINE_IDS.includes(r.fromId) && ENGINE_IDS.includes(r.toId)) {
         return engineShell(<ConverterCard tone="amber" key={`engine|${r.fromId}|${r.value}`} start={{ kind: "engine", from: r.fromId, to: r.toId, value: r.value }} rates={null} ratesState="idle" />);
       }
-      if (r.kind === "mismatch") return <ToolShell title="Unit converter" tone="sky" icon={<ArrowLeftRight size={20} />} instant><p className="text-sm text-slate-700">{r.message}</p></ToolShell>;
+      if (r.kind === "mismatch") return <ToolShell title="Unit converter" tone="sky" icon={<ArrowLeftRight size={20} />} instant notice={false}><p className="text-sm text-slate-700">{r.message}</p></ToolShell>;
       // I key it by what was asked, so the card starts afresh when the question changes and keeps the reader's own edits until then
       return (
-        <ToolShell title="Unit converter" subtitle="Appears as you type" tone="sky" icon={<ArrowLeftRight size={20} />} instant>
+        <ToolShell title="Unit converter" subtitle="Appears as you type" tone="sky" icon={<ArrowLeftRight size={20} />} instant notice={false}>
           <ConverterCard key={`${r.category}|${r.fromId}|${r.toId}|${r.value}`} start={{ kind: r.category, from: r.fromId, to: r.toId, value: r.value }} rates={null} ratesState="idle" />
         </ToolShell>
       );
@@ -51,7 +51,7 @@ export const converterUi: TopicUi = {
       );
     }),
     onHit("colour", (hit) => (
-      <ToolShell title="Colour converter: RGB, HEX and HSL" subtitle="Appears as you type; type in any panel and the other two follow" tone="violet" icon={<Palette size={20} />} instant>
+      <ToolShell title="Colour converter: RGB, HEX and HSL" subtitle="Appears as you type; type in any panel and the other two follow" tone="violet" icon={<Palette size={20} />} instant notice={false}>
         <ConverterCard tone="violet" key={`colour|${hit.hex}`} start={{ kind: "colour", from: "rgb", to: "hex", value: 0, colour: hit.hex }} rates={null} ratesState="idle" />
       </ToolShell>
     )),

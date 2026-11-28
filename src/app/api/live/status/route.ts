@@ -47,6 +47,7 @@ export async function GET() {
     check("gold and silver (IBJA)", () => gold()),
     check("fuel (GoodReturns)", () => fuel()),
     check("news, business (ET, Mint, BusinessLine, WSJ)", () => news(new Request("http://x/api/live/news?lang=biz"))),
+    check("news, steel (Google News and Bing News searches, and the business papers)", () => news(new Request("http://x/api/live/news?lang=steel"))),
     check("news, English", () => news(new Request("http://x/api/live/news?lang=en"))),
     check("news, Hindi", () => news(new Request("http://x/api/live/news?lang=hi"))),
     check("news, Bengali", () => news(new Request("http://x/api/live/news?lang=bn"))),

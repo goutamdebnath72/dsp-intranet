@@ -3,7 +3,8 @@
 // against the rates the Department of Public Enterprises announced (53.4% from 1 January 2026, 59.1% from 1 October 2026), and that is what makes its constants trustworthy.
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
-import { AicpiError, announcedFor, buildAicpi, IDA_ANNOUNCED, idaAmount, idaForQuarter, idaFromAverage, idaProjected, monthsOfQuarter, parseChart, parseHome, PERCENT_PER_POINT, quarterOf, quartersOf, validAicpi } from "./aicpi";
+import type { DpeOrder } from "./dpeOrders";
+import { AicpiError, announcedFor, announcementFor, buildAicpi, IDA_ANNOUNCED, idaAmount, idaForQuarter, idaFromAverage, idaProjected, monthsOfQuarter, parseChart, parseHome, PERCENT_PER_POINT, quarterOf, quartersOf, validAicpi } from "./aicpi";
 
 let pass = 0, fail = 0;
 const ok = (name: string, c: boolean, d = "") => { if (c) pass++; else { fail++; console.log("FAIL", name, d); } };
@@ -36,7 +37,7 @@ ok("the three months of each quarter: 1 January is September to November, 1 Apri
 const q1 = idaForQuarter(a.points, "2026-01-01"), q2 = idaForQuarter(a.points, "2026-04-01"), q3 = idaForQuarter(a.points, "2026-07-01"), q4 = idaForQuarter(a.points, "2026-10-01");
 ok("1 January 2026: September to November 2025 average 147.73, x 2.88 = 425.47, 53.42% over the link point 277.33, so 53.4%: the rate in the DPE order (circulated by Coal India)", !!q1 && q1.average === 147.73 && q1.linked === 425.47 && q1.exact === 53.42 && q1.rate === 53.4 && announcedFor("2026-01-01")?.rate === 53.4, JSON.stringify(q1));
 ok("1 October 2026: June to August 2026 average 153.17, x 2.88 = 441.12, increase 163.79, 59.06%, so 59.1%: the rate in DPE's OM of 27 Oct 2026, and it is ROUNDED to the nearest tenth (cut it would be 59.0)", !!q4 && q4.average === 153.17 && q4.linked === 441.12 && q4.increase === 163.79 && q4.exact === 59.06 && q4.rate === 59.1 && announcedFor("2026-10-01")?.rate === 59.1, JSON.stringify(q4));
-ok("1 April 2026 gives 54.1% and 1 July 2026 gives 55.7% (they agree with the rates a third party reports: not orders, so not listed as announced)", !!q2 && !!q3 && q2.rate === 54.1 && q3.rate === 55.7 && announcedFor("2026-04-01") === null && announcedFor("2026-07-01") === null, JSON.stringify([q2, q3]));
+ok("1 April 2026 gives 54.1% and 1 July 2026 gives 55.7%: the rates of the orders themselves (OM of 24 April 2026 and of 17 July 2026, read on DPE's website), so both are in the list of announced rates", !!q2 && !!q3 && q2.rate === 54.1 && q3.rate === 55.7 && announcedFor("2026-04-01")?.rate === 54.1 && announcedFor("2026-07-01")?.rate === 55.7, JSON.stringify([q2, q3]));
 ok("the DPE order of 3 April 2020 worked the same way: an average of 329.33 over the link point 277.33 is 52, 18.7% (52 / 277.33 = 18.75%, printed 18.7)", (() => { const r = (329.33 - 277.33) / 277.33 * 100; return r > 18.74 && r < 18.76; })());
 ok("the DPE order of 3 August 2017: the average of September to November 2016 is the link point 277.33, so the DA that day is zero", idaFromAverage(277.33 / 2.88).rate === 0 && idaFromAverage(277.33 / 2.88).exact === 0);
 ok("one point of the index (base 2016) adds 1.04 percentage points of DA (2.88 / 277.33 x 100)", PERCENT_PER_POINT === 1.04);
@@ -47,7 +48,21 @@ ok("a projection with nothing published (a quarter far ahead) is not made, and a
 const qs = quartersOf(a.points, NOW);
 ok("the quarters of the record on 13 Nov 2026: 1 Jan, 1 Apr, 1 Jul and 1 Oct 2026, then 1 Jan 2027 (projected); 53.4, 54.1, 55.7, 59.1, 61.5", qs.map((x) => x.startsOn).join() === "2026-01-01,2026-04-01,2026-07-01,2026-10-01,2027-01-01" && qs.map((x) => x.rate).join() === "53.4,54.1,55.7,59.1,61.5" && qs[4].known === 1 && qs[3].known === 3, JSON.stringify(qs.map((x) => [x.startsOn, x.rate, x.known])));
 ok("the quarter a date is in: 13 Nov 2026 is in the quarter from 1 October (next 1 January 2027); 1 Jan and 31 Mar are in the first quarter; 1 Apr in the second", quarterOf(NOW).startsOn === "2026-10-01" && quarterOf(NOW).next === "2027-01-01" && quarterOf(DateTime.fromISO("2027-01-01T00:30:00", { zone: "Asia/Kolkata" })).startsOn === "2027-01-01" && quarterOf(DateTime.fromISO("2026-03-31T23:00:00", { zone: "Asia/Kolkata" })).startsOn === "2026-01-01" && quarterOf(DateTime.fromISO("2026-04-01T00:10:00", { zone: "Asia/Kolkata" })).startsOn === "2026-04-01");
-ok("the list of announced rates holds the two orders that were read (53.4 from 1 Jan 2026, 59.1 from 1 Oct 2026)", IDA_ANNOUNCED.length === 2 && IDA_ANNOUNCED[0].rate === 53.4 && IDA_ANNOUNCED[1].rate === 59.1);
+ok("the list of announced rates holds the five orders that were read (51.8 from 1 Oct 2025, 53.4, 54.1, 55.7, 59.1 from 1 Oct 2026), in order of date", IDA_ANNOUNCED.map((x) => x.rate).join() === "51.8,53.4,54.1,55.7,59.1" && IDA_ANNOUNCED.map((x) => x.from).join() === "2025-10-01,2026-01-01,2026-04-01,2026-07-01,2026-10-01");
+ok("the formula gives the order's own rate in every quarter of the record that has an order: 53.4, 54.1, 55.7 and 59.1 (the April and July rates are from the orders themselves, read on DPE's website)", qs.filter((x) => x.known === 3).every((x) => announcedFor(x.startsOn)?.rate === x.rate) && qs.filter((x) => x.known === 3).length === 4);
+// the orders read from DPE's website and the list, together
+const site = (from: string, rate: number | null, omNo: string | null = null, omDate: string | null = null): DpeOrder => ({ from, postedOn: "2026-10-27", rate, omNo, omDate, pdf: `https://www.dpe.gov.in/static/uploads/${from}.pdf` });
+const m1 = announcementFor("2026-10-01", [site("2026-10-01", 59.1, "W-02/0037/2025-DPE(WC)/FTS-14505", "2026-10-27")]);
+ok("an order read from the site gives its rate, its number and date in words and its PDF; the list agrees, so nothing is said about a difference", !!m1 && m1.rate === 59.1 && m1.order === "DPE OM No. W-02/0037/2025-DPE(WC)/FTS-14505 dated 27 October 2026" && m1.pdf === "https://www.dpe.gov.in/static/uploads/2026-10-01.pdf" && m1.onSite && m1.listed === null, JSON.stringify(m1));
+const m2 = announcementFor("2026-04-01", [site("2026-04-01", null)]);
+ok("an order that is a picture and is in my list: the rate is mine (54.1), the link is the site's", !!m2 && m2.rate === 54.1 && m2.pdf !== null && /24 April 2026/.test(m2.order) && m2.onSite);
+const m3 = announcementFor("2027-01-01", [site("2027-01-01", null)]);
+ok("a new order that is a picture and not in my list: no rate (never guessed), the order is named and its link given, and the card is told to open it", !!m3 && m3.rate === null && m3.pdf !== null && /scanned picture: open it to read the rate/.test(m3.order));
+const m4 = announcementFor("2027-01-01", [site("2027-01-01", 61.4, "W-02/0037/2025-DPE(WC)/FTS-14505", "2027-01-27")]);
+ok("a new order with text gives its rate by itself, without anything of mine", !!m4 && m4.rate === 61.4 && /dated 27 January 2027/.test(m4.order) && m4.listed === null);
+const m5 = announcementFor("2026-10-01", [site("2026-10-01", 59.3, "W-02/0037/2025-DPE(WC)/FTS-14505", "2026-10-27")]);
+ok("when the site's text and my list differ, the site's rate is used and my list's is named so that the card can say it", !!m5 && m5.rate === 59.3 && m5.listed === 59.1);
+ok("with no site at all (it could not be read), my list alone answers; a quarter with neither has no order", announcementFor("2026-07-01", undefined)?.rate === 55.7 && announcementFor("2026-07-01", [])?.pdf === null && announcementFor("2027-04-01", []) === null && announcementFor("2027-04-01", undefined) === null);
 ok("the rupees of DA on a basic pay at a rate, to the nearest rupee: 50,000 at 59.1% is 29,550; 56,100 at 59.1% is 33,155.1, so 33,155; 56,150 at 59.1% is 33,184.65, so 33,185", idaAmount(50000, 59.1) === 29550 && idaAmount(56100, 59.1) === 33155 && idaAmount(56150, 59.1) === 33185 && idaAmount(0, 59.1) === 0);
 
 console.log(`aicpi: ${pass} passed, ${fail} failed`);

@@ -1,7 +1,7 @@
 // Run (from the project root): npx tsx --tsconfig tsconfig.selftest.json src/lib/live/rss.selftest.ts
 import { readFileSync } from "node:fs";
 import { DateTime } from "luxon";
-import { parseRss, mergeFeeds, safeLink, decodeEntities, titleKey, parseDate, newestFirst, diffStories, sameStory, storyWords, wordCounts, storyKey } from "./rss";
+import { parseRss, imageOf, imageAddress, mergeFeeds, safeLink, decodeEntities, titleKey, parseDate, newestFirst, diffStories, sameStory, storyWords, wordCounts, storyKey } from "./rss";
 import { buildNews, NEWS_SOURCES, BUSINESS_SOURCES, NEWS_TABS, NEWS_LIMIT, SOURCES_OF, isLang, isTab, isPrintedPage } from "./news";
 import { buildSports, classify } from "./sports";
 
@@ -47,11 +47,11 @@ const biz = buildNews("biz", [fx("rss-et-industry.xml"), fx("rss-mint-companies.
 ok("the business tab keeps 15 stories, shown by TIME, the latest at the top, like a wire (the time on the card is the order)", biz.lang === "biz" && NEWS_LIMIT === 15 && biz.items.length === 15 && biz.items.every((i, k) => k === 0 || i.publishedAt <= biz.items[k - 1].publishedAt), biz.items.map((i) => i.publishedAt.slice(11, 16)).join());
 ok("they are CHOSEN a paper at a time, so every one of the four is among the stories (none fills the screen alone), and no story is shown twice", new Set(biz.items.map((i) => i.source)).size === 4 && BUSINESS_SOURCES.every((s) => biz.items.filter((i) => i.source === s.name).length >= 3) && new Set(biz.items.map((i) => titleKey(i.title))).size === biz.items.length);
 const biz2 = buildNews("biz", [null, fx("rss-mint-companies.xml"), null, fx("rss-wsj-business.xml")], NOW_B);
-ok("a paper that does not answer is left out and named; the others still show", biz2.used.join() === "Mint,The Wall Street Journal" && biz2.failed.join() === "The Economic Times,The Hindu BusinessLine");
+ok("a paper that does not answer is left out and named; the others still show", biz2.used.join() === "Mint,The Wall Street Journal" && biz2.failed.filter((n) => BUSINESS_SOURCES.some((b) => b.name === n)).join() === "The Economic Times,The Hindu BusinessLine");
 let threwB = false; try { buildNews("biz", [null, null, null, null], NOW_B); } catch { threwB = true; }
 ok("when none of the four answers, it is an error", threwB);
 ok("the business sources are exactly the four free ones, each on its own https site; Business Standard and Financial Express are not asked (their servers refuse automated requests)", BUSINESS_SOURCES.map((s) => s.name).join() === "The Economic Times,Mint,The Hindu BusinessLine,The Wall Street Journal" && BUSINESS_SOURCES.every((s) => s.url.startsWith("https://")) && !BUSINESS_SOURCES.some((s) => /business-standard|financialexpress/.test(s.url)));
-ok("the tabs are Business first, then the three languages; the route accepts biz and the languages, nothing else", NEWS_TABS.join() === "biz,en,hi,bn" && isTab("biz") && isTab("hi") && !isTab("sports") && !isTab(null) && !isLang("biz") && SOURCES_OF("biz") === BUSINESS_SOURCES && SOURCES_OF("en") === NEWS_SOURCES.en);
+ok("the tabs are Business first, then Steel, then the three languages; the route accepts biz and the languages, nothing else", NEWS_TABS.join() === "biz,steel,en,hi,bn" && isTab("steel") && isTab("biz") && isTab("hi") && !isTab("sports") && !isTab(null) && !isLang("biz") && SOURCES_OF("biz").slice(0, BUSINESS_SOURCES.length).every((x, k) => x === BUSINESS_SOURCES[k]) && SOURCES_OF("en") === NEWS_SOURCES.en);
 
 // I test the wire order and what a refresh changed.
 const st = (t: string, at: string) => ({ title: t, link: "https://x.com/" + t, publishedAt: at, source: "S", summary: "" });
@@ -174,6 +174,38 @@ const spOnly = (g: "india" | "world") => spMixed.items.filter((i) => i.groups.in
 const desc = (a: string[]) => a.every((t, k) => k === 0 || t <= a[k - 1]);
 ok("the sports list is in TIME order, the latest at the top, though the papers are chosen by turns (Kohli 09:30 first, the 04:00 story last)", spMixed.items.length === 6 && desc(spTimes) && spMixed.items[0].title.startsWith("Kohli") && spMixed.items[5].title.startsWith("Olympics"), spTimes.join());
 ok("each sports tab (India, World events) is a filter of that one list, so it is in time order too", spOnly("india").length >= 2 && desc(spOnly("india")) && desc(spOnly("world")), spOnly("india").join() + " | " + spOnly("world").join());
+
+
+// ---- the picture of a story (as the papers' feeds of 28 Nov 2026 give it)
+const item = (extra: string) => `<item><title>A headline of some length</title><link>https://example.com/a</link>${extra}</item>`;
+ok("the picture is read in the way each paper gives it: enclosure (Times of India, Economic Times), media:thumbnail (Indian Express, BBC, Sangbad Pratidin), media:content (The Hindu, Hindustan Times, NDTV, Mint, Bhaskar, WSJ)",
+  imageOf(item('<enclosure type="image/jpeg" length="88914" url="https://static.toiimg.com/photo/msid-1,imgsize-88914.cms"/>')) === "https://static.toiimg.com/photo/msid-1,imgsize-88914.cms"
+  && imageOf(item('<enclosure type="image/jpeg" url="https://img.etimg.com/photo/msid-2,imgsize-210934.cms" length="0"/>')) === "https://img.etimg.com/photo/msid-2,imgsize-210934.cms"
+  && imageOf(item('<media:thumbnail url="https://images.indianexpress.com/2026/11/a.jpg" /><media:content url="https://images.indianexpress.com/2026/11/b.jpg" medium="image"/>')) === "https://images.indianexpress.com/2026/11/a.jpg"
+  && imageOf(item('<media:thumbnail width="240" height="106" url="https://ichef.bbci.co.uk/ace/ws/240/x.jpg"/>')) === "https://ichef.bbci.co.uk/ace/ws/240/x.jpg"
+  && imageOf(item('<media:content height="675" medium="image" url="https://th-i.thgim.com/public/x.jpg" width="1200"/>')) === "https://th-i.thgim.com/public/x.jpg"
+  && imageOf(item('<media:content url="https://c.ndtvimg.com/2026-11/a.jpeg" type="image/jpeg" expression="full" width="1280" height="720"/>')) === "https://c.ndtvimg.com/2026-11/a.jpeg"
+  && imageOf(item('<media:content url="https://images.wsj.net/im-11676387" medium="image" type="image/jpeg"/>')) === "https://images.wsj.net/im-11676387");
+ok("the first <img> of the item's text is taken when there is no media tag (plain or escaped), a video or audio is not a picture, and a feed with none (Jagran, Amar Ujala, every Google News search) gives none",
+  imageOf(item('<description><![CDATA[<p><img src="https://example.com/p.jpg" width="1"/> text</p>]]></description>')) === "https://example.com/p.jpg"
+  && imageOf(item('<description>&lt;img class="x" src="https://example.com/q.jpg" /&gt; text</description>')) === "https://example.com/q.jpg"
+  && imageOf(item('<media:content url="https://example.com/v.mp4" medium="video"/>')) === ""
+  && imageOf(item('<media:content url="https://example.com/a.mp3" type="audio/mpeg"/>')) === ""
+  && imageOf(item('<description>just words</description>')) === "");
+ok("only an https address is a picture: http, javascript, data and relative addresses are dropped; entities in the address are decoded; a very long address is dropped", imageAddress("http://example.com/a.jpg") === "" && imageAddress("javascript:alert(1)") === "" && imageAddress("data:image/png;base64,AAA") === "" && imageAddress("/photo/a.jpg") === "" && imageAddress("https://example.com/a.jpg?x=1&amp;y=2") === "https://example.com/a.jpg?x=1&y=2" && imageAddress(`https://example.com/${"a".repeat(700)}`) === "");
+{
+  const fi = parseRss(`<rss><channel>${item('<enclosure type="image/jpeg" url="https://static.toiimg.com/photo/msid-9,imgsize-1.cms"/>')}<item><title>Another headline without any picture</title><link>https://example.com/b</link></item></channel></rss>`, "P");
+  ok("parseRss gives a story its picture, and a story with none has no image field at all", fi[0].image === "https://static.toiimg.com/photo/msid-9,imgsize-1.cms" && !("image" in fi[1]));
+  const A = [{ title: "Putin arrives in Delhi for annual summit with Modi", link: "https://a/1", publishedAt: "2026-11-12T10:00:00Z", source: "A", summary: "" }];
+  const B = [{ title: "Putin arrives in Delhi for annual summit with Modi, talks on defence", link: "https://b/1", publishedAt: "2026-11-12T10:30:00Z", source: "B", summary: "", image: "https://static.toiimg.com/photo/msid-5,imgsize-1.cms" }];
+  const m = mergeFeeds([A, B], 10, NOW, 36, [3, 1]);
+  ok("the same story from two papers keeps a picture if any of them gave one (the shown headline's own first, else the first of the papers in my order of priority)", m.length === 1 && m[0].image === "https://static.toiimg.com/photo/msid-5,imgsize-1.cms", JSON.stringify(m.map((x) => x.image)));
+}
+{
+  // the words of a headline are made once and kept: the same answer, and fast
+  const t = "PM Modi arrives in Tokyo for annual summit with Japan PM";
+  ok("the words of a headline are kept after the first time (the same list comes back), which made the language tabs ten times quicker to build", storyWords(t) === storyWords(t) && storyWords(t).includes("tokyo") && titleKey(t) === titleKey(t));
+}
 
 console.log(`rss selftest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

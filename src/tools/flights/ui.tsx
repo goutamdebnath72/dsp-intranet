@@ -10,5 +10,5 @@ import { type TopicUi } from "@/tools/uiTypes";
 
 export const flightsUi: TopicUi = {
   id: "flights",
-  live: { title: "Andal Airport flights", subtitle: "To and from Durgapur (RDP)", tone: "violet", icon: <Plane size={20} />, card: () => <FlightsCard /> },
+  live: { title: "Andal Airport flights", subtitle: "To and from Durgapur (RDP)", tone: "violet", icon: <Plane size={20} />, card: () => <FlightsCard />, notice: { estimate: true } },
 };

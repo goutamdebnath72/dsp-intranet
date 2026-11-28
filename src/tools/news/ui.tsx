@@ -12,5 +12,5 @@ import { type TopicUi } from "@/tools/uiTypes";
 
 export const newsUi: TopicUi = {
   id: "news",
-  live: { title: "Today's top headlines", subtitle: "Business first, then English, हिन्दी and বাংলা, from the publishers' own feeds", tone: "sky", icon: <Newspaper size={20} />, card: (lang) => <NewsCard key={lang ?? "biz"} start={isTab(lang ?? null) ? (lang as NewsTab) : "biz"} /> },
+  live: { title: "Today's top headlines", subtitle: "Business first, then Steel, English, हिन्दी and বাংলা, from the publishers' own feeds and news searches", tone: "sky", icon: <Newspaper size={20} />, card: (lang) => <NewsCard key={lang ?? "biz"} start={isTab(lang ?? null) ? (lang as NewsTab) : "biz"} />, notice: false },
 };

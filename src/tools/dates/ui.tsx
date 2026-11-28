@@ -18,13 +18,15 @@ export const datesUi: TopicUi = {
     tone: "violet",
     icon: <CalendarRange size={18} />,
     menu: { title: "Dates", text: "Between dates, add days, age, retirement" },
+    // Dates between, plus days, age and retirement are exact, not approximations: only the line about what is typed (a date of birth).
+    notice: { typing: true },
     render: () => <DatesForm />,
   },
   hits: [
     onHit("date", (hit) => {
       const a = hit.answer;
       return (
-        <ToolShell title={a.title} subtitle="Appears as you type" tone="violet" icon={<CalendarRange size={20} />} instant>
+        <ToolShell title={a.title} subtitle="Appears as you type" tone="violet" icon={<CalendarRange size={20} />} instant notice={{ typing: true }}>
           <div className="flex items-start gap-3 rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
             <div className="min-w-0 flex-1">
               <div className={`break-words bg-gradient-to-r from-violet-700 via-indigo-600 to-sky-600 bg-clip-text font-extrabold leading-tight text-transparent ${fitSize(a.headline, "big").replace("text-2xl", "text-3xl")}`}>{a.headline}</div>

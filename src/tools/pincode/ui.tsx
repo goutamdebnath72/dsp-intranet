@@ -29,5 +29,7 @@ export const pincodeUi: TopicUi = {
     tone: "violet",
     icon: <MapPinned size={20} />,
     card: (lang) => { const r = readLang(lang); return <PincodeCard key={lang ?? "pins|"} initialTab={r.tab} initialQuery={r.query} />; },
+    // A directory: the search box only filters it, and nothing in it is an estimate, so it carries neither line.
+    notice: false,
   },
 };

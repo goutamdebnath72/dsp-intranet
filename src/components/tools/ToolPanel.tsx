@@ -48,7 +48,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
       const open = liveOpen ? LIVE_BY_ID[liveOpen] : null;
       if (open) {
         return (
-          <ToolShell title={open.title} subtitle={open.subtitle} tone={open.tone} icon={open.icon} instant notice={open.notice !== false} rates="only public figures from the source named below are downloaded; what you typed is not sent" onBack={() => setLiveOpen(null)} backLabel="Back to the utility services">
+          <ToolShell title={open.title} subtitle={open.subtitle} tone={open.tone} icon={open.icon} instant notice={open.notice} rates="only public figures from the source named below are downloaded; what you typed is not sent" onBack={() => setLiveOpen(null)} backLabel="Back to the utility services">
             {open.card()}
           </ToolShell>
         );
@@ -65,7 +65,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
     }
     if (form === "menu") {
       return (
-        <ToolShell title="Calculators" subtitle="Open one, or type a sum, a conversion or a date question: the answer appears as you type" tone="sky" icon={<Calculator size={20} />} onClose={() => onForm(null)}>
+        <ToolShell title="Calculators" subtitle="Open one, or type a sum, a conversion or a date question: the answer appears as you type" tone="sky" icon={<Calculator size={20} />} onClose={() => onForm(null)} notice={false}>
           <div className="grid gap-3 sm:grid-cols-2">
             {FORMS.map((m, i) => (
               <motion.button
@@ -94,7 +94,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
     }
     const f = FORM_BY_ID[form];
     return (
-      <ToolShell title={f.title} tone={f.tone} icon={f.icon} onBack={() => onForm(from)} backLabel={from === "services" ? "Back to the utility services" : undefined} rates={f.rates}>
+      <ToolShell title={f.title} tone={f.tone} icon={f.icon} onBack={() => onForm(from)} backLabel={from === "services" ? "Back to the utility services" : undefined} rates={f.rates} notice={f.notice}>
         {f.render(ctx)}
       </ToolShell>
     );
@@ -130,7 +130,7 @@ export function ToolPanel({ query, form, onForm }: { query: string; form: FormKi
   if (hit.kind === "live") {
     const m = LIVE_BY_ID[hit.topic];
     return (
-      <ToolShell title={m.title} subtitle={m.subtitle} tone={m.tone} icon={m.icon} instant notice={m.notice !== false} rates="only public figures from the source named below are downloaded; what you typed is not sent">
+      <ToolShell title={m.title} subtitle={m.subtitle} tone={m.tone} icon={m.icon} instant notice={m.notice} rates="only public figures from the source named below are downloaded; what you typed is not sent">
         {m.card(hit.lang)}
       </ToolShell>
     );

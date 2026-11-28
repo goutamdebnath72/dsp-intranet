@@ -32,9 +32,77 @@ export async function memo<T>(key: string, ttlMs: number, load: () => Promise<T>
   }
 }
 
+/**
+ * SERVE-THEN-REFRESH. For an answer that costs seconds to make (a news tab), nobody should wait for it when an older one is at hand. The entry has three ages:
+ *   - fresh (younger than `ttlMs`): returned as it is;
+ *   - REFRESH-AHEAD (older than `aheadAt` of the ttl, say 80%): returned at once, and a new one is made in the background (`schedule` keeps it alive on a serverless host: next/server's after()), so that in a busy hour nobody ever meets an expired entry;
+ *   - STALE (older than the ttl but younger than `maxStaleMs`): returned at once, the new one made in the background the same way;
+ *   - too old, or nothing kept: made now, the caller waits (and, if that fails, gets the old one marked stale, as `memo` does).
+ * Only one refresh runs for a key at a time, however many ask.
+ */
+const inflight = new Map<string, Promise<unknown>>();
+
+export interface SwrOptions {
+  /** How long an old answer may still be served while a new one is made (default: three hours). */
+  maxStaleMs?: number;
+  /** The part of the ttl after which a refresh starts in the background while the answer is still served (default 0.8). */
+  aheadAt?: number;
+  /** Keeps a background job alive after the response has gone (next/server `after`); without it the job simply runs. */
+  schedule?: (job: Promise<unknown>) => void;
+  now?: () => number;
+}
+
+export interface Served<T> extends Memoised<T> {
+  /** True when a new answer is being made in the background and this one is the one before it. */
+  refreshing: boolean;
+}
+
+export async function memoSwr<T>(key: string, ttlOf: number | ((kept: T) => number), load: () => Promise<T>, opts: SwrOptions = {}): Promise<Served<T>> {
+  const now = opts.now ?? Date.now;
+  const hit = store.get(key);
+  const age = hit ? now() - hit.at : Infinity;
+  // the ttl may depend on what is kept (a tab with a priority story in it is kept for less time than a quiet one)
+  const ttlMs = typeof ttlOf === "function" ? (hit ? ttlOf(hit.value as T) : 0) : ttlOf;
+  const make = (): Promise<T> => {
+    const running = inflight.get(key) as Promise<T> | undefined;
+    if (running) return running;
+    const job = (async () => {
+      try {
+        const value = await load();
+        store.set(key, { at: now(), value });
+        return value;
+      } finally {
+        inflight.delete(key);
+      }
+    })();
+    inflight.set(key, job);
+    return job;
+  };
+  if (hit && age < ttlMs * (opts.aheadAt ?? 0.8)) return { value: hit.value as T, at: hit.at, stale: false, refreshing: false };
+  if (hit && age < (opts.maxStaleMs ?? 3 * 60 * 60 * 1000)) {
+    const job = make().then(() => undefined, () => undefined); // a failed background refresh leaves the old answer where it is
+    try { (opts.schedule ?? (() => undefined))(job); } catch { /* outside a request: the job just runs */ }
+    return { value: hit.value as T, at: hit.at, stale: false, refreshing: true };
+  }
+  try {
+    const value = await make();
+    return { value, at: store.get(key)?.at ?? now(), stale: false, refreshing: false };
+  } catch (e) {
+    if (hit) return { value: hit.value as T, at: hit.at, stale: true, refreshing: false };
+    throw e;
+  }
+}
+
+/** Marks what is kept under a key as old (just past `ageMs`), so that the next asking is answered from it at once while a new one is made in the background. Does nothing when nothing is kept. */
+export function memoExpire(key: string, ageMs: number, now: () => number = Date.now): void {
+  const hit = store.get(key);
+  if (hit && now() - hit.at < ageMs) store.set(key, { at: now() - ageMs, value: hit.value });
+}
+
 /** for the tests */
 export function clearMemo(): void {
   store.clear();
+  inflight.clear();
 }
 
 /** Returns what is kept under a key, with its time, without asking the source (null when nothing is kept). */
